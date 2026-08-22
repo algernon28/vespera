@@ -1,8 +1,8 @@
 # Vespera — Architecture & Tech Stack
 
 **Project:** Document Curation Pipeline → Knowledge Base
-**Source:** compiled 2026-08-21 from the ADRs and `CONTEXT.md`. Demoted from a hand-off note to this repo's standing architecture document on 2026-08-22, when the lost ADR text was reconstituted from §3 into [`docs/adr/`](./adr/README.md).
-**Reading order:** §1 and §2 describe the system and are the fuller record — most ADR files carry only a one-line summary and point back here. §3 is retained as the provenance witness for those files, not as the place to read a decision.
+**Source:** compiled 2026-08-21 from the ADRs and `CONTEXT.md`. Demoted from a hand-off note to this repo's standing architecture document on 2026-08-22, when the lost ADR text was reconstituted from the condensed ledger into [`docs/adr/`](./adr/README.md).
+**Reading order:** §1 and §2 describe the system and are the fuller record — most ADR files carry only a one-line summary and point back here. The condensed ledger now lives in [`docs/decision-ledger.md`](./decision-ledger.md), kept as the provenance witness for those files rather than as the place to read a decision.
 **Status:** design phase; no domain code has been written against this architecture yet. Open questions are not tracked here — they live on the wayfinder map, [Census slice: the way to a hand-off spec](https://github.com/algernon28/vespera/issues/1).
 
 ---
@@ -31,6 +31,45 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 
 Ordering principle: the cheapest filter runs first, so every occurrence removed early is extraction or embedding never paid for (ADR-017).
 
+**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. Stage 7 sits outside the chain because it is an adapter rather than a stage.
+
+```mermaid
+flowchart TD
+    S0["<b>0 · Census</b><br/>filesystem walk<br/><i>writes no verdicts</i>"]
+    S1["<b>1 · Byte-level reduction</b><br/>broken · duplicate-of · superseded-by"]
+    S2["<b>2 · Extraction</b><br/>extraction-failed · degenerate-output"]
+    S3["<b>3 · Content census</b><br/>derived metrics · shingles<br/><i>writes no verdicts</i>"]
+    S4["<b>4 · Content redundancy</b><br/>redundant-with"]
+    S5["<b>5 · Relevance</b><br/>below-threshold"]
+    S6A["<b>6a · Arrangement</b><br/>page tree, no publication"]
+    S6B["<b>6b · Generation</b><br/>cited overviews per cluster"]
+    S7["<b>7 · Publish</b><br/>an adapter, always human-initiated"]
+    LEDGER[("<b>Ledger</b><br/>occurrences · verdicts · runs")]
+    ART["Publication-ready artifact<br/><i>the pipeline terminates here</i>"]
+
+    S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6A --> S6B --> ART
+    ART -. "a person starts it" .-> S7
+
+    S0 <-.-> LEDGER
+    S1 <-.-> LEDGER
+    S2 <-.-> LEDGER
+    S3 <-.-> LEDGER
+    S4 <-.-> LEDGER
+    S5 <-.-> LEDGER
+    S6A <-.-> LEDGER
+    S6B <-.-> LEDGER
+
+    classDef measure fill:#eef4ff,stroke:#4a6fa5,color:#12243d
+    classDef judge fill:#fff4e6,stroke:#b5762a,color:#3d2a12
+    classDef out fill:#eafaf1,stroke:#2f8f5b,color:#0f2e1e
+    classDef store fill:#f3eaff,stroke:#7a4fb5,color:#241238
+    class S0,S3 measure
+    class S1,S2,S4,S5 judge
+    class S6A,S6B,S7,ART out
+    class LEDGER store
+```
+
+
 ### 1.3 Core architectural model
 
 - **Verdict-ledger, not a moving pipeline** (ADR-014). Documents never move between stages. One table is populated once by census; every stage *appends* verdict rows. "Survivors" is a query (`survivors(runId)`, ADR-042) over occurrences carrying no blocking verdict — not a physical location. This makes retuning a threshold a `DELETE` of one stage's rows plus a re-run, leaves extraction untouched, and makes "why wasn't this published" a single query.
@@ -46,6 +85,83 @@ Ordering principle: the cheapest filter runs first, so every occurrence removed 
 - **Synthesis, not summarisation** (ADR-021). Stage 5 leaves a heap of survivors; stage 6 makes it organic. 6a arranges (page tree, zero publication); 6b generates connective overviews per cluster, gated on a human reading 6a first.
 - **Publication is terminal, one-shot, and separate** (ADR-024, ADR-025, ADR-035). The pipeline runs fully unattended through 6b and stops at a self-describing "publication-ready artifact." Publishing it is a distinct, always-human-initiated invocation against a rendering adapter (Confluence today); nothing reaches Confluence without a person starting it.
 - **Generated content is verified two ways** (ADR-026): mechanical citation checking (every cited occurrence id must exist, survive, and be reachable in the tree) plus human review at the consolidation gate. Model-checking model output was explicitly rejected.
+
+**Identity and the ledger.** Two independent lifetimes: a walk owns occurrence rows because they are filesystem observations, a run owns verdict rows because they are derived under a configuration. Content identity is a discovered relation over occurrences, never a collapse of them.
+
+```mermaid
+classDiagram
+    class Walk {
+        +id
+        +corpusRoot
+        +finished
+        note "one observation of a filesystem"
+    }
+    class FileOccurrence {
+        +id : surrogate key
+        +path
+        +size
+        +mtime
+        +hash : nullable
+    }
+    class ContentIdentity {
+        +hash
+        +representativeOccurrence
+    }
+    class Run {
+        +id = hash of implementation version, config, walk id, upstream run ids
+        +stage
+    }
+    class Verdict {
+        +id : surrogate key
+        +occurrenceId
+        +stage
+        +kind : from a fixed closed vocabulary
+        +blocking
+        +reason
+    }
+    class Profile {
+        +thresholds : unset until measured
+        +provenance : human / carried-over / auto-derived
+    }
+    class CapabilityCache {
+        +extraction : keyed by extractor identity
+        +chunks : keyed by content hash, chunker, tokenizer
+        +vectors : keyed by chunk hash, model identity
+    }
+
+    Walk "1" --> "*" FileOccurrence : owns
+    Run "1" --> "*" Verdict : owns
+    FileOccurrence "1" --> "*" Verdict : judged by
+    FileOccurrence "*" --> "0..1" ContentIdentity : discovered to share
+    Run "*" --> "1" Walk : reads occurrences from
+    Run "*" --> "1" Profile : snapshots what it consumed
+    FileOccurrence "1" --> "*" CapabilityCache : keyed by occurrence or content hash
+```
+
+**The pipeline never blocks.** A gate is a required input, not a pause: the run ends there having recorded everything it learned, and iteration happens between runs rather than inside them.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Invoked : one call of the command
+    Invoked --> StageRunning : resume predicate finds unjudged occurrences
+    StageRunning --> StageRunning : next stage, new run id
+    StageRunning --> Terminated : a required input is missing
+    StageRunning --> ArtifactReady : 6b complete
+    Terminated --> [*]
+    ArtifactReady --> [*]
+    note right of Terminated
+        Nothing is lost: verdicts written
+        so far stay in the ledger.
+        A person supplies the value,
+        then re-invokes.
+    end note
+    note right of ArtifactReady
+        Publication is a separate,
+        always human-initiated invocation.
+    end note
+```
+
 
 ### 1.4 Module boundaries (ADR-040, ADR-041, ADR-042)
 
@@ -64,6 +180,51 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 | `pipeline` | Batch job definitions; the only module that knows the phrase "stage 4" |
 
 **Rule:** a capability module may depend on `ledger` and nothing else horizontal; `pipeline` depends on all of them (it's the composition root). Enforced by a Spring Modulith `ApplicationModules.verify()` boundary test — with a known, recorded gap: the test checks Java type references via ArchUnit on bytecode, so a raw SQL string crossing a table-ownership boundary is invisible to it. Table ownership (`ledger` owns identity/verdicts; every other capability owns its own tables keyed by `occurrence_id`) is therefore enforced in Java and conventional in the database.
+
+**Module boundaries.** Capability-shaped, not stage-shaped: stage assignment moved twice during design while the underlying capability did not. A capability module may depend on `ledger` and nothing else horizontal; `pipeline` is the composition root and depends on all of them.
+
+```mermaid
+flowchart TD
+    PIPELINE["<b>pipeline</b><br/>batch job definitions<br/>the only module that names a stage"]
+
+    subgraph CAPABILITIES["capability modules — no horizontal dependencies"]
+        direction LR
+        CORPUS["<b>corpus</b><br/>walking · byte-level facts"]
+        EXTRACTION["<b>extraction</b><br/>Docling · cache · metrics · chunking"]
+        SIMILARITY["<b>similarity</b><br/>shingles · MinHash/LSH"]
+        EMBEDDING["<b>embedding</b><br/>vector cache · Chroma · scoring · clustering"]
+        SYNTHESIS["<b>synthesis</b><br/>arrangement · generation"]
+        PUBLICATION["<b>publication</b><br/>the rendering adapter"]
+        PROFILE["<b>profile</b><br/>thresholds · provenance · gate inputs"]
+    end
+
+    LEDGER["<b>ledger</b><br/>occurrence identity · verdict vocabulary and rows · run identity · the survivors query"]
+
+    PIPELINE --> CORPUS
+    PIPELINE --> EXTRACTION
+    PIPELINE --> SIMILARITY
+    PIPELINE --> EMBEDDING
+    PIPELINE --> SYNTHESIS
+    PIPELINE --> PUBLICATION
+    PIPELINE --> PROFILE
+    PIPELINE --> LEDGER
+
+    CORPUS --> LEDGER
+    EXTRACTION --> LEDGER
+    SIMILARITY --> LEDGER
+    EMBEDDING --> LEDGER
+    SYNTHESIS --> LEDGER
+    PUBLICATION --> LEDGER
+    PROFILE --> LEDGER
+
+    classDef root fill:#f3eaff,stroke:#7a4fb5,color:#241238
+    classDef cap fill:#eef4ff,stroke:#4a6fa5,color:#12243d
+    classDef core fill:#fff4e6,stroke:#b5762a,color:#3d2a12
+    class PIPELINE root
+    class CORPUS,EXTRACTION,SIMILARITY,EMBEDDING,SYNTHESIS,PUBLICATION,PROFILE cap
+    class LEDGER core
+```
+
 
 ### 1.5 Data architecture
 
@@ -118,68 +279,6 @@ Fixed as an input constraint (ADR-001), refined through the ledger below.
 
 ## 3. Decision ledger
 
-> **Superseded as a record, retained as a witness.** Every decision below now has its own file in [`docs/adr/`](./adr/README.md), and that folder is what to cite. This table stays because those files were rebuilt from it on 2026-08-22 — mechanically, field by field — after the original ADR text was lost, and each one claims a verbatim transcription that only this table can verify.
->
-> Do not edit it, and do not add to it: new decisions start at ADR-050 and are written as files with their own full text. Where a row here says less than §1 or §2 does about the same decision, §1 and §2 are the fuller record.
+Moved to [`docs/decision-ledger.md`](./decision-ledger.md): the condensed one-line record of all 49 decisions, retained as the provenance witness for the reconstituted ADR files.
 
-All decisions are append-only: a decision is reopened only by a later ADR that explicitly references and amends it (noted below where that happened). Full text lives in `docs/adr/` in the repo; this is the condensed record.
-
-| ID      | Date       | Title                                                                        | Summary                                                                                                                                                                                                                                     |
-|---------|------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ADR-001 | 2026-08-20 | Tech stack is a fixed constraint                                             | Java + Spring Boot + Spring AI + a vector database, given as input, not derived.                                                                                                                                                            |
-| ADR-002 | 2026-08-20 | Confluence is the publication target                                         | Curated output published as surviving originals + synthesised docs. Confluence is the sink, not the working store. *(Softened by ADR-024, refined by ADR-025.)*                                                                             |
-| ADR-003 | 2026-08-20 | Domain-agnostic and reusable                                                 | Corpus content unknown and unassumed; domain judgement externalised to a per-corpus input.                                                                                                                                                  |
-| ADR-004 | 2026-08-20 | Relevance defined by an exemplar seed set                                    | "Trash" includes topical irrelevance. Relevance supplied per corpus as a folder of known-relevant documents; one-class (positives only).                                                                                                    |
-| ADR-005 | 2026-08-20 | Prototype first                                                              | Corners may be cut on anything reversible — never on destructive deletion, lost provenance, or un-cached expensive extraction.                                                                                                              |
-| ADR-006 | 2026-08-20 | Census: measure before judging                                               | A verdict-free measurement pass runs first; expensive walk produces an immutable artifact, analysis is cheap and re-runnable. Thresholds ship null.                                                                                         |
-| ADR-007 | 2026-08-20 | No supplied negative example set                                             | Trash is the unbounded complement of relevance. Hand-picked negatives are uninformative; hard negatives must be mined post-scoring.                                                                                                         |
-| ADR-008 | 2026-08-20 | SQLite is the census artifact store                                          | Amends ADR-006's file formats. Aggregates/collisions/run identity become queries. Phase-A immutability becomes a convention, not a filesystem guarantee.                                                                                    |
-| ADR-009 | 2026-08-20 | One storage technology; single database                                      | SQLite replaces flat-file artifacts, scoped to census. *Clarified same day:* not a ban on a separate vector store — relational and vector stores serve different purposes.                                                                  |
-| ADR-010 | 2026-08-20 | Extraction via Docling; scanned PDFs in scope                                | Extraction is out-of-process, returns a structured document (not plain text), is cached under full extractor identity, and can fail silently.                                                                                               |
-| ADR-011 | 2026-08-20 | Managed containers; the tool owns its sidecars                               | The app starts/stops its own dependencies for a single-command UX.                                                                                                                                                                          |
-| ADR-012 | 2026-08-20 | Extraction engine is configurable                                            | Serving runtime is config, not code. Cache key must carry full extractor identity; calibration must not cross engines.                                                                                                                      |
-| ADR-013 | 2026-08-20 | *(config)* Ollama is the default engine                                      | Chosen on friction; changeable without a new ADR.                                                                                                                                                                                           |
-| ADR-014 | 2026-08-20 | Verdict-ledger model                                                         | Documents never move; stages append verdict rows. "Survivors" is a query. Enables cheap retuning and full-audit "why not published" queries.                                                                                                |
-| ADR-015 | 2026-08-20 | Identity is a surrogate key per file occurrence                              | Keyed on file occurrence (path/size/mtime, hash nullable) — not path, not content hash. Content identity is a discovered relation, not a collapse.                                                                                          |
-| ADR-016 | 2026-08-20 | The corpus is treated as static                                              | One archive, walked once; re-walks happen because code changed, not content. Explicit assumption, not a discovered property.                                                                                                                |
-| ADR-017 | 2026-08-20 | The cascade                                                                  | Defines the 8-stage pipeline (0–7) and the verdicts each stage writes. Cheapest filter runs first.                                                                                                                                          |
-| ADR-018 | 2026-08-20 | Stage 4 uses MinHash with LSH banding                                        | Not SimHash — MinHash catches containment (not just similarity) and supports analytically-derivable LSH parameters.                                                                                                                         |
-| ADR-019 | 2026-08-20 | Content census is derived columns plus a report                              | Not a second traversal — extraction writes per-occurrence metrics as columns while the document is open.                                                                                                                                    |
-| ADR-020 | 2026-08-20 | Relevance scoring function                                                   | score = max over seeds of (mean top-3 chunk similarity); winning seed stored. Not a centroid, not top-k. Needs no vector DB at scoring time.                                                                                                |
-| ADR-021 | 2026-08-20 | Synthesis exists to make the survivor set coherent                           | Clarifies ADR-002: stage 5 leaves a heap; synthesis is connective material about the collection, not per-document summarisation.                                                                                                            |
-| ADR-022 | 2026-08-20 | Stage 6 splits into arrangement (6a) then generation (6b)                    | 6a builds a page tree (seed-named top level + `unattributed`, clusters within); 6b generates cited overviews, gated on human review of 6a.                                                                                                  |
-| ADR-023 | 2026-08-20 | Surviving originals stored in Confluence as attachments                      | Not an object store with links — self-contained, indexed by Confluence search. Storage limits and per-attachment cap noted as residue.                                                                                                      |
-| ADR-024 | 2026-08-20 | Publication is terminal and one-shot                                         | One run per corpus; no re-publication, no idempotency-by-hash, no unpublish problem. Softens ADR-002 (Confluence's scope not fully settled).                                                                                                |
-| ADR-025 | 2026-08-20 | Stage 7 is an adapter, not a stage                                           | Pipeline terminates at a self-contained publication-ready artifact; rendering it (to Confluence or elsewhere) is a separate adapter concern.                                                                                                |
-| ADR-026 | 2026-08-20 | Generated content verified mechanically and by human review                  | Mechanical citation-existence check + human review at the consolidation gate. Model-checking model output explicitly rejected.                                                                                                              |
-| ADR-027 | 2026-08-20 | Clustering moves to stage 5                                                  | Amends ADR-017/ADR-022 ordering — stage 5 already embeds everything, so clustering there is nearly free and precedes threshold-setting. *(Scope clarified by ADR-045.)*                                                                     |
-| ADR-028 | 2026-08-20 | Relevance threshold: human labelling, gated by score distribution            | Go/no-go on distribution shape, then calibrate via sampled human labelling at the candidate cut. Cluster-level adjudication and leave-one-out seed scoring rejected as the calibration mechanism.                                           |
-| ADR-029 | 2026-08-20 | Chunking: structure-first, with a measured LLM fallback                      | Default Docling `HybridChunker`, tokenizer-aligned; LLM fallback only for measured structureless (scanned) cases, currently off. Boundaries cached, keyed by content hash + chunker identity.                                               |
-| ADR-030 | 2026-08-20 | *(parked)* Late chunking not adopted                                         | Modest retrieval gain, but requires token-level embeddings Spring AI's `EmbeddingModel` doesn't expose. Revisit if boundary sensitivity dominates.                                                                                          |
-| ADR-031 | 2026-08-20 | Human gates are optional                                                     | A gate is a required input, not a pause. Profile carries every gate input with per-value provenance (human/carried-over/auto-derived).                                                                                                      |
-| ADR-032 | 2026-08-20 | Embeddings are durable; the index is disposable                              | Vectors cached (chunk hash + model identity); ANN index is rebuildable. *Partially retired by ADR-047* (index no longer needs to survive human-paced gates, since the pipeline terminates instead of pausing).                              |
-| ADR-033 | 2026-08-20 | Embedding model: criteria recorded, model unset                              | Requirements: separable tokenizer, pinned weights, Italian+English, judged on Clustering/STS not Retrieval, OCR tolerance. Several candidates evaluated and rejected on criteria; model ships unset.                                        |
-| ADR-034 | 2026-08-20 | Embedding model chosen by bake-off, not argument                             | Same sample/seeds, ADR-028's gate run under each candidate. Abort verdicts must be confirmed against a larger model. *Clarified by ADR-044: "same chunking" means method, not byte-identical output.*                                       |
-| ADR-035 | 2026-08-20 | Pipeline never publishes; adapter invoked separately, never unattended       | Pipeline runs unattended through 6b; publication is a distinct, always human-initiated invocation.                                                                                                                                          |
-| ADR-036 | 2026-08-20 | Spring Batch with `ResourcelessJobRepository`; Camel dropped                 | Batch used for retry/skip/parallelism on long extraction runs, not restartability (ledger owns that). No integration topology needed, so Camel dropped.                                                                                     |
-| ADR-037 | 2026-08-20 | Spring Modulith event publication registry dropped                           | No application events exist in this design; registry also lacked a SQLite schema and threw a hard startup failure. `starter-core` retained for boundary checks.                                                                             |
-| ADR-038 | 2026-08-20 | Shingling moves to stage 3; boilerplate detected before it distorts anything | Shingles computed as a derived column during extraction; corpus-wide document frequency identifies boilerplate before it corrupts stage-4 dedup or stage-5 relevance (false smear/abort risk).                                              |
-| ADR-039 | 2026-08-21 | Chroma is derived; SQLite is authoritative for vectors                       | Vectors written to SQLite when computed; Chroma populated from that cache, droppable/rebuildable at any time. Reconciles ADR-020 with ADR-032. *(Open condition resolved by ADR-045.)*                                                      |
-| ADR-040 | 2026-08-21 | Modules are capability-shaped, not stage-shaped                              | Defines the 9 modules (`ledger`, `corpus`, `extraction`, `similarity`, `embedding`, `synthesis`, `publication`, `profile`, `pipeline`) and the rule: a capability module depends only on `ledger`.                                          |
-| ADR-041 | 2026-08-21 | `ledger` owns identity and verdicts; capabilities own their own tables       | Side tables per capability, keyed by `occurrence_id`, driven by cache-key semantics (chunk/vector caches aren't keyed by occurrence). Records a known ArchUnit enforcement gap for raw SQL.                                                 |
-| ADR-042 | 2026-08-21 | `ledger` owns the verdict vocabulary, not the cascade                        | Fixed, closed verdict vocabulary with blocking-ness, exposed via `survivors(runId)`. Runtime/opaque verdict registries rejected — the failure mode of drift is asymmetric (over-publishing).                                                |
-| ADR-043 | 2026-08-21 | The profile is authored as a file and recorded in the ledger                 | File is input (mutable, per-corpus); ledger snapshot is history (immutable, per-run). Drift rule: file never overridden by history. Anti-regeneration rule protects human edits.                                                            |
-| ADR-044 | 2026-08-21 | The bake-off re-chunks per candidate model                                   | Each embedding candidate is compared with its own tokenizer-aligned chunking, to avoid incumbent-tokenizer bias. Cache key must carry tokenizer identity.                                                                                   |
-| ADR-045 | 2026-08-21 | Clustering runs within each seed partition                                   | Never corpus-wide. Bounds compute (N²/2 distances per partition, not corpus-wide), keeps the "seed owns 60%" alarm aligned with a real cost, enables Batch-native parallelism, resolves ADR-039's open sizing condition.                    |
-| ADR-046 | 2026-08-21 | The pom carries what a recorded decision requires                            | Not "what current code uses." Lists specific removals (Camel, vector-store advisor, batch-jdbc, document readers, contract-verifier, Modulith observability/actuator) and additions (Ollama starter alongside OpenAI), each tied to an ADR. |
-| ADR-047 | 2026-08-21 | The pipeline never blocks                                                    | Terminates at a missing gate input, resumes on re-invocation; iteration happens between runs. Sizes the CLI to two commands. Auto-derivation of thresholds is an explicit, off-by-default profile input. Partially retires ADR-032.         |
-| ADR-048 | 2026-08-21 | Walk and run identity                                                        | Two distinct identities: walk (owns occurrences, filesystem-scoped) and run (owns verdicts, one stage/one config, chained to upstream run ids and implementation version). Continuation vs. minting rule defined.                           |
-| ADR-049 | 2026-08-21 | Verdict rows, and schema versioning without a migration tool                 | Every stage writes a row per occurrence including non-blocking `passed`; verdicts use a surrogate key (multiple rows allowed). Schema via `schema.sql` + version check; migration tool deferred until real data exists.                     |
-
-### Vocabulary reference
-
-Project-specific terms (file occurrence, content identity, ledger, verdict, survivor, seed set, hard negative, winning seed, seed partition, census, observe-before-enforce, profile, gate, walk, walk anomaly, stage, run, invocation, synthesis doc, publication-ready artifact, extraction cache, chunk cache) are defined in `CONTEXT.md` in the repo and are binding usage across the codebase and its documentation.
-
-### Open questions
-
-See `docs/frontier.md` in the repo for the live list (currently: seed-set profiling as a standing item; shingle granularity and target hardware as parked items blocked on census data).
+To read a decision, go to its own file in [`docs/adr/`](./adr/README.md) — that folder is what to cite. Where a record says less than §1 or §2 does about the same decision, §1 and §2 are the fuller record.
