@@ -1,0 +1,9 @@
+services:
+  chroma:
+    image: 'chromadb/chroma:latest'
+    ports:
+      - '8000'
+  ollama:
+    image: 'ollama/ollama:latest'
+    ports:
+      - '11434'
