@@ -18,7 +18,7 @@ import org.springframework.boot.SpringApplication;
  */
 public class TestVesperaApplication {
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         SpringApplication.from(VesperaApplication::main).with(TestcontainersConfiguration.class).run(args);
     }
 
