@@ -204,7 +204,6 @@ footer.genby{margin:4rem 0 0;padding-top:1.2rem;border-top:1px solid var(--rule)
         +id
         +corpusRoot
         +finished
-        note "one observation of a filesystem"
     }
     class FileOccurrence {
         +id : surrogate key
@@ -218,7 +217,7 @@ footer.genby{margin:4rem 0 0;padding-top:1.2rem;border-top:1px solid var(--rule)
         +representativeOccurrence
     }
     class Run {
-        +id = hash of implementation version, config, walk id, upstream run ids
+        +id
         +stage
     }
     class Verdict {
@@ -245,7 +244,11 @@ footer.genby{margin:4rem 0 0;padding-top:1.2rem;border-top:1px solid var(--rule)
     FileOccurrence "*" --&gt; "0..1" ContentIdentity : discovered to share
     Run "*" --&gt; "1" Walk : reads occurrences from
     Run "*" --&gt; "1" Profile : snapshots what it consumed
-    FileOccurrence "1" --&gt; "*" CapabilityCache : keyed by occurrence or content hash</pre></figure>
+    FileOccurrence "1" --&gt; "*" CapabilityCache : keyed by occurrence or content hash
+
+    note for Walk "One observation of a filesystem. Owns occurrence rows because they are filesystem observations."
+    note for Run "id = hash(implementation version, config consumed, walk id, upstream run ids), chained to upstream runs."
+    note for ContentIdentity "A relation discovered over occurrences, never a collapse of them."</pre></figure>
 <p><strong>The pipeline never blocks.</strong> A gate is a required input, not a pause: the run ends there having recorded everything it learned, and iteration happens between runs rather than inside them.</p>
 <figure class="diagram"><pre class="mermaid">stateDiagram-v2
     direction LR

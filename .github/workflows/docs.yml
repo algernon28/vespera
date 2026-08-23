@@ -1,0 +1,80 @@
+name: docs
+
+# The published pages under docs/ are generated artifacts committed alongside their
+# Markdown sources. Two things can go wrong silently, and both are checked here:
+#
+#   1. Someone edits the Markdown without re-running the generator. The .html stays
+#      as it was, Pages republishes it happily, and the public page contradicts the
+#      repository. `render-docs.mjs --check` re-renders in memory and compares.
+#
+#   2. A Mermaid diagram has a syntax error. It renders as an error box in the
+#      browser while every text-level check on the .html still passes, because the
+#      source is present either way. Only a parser can tell, so mmdc runs over each
+#      diagram and fails the job if any of them will not draw.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: The committed HTML matches its Markdown
+        run: node docs/render-docs.mjs --check
+
+      - name: Extract the Mermaid diagrams
+        run: node docs/extract-diagrams.mjs "${{ runner.temp }}/diagrams"
+
+      - name: Install mermaid-cli
+        run: npm install --no-save @mermaid-js/mermaid-cli@11
+
+      # Chromium in a container needs its sandbox disabled; nothing here is untrusted
+      # input, the diagrams come from the repository itself.
+      - name: Write a puppeteer config
+        run: echo '{"args":["--no-sandbox","--disable-dev-shm-usage"]}' > "${{ runner.temp }}/puppeteer.json"
+
+      - name: Every diagram parses and draws
+        run: |
+          fail=0
+          for f in "${{ runner.temp }}"/diagrams/*.mmd; do
+            if npx mmdc -i "$f" -o "$f.svg" -p "${{ runner.temp }}/puppeteer.json" >"$f.log" 2>&1 && [ -s "$f.svg" ]; then
+              echo "PASS  $(basename "$f")"
+            else
+              fail=$((fail+1))
+              echo "FAIL  $(basename "$f")"
+              echo "--- source ---"
+              cat "$f"
+              echo "--- mmdc output ---"
+              tail -30 "$f.log"
+            fi
+          done
+          if [ "$fail" -gt 0 ]; then
+            echo "$fail diagram(s) will not render"
+            exit 1
+          fi
+
+      - name: Keep the rendered diagrams for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagrams
+          path: ${{ runner.temp }}/diagrams/*.svg
+          if-no-files-found: warn
