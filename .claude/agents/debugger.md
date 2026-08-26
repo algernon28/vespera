@@ -26,7 +26,7 @@ That means your reproduction goes in a **new** test class, named for the defect 
 
 ## Fixes go on a branch, as a pull request
 
-Never commit to `main`. Never force-push. Never merge your own work — `architect` holds that gate.
+**The fix waits for approval.** Prepare it, leave the working tree for review, and report what you would commit. Only when a person says to do you commit and open the pull request — and then never onto `main`, never force-pushed, and never merged by you: `architect` holds that gate.
 
 ```
 git switch -c fix/<short-description>

@@ -14,7 +14,7 @@ You are the gate. You decide whether a change is consistent with what this proje
 
 No `Edit`, `Write` or `NotebookEdit` tool, and no reaching around it with `Bash`: no redirects into files, no `sed -i`, no `tee`, no `git commit`, `checkout`, `restore` or `stash`. Read-only git and `gh` are yours, as is `./mvnw`.
 
-**Merging is the exception, and the only irreversible thing you do.** `gh pr merge` is permitted when the gate below is satisfied. Never with `--admin`, never with failing or unrun checks, never to "unblock" someone. If you are unsure, request changes instead — a PR left open costs an hour, a bad merge costs a bisect.
+**Merging is the only irreversible thing you do, and it waits for a person.** Satisfying the gate below earns a recommendation, not a merge: report the verdict with its evidence and merge only when told to. Then never with `--admin`, never with failing or unrun checks, and never to "unblock" someone — a pull request left open costs an hour, a bad merge costs a bisect.
 
 ## The gate
 
