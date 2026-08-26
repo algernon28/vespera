@@ -1,7 +1,6 @@
 package io.algernon.vespera;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Set;
@@ -74,10 +73,9 @@ class ModuleBoundariesTest {
                                                                                 .equals(List.of(ApplicationModule.OPEN_TOKEN)))
                                                         .orElse(true)));
 
-        assertEquals(
-                List.of(),
-                undeclared,
-                "these modules do not declare allowedDependencies, so the boundary rule does not apply to them");
+        assertThat(undeclared)
+                .as("modules that do not declare allowedDependencies, so the boundary rule does not apply to them")
+                .isEmpty();
     }
 
     /**
@@ -91,6 +89,6 @@ class ModuleBoundariesTest {
                         .filter(identifier -> !RECORDED_MODULES.contains(identifier))
                         .toList();
 
-        assertTrue(unrecorded.isEmpty(), () -> "modules not recorded in ADR-040: " + unrecorded);
+        assertThat(unrecorded).as("modules not recorded in ADR-040").isEmpty();
     }
 }

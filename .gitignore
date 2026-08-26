@@ -1,5 +1,7 @@
 HELP.md
 target/
+reports/
+.allure/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -31,3 +33,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# AspectJ weaver crash dumps (see the aspectjweaver javaagent in pom.xml)
+ajcore.*.txt

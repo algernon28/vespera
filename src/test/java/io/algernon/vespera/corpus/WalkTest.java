@@ -1,8 +1,7 @@
 package io.algernon.vespera.corpus;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.abort;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -63,8 +62,8 @@ class WalkTest {
 
         Recorder recorder = walk(root);
 
-        assertEquals(List.of("a/b/c.txt", "d.txt"), new ArrayList<>(new TreeSet<>(recorder.occurrences)));
-        assertTrue(recorder.anomalies.isEmpty(), recorder.anomalies.toString());
+        assertThat(new TreeSet<>(recorder.occurrences)).containsExactly("a/b/c.txt", "d.txt");
+        assertThat(recorder.anomalies).isEmpty();
     }
 
     @Test
@@ -75,19 +74,19 @@ class WalkTest {
 
         Recorder recorder = walk(root);
 
-        assertEquals(1, recorder.occurrences.size());
-        assertEquals(1234L, recorder.sizes.get(0));
-        assertEquals(onDisk, recorder.modified.get(0));
+        assertThat(recorder.occurrences).hasSize(1);
+        assertThat(recorder.sizes.get(0)).isEqualTo(1234L);
+        assertThat(recorder.modified.get(0)).isEqualTo(onDisk);
     }
 
     @Test
     void reportsTheEmptyCorpusAsEmptyRatherThanFailing(@TempDir Path root) throws IOException {
         Walk.Outcome outcome = Walk.walk(root, new Recorder());
 
-        assertEquals(0, outcome.occurrences());
-        assertEquals(0, outcome.anomalies());
-        assertEquals(1, outcome.directoriesEntered(), "the root itself is entered");
-        assertTrue(outcome.finished());
+        assertThat(outcome.occurrences()).isZero();
+        assertThat(outcome.anomalies()).isZero();
+        assertThat(outcome.directoriesEntered()).as("the root itself is entered").isEqualTo(1);
+        assertThat(outcome.finished()).isTrue();
     }
 
     /**
@@ -106,9 +105,9 @@ class WalkTest {
 
         Recorder recorder = walk(root);
 
-        assertEquals(List.of("ordinary.txt"), recorder.occurrences);
-        assertEquals(1, recorder.anomalies.size(), recorder.anomalies.toString());
-        assertTrue(recorder.anomalies.get(0).contains("UTF-8"), recorder.anomalies.get(0));
+        assertThat(recorder.occurrences).containsExactly("ordinary.txt");
+        assertThat(recorder.anomalies).hasSize(1);
+        assertThat(recorder.anomalies.get(0)).contains("UTF-8");
     }
 
     /**
@@ -138,10 +137,10 @@ class WalkTest {
 
         Recorder recorder = walk(root);
 
-        assertEquals(List.of("real/hidden.txt"), recorder.occurrences, "the link must not be traversed");
-        assertEquals(1, recorder.anomalies.size(), recorder.anomalies.toString());
-        assertTrue(recorder.anomalies.get(0).toLowerCase().contains("link"), recorder.anomalies.get(0));
-        assertFalse(recorder.occurrences.contains("link/hidden.txt"));
+        assertThat(recorder.occurrences).as("the link must not be traversed").containsExactly("real/hidden.txt");
+        assertThat(recorder.anomalies).hasSize(1);
+        assertThat(recorder.anomalies.get(0).toLowerCase()).contains("link");
+        assertThat(recorder.occurrences).doesNotContain("link/hidden.txt");
     }
 
     /**
@@ -158,22 +157,19 @@ class WalkTest {
 
         Walk.Outcome outcome = Walk.walk(root, new Recorder());
 
-        assertEquals(3, outcome.occurrences());
-        assertEquals(0, outcome.anomalies());
-        assertEquals(3, outcome.directoriesEntered(), "root, one, one/two");
-        assertEquals(
-                outcome.entriesSeen(),
-                outcome.occurrences() + outcome.anomalies() + outcome.directoriesEntered() - 1,
-                "every entry is an occurrence, an anomaly, or a directory descended into");
+        assertThat(outcome.occurrences()).isEqualTo(3);
+        assertThat(outcome.anomalies()).isZero();
+        assertThat(outcome.directoriesEntered()).as("root, one, one/two").isEqualTo(3);
+        assertThat(outcome.entriesSeen())
+                .as("every entry is an occurrence, an anomaly, or a directory descended into")
+                .isEqualTo(outcome.occurrences() + outcome.anomalies() + outcome.directoriesEntered() - 1);
     }
 
     @Test
     void refusesARootThatIsNotADirectory(@TempDir Path root) throws IOException {
         Path file = Files.writeString(root.resolve("not-a-directory.txt"), "x");
-        assertTrue(
-                org.junit.jupiter.api.Assertions.assertThrows(
-                                IllegalArgumentException.class, () -> Walk.walk(file, new Recorder()))
-                        .getMessage()
-                        .contains("directory"));
+        assertThatThrownBy(() -> Walk.walk(file, new Recorder()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("directory");
     }
 }
