@@ -3,6 +3,7 @@ package io.algernon.vespera;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Smoke test: the application context starts, with the sidecars of
@@ -19,6 +20,7 @@ import org.springframework.context.annotation.Import;
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
+@ActiveProfiles("test")
 class VesperaApplicationTests {
 
     @Test

@@ -1,11 +1,12 @@
-# NOTE: this file shadows src/main/resources/application.yaml entirely during tests --
-# same classpath resource name, and test-classes comes first -- so anything the main
-# file sets has to be repeated here to apply.
+# Loaded on top of src/main/resources/application.yaml when the "test" profile is active,
+# because a profile-specific file layers rather than replaces. An identically named
+# application.yaml here would shadow the main one entirely instead — same classpath
+# resource name, test-classes first — which is how the Chroma setting below went missing
+# once already.
 #
 # The datasource is test-only. Where the real database lives is still an open decision
-# (issue #11: how a corpus is identified and where its database lives), so nothing here
-# should be read as settling it: this exists so the context can be built at all, and it
-# is in-memory precisely so it cannot become the answer by default.
+# (issue #11), so nothing here settles it: this exists so the context can be built at all,
+# and it is in-memory precisely so it cannot become the answer by default.
 spring:
   datasource:
     url: "jdbc:sqlite::memory:"
@@ -13,9 +14,3 @@ spring:
   batch:
     jdbc:
       initialize-schema: never
-  ai:
-    vectorstore:
-      chroma:
-        # Chroma is a derived, disposable projection of the vectors SQLite holds
-        # authoritatively (ADR-039), so it may be created and rebuilt at will.
-        initialize-schema: true
