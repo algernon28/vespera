@@ -1,0 +1,21 @@
+# NOTE: this file shadows src/main/resources/application.yaml entirely during tests --
+# same classpath resource name, and test-classes comes first -- so anything the main
+# file sets has to be repeated here to apply.
+#
+# The datasource is test-only. Where the real database lives is still an open decision
+# (issue #11: how a corpus is identified and where its database lives), so nothing here
+# should be read as settling it: this exists so the context can be built at all, and it
+# is in-memory precisely so it cannot become the answer by default.
+spring:
+  datasource:
+    url: "jdbc:sqlite::memory:"
+    driver-class-name: org.sqlite.JDBC
+  batch:
+    jdbc:
+      initialize-schema: never
+  ai:
+    vectorstore:
+      chroma:
+        # Chroma is a derived, disposable projection of the vectors SQLite holds
+        # authoritatively (ADR-039), so it may be created and rebuilt at will.
+        initialize-schema: true

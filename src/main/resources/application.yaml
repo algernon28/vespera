@@ -1,3 +1,9 @@
 spring:
   application:
     name: vespera
+  ai:
+    vectorstore:
+      chroma:
+        # Chroma is a derived, disposable projection of the vectors SQLite holds
+        # authoritatively (ADR-039), so it may be created and rebuilt at will.
+        initialize-schema: true
