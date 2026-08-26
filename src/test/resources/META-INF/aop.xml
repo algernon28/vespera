@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<aspectj>
+    <weaver>
+        <!--
+          Allure's own aop-ajc.xml files (allure-junit-platform, allure-assertj) scope load-time
+          weaving to everything. The weaver then aborts on Spring Boot's DataSourceBuilder, whose
+          nested TomcatPoolDataSourceProperties references Tomcat pool types that are not on the
+          classpath: resolving their declared methods throws, and the weaver writes an ajcore dump
+          per fork. Nothing in Spring Boot's JDBC support needs weaving, so it is excluded.
+        -->
+        <exclude within="org.springframework.boot.jdbc..*"/>
+    </weaver>
+</aspectj>

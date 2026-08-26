@@ -32,7 +32,7 @@
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <picocli.version>4.7.7</picocli.version>
         <allure.version>2.35.3</allure.version>
-        <aspectj.version>1.9.25</aspectj.version>
+        <aspectj.version>1.9.25.1</aspectj.version>
     </properties>
     <dependencies>
         <dependency>
