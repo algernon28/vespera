@@ -61,3 +61,11 @@ The vocabulary these decisions are written in is defined in [`CONTEXT.md`](../..
 | [ADR-047](0047-the-pipeline-never-blocks.md) | 2026-08-21 | The pipeline never blocks |
 | [ADR-048](0048-walk-and-run-identity.md) | 2026-08-21 | Walk and run identity |
 | [ADR-049](0049-verdict-rows-and-schema-versioning-without-a-migration-tool.md) | 2026-08-21 | Verdict rows, and schema versioning without a migration tool |
+
+## Decisions written after the reconstitution
+
+These carry their own full text: context, decision and consequences, as originally intended for an ADR.
+
+| ID | Date | Title |
+| --- | --- | --- |
+| [ADR-050](0050-the-corpus-is-a-staged-copy.md) | 2026-08-26 | The corpus is a staged copy, exclusively owned by the pipeline |
