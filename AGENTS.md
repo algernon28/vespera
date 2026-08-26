@@ -94,4 +94,4 @@ Single-context: root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/domain.md`.
 
 ## Delegation
 
-Five subagents live in `.claude/agents/`: `analyst` decides and records, `spec-implementer` builds from a settled spec, `tester` runs and audits without editing, `debugger` reproduces before fixing, `architect` reviews and merges. Prefer them over working in the main session — each is constrained in ways the main session is not, and the constraints are the point. Work here when the task is a question, a one-line answer, or smaller than the handoff costs.
+Prefer the subagents in `.claude/agents/` over working in the main session: each is constrained in ways the main session is not, and the constraints are the point. Work here when the task is a question, a one-line answer, or smaller than the handoff costs.
