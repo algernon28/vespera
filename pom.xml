@@ -32,6 +32,9 @@
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <picocli.version>4.7.7</picocli.version>
         <allure.version>2.35.3</allure.version>
+        <!-- The Allure report generator, versioned separately from allure.version above: the
+             generator and the allure-java libraries the BOM manages are not released together. -->
+        <allure-report.version>3.14.3</allure-report.version>
         <aspectj.version>1.9.25.1</aspectj.version>
     </properties>
     <dependencies>
@@ -265,10 +268,22 @@
             <plugin>
                 <groupId>io.qameta.allure</groupId>
                 <artifactId>allure-maven</artifactId>
-                <version>3.0.2</version>
+                <version>3.0.3</version>
+                <!--
+                  Everything this generates goes under target/, so it is disposable and no cleanup
+                  step is needed. singleFile makes the report one self-contained
+                  target/allure-report/index.html; the plugin also renders a Maven site wrapper and
+                  the Fluido skin beside it, which cannot be switched off while using the report
+                  goal and does not matter once it lands in target/.
+
+                  reportVersion is pinned deliberately. Left unset, the generator is whatever the
+                  plugin currently defaults to, so an unversioned toolchain can change under a build
+                  that never changed.
+                -->
                 <configuration>
+                    <reportVersion>${allure-report.version}</reportVersion>
                     <resultsDirectory>${project.build.directory}/allure-results</resultsDirectory>
-                    <reportDirectory>${project.basedir}/reports</reportDirectory>
+                    <reportDirectory>${project.build.directory}/allure-report</reportDirectory>
                     <singleFile>true</singleFile>
                 </configuration>
                 <executions>
@@ -278,27 +293,6 @@
                         <goals>
                             <goal>report</goal>
                         </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <id>allure-report-single-file-only</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <delete includeemptydirs="true" quiet="true">
-                                    <fileset dir="${project.basedir}/reports" excludes="index.html"/>
-                                </delete>
-                            </target>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
