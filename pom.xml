@@ -232,6 +232,37 @@
                 </configuration>
             </plugin>
             <plugin>
+                <!--
+                  Wipes target/allure-results before the tests that refill it. Allure results are
+                  append-only and target/ survives between builds, so without this every report
+                  aggregates every run since the last clean rather than the run that just happened.
+
+                  Bound to process-test-classes: after a clean would have run, and before surefire,
+                  so one report still covers everything a single build executed.
+
+                  excludeDefaultDirectories is essential. Without it this execution deletes all of
+                  target/, taking the freshly compiled classes with it.
+                -->
+                <artifactId>maven-clean-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>clean-allure-results</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.directory}/allure-results</directory>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>io.qameta.allure</groupId>
                 <artifactId>allure-maven</artifactId>
                 <version>3.0.2</version>
