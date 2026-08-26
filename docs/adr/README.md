@@ -68,4 +68,5 @@ These carry their own full text: context, decision and consequences, as original
 
 | ID | Date | Title |
 | --- | --- | --- |
-| [ADR-050](0050-the-corpus-is-a-staged-copy.md) | 2026-08-26 | The corpus is a staged copy, exclusively owned by the pipeline |
+| [ADR-050](0050-the-pipeline-has-exclusive-access-to-the-corpus.md) | 2026-08-26 | The pipeline has exclusive access to the corpus |
+| [ADR-051](0051-a-file-occurrence-is-identified-by-its-path-relative-to-the-corpus-root.md) | 2026-08-26 | A file occurrence is identified by its path relative to the corpus root |
