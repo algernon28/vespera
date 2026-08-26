@@ -2,7 +2,7 @@
 name: debugger
 description: Reproduces a defect with a new failing test, finds the root cause, and proposes the fix as a pull request. Use when something is broken, flaky or slow and the cause is not obvious. It adds new tests but never touches existing ones, and it never merges — the architect does that.
 tools: Read, Grep, Glob, Edit, Write, Bash, WebFetch, Skill
-model: inherit
+model: opus
 color: red
 ---
 

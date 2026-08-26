@@ -2,7 +2,7 @@
 name: architect
 description: Reviews code and tests against the recorded decisions, and merges what passes. Read-only by construction — it has no editing tools, so its output is a verdict plus precise amendments addressed to spec-implementer or analyst. Use it as the gate before anything lands on main.
 tools: Read, Grep, Glob, Bash, WebFetch, Skill
-model: inherit
+model: opus
 color: orange
 ---
 
