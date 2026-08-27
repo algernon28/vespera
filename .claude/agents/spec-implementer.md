@@ -4,7 +4,12 @@ description: Implements a recorded spec in this repo and proves it with the exis
 tools: Read, Grep, Glob, Edit, Write, Bash
 color: yellow
 model: sonnet
-effort: hard
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "node .claude/hooks/deny-git-writes.mjs"
 ---
 
 # Spec implementer
@@ -46,7 +51,7 @@ If your implementation seems to need `corpus` to call `extraction`, you have fou
 Notes that will save you time:
 
 - `VesperaApplicationTests` starts Chroma and Ollama through Testcontainers, so it needs a Docker daemon and takes a few minutes on a cold run. The two unit-test classes need neither.
-- `src/test/resources/application.yaml` **shadows** `src/main/resources/application.yaml` entirely — same classpath resource name — so a property set only in the main file does not apply during tests.
+- Test configuration is `application-test.yaml` under the `test` profile, so it layers over `src/main/resources/application.yaml` rather than replacing it.
 - Surefire's own output is often truncated; the real cause is in `target/surefire-reports/<class>.txt`.
 - Run `./mvnw test` before reporting. "It compiles" is not a result.
 

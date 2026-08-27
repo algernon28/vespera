@@ -5,6 +5,12 @@ tools: Read, Grep, Glob, Bash
 color: green
 model: sonnet
 effort: low
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "node .claude/hooks/deny-git-writes.mjs"
 ---
 
 # Tester

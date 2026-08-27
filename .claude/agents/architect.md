@@ -4,6 +4,12 @@ description: Reviews code and tests against the recorded decisions, and merges w
 tools: Read, Grep, Glob, Bash, WebFetch, Skill
 model: opus
 color: orange
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "node .claude/hooks/deny-git-writes.mjs"
 ---
 
 # Architect

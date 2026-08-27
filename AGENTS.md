@@ -38,12 +38,13 @@ Work is charted as a **wayfinder map** on the issue tracker — [issue #1](https
 ## Building and testing
 
 ```
-./mvnw test                                                    # everything
+./mvnw test                                                    # unit tests only, no Docker needed
+./mvnw verify                                                  # unit tests, then integration tests (*IT)
 ./mvnw test -Dtest='WalkTest' -DfailIfNoSpecifiedTests=false   # one class
 ./mvnw -q test-compile                                         # compile only
 ```
 
-- **`VesperaApplicationTests` needs a Docker daemon** — it starts Chroma and Ollama through Testcontainers. The other classes need neither.
+- **A test needing an external tool is an integration test**: named `*IT`, run by failsafe under `./mvnw verify`, excluded from surefire's `./mvnw test`. `VesperaApplicationIT` is the one so far — it needs a Docker daemon to start Chroma and Ollama through Testcontainers. The other classes need neither Docker nor `verify`.
 - **A skipped test is not a passing test.** Several abort by assumption when the environment cannot create a symlink or an unusual filename, so report `Skipped` alongside `Tests run`.
 - **Surefire's console output truncates the cause.** The real stack is in `target/surefire-reports/<class>.txt`.
 - **Test configuration is `application-test.yaml`, under the `test` profile**, so it layers over `src/main/resources/application.yaml`. Naming it `application.yaml` would shadow the main file entirely — same classpath resource name, test-classes first — and settings there would silently stop applying.
@@ -96,4 +97,4 @@ Single-context: root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/domain.md`.
 
 Prefer the subagents in `.claude/agents/` over working in the main session: each is constrained in ways the main session is not, and the constraints are the point. Work here when the task is a question, a one-line answer, or smaller than the handoff costs.
 
-**No agent commits, pushes or merges without explicit approval.** Finish the work, leave the working tree for review, and report what you would commit and why. This holds even when a task seems to imply it — a pull request, a merge, a release — and it holds for `architect`, whose merge is a commit to `main` like any other.
+**No agent commits, pushes or merges without explicit approval**, and a `PreToolUse` hook refuses those commands rather than trusting the rule. Finish the work, leave the working tree for review, and report what you would commit and why. This holds even when a task seems to imply it — a pull request, a merge, a release — and it holds for `architect`, whose merge is a commit to `main` like any other.
