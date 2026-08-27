@@ -4,12 +4,6 @@ description: Interrogates a decision until it is settled, then writes it down as
 tools: Read, Grep, Glob, Edit, Write, Bash, WebFetch, WebSearch, Skill
 model: opus
 effort: medium
-hooks:
-  PreToolUse:
-    - matcher: "Bash"
-      hooks:
-        - type: command
-          command: "node .claude/hooks/deny-git-writes.mjs"
 ---
 
 # Analyst

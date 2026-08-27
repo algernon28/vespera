@@ -4,12 +4,6 @@ description: Reproduces a defect with a new failing test, finds the root cause, 
 tools: Read, Grep, Glob, Edit, Write, Bash, WebFetch, Skill
 model: opus
 color: red
-hooks:
-  PreToolUse:
-    - matcher: "Bash"
-      hooks:
-        - type: command
-          command: "node .claude/hooks/deny-git-writes.mjs"
 ---
 
 # Debugger

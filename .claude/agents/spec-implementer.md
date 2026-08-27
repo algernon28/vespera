@@ -4,12 +4,6 @@ description: Implements a recorded spec in this repo and proves it with the exis
 tools: Read, Grep, Glob, Edit, Write, Bash
 color: yellow
 model: sonnet
-hooks:
-  PreToolUse:
-    - matcher: "Bash"
-      hooks:
-        - type: command
-          command: "node .claude/hooks/deny-git-writes.mjs"
 ---
 
 # Spec implementer
