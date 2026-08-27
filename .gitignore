@@ -35,3 +35,6 @@ build/
 
 # AspectJ weaver crash dumps (see the aspectjweaver javaagent in pom.xml)
 ajcore.*.txt
+
+# The single-file Allure report, stamped per run
+report_*.html

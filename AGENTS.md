@@ -48,6 +48,7 @@ Work is charted as a **wayfinder map** on the issue tracker — [issue #1](https
 - **A skipped test is not a passing test.** Several abort by assumption when the environment cannot create a symlink or an unusual filename, so report `Skipped` alongside `Tests run`.
 - **Surefire's console output truncates the cause.** The real stack is in `target/surefire-reports/<class>.txt`.
 - **Test configuration is `application-test.yaml`, under the `test` profile**, so it layers over `src/main/resources/application.yaml`. Naming it `application.yaml` would shadow the main file entirely — same classpath resource name, test-classes first — and settings there would silently stop applying.
+- **`./mvnw verify` leaves `report_<datetime>.html` in the project root** — one self-contained Allure report per run, covering both suites, stamped so runs do not overwrite each other. Gitignored, and it outlives a `clean` because it is not under `target/`.
 - Assertions are AssertJ.
 
 ## Conventions worth knowing

@@ -232,7 +232,33 @@
                     <systemPropertyVariables>
                         <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
                     </systemPropertyVariables>
+                    <excludes>
+                        <exclude>**/*IT.java</exclude>
+                    </excludes>
                 </configuration>
+            </plugin>
+            <plugin>
+                <!--
+                  *IT tests need a Docker daemon (VesperaApplicationIT starts Chroma and Ollama via
+                  Testcontainers) and are excluded from surefire above, so `./mvnw test` never needs
+                  Docker. `./mvnw verify` runs them here, in integration-test, with the same argLine
+                  and Allure directory as surefire so both suites report to the same place.
+                -->
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar"</argLine>
+                    <systemPropertyVariables>
+                        <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
+                    </systemPropertyVariables>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <!--
@@ -293,6 +319,36 @@
                         <goals>
                             <goal>report</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!--
+                  Copies the single-file report out of target/ to report_<datetime>.html in the
+                  project root, so the one artifact worth opening or sending outlives a clean and
+                  says which run produced it.
+
+                  Declared after allure-maven and bound to the same phase, because plugins bound to
+                  one phase run in declaration order: the report has to exist before it is copied.
+
+                  Requires node on the PATH, which the docs pipeline already does.
+                -->
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>publish-allure-report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>node</executable>
+                            <arguments>
+                                <argument>scripts/publish-allure-report.mjs</argument>
+                            </arguments>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
