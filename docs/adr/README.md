@@ -71,3 +71,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-050](0050-the-pipeline-has-exclusive-access-to-the-corpus.md) | 2026-08-26 | The pipeline has exclusive access to the corpus |
 | [ADR-051](0051-a-file-occurrence-is-identified-by-its-path-relative-to-the-corpus-root.md) | 2026-08-26 | A file occurrence is identified by its path relative to the corpus root |
 | [ADR-052](0052-the-test-report-is-written-for-a-reader-outside-the-project.md) | 2026-08-28 | The test report is written for a reader outside the project |
+| [ADR-053](0053-the-walk-anomaly-vocabulary-is-three-kinds.md) | 2026-08-28 | The walk anomaly vocabulary is three kinds |
