@@ -11,6 +11,9 @@ package io.algernon.vespera;
  * <p>Add an entry when a test needs one. A dead link here is a decision that was renamed, which is
  * worth noticing.
  *
+ * <p>That the decision travels as a link at all, rather than as an id in a name a stranger has to
+ * read, is ADR-052.
+ *
  * <p>Lives in the root package for the same reason as {@link TestSteps}: a package of its own would
  * read as a further module to {@code ApplicationModules}, and {@code ModuleBoundariesTest} would
  * fail on it.

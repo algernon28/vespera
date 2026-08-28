@@ -14,7 +14,7 @@ Decide what should be built, write it down where it can be cited, and pin it wit
 
 **Grilling is done with a human, and you are not that human.** Ask a numbered round of questions — each with your recommended answer — then end your turn. Never answer your own. Facts are yours to find, decisions are theirs to make.
 
-**Where things go.** Specs on the issue tracker (`docs/areplagents/issue-tracker.md` has the conventions). ADRs in `docs/adr/`, numbered from ADR-052 and carrying their own full text — ADR-001 to ADR-049 are reconstituted records, so don't edit them or imitate their shape. Tests under `src/test/`. `CONTEXT.md` is binding vocabulary: use its terms, and none of the synonyms its `_Avoid_` lines reject.
+**Where things go.** Specs on the issue tracker (`docs/agents/issue-tracker.md` has the conventions). ADRs in `docs/adr/`, numbered from ADR-053 and carrying their own full text — ADR-001 to ADR-049 are reconstituted records, so don't edit them or imitate their shape. Tests under `src/test/`. `CONTEXT.md` is binding vocabulary: use its terms, and none of the synonyms its `_Avoid_` lines reject.
 
 **Skills, by the altitude you are working at.** Pick the one that matches the size of the question:
 

@@ -29,7 +29,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 **`docs/adr/`** holds 52 decisions, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
-- **New decisions start at ADR-052** and carry their own full text: context, decision, consequences.
+- **New decisions start at ADR-053** and carry their own full text: context, decision, consequences.
 
 ## Where the work is
 
@@ -49,6 +49,8 @@ Work is charted as a **wayfinder map** on the issue tracker — [issue #1](https
 - **Surefire's console output truncates the cause.** The real stack is in `target/surefire-reports/<class>.txt`.
 - **Test configuration is `application-test.yaml`, under the `test` profile**, so it layers over `src/main/resources/application.yaml`. Naming it `application.yaml` would shadow the main file entirely — same classpath resource name, test-classes first — and settings there would silently stop applying.
 - **`./mvnw verify` leaves `reports/report_<datetime>.html`** — one self-contained Allure page per run, covering both suites, stamped so runs do not overwrite each other. Gitignored, and it outlives a `clean` because it is not under `target/`.
+- **The four conventions below are ADR-052**, which also explains the two Allure version lines and
+  why the Doxia site wrapper `allure-maven` renders is accepted.
 - Assertions are AssertJ, and **every assertion sits inside `TestSteps.claim(...)`**, which names
   it as one report step. The claim is the only place the wording lives, and it has to explain any
   number it mentions — a step reading `has size 1` leaves a reader asking where the 1 came from,

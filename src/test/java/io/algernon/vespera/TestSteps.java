@@ -12,7 +12,7 @@ import org.opentest4j.AssertionFailedError;
  * fluent calls beneath it — {@code assert 1234}, then {@code has size 1}. The shape says what was
  * executed, not what was being claimed, and the numbers in it are the test data with no indication
  * of where they came from. Naming the step here is the only way to make the report read as a list
- * of claims, so {@code allure-assertj} is deliberately not a dependency.
+ * of claims, so {@code allure-assertj} is deliberately not a dependency. Recorded as ADR-052.
  *
  * <p>Lives in the root package on purpose. A test-support class in a package of its own would read
  * as a further module to {@code ApplicationModules}, which {@code ModuleBoundariesTest} would then
