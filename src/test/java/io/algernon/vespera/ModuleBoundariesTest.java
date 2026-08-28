@@ -1,9 +1,16 @@
 package io.algernon.vespera;
 
+import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Link;
+import io.qameta.allure.Story;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.modulith.ApplicationModule;
 import org.springframework.modulith.core.ApplicationModules;
@@ -16,7 +23,16 @@ import org.springframework.modulith.core.ApplicationModules;
  * <p>One limit worth knowing rather than discovering: this verifies Java type references, via
  * ArchUnit over bytecode. A raw SQL string reaching into a table another capability owns is
  * invisible to it. ADR-041 records that gap, and it stays a matter for review by eye.
+ *
+ * <p>Every assertion sits inside a {@code claim(...)}, which names it in the report. Two of these
+ * assert that a list is empty, and an empty list is exactly the case a report cannot render: the
+ * claim has to say which list, and what a name appearing in it would have meant.
  */
+@Epic("Architecture")
+@Feature("Module boundaries")
+@Link(name = "ADR-037", url = Adr.MODULITH_RETAINED_FOR_BOUNDARY_CHECKS, type = "adr")
+@Link(name = "ADR-040", url = Adr.MODULES_ARE_CAPABILITY_SHAPED, type = "adr")
+@Link(name = "ADR-041", url = Adr.LEDGER_OWNS_IDENTITY_AND_VERDICTS, type = "adr")
 class ModuleBoundariesTest {
 
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
@@ -46,8 +62,12 @@ class ModuleBoundariesTest {
      * is the composition root and may depend on all of them.
      */
     @Test
+    @Story("A module depends on the shared record, not on another module")
+    @DisplayName("No module depends on anything it has not declared")
     void moduleDependenciesAreAllowed() {
-        MODULES.verify();
+        claim(
+                "every dependency a module declares is one the architecture allows, checked against compiled code",
+                () -> assertThatCode(MODULES::verify).doesNotThrowAnyException());
     }
 
     /**
@@ -59,6 +79,8 @@ class ModuleBoundariesTest {
      * <p>This is the test that keeps the rule alive as the remaining modules arrive.
      */
     @Test
+    @Story("The rule cannot lapse silently")
+    @DisplayName("Every module declares what it may depend on, so the boundary rule applies to it")
     void everyModuleDeclaresWhatItMayDependOn() {
         List<String> undeclared =
                 identifiers(
@@ -73,9 +95,10 @@ class ModuleBoundariesTest {
                                                                                 .equals(List.of(ApplicationModule.OPEN_TOKEN)))
                                                         .orElse(true)));
 
-        assertThat(undeclared)
-                .as("modules that do not declare allowedDependencies, so the boundary rule does not apply to them")
-                .isEmpty();
+        claim(
+                "no module leaves allowedDependencies unset; one named here would be a module the boundary rule"
+                        + " has silently stopped applying to",
+                () -> assertThat(undeclared).isEmpty());
     }
 
     /**
@@ -83,12 +106,17 @@ class ModuleBoundariesTest {
      * on. Catching it here is cheaper than finding it once things depend on it.
      */
     @Test
+    @Story("No module ships undecided")
+    @DisplayName("Every module is one of the nine the architecture defines")
     void everyModuleIsOneOfTheNineRecorded() {
         List<String> unrecorded =
                 identifiers(MODULES.stream()).stream()
                         .filter(identifier -> !RECORDED_MODULES.contains(identifier))
                         .toList();
 
-        assertThat(unrecorded).as("modules not recorded in ADR-040").isEmpty();
+        claim(
+                "every module found in the application is one of the nine the architecture defines;"
+                        + " one named here is a module nobody decided on",
+                () -> assertThat(unrecorded).isEmpty());
     }
 }

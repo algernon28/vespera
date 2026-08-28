@@ -48,8 +48,27 @@ Work is charted as a **wayfinder map** on the issue tracker — [issue #1](https
 - **A skipped test is not a passing test.** Several abort by assumption when the environment cannot create a symlink or an unusual filename, so report `Skipped` alongside `Tests run`.
 - **Surefire's console output truncates the cause.** The real stack is in `target/surefire-reports/<class>.txt`.
 - **Test configuration is `application-test.yaml`, under the `test` profile**, so it layers over `src/main/resources/application.yaml`. Naming it `application.yaml` would shadow the main file entirely — same classpath resource name, test-classes first — and settings there would silently stop applying.
-- **`./mvnw verify` leaves `report_<datetime>.html` in the project root** — one self-contained Allure report per run, covering both suites, stamped so runs do not overwrite each other. Gitignored, and it outlives a `clean` because it is not under `target/`.
-- Assertions are AssertJ.
+- **`./mvnw verify` leaves `reports/report_<datetime>.html`** — one self-contained Allure page per run, covering both suites, stamped so runs do not overwrite each other. Gitignored, and it outlives a `clean` because it is not under `target/`.
+- Assertions are AssertJ, and **every assertion sits inside `TestSteps.claim(...)`**, which names
+  it as one report step. The claim is the only place the wording lives, and it has to explain any
+  number it mentions — a step reading `has size 1` leaves a reader asking where the 1 came from,
+  so name the test's magic numbers as constants and say what they are. `allure-assertj` is
+  deliberately not a dependency: it derives steps from the fluent calls instead, which reports
+  what ran rather than what was claimed.
+- **Report-visible text stands on its own.** `@DisplayName`, `@Story`, `@Epic`, `@Feature`, the
+  claims, and the category names in `allurerc.mjs` are read by people with no access to this
+  repository, so they carry no ADR id and no phrase that needs `CONTEXT.md` to parse. Cite the
+  decision in the javadoc instead, where the reader is looking at the code.
+- **The decision and the ticket travel as links, not as text.** `@Link(type = "adr")` names the
+  ADR a test exists because of, with the URL taken from `Adr` (the id-to-file map, since an ADR
+  file is `NNNN-its-title.md` and the id alone does not give the path); `@Issue("6")` names the
+  wayfinder child issue, resolved by `allure.link.issue.pattern` in `allure.properties`. Both go
+  on the class, or on the one test they belong to. A test with no decision behind it is the thing
+  to notice: every test should be there because of one.
+- **Every test class carries `@Epic` and `@Feature`, every test `@Story` and `@DisplayName`.**
+  The report tree groups on those three labels (`groupBy` in `allurerc.mjs`) instead of folding on
+  the package and class name, and the failure categories match on `@Feature`, so a test that
+  ships unlabelled falls out of both the tree and its category.
 
 ## Conventions worth knowing
 
