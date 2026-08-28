@@ -47,7 +47,8 @@
         <allure.version>2.35.4</allure.version>
         <allure-report.version>3.16.0</allure-report.version>
         <allure-maven.version>3.0.3</allure-maven.version>
-        <antrun.version>3.2.0</antrun.version>
+        <gmavenplus-plugin.version>5.1.0</gmavenplus-plugin.version>
+        <groovy.version>5.1.1</groovy.version>
         <aspectj.version>1.9.25.1</aspectj.version>
     </properties>
     <dependencies>
@@ -349,39 +350,53 @@
                 <!--
                   Copies the report to reports/report_<datetime>.html, so the one file worth
                   opening or sending is out of target/, survives a clean, and says which run
-                  produced it. singleFile above means there is exactly one file to copy; the
+                  produced it. Nothing here deletes an older report: every run's file gets its
+                  own name, so none is ever overwritten, and reports/ is left to grow with one
+                  file per run. singleFile above means there is exactly one file to copy; the
                   Maven site wrapper allure-maven renders beside it stays behind in target/.
+
+                  Neither core Maven plugin does a rename: maven-resources-plugin only places a
+                  file under its source name, and maven-antrun-plugin means mixing Ant into a
+                  Maven build for a one-line job. gmavenplus runs the rename as a few lines of
+                  Groovy instead, with no separate script file and no second build tool.
+
+                  The stamp is computed here rather than read from maven.build.timestamp: that
+                  property is not exposed on project.properties in this Maven version, and
+                  computing it directly also means it is the JVM's local time, not Maven's UTC.
 
                   Declared after allure-maven and bound to the same phase, because plugins bound
                   to one phase run in declaration order: the report has to exist before it is
                   copied.
                 -->
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>${antrun.version}</version>
+                <groupId>org.codehaus.gmavenplus</groupId>
+                <artifactId>gmavenplus-plugin</artifactId>
+                <version>${gmavenplus-plugin.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.apache.groovy</groupId>
+                        <artifactId>groovy</artifactId>
+                        <version>${groovy.version}</version>
+                    </dependency>
+                </dependencies>
                 <executions>
                     <execution>
                         <id>publish-allure-report</id>
                         <phase>verify</phase>
                         <goals>
-                            <goal>run</goal>
+                            <goal>execute</goal>
                         </goals>
                         <configuration>
-                            <target>
-                                <!-- Ant's tstamp, not maven.build.timestamp: Maven stamps in UTC,
-                                     which names the file an hour or more away from what the clock
-                                     and the file listing say. This one is local. Colons are
-                                     illegal in Windows filenames, so the stamp is compact rather
-                                     than ISO. -->
-                                <tstamp>
-                                    <format property="report.stamp" pattern="yyyyMMdd-HHmmss"/>
-                                </tstamp>
-                                <copy
-                                    file="${project.build.directory}/allure-report/index.html"
-                                    tofile="${project.basedir}/reports/report_${report.stamp}.html"/>
-                                <!-- level=info: antrun logs echo at WARNING by default, and a report path is not a warning. -->
-                                <echo level="info" message="Allure report: reports/report_${report.stamp}.html"/>
-                            </target>
+                            <scripts>
+                                <script><![CDATA[
+                                    def source = new File(project.build.directory, 'allure-report/index.html')
+                                    def stamp = java.time.LocalDateTime.now()
+                                        .format(java.time.format.DateTimeFormatter.ofPattern('yyyyMMdd-HHmmss'))
+                                    def dest = new File(project.basedir, "reports/report_${stamp}.html")
+                                    dest.parentFile.mkdirs()
+                                    dest.bytes = source.bytes
+                                    log.info("Allure report: reports/report_${stamp}.html")
+                                ]]></script>
+                            </scripts>
                         </configuration>
                     </execution>
                 </executions>

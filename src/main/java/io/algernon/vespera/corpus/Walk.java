@@ -41,11 +41,10 @@ public final class Walk {
         void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified);
 
         /**
-         * An entry that did not become a file occurrence, and why. The vocabulary of anomaly kinds
-         * is still open — see issue #3 — so the reason is free text for now, and callers should not
-         * parse it.
+         * An entry that did not become a file occurrence: its kind (ADR-053) plus a nullable
+         * free-text detail, for an operator to read, never for code to branch on.
          */
-        void anomaly(String pathRendering, String reason);
+        void anomaly(String pathRendering, WalkAnomalyKind kind, String detail);
     }
 
     /**
@@ -90,7 +89,7 @@ public final class Walk {
         } catch (IOException e) {
             // A walk that stopped early must never look complete: a partial walk reported as
             // finished curates a fraction of the corpus and reports success.
-            observer.anomaly(render(root, root), "the walk did not finish: " + e);
+            observer.anomaly(render(root, root), WalkAnomalyKind.UNPROCESSABLE, "the walk did not finish: " + e);
             counter.anomalies++;
             finished = false;
         }
@@ -127,7 +126,7 @@ public final class Walk {
             if (!dir.equals(root)) {
                 counter.entriesSeen++;
                 if (isSoftLink(attrs)) {
-                    report(dir, "a soft link was skipped rather than followed");
+                    report(dir, WalkAnomalyKind.SOFT_LINK_NOT_FOLLOWED, "a soft link was skipped rather than followed");
                     return FileVisitResult.SKIP_SUBTREE;
                 }
             }
@@ -140,11 +139,11 @@ public final class Walk {
             counter.entriesSeen++;
 
             if (isSoftLink(attrs)) {
-                report(file, "a soft link was skipped rather than followed");
+                report(file, WalkAnomalyKind.SOFT_LINK_NOT_FOLLOWED, "a soft link was skipped rather than followed");
                 return FileVisitResult.CONTINUE;
             }
             if (!attrs.isRegularFile()) {
-                report(file, "not a regular file");
+                report(file, WalkAnomalyKind.UNPROCESSABLE, "not a regular file");
                 return FileVisitResult.CONTINUE;
             }
 
@@ -155,7 +154,7 @@ public final class Walk {
                 }
                 case OccurrencePath.Unstorable(String lossyRendering, String reason) -> {
                     counter.anomalies++;
-                    observer.anomaly(lossyRendering, reason);
+                    observer.anomaly(lossyRendering, WalkAnomalyKind.UNENCODABLE_PATH, reason);
                 }
             }
             return FileVisitResult.CONTINUE;
@@ -164,7 +163,7 @@ public final class Walk {
         @Override
         public FileVisitResult visitFileFailed(Path file, IOException exc) {
             counter.entriesSeen++;
-            report(file, exc.getClass().getSimpleName() + ": " + exc.getMessage());
+            report(file, WalkAnomalyKind.UNPROCESSABLE, exc.getClass().getSimpleName() + ": " + exc.getMessage());
             return FileVisitResult.CONTINUE;
         }
 
@@ -173,7 +172,7 @@ public final class Walk {
             if (exc != null) {
                 // The directory was entered but its listing did not complete, so entries below it
                 // may be missing without any of them having been seen.
-                report(dir, "listing this directory did not complete: " + exc);
+                report(dir, WalkAnomalyKind.UNPROCESSABLE, "listing this directory did not complete: " + exc);
             }
             return FileVisitResult.CONTINUE;
         }
@@ -187,9 +186,9 @@ public final class Walk {
             return attrs.isSymbolicLink() || attrs.isOther();
         }
 
-        private void report(Path entry, String reason) {
+        private void report(Path entry, WalkAnomalyKind kind, String detail) {
             counter.anomalies++;
-            observer.anomaly(render(root, entry), reason);
+            observer.anomaly(render(root, entry), kind, detail);
         }
     }
 }

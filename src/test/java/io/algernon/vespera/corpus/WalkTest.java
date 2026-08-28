@@ -60,6 +60,7 @@ class WalkTest {
         final List<Long> sizes = new ArrayList<>();
         final List<Instant> modified = new ArrayList<>();
         final List<String> anomalies = new ArrayList<>();
+        final List<WalkAnomalyKind> anomalyKinds = new ArrayList<>();
 
         @Override
         public void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified) {
@@ -69,8 +70,9 @@ class WalkTest {
         }
 
         @Override
-        public void anomaly(String pathRendering, String reason) {
-            anomalies.add(pathRendering + " :: " + reason);
+        public void anomaly(String pathRendering, WalkAnomalyKind kind, String detail) {
+            anomalyKinds.add(kind);
+            anomalies.add(pathRendering + " :: " + detail);
         }
     }
 
@@ -142,6 +144,7 @@ class WalkTest {
     @Test
     @Story("Entries that become walk anomalies")
     @DisplayName("A name with no UTF-8 encoding becomes a walk anomaly, not an occurrence")
+    @Link(name = "ADR-053", url = Adr.WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS, type = "adr")
     void refusesAnEntryWhoseNameCannotBeStored(@TempDir Path root) throws IOException {
         Path unstorable = root.resolve("orphan-" + (char) 0xD800 + ".txt");
         try {
@@ -162,6 +165,9 @@ class WalkTest {
         claim(
                 "that anomaly carries its reason, the name having no UTF-8 encoding",
                 () -> assertThat(recorder.anomalies.get(0)).contains("UTF-8"));
+        claim(
+                "that anomaly is kinded as unencodable-path (ADR-053)",
+                () -> assertThat(recorder.anomalyKinds).containsExactly(WalkAnomalyKind.UNENCODABLE_PATH));
     }
 
     /**
@@ -173,6 +179,7 @@ class WalkTest {
     @DisplayName("A soft link is recorded, and the walk does not follow it")
     @Issue("19")
     @Link(name = "ADR-051", url = Adr.OCCURRENCE_IDENTIFIED_BY_RELATIVE_PATH, type = "adr")
+    @Link(name = "ADR-053", url = Adr.WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS, type = "adr")
     void skipsSoftLinksAndRecordsThemInstead(@TempDir Path root) throws IOException, InterruptedException {
         Path outside = Files.createDirectories(root.resolve("real"));
         Files.writeString(outside.resolve("hidden.txt"), "must not be walked through the link");
@@ -202,6 +209,9 @@ class WalkTest {
         claim(
                 "that anomaly carries its reason, the entry being a link",
                 () -> assertThat(recorder.anomalies.get(0).toLowerCase()).contains("link"));
+        claim(
+                "that anomaly is kinded as soft-link-not-followed (ADR-053)",
+                () -> assertThat(recorder.anomalyKinds).containsExactly(WalkAnomalyKind.SOFT_LINK_NOT_FOLLOWED));
         claim(
                 "nothing was reached through the link, which would double-count the file behind it",
                 () -> assertThat(recorder.occurrences).doesNotContain("link/hidden.txt"));
@@ -242,7 +252,7 @@ class WalkTest {
     }
 
     @Test
-    @Story("A root that cannot be walked")
+    @Story("Nothing goes unaccounted for")
     @DisplayName("A root that is a file, not a directory, is refused up front")
     void refusesARootThatIsNotADirectory(@TempDir Path root) throws IOException {
         Path file = Files.writeString(root.resolve("not-a-directory.txt"), "x");

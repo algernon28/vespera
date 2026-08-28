@@ -62,7 +62,7 @@ class ModuleBoundariesTest {
      * is the composition root and may depend on all of them.
      */
     @Test
-    @Story("A module depends on the shared record, not on another module")
+    @Story("The boundary rule holds for every module")
     @DisplayName("No module depends on anything it has not declared")
     void moduleDependenciesAreAllowed() {
         claim(
@@ -79,7 +79,7 @@ class ModuleBoundariesTest {
      * <p>This is the test that keeps the rule alive as the remaining modules arrive.
      */
     @Test
-    @Story("The rule cannot lapse silently")
+    @Story("The boundary rule holds for every module")
     @DisplayName("Every module declares what it may depend on, so the boundary rule applies to it")
     void everyModuleDeclaresWhatItMayDependOn() {
         List<String> undeclared =
@@ -106,7 +106,7 @@ class ModuleBoundariesTest {
      * on. Catching it here is cheaper than finding it once things depend on it.
      */
     @Test
-    @Story("No module ships undecided")
+    @Story("The boundary rule holds for every module")
     @DisplayName("Every module is one of the nine the architecture defines")
     void everyModuleIsOneOfTheNineRecorded() {
         List<String> unrecorded =
