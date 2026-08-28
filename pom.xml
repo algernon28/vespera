@@ -31,10 +31,23 @@
         <spring-ai.version>2.0.0</spring-ai.version>
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <picocli.version>4.7.7</picocli.version>
-        <allure.version>2.35.3</allure.version>
-        <!-- The Allure report generator, versioned separately from allure.version above: the
-             generator and the allure-java libraries the BOM manages are not released together. -->
-        <allure-report.version>3.14.3</allure-report.version>
+        <!--
+          Allure is two products on two version lines, which is the easy thing to get wrong.
+
+          allure.version is the adapter: the allure-java libraries the tests are woven with, which
+          write target/allure-results. allure-bom below manages every one of them from this number,
+          so no Allure dependency carries a version of its own. Its line is 2.x, and there is no 3.x
+          release of it.
+
+          allure-report.version is the generator: the TypeScript program that turns those results
+          into a page, and the product now at 3.x. Allure 3 reads Allure 2 results, its reader for
+          them being part of the generator, so a 2.x adapter with a 3.x generator is the documented
+          pairing rather than a mismatch.
+        -->
+        <allure.version>2.35.4</allure.version>
+        <allure-report.version>3.16.0</allure-report.version>
+        <allure-maven.version>3.0.3</allure-maven.version>
+        <antrun.version>3.2.0</antrun.version>
         <aspectj.version>1.9.25.1</aspectj.version>
     </properties>
     <dependencies>
@@ -138,24 +151,11 @@
         <dependency>
             <groupId>io.qameta.allure</groupId>
             <artifactId>allure-jupiter</artifactId>
-            <version>${allure.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.qameta.allure</groupId>
-            <artifactId>allure-assertj</artifactId>
-            <version>${allure.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.aspectj</groupId>
-            <artifactId>aspectjweaver</artifactId>
-            <version>${aspectj.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -172,6 +172,13 @@
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
                 <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.qameta.allure</groupId>
+                <artifactId>allure-bom</artifactId>
+                <version>${allure.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -227,11 +234,15 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.aspectj</groupId>
+                        <artifactId>aspectjweaver</artifactId>
+                        <version>${aspectj.version}</version>
+                    </dependency>
+                </dependencies>
                 <configuration>
                     <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar"</argLine>
-                    <systemPropertyVariables>
-                        <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
-                    </systemPropertyVariables>
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                     </excludes>
@@ -241,15 +252,20 @@
                 <!--
                   *IT tests need a Docker daemon (VesperaApplicationIT starts Chroma and Ollama via
                   Testcontainers) and are excluded from surefire above, so `./mvnw test` never needs
-                  Docker. `./mvnw verify` runs them here, in integration-test, with the same argLine
-                  and Allure directory as surefire so both suites report to the same place.
+                  Docker. `./mvnw verify` runs them here, in integration-test, woven the same way as
+                  surefire; allure.properties sends both suites to the same results directory,
+                  so one report covers the whole build.
                 -->
                 <artifactId>maven-failsafe-plugin</artifactId>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.aspectj</groupId>
+                        <artifactId>aspectjweaver</artifactId>
+                        <version>${aspectj.version}</version>
+                    </dependency>
+                </dependencies>
                 <configuration>
                     <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar"</argLine>
-                    <systemPropertyVariables>
-                        <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
-                    </systemPropertyVariables>
                 </configuration>
                 <executions>
                     <execution>
@@ -294,13 +310,19 @@
             <plugin>
                 <groupId>io.qameta.allure</groupId>
                 <artifactId>allure-maven</artifactId>
-                <version>3.0.3</version>
+                <version>${allure-maven.version}</version>
                 <!--
                   Everything this generates goes under target/, so it is disposable and no cleanup
-                  step is needed. singleFile makes the report one self-contained
+                  step is needed. singleFile is an option of Awesome, the plugin Allure 3 renders
+                  the report with, and makes that report one self-contained
                   target/allure-report/index.html; the plugin also renders a Maven site wrapper and
                   the Fluido skin beside it, which cannot be switched off while using the report
                   goal and does not matter once it lands in target/.
+
+                  configPath points at allurerc.mjs, which configures the Awesome plugin (the
+                  report UI) and the failure categories. The plugin merges that file underneath
+                  its own generated config and overrides only name, output and singleFile, so
+                  those three stay here and the rest of the report is described there.
 
                   reportVersion is pinned deliberately. Left unset, the generator is whatever the
                   plugin currently defaults to, so an unversioned toolchain can change under a build
@@ -311,6 +333,7 @@
                     <resultsDirectory>${project.build.directory}/allure-results</resultsDirectory>
                     <reportDirectory>${project.build.directory}/allure-report</reportDirectory>
                     <singleFile>true</singleFile>
+                    <configPath>allurerc.mjs</configPath>
                 </configuration>
                 <executions>
                     <execution>
@@ -324,30 +347,41 @@
             </plugin>
             <plugin>
                 <!--
-                  Copies the single-file report out of target/ to report_<datetime>.html in the
-                  project root, so the one artifact worth opening or sending outlives a clean and
-                  says which run produced it.
+                  Copies the report to reports/report_<datetime>.html, so the one file worth
+                  opening or sending is out of target/, survives a clean, and says which run
+                  produced it. singleFile above means there is exactly one file to copy; the
+                  Maven site wrapper allure-maven renders beside it stays behind in target/.
 
-                  Declared after allure-maven and bound to the same phase, because plugins bound to
-                  one phase run in declaration order: the report has to exist before it is copied.
-
-                  Requires node on the PATH, which the docs pipeline already does.
+                  Declared after allure-maven and bound to the same phase, because plugins bound
+                  to one phase run in declaration order: the report has to exist before it is
+                  copied.
                 -->
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.5.0</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>${antrun.version}</version>
                 <executions>
                     <execution>
                         <id>publish-allure-report</id>
                         <phase>verify</phase>
                         <goals>
-                            <goal>exec</goal>
+                            <goal>run</goal>
                         </goals>
                         <configuration>
-                            <executable>node</executable>
-                            <arguments>
-                                <argument>scripts/publish-allure-report.mjs</argument>
-                            </arguments>
+                            <target>
+                                <!-- Ant's tstamp, not maven.build.timestamp: Maven stamps in UTC,
+                                     which names the file an hour or more away from what the clock
+                                     and the file listing say. This one is local. Colons are
+                                     illegal in Windows filenames, so the stamp is compact rather
+                                     than ISO. -->
+                                <tstamp>
+                                    <format property="report.stamp" pattern="yyyyMMdd-HHmmss"/>
+                                </tstamp>
+                                <copy
+                                    file="${project.build.directory}/allure-report/index.html"
+                                    tofile="${project.basedir}/reports/report_${report.stamp}.html"/>
+                                <!-- level=info: antrun logs echo at WARNING by default, and a report path is not a warning. -->
+                                <echo level="info" message="Allure report: reports/report_${report.stamp}.html"/>
+                            </target>
                         </configuration>
                     </execution>
                 </executions>
