@@ -1,6 +1,11 @@
 spring:
   application:
     name: vespera
+  sql:
+    init:
+      # SQLite isn't one of the databases Spring Boot auto-detects as embedded, so schema.sql
+      # is never run unless this is explicit (ADR-049: schema via schema.sql, no migration tool).
+      mode: always
   ai:
     vectorstore:
       chroma:

@@ -11,6 +11,11 @@ spring:
   datasource:
     url: "jdbc:sqlite::memory:"
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite's :memory: database is scoped to one connection: a second connection sees an
+      # empty database. Pinning the pool to one connection is what lets schema.sql and every
+      # query in a test land on the same database rather than a fresh one each time.
+      maximum-pool-size: 1
   batch:
     jdbc:
       initialize-schema: never
