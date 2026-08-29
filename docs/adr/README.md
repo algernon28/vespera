@@ -6,7 +6,7 @@ One file per architecture decision, ADR-001 through ADR-049.
 
 **The digest remains the fuller record.** For most of these decisions the architecture sections (§1, §2) say more than the ledger row does, and each file links to the sections that mention it.
 
-Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. New decisions continue from ADR-053 and carry their own full text — the reconstitution rule applies only to the records restored here.
+Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. New decisions continue from ADR-055 and carry their own full text — the reconstitution rule applies only to the records restored here.
 
 The vocabulary these decisions are written in is defined in [`CONTEXT.md`](../../CONTEXT.md) and is binding.
 
@@ -72,3 +72,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-051](0051-a-file-occurrence-is-identified-by-its-path-relative-to-the-corpus-root.md) | 2026-08-26 | A file occurrence is identified by its path relative to the corpus root |
 | [ADR-052](0052-the-test-report-is-written-for-a-reader-outside-the-project.md) | 2026-08-28 | The test report is written for a reader outside the project |
 | [ADR-053](0053-the-walk-anomaly-vocabulary-is-three-kinds.md) | 2026-08-28 | The walk anomaly vocabulary is three kinds |
+| [ADR-054](0054-a-corpus-is-its-root-path-the-database-lives-in-a-configured-working-directory.md) | 2026-08-29 | A corpus is its root path; the database lives in a configured working directory |
