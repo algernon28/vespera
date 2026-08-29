@@ -9,7 +9,9 @@
 # and it is in-memory precisely so it cannot become the answer by default.
 spring:
   datasource:
-    url: "jdbc:sqlite::memory:"
+    # foreign_keys=on: SQLite ignores FK constraints per-connection unless told otherwise, so
+    # walk_id references in schema.sql would silently accept orphans without this.
+    url: "jdbc:sqlite::memory:?foreign_keys=on"
     driver-class-name: org.sqlite.JDBC
     hikari:
       # SQLite's :memory: database is scoped to one connection: a second connection sees an

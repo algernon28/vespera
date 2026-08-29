@@ -34,7 +34,11 @@ public class Ledger {
                     return statement;
                 },
                 keyHolder);
-        return new WalkId(keyHolder.getKey().longValue());
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException("Insert into walk generated no key for corpus root " + corpusRoot);
+        }
+        return new WalkId(key.longValue());
     }
 
     /** Records one file occurrence against {@code walkId}. */
