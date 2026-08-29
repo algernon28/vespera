@@ -247,7 +247,7 @@ flowchart TD
 
 Tracked on the wayfinder map, [Census slice: the way to a hand-off spec](https://github.com/algernon28/vespera/issues/1), rather than in this file. Its open child issues **are** the live list; its **Out of scope** section carries the two items parked on measurement data — shingle granularity, blocked on stage-3 OCR error rates, and target hardware, blocked on a census scanned-page count — each with the trigger that revives it.
 
-The one standing design question is [Is the seed set profiled with the corpus instrument](https://github.com/algernon28/vespera/issues/16).
+The standing design question, [Is the seed set profiled with the corpus instrument](https://github.com/algernon28/vespera/issues/16), is resolved: the walk instrument generalizes to any root, a seed folder is walked the same way as the corpus (ADR-064), and the full mismatch-detection question is deferred to stage 5, which this slice does not build.
 
 _This section previously duplicated `docs/frontier.md`, which no longer exists. The map replaced both: a second open-items register drifts from the first, and the tracker is the one with a claim to being canonical._
 ---
