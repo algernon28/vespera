@@ -13,3 +13,12 @@ CREATE TABLE IF NOT EXISTS file_occurrence (
     size_bytes INTEGER NOT NULL,
     last_modified TEXT NOT NULL
 );
+
+-- corpus's own table (ADR-041): a walk anomaly is not a verdict, so it is not in the ledger.
+CREATE TABLE IF NOT EXISTS walk_anomaly (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    walk_id INTEGER NOT NULL REFERENCES walk (id),
+    path_rendering TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    detail TEXT
+);
