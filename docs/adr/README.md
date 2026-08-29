@@ -6,7 +6,7 @@ One file per architecture decision, ADR-001 through ADR-049.
 
 **The digest remains the fuller record.** For most of these decisions the architecture sections (§1, §2) say more than the ledger row does, and each file links to the sections that mention it.
 
-Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. New decisions continue from ADR-058 and carry their own full text — the reconstitution rule applies only to the records restored here.
+Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. New decisions continue from ADR-059 and carry their own full text — the reconstitution rule applies only to the records restored here.
 
 The vocabulary these decisions are written in is defined in [`CONTEXT.md`](../../CONTEXT.md) and is binding.
 
@@ -76,3 +76,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-055](0055-a-walk-is-resumed-under-its-own-id-until-it-finishes.md) | 2026-08-29 | A walk is resumed under its own id until it finishes |
 | [ADR-056](0056-excludes-nothing-is-checked-by-reconciliation-at-finish.md) | 2026-08-29 | "Excludes nothing" is checked by reconciliation at finish |
 | [ADR-057](0057-the-verdict-vocabulary-is-eight-values-a-closed-enum-edited-by-a-pr.md) | 2026-08-29 | The verdict vocabulary is eight values, a closed enum edited by a PR |
+| [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) | 2026-08-29 | A stage's implementation version is the last commit touching its module |
