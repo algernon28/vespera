@@ -72,6 +72,60 @@ public final class Adr {
     public static final String WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS =
             FILE + "0053-the-walk-anomaly-vocabulary-is-three-kinds.md";
 
+    /** ADR-015 — identity is a surrogate key per file occurrence. */
+    public static final String IDENTITY_IS_A_SURROGATE_KEY =
+            FILE + "0015-identity-is-a-surrogate-key-per-file-occurrence.md";
+
+    /** ADR-047 — the pipeline never blocks. */
+    public static final String THE_PIPELINE_NEVER_BLOCKS = FILE + "0047-the-pipeline-never-blocks.md";
+
+    /** ADR-048 — walk and run identity: a walk owns occurrences, a run owns verdicts. */
+    public static final String WALK_AND_RUN_IDENTITY = FILE + "0048-walk-and-run-identity.md";
+
+    /** ADR-054 — a corpus is its root path; the database lives in a configured working directory. */
+    public static final String CORPUS_IS_ITS_ROOT_PATH =
+            FILE + "0054-a-corpus-is-its-root-path-the-database-lives-in-a-configured-working-directory.md";
+
+    /** ADR-055 — a walk is resumed under its own id until it finishes. */
+    public static final String A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID =
+            FILE + "0055-a-walk-is-resumed-under-its-own-id-until-it-finishes.md";
+
+    /** ADR-056 — excludes nothing is checked by reconciliation at finish. */
+    public static final String EXCLUDES_NOTHING_IS_RECONCILED =
+            FILE + "0056-excludes-nothing-is-checked-by-reconciliation-at-finish.md";
+
+    /** ADR-057 — the verdict vocabulary is eight values, a closed enum edited by a pull request. */
+    public static final String VERDICT_VOCABULARY_IS_EIGHT_VALUES =
+            FILE + "0057-the-verdict-vocabulary-is-eight-values-a-closed-enum-edited-by-a-pr.md";
+
+    /** ADR-058 — a stage implementation version is the last commit touching its module. */
+    public static final String IMPLEMENTATION_VERSION_IS_THE_LAST_COMMIT =
+            FILE + "0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md";
+
+    /** ADR-059 — schema version is one row per module, checked and refused independently. */
+    public static final String SCHEMA_VERSION_IS_ONE_ROW_PER_MODULE =
+            FILE + "0059-schema-version-is-one-row-per-module-checked-and-refused-independently.md";
+
+    /** ADR-060 — survivors is a ledger-owned item reader, not a view. */
+    public static final String SURVIVORS_IS_AN_ITEM_READER =
+            FILE + "0060-survivors-is-a-ledger-owned-item-reader-not-a-view.md";
+
+    /** ADR-061 — the profile is YAML, typed Java records, one object per value. */
+    public static final String PROFILE_IS_YAML_TYPED_RECORDS =
+            FILE + "0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md";
+
+    /** ADR-062 — census merges new profile keys and never touches an existing value. */
+    public static final String CENSUS_MERGES_AND_NEVER_OVERWRITES =
+            FILE + "0062-census-merges-new-profile-keys-and-never-touches-an-existing-value.md";
+
+    /** ADR-063 — census fixtures are generated in-test; scale is measured, not tested. */
+    public static final String FIXTURES_ARE_GENERATED_IN_TEST =
+            FILE + "0063-census-fixtures-are-generated-in-test-scale-is-measured-not-tested.md";
+
+    /** ADR-064 — the walk instrument generalizes; a seed folder is walked too. */
+    public static final String THE_WALK_INSTRUMENT_GENERALIZES =
+            FILE + "0064-the-walk-instrument-generalizes-a-seed-folder-is-walked-too.md";
+
     private Adr() {
     }
 }
