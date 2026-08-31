@@ -126,6 +126,10 @@ public final class Adr {
     public static final String THE_WALK_INSTRUMENT_GENERALIZES =
             FILE + "0064-the-walk-instrument-generalizes-a-seed-folder-is-walked-too.md";
 
+    /** ADR-065 — the walk algorithm is tested on an in-memory filesystem; identity stays on NTFS. */
+    public static final String WALK_ALGORITHM_ON_AN_IN_MEMORY_FILESYSTEM =
+            FILE + "0065-the-walk-algorithm-is-tested-on-an-in-memory-filesystem-identity-stays-on-ntfs.md";
+
     private Adr() {
     }
 }

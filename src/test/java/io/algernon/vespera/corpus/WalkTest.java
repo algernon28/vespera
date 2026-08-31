@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.TreeSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +28,11 @@ import org.junit.jupiter.api.io.TempDir;
  * The walk against a real filesystem. These tests build the awkward cases rather than describing
  * them, because the awkward cases are the point: an entry whose name cannot be stored, and a link
  * that must not be followed.
+ *
+ * <p>The walk's own logic — counting, resuming, skipping a subtree already recorded — is tested
+ * against a corpus built in memory instead, in {@link WalkAlgorithmTest}. The shape of the tree is
+ * all those questions need, and a fixture costing no disk can be made large enough to break the
+ * arithmetic (ADR-065). What stays here is what only a real filesystem is evidence for.
  *
  * <p>One of the three anomaly kinds has no test here, and the reason is not neglect. A path too long
  * for the filesystem cannot be built as a fixture at all: an entry has to exist for a walk to meet
@@ -65,7 +69,6 @@ class WalkTest {
         final List<Instant> modified = new ArrayList<>();
         final List<String> anomalies = new ArrayList<>();
         final List<WalkAnomalyKind> anomalyKinds = new ArrayList<>();
-        final List<Checkpoint> checkpoints = new ArrayList<>();
 
         @Override
         public void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified) {
@@ -78,11 +81,6 @@ class WalkTest {
         public void anomaly(String pathRendering, WalkAnomalyKind kind, String detail) {
             anomalyKinds.add(kind);
             anomalies.add(pathRendering + " :: " + detail);
-        }
-
-        @Override
-        public void checkpoint(Checkpoint at, Walk.Progress progress) {
-            checkpoints.add(at);
         }
     }
 
@@ -272,128 +270,5 @@ class WalkTest {
                 () -> assertThatThrownBy(() -> Walk.walk(file, new Recorder()))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessageContaining("directory"));
-    }
-
-    /**
-     * A directory the walk meets and may not list. It becomes one anomaly and is not entered, which
-     * is the case {@code walkFileTree} exists for: the traversal carries on past it rather than
-     * ending there (ADR-053).
-     */
-    @Test
-    @Story("Entries that become walk anomalies")
-    @DisplayName("A directory that may not be read is recorded, and the walk carries on past it")
-    @Issue("6")
-    @Link(name = "ADR-053", url = Adr.WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS, type = "adr")
-    @Link(name = "ADR-063", url = Adr.FIXTURES_ARE_GENERATED_IN_TEST, type = "adr")
-    void recordsADirectoryItMayNotReadAndCarriesOn(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("readable.txt"), "reached after the denied directory");
-        Path denied = AwkwardFixtures.unreadableDirectory(root);
-        try {
-            Recorder recorder = new Recorder();
-            Walk.Outcome outcome = Walk.walk(root, recorder);
-
-            claim(
-                    "the file beside the denied directory was still recorded, so one unreadable entry did not"
-                            + " end the traversal",
-                    () -> assertThat(recorder.occurrences).containsExactly("readable.txt"));
-            claim(
-                    "the denied directory was recorded rather than dropped: one anomaly",
-                    () -> assertThat(recorder.anomalyKinds).containsExactly(WalkAnomalyKind.UNPROCESSABLE));
-            claim(
-                    "the file behind the denied directory was never reached",
-                    () -> assertThat(recorder.occurrences).doesNotContain("denied/unreachable.txt"));
-            claim(
-                    "every entry met is still accounted for, the denied directory being an anomaly rather than"
-                            + " a directory entered",
-                    () -> assertThat(outcome.progress().accountsForEveryEntry()).isTrue());
-        } finally {
-            AwkwardFixtures.restoreAccess(denied);
-        }
-    }
-
-    /**
-     * Resuming rests on the ordinals still pointing at the directory they pointed at (ADR-055). A
-     * checkpoint naming a position the tree no longer holds must stop the walk, not be walked past.
-     */
-    @Test
-    @Story("A walk resumes where it stopped")
-    @DisplayName("A checkpoint that no longer matches the tree stops the walk instead of skipping the wrong subtree")
-    @Issue("5")
-    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
-    void refusesToResumeAgainstATreeThatChanged(@TempDir Path root) throws IOException {
-        Files.createDirectories(root.resolve("one"));
-        Files.writeString(root.resolve("one/a.txt"), "a");
-        Checkpoint pointingElsewhere = new Checkpoint(List.of(0), "somewhere-else");
-
-        claim(
-                "a checkpoint naming a directory the tree does not hold at that position stops the walk,"
-                        + " saying the tree changed",
-                () -> assertThatThrownBy(() -> Walk.walk(root, new Recorder(), Optional.of(pointingElsewhere)))
-                        .isInstanceOf(CheckpointMismatch.class)
-                        .hasMessageContaining("changed"));
-    }
-
-    /**
-     * The second way a tree can disagree with a checkpoint, and a different code path from a renamed
-     * directory: the position is no longer a directory at all, so the walk never meets it as one and
-     * has to notice the absence rather than the difference.
-     */
-    @Test
-    @Story("A walk resumes where it stopped")
-    @DisplayName("A checkpoint pointing at what is now a file stops the walk rather than skipping on")
-    @Issue("5")
-    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
-    void refusesToResumeWhenTheCheckpointedDirectoryIsNowAFile(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("one"), "what was a directory when the checkpoint was written");
-        Checkpoint pointingAtWhatIsNowAFile = new Checkpoint(List.of(0), "one");
-
-        claim(
-                "the walk stops rather than carrying on past a position it never found, so a tree that"
-                        + " changed cannot quietly cost the corpus a subtree",
-                () -> assertThatThrownBy(
-                                () -> Walk.walk(root, new Recorder(), Optional.of(pointingAtWhatIsNowAFile)))
-                        .isInstanceOf(CheckpointMismatch.class)
-                        .hasMessageContaining("no longer holds"));
-    }
-
-    /**
-     * The other half of resuming: a walk handed its own checkpoint skips exactly what that checkpoint
-     * covers, and reports nothing from it a second time.
-     */
-    @Test
-    @Story("A walk resumes where it stopped")
-    @DisplayName("A resumed walk skips the subtree its checkpoint covers and records only what is left")
-    @Issue("5")
-    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
-    void skipsTheSubtreeItsCheckpointCovers(@TempDir Path root) throws IOException {
-        Files.createDirectories(root.resolve("one"));
-        Files.writeString(root.resolve("one/a.txt"), "a");
-        Files.createDirectories(root.resolve("two"));
-        Files.writeString(root.resolve("two/b.txt"), "b");
-
-        Recorder first = new Recorder();
-        Walk.walk(root, first);
-        Checkpoint afterTheFirstDirectory = first.checkpoints.get(0);
-
-        Recorder resumed = new Recorder();
-        Walk.Outcome outcome = Walk.walk(root, resumed, Optional.of(afterTheFirstDirectory));
-
-        // Which of the two directories is completed first is the filesystem's order to choose, and
-        // the claim is about the other one either way.
-        String skipped = afterTheFirstDirectory.pathRendering();
-        String remaining = skipped.equals("one") ? "two/b.txt" : "one/a.txt";
-
-        claim(
-                "the first directory completed was " + skipped
-                        + ", so resuming from it records only the file outside it",
-                () -> assertThat(resumed.occurrences).containsExactly(remaining));
-        claim(
-                "the resumed session counted only the entries it actually walked: two/b.txt and the"
-                        + " directory two",
-                () -> assertThat(outcome.progress().entriesSeen()).isEqualTo(2));
-        claim(
-                "the root was not counted a second time, having been entered once already by the first"
-                        + " session",
-                () -> assertThat(outcome.progress().directoriesEntered()).isEqualTo(1));
     }
 }
