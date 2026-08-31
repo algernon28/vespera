@@ -83,3 +83,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-062](0062-census-merges-new-profile-keys-and-never-touches-an-existing-value.md) | 2026-08-29 | Census merges new profile keys and never touches an existing value |
 | [ADR-063](0063-census-fixtures-are-generated-in-test-scale-is-measured-not-tested.md) | 2026-08-29 | Census fixtures are generated in-test; scale is measured, not tested |
 | [ADR-064](0064-the-walk-instrument-generalizes-a-seed-folder-is-walked-too.md) | 2026-08-29 | The walk instrument generalizes; a seed folder is walked too |
+| [ADR-065](0065-the-walk-algorithm-is-tested-on-an-in-memory-filesystem-identity-stays-on-ntfs.md) | 2026-08-31 | The walk algorithm is tested on an in-memory filesystem; identity stays on NTFS |

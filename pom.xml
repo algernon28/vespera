@@ -31,6 +31,7 @@
         <spring-ai.version>2.0.0</spring-ai.version>
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <picocli.version>4.7.7</picocli.version>
+        <memoryfilesystem.version>2.8.1</memoryfilesystem.version>
         <!--
           Allure is two products on two version lines, which is the easy thing to get wrong.
 
@@ -172,6 +173,26 @@
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!--
+              An in-memory filesystem for the walk's own logic: the accounting identity, the
+              checkpoint ordinals and subtree skipping on resume, and the unprocessable anomaly a
+              denied directory produces (ADR-065). It enforces permissions, which is what turns an
+              environment-dependent skip into a test, and it builds a thousand-entry tree in
+              milliseconds, which is what makes the resume arithmetic testable at a scale that can
+              actually break it.
+
+              Not for identity. Its Windows model folds dotless i and I together, where NTFS keeps
+              them as different files, which is the exact case ADR-051 was written about. So path
+              identity, unencodable names, junctions and traversal order stay on real NTFS under
+              @TempDir, and its case-sensitivity settings are deliberately not configured to
+              imitate NTFS: a fixture bent to match a belief can only confirm that belief.
+            -->
+            <groupId>com.github.marschall</groupId>
+            <artifactId>memoryfilesystem</artifactId>
+            <version>${memoryfilesystem.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
