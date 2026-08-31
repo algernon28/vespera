@@ -243,6 +243,108 @@ flowchart TD
 - **No Spring Modulith event publication registry** — no application events exist in this design (stages never call each other); `spring-modulith-starter-core` is retained for boundary verification only.
 - **CLI surface: two commands** (ADR-047) — run the pipeline through 6b, and invoke the publication adapter. Nothing more, because there's no interactive pause left to expose.
 
+**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — census is the only one that exists in this slice, and every later stage is another step appended to the same job. Publication is a second command against the same working directory, never a step of the run.
+
+```mermaid
+flowchart TD
+    OP(["a person types<br/><b>vespera run</b> and a root"])
+    PREP["<b>working directory prepared</b><br/>vespera.working-dir created<br/><i>before the datasource is opened</i>"]
+    BOOT["<b>application starts</b><br/>SQLite opened · schema applied<br/>schema_version checked, refuses on mismatch"]
+    JOB["<b>job 'vespera' started</b><br/>one job parameter: the root<br/><i>never started by the app coming up</i>"]
+    S0["<b>step: census</b><br/>stage 0 — walk, record, merge the profile"]
+    LATER["<b>steps: stages 1 to 6b</b><br/><i>not built in this slice</i>"]
+    EXIT(["exit code<br/>0, or non-zero if the job failed"])
+
+    PUBOP(["a person types<br/><b>vespera publish</b>"])
+    PUB["<b>publication adapter</b><br/>reads the ledger, names no root<br/><i>a stub in this slice</i>"]
+
+    STORE[("<b>working directory</b><br/>the database · the profile")]
+
+    OP --> PREP --> BOOT --> JOB --> S0 --> LATER --> EXIT
+    PUBOP --> PUB
+
+    PREP -.-> STORE
+    BOOT <-.-> STORE
+    S0 <-.-> STORE
+    PUB <-.-> STORE
+
+    classDef human fill:#fff4e6,stroke:#b5762a,color:#3d2a12
+    classDef step fill:#eef4ff,stroke:#4a6fa5,color:#12243d
+    classDef later fill:#f5f5f5,stroke:#9a9a9a,color:#3a3a3a
+    classDef store fill:#f3eaff,stroke:#7a4fb5,color:#241238
+    classDef out fill:#eafaf1,stroke:#2f8f5b,color:#0f2e1e
+    class OP,PUBOP human
+    class PREP,BOOT,JOB,S0,PUB step
+    class LATER later
+    class STORE store
+    class EXIT out
+```
+
+**Census in detail.** Stage 0 is a tasklet rather than a chunk-oriented step, because it is the one stage that reads no survivors — it produces the occurrences every later stage reads, so there is no input to chunk. Its two walks are independent (ADR-064): the same instrument walks the corpus root and, if the profile names one, the seed folder, and neither costs the other its chance to run. The chunking that matters is the walk's own commit cadence: everything between two checkpoints is buffered and written in the same transaction as the checkpoint, which is what makes a killed session resumable rather than merely fast (ADR-055).
+
+```mermaid
+flowchart TD
+    START(["census step begins<br/>with the root it was given"])
+    LOAD["<b>load the profile</b><br/>keys the file lacks arrive unset (ADR-062)"]
+
+    subgraph WALK["walking a root — the same instrument for either one"]
+        direction TB
+        CANON["canonicalise the root"]
+        RESUME{"an unfinished walk<br/>over this root?"}
+        MINT["<b>mint a walk id</b>"]
+        CONT["<b>resume that walk id</b><br/>skip past the checkpointed subtree<br/>fail loudly if the tree no longer agrees"]
+        VISIT["<b>visit an entry</b><br/>file occurrence · anomaly · descend<br/><i>links are recorded, never followed</i>"]
+        BUF["buffer occurrences and anomalies"]
+        CP{"a thousand entries since<br/>the last checkpoint?"}
+        COMMIT["<b>one transaction</b><br/>buffered rows + checkpoint + counts"]
+        NEXT{"another entry,<br/>and the session still alive?"}
+        DONE{"was the whole tree walked?"}
+        STOPPED["<b>leave it unfinished</b><br/>rows past the last checkpoint are dropped<br/><i>ineligible as run input until finished</i>"]
+        FIN["<b>finish the walk</b><br/>final rows + cumulative counts"]
+        RECON["<b>the excludes-nothing check</b> (ADR-056)<br/>entries seen against occurrences,<br/>anomalies and directories written<br/><i>throws if it does not balance</i>"]
+
+        CANON --> RESUME
+        RESUME -- no --> MINT --> VISIT
+        RESUME -- yes --> CONT --> VISIT
+        VISIT --> BUF --> CP
+        CP -- not yet --> NEXT
+        CP -- yes --> COMMIT --> NEXT
+        NEXT -- yes --> VISIT
+        NEXT -- no --> DONE
+        DONE -- no --> STOPPED
+        DONE -- yes --> FIN --> RECON
+    end
+
+    CORPUS["<b>walk the corpus root</b><br/><i>a failure is held, not raised</i>"]
+    SEED{"does the profile<br/>name a seed folder?"}
+    SEEDWALK["<b>walk the seed folder</b><br/>its own walk id, no purpose tag"]
+    UNSET["record that no seed folder is set<br/><i>a gap, not a failure</i>"]
+    MEAS["<b>measure the seed folder</b><br/>the walk id, or why it could not be walked"]
+    SAVE["<b>save the profile</b><br/>census drafts it, humans write it thereafter"]
+    RAISE{"did the corpus<br/>walk fail?"}
+    FAILED(["the step fails<br/>the held failure is raised"])
+    OK(["the step finishes<br/>no verdicts, so no run is minted (ADR-048)"])
+
+    START --> LOAD --> CORPUS --> WALK
+    WALK --> SEED
+    SEED -- yes --> SEEDWALK --> MEAS
+    SEED -- no --> UNSET --> MEAS
+    MEAS --> SAVE --> RAISE
+    RAISE -- yes --> FAILED
+    RAISE -- no --> OK
+
+    classDef measure fill:#eef4ff,stroke:#4a6fa5,color:#12243d
+    classDef gate fill:#fff4e6,stroke:#b5762a,color:#3d2a12
+    classDef write fill:#f3eaff,stroke:#7a4fb5,color:#241238
+    classDef out fill:#eafaf1,stroke:#2f8f5b,color:#0f2e1e
+    classDef bad fill:#fdecea,stroke:#b53a2a,color:#3d1512
+    class CANON,VISIT,BUF,CORPUS,SEEDWALK,UNSET,MINT,CONT measure
+    class RESUME,CP,NEXT,DONE,SEED,RAISE gate
+    class COMMIT,FIN,LOAD,SAVE,MEAS write
+    class RECON,STOPPED,START,OK out
+    class FAILED bad
+```
+
 ### 1.7 Open items
 
 Tracked on the wayfinder map, [Census slice: the way to a hand-off spec](https://github.com/algernon28/vespera/issues/1), rather than in this file. Its open child issues **are** the live list; its **Out of scope** section carries the two items parked on measurement data — shingle granularity, blocked on stage-3 OCR error rates, and target hardware, blocked on a census scanned-page count — each with the trigger that revives it.
