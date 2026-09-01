@@ -90,7 +90,19 @@ public final class Walk {
          * sessions — a resumed session on its own counts neither the root nor anything it skipped.
          */
         public boolean accountsForEveryEntry() {
-            return entriesSeen == occurrences + anomalies + directoriesEntered - 1;
+            return unaccountedFor() == 0;
+        }
+
+        /**
+         * How many entries the identity cannot place: positive where the walk met more than it
+         * reported, negative where it reported more than it met.
+         *
+         * <p>The identity is written out here and nowhere else. Every other site — the check at the
+         * finish, the failure it raises — asks this record rather than restating the arithmetic,
+         * because a rule spelled out twice is a rule that can come apart.
+         */
+        public long unaccountedFor() {
+            return entriesSeen - (occurrences + anomalies + directoriesEntered - 1);
         }
     }
 

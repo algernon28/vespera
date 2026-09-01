@@ -2,9 +2,14 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
+import io.algernon.vespera.corpus.CheckpointMismatch;
+import io.algernon.vespera.corpus.CorpusFailures;
+import io.algernon.vespera.corpus.ExcludesNothingViolation;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
@@ -116,11 +121,102 @@ class CensusTaskletTest {
                 () -> assertThat(profileStore.load().seedFolder().value()).isEqualTo(seeds.toString()));
     }
 
+    @Test
+    @Story("What census does in one invocation")
+    @DisplayName("A seed walk that cannot account for every entry aborts the invocation")
+    @Issue("6")
+    @Link(name = "ADR-056", url = Adr.EXCLUDES_NOTHING_IS_RECONCILED, type = "adr")
+    void aSeedWalkThatLostRowsAbortsTheInvocation(@TempDir Path root, @TempDir Path seeds, @TempDir Path workingDirectory)
+            throws Exception {
+        Files.writeString(root.resolve("a.txt"), "a");
+        Files.writeString(seeds.resolve("exemplar.txt"), "a known-relevant document");
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(new Profile(new ProfileValue(seeds.toString(), "the handover set", null)));
+        CensusTasklet census = tasklet(root, profileStore, failingOn(seeds, CorpusFailures.excludesNothing()));
+
+        claim(
+                "the invocation fails, rather than exiting nought with the loss recorded as a measurement",
+                () -> assertThatThrownBy(() -> census.execute(null, null))
+                        .isInstanceOf(ExcludesNothingViolation.class));
+        claim(
+                "the corpus walk still ran to completion first, neither walk costing the other its chance",
+                () -> assertThat(walkCount()).isEqualTo(1));
+        claim(
+                "and the profile says what went wrong, so the failure is legible after the exit code",
+                () -> assertThat(profileStore.load().seedFolder().measurement().source())
+                        .contains("the seed folder could not be walked"));
+    }
+
+    @Test
+    @Story("What census does in one invocation")
+    @DisplayName("A seed folder that is merely missing is recorded, not fatal")
+    void aSeedFolderThatIsNotThereIsRecordedRatherThanFatal(
+            @TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        Files.writeString(root.resolve("a.txt"), "a");
+        Path missing = root.resolve("nowhere");
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(new Profile(new ProfileValue(missing.toString(), "the handover set", null)));
+        CensusTasklet census = tasklet(root, profileStore);
+
+        claim(
+                "a mistyped seed path does not cost the operator the corpus census that ran beside it",
+                () -> assertThatCode(() -> census.execute(null, null)).doesNotThrowAnyException());
+        claim(
+                "the corpus was recorded",
+                () -> assertThat(new Ledger(jdbcTemplate).occurrenceCount(onlyWalk())).isEqualTo(1));
+        claim(
+                "and the profile carries why no seed walk happened",
+                () -> assertThat(profileStore.load().seedFolder().measurement().source())
+                        .contains("the seed folder could not be walked"));
+    }
+
+    @Test
+    @Story("What census does in one invocation")
+    @DisplayName("A seed walk resumed onto a corpus that moved under it aborts the invocation")
+    @Issue("5")
+    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
+    void aSeedWalkResumedOntoAMovedTreeAbortsTheInvocation(
+            @TempDir Path root, @TempDir Path seeds, @TempDir Path workingDirectory) throws Exception {
+        Files.writeString(root.resolve("a.txt"), "a");
+        Files.writeString(seeds.resolve("exemplar.txt"), "a known-relevant document");
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(new Profile(new ProfileValue(seeds.toString(), "the handover set", null)));
+        CensusTasklet census = tasklet(root, profileStore, failingOn(seeds, CorpusFailures.checkpointMismatch()));
+
+        claim(
+                "a resumed seed walk that would skip past a subtree it can no longer trust fails the"
+                        + " invocation, the same as a walk that lost rows — both mean the ledger may hold"
+                        + " less than the archive",
+                () -> assertThatThrownBy(() -> census.execute(null, null))
+                        .isInstanceOf(CheckpointMismatch.class));
+        claim(
+                "and the profile says what went wrong, so the failure is legible after the exit code",
+                () -> assertThat(profileStore.load().seedFolder().measurement().source())
+                        .contains("the seed folder could not be walked"));
+    }
+
+    /** A recorder that walks everything for real, except {@code seeds}, where it raises {@code failure}. */
+    private WalkRecorder failingOn(Path seeds, RuntimeException failure) {
+        return new WalkRecorder(new Ledger(jdbcTemplate), new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource)) {
+            @Override
+            public WalkId walk(Path walkRoot) throws IOException {
+                if (walkRoot.equals(seeds)) {
+                    throw failure;
+                }
+                return super.walk(walkRoot);
+            }
+        };
+    }
+
     private CensusTasklet tasklet(Path root, ProfileStore profileStore) {
         WalkRecorder walkRecorder = new WalkRecorder(
                 new Ledger(jdbcTemplate),
                 new AnomalyLog(jdbcTemplate),
                 new JdbcTransactionManager(dataSource));
+        return tasklet(root, profileStore, walkRecorder);
+    }
+
+    private CensusTasklet tasklet(Path root, ProfileStore profileStore, WalkRecorder walkRecorder) {
         return new CensusTasklet(
                 walkRecorder, profileStore, Clock.fixed(CENSUS_RAN_AT, ZoneOffset.UTC), root);
     }

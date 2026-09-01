@@ -137,9 +137,14 @@ public class WalkRecorder {
         long occurrences = ledger.occurrenceCount(walkId);
         long anomalies = anomalyLog.anomalyCount(walkId);
 
-        if (counts.entriesSeen() != occurrences + anomalies + counts.directoriesEntered() - 1) {
-            throw new ExcludesNothingViolation(
-                    walkId, counts.entriesSeen(), counts.directoriesEntered(), occurrences, anomalies);
+        // The arithmetic itself is Progress's, not restated here: what the ledger holds is the whole
+        // walk's counts, so it is a Progress like any other and answers the same question. Spelling
+        // the identity out a second time would let the check and the rule drift apart silently.
+        Walk.Progress asWritten =
+                new Walk.Progress(counts.entriesSeen(), counts.directoriesEntered(), occurrences, anomalies);
+
+        if (!asWritten.accountsForEveryEntry()) {
+            throw new ExcludesNothingViolation(walkId, asWritten);
         }
     }
 

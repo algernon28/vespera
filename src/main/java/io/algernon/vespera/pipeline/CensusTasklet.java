@@ -1,5 +1,7 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.corpus.CheckpointMismatch;
+import io.algernon.vespera.corpus.ExcludesNothingViolation;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Measurement;
@@ -7,6 +9,7 @@ import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -61,15 +64,36 @@ public class CensusTasklet implements Tasklet {
         // (ADR-064). A corpus root that cannot be walked is still worth knowing the seed set for, and
         // the invocation fails afterwards either way.
         Walked corpus = walkOrCapture(root, "the corpus");
-        Measurement seedFolder = measureSeedFolder(profile);
+        Optional<Walked> seed = walkSeedFolderIfNamed(profile);
 
-        profileStore.save(profile.withSeedFolderMeasurement(seedFolder));
+        profileStore.save(profile.withSeedFolderMeasurement(seedFolderMeasurement(seed)));
         log.info("Census merged the profile at {}", profileStore.file());
 
         if (corpus.failure() != null) {
             throw corpus.failure();
         }
+        if (seed.isPresent() && abortsTheInvocation(seed.get().failure())) {
+            throw seed.get().failure();
+        }
         return RepeatStatus.FINISHED;
+    }
+
+    /**
+     * Whether a failed walk is one no census may outlive, whichever root it was walking.
+     *
+     * <p>Both of these say the same thing: the ledger may now hold fewer occurrences than the archive
+     * holds files. {@link ExcludesNothingViolation} is that caught at the finish (ADR-056), and
+     * {@link CheckpointMismatch} is a resumed walk about to skip a subtree that has moved under it
+     * (ADR-055). Neither has a degraded mode, and neither becomes survivable by having happened to the
+     * seed folder rather than the corpus — a seed set quietly missing entries scores relevance against
+     * the wrong set, silently, for every stage downstream.
+     *
+     * <p>Everything else a walk can raise is the seed folder's own business and stays in the profile:
+     * a mistyped seed path is an operator's typo, not a reason to lose the corpus census that ran
+     * beside it.
+     */
+    private static boolean abortsTheInvocation(Exception failure) {
+        return failure instanceof ExcludesNothingViolation || failure instanceof CheckpointMismatch;
     }
 
     /** Walks a root, returning what went wrong rather than raising it, so the other walk still runs. */
@@ -88,22 +112,29 @@ public class CensusTasklet implements Tasklet {
     private record Walked(WalkId walkId, Exception failure) {}
 
     /**
-     * Walks the seed folder if the operator has named one, and points the profile's seed-folder key
-     * at the walk that resulted.
+     * Walks the seed folder if the operator has named one, and empty if nobody has.
      *
      * <p>An unset key is not a failure: a corpus can be censused before anyone has decided what the
      * seed set is, and the profile is where that gap is visible.
      */
-    private Measurement measureSeedFolder(Profile profile) {
+    private Optional<Walked> walkSeedFolderIfNamed(Profile profile) {
         if (!profile.seedFolder().isSet()) {
-            return new Measurement("no seed folder is set in the profile", clock.instant());
+            return Optional.empty();
         }
         Path seedFolder = Path.of(profile.seedFolder().value());
-        Walked seed = walkOrCapture(seedFolder, "the seed folder");
-        if (seed.failure() != null) {
-            return new Measurement(
-                    "the seed folder could not be walked: " + seed.failure().getMessage(), clock.instant());
+        return Optional.of(walkOrCapture(seedFolder, "the seed folder"));
+    }
+
+    /** What the profile's seed-folder key is set to say: the walk that ran, or why none did. */
+    private Measurement seedFolderMeasurement(Optional<Walked> seed) {
+        if (seed.isEmpty()) {
+            return new Measurement("no seed folder is set in the profile", clock.instant());
         }
-        return new Measurement("walk " + seed.walkId().value(), clock.instant());
+        Walked walked = seed.get();
+        if (walked.failure() != null) {
+            return new Measurement(
+                    "the seed folder could not be walked: " + walked.failure().getMessage(), clock.instant());
+        }
+        return new Measurement("walk " + walked.walkId().value(), clock.instant());
     }
 }
