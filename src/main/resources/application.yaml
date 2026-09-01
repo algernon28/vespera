@@ -1,12 +1,48 @@
+vespera:
+  # Where the database and profile.yaml live, together and apart from the corpus (ADR-054). It is
+  # explicit operator configuration and never derived from the corpus root, so census can run
+  # against a read-only mount. --db-dir=<path> overrides it for one invocation; it has to be a
+  # property rather than only a CLI option, because the datasource is built from it long before the
+  # command line is parsed.
+  working-dir: ${db-dir:${user.dir}/.vespera}
+
 spring:
   application:
     name: vespera
+  datasource:
+    # One SQLite file, holding everything (ADR-008, ADR-009). foreign_keys=on because SQLite ignores
+    # foreign key constraints per connection unless told otherwise, and schema.sql's walk_id
+    # references would silently accept orphans without it.
+    url: "jdbc:sqlite:${vespera.working-dir}/vespera.db?foreign_keys=on"
+    driver-class-name: org.sqlite.JDBC
   sql:
     init:
       # SQLite isn't one of the databases Spring Boot auto-detects as embedded, so schema.sql
       # is never run unless this is explicit (ADR-049: schema via schema.sql, no migration tool).
       mode: always
+  batch:
+    job:
+      # An invocation is a person running a command against a root they named (ADR-047), never a
+      # side effect of the application starting. The CLI launches the job; nothing else does.
+      enabled: false
+    jdbc:
+      # No batch metadata tables: the job repository is resourceless (ADR-036), so there is no
+      # schema for Batch to initialise and nothing of Batch's in the one database.
+      initialize-schema: never
   ai:
+    model:
+      # Ollama is the default engine and serves locally (ADR-013), and which runtime serves is
+      # configuration rather than code (ADR-012). The OpenAI starter is on the classpath for the
+      # bake-off's reference model (ADR-034) and is selected per invocation, never by default --
+      # naming the model here is also what keeps its auto-configuration from demanding an API key
+      # the moment the application starts.
+      chat: ollama
+      embedding: ollama
+      image: none
+      moderation: none
+      audio:
+        transcription: none
+        speech: none
     vectorstore:
       chroma:
         # Chroma is a derived, disposable projection of the vectors SQLite holds

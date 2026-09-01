@@ -29,6 +29,19 @@ public class AnomalyLog {
                 detail);
     }
 
+    /**
+     * How many walk anomalies stand against {@code walkId}.
+     *
+     * <p>The other half of the excludes-nothing reconciliation (ADR-056), which lives in
+     * {@code corpus} rather than {@code ledger} for the same reason this table does: an anomaly is
+     * not a verdict.
+     */
+    public long anomalyCount(WalkId walkId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM walk_anomaly WHERE walk_id = ?", Long.class, walkId.value());
+        return count == null ? 0 : count;
+    }
+
     /** The walk anomalies recorded against {@code walkId}. */
     public List<RecordedAnomaly> anomaliesForWalk(WalkId walkId) {
         return jdbcTemplate.query(

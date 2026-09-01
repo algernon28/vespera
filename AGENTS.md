@@ -18,7 +18,7 @@ This file is what an agent needs to start working. Everything it points at is au
 
 ## Where it stands today
 
-Design is far ahead of code. What exists in `src/main`: `ledger/OccurrencePath` (how a path identifies a file occurrence) and `corpus/Walk` (one observation of a filesystem, emitting occurrences and anomalies to an observer). Nothing is persisted yet — the schema, the database's location and the verdict vocabulary are all still open decisions.
+Design is ahead of code, and the census slice — stage 0 — is built. What exists in `src/main`: `ledger` (occurrence and run identity, the verdict vocabulary, the survivors reader, one schema version per module), `corpus` (the walk, its anomalies, and its resumable recorder), `profile` (`profile.yaml` as typed records), and `pipeline` (the picocli CLI and the one-step Spring Batch job). `vespera run <root>` walks a corpus and writes it to SQLite in the configured working directory. Stages 1 to 7 are recorded decisions and no code.
 
 Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no batch metadata tables), Spring Modulith for boundary verification only, SQLite as the single store, Chroma as a disposable vector projection, Ollama as the default extraction engine, picocli for a two-command CLI.
 

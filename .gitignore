@@ -36,5 +36,10 @@ build/
 # AspectJ weaver crash dumps (see the aspectjweaver javaagent in pom.xml)
 ajcore.*.txt
 
-# Allure reports, one self-contained HTML file per run (see maven-antrun-plugin in pom.xml)
+# Allure reports, one self-contained HTML file per run (see gmavenplus-plugin in pom.xml)
 /reports/
+
+# Worktrees an agent session creates for isolated work. Each one is a full checkout of this
+# repository, so committing it would nest the repo inside itself, and `git add -A` will
+# otherwise sweep one in. Remove a stale one with `git worktree remove`.
+/.claude/worktrees/

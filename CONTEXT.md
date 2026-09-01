@@ -78,11 +78,15 @@ _Avoid_: config, settings, parameters
 
 **Gate**:
 A value the pipeline requires and does not have. Not a pause — supply the value and no gate occurs; leave it unset and the run ends there, having recorded everything it learned.
-_Avoid_: checkpoint, approval step, pause
+_Avoid_: approval step, pause. Also "checkpoint" **for this concept**: a gate is not a point work resumes from, and the word now names one (see Checkpoint below).
 
 **Walk**:
 One observation of a filesystem, producing file occurrences. Carries the root it observed and whether it finished, because a partial walk that looks complete curates a fraction of the archive and reports success.
 _Avoid_: scan, crawl, import
+
+**Checkpoint**:
+A point a walk may be continued from: the last directory whose whole subtree was recorded, stored with the counts the walk had reached by then. Not a gate and not a pause — nothing waits at a checkpoint, and a walk that never reaches another one simply repeats the entries since the last. ADR-055 named this, after the Gate entry above had already claimed the word.
+_Avoid_: bookmark, savepoint, offset
 
 **Walk anomaly**:
 An entry a walk encountered and did not record as a file occurrence, carrying the reason. Not an error — most are not failures — and not a verdict: a verdict needs an occurrence to attach to, and an anomaly is exactly the case where none exists. Kinds are observations rather than policy, which is what makes the first walk of an archive a measurement.

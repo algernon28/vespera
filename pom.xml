@@ -31,6 +31,7 @@
         <spring-ai.version>2.0.0</spring-ai.version>
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <picocli.version>4.7.7</picocli.version>
+        <memoryfilesystem.version>2.8.1</memoryfilesystem.version>
         <!--
           Allure is two products on two version lines, which is the easy thing to get wrong.
 
@@ -67,6 +68,21 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-ollama</artifactId>
+        </dependency>
+        <dependency>
+            <!--
+              The bake-off's reference model is OpenAI (ADR-034). No code in the census slice
+              consumes this: the pom carries what a recorded decision requires, ahead of the code
+              that uses it (ADR-046), the same way ledger's verdict and run tables exist before
+              any stage writes to them.
+            -->
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
+        <dependency>
+            <!-- The profile is YAML, read and written through Jackson's records support (ADR-061). -->
+            <groupId>tools.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
         <dependency>
             <groupId>info.picocli</groupId>
@@ -159,6 +175,26 @@
             <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <!--
+              An in-memory filesystem for the walk's own logic: the accounting identity, the
+              checkpoint ordinals and subtree skipping on resume, and the unprocessable anomaly a
+              denied directory produces (ADR-065). It enforces permissions, which is what turns an
+              environment-dependent skip into a test, and it builds a thousand-entry tree in
+              milliseconds, which is what makes the resume arithmetic testable at a scale that can
+              actually break it.
+
+              Not for identity. Its Windows model folds dotless i and I together, where NTFS keeps
+              them as different files, which is the exact case ADR-051 was written about. So path
+              identity, unencodable names, junctions and traversal order stay on real NTFS under
+              @TempDir, and its case-sensitivity settings are deliberately not configured to
+              imitate NTFS: a fixture bent to match a belief can only confirm that belief.
+            -->
+            <groupId>com.github.marschall</groupId>
+            <artifactId>memoryfilesystem</artifactId>
+            <version>${memoryfilesystem.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
@@ -187,6 +223,22 @@
     </dependencyManagement>
 
     <build>
+        <resources>
+            <!--
+              Declaring resources at all overrides the default, so src/main/resources has to be
+              named here too. The second entry carries the file the implementation-versions
+              execution below generates (ADR-058); generating it into target/generated-resources and
+              letting maven-resources copy it keeps the generation in generate-resources, where a
+              generated file belongs, rather than writing into target/classes behind the build's
+              back.
+            -->
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>${project.build.directory}/generated-resources/implementation-versions</directory>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
@@ -379,6 +431,56 @@
                     </dependency>
                 </dependencies>
                 <executions>
+                    <execution>
+                        <!--
+                          A stage's implementation version is the SHA of the last commit touching its
+                          module's path (ADR-058): scoped, mechanical, and traceable to a commit a
+                          person can read. A repo-wide SHA would invalidate every stage on an
+                          unrelated change; a hand-kept constant relies on somebody remembering.
+
+                          gmavenplus rather than a new plugin, because the build already carries it
+                          for the report rename and this is a dozen lines of the same kind of work.
+                          No bytecode hashing: the toolchain would then be part of the answer.
+
+                          A module git cannot answer for is written as "unknown" rather than left
+                          out, and ImplementationVersions refuses to mint a run against that value.
+                          A build outside a git checkout therefore still compiles and still cannot
+                          silently invent a version.
+                        -->
+                        <id>implementation-versions</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>execute</goal>
+                        </goals>
+                        <configuration>
+                            <scripts>
+                                <script><![CDATA[
+                                    def modules = new File(project.basedir, 'src/main/java/io/algernon/vespera')
+                                        .listFiles()
+                                        .findAll { it.directory }
+                                        .sort { it.name }
+                                    def lines = modules.collect { module ->
+                                        def relative = "src/main/java/io/algernon/vespera/${module.name}"
+                                        def process = new ProcessBuilder('git', 'log', '-1', '--format=%H', '--', relative)
+                                            .directory(project.basedir)
+                                            .redirectErrorStream(true)
+                                            .start()
+                                        def sha = process.inputStream.text.trim()
+                                        if (process.waitFor() != 0 || !(sha ==~ /[0-9a-f]{40}/)) {
+                                            log.warn("No commit found for module ${module.name}; recording it as unknown")
+                                            sha = 'unknown'
+                                        }
+                                        "${module.name}=${sha}"
+                                    }
+                                    def target = new File(project.build.directory,
+                                        'generated-resources/implementation-versions/implementation-versions.properties')
+                                    target.parentFile.mkdirs()
+                                    target.text = lines.join(System.lineSeparator()) + System.lineSeparator()
+                                    log.info("Implementation versions: ${lines.join(', ')}")
+                                ]]></script>
+                            </scripts>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>publish-allure-report</id>
                         <phase>verify</phase>

@@ -29,10 +29,18 @@ import org.junit.jupiter.api.io.TempDir;
  * them, because the awkward cases are the point: an entry whose name cannot be stored, and a link
  * that must not be followed.
  *
- * <p>What is deliberately not asserted here is behaviour under an unreadable directory. Provoking
- * one portably needs ACL manipulation, and how census is tested at all is still open — see issue
- * #15. The walk uses {@code walkFileTree} precisely so that such an entry becomes one anomaly
- * rather than ending the traversal, which is what issue #6 will have to verify.
+ * <p>The walk's own logic — counting, resuming, skipping a subtree already recorded — is tested
+ * against a corpus built in memory instead, in {@link WalkAlgorithmTest}. The shape of the tree is
+ * all those questions need, and a fixture costing no disk can be made large enough to break the
+ * arithmetic (ADR-065). What stays here is what only a real filesystem is evidence for.
+ *
+ * <p>One of the three anomaly kinds has no test here, and the reason is not neglect. A path too long
+ * for the filesystem cannot be built as a fixture at all: an entry has to exist for a walk to meet
+ * it, and the entries this case is about are exactly the ones the filesystem refuses to create —
+ * the refusal leaves nothing behind to walk. The JDK also opts Windows paths into the long-path
+ * form, so the classic limit is not where a refusal lands either. The kind stays in the vocabulary
+ * because real archives, copied between systems, do carry such paths; it is a case to be met rather
+ * than manufactured.
  *
  * <p>Every assertion sits inside a {@code claim(...)}, which names it in the report. The numbers
  * the assertions use are named constants, so a claim can say where a number came from rather than
@@ -127,11 +135,11 @@ class WalkTest {
     void reportsTheEmptyCorpusAsEmptyRatherThanFailing(@TempDir Path root) throws IOException {
         Walk.Outcome outcome = Walk.walk(root, new Recorder());
 
-        claim("no files under the root, so no occurrences", () -> assertThat(outcome.occurrences()).isZero());
-        claim("an empty corpus is not an anomaly", () -> assertThat(outcome.anomalies()).isZero());
+        claim("no files under the root, so no occurrences", () -> assertThat(outcome.progress().occurrences()).isZero());
+        claim("an empty corpus is not an anomaly", () -> assertThat(outcome.progress().anomalies()).isZero());
         claim(
                 "one directory entered: the root itself, which the walk always enters",
-                () -> assertThat(outcome.directoriesEntered()).isEqualTo(1));
+                () -> assertThat(outcome.progress().directoriesEntered()).isEqualTo(1));
         claim(
                 "the walk finished, which is what makes the emptiness a measurement rather than a failure",
                 () -> assertThat(outcome.finished()).isTrue());
@@ -237,18 +245,18 @@ class WalkTest {
 
         claim(
                 FILES_WRITTEN + " files were written, so " + FILES_WRITTEN + " occurrences were recorded",
-                () -> assertThat(outcome.occurrences()).isEqualTo(FILES_WRITTEN));
+                () -> assertThat(outcome.progress().occurrences()).isEqualTo(FILES_WRITTEN));
         claim(
                 "every entry could be recorded, so nothing anomalous",
-                () -> assertThat(outcome.anomalies()).isZero());
+                () -> assertThat(outcome.progress().anomalies()).isZero());
         claim(
                 DIRECTORIES_WRITTEN + " directories entered: the root, one, and one/two",
-                () -> assertThat(outcome.directoriesEntered()).isEqualTo(DIRECTORIES_WRITTEN));
+                () -> assertThat(outcome.progress().directoriesEntered()).isEqualTo(DIRECTORIES_WRITTEN));
         claim(
                 "every entry met is an occurrence, an anomaly, or a directory descended into"
                         + " — the root is subtracted because nothing contains it",
-                () -> assertThat(outcome.entriesSeen())
-                        .isEqualTo(outcome.occurrences() + outcome.anomalies() + outcome.directoriesEntered() - 1));
+                () -> assertThat(outcome.progress().entriesSeen())
+                        .isEqualTo(outcome.progress().occurrences() + outcome.progress().anomalies() + outcome.progress().directoriesEntered() - 1));
     }
 
     @Test
