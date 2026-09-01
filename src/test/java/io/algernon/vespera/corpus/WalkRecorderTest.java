@@ -17,6 +17,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
@@ -100,10 +101,11 @@ class WalkRecorderTest {
     @Story("A live walk is persisted")
     @DisplayName("A walk anomaly found by a live walk is recorded under that same walk's id")
     void aLiveWalkRecordsItsAnomaliesUnderTheSameWalkId(@TempDir Path root) throws IOException {
-        Path unstorable = root.resolve("orphan-" + (char) 0xD800 + ".txt");
+        Path unstorable;
         try {
+            unstorable = root.resolve("orphan-" + (char) 0xD800 + ".txt");
             Files.writeString(unstorable, "content");
-        } catch (IOException e) {
+        } catch (InvalidPathException | IOException e) {
             abort("this filesystem will not create a name with an unpaired surrogate: " + e.getMessage());
         }
         AnomalyLog anomalyLog = anomalyLog();
@@ -219,10 +221,11 @@ class WalkRecorderTest {
     @Link(name = "ADR-056", url = Adr.EXCLUDES_NOTHING_IS_RECONCILED, type = "adr")
     void reconciliationCountsAnomaliesAndNotOnlyOccurrences(@TempDir Path root) throws IOException {
         Files.writeString(root.resolve("ordinary.txt"), "a");
-        Path unstorable = root.resolve("orphan-" + (char) 0xD800 + ".txt");
+        Path unstorable;
         try {
+            unstorable = root.resolve("orphan-" + (char) 0xD800 + ".txt");
             Files.writeString(unstorable, "content");
-        } catch (IOException e) {
+        } catch (InvalidPathException | IOException e) {
             abort("this filesystem will not create a name with an unpaired surrogate: " + e.getMessage());
         }
         Ledger ledger = ledger();

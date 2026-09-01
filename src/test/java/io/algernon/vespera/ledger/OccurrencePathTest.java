@@ -3,6 +3,7 @@ package io.algernon.vespera.ledger;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.abort;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
@@ -14,6 +15,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -76,6 +78,22 @@ class OccurrencePathTest {
             p = p.resolve(name);
         }
         return p;
+    }
+
+    /**
+     * The same, for a name this filesystem may refuse to make a {@link Path} of at all.
+     *
+     * <p>An unpaired surrogate is a valid NTFS name, and on NTFS these cases are real. Elsewhere the
+     * JDK throws before any file is touched, and a test that cannot even name its subject has
+     * nothing to say about how the subject is relativized. Aborting keeps that honest: the case is
+     * checked where it exists (ADR-065) and skipped, loudly, where it cannot be built.
+     */
+    private static Path resolveOrAbort(String... more) {
+        try {
+            return resolve(more);
+        } catch (InvalidPathException e) {
+            return abort("this filesystem will not name a file with an unpaired surrogate: " + e.getMessage());
+        }
     }
 
     private static String stored(String... more) {
@@ -193,7 +211,7 @@ class OccurrencePathTest {
     @Story("Names that cannot survive UTF-8")
     @DisplayName("An unpaired high surrogate yields no occurrence, and says why")
     void refusesAFilenameThatCannotSurviveUtf8() {
-        Result result = OccurrencePath.relativize(ROOT, resolve("orphan-" + LONE_HIGH_SURROGATE + ".txt"));
+        Result result = OccurrencePath.relativize(ROOT, resolveOrAbort("orphan-" + LONE_HIGH_SURROGATE + ".txt"));
 
         claim(
                 "a name holding the unpaired U+D800 has no UTF-8 encoding, so it yields no occurrence at all",
@@ -210,7 +228,7 @@ class OccurrencePathTest {
     @Story("Names that cannot survive UTF-8")
     @DisplayName("An unpaired low surrogate is refused on the same grounds")
     void refusesAnUnpairedLowSurrogateToo() {
-        Result result = OccurrencePath.relativize(ROOT, resolve("orphan-" + LONE_LOW_SURROGATE + ".txt"));
+        Result result = OccurrencePath.relativize(ROOT, resolveOrAbort("orphan-" + LONE_LOW_SURROGATE + ".txt"));
 
         claim(
                 "the low half of a pair, U+DC00, is as unstorable alone as the high half",

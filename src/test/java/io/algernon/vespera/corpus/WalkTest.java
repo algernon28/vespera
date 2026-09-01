@@ -15,6 +15,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -178,10 +179,11 @@ class WalkTest {
     @DisplayName("A name with no UTF-8 encoding becomes a walk anomaly, not an occurrence")
     @Link(name = "ADR-053", url = Adr.WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS, type = "adr")
     void refusesAnEntryWhoseNameCannotBeStored(@TempDir Path root) throws IOException {
-        Path unstorable = root.resolve("orphan-" + (char) 0xD800 + ".txt");
+        Path unstorable;
         try {
+            unstorable = root.resolve("orphan-" + (char) 0xD800 + ".txt");
             Files.writeString(unstorable, "content");
-        } catch (IOException e) {
+        } catch (InvalidPathException | IOException e) {
             abort("this filesystem will not create a name with an unpaired surrogate: " + e.getMessage());
         }
         Files.writeString(root.resolve("ordinary.txt"), "content");
