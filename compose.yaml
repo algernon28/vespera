@@ -1,9 +1,12 @@
+# Pinned rather than floating, and the same versions TestcontainersConfiguration names -- a service
+# present in one and absent from the other, or at a different version, means tests and runtime
+# disagree about what exists. Raise both in one commit (ADR-012, ADR-032).
 services:
   chroma:
-    image: 'chromadb/chroma:latest'
+    image: 'chromadb/chroma:1.5.9'
     ports:
       - '8000'
   ollama:
-    image: 'ollama/ollama:latest'
+    image: 'ollama/ollama:0.33.2'
     ports:
       - '11434'
