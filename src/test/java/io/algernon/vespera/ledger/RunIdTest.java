@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
  */
 @Epic("Ledger")
 @Feature("Run identity")
+@Issue("8")
 @Link(name = "ADR-048", url = Adr.WALK_AND_RUN_IDENTITY, type = "adr")
 class RunIdTest {
 

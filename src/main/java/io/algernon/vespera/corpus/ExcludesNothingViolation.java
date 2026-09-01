@@ -17,16 +17,15 @@ public class ExcludesNothingViolation extends IllegalStateException {
 
     private static final long serialVersionUID = 1L;
 
-    ExcludesNothingViolation(
-            WalkId walkId, long entriesSeen, long directoriesEntered, long occurrences, long anomalies) {
+    ExcludesNothingViolation(WalkId walkId, Walk.Progress asWritten) {
         super(("walk %d met %d entries and entered %d directories, but the ledger holds %d occurrences and %d"
                         + " anomalies: %d entries are unaccounted for, so this walk does not exclude nothing")
                 .formatted(
                         walkId.value(),
-                        entriesSeen,
-                        directoriesEntered,
-                        occurrences,
-                        anomalies,
-                        entriesSeen - (occurrences + anomalies + directoriesEntered - 1)));
+                        asWritten.entriesSeen(),
+                        asWritten.directoriesEntered(),
+                        asWritten.occurrences(),
+                        asWritten.anomalies(),
+                        asWritten.unaccountedFor()));
     }
 }
