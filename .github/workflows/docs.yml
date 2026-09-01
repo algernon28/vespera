@@ -28,7 +28,10 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  # Named for what it checks, not for a Maven phase. As `verify` this job showed up in `gh pr
+  # checks` as a passing check called "verify", which reads as `mvnw verify` having run -- it never
+  # had, and a reviewer took the green as evidence the Java build was covered.
+  render:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
