@@ -6,7 +6,6 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -14,7 +13,8 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
 
 /**
- * The pipeline as Spring Batch sees it: one job, and for this slice one step.
+ * The pipeline as Spring Batch sees it: one job, growing by one step per stage. Census's own step
+ * lives here; {@link Stage1JobConfiguration} contributes stage 1's.
  *
  * <p>There is no job repository bean here and that is deliberate. Spring Batch's own default is
  * already {@code ResourcelessJobRepository}, so the decision to keep batch metadata out of the
@@ -32,8 +32,8 @@ public class CensusJobConfiguration {
     static final String JOB_NAME = "vespera";
 
     @Bean
-    Job vesperaJob(JobRepository jobRepository, Step censusStep) {
-        return new JobBuilder(JOB_NAME, jobRepository).start(censusStep).build();
+    Job vesperaJob(JobRepository jobRepository, Step censusStep, Step stage1Step) {
+        return new JobBuilder(JOB_NAME, jobRepository).start(censusStep).next(stage1Step).build();
     }
 
     /**
@@ -47,7 +47,8 @@ public class CensusJobConfiguration {
      * batch metadata at risk either way, the job repository being resourceless (ADR-036).
      */
     @Bean
-    Step censusStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, Tasklet censusTasklet) {
+    Step censusStep(
+            JobRepository jobRepository, PlatformTransactionManager transactionManager, CensusTasklet censusTasklet) {
         DefaultTransactionAttribute outsideAnyTransaction =
                 new DefaultTransactionAttribute(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
         return new StepBuilder("census", jobRepository)

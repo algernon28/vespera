@@ -134,6 +134,10 @@ public final class Adr {
     public static final String THE_COMMAND_LINE_NAMES_THE_ROOT =
             FILE + "0066-the-command-line-names-the-root-configuration-is-the-fallback.md";
 
+    /** ADR-068 — broken is a cross-format floor plus per-format structural checks, no new dependency. */
+    public static final String BROKEN_IS_A_CROSS_FORMAT_FLOOR_PLUS_PER_FORMAT_CHECKS =
+            FILE + "0068-broken-is-a-cross-format-floor-plus-per-format-structural-checks-no-new-dependency.md";
+
     /** ADR-069 — a duplicate set resolves by earliest creation time, then path. */
     public static final String DUPLICATE_SET_RESOLVES_BY_EARLIEST_CREATION_TIME =
             FILE + "0069-a-duplicate-set-resolves-by-earliest-creation-time-then-path.md";

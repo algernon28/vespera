@@ -141,6 +141,23 @@ public class Ledger {
         return Boolean.TRUE.equals(finished);
     }
 
+    /**
+     * The finished walk of {@code root}, if census has completed one.
+     *
+     * <p>What a later stage resolves its run input from: unlike {@link #unfinishedWalk}, this looks
+     * for a walk that has already reached {@code finished = 1}, since a stage may only read what
+     * census actually recorded in full.
+     */
+    public Optional<WalkId> finishedWalkFor(Path root) {
+        return jdbcTemplate
+                .query(
+                        "SELECT id FROM walk WHERE root = ? AND finished = 1 ORDER BY id DESC LIMIT 1",
+                        (resultSet, rowNumber) -> new WalkId(resultSet.getLong("id")),
+                        root.toString())
+                .stream()
+                .findFirst();
+    }
+
     /** Records one file occurrence against {@code walkId}. */
     public void fileOccurrence(
             WalkId walkId, OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime) {
@@ -177,6 +194,17 @@ public class Ledger {
         Long count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM file_occurrence WHERE walk_id = ?", Long.class, walkId.value());
         return count == null ? 0 : count;
+    }
+
+    /** The path recorded for {@code occurrenceId}, for a stage holding the key and needing the file. */
+    public Optional<OccurrencePath> pathFor(OccurrenceId occurrenceId) {
+        return jdbcTemplate
+                .query(
+                        "SELECT path FROM file_occurrence WHERE id = ?",
+                        (resultSet, rowNumber) -> new OccurrencePath(resultSet.getString("path")),
+                        occurrenceId.value())
+                .stream()
+                .findFirst();
     }
 
     /** The id of an occurrence within a walk, for a stage holding a path and needing the key. */

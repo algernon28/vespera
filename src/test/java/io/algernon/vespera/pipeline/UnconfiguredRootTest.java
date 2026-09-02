@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -53,9 +54,12 @@ import picocli.CommandLine;
 @Import({
     CensusJobConfiguration.class,
     CensusTasklet.class,
+    Stage1JobConfiguration.class,
+    Stage1Tasklet.class,
     WalkRecorder.class,
     AnomalyLog.class,
     Ledger.class,
+    ImplementationVersions.class,
     ProfileStore.class,
     VesperaCommand.class,
     VesperaCommand.Run.class,
