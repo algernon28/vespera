@@ -130,6 +130,10 @@ public final class Adr {
     public static final String WALK_ALGORITHM_ON_AN_IN_MEMORY_FILESYSTEM =
             FILE + "0065-the-walk-algorithm-is-tested-on-an-in-memory-filesystem-identity-stays-on-ntfs.md";
 
+    /** ADR-066 — the command line names the root; configuration is the fallback. */
+    public static final String THE_COMMAND_LINE_NAMES_THE_ROOT =
+            FILE + "0066-the-command-line-names-the-root-configuration-is-the-fallback.md";
+
     private Adr() {
     }
 }

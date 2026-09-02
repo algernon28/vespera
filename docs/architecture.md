@@ -243,11 +243,11 @@ flowchart TD
 - **No Spring Modulith event publication registry** — no application events exist in this design (stages never call each other); `spring-modulith-starter-core` is retained for boundary verification only.
 - **CLI surface: two commands** (ADR-047) — run the pipeline through 6b, and invoke the publication adapter. Nothing more, because there's no interactive pause left to expose.
 
-**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — census is the only one that exists in this slice, and every later stage is another step appended to the same job. Publication is a second command against the same working directory, never a step of the run.
+**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — census is the only one that exists in this slice, and every later stage is another step appended to the same job. Publication is a second command against the same working directory, never a step of the run.
 
 ```mermaid
 flowchart TD
-    OP(["a person types<br/><b>vespera run</b> and a root"])
+    OP(["a person types<br/><b>vespera run</b>, naming a root<br/>or leaving it to configuration"])
     PREP["<b>working directory prepared</b><br/>vespera.working-dir created<br/><i>before the datasource is opened</i>"]
     BOOT["<b>application starts</b><br/>SQLite opened · schema applied<br/>schema_version checked, refuses on mismatch"]
     JOB["<b>job 'vespera' started</b><br/>one job parameter: the root<br/><i>never started by the app coming up</i>"]
