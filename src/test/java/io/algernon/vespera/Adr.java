@@ -134,6 +134,10 @@ public final class Adr {
     public static final String THE_COMMAND_LINE_NAMES_THE_ROOT =
             FILE + "0066-the-command-line-names-the-root-configuration-is-the-fallback.md";
 
+    /** ADR-067 — content identity is a SHA-256 hash in corpus, computed within size-matched groups. */
+    public static final String CONTENT_IDENTITY_IS_A_SHA_256_HASH =
+            FILE + "0067-content-identity-is-a-sha-256-hash-in-corpus-computed-within-size-matched-groups.md";
+
     /** ADR-068 — broken is a cross-format floor plus per-format structural checks, no new dependency. */
     public static final String BROKEN_IS_A_CROSS_FORMAT_FLOOR_PLUS_PER_FORMAT_CHECKS =
             FILE + "0068-broken-is-a-cross-format-floor-plus-per-format-structural-checks-no-new-dependency.md";

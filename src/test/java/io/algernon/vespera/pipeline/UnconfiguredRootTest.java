@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
+import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
@@ -56,6 +57,7 @@ import picocli.CommandLine;
     CensusTasklet.class,
     Stage1JobConfiguration.class,
     Stage1Tasklet.class,
+    ContentIdentity.class,
     WalkRecorder.class,
     AnomalyLog.class,
     Ledger.class,

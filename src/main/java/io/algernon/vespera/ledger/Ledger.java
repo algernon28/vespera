@@ -196,12 +196,18 @@ public class Ledger {
         return count == null ? 0 : count;
     }
 
-    /** The path recorded for {@code occurrenceId}, for a stage holding the key and needing the file. */
-    public Optional<OccurrencePath> pathFor(OccurrenceId occurrenceId) {
+    /**
+     * The facts recorded for {@code occurrenceId} — path, size, creation time — for a stage holding
+     * the key and needing what census observed about the file.
+     */
+    public Optional<OccurrenceFacts> factsFor(OccurrenceId occurrenceId) {
         return jdbcTemplate
                 .query(
-                        "SELECT path FROM file_occurrence WHERE id = ?",
-                        (resultSet, rowNumber) -> new OccurrencePath(resultSet.getString("path")),
+                        "SELECT path, size_bytes, creation_time FROM file_occurrence WHERE id = ?",
+                        (resultSet, rowNumber) -> new OccurrenceFacts(
+                                new OccurrencePath(resultSet.getString("path")),
+                                resultSet.getLong("size_bytes"),
+                                Instant.parse(resultSet.getString("creation_time"))),
                         occurrenceId.value())
                 .stream()
                 .findFirst();

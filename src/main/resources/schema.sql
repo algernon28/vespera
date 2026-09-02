@@ -73,10 +73,10 @@ CREATE TABLE IF NOT EXISTS run_upstream (
 );
 
 -- The verdict row is generic regardless of kind (ADR-057): a kind from the closed vocabulary plus
--- free-text reason, mirroring walk_anomaly's detail. The occurrence reference a duplicate-of verdict
--- needs, and the score a below-threshold verdict needs, belong to similarity's and embedding's own
--- tables (ADR-041) and join back by occurrence and run -- which is what keeps this shape unchanged
--- when those modules arrive.
+-- free-text reason, mirroring walk_anomaly's detail. The occurrence reference a superseded-by
+-- verdict needs belongs to corpus's own content_hash/superseded_by tables below (ADR-067, ADR-069);
+-- the score a below-threshold verdict needs will belong to embedding's own table. Both join back by
+-- occurrence and run (ADR-041) -- which is what keeps this shape unchanged when embedding arrives.
 CREATE TABLE IF NOT EXISTS verdict (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
@@ -96,4 +96,25 @@ CREATE TABLE IF NOT EXISTS walk_anomaly (
     path_rendering TEXT NOT NULL,
     kind TEXT NOT NULL,
     detail TEXT
+);
+
+-- corpus's own table (ADR-067): the SHA-256 of an occurrence's content, computed only for
+-- occurrences sharing a size with at least one other survivor of broken (grouping by size first is
+-- a free filter -- different sizes can never be identical, so a lone size never pays for a hash).
+-- One row per run, since a later run may recompute against a changed implementation.
+CREATE TABLE IF NOT EXISTS content_hash (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    sha256 TEXT NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id)
+);
+
+-- corpus's own table (ADR-069): which occurrence a superseded occurrence's content identity
+-- resolved to -- the representative, chosen by earliest creation_time then lexicographically-
+-- lowest path within a content_hash group. The representative itself has no row here.
+CREATE TABLE IF NOT EXISTS superseded_by (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    representative_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    PRIMARY KEY (occurrence_id, run_id)
 );
