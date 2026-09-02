@@ -10,6 +10,7 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
@@ -63,6 +64,7 @@ import picocli.CommandLine;
 })
 @Epic("Census")
 @Feature("Invocation")
+@Issue("11")
 @Link(name = "ADR-066", url = Adr.THE_COMMAND_LINE_NAMES_THE_ROOT, type = "adr")
 class UnconfiguredRootTest {
 
