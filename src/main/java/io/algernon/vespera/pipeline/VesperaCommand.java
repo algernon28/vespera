@@ -2,6 +2,8 @@ package io.algernon.vespera.pipeline;
 
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.parameters.JobParametersBuilder;
@@ -20,10 +22,11 @@ import picocli.CommandLine.Parameters;
  * blocks (ADR-047); publication is terminal, one-shot and always invoked by a person (ADR-035,
  * ADR-024), which is exactly why it is not a stage of the run.
  *
- * <p>{@code run} takes the corpus root and nothing else. Where the database and the profile live is
- * operator configuration rather than something derived from the root (ADR-054), so it is
- * {@code vespera.working-dir} in {@code application.yaml}, overridden per invocation with
- * {@code --db-dir=<path>}.
+ * <p>{@code run} takes the corpus root and nothing else. The root is the argument, and
+ * {@code vespera.corpus-root} in {@code application.yaml} answers only an invocation that names none
+ * (ADR-066). Where the database and the profile live is operator configuration rather than something
+ * derived from the root (ADR-054), so it is {@code vespera.working-dir} in the same file, overridden
+ * per invocation with {@code --db-dir=<path>}.
  */
 @Component
 @Command(
@@ -53,8 +56,18 @@ public class VesperaCommand implements Callable<Integer> {
      *
      * <p>picocli would otherwise instantiate each subcommand itself, and {@code run} needs the job
      * and the job operator injected into it. The factory is what hands it the beans instead.
+     *
+     * <p>The subcommands are singletons and this builds a fresh {@code CommandLine} over them every
+     * invocation, so each one starts by forgetting what the last one parsed. picocli reads a field's
+     * current value as that argument's <em>initial</em> value when the model is built, and restores
+     * it for an argument the operator did not give — so without the reset, a second {@code run}
+     * naming no root would silently walk the first one's root instead of falling back to
+     * configuration (ADR-066), and report it as named on the command line. One process per
+     * invocation is the normal case and never reaches this; the tests and any embedding of
+     * {@link VesperaCli} do.
      */
     CommandLine commandLine() {
+        run.forgetPreviousInvocation();
         return new CommandLine(this, new CommandLine.IFactory() {
             @Override
             public <K> K create(Class<K> type) throws Exception {
@@ -74,11 +87,22 @@ public class VesperaCommand implements Callable<Integer> {
     @Command(name = "run", description = "Walks a corpus and records what it holds.")
     public static class Run implements Callable<Integer> {
 
+        /** The root an invocation that names none falls back to (ADR-066). Ships unset. */
+        public static final String ROOT_PROPERTY = "vespera.corpus-root";
+
+        private static final Logger log = LoggerFactory.getLogger(Run.class);
+
         private final JobOperator jobOperator;
         private final Job vesperaJob;
         private final Path workingDirectoryInUse;
+        private final String configuredRoot;
 
-        @Parameters(index = "0", paramLabel = "<root>", description = "The corpus root to walk.")
+        @Parameters(
+                index = "0",
+                arity = "0..1",
+                paramLabel = "<root>",
+                description = "The corpus root to walk. Falls back to " + ROOT_PROPERTY
+                        + " in application.yaml when omitted.")
         private Path root;
 
         @Option(
@@ -91,22 +115,63 @@ public class VesperaCommand implements Callable<Integer> {
         public Run(
                 JobOperator jobOperator,
                 Job vesperaJob,
-                @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse) {
+                @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
+                @Value("${" + ROOT_PROPERTY + ":}") String configuredRoot) {
             this.jobOperator = jobOperator;
             this.vesperaJob = vesperaJob;
             this.workingDirectoryInUse = workingDirectoryInUse;
+            this.configuredRoot = configuredRoot;
+        }
+
+        /**
+         * Drops what a previous invocation parsed, before the model that would inherit it is built.
+         *
+         * <p>Every parsed argument belongs to one invocation, and this bean outlives them all. Only
+         * the two fields picocli writes are cleared; the injected ones are configuration, which does
+         * not change between invocations of the same process.
+         */
+        void forgetPreviousInvocation() {
+            root = null;
+            databaseDirectory = null;
         }
 
         @Override
         public Integer call() throws Exception {
             refuseToRunAgainstADirectoryTheOperatorDidNotName();
+            Path corpusRoot = rootToWalk();
+            if (corpusRoot == null) {
+                System.err.println(("vespera run named no root and %s is not set: give the root as the argument"
+                                + " -- vespera run <root> -- or configure it in application.yaml. A root is never"
+                                + " guessed, because a census of the wrong tree reports success.")
+                        .formatted(ROOT_PROPERTY));
+                return CommandLine.ExitCode.USAGE;
+            }
+            log.info(
+                    "Walking {}, named {}",
+                    corpusRoot,
+                    root != null ? "on the command line" : "by " + ROOT_PROPERTY + " in configuration");
             JobExecution execution = jobOperator.start(
                     vesperaJob,
                     new JobParametersBuilder()
-                            .addString("root", root.toString())
+                            .addString("root", corpusRoot.toString())
                             .addLocalDateTime("startedAt", java.time.LocalDateTime.now())
                             .toJobParameters());
             return execution.getStatus().isUnsuccessful() ? CommandLine.ExitCode.SOFTWARE : CommandLine.ExitCode.OK;
+        }
+
+        /**
+         * The root this invocation is against, or {@code null} if nobody has named one (ADR-066).
+         *
+         * <p>The argument wins whenever it says anything; the property answers only its silence. The
+         * asymmetry with {@code --db-dir}, which is read as a property first and checked against the
+         * option afterwards, is not an inconsistency: the working directory has to be known before the
+         * datasource exists, and the root does not.
+         */
+        private Path rootToWalk() {
+            if (root != null) {
+                return root;
+            }
+            return configuredRoot == null || configuredRoot.isBlank() ? null : Path.of(configuredRoot.strip());
         }
 
         /**
