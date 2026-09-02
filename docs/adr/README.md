@@ -85,3 +85,6 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-064](0064-the-walk-instrument-generalizes-a-seed-folder-is-walked-too.md) | 2026-08-29 | The walk instrument generalizes; a seed folder is walked too |
 | [ADR-065](0065-the-walk-algorithm-is-tested-on-an-in-memory-filesystem-identity-stays-on-ntfs.md) | 2026-08-31 | The walk algorithm is tested on an in-memory filesystem; identity stays on NTFS |
 | [ADR-066](0066-the-command-line-names-the-root-configuration-is-the-fallback.md) | 2026-09-02 | The command line names the root; configuration is the fallback |
+| [ADR-067](0067-content-identity-is-a-sha-256-hash-in-corpus-computed-within-size-matched-groups.md) | 2026-09-02 | Content identity is a SHA-256 hash in `corpus`, computed within size-matched groups |
+| [ADR-068](0068-broken-is-a-cross-format-floor-plus-per-format-structural-checks-no-new-dependency.md) | 2026-09-02 | `broken` is a cross-format floor plus per-format structural checks, no new dependency |
+| [ADR-069](0069-a-duplicate-set-resolves-by-earliest-creation-time-then-path.md) | 2026-09-02 | A duplicate set resolves by earliest creation time, then path |
