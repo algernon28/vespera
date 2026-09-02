@@ -50,7 +50,7 @@ public final class Walk {
     /** Receives what the walk finds. Persistence is deliberately not this component's business. */
     public interface Observer {
 
-        void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified);
+        void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime);
 
         /**
          * An entry that did not become a file occurrence: its kind (ADR-053) plus a nullable
@@ -279,7 +279,8 @@ public final class Walk {
             switch (OccurrencePath.relativize(root, file)) {
                 case OccurrencePath.Stored(OccurrencePath path) -> {
                     occurrences++;
-                    observer.fileOccurrence(path, attrs.size(), attrs.lastModifiedTime().toInstant());
+                    observer.fileOccurrence(
+                            path, attrs.size(), attrs.lastModifiedTime().toInstant(), attrs.creationTime().toInstant());
                 }
                 case OccurrencePath.Unstorable(String lossyRendering, String reason) -> {
                     anomalies++;

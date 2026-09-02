@@ -109,7 +109,12 @@ class SurvivorsTest {
     }
 
     private static OccurrenceId record(Ledger ledger, WalkId walkId, String path) {
-        ledger.fileOccurrence(walkId, new OccurrencePath(path), 1, Instant.parse("2026-08-29T10:15:30Z"));
+        ledger.fileOccurrence(
+                walkId,
+                new OccurrencePath(path),
+                1,
+                Instant.parse("2026-08-29T10:15:30Z"),
+                Instant.parse("2026-08-20T08:00:00Z"));
         return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
     }
 

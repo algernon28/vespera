@@ -38,12 +38,16 @@ CREATE TABLE IF NOT EXISTS walk (
 -- UNIQUE (walk_id, path) is ADR-051 as a constraint: within one walk a path identifies exactly one
 -- file occurrence. It is also what makes a resumed walk safe to get wrong loudly -- re-recording an
 -- entry a previous session already recorded fails here rather than silently doubling the corpus.
+--
+-- creation_time is ADR-069's: last_modified is a last-write time, unreliable for stage 1's
+-- duplicate-resolution rule because it reflects copy-tool behaviour rather than content history.
 CREATE TABLE IF NOT EXISTS file_occurrence (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     walk_id INTEGER NOT NULL REFERENCES walk (id),
     path TEXT NOT NULL,
     size_bytes INTEGER NOT NULL,
     last_modified TEXT NOT NULL,
+    creation_time TEXT NOT NULL,
     UNIQUE (walk_id, path)
 );
 

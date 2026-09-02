@@ -169,8 +169,8 @@ public class WalkRecorder {
         }
 
         @Override
-        public void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified) {
-            occurrences.add(new PendingOccurrence(path, sizeInBytes, lastModified));
+        public void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime) {
+            occurrences.add(new PendingOccurrence(path, sizeInBytes, lastModified, creationTime));
         }
 
         @Override
@@ -214,7 +214,12 @@ public class WalkRecorder {
 
         private void writeBuffered() {
             for (PendingOccurrence occurrence : occurrences) {
-                ledger.fileOccurrence(walkId, occurrence.path(), occurrence.sizeInBytes(), occurrence.lastModified());
+                ledger.fileOccurrence(
+                        walkId,
+                        occurrence.path(),
+                        occurrence.sizeInBytes(),
+                        occurrence.lastModified(),
+                        occurrence.creationTime());
             }
             for (PendingAnomaly anomaly : anomalies) {
                 anomalyLog.anomaly(walkId, anomaly.pathRendering(), anomaly.kind(), anomaly.detail());
@@ -224,7 +229,7 @@ public class WalkRecorder {
         }
     }
 
-    private record PendingOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified) {}
+    private record PendingOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime) {}
 
     private record PendingAnomaly(String pathRendering, WalkAnomalyKind kind, String detail) {}
 }

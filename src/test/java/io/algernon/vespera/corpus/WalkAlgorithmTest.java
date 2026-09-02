@@ -71,7 +71,7 @@ class WalkAlgorithmTest {
         final List<Offer> offers = new ArrayList<>();
 
         @Override
-        public void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified) {
+        public void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime) {
             occurrences.add(path.value());
         }
 

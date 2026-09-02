@@ -283,7 +283,8 @@ class WalkRecorderTest {
      */
     private static WalkRecorder.Traversal stoppingWithWorkStillBuffered() {
         return (root, observer, resumeFrom) -> {
-            observer.fileOccurrence(new OccurrencePath("one/a.txt"), 1, java.time.Instant.EPOCH);
+            observer.fileOccurrence(
+                    new OccurrencePath("one/a.txt"), 1, java.time.Instant.EPOCH, java.time.Instant.EPOCH);
             return new Walk.Outcome(
                     root, new Walk.Progress(2, 2, 1, 0), false, "the test stopped this session mid-buffer");
         };
@@ -316,8 +317,9 @@ class WalkRecorderTest {
         }
 
         @Override
-        public void fileOccurrence(OccurrencePath path, long sizeInBytes, java.time.Instant lastModified) {
-            delegate.fileOccurrence(path, sizeInBytes, lastModified);
+        public void fileOccurrence(
+                OccurrencePath path, long sizeInBytes, java.time.Instant lastModified, java.time.Instant creationTime) {
+            delegate.fileOccurrence(path, sizeInBytes, lastModified, creationTime);
         }
 
         @Override

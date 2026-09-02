@@ -142,23 +142,27 @@ public class Ledger {
     }
 
     /** Records one file occurrence against {@code walkId}. */
-    public void fileOccurrence(WalkId walkId, OccurrencePath path, long sizeInBytes, Instant lastModified) {
+    public void fileOccurrence(
+            WalkId walkId, OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime) {
         jdbcTemplate.update(
-                "INSERT INTO file_occurrence (walk_id, path, size_bytes, last_modified) VALUES (?, ?, ?, ?)",
+                "INSERT INTO file_occurrence (walk_id, path, size_bytes, last_modified, creation_time)"
+                        + " VALUES (?, ?, ?, ?, ?)",
                 walkId.value(),
                 path.value(),
                 sizeInBytes,
-                lastModified.toString());
+                lastModified.toString(),
+                creationTime.toString());
     }
 
     /** The file occurrences recorded against {@code walkId}. */
     public List<RecordedOccurrence> occurrencesForWalk(WalkId walkId) {
         return jdbcTemplate.query(
-                "SELECT path, size_bytes, last_modified FROM file_occurrence WHERE walk_id = ?",
+                "SELECT path, size_bytes, last_modified, creation_time FROM file_occurrence WHERE walk_id = ?",
                 (resultSet, rowNumber) -> new RecordedOccurrence(
                         new OccurrencePath(resultSet.getString("path")),
                         resultSet.getLong("size_bytes"),
-                        Instant.parse(resultSet.getString("last_modified"))),
+                        Instant.parse(resultSet.getString("last_modified")),
+                        Instant.parse(resultSet.getString("creation_time"))),
                 walkId.value());
     }
 

@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -92,14 +93,16 @@ class WalkTest {
         final List<String> occurrences = new ArrayList<>();
         final List<Long> sizes = new ArrayList<>();
         final List<Instant> modified = new ArrayList<>();
+        final List<Instant> created = new ArrayList<>();
         final List<String> anomalies = new ArrayList<>();
         final List<WalkAnomalyKind> anomalyKinds = new ArrayList<>();
 
         @Override
-        public void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified) {
+        public void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime) {
             occurrences.add(path.value());
             sizes.add(sizeInBytes);
             modified.add(lastModified);
+            created.add(creationTime);
         }
 
         @Override
@@ -135,11 +138,14 @@ class WalkTest {
 
     @Test
     @Story("What a walk records")
-    @DisplayName("Each file recorded carries its size and its last-modified time")
-    void recordsSizeAndLastModifiedForEachOccurrence(@TempDir Path root) throws IOException {
+    @DisplayName("Each file recorded carries its size, its last-modified time, and its creation time")
+    @Link(name = "ADR-069", url = Adr.DUPLICATE_SET_RESOLVES_BY_EARLIEST_CREATION_TIME, type = "adr")
+    void recordsSizeLastModifiedAndCreationTimeForEachOccurrence(@TempDir Path root) throws IOException {
         Path file = root.resolve("sized.bin");
         Files.write(file, new byte[SIZED_FILE_BYTES]);
-        Instant onDisk = Files.getLastModifiedTime(file).toInstant();
+        BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
+        Instant lastModifiedOnDisk = attrs.lastModifiedTime().toInstant();
+        Instant creationTimeOnDisk = attrs.creationTime().toInstant();
 
         Recorder recorder = walk(root);
 
@@ -151,7 +157,11 @@ class WalkTest {
                 () -> assertThat(recorder.sizes.get(0)).isEqualTo(SIZED_FILE_BYTES));
         claim(
                 "the last-modified time is the one the filesystem holds for sized.bin, not the clock at walk time",
-                () -> assertThat(recorder.modified.get(0)).isEqualTo(onDisk));
+                () -> assertThat(recorder.modified.get(0)).isEqualTo(lastModifiedOnDisk));
+        claim(
+                "the creation time is the one the filesystem holds for sized.bin (ADR-069), read from the same"
+                        + " attributes call as the last-modified time, at no extra filesystem cost",
+                () -> assertThat(recorder.created.get(0)).isEqualTo(creationTimeOnDisk));
     }
 
     @Test
