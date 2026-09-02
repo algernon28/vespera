@@ -88,3 +88,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-067](0067-content-identity-is-a-sha-256-hash-in-corpus-computed-within-size-matched-groups.md) | 2026-09-02 | Content identity is a SHA-256 hash in `corpus`, computed within size-matched groups |
 | [ADR-068](0068-broken-is-a-cross-format-floor-plus-per-format-structural-checks-no-new-dependency.md) | 2026-09-02 | `broken` is a cross-format floor plus per-format structural checks, no new dependency |
 | [ADR-069](0069-a-duplicate-set-resolves-by-earliest-creation-time-then-path.md) | 2026-09-02 | A duplicate set resolves by earliest creation time, then path |
+| [ADR-070](0070-extraction-failed-splits-on-doclings-status-degenerate-output-is-a-two-tier-floor.md) | 2026-09-02 | `extraction-failed` splits on Docling's status; `degenerate-output` is a two-tier floor |

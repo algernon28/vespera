@@ -21,7 +21,7 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 |----|------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------------------|
 | 0  | Census                       | *(no verdicts)*                           | Filesystem walk → file occurrence rows. Pure measurement (ADR-006).                                   |
 | 1  | Byte-level reduction         | `broken`, `duplicate-of`, `superseded-by` | Cheapest discriminating filter, runs first.                                                           |
-| 2  | Extraction                   | `extraction-failed`, `degenerate-output`  | Docling, out-of-process, cached, can fail silently (ADR-010).                                         |
+| 2  | Extraction                   | `extraction-failed`, `degenerate-output`  | Docling, out-of-process, cached; silent about text fidelity, never about failure (ADR-010, ADR-070).  |
 | 3  | Content census               | *(no verdicts)*                           | Derived metrics as columns written during extraction (ADR-019); shingles computed here too (ADR-038). |
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |
 | 5  | Relevance (embeddings)       | `below-threshold`                         | Scoring against the seed set (ADR-020), clustering within each seed partition (ADR-027, ADR-045).     |
@@ -239,6 +239,7 @@ flowchart TD
 ### 1.6 Orchestration & invocation
 
 - **Spring Batch with `ResourcelessJobRepository`** drives the stage cascade (ADR-036) — used for its processing model (retry/backoff, skip policies, bounded parallelism, progress) on long-running extraction, explicitly *not* for restartability, which the ledger already provides via the resume predicate. No batch metadata tables exist.
+- **A verdict judges an occurrence; a failed step judges the tool** (ADR-070). Where a stage's tool reports its failures with a scope of their own — Docling's `FailureCategory` separates task/service scope (`capacity`, `target_unavailable`, `internal`, and the uncategorised `unknown`) from document/page scope (`backend_failure`, `inference_failure`) — only the document-scoped side earns a blocking verdict. A service-scoped failure fails the step and writes no row at all, leaving the occurrence unexamined for a later run rather than blaming a file for an outage; a shared-scope category such as `timeout` is resolved per occurrence versus consecutive.
 - **No Camel** — there's no integration topology to mediate, only one HTTP call to a managed sidecar.
 - **No Spring Modulith event publication registry** — no application events exist in this design (stages never call each other); `spring-modulith-starter-core` is retained for boundary verification only.
 - **CLI surface: two commands** (ADR-047) — run the pipeline through 6b, and invoke the publication adapter. Nothing more, because there's no interactive pause left to expose.
