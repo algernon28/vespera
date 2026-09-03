@@ -1,6 +1,6 @@
 ---
 name: spec-implementer
-description: Implements a recorded spec in this repo and proves it with the existing tests. Use when a spec issue, ADR, or wayfinder ticket is settled and the remaining work is production code. It reads the spec, writes code under src/main, and runs the build. It never edits Markdown and never edits tests — if the tests are wrong, it stops and says so.
+description: Implements a recorded spec in this repo and proves it with the existing tests. Use PROACTIVELY as soon as a spec issue, ADR, or wayfinder ticket is settled and the remaining work is production code — do not implement it in the main session when this agent can. It reads the spec, writes code under src/main, and runs the build. It never edits Markdown and never edits tests — if the tests are wrong, it stops and says so.
 tools: Read, Grep, Glob, Edit, Write, Bash
 color: yellow
 model: sonnet

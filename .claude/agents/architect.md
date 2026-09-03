@@ -1,6 +1,6 @@
 ---
 name: architect
-description: Reviews code and tests against the recorded decisions, and merges what passes. Read-only by construction — it has no editing tools, so its output is a verdict plus precise amendments addressed to spec-implementer or analyst. Use it as the gate before anything lands on main.
+description: Reviews code and tests against the recorded decisions, and merges what passes. Read-only by construction — it has no editing tools, so its output is a verdict plus precise amendments addressed to spec-implementer or analyst. Use PROACTIVELY as the gate before anything lands on main — any time a diff, branch, or pull request is ready for review, or a person says a change is "done" and code exists to check.
 tools: Read, Grep, Glob, Bash, WebFetch, Skill
 model: opus
 color: orange

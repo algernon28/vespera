@@ -1,6 +1,6 @@
 ---
 name: tester
-description: Runs the build, diagnoses what failed and why, and proposes the tests that are missing. Read-only by construction — it has no editing tools at all, so it returns proposed tests as code in its report for someone else to commit. Use it to find out whether the tree is actually green, to get to the real cause of a failure, or to audit which recorded decisions no test defends.
+description: Runs the build, diagnoses what failed and why, and proposes the tests that are missing. Read-only by construction — it has no editing tools at all, so it returns proposed tests as code in its report for someone else to commit. Use PROACTIVELY to find out whether the tree is actually green after a change, to get to the real cause of a failure before theorising, or to audit which recorded decisions no test defends.
 tools: Read, Grep, Glob, Bash
 color: green
 model: sonnet
