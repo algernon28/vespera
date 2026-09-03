@@ -146,6 +146,21 @@ public final class Adr {
     public static final String DUPLICATE_SET_RESOLVES_BY_EARLIEST_CREATION_TIME =
             FILE + "0069-a-duplicate-set-resolves-by-earliest-creation-time-then-path.md";
 
+    /** ADR-010 — extraction via Docling, with scanned PDFs in scope. */
+    public static final String EXTRACTION_VIA_DOCLING = FILE + "0010-extraction-via-docling-scanned-pdfs-in-scope.md";
+
+    /**
+     * ADR-070 — extraction-failed splits on Docling's status, and degenerate output is a two-tier
+     * floor. The record of which response fields carry the signal: {@code status}, {@code errors[]},
+     * {@code confidence}, and a cache holding the whole response rather than extracted text.
+     */
+    public static final String EXTRACTION_FAILED_SPLITS_ON_DOCLINGS_STATUS =
+            FILE + "0070-extraction-failed-splits-on-doclings-status-degenerate-output-is-a-two-tier-floor.md";
+
+    /** ADR-071 — Docling's invocation contract: one sync call, a local timeout, two streak breakers. */
+    public static final String DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL = FILE
+            + "0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md";
+
     private Adr() {
     }
 }

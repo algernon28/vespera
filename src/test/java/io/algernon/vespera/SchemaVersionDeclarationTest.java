@@ -57,7 +57,7 @@ class SchemaVersionDeclarationTest {
      * composes the others and owns no tables of its own. Add a module here in the same commit that
      * gives it its first table.
      */
-    private static final Set<String> MODULES_OWNING_TABLES = Set.of("ledger", "corpus");
+    private static final Set<String> MODULES_OWNING_TABLES = Set.of("ledger", "corpus", "extraction");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

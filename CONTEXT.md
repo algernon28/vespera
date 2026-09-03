@@ -70,6 +70,22 @@ _Avoid_: scan, audit, inventory
 The rule that no threshold is applied before it has been measured. Thresholds ship unset, each pointing at the measurement that should inform it.
 _Avoid_: calibration, tuning
 
+**Derived metric**:
+A per-occurrence measurement written while the document is open, never a second traversal over it (ADR-019). Per-document values belong to extraction's own pass; anything corpus-wide is a later pass over the stored values, not another pass over the archive (ADR-073). Stored as counts rather than ratios, so a denominator is never lost.
+_Avoid_: statistic, feature, attribute, score
+
+**Shingle**:
+An overlapping fragment of a document's text, hashed, stored so that redundancy and boilerplate are questions over fragments rather than over whole documents (ADR-038, ADR-018). Computed in extraction's pass but owned by `similarity`; its granularity is part of its stored identity, because a granularity change is a different measurement rather than a correction of the same one (ADR-073).
+_Avoid_: n-gram, token window, fingerprint
+
+**Bake-off**:
+The embedding-model selection mechanism specifically: candidates measured over the same sample and seeds, each re-chunked to its own tokenizer, judged by the relevance-threshold gate (ADR-034, ADR-044). Not a general word for comparing two models — there is exactly one bake-off in this design, and the extraction engine does not have one (ADR-072).
+_Avoid_: shoot-out, A/B test, champion/challenger, evaluation
+
+**Reference model**:
+A deliberately larger model an unfavourable measurement is re-checked against before it is believed. A role, not a stage: the pipeline never invokes one, and confirmation happens between runs, compared by a person (ADR-072). The same hosted model may separately be a bake-off candidate; that is the competition, this is the confirmation.
+_Avoid_: fallback, oracle, champion, second opinion
+
 ### Operation
 
 **Profile**:

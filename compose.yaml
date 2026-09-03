@@ -10,3 +10,16 @@ services:
     image: 'ollama/ollama:0.33.2'
     ports:
       - '11434'
+  docling-serve:
+    # -cpu: docling-serve also ships a GPU variant; nothing in this design asks for GPU inference
+    # (ADR-013's Ollama default is the only serving runtime this repo currently GPU-accelerates),
+    # and the CPU image is the one that runs anywhere the rest of the stack does.
+    #
+    # Host port pinned to 5001, unlike Chroma/Ollama's ephemeral ports above: those two are
+    # resolved automatically by Spring AI's ServiceConnection support reading the running
+    # container back, which does not exist for docling-serve (ADR-071's own consequence -- "the
+    # exact endpoint/health path... are the hand-off spec's"). application.yaml's
+    # vespera.docling.base-url default has to name a port the operator can rely on instead.
+    image: 'quay.io/docling-project/docling-serve-cpu:v1.32.0'
+    ports:
+      - '5001:5001'
