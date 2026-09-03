@@ -22,7 +22,7 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 | 0  | Census                       | *(no verdicts)*                           | Filesystem walk → file occurrence rows. Pure measurement (ADR-006).                                   |
 | 1  | Byte-level reduction         | `broken`, `duplicate-of`, `superseded-by` | Cheapest discriminating filter, runs first.                                                           |
 | 2  | Extraction                   | `extraction-failed`, `degenerate-output`  | Docling, out-of-process, cached; silent about text fidelity, never about failure (ADR-010, ADR-070).  |
-| 3  | Content census               | *(no verdicts)*                           | Derived metrics as columns written during extraction (ADR-019); shingles computed here too (ADR-038). |
+| 3  | Content census               | *(no verdicts)*                           | The corpus-wide pass over what stage 2 stored — document frequency for boilerplate (ADR-038), report distributions. Per-document metrics and shingles are written in stage 2's own pass, under stage 2's run (ADR-019, ADR-073). |
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |
 | 5  | Relevance (embeddings)       | `below-threshold`                         | Scoring against the seed set (ADR-020), clustering within each seed partition (ADR-027, ADR-045).     |
 | 6a | Arrangement                  | *(page tree, no publication)*             | Seed-named taxonomy + within-seed clusters (ADR-022). Human gate before 6b.                           |
@@ -38,7 +38,7 @@ flowchart TD
     S0["<b>0 · Census</b><br/>filesystem walk<br/><i>writes no verdicts</i>"]
     S1["<b>1 · Byte-level reduction</b><br/>broken · duplicate-of · superseded-by"]
     S2["<b>2 · Extraction</b><br/>extraction-failed · degenerate-output"]
-    S3["<b>3 · Content census</b><br/>derived metrics · shingles<br/><i>writes no verdicts</i>"]
+    S3["<b>3 · Content census</b><br/>corpus-wide pass over stage 2's columns<br/><i>writes no verdicts</i>"]
     S4["<b>4 · Content redundancy</b><br/>redundant-with"]
     S5["<b>5 · Relevance</b><br/>below-threshold"]
     S6A["<b>6a · Arrangement</b><br/>page tree, no publication"]
@@ -175,7 +175,7 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 | `ledger` | Occurrence identity, verdict vocabulary + rows, run identity, the `survivors(runId)` query |
 | `corpus` | Walking, byte-level facts |
 | `extraction` | Docling client, extraction cache, derived metrics, chunking (chunker gets tokenizer identity from `pipeline`) |
-| `similarity` | Shingles, MinHash/LSH |
+| `similarity` | Shingles, MinHash/LSH — shingles are computed during stage 2's pass, but the code and the table are `similarity`'s and the call is composed in `pipeline` (ADR-073), since no capability module may depend on another |
 | `embedding` | SQLite vector cache, Chroma projection, scoring, clustering |
 | `synthesis` | Arrangement (6a), generation (6b) |
 | `publication` | The ADR-025 rendering adapter |
@@ -350,7 +350,7 @@ flowchart TD
 
 Tracked on the wayfinder map, [Census slice: the way to a hand-off spec](https://github.com/algernon28/vespera/issues/1), rather than in this file. Its open child issues **are** the live list; its **Out of scope** section carries the two items parked on measurement data — shingle granularity, blocked on stage-3 OCR error rates, and target hardware, blocked on a census scanned-page count — each with the trigger that revives it.
 
-The standing design question, [Is the seed set profiled with the corpus instrument](https://github.com/algernon28/vespera/issues/16), is resolved: the walk instrument generalizes to any root, a seed folder is walked the same way as the corpus (ADR-064), and the full mismatch-detection question is deferred to stage 5, which this slice does not build.
+The standing design question, [Is the seed set profiled with the corpus instrument](https://github.com/algernon28/vespera/issues/16), is resolved: the walk instrument generalizes to any root, a seed folder is walked the same way as the corpus (ADR-064), and the full mismatch-detection question is deferred to stage 5, which this slice does not build. ADR-073 has since placed the three signals that question is blocked on — chunk count is a query against the chunk cache and comparable only within one tokenizer identity, language is a stage-2 column, and no OCR-error rate exists as a Docling signal, so stage 2 stores the counters a definition of one can be computed from — and records the precondition stage 5 inherits: the comparison needs the seed set extracted with the same instrument.
 
 _This section previously duplicated `docs/frontier.md`, which no longer exists. The map replaced both: a second open-items register drifts from the first, and the tracker is the one with a claim to being canonical._
 ---
