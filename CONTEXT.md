@@ -70,6 +70,14 @@ _Avoid_: scan, audit, inventory
 The rule that no threshold is applied before it has been measured. Thresholds ship unset, each pointing at the measurement that should inform it.
 _Avoid_: calibration, tuning
 
+**Bake-off**:
+The embedding-model selection mechanism specifically: candidates measured over the same sample and seeds, each re-chunked to its own tokenizer, judged by the relevance-threshold gate (ADR-034, ADR-044). Not a general word for comparing two models — there is exactly one bake-off in this design, and the extraction engine does not have one (ADR-072).
+_Avoid_: shoot-out, A/B test, champion/challenger, evaluation
+
+**Reference model**:
+A deliberately larger model an unfavourable measurement is re-checked against before it is believed. A role, not a stage: the pipeline never invokes one, and confirmation happens between runs, compared by a person (ADR-072). The same hosted model may separately be a bake-off candidate; that is the competition, this is the confirmation.
+_Avoid_: fallback, oracle, champion, second opinion
+
 ### Operation
 
 **Profile**:
