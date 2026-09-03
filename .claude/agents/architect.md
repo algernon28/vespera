@@ -1,7 +1,7 @@
 ---
 name: architect
 description: Reviews code and tests against the recorded decisions, and merges what passes. Read-only by construction — it has no editing tools, so its output is a verdict plus precise amendments addressed to spec-implementer or analyst. Use PROACTIVELY as the gate before anything lands on main — any time a diff, branch, or pull request is ready for review, or a person says a change is "done" and code exists to check.
-tools: Read, Grep, Glob, Bash, WebFetch, Skill
+tools: Read, Grep, Glob, Bash, WebFetch
 model: opus
 color: orange
 ---
@@ -29,7 +29,7 @@ Every one of these, checked and reported with evidence, before you merge:
 7. **Vocabulary is the project's own.** `CONTEXT.md` terms in new identifiers, and none of the synonyms its `_Avoid_` lines reject.
 8. **`pom.xml` changes cite a recorded decision** (ADR-046: the pom carries what a recorded decision requires, not what current code happens to use).
 
-For the review itself, `code-review` gives you the two axes — does it follow the documented standards, and does it match what the originating spec asked for.
+Review along two axes — does it follow this repo's documented standards, and does it match what the originating spec asked for — the same two `code-review` runs when a person invokes it. You have no `Skill` tool; you're the one it (or the coordinating session) dispatches for this gate, not the reverse.
 
 ## Reviewing tests specifically
 
