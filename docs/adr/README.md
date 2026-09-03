@@ -89,3 +89,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-068](0068-broken-is-a-cross-format-floor-plus-per-format-structural-checks-no-new-dependency.md) | 2026-09-02 | `broken` is a cross-format floor plus per-format structural checks, no new dependency |
 | [ADR-069](0069-a-duplicate-set-resolves-by-earliest-creation-time-then-path.md) | 2026-09-02 | A duplicate set resolves by earliest creation time, then path |
 | [ADR-070](0070-extraction-failed-splits-on-doclings-status-degenerate-output-is-a-two-tier-floor.md) | 2026-09-02 | `extraction-failed` splits on Docling's status; `degenerate-output` is a two-tier floor |
+| [ADR-071](0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md) | 2026-09-03 | Docling's invocation contract is one sync call, a local timeout, and two consecutive-streak breakers |
