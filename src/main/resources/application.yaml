@@ -5,6 +5,14 @@ vespera:
   # property rather than only a CLI option, because the datasource is built from it long before the
   # command line is parsed.
   working-dir: ${db-dir:${user.dir}/.vespera}
+  docling:
+    # docling-serve is a managed sidecar (ADR-011), same as Chroma and Ollama, but unlike them
+    # carries no Spring Boot auto-configuration or ServiceConnection support -- there is no
+    # published connection-details factory for it to derive a URL from a running container the way
+    # spring-ai's starters do for Chroma/Ollama. compose.yaml pins its host port to match, so this
+    # default is correct for `vespera run` against the sidecar compose.yaml declares; a test
+    # overrides it from the Testcontainers-mapped port instead (see TestcontainersConfiguration).
+    base-url: http://localhost:5001
 
 spring:
   application:

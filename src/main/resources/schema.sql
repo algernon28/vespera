@@ -118,3 +118,24 @@ CREATE TABLE IF NOT EXISTS superseded_by (
     representative_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     PRIMARY KEY (occurrence_id, run_id)
 );
+
+-- extraction's own table (ADR-010, ADR-012, ADR-070, ADR-071): a cached Docling response, keyed on
+-- content hash plus full extractor identity, so re-running the same content under the same engine
+-- never issues a second HTTP call and changing the configured engine mints a new row instead of
+-- reusing another engine's output. content_hash here is not a foreign key into corpus's own
+-- content_hash table: an occurrence stage 1 never hashed (no size-collision group) is hashed here
+-- instead, and the two tables are keyed the same way by coincidence of algorithm, not by reference
+-- (ADR-041 -- extraction owns this table, corpus owns its own). status/errors_json/confidence_json
+-- are broken out from response_json so a verdict decision can read them without deserialising the
+-- whole payload; response_json is the full response body verbatim, which is what makes the cache
+-- usable by a later metrics/degeneracy/chunking pass without a second Docling call.
+CREATE TABLE IF NOT EXISTS extraction_cache (
+    content_hash TEXT NOT NULL,
+    extractor_identity TEXT NOT NULL,
+    status TEXT NOT NULL,
+    errors_json TEXT NOT NULL,
+    confidence_json TEXT,
+    processing_time REAL NOT NULL,
+    response_json TEXT NOT NULL,
+    PRIMARY KEY (content_hash, extractor_identity)
+);
