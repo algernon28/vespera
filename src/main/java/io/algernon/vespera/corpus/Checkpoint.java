@@ -32,11 +32,11 @@ import java.util.Optional;
  * @param ordinals the position of the completed directory, one ordinal per level below the root
  * @param pathRendering that directory's root-relative path when the checkpoint was written
  */
-public record Checkpoint(List<Integer> ordinals, String pathRendering) {
+record Checkpoint(List<Integer> ordinals, String pathRendering) {
 
     private static final String SEPARATOR = "/";
 
-    public Checkpoint {
+    Checkpoint {
         if (ordinals == null || ordinals.isEmpty()) {
             throw new IllegalArgumentException("a checkpoint names a directory below the root, so it has ordinals");
         }
@@ -49,7 +49,7 @@ public record Checkpoint(List<Integer> ordinals, String pathRendering) {
      * <p>Both halves have to be present: ordinals with no path cannot be verified against the tree,
      * and a path with no ordinals cannot be skipped past.
      */
-    public static Optional<Checkpoint> of(String ordinals, String pathRendering) {
+    static Optional<Checkpoint> of(String ordinals, String pathRendering) {
         if (ordinals == null || ordinals.isBlank() || pathRendering == null) {
             return Optional.empty();
         }
@@ -61,7 +61,7 @@ public record Checkpoint(List<Integer> ordinals, String pathRendering) {
     }
 
     /** The ordinals as one string, for storage. */
-    public String encodedOrdinals() {
+    String encodedOrdinals() {
         return ordinals.stream().map(String::valueOf).reduce((left, right) -> left + SEPARATOR + right)
                 .orElseThrow();
     }

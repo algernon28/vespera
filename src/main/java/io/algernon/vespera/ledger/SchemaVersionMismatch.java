@@ -10,7 +10,7 @@ package io.algernon.vespera.ledger;
  * which direction the mismatch runs, and the manual upgrade path for this slice is to delete and
  * recreate that module's tables.
  */
-public class SchemaVersionMismatch extends IllegalStateException {
+class SchemaVersionMismatch extends IllegalStateException {
 
     private static final long serialVersionUID = 1L;
 

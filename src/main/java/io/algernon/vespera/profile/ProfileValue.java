@@ -25,7 +25,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 public record ProfileValue(String value, String provenance, Measurement measurement) {
 
     /** A key census has created and nobody has answered. */
-    public static ProfileValue unset() {
+    static ProfileValue unset() {
         return new ProfileValue(null, null, null);
     }
 
@@ -42,7 +42,7 @@ public record ProfileValue(String value, String provenance, Measurement measurem
     }
 
     /** The same value and provenance, pointed at where census last found the informing data. */
-    public ProfileValue measuredBy(Measurement measurement) {
+    ProfileValue measuredBy(Measurement measurement) {
         return new ProfileValue(value, provenance, measurement);
     }
 }

@@ -48,7 +48,7 @@ public final class Walk {
     private Walk() {}
 
     /** Receives what the walk finds. Persistence is deliberately not this component's business. */
-    public interface Observer {
+    interface Observer {
 
         void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime);
 
@@ -81,7 +81,7 @@ public final class Walk {
      * sessions recorded, which is why a resumed session counts neither the root nor anything it
      * skipped: those were counted once already.
      */
-    public record Progress(long entriesSeen, long directoriesEntered, long occurrences, long anomalies) {
+    record Progress(long entriesSeen, long directoriesEntered, long occurrences, long anomalies) {
 
         /**
          * Whether the accounting identity holds: every entry met is one of the three things.
@@ -113,7 +113,7 @@ public final class Walk {
      *     walk is a state to resume from rather than an anomaly to record (ADR-055), so this is
      *     reported here rather than through {@link Observer#anomaly}.
      */
-    public record Outcome(Path root, Progress progress, boolean finished, String stoppedBecause) {}
+    record Outcome(Path root, Progress progress, boolean finished, String stoppedBecause) {}
 
     /**
      * The one canonicalisation a walk performs, exposed because deciding whether a walk of this root
@@ -139,7 +139,7 @@ public final class Walk {
     }
 
     /** Walks {@code root} from the beginning, reporting to {@code observer}. */
-    public static Outcome walk(Path root, Observer observer) throws IOException {
+    static Outcome walk(Path root, Observer observer) throws IOException {
         return walk(root, observer, Optional.empty());
     }
 
@@ -150,7 +150,7 @@ public final class Walk {
      * @throws IllegalArgumentException if the root does not exist or is not a directory
      * @throws CheckpointMismatch if the tree no longer matches the checkpoint
      */
-    public static Outcome walk(Path root, Observer observer, Optional<Checkpoint> resumeFrom) throws IOException {
+    static Outcome walk(Path root, Observer observer, Optional<Checkpoint> resumeFrom) throws IOException {
         Path canonical = canonicalRoot(root);
 
         Visitor visitor = new Visitor(canonical, observer, resumeFrom.orElse(null));

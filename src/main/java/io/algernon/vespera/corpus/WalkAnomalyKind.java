@@ -4,7 +4,7 @@ package io.algernon.vespera.corpus;
  * The closed vocabulary of walk anomalies (ADR-053), owned by {@code corpus} as a fact about
  * filesystem traversal rather than a ledger concept.
  */
-public enum WalkAnomalyKind {
+enum WalkAnomalyKind {
 
     /**
      * The walk saw the entry and could not read or record it — permission denied, an I/O error, a

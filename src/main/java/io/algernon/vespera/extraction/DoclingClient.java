@@ -104,7 +104,7 @@ public class DoclingClient {
      *
      * @throws DoclingCallTimedOut if 5 minutes pass with no response at all
      */
-    public DoclingResponse convert(Path file) {
+    DoclingResponse convert(Path file) {
         MultipartBodyBuilder body = new MultipartBodyBuilder();
         body.part("files", new FileSystemResource(file));
         body.part("to_formats", REQUESTED_EXPORT_FORMAT);

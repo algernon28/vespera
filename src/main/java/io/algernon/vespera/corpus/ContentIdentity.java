@@ -56,7 +56,7 @@ public class ContentIdentity {
     }
 
     /** The representative {@code occurrenceId} was superseded by under {@code runId}, if any. */
-    public Optional<OccurrenceId> representativeFor(OccurrenceId occurrenceId, RunId runId) {
+    Optional<OccurrenceId> representativeFor(OccurrenceId occurrenceId, RunId runId) {
         return jdbcTemplate
                 .query(
                         "SELECT representative_occurrence_id FROM superseded_by WHERE occurrence_id = ? AND run_id = ?",

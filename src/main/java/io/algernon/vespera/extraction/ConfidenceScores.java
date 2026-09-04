@@ -12,7 +12,7 @@ package io.algernon.vespera.extraction;
  * <p>A null score reads as "not measured," never as "poor" — this type only carries the value,
  * reading it that way is {@code pipeline}'s job (ADR-070).
  */
-public record ConfidenceScores(
+record ConfidenceScores(
         Double parseScore,
         Double layoutScore,
         Double tableScore,

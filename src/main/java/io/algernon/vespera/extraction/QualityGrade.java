@@ -13,7 +13,7 @@ import java.util.Locale;
  * <p>Recorded here as Docling's reference scale only (ADR-070); no tier-2 quality floor is adopted or
  * enforced by this module.
  */
-public enum QualityGrade {
+enum QualityGrade {
     POOR,
     FAIR,
     GOOD,

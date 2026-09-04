@@ -46,7 +46,7 @@ public enum VerdictKind {
      * Whether this verdict removes an occurrence from the survivor set. Survival is the absence of
      * any blocking verdict, never the presence of {@link #PASSED} (CONTEXT.md, "Survivor").
      */
-    public boolean blocking() {
+    boolean blocking() {
         return blocking;
     }
 }

@@ -24,7 +24,7 @@ public record Profile(ProfileValue seedFolder) {
     }
 
     /** A profile with every key present and none of them answered. */
-    public static Profile skeleton() {
+    static Profile skeleton() {
         return new Profile(null);
     }
 
