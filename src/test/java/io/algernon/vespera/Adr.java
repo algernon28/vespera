@@ -161,6 +161,18 @@ public final class Adr {
     public static final String DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL = FILE
             + "0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md";
 
+    /** ADR-029 — chunking: structure-first, with a measured LLM fallback. */
+    public static final String CHUNKING_STRUCTURE_FIRST_WITH_A_MEASURED_LLM_FALLBACK =
+            FILE + "0029-chunking-structure-first-with-a-measured-llm-fallback.md";
+
+    /** ADR-044 — the bake-off re-chunks per candidate model. */
+    public static final String THE_BAKE_OFF_RE_CHUNKS_PER_CANDIDATE_MODEL =
+            FILE + "0044-the-bake-off-re-chunks-per-candidate-model.md";
+
+    /** ADR-073 — stage 2 writes the derived metric columns; tokenizer/shingle-dependent values live under their own identity. */
+    public static final String STAGE_2_WRITES_THE_DERIVED_METRIC_COLUMNS = FILE
+            + "0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md";
+
     private Adr() {
     }
 }

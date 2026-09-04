@@ -139,3 +139,20 @@ CREATE TABLE IF NOT EXISTS extraction_cache (
     response_json TEXT NOT NULL,
     PRIMARY KEY (content_hash, extractor_identity)
 );
+
+-- extraction's own table (ADR-029, ADR-044): one row per chunk, keyed by content hash plus chunker
+-- identity plus tokenizer identity -- tokenizer identity supplied by pipeline, never by extraction
+-- depending on embedding -- so a future embedding-model bake-off can re-chunk each candidate under
+-- its own tokenizer without invalidating another candidate's chunks, and a tokenizer or chunker
+-- change mints new rows here rather than overwriting the previous ones. No chunk_count column exists
+-- anywhere (ADR-073): the count is a query over this table, comparable only within one chunker plus
+-- tokenizer identity.
+CREATE TABLE IF NOT EXISTS chunk_cache (
+    content_hash TEXT NOT NULL,
+    chunker_identity TEXT NOT NULL,
+    tokenizer_identity TEXT NOT NULL,
+    ordinal INTEGER NOT NULL,
+    chunk_text TEXT NOT NULL,
+    token_count INTEGER NOT NULL,
+    PRIMARY KEY (content_hash, chunker_identity, tokenizer_identity, ordinal)
+);
