@@ -158,37 +158,92 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
      * ADR-070's {@code status} of {@code failure}/{@code skipped}, with any reported {@code timeout}
      * already handled above: a document/page-scope category writes {@code extraction-failed} and earns
      * a metrics row (#48); anything else is service scope and skips the occurrence with no row at all.
+     *
+     * <p>{@code policy} and {@code source_unavailable} read document scope only conditionally: ADR-070
+     * resolves them "per occurrence", and a genuine task/service-scope category ({@code capacity},
+     * {@code target_unavailable}, {@code internal}) sitting anywhere else in the same response's
+     * {@code errors[]} is evidence the whole response is about the sidecar's own state, not about this
+     * document, so it overrides the otherwise-document-scope reading and the occurrence is left
+     * unjudged instead. {@code unknown} co-occurring does not trigger this override — an uncategorised
+     * error is not itself evidence of anything, the same reasoning that already keeps a bare
+     * {@code unknown} from earning a verdict on its own. {@code backend_failure} and
+     * {@code inference_failure} carry no such conditional: they are document scope unconditionally.
      */
     private Stage2Outcome categorizeFailure(OccurrenceId occurrenceId, DoclingResponse response) {
         List<DoclingError> errors = response.errors();
-        Optional<DoclingError> documentScoped =
-                errors.stream().filter(error -> isDocumentScope(error.category())).findFirst();
-        if (documentScoped.isPresent()) {
+
+        Optional<DoclingError> unconditional =
+                errors.stream().filter(error -> isUnconditionalDocumentScope(error.category())).findFirst();
+        if (unconditional.isPresent()) {
             extractionMetrics.write(occurrenceId, stage2Run.runId(), response);
-            return new Stage2Outcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(documentScoped.get()));
+            return new Stage2Outcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(unconditional.get()));
         }
+
+        Optional<DoclingError> conditional =
+                errors.stream().filter(error -> isConditionalDocumentScope(error.category())).findFirst();
+        if (conditional.isPresent() && errors.stream().noneMatch(error -> isServiceScope(error.category()))) {
+            extractionMetrics.write(occurrenceId, stage2Run.runId(), response);
+            return new Stage2Outcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(conditional.get()));
+        }
+
         if (errors.isEmpty()) {
             // ADR-070: an uncategorised failure is not evidence about the document either -- the safe
             // reading of no evidence is "not judged yet," the same reading UNKNOWN itself gets.
             throw new ServiceScopeFailure(occurrenceId, "unknown", "no categorized error was reported");
         }
-        DoclingError serviceScoped = errors.get(0);
+        // Prefer the error that is actually evidence of service scope -- when a conditional category
+        // (policy/source_unavailable) is overridden by a co-occurring genuine service-scope category,
+        // errors.get(0) may be the overridden entry rather than the one that caused this reading.
+        DoclingError serviceScoped = errors.stream()
+                .filter(error -> isServiceScope(error.category()))
+                .findFirst()
+                .orElseGet(() -> errors.get(0));
         throw new ServiceScopeFailure(
                 occurrenceId, serviceScoped.category().name().toLowerCase(Locale.ROOT), reasonFor(serviceScoped));
     }
 
     /**
-     * ADR-070's document/page-scope categories, plus {@code policy}/{@code source_unavailable}: under
-     * this client's call shape (ADR-071 — one uploaded file per call, {@code /v1/convert/file}, never
-     * {@code /source}), an unsupported or unreachable source can only be a property of the uploaded
-     * document itself, since no call here ever depends on another document or on cross-request service
-     * state. This is this ticket's own reading of ADR-070's "resolved per occurrence" line, recorded
-     * here rather than left implicit — see the implementer's report for the assumption it rests on.
+     * ADR-070's document/page-scope categories that carry no service-scope conditional: under this
+     * client's call shape (ADR-071 — one uploaded file per call, {@code /v1/convert/file}, never
+     * {@code /source}), a backend or inference failure can only be a property of the uploaded document
+     * itself.
      */
-    private static boolean isDocumentScope(FailureCategory category) {
+    private static boolean isUnconditionalDocumentScope(FailureCategory category) {
         return switch (category) {
-            case BACKEND_FAILURE, INFERENCE_FAILURE, POLICY, SOURCE_UNAVAILABLE -> true;
-            case CAPACITY, TARGET_UNAVAILABLE, INTERNAL, UNKNOWN, TIMEOUT -> false;
+            case BACKEND_FAILURE, INFERENCE_FAILURE -> true;
+            case POLICY, SOURCE_UNAVAILABLE, CAPACITY, TARGET_UNAVAILABLE, INTERNAL, UNKNOWN -> false;
+            // TIMEOUT is handled before categorizeFailure is ever reached (process() resolves it via
+            // resolveTimeout); listed here, not defaulted, so a tenth category can't fall through unseen.
+            case TIMEOUT -> false;
+        };
+    }
+
+    /**
+     * {@code policy} and {@code source_unavailable}: document scope when they are properties of this
+     * file, which is the reading unless {@link #isServiceScope} finds a genuine service-scope category
+     * co-occurring in the same response and overrides it.
+     */
+    private static boolean isConditionalDocumentScope(FailureCategory category) {
+        return switch (category) {
+            case POLICY, SOURCE_UNAVAILABLE -> true;
+            case BACKEND_FAILURE, INFERENCE_FAILURE, CAPACITY, TARGET_UNAVAILABLE, INTERNAL, UNKNOWN -> false;
+            // TIMEOUT is handled before categorizeFailure is ever reached (process() resolves it via
+            // resolveTimeout); listed here, not defaulted, so a tenth category can't fall through unseen.
+            case TIMEOUT -> false;
+        };
+    }
+
+    /**
+     * The categories that are unambiguous evidence of a task/service-scope cause. {@code unknown} is
+     * deliberately excluded — ADR-070 treats it as no evidence at all, not as evidence of service scope.
+     */
+    private static boolean isServiceScope(FailureCategory category) {
+        return switch (category) {
+            case CAPACITY, TARGET_UNAVAILABLE, INTERNAL -> true;
+            case POLICY, SOURCE_UNAVAILABLE, BACKEND_FAILURE, INFERENCE_FAILURE, UNKNOWN -> false;
+            // TIMEOUT is handled before categorizeFailure is ever reached (process() resolves it via
+            // resolveTimeout); listed here, not defaulted, so a tenth category can't fall through unseen.
+            case TIMEOUT -> false;
         };
     }
 
