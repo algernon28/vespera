@@ -55,6 +55,7 @@ class Stage2Run {
             Ledger ledger,
             ImplementationVersions implementationVersions,
             ExtractorIdentity extractorIdentity,
+            DegenerateOutputConfidenceFloor confidenceFloor,
             @Value("#{jobParameters['root']}") Path root) {
         this.canonicalRoot = Walk.canonicalRoot(root);
         WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
@@ -65,17 +66,19 @@ class Stage2Run {
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE),
-                configConsumed(extractorIdentity),
+                configConsumed(extractorIdentity, confidenceFloor),
                 walkId,
                 List.of(this.stage1RunId));
     }
 
     /**
-     * {@code configConsumed} records the extractor identity, per this ticket's acceptance criteria;
-     * #48 extends this with the tier-2 confidence-floor profile value once that key exists.
+     * {@code configConsumed} records the extractor identity and #48's tier-2 confidence-floor value —
+     * what shaped this run's output is recoverable from the run row itself (hand-off spec #45's own
+     * requirement).
      */
-    private static String configConsumed(ExtractorIdentity extractorIdentity) {
-        return JSON_MAPPER.writeValueAsString(new ConfigConsumed(extractorIdentity.value()));
+    private static String configConsumed(ExtractorIdentity extractorIdentity, DegenerateOutputConfidenceFloor confidenceFloor) {
+        return JSON_MAPPER.writeValueAsString(
+                new ConfigConsumed(extractorIdentity.value(), confidenceFloor.value()));
     }
 
     RunId runId() {
@@ -90,5 +93,5 @@ class Stage2Run {
         return canonicalRoot;
     }
 
-    private record ConfigConsumed(String extractorIdentity) {}
+    private record ConfigConsumed(String extractorIdentity, Double degenerateOutputConfidenceFloor) {}
 }

@@ -3,6 +3,8 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileStore;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
@@ -85,5 +87,19 @@ public class Stage2JobConfiguration {
     @Bean
     ExtractorIdentity extractorIdentity(@Value("${vespera.docling.base-url}") String baseUrl) {
         return new ExtractorIdentity("docling-serve;base-url=" + baseUrl);
+    }
+
+    /**
+     * {@code pipeline}'s reading of the profile's tier-2 key (#48, ADR-070): {@code extraction} may
+     * depend only on {@code ledger}, so this is read here, not there, and handed down as a plain
+     * value.
+     */
+    @Bean
+    DegenerateOutputConfidenceFloor degenerateOutputConfidenceFloor(ProfileStore profileStore) {
+        Profile profile = profileStore.load();
+        String value = profile.degenerateOutputConfidenceFloor().value();
+        return new DegenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor().isSet()
+                ? Double.valueOf(value)
+                : null);
     }
 }

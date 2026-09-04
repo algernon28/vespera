@@ -102,7 +102,7 @@ class CensusTaskletTest {
         Files.writeString(seeds.resolve("exemplar.txt"), "a known-relevant document");
         Ledger ledger = new Ledger(jdbcTemplate);
         ProfileStore profileStore = new ProfileStore(workingDirectory);
-        profileStore.save(new Profile(new ProfileValue(seeds.toString(), "the handover set", null)));
+        profileStore.save(new Profile(new ProfileValue(seeds.toString(), "the handover set", null), null));
 
         tasklet(root, profileStore).execute(null, null);
 
@@ -131,7 +131,7 @@ class CensusTaskletTest {
         Files.writeString(root.resolve("a.txt"), "a");
         Files.writeString(seeds.resolve("exemplar.txt"), "a known-relevant document");
         ProfileStore profileStore = new ProfileStore(workingDirectory);
-        profileStore.save(new Profile(new ProfileValue(seeds.toString(), "the handover set", null)));
+        profileStore.save(new Profile(new ProfileValue(seeds.toString(), "the handover set", null), null));
         CensusTasklet census = tasklet(root, profileStore, failingOn(seeds, CorpusFailures.excludesNothing()));
 
         claim(
@@ -155,7 +155,7 @@ class CensusTaskletTest {
         Files.writeString(root.resolve("a.txt"), "a");
         Path missing = root.resolve("nowhere");
         ProfileStore profileStore = new ProfileStore(workingDirectory);
-        profileStore.save(new Profile(new ProfileValue(missing.toString(), "the handover set", null)));
+        profileStore.save(new Profile(new ProfileValue(missing.toString(), "the handover set", null), null));
         CensusTasklet census = tasklet(root, profileStore);
 
         claim(
@@ -180,7 +180,7 @@ class CensusTaskletTest {
         Files.writeString(root.resolve("a.txt"), "a");
         Files.writeString(seeds.resolve("exemplar.txt"), "a known-relevant document");
         ProfileStore profileStore = new ProfileStore(workingDirectory);
-        profileStore.save(new Profile(new ProfileValue(seeds.toString(), "the handover set", null)));
+        profileStore.save(new Profile(new ProfileValue(seeds.toString(), "the handover set", null), null));
         CensusTasklet census = tasklet(root, profileStore, failingOn(seeds, CorpusFailures.checkpointMismatch()));
 
         claim(

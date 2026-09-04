@@ -161,6 +161,13 @@ public final class Adr {
     public static final String DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL = FILE
             + "0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md";
 
+    /**
+     * ADR-073 — stage 2 writes the derived-metric columns; tokenizer- and shingle-dependent values
+     * live under their own identity.
+     */
+    public static final String STAGE_2_WRITES_THE_DERIVED_METRIC_COLUMNS = FILE
+            + "0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md";
+
     private Adr() {
     }
 }

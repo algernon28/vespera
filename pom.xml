@@ -32,6 +32,8 @@
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <picocli.version>4.7.7</picocli.version>
         <memoryfilesystem.version>2.8.1</memoryfilesystem.version>
+        <!-- ADR-073: pinned to Lingua's latest release, 1.2.2 (2022), the record's own note that this line is stable rather than actively developed. -->
+        <lingua.version>1.2.2</lingua.version>
         <!--
           Allure is two products on two version lines, which is the easy thing to get wrong.
 
@@ -83,6 +85,18 @@
             <!-- The profile is YAML, read and written through Jackson's records support (ADR-061). -->
             <groupId>tools.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
+        <dependency>
+            <!--
+              Extraction's per-document language detection (ADR-073, hand-off spec #45): a document-
+              level, ranked-confidence API, so a declined detection is representable as null rather
+              than a guess. All languages are bundled (no subset restriction), which is this
+              dependency's known cost, a large artifact, accepted per ADR-073 alongside its
+              stale-release risk, both recorded there rather than re-argued here.
+            -->
+            <groupId>com.github.pemistahl</groupId>
+            <artifactId>lingua</artifactId>
+            <version>${lingua.version}</version>
         </dependency>
         <dependency>
             <groupId>info.picocli</groupId>

@@ -12,8 +12,10 @@ import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DoclingError;
 import io.algernon.vespera.extraction.DoclingResponse;
+import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.FailureCategory;
+import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.extraction.ScriptedExtractor;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
@@ -200,7 +202,8 @@ class Stage2ItemProcessorTest {
                         List.of(error(FailureCategory.BACKEND_FAILURE), error(FailureCategory.INFERENCE_FAILURE)),
                         0d,
                         null,
-                        "{}"));
+                        "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"the pages that did convert carried"
+                                + " real content\"}]}}}"));
 
         Stage2Outcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
 
@@ -209,6 +212,23 @@ class Stage2ItemProcessorTest {
                         + " something failed inside it -- so this step decides nothing about it and leaves it"
                         + " to whatever measures the text",
                 () -> assertThat(outcome).isNull());
+    }
+
+    @Test
+    @Story("Tier 1 — the hard zero-content floor")
+    @DisplayName("A document that converts to no usable text earns a degenerate-output verdict")
+    void aConversionWithNoUsableTextEarnsADegenerateOutputVerdict(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, 1);
+        ScriptedExtractor docling = new ScriptedExtractor()
+                .answering(new DoclingResponse(
+                        ConversionStatus.SUCCESS, List.of(), 0d, null, "{\"document\":{\"json_content\":{\"texts\":[]}}}"));
+
+        Stage2Outcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+
+        claim(
+                "a clean conversion carrying no extracted text at all trips tier 1, so it is condemned"
+                        + " here rather than reaching later stages as if it were real content",
+                () -> assertThat(outcome.kind()).isEqualTo(VerdictKind.DEGENERATE_OUTPUT));
     }
 
     @Test
@@ -297,7 +317,9 @@ class Stage2ItemProcessorTest {
                 docling,
                 IDENTITY,
                 new Stage2TimeoutStreak(),
-                corpus.stage2Run());
+                corpus.stage2Run(),
+                new ExtractionMetrics(jdbcTemplate, new LanguageDetection()),
+                new DegenerateOutputConfidenceFloor(null));
     }
 
     /**
@@ -319,7 +341,7 @@ class Stage2ItemProcessorTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
         ImplementationVersions versions = new ImplementationVersions();
         new Stage1Tasklet(ledger, new ContentIdentity(jdbcTemplate), versions, root).execute(null, null);
-        Stage2Run stage2Run = new Stage2Run(ledger, versions, IDENTITY, root);
+        Stage2Run stage2Run = new Stage2Run(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
         List<OccurrenceId> occurrences = paths.stream()
                 .map(path -> ledger.occurrenceId(walkId, path).orElseThrow())
                 .toList();

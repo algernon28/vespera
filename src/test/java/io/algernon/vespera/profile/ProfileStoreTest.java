@@ -30,6 +30,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("13")
 @Link(name = "ADR-061", url = Adr.PROFILE_IS_YAML_TYPED_RECORDS, type = "adr")
 @Link(name = "ADR-062", url = Adr.CENSUS_MERGES_AND_NEVER_OVERWRITES, type = "adr")
+@Link(name = "ADR-070", url = Adr.EXTRACTION_FAILED_SPLITS_ON_DOCLINGS_STATUS, type = "adr")
 class ProfileStoreTest {
 
     private static final Instant FIRST_RUN = Instant.parse("2026-08-29T10:15:30Z");
@@ -48,6 +49,10 @@ class ProfileStoreTest {
                 "the seed-folder key is present rather than missing, and unanswered rather than guessed",
                 () -> assertThat(loaded.seedFolder().isSet()).isFalse());
         claim(
+                "so is stage 2's tier-2 confidence floor -- unset per observe-before-enforce, not guessed at"
+                        + " (ADR-070)",
+                () -> assertThat(loaded.degenerateOutputConfidenceFloor().isSet()).isFalse());
+        claim(
                 "the file now exists, so an operator has something to edit",
                 () -> assertThat(Files.exists(workingDirectory.resolve("profile.yaml"))).isTrue());
     }
@@ -57,8 +62,10 @@ class ProfileStoreTest {
     @DisplayName("A value and its provenance survive a second census run untouched")
     void neverTouchesAnAnswerAlreadyInTheFile(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
-        store.save(new Profile(new ProfileValue(
-                "C:/seeds", "chosen by the archivist from the 2019 handover", new Measurement("walk 1", FIRST_RUN))));
+        store.save(new Profile(
+                new ProfileValue(
+                        "C:/seeds", "chosen by the archivist from the 2019 handover", new Measurement("walk 1", FIRST_RUN)),
+                null));
 
         Profile reloaded = store.load();
         store.save(reloaded.withSeedFolderMeasurement(new Measurement("walk 7", SECOND_RUN)));
@@ -112,12 +119,33 @@ class ProfileStoreTest {
     void writesWhatItCanReadBack(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
         Profile written = new Profile(
-                new ProfileValue("C:/seeds", "the archivist's pick", new Measurement("walk 1", FIRST_RUN)));
+                new ProfileValue("C:/seeds", "the archivist's pick", new Measurement("walk 1", FIRST_RUN)), null);
 
         store.save(written);
 
         claim(
                 "the profile round-trips through YAML unchanged, timestamps included",
                 () -> assertThat(store.load()).isEqualTo(written));
+    }
+
+    @Test
+    @Story("What census writes to the profile")
+    @DisplayName("An operator-set tier-2 confidence floor round-trips like any other answered key")
+    void anOperatorSetConfidenceFloorRoundTrips(@TempDir Path workingDirectory) {
+        ProfileStore store = new ProfileStore(workingDirectory);
+        Profile written = new Profile(
+                null,
+                new ProfileValue(
+                        "0.5", "matched to Docling's own poor/fair cut-off", new Measurement("run 3", FIRST_RUN)));
+
+        store.save(written);
+        Profile reloaded = store.load();
+
+        claim(
+                "the operator's threshold value survives the round trip",
+                () -> assertThat(reloaded.degenerateOutputConfidenceFloor().value()).isEqualTo("0.5"));
+        claim(
+                "and it now reads as set, the same isSet() check every other answered key uses",
+                () -> assertThat(reloaded.degenerateOutputConfidenceFloor().isSet()).isTrue());
     }
 }

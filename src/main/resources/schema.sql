@@ -139,3 +139,37 @@ CREATE TABLE IF NOT EXISTS extraction_cache (
     response_json TEXT NOT NULL,
     PRIMARY KEY (content_hash, extractor_identity)
 );
+
+-- extraction's own table (ADR-070, ADR-073, #48): one row per response a document actually came
+-- back for -- success, partial_success, or extraction-failed -- and never for a service-scope
+-- failure, since no response exists there to measure. Counts are stored, never ratios (#45's user
+-- story 29), so a corpus-wide aggregation later can re-derive whatever ratio it needs without
+-- losing the denominator. error_summary is a comma-joined list of the response's errors[]
+-- categories, free text like verdict.reason, not a re-parse of errors_json -- extraction_cache
+-- already owns the response verbatim (ADR-070). page_count is nullable: confidence aggregation and
+-- pagination are both properties of the paginated pipeline, absent for the simple one (.docx, .txt).
+CREATE TABLE IF NOT EXISTS extraction_metric (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    status TEXT NOT NULL,
+    error_summary TEXT,
+    parse_score REAL,
+    layout_score REAL,
+    table_score REAL,
+    ocr_score REAL,
+    mean_score REAL,
+    low_score REAL,
+    mean_grade TEXT,
+    low_grade TEXT,
+    processing_time REAL NOT NULL,
+    page_count INTEGER,
+    character_count INTEGER NOT NULL,
+    alphanumeric_char_count INTEGER NOT NULL,
+    word_count INTEGER NOT NULL,
+    word_character_length_total INTEGER NOT NULL,
+    vowelless_word_count INTEGER NOT NULL,
+    single_character_word_count INTEGER NOT NULL,
+    primary_language TEXT,
+    language_confidence REAL,
+    PRIMARY KEY (occurrence_id, run_id)
+);

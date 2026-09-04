@@ -16,20 +16,28 @@ package io.algernon.vespera.profile;
  *
  * @param seedFolder where the seed set lives, if the operator has said. Purely operator-supplied:
  *     census cannot guess which folder holds the exemplars, and walks it when it is set (ADR-064).
+ * @param degenerateOutputConfidenceFloor stage 2's tier-2 quality floor over Docling's {@code
+ *     ConfidenceScores} (ADR-070): a number on Docling's own 0-to-1 scale, below which a converted
+ *     document is {@code degenerate-output}. Ships unset, per <b>observe before enforce</b> — the
+ *     score distribution over a corpus is never known before a first stage-2 run measures it. Once
+ *     set, a {@code null} score (the {@code .docx}/{@code .txt} case, where confidence is never
+ *     computed) never crosses this floor, whatever it is set to.
  */
-public record Profile(ProfileValue seedFolder) {
+public record Profile(ProfileValue seedFolder, ProfileValue degenerateOutputConfidenceFloor) {
 
     public Profile {
         seedFolder = seedFolder == null ? ProfileValue.unset() : seedFolder;
+        degenerateOutputConfidenceFloor =
+                degenerateOutputConfidenceFloor == null ? ProfileValue.unset() : degenerateOutputConfidenceFloor;
     }
 
     /** A profile with every key present and none of them answered. */
     static Profile skeleton() {
-        return new Profile(null);
+        return new Profile(null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
     public Profile withSeedFolderMeasurement(Measurement measurement) {
-        return new Profile(seedFolder.measuredBy(measurement));
+        return new Profile(seedFolder.measuredBy(measurement), degenerateOutputConfidenceFloor);
     }
 }
