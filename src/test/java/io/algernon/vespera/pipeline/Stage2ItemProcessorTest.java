@@ -33,6 +33,7 @@ import io.qameta.allure.Story;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import javax.sql.DataSource;
@@ -61,10 +62,12 @@ import org.springframework.test.context.ActiveProfiles;
  * make the thing this class most wants to be sure of — that the processor is judging the occurrences
  * of the walk it was given — an assumption.
  *
- * <p><b>One case is deliberately absent.</b> ADR-070 resolves {@code policy} and
- * {@code source_unavailable} "per occurrence", and whether this call shape can produce a service-level
- * one at all is an open question on issue #47, not something a test may settle by asserting either
- * answer. Nothing here claims a reading for those two categories.
+ * <p><b>{@code policy} and {@code source_unavailable} are the conditional pair.</b> ADR-070 resolves
+ * them "per occurrence", and issue #47's resolution comment reads that as a per-response conditional:
+ * document scope unless a genuine service-scope category ({@code capacity},
+ * {@code target_unavailable}, {@code internal} — not {@code unknown}) sits anywhere else in the same
+ * response's {@code errors[]}, in which case the whole response is read as being about the sidecar.
+ * The four cases that reading produces are claimed below.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -96,6 +99,13 @@ class Stage2ItemProcessorTest {
      * plus one where the converter reported skipping the document for the same reason.
      */
     private static final int RESPONSES_BLAMED_ON_THE_DOCUMENT = 3;
+
+    /**
+     * How many measurement rows one judged response earns: {@code ExtractionMetrics} writes exactly
+     * once per response a document actually came back for, so a document-scoped reading leaves one row
+     * and a service-scoped one leaves none.
+     */
+    private static final int METRIC_ROWS_PER_JUDGED_RESPONSE = 1;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -191,6 +201,76 @@ class Stage2ItemProcessorTest {
                         + " reading of no evidence is that nobody has judged it yet",
                 () -> assertThatThrownBy(() -> processor.process(corpus.occurrence(0)))
                         .isInstanceOf(ServiceScopeFailure.class));
+    }
+
+    @Test
+    @Story("A failure whose scope depends on the rest of the response")
+    @DisplayName("A refusal, or an unreadable source, reported on its own is recorded against the document")
+    void verdictsARefusalReportedOnItsOwn(@TempDir Path root) throws Exception {
+        List<FailureCategory> aboutThisFileUnlessTheResponseSaysOtherwise =
+                List.of(FailureCategory.POLICY, FailureCategory.SOURCE_UNAVAILABLE);
+        Corpus corpus = corpusOf(root, aboutThisFileUnlessTheResponseSaysOtherwise.size());
+        ScriptedExtractor docling = new ScriptedExtractor();
+        aboutThisFileUnlessTheResponseSaysOtherwise.forEach(category -> docling.answering(failing(category)));
+        Stage2ItemProcessor processor = processorOver(corpus, docling);
+
+        for (int i = 0; i < aboutThisFileUnlessTheResponseSaysOtherwise.size(); i++) {
+            FailureCategory category = aboutThisFileUnlessTheResponseSaysOtherwise.get(i);
+            OccurrenceId occurrence = corpus.occurrence(i);
+            claim(
+                    "a converter that reported only " + category.name().toLowerCase(Locale.ROOT)
+                            + " is saying something about the file it was handed -- it refused this one, or"
+                            + " could not read this one -- so the document is recorded as one extraction"
+                            + " could not read",
+                    () -> assertThat(processor.process(occurrence).kind()).isEqualTo(VerdictKind.EXTRACTION_FAILED));
+            claim(
+                    "and the measurement is filed against it as well, because a reading about the document is"
+                            + " a reading of a response the document really came back for -- "
+                            + METRIC_ROWS_PER_JUDGED_RESPONSE + " row recorded for it",
+                    () -> assertThat(metricRowsFor(occurrence)).isEqualTo(METRIC_ROWS_PER_JUDGED_RESPONSE));
+        }
+    }
+
+    @Test
+    @Story("A failure whose scope depends on the rest of the response")
+    @DisplayName("A refusal reported alongside a failure the converter blames on itself is read as being about the converter")
+    void skipsARefusalReportedAlongsideAConverterProblem(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, 1);
+        ScriptedExtractor docling =
+                new ScriptedExtractor().answering(failing(FailureCategory.POLICY, FailureCategory.CAPACITY));
+        Stage2ItemProcessor processor = processorOver(corpus, docling);
+
+        claim(
+                "a response that reports a refusal and, in the same breath, that the converter had no room"
+                        + " to work is a response about the converter's own state, so the refusal cannot be"
+                        + " taken as a fact about this document and the document is set aside unjudged",
+                () -> assertThatThrownBy(() -> processor.process(corpus.occurrence(0)))
+                        .isInstanceOf(ServiceScopeFailure.class));
+        claim(
+                "and no measurement is filed against it either, so a later run finds the document exactly"
+                        + " as untouched as it was before -- zero rows recorded for it",
+                () -> assertThat(metricRowsFor(corpus.occurrence(0))).isZero());
+    }
+
+    @Test
+    @Story("A failure whose scope depends on the rest of the response")
+    @DisplayName("A refusal reported alongside an unexplained error is still recorded against the document")
+    void verdictsARefusalReportedAlongsideAnUnexplainedError(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, 1);
+        ScriptedExtractor docling =
+                new ScriptedExtractor().answering(failing(FailureCategory.POLICY, FailureCategory.UNKNOWN));
+
+        Stage2Outcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+
+        claim(
+                "an error the converter gave no kind for is no evidence about anything, so it cannot turn a"
+                        + " refusal of this file into a statement about the converter: the document is still"
+                        + " recorded as one extraction could not read",
+                () -> assertThat(outcome.kind()).isEqualTo(VerdictKind.EXTRACTION_FAILED));
+        claim(
+                "and the row still names the refusal and what the converter said about it, rather than the"
+                        + " unexplained error that sat beside it",
+                () -> assertThat(outcome.reason()).contains("policy").contains(ERROR_MESSAGE));
     }
 
     @Test
@@ -327,14 +407,27 @@ class Stage2ItemProcessorTest {
                 () -> assertThat(docling.conversions()).isEqualTo(corpus.size()));
     }
 
+    /**
+     * The measurement rows standing against one occurrence — the presence-or-absence side of the
+     * conditional pair, since a service-scoped reading has to leave the occurrence with none.
+     */
+    private int metricRowsFor(OccurrenceId occurrence) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM extraction_metric WHERE occurrence_id = ?", Integer.class, occurrence.value());
+    }
+
     /** A response Docling answered cleanly with, carrying nothing for this step to judge. */
     private static DoclingResponse converted() {
         return new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 0d, null, "{}");
     }
 
-    /** A response reporting one failure of {@code category} and nothing else. */
-    private static DoclingResponse failing(FailureCategory category) {
-        return new DoclingResponse(ConversionStatus.FAILURE, List.of(error(category)), 0d, null, "{}");
+    /**
+     * A response reporting one failure per {@code categories}, in the order given — several of them
+     * because the reading of a reported refusal depends on what else the same response reported.
+     */
+    private static DoclingResponse failing(FailureCategory... categories) {
+        List<DoclingError> errors = Arrays.stream(categories).map(Stage2ItemProcessorTest::error).toList();
+        return new DoclingResponse(ConversionStatus.FAILURE, errors, 0d, null, "{}");
     }
 
     private static DoclingError error(FailureCategory category) {
