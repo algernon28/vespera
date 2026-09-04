@@ -84,6 +84,8 @@ class WalkRecorderTest {
     @Test
     @Story("A live walk is persisted")
     @DisplayName("A file occurrence found by a live walk is recorded under that walk's id")
+    @Issue("6")
+    @Link(name = "ADR-056", url = Adr.EXCLUDES_NOTHING_IS_RECONCILED, type = "adr")
     void aLiveWalkRecordsItsOccurrencesUnderOneWalkId(@TempDir Path root) throws IOException {
         Files.writeString(root.resolve("a.txt"), "hi");
         Ledger ledger = ledger();
@@ -100,6 +102,8 @@ class WalkRecorderTest {
     @Test
     @Story("A live walk is persisted")
     @DisplayName("A walk anomaly found by a live walk is recorded under that same walk's id")
+    @Issue("6")
+    @Link(name = "ADR-056", url = Adr.EXCLUDES_NOTHING_IS_RECONCILED, type = "adr")
     void aLiveWalkRecordsItsAnomaliesUnderTheSameWalkId(@TempDir Path root) throws IOException {
         Path unstorable;
         try {

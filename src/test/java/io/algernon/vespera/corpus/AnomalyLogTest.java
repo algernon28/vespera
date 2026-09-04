@@ -3,10 +3,13 @@ package io.algernon.vespera.corpus;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
+import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
@@ -34,6 +37,9 @@ class AnomalyLogTest {
     @Test
     @Story("What corpus records about a walk anomaly")
     @DisplayName("A walk anomaly recorded against a walk is read back by that walk's id")
+    @Issue("6")
+    @Link(name = "ADR-053", url = Adr.WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS, type = "adr")
+    @Link(name = "ADR-041", url = Adr.LEDGER_OWNS_IDENTITY_AND_VERDICTS, type = "adr")
     void recordsAWalkAnomalyAndReadsItBackByWalkId() {
         WalkId walkId = new Ledger(jdbcTemplate).startWalk(Path.of("C:/corpus"));
         AnomalyLog anomalyLog = new AnomalyLog(jdbcTemplate);

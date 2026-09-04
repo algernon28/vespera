@@ -22,9 +22,9 @@ import org.springframework.test.context.ActiveProfiles;
  * Because it asserts nothing, it contributes no assertion steps to the report. Its display name is
  * therefore the whole of what the report can say about it, which is why the name states the claim.
  * <p>
- * As the capability modules land, this is where {@code ApplicationModules.verify()} belongs, so the
- * module boundaries (ADR-040) are checked by a test rather than by convention. It is not here yet
- * because there are no modules yet.
+ * Module boundaries (ADR-040) are checked separately, by {@link ModuleBoundariesTest}: it runs
+ * {@code ApplicationModules.verify()} and, unlike that call alone, also catches a module that ships
+ * with no {@code allowedDependencies} declaration.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
