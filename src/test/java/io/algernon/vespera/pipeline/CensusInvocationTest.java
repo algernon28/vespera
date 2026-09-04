@@ -7,6 +7,8 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.extraction.ExtractionMetrics;
+import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
@@ -70,6 +72,8 @@ import picocli.CommandLine;
     Stage2HealthCheckListener.class,
     Shingler.class,
     StubbedExtractionBeans.class,
+    ExtractionMetrics.class,
+    LanguageDetection.class,
     ContentIdentity.class,
     WalkRecorder.class,
     AnomalyLog.class,

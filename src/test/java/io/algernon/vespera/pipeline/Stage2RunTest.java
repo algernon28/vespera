@@ -84,7 +84,7 @@ class Stage2RunTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         walked(ledger, root, FILES_IN_THE_FIRST_ARCHIVE);
 
-        Stage2Run stage2Run = new Stage2Run(ledger, new ImplementationVersions(), IDENTITY, root);
+        Stage2Run stage2Run = new Stage2Run(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
 
         claim(
                 "what extraction consumed names the engine it ran against, so a judgement made under one"
@@ -100,7 +100,7 @@ class Stage2RunTest {
         walked(ledger, root, FILES_IN_THE_FIRST_ARCHIVE);
         RunId previousStage = theOneRunOf(Stage1Tasklet.STAGE);
 
-        Stage2Run stage2Run = new Stage2Run(ledger, new ImplementationVersions(), IDENTITY, root);
+        Stage2Run stage2Run = new Stage2Run(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
 
         claim(
                 "extraction works out the identity of the previous stage's work rather than being handed"
@@ -113,6 +113,22 @@ class Stage2RunTest {
     }
 
     @Test
+    @Story("What extraction records about itself")
+    @DisplayName("Extraction writes down the tier-2 confidence floor it was configured against (#48)")
+    void recordsTheTier2ConfidenceFloorItWasConfiguredAgainst(@TempDir Path root) throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        walked(ledger, root, FILES_IN_THE_FIRST_ARCHIVE);
+
+        Stage2Run stage2Run =
+                new Stage2Run(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(0.5), root);
+
+        claim(
+                "what extraction consumed also names the tier-2 threshold it ran against, so a run's own"
+                        + " row answers what shaped its degeneracy judgements without re-reading the profile",
+                () -> assertThat(configConsumedBy(stage2Run.runId())).contains("0.5"));
+    }
+
+    @Test
     @Story("Whichever archive it is given")
     @DisplayName("Extraction reads the archive it was handed, not a particular one")
     void readsWhicheverArchiveItIsGiven(@TempDir Path firstArchive, @TempDir Path secondArchive) throws Exception {
@@ -122,8 +138,8 @@ class Stage2RunTest {
         ImplementationVersions versions = new ImplementationVersions();
         Stage2JobConfiguration configuration = new Stage2JobConfiguration();
 
-        Stage2Run overTheFirst = new Stage2Run(ledger, versions, IDENTITY, firstArchive);
-        Stage2Run overTheSecond = new Stage2Run(ledger, versions, IDENTITY, secondArchive);
+        Stage2Run overTheFirst = new Stage2Run(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstArchive);
+        Stage2Run overTheSecond = new Stage2Run(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondArchive);
 
         claim(
                 "handed the first archive, extraction reads exactly the " + FILES_IN_THE_FIRST_ARCHIVE

@@ -2,10 +2,12 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.extraction.ConversionStatus;
+import io.algernon.vespera.extraction.DegeneracyVerdict;
 import io.algernon.vespera.extraction.DoclingCallTimedOut;
 import io.algernon.vespera.extraction.DoclingError;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
+import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.FailureCategory;
 import io.algernon.vespera.ledger.Ledger;
@@ -22,12 +24,13 @@ import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.stereotype.Component;
 
 /**
- * Judges {@code extraction-failed} from one occurrence's Docling response (ADR-070, ADR-071), and —
- * for a {@code success}/{@code partial_success} response — hands the extracted text to {@code
- * similarity}'s shingler in the same open-document pass (ADR-073), before returning {@code null} so
- * that Spring Batch filters the item, leaving no verdict row until a later pass judges it further.
- * Metrics and degeneracy tiers (#48) and chunking (#49) continue the same per-occurrence work; this
- * processor is where their calls join the shingler's, per the stage-2 hand-off spec's ordering.
+ * Judges {@code extraction-failed} and {@code degenerate-output} from one occurrence's Docling
+ * response, in one open-document pass (ADR-070, ADR-071, ADR-073): cache lookup, convert, the
+ * {@code extraction-failed} check, then — on {@code success}/{@code partial_success} — the derived
+ * metrics and the two-tier degeneracy floor (#48), then hands the extracted text to {@code
+ * similarity}'s shingler (#50). Chunking (#49) continues the same per-occurrence work in a later
+ * ticket. This processor returns {@code null} for a converted document that clears the degeneracy
+ * floor, so Spring Batch filters it and no verdict row is written for a survivor.
  *
  * <p>Step-scoped because {@link Stage2TimeoutStreak} is: the timeout-versus-consecutive resolution
  * needs to survive a chunk boundary, and every dependant of a step-scoped bean sees the same instance
@@ -43,6 +46,8 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
     private final ExtractorIdentity extractorIdentity;
     private final Stage2TimeoutStreak timeoutStreak;
     private final Stage2Run stage2Run;
+    private final ExtractionMetrics extractionMetrics;
+    private final DegenerateOutputConfidenceFloor confidenceFloor;
     private final Shingler shingler;
 
     Stage2ItemProcessor(
@@ -52,6 +57,8 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
             ExtractorIdentity extractorIdentity,
             Stage2TimeoutStreak timeoutStreak,
             Stage2Run stage2Run,
+            ExtractionMetrics extractionMetrics,
+            DegenerateOutputConfidenceFloor confidenceFloor,
             Shingler shingler) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
@@ -59,6 +66,8 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
         this.extractorIdentity = extractorIdentity;
         this.timeoutStreak = timeoutStreak;
         this.stage2Run = stage2Run;
+        this.extractionMetrics = extractionMetrics;
+        this.confidenceFloor = confidenceFloor;
         this.shingler = shingler;
     }
 
@@ -69,26 +78,28 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
         try {
             response = convert(occurrenceId, file);
         } catch (DoclingCallTimedOut timedOut) {
-            return resolveTimeout(occurrenceId, timedOut.getMessage());
+            // No response at all: nothing here for #48's metrics pass to measure.
+            return resolveTimeout(occurrenceId, timedOut.getMessage(), null);
         }
 
         if (response.status() == ConversionStatus.SUCCESS || response.status() == ConversionStatus.PARTIAL_SUCCESS) {
             // ADR-070: partial_success never earns extraction-failed on its own, whatever errors it
-            // carries — those are recorded by #48's metrics pass, not judged here.
-            shingler.write(occurrenceId, stage2Run.runId(), Stage2ExtractedText.of(response.rawResponse()));
+            // carries — degenerate-output is the only verdict reachable from here.
             timeoutStreak.reset();
-            return null;
+            Stage2Outcome outcome = judgeConverted(occurrenceId, response);
+            shingler.write(occurrenceId, stage2Run.runId(), Stage2ExtractedText.of(response.rawResponse()));
+            return outcome;
         }
 
         Optional<DoclingError> reportedTimeout = response.errors().stream()
                 .filter(error -> error.category() == FailureCategory.TIMEOUT)
                 .findFirst();
         if (reportedTimeout.isPresent()) {
-            return resolveTimeout(occurrenceId, reasonFor(reportedTimeout.get()));
+            return resolveTimeout(occurrenceId, reasonFor(reportedTimeout.get()), response);
         }
         timeoutStreak.reset();
 
-        return categorizeFailure(occurrenceId, response.errors());
+        return categorizeFailure(occurrenceId, response);
     }
 
     private DoclingResponse convert(OccurrenceId occurrenceId, Path file) {
@@ -99,27 +110,48 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
     }
 
     /**
-     * ADR-071: a timeout — Docling-reported or this client's own silence — is document scope while it
-     * is isolated, and flips to service scope once three land in a row.
+     * ADR-070: reachable only from {@code success}/{@code partial_success}. Writes the metrics row and
+     * applies the two-tier degeneracy floor over it (#48) — {@code null} for a document that clears
+     * both tiers, so it carries no verdict row at all.
      */
-    private Stage2Outcome resolveTimeout(OccurrenceId occurrenceId, String detail) {
+    private Stage2Outcome judgeConverted(OccurrenceId occurrenceId, DoclingResponse response) {
+        DegeneracyVerdict verdict =
+                extractionMetrics.writeAndJudge(occurrenceId, stage2Run.runId(), response, confidenceFloor.value());
+        if (verdict.degenerate()) {
+            return new Stage2Outcome(occurrenceId, VerdictKind.DEGENERATE_OUTPUT, verdict.reason());
+        }
+        return null;
+    }
+
+    /**
+     * ADR-071: a timeout — Docling-reported or this client's own silence — is document scope while it
+     * is isolated, and flips to service scope once three land in a row. {@code response} is
+     * {@code null} for the client's-own-silence case (nothing came back to measure); non-null for a
+     * Docling-reported timeout, which earns a metrics row like any other document-scoped failure.
+     */
+    private Stage2Outcome resolveTimeout(OccurrenceId occurrenceId, String detail, DoclingResponse response) {
         int streak = timeoutStreak.recordTimeout();
         if (streak >= Stage2TimeoutStreak.CONSECUTIVE_TIMEOUT_COUNT) {
             throw new ServiceScopeFailure(
                     occurrenceId, "timeout", detail + " (streak of " + streak + " consecutive timeouts)");
+        }
+        if (response != null) {
+            extractionMetrics.write(occurrenceId, stage2Run.runId(), response);
         }
         return new Stage2Outcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, "timeout: " + detail);
     }
 
     /**
      * ADR-070's {@code status} of {@code failure}/{@code skipped}, with any reported {@code timeout}
-     * already handled above: a document/page-scope category writes {@code extraction-failed}; anything
-     * else is service scope and skips the occurrence with no verdict at all.
+     * already handled above: a document/page-scope category writes {@code extraction-failed} and earns
+     * a metrics row (#48); anything else is service scope and skips the occurrence with no row at all.
      */
-    private Stage2Outcome categorizeFailure(OccurrenceId occurrenceId, List<DoclingError> errors) {
+    private Stage2Outcome categorizeFailure(OccurrenceId occurrenceId, DoclingResponse response) {
+        List<DoclingError> errors = response.errors();
         Optional<DoclingError> documentScoped =
                 errors.stream().filter(error -> isDocumentScope(error.category())).findFirst();
         if (documentScoped.isPresent()) {
+            extractionMetrics.write(occurrenceId, stage2Run.runId(), response);
             return new Stage2Outcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(documentScoped.get()));
         }
         if (errors.isEmpty()) {

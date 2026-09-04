@@ -25,7 +25,14 @@ class StubbedExtractionBeans {
     @Bean
     DoclingExtractor doclingExtractor() {
         return new ScriptedExtractor()
-                .thenAlwaysAnswering(new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 0d, null, "{}"));
+                .thenAlwaysAnswering(new DoclingResponse(
+                        ConversionStatus.SUCCESS,
+                        List.of(),
+                        0d,
+                        null,
+                        // Real text, not "{}": stubbed here so #48's degenerate-output floor never
+                        // condemns these tests' files, which are about wiring outside extraction.
+                        "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"stubbed but real content\"}]}}}"));
     }
 
     /** Never actually reached over HTTP: only {@link Stage2HealthCheckListener} calls it, and this skips that. */

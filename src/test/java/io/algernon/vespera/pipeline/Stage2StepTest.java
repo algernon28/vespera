@@ -12,7 +12,9 @@ import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DoclingError;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
+import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.FailureCategory;
+import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.extraction.ScriptedExtractor;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
@@ -80,6 +82,8 @@ import org.springframework.transaction.annotation.Transactional;
     Stage2HealthCheckListener.class,
     Shingler.class,
     StubbedExtractionBeans.class,
+    ExtractionMetrics.class,
+    LanguageDetection.class,
     ContentIdentity.class,
     WalkRecorder.class,
     AnomalyLog.class,
