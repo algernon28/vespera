@@ -39,7 +39,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Feature("Derived metrics")
 @Issue("48")
 @Link(name = "ADR-070", url = Adr.EXTRACTION_FAILED_SPLITS_ON_DOCLINGS_STATUS, type = "adr")
-@Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_THE_DERIVED_METRIC_COLUMNS, type = "adr")
+@Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
 class ExtractionMetricsTest {
 
     @Autowired

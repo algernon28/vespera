@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.extraction.ExtractorIdentity;
+import io.algernon.vespera.extraction.Tokenizer;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.profile.Profile;
@@ -87,6 +88,16 @@ public class Stage2JobConfiguration {
     @Bean
     ExtractorIdentity extractorIdentity(@Value("${vespera.docling.base-url}") String baseUrl) {
         return new ExtractorIdentity("docling-serve;base-url=" + baseUrl);
+    }
+
+    /**
+     * The tokenizer {@link io.algernon.vespera.extraction.HybridChunker} budgets chunks against
+     * (#49): a single wired-in value, per the ticket's own scope limit — no embedding-model or
+     * tokenizer-selection logic belongs here yet.
+     */
+    @Bean
+    Tokenizer tokenizer() {
+        return new WordCountTokenizer();
     }
 
     /**

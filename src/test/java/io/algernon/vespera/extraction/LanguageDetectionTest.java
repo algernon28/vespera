@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Extraction")
 @Feature("Derived metrics")
 @Issue("48")
-@Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_THE_DERIVED_METRIC_COLUMNS, type = "adr")
+@Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
 class LanguageDetectionTest {
 
     /** Well over Lingua's short-text range, and unambiguously one language. */

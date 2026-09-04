@@ -10,6 +10,8 @@ import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.FailureCategory;
+import io.algernon.vespera.extraction.HybridChunker;
+import io.algernon.vespera.extraction.Tokenizer;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -27,10 +29,10 @@ import org.springframework.stereotype.Component;
  * Judges {@code extraction-failed} and {@code degenerate-output} from one occurrence's Docling
  * response, in one open-document pass (ADR-070, ADR-071, ADR-073): cache lookup, convert, the
  * {@code extraction-failed} check, then — on {@code success}/{@code partial_success} — the derived
- * metrics and the two-tier degeneracy floor (#48), then hands the extracted text to {@code
- * similarity}'s shingler (#50). Chunking (#49) continues the same per-occurrence work in a later
- * ticket. This processor returns {@code null} for a converted document that clears the degeneracy
- * floor, so Spring Batch filters it and no verdict row is written for a survivor.
+ * metrics and the two-tier degeneracy floor (#48), the structure-first chunk cache (#49), and the
+ * shingle table (#50), in that order. This processor returns {@code null} for a converted document
+ * that clears the degeneracy floor, so Spring Batch filters it and no verdict row is written for a
+ * survivor.
  *
  * <p>Step-scoped because {@link Stage2TimeoutStreak} is: the timeout-versus-consecutive resolution
  * needs to survive a chunk boundary, and every dependant of a step-scoped bean sees the same instance
@@ -48,6 +50,8 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
     private final Stage2Run stage2Run;
     private final ExtractionMetrics extractionMetrics;
     private final DegenerateOutputConfidenceFloor confidenceFloor;
+    private final HybridChunker chunker;
+    private final Tokenizer tokenizer;
     private final Shingler shingler;
 
     Stage2ItemProcessor(
@@ -59,6 +63,8 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
             Stage2Run stage2Run,
             ExtractionMetrics extractionMetrics,
             DegenerateOutputConfidenceFloor confidenceFloor,
+            HybridChunker chunker,
+            Tokenizer tokenizer,
             Shingler shingler) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
@@ -68,25 +74,29 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
         this.stage2Run = stage2Run;
         this.extractionMetrics = extractionMetrics;
         this.confidenceFloor = confidenceFloor;
+        this.chunker = chunker;
+        this.tokenizer = tokenizer;
         this.shingler = shingler;
     }
 
     @Override
     public Stage2Outcome process(OccurrenceId occurrenceId) {
         Path file = resolvePath(occurrenceId);
-        DoclingResponse response;
+        Conversion conversion;
         try {
-            response = convert(occurrenceId, file);
+            conversion = convert(occurrenceId, file);
         } catch (DoclingCallTimedOut timedOut) {
             // No response at all: nothing here for #48's metrics pass to measure.
             return resolveTimeout(occurrenceId, timedOut.getMessage(), null);
         }
+        DoclingResponse response = conversion.response();
 
         if (response.status() == ConversionStatus.SUCCESS || response.status() == ConversionStatus.PARTIAL_SUCCESS) {
             // ADR-070: partial_success never earns extraction-failed on its own, whatever errors it
             // carries — degenerate-output is the only verdict reachable from here.
             timeoutStreak.reset();
             Stage2Outcome outcome = judgeConverted(occurrenceId, response);
+            chunker.chunk(response.rawResponse(), conversion.contentHash(), tokenizer);
             shingler.write(occurrenceId, stage2Run.runId(), Stage2ExtractedText.of(response.rawResponse()));
             return outcome;
         }
@@ -102,12 +112,15 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
         return categorizeFailure(occurrenceId, response);
     }
 
-    private DoclingResponse convert(OccurrenceId occurrenceId, Path file) {
-        Optional<String> contentHash = contentIdentity.hashFor(occurrenceId, stage2Run.stage1RunId());
-        return contentHash.isPresent()
-                ? extractor.convert(file, contentHash.get(), extractorIdentity)
-                : extractor.convert(file, extractorIdentity);
+    private Conversion convert(OccurrenceId occurrenceId, Path file) {
+        String contentHash = contentIdentity
+                .hashFor(occurrenceId, stage2Run.stage1RunId())
+                .orElseGet(() -> extractor.contentHashFor(file));
+        return new Conversion(extractor.convert(file, contentHash, extractorIdentity), contentHash);
     }
+
+    /** One occurrence's response, alongside the content hash it was converted and cached under. */
+    private record Conversion(DoclingResponse response, String contentHash) {}
 
     /**
      * ADR-070: reachable only from {@code success}/{@code partial_success}. Writes the metrics row and

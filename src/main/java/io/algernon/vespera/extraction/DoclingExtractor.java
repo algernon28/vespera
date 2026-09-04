@@ -46,4 +46,13 @@ public class DoclingExtractor {
     public DoclingResponse convert(Path file, ExtractorIdentity extractorIdentity) {
         return convert(file, ContentHashing.sha256(file), extractorIdentity);
     }
+
+    /**
+     * The content hash {@link #convert(Path, ExtractorIdentity)} would compute and key its cache row
+     * under for {@code file} — exposed so a caller needing the same hash for another cache (#49's
+     * chunk cache) never re-implements or diverges from this class's own hashing.
+     */
+    public String contentHashFor(Path file) {
+        return ContentHashing.sha256(file);
+    }
 }
