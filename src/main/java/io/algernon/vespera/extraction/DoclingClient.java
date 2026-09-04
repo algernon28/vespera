@@ -86,6 +86,20 @@ public class DoclingClient {
     }
 
     /**
+     * Checks {@code docling-serve}'s health once (ADR-071: "readiness is checked once, lazily,
+     * immediately before stage 2's step begins processing its first occurrence"). A non-2xx response,
+     * or no response at all, throws — the caller decides what that means for the step; this method
+     * only reports what it found.
+     *
+     * <p>The exact endpoint path is implementation detail ADR-071 left to this ticket (the same
+     * {@code /health} path {@code TestcontainersConfiguration}'s container wait strategy already
+     * assumes for the Testcontainers-started sidecar).
+     */
+    public void checkHealth() {
+        restClient.get().uri("/health").retrieve().toBodilessEntity();
+    }
+
+    /**
      * Converts {@code file} through {@code docling-serve}, blocking for the result.
      *
      * @throws DoclingCallTimedOut if 5 minutes pass with no response at all

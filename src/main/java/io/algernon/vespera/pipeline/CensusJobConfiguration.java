@@ -32,8 +32,12 @@ public class CensusJobConfiguration {
     static final String JOB_NAME = "vespera";
 
     @Bean
-    Job vesperaJob(JobRepository jobRepository, Step censusStep, Step stage1Step) {
-        return new JobBuilder(JOB_NAME, jobRepository).start(censusStep).next(stage1Step).build();
+    Job vesperaJob(JobRepository jobRepository, Step censusStep, Step stage1Step, Step stage2Step) {
+        return new JobBuilder(JOB_NAME, jobRepository)
+                .start(censusStep)
+                .next(stage1Step)
+                .next(stage2Step)
+                .build();
     }
 
     /**

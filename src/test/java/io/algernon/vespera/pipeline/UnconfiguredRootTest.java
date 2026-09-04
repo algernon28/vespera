@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.extraction.ExtractionBeans;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.ProfileStore;
@@ -57,6 +58,14 @@ import picocli.CommandLine;
     CensusTasklet.class,
     Stage1JobConfiguration.class,
     Stage1Tasklet.class,
+    Stage2JobConfiguration.class,
+    Stage2ItemProcessor.class,
+    Stage2ItemWriter.class,
+    Stage2Run.class,
+    Stage2TimeoutStreak.class,
+    Stage2CircuitBreaker.class,
+    Stage2HealthCheckListener.class,
+    ExtractionBeans.class,
     ContentIdentity.class,
     WalkRecorder.class,
     AnomalyLog.class,
