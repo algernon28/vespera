@@ -2,7 +2,9 @@ package io.algernon.vespera.ledger;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Properties;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
@@ -54,12 +56,24 @@ public class ImplementationVersions {
     }
 
     /**
-     * The implementation version of {@code module}.
+     * The implementation version of {@code modules}, joined so that a change to any one of them
+     * changes the result.
      *
-     * @throws IllegalStateException if the build did not record one, which is the case where a run
-     *     id would otherwise be minted from a version that means nothing
+     * <p>A stage whose single pass writes rows owned by more than one capability module reads none
+     * of them accurately from one module's SHA alone (ADR-073's reading of ADR-058: "the last commit
+     * touching any module the stage's pass invokes"). Naming every module the pass writes into is
+     * what keeps a change to any one of them — a shingler-only edit included — from shipping under a
+     * run id nothing minted a fresh row for.
+     *
+     * @throws IllegalStateException if the build did not record a version for any named module,
+     *     which is the case where a run id would otherwise be minted from a version that means
+     *     nothing
      */
-    public String of(String module) {
+    public String of(String... modules) {
+        return Arrays.stream(modules).map(this::versionOf).collect(Collectors.joining("+"));
+    }
+
+    private String versionOf(String module) {
         String version = versions.getProperty(module);
         if (version == null || version.isBlank() || UNKNOWN.equals(version)) {
             throw new IllegalStateException(

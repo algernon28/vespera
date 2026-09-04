@@ -11,6 +11,7 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.similarity.Shingler;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -67,6 +68,7 @@ import picocli.CommandLine;
     Stage2TimeoutStreak.class,
     Stage2CircuitBreaker.class,
     Stage2HealthCheckListener.class,
+    Shingler.class,
     StubbedExtractionBeans.class,
     ContentIdentity.class,
     WalkRecorder.class,

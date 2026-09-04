@@ -12,6 +12,7 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.VerdictKind;
+import io.algernon.vespera.similarity.Shingler;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -21,12 +22,12 @@ import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.stereotype.Component;
 
 /**
- * Judges {@code extraction-failed} from one occurrence's Docling response (ADR-070, ADR-071):
- * cache lookup, convert, then the {@code extraction-failed} check — the first three steps of the
- * per-occurrence ordering the stage-2 hand-off spec describes. Metrics, degeneracy tiers, chunking and
- * shingling continue the same per-occurrence work in later tickets (#48/#49/#50); this processor
- * returns {@code null} for a {@code success}/{@code partial_success} response so that Spring Batch
- * filters it, leaving no verdict row until a later pass judges it further.
+ * Judges {@code extraction-failed} from one occurrence's Docling response (ADR-070, ADR-071), and —
+ * for a {@code success}/{@code partial_success} response — hands the extracted text to {@code
+ * similarity}'s shingler in the same open-document pass (ADR-073), before returning {@code null} so
+ * that Spring Batch filters the item, leaving no verdict row until a later pass judges it further.
+ * Metrics and degeneracy tiers (#48) and chunking (#49) continue the same per-occurrence work; this
+ * processor is where their calls join the shingler's, per the stage-2 hand-off spec's ordering.
  *
  * <p>Step-scoped because {@link Stage2TimeoutStreak} is: the timeout-versus-consecutive resolution
  * needs to survive a chunk boundary, and every dependant of a step-scoped bean sees the same instance
@@ -42,6 +43,7 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
     private final ExtractorIdentity extractorIdentity;
     private final Stage2TimeoutStreak timeoutStreak;
     private final Stage2Run stage2Run;
+    private final Shingler shingler;
 
     Stage2ItemProcessor(
             Ledger ledger,
@@ -49,13 +51,15 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
             Stage2TimeoutStreak timeoutStreak,
-            Stage2Run stage2Run) {
+            Stage2Run stage2Run,
+            Shingler shingler) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
         this.timeoutStreak = timeoutStreak;
         this.stage2Run = stage2Run;
+        this.shingler = shingler;
     }
 
     @Override
@@ -71,6 +75,7 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
         if (response.status() == ConversionStatus.SUCCESS || response.status() == ConversionStatus.PARTIAL_SUCCESS) {
             // ADR-070: partial_success never earns extraction-failed on its own, whatever errors it
             // carries — those are recorded by #48's metrics pass, not judged here.
+            shingler.write(occurrenceId, stage2Run.runId(), Stage2ExtractedText.of(response.rawResponse()));
             timeoutStreak.reset();
             return null;
         }

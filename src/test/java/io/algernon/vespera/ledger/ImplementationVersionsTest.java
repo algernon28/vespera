@@ -77,4 +77,34 @@ class ImplementationVersionsTest {
                         .isInstanceOf(IllegalStateException.class)
                         .hasMessageContaining("embedding"));
     }
+
+    @Test
+    @Story("A stage whose pass writes rows owned by more than one module")
+    @DisplayName("Naming a second module changes the version, so an edit to either one mints a fresh run")
+    @Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
+    void changesWhenEitherNamedModuleChanges() {
+        String similaritySha = "111e0dd026347ddf972cc306b8057764ddfd111";
+        Properties both = new Properties();
+        both.setProperty("extraction", A_RECORDED_SHA);
+        both.setProperty("similarity", similaritySha);
+        ImplementationVersions versions = new ImplementationVersions(both);
+
+        String extractionOnly = versions.of("extraction");
+        String extractionAndSimilarity = versions.of("extraction", "similarity");
+
+        claim(
+                "naming similarity alongside extraction changes the composed version, so a"
+                        + " shingler-only commit — one that never touches extraction at all — still mints a"
+                        + " fresh run instead of reusing extraction's own",
+                () -> assertThat(extractionAndSimilarity).isNotEqualTo(extractionOnly));
+
+        both.setProperty("similarity", "222e0dd026347ddf972cc306b8057764ddfd222");
+        ImplementationVersions afterASimilarityOnlyChange = new ImplementationVersions(both);
+
+        claim(
+                "changing only similarity's recorded commit, with extraction's untouched, still changes"
+                        + " the composed version stage 2's run is minted under",
+                () -> assertThat(afterASimilarityOnlyChange.of("extraction", "similarity"))
+                        .isNotEqualTo(extractionAndSimilarity));
+    }
 }

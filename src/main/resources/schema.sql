@@ -139,3 +139,23 @@ CREATE TABLE IF NOT EXISTS extraction_cache (
     response_json TEXT NOT NULL,
     PRIMARY KEY (content_hash, extractor_identity)
 );
+
+-- similarity's own table (ADR-038, ADR-073): raw shingle hashes over extracted text, computed during
+-- stage 2's pass (pipeline composes the call; extraction never calls into similarity, ADR-040) so that
+-- stage 3's document-frequency boilerplate detection has data to GROUP BY without a second traversal.
+-- No MinHash signature here -- that is stage 4's own decision (ADR-018), unblocked by this table rather
+-- than pre-empted by it.
+--
+-- No primary key: a document's own shingle set legitimately repeats a hash (a repeated phrase), and a
+-- uniqueness constraint here would silently throw away the repeat count the document-frequency pass
+-- needs. shingle_parameter_identity is part of the addressing key precisely so a granularity change
+-- (see similarity.ShingleParameters for today's provisional default) mints new rows under a new
+-- identity instead of migrating or overwriting the ones already stored.
+CREATE TABLE IF NOT EXISTS shingle (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    shingle_parameter_identity TEXT NOT NULL,
+    shingle_hash INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS shingle_by_occurrence ON shingle (occurrence_id, run_id, shingle_parameter_identity);

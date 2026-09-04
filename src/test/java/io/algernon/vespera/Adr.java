@@ -161,6 +161,22 @@ public final class Adr {
     public static final String DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL = FILE
             + "0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md";
 
+    /**
+     * ADR-073 — stage 2 writes the derived-metric columns; tokenizer- and shingle-dependent values
+     * live under their own identity. Settles the shingle table's key, granularity as a code default,
+     * and that a stage's implementation version spans every module its pass writes into.
+     */
+    public static final String STAGE_2_WRITES_DERIVED_METRICS = FILE
+            + "0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md";
+
+    /** ADR-038 — shingling moves to stage 3; boilerplate is detected before it distorts anything. */
+    public static final String SHINGLING_MOVES_TO_STAGE_3 =
+            FILE + "0038-shingling-moves-to-stage-3-boilerplate-detected-before-it-distorts-anything.md";
+
+    /** ADR-018 — stage 4 uses MinHash with LSH banding. */
+    public static final String STAGE_4_USES_MINHASH_WITH_LSH_BANDING =
+            FILE + "0018-stage-4-uses-minhash-with-lsh-banding.md";
+
     private Adr() {
     }
 }

@@ -45,6 +45,14 @@ class Stage2Run {
     /** The module whose implementation version this stage's runs are versioned against (ADR-058). */
     static final String OWNING_MODULE = "extraction";
 
+    /**
+     * The second module stage 2's single pass writes into: its shingle table (ADR-073). Named
+     * alongside {@link #OWNING_MODULE} when the run is minted, so a shingler-only commit — one that
+     * never touches {@code extraction} at all — still mints a fresh run rather than shipping under a
+     * run id nothing recomputed the shingles under.
+     */
+    static final String SIMILARITY_MODULE = "similarity";
+
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     private final RunId runId;
@@ -64,7 +72,7 @@ class Stage2Run {
                 implementationVersions.of(Stage1Tasklet.OWNING_MODULE), Stage1Tasklet.CONFIG_CONSUMED, walkId, List.of());
         this.runId = ledger.startRun(
                 STAGE,
-                implementationVersions.of(OWNING_MODULE),
+                implementationVersions.of(OWNING_MODULE, SIMILARITY_MODULE),
                 configConsumed(extractorIdentity),
                 walkId,
                 List.of(this.stage1RunId));
