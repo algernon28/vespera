@@ -78,6 +78,10 @@ _Avoid_: statistic, feature, attribute, score
 An overlapping fragment of a document's text, hashed, stored so that redundancy and boilerplate are questions over fragments rather than over whole documents (ADR-038, ADR-018). Computed in extraction's pass but owned by `similarity`; its granularity is part of its stored identity, because a granularity change is a different measurement rather than a correction of the same one (ADR-073).
 _Avoid_: n-gram, token window, fingerprint
 
+**Boilerplate**:
+Text repeated across enough of the corpus that its recurrence is a fact about document production — a template, a letterhead, a standard disclaimer — rather than about content. Measured as a shingle's document frequency, corpus-wide; identifying it is a measurement, not a verdict, so stage 3 stays as verdict-free as census (ADR-038, ADR-074).
+_Avoid_: template text, chrome, junk, filler
+
 **Bake-off**:
 The embedding-model selection mechanism specifically: candidates measured over the same sample and seeds, each re-chunked to its own tokenizer, judged by the relevance-threshold gate (ADR-034, ADR-044). Not a general word for comparing two models — there is exactly one bake-off in this design, and the extraction engine does not have one (ADR-072).
 _Avoid_: shoot-out, A/B test, champion/challenger, evaluation

@@ -92,3 +92,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-071](0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md) | 2026-09-03 | Docling's invocation contract is one sync call, a local timeout, and two consecutive-streak breakers |
 | [ADR-072](0072-adr-034-is-one-bake-off-the-extraction-engine-has-a-reference-model-not-a-bake-off.md) | 2026-09-03 | ADR-034 is one bake-off; the extraction engine has a reference model, not a bake-off |
 | [ADR-073](0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md) | 2026-09-03 | Stage 2 writes the derived-metric columns; tokenizer- and shingle-dependent values live under their own identity |
+| [ADR-074](0074-stage-3-measures-shingle-document-frequency-a-boilerplate-floor-ships-unset.md) | 2026-09-05 | Stage 3 measures shingle document frequency; a boilerplate floor ships unset |
