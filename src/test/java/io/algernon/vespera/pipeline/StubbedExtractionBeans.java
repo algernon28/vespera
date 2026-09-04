@@ -6,8 +6,8 @@ import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ScriptedExtractor;
 import java.util.List;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 /**
  * Stands in for {@link io.algernon.vespera.extraction.ExtractionBeans} wherever a test needs stage 2
@@ -18,8 +18,19 @@ import org.springframework.context.annotation.Configuration;
  *
  * <p>Every conversion this extractor answers succeeds, unconditionally, so those tests never have to
  * predict how many files stage 2 will see.
+ *
+ * <p>{@code @TestConfiguration} rather than {@code @Configuration}, and that is load-bearing rather
+ * than a matter of taste. This class sits inside {@link io.algernon.vespera.VesperaApplication}'s
+ * component-scan base package, and Spring Boot's default type-exclude filter skips
+ * {@code @TestConfiguration} while scanning but not a plain {@code @Configuration}. Left plain, this
+ * would be picked up by every {@code @SpringBootTest} in the suite, where {@link #doclingClient()}
+ * collides by bean name with the scanned {@link DoclingClient} component and silently replaces it —
+ * which is how {@code DoclingClientIT} came to fail against a live sidecar with
+ * {@code IllegalArgumentException: URI with undefined scheme}, having been handed the {@code "unused"}
+ * base URL below. An explicit {@code @Import} of this class still works either way; only the scanning
+ * changes, which is exactly the difference wanted.
  */
-@Configuration
+@TestConfiguration
 class StubbedExtractionBeans {
 
     @Bean
