@@ -21,6 +21,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.similarity.Shingler;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -297,7 +298,8 @@ class Stage2ItemProcessorTest {
                 docling,
                 IDENTITY,
                 new Stage2TimeoutStreak(),
-                corpus.stage2Run());
+                corpus.stage2Run(),
+                new Shingler(jdbcTemplate));
     }
 
     /**

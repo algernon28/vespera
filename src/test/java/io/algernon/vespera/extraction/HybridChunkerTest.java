@@ -33,7 +33,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Issue("49")
 @Link(name = "ADR-029", url = Adr.CHUNKING_STRUCTURE_FIRST_WITH_A_MEASURED_LLM_FALLBACK, type = "adr")
 @Link(name = "ADR-044", url = Adr.THE_BAKE_OFF_RE_CHUNKS_PER_CANDIDATE_MODEL, type = "adr")
-@Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_THE_DERIVED_METRIC_COLUMNS, type = "adr")
+@Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
 class HybridChunkerTest {
 
     /** A content hash standing in for one an earlier stage computed within a size-matched group. */

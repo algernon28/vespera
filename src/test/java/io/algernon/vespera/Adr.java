@@ -169,10 +169,21 @@ public final class Adr {
     public static final String THE_BAKE_OFF_RE_CHUNKS_PER_CANDIDATE_MODEL =
             FILE + "0044-the-bake-off-re-chunks-per-candidate-model.md";
 
-    /** ADR-073 — stage 2 writes the derived metric columns; tokenizer/shingle-dependent values live under their own identity. */
-    public static final String STAGE_2_WRITES_THE_DERIVED_METRIC_COLUMNS = FILE
+    /**
+     * ADR-073 — stage 2 writes the derived-metric columns; tokenizer- and shingle-dependent values
+     * live under their own identity. Settles the shingle table's key, granularity as a code default,
+     * and that a stage's implementation version spans every module its pass writes into.
+     */
+    public static final String STAGE_2_WRITES_DERIVED_METRICS = FILE
             + "0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md";
 
+    /** ADR-038 — shingling moves to stage 3; boilerplate is detected before it distorts anything. */
+    public static final String SHINGLING_MOVES_TO_STAGE_3 =
+            FILE + "0038-shingling-moves-to-stage-3-boilerplate-detected-before-it-distorts-anything.md";
+
+    /** ADR-018 — stage 4 uses MinHash with LSH banding. */
+    public static final String STAGE_4_USES_MINHASH_WITH_LSH_BANDING =
+            FILE + "0018-stage-4-uses-minhash-with-lsh-banding.md";
     private Adr() {
     }
 }

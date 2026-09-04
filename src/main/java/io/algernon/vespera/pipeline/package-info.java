@@ -7,5 +7,6 @@
  * references rather than intentions — the list widens when a slice adds a module the pipeline really
  * does drive, and not before.
  */
-@org.springframework.modulith.ApplicationModule(allowedDependencies = {"ledger", "corpus", "profile", "extraction"})
+@org.springframework.modulith.ApplicationModule(
+        allowedDependencies = {"ledger", "corpus", "profile", "extraction", "similarity"})
 package io.algernon.vespera.pipeline;
