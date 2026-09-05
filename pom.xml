@@ -13,7 +13,7 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>vespera</name>
     <description>vespera</description>
-    <url/>
+    <url>https://github.com/algernon28/vespera</url>
     <licenses>
         <license/>
     </licenses>
@@ -21,10 +21,10 @@
         <developer/>
     </developers>
     <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
+        <connection>scm:git:https://github.com/algernon28/vespera.git</connection>
+        <developerConnection>scm:git:https://github.com/algernon28/vespera.git</developerConnection>
+        <tag>HEAD</tag>
+        <url>https://github.com/algernon28/vespera</url>
     </scm>
     <properties>
         <java.version>26</java.version>

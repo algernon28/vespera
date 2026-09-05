@@ -95,3 +95,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-074](0074-stage-3-measures-shingle-document-frequency-a-boilerplate-floor-ships-unset.md) | 2026-09-05 | Stage 3 measures shingle document frequency; a boilerplate floor ships unset |
 | [ADR-075](0075-stage-3-writes-a-confidence-distribution-report-that-calibrates-tier-2.md) | 2026-09-05 | Stage 3 writes a confidence-distribution report that calibrates tier 2 |
 | [ADR-076](0076-exception-types-are-named-for-the-fault-and-end-in-exception.md) | 2026-09-05 | Exception types are named for the fault, and end in `Exception` |
+| [ADR-077](0077-a-regenerated-measurement-is-a-fresh-row-set-under-its-own-run-id.md) | 2026-09-05 | A regenerated measurement is a fresh row set under its own run id, not an overwritten table *(amends ADR-075)* |

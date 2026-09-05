@@ -174,6 +174,26 @@ CREATE TABLE IF NOT EXISTS extraction_metric (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
+-- extraction's own table (ADR-075): stage 3's corpus-wide distribution of extraction_metric's
+-- mean_score, bucketed against QualityGrade's own cut-points (0.5/0.8/0.9) so a bucket boundary here
+-- is one an operator already recognises from Docling's own grade. Keyed by stage 3's own run_id, not
+-- stage 2's, since this is a measurement about a finished extraction run rather than a row extraction
+-- itself wrote (ADR-075's "the module owning the columns it summarizes"). An occurrence whose
+-- mean_score is NULL (the .docx/.txt case, where confidence is never computed) contributes to no
+-- bucket at all -- there is no fifth "unspecified" row here, since that would be a count of
+-- non-measurements rather than a bucket over the distribution. Each stage-3 run writes its own row
+-- set under its own run_id and never rewrites an earlier run's (ADR-077, amending ADR-075): a run id
+-- already folds in the stage-2 run measured over (ADR-048), so no row is ever stale and the earlier
+-- measurements stay queryable -- the same shape shingle_document_frequency uses below.
+CREATE TABLE IF NOT EXISTS confidence_distribution (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    grade TEXT NOT NULL,
+    lower_bound REAL NOT NULL,
+    upper_bound REAL NOT NULL,
+    document_count INTEGER NOT NULL,
+    PRIMARY KEY (run_id, grade)
+);
+
 -- extraction's own table (ADR-029, ADR-044): one row per chunk, keyed by content hash plus chunker
 -- identity plus tokenizer identity -- tokenizer identity supplied by pipeline, never by extraction
 -- depending on embedding -- so a future embedding-model bake-off can re-chunk each candidate under

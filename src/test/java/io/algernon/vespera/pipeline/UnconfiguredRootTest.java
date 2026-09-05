@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionBeans;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
@@ -71,6 +72,7 @@ import picocli.CommandLine;
     ContentCensusTasklet.class,
     ContentCensusRun.class,
     DocumentFrequency.class,
+    ConfidenceDistribution.class,
     Shingler.class,
     ExtractionBeans.class,
     ContentIdentity.class,

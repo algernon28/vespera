@@ -66,4 +66,14 @@ public record Profile(
         return new Profile(
                 seedFolder.measuredBy(measurement), degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor);
     }
+
+    /**
+     * The same profile, with stage 3's pointer to the confidence-distribution report brought up to
+     * date (ADR-075) — closing the asymmetry ADR-070 left between {@code seedFolder} (already wired to
+     * a {@link Measurement}) and this key.
+     */
+    public Profile withDegenerateOutputConfidenceFloorMeasurement(Measurement measurement) {
+        return new Profile(
+                seedFolder, degenerateOutputConfidenceFloor.measuredBy(measurement), boilerplateDocumentFrequencyFloor);
+    }
 }

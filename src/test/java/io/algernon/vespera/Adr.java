@@ -206,6 +206,14 @@ public final class Adr {
     public static final String EXCEPTION_TYPES_ARE_NAMED_FOR_THE_FAULT =
             FILE + "0076-exception-types-are-named-for-the-fault-and-end-in-exception.md";
 
+    /**
+     * ADR-077 — a regenerated measurement is a fresh row set under its own run id, not an overwritten
+     * table. Amends ADR-075's "Regenerated every run" clause for {@code confidence_distribution}; the
+     * HTML file it also names is still overwritten in place.
+     */
+    public static final String A_REGENERATED_MEASUREMENT_IS_KEYED_PER_RUN =
+            FILE + "0077-a-regenerated-measurement-is-a-fresh-row-set-under-its-own-run-id.md";
+
     private Adr() {
     }
 }
