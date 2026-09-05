@@ -102,7 +102,7 @@ public class DoclingClient {
     /**
      * Converts {@code file} through {@code docling-serve}, blocking for the result.
      *
-     * @throws DoclingCallTimedOut if 5 minutes pass with no response at all
+     * @throws DoclingCallTimeoutException if 5 minutes pass with no response at all
      */
     DoclingResponse convert(Path file) {
         MultipartBodyBuilder body = new MultipartBodyBuilder();
@@ -119,7 +119,7 @@ public class DoclingClient {
                     .body(String.class);
         } catch (ResourceAccessException e) {
             if (isTimeout(e)) {
-                throw new DoclingCallTimedOut(file, e);
+                throw new DoclingCallTimeoutException(file, e);
             }
             throw e;
         }

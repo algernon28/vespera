@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * The consecutive-timeout counter ADR-071 fixes at 3: a Docling-reported {@code timeout} category and
- * a client-side {@link io.algernon.vespera.extraction.DoclingCallTimedOut} both count against it, since
+ * a client-side {@link io.algernon.vespera.extraction.DoclingCallTimeoutException} both count against it, since
  * both readings resolve document-scope-versus-consecutive by the same rule.
  *
  * <p>Step-scoped so the streak spans the whole step's occurrences rather than one chunk — the

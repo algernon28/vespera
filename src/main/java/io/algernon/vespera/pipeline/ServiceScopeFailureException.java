@@ -13,9 +13,9 @@ import io.algernon.vespera.ledger.OccurrenceId;
  * step skip the occurrence — writing no verdict row at all — rather than fail outright. No retry is
  * ever attempted first (ADR-071): nothing here is registered with {@code .retry(...)}.
  */
-public final class ServiceScopeFailure extends RuntimeException {
+public final class ServiceScopeFailureException extends RuntimeException {
 
-    ServiceScopeFailure(OccurrenceId occurrenceId, String category, String detail) {
+    ServiceScopeFailureException(OccurrenceId occurrenceId, String category, String detail) {
         super("occurrence %d: service-scope failure (%s): %s".formatted(occurrenceId.value(), category, detail));
     }
 }

@@ -82,7 +82,7 @@ class SchemaVersionGuardTest {
                 "a database recording version " + STALE + " for a module whose code expects " + EXPECTED
                         + " refuses, and says both numbers and the module",
                 () -> assertThatThrownBy(() -> guard.require("fictional", EXPECTED))
-                        .isInstanceOf(SchemaVersionMismatch.class)
+                        .isInstanceOf(SchemaVersionMismatchException.class)
                         .hasMessageContaining("fictional")
                         .hasMessageContaining(String.valueOf(EXPECTED))
                         .hasMessageContaining(String.valueOf(STALE)));
@@ -102,7 +102,7 @@ class SchemaVersionGuardTest {
                 "the check runs while the application is being built rather than on first use, so a"
                         + " mismatched database is refused before anything reads or writes a row",
                 () -> assertThatThrownBy(() -> new LedgerSchema(new SchemaVersionGuard(jdbcTemplate)))
-                        .isInstanceOf(SchemaVersionMismatch.class)
+                        .isInstanceOf(SchemaVersionMismatchException.class)
                         .hasMessageContaining(LedgerSchema.MODULE)
                         .hasMessageContaining(String.valueOf(LedgerSchema.VERSION))
                         .hasMessageContaining(String.valueOf(somethingOtherThanTheLedgerExpects)));
@@ -123,6 +123,6 @@ class SchemaVersionGuardTest {
         claim(
                 "and the stale module still refuses",
                 () -> assertThatThrownBy(() -> guard.require("stale-module", EXPECTED))
-                        .isInstanceOf(SchemaVersionMismatch.class));
+                        .isInstanceOf(SchemaVersionMismatchException.class));
     }
 }

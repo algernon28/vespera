@@ -191,7 +191,7 @@ class WalkRecorderTest {
                 "a walk claiming 99 entries with nothing written for them is refused, saying how many"
                         + " are unaccounted for",
                 () -> assertThatThrownBy(() -> recorder(miscounting).walk(root))
-                        .isInstanceOf(ExcludesNothingViolation.class)
+                        .isInstanceOf(ExcludesNothingViolationException.class)
                         .hasMessageContaining("unaccounted for"));
     }
 

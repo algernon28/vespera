@@ -91,8 +91,8 @@ public class WalkRecorder {
      * Walks {@code root}, persisting everything it finds, and returns the walk's own id — a new one,
      * or the one an unfinished walk over this root already carries.
      *
-     * @throws CheckpointMismatch if a resumed walk finds a tree that no longer matches its checkpoint
-     * @throws ExcludesNothingViolation if a finished walk cannot account for every entry it met
+     * @throws CheckpointMismatchException if a resumed walk finds a tree that no longer matches its checkpoint
+     * @throws ExcludesNothingViolationException if a finished walk cannot account for every entry it met
      */
     public WalkId walk(Path root) throws IOException {
         Path canonical = Walk.canonicalRoot(root);
@@ -144,7 +144,7 @@ public class WalkRecorder {
                 new Walk.Progress(counts.entriesSeen(), counts.directoriesEntered(), occurrences, anomalies);
 
         if (!asWritten.accountsForEveryEntry()) {
-            throw new ExcludesNothingViolation(walkId, asWritten);
+            throw new ExcludesNothingViolationException(walkId, asWritten);
         }
     }
 

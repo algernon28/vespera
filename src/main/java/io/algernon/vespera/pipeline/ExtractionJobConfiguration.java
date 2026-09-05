@@ -61,7 +61,7 @@ public class ExtractionJobConfiguration {
                 .processor(extractionItemProcessor)
                 .writer(extractionItemWriter)
                 .faultTolerant()
-                .skip(ServiceScopeFailure.class)
+                .skip(ServiceScopeFailureException.class)
                 .skipLimit(SKIP_LIMIT)
                 .listener(extractionCircuitBreaker)
                 .listener(extractionHealthCheckListener)
