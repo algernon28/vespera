@@ -250,7 +250,7 @@ class WalkAlgorithmTest {
                             + " walk, saying the tree changed",
                     () -> assertThatThrownBy(
                                     () -> Walk.walk(corpus.root(), new Recorder(), Optional.of(pointingElsewhere)))
-                            .isInstanceOf(CheckpointMismatch.class)
+                            .isInstanceOf(CheckpointMismatchException.class)
                             .hasMessageContaining("changed"));
         }
     }
@@ -270,7 +270,7 @@ class WalkAlgorithmTest {
                             + " changed cannot quietly cost the corpus a subtree",
                     () -> assertThatThrownBy(() -> Walk.walk(
                                     corpus.root(), new Recorder(), Optional.of(pointingAtWhatIsNowAFile)))
-                            .isInstanceOf(CheckpointMismatch.class)
+                            .isInstanceOf(CheckpointMismatchException.class)
                             .hasMessageContaining("no longer holds"));
         }
     }

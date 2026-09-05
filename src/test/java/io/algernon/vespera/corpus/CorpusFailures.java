@@ -14,13 +14,13 @@ import io.algernon.vespera.ledger.WalkId;
 public final class CorpusFailures {
 
     /** A finished walk whose counts leave entries unaccounted for (ADR-056). */
-    public static ExcludesNothingViolation excludesNothing() {
-        return new ExcludesNothingViolation(new WalkId(1), new Walk.Progress(99, 0, 0, 0));
+    public static ExcludesNothingViolationException excludesNothing() {
+        return new ExcludesNothingViolationException(new WalkId(1), new Walk.Progress(99, 0, 0, 0));
     }
 
     /** A resumed walk that found something other than what its checkpoint pointed at (ADR-055). */
-    public static CheckpointMismatch checkpointMismatch() {
-        return new CheckpointMismatch("walk 1 resumed at a position holding something else");
+    public static CheckpointMismatchException checkpointMismatch() {
+        return new CheckpointMismatchException("walk 1 resumed at a position holding something else");
     }
 
     private CorpusFailures() {}

@@ -12,7 +12,7 @@ import java.util.function.Supplier;
  * streak rule needs, which no single response can express.
  *
  * <p>It lives in this package because it has to: {@link DoclingExtractor}'s constructor and
- * {@link DoclingCallTimedOut}'s are both package-private, deliberately, so a real extractor is only
+ * {@link DoclingCallTimeoutException}'s are both package-private, deliberately, so a real extractor is only
  * ever built by {@code extraction}'s own wiring and only this client ever declares that a call went
  * unanswered. Subclassing from inside the package is the one way to script both without widening
  * either. The same reason {@code InMemoryCorpus} sits in {@code corpus}'s test package rather than
@@ -55,7 +55,7 @@ public final class ScriptedExtractor extends DoclingExtractor {
      */
     public ScriptedExtractor timingOut() {
         answers.add(() -> {
-            throw new DoclingCallTimedOut(Path.of("scripted"), new SocketTimeoutException("scripted silence"));
+            throw new DoclingCallTimeoutException(Path.of("scripted"), new SocketTimeoutException("scripted silence"));
         });
         return this;
     }

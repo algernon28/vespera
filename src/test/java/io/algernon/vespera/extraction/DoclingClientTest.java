@@ -184,7 +184,7 @@ class DoclingClientTest {
                         + " transport error, and it names the document so an operator knows which one"
                         + " the service went quiet on",
                 () -> assertThatThrownBy(() -> client.convert(document))
-                        .isInstanceOf(DoclingCallTimedOut.class)
+                        .isInstanceOf(DoclingCallTimeoutException.class)
                         .hasMessageContaining(document.toString()));
         claim(
                 "the budget waited out is the documented five minutes, long enough for a large scanned"
@@ -215,7 +215,7 @@ class DoclingClientTest {
                 "while the very same document, converted by the very same client, raises the"
                         + " no-answer-at-all failure when nothing comes back — so the two readings are"
                         + " told apart by which of them happens, never by inspecting a shared type",
-                () -> assertThatThrownBy(() -> client.convert(document)).isInstanceOf(DoclingCallTimedOut.class));
+                () -> assertThatThrownBy(() -> client.convert(document)).isInstanceOf(DoclingCallTimeoutException.class));
         claim(
                 "what the service reported is preserved as reported: one error, scoped to the time it"
                         + " ran out of, attributed to page " + REPORTED_PAGE + " as the body said",

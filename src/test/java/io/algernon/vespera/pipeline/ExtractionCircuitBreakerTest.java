@@ -85,7 +85,7 @@ class ExtractionCircuitBreakerTest {
                         + " reason than the last -- stops the run, because a run that completes having"
                         + " examined nothing reports success and looks exactly like one that worked",
                 () -> assertThatThrownBy(() -> setAside(breaker, 1))
-                        .isInstanceOf(ServiceScopeCircuitBreakerTripped.class));
+                        .isInstanceOf(ExtractorStoppedAnsweringException.class));
     }
 
     @Test
@@ -115,7 +115,7 @@ class ExtractionCircuitBreakerTest {
                     REASONS_A_DOCUMENT_IS_SET_ASIDE.get(reasonsUsedSoFar++ % REASONS_A_DOCUMENT_IS_SET_ASIDE.size());
             breaker.onSkipInProcess(
                     AN_OCCURRENCE,
-                    new ServiceScopeFailure(AN_OCCURRENCE, reason.name().toLowerCase(Locale.ROOT), "set aside"));
+                    new ServiceScopeFailureException(AN_OCCURRENCE, reason.name().toLowerCase(Locale.ROOT), "set aside"));
         }
     }
 

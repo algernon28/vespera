@@ -29,7 +29,7 @@ public class SchemaVersionGuard {
      * Records {@code module} at {@code expectedVersion} on its first run, and refuses any later run
      * whose database says something else.
      *
-     * @throws SchemaVersionMismatch if the database records a different version for this module
+     * @throws SchemaVersionMismatchException if the database records a different version for this module
      */
     public void require(String module, int expectedVersion) {
         Integer recorded = jdbcTemplate.query(
@@ -44,7 +44,7 @@ public class SchemaVersionGuard {
             return;
         }
         if (recorded != expectedVersion) {
-            throw new SchemaVersionMismatch(module, recorded, expectedVersion);
+            throw new SchemaVersionMismatchException(module, recorded, expectedVersion);
         }
     }
 }

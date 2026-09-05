@@ -10,11 +10,11 @@ package io.algernon.vespera.corpus;
  *
  * <p>The way out is an operator's call, not the walk's: delete the unfinished walk and start again.
  */
-public class CheckpointMismatch extends IllegalStateException {
+public class CheckpointMismatchException extends IllegalStateException {
 
     private static final long serialVersionUID = 1L;
 
-    CheckpointMismatch(String message) {
+    CheckpointMismatchException(String message) {
         super(message);
     }
 }

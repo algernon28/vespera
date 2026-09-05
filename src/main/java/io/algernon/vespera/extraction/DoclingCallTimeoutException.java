@@ -14,9 +14,9 @@ import java.nio.file.Path;
  * consecutive, the streak-of-3 split) is {@code pipeline}'s job, not this client's — this ticket only
  * makes the two cases distinguishable.
  */
-public final class DoclingCallTimedOut extends RuntimeException {
+public final class DoclingCallTimeoutException extends RuntimeException {
 
-    DoclingCallTimedOut(Path file, Throwable cause) {
+    DoclingCallTimeoutException(Path file, Throwable cause) {
         super("no response from docling-serve for " + file + " within the call timeout", cause);
     }
 }

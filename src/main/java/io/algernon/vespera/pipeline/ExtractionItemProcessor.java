@@ -3,7 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DegeneracyVerdict;
-import io.algernon.vespera.extraction.DoclingCallTimedOut;
+import io.algernon.vespera.extraction.DoclingCallTimeoutException;
 import io.algernon.vespera.extraction.DoclingError;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
@@ -85,7 +85,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         Conversion conversion;
         try {
             conversion = convert(occurrenceId, file);
-        } catch (DoclingCallTimedOut timedOut) {
+        } catch (DoclingCallTimeoutException timedOut) {
             // No response at all: nothing here for #48's metrics pass to measure.
             return resolveTimeout(occurrenceId, timedOut.getMessage(), null);
         }
@@ -145,7 +145,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private ExtractionOutcome resolveTimeout(OccurrenceId occurrenceId, String detail, DoclingResponse response) {
         int streak = timeoutStreak.recordTimeout();
         if (streak >= ExtractionTimeoutStreak.CONSECUTIVE_TIMEOUT_COUNT) {
-            throw new ServiceScopeFailure(
+            throw new ServiceScopeFailureException(
                     occurrenceId, "timeout", detail + " (streak of " + streak + " consecutive timeouts)");
         }
         if (response != null) {
@@ -189,7 +189,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         if (errors.isEmpty()) {
             // ADR-070: an uncategorised failure is not evidence about the document either -- the safe
             // reading of no evidence is "not judged yet," the same reading UNKNOWN itself gets.
-            throw new ServiceScopeFailure(occurrenceId, "unknown", "no categorized error was reported");
+            throw new ServiceScopeFailureException(occurrenceId, "unknown", "no categorized error was reported");
         }
         // Prefer the error that is actually evidence of service scope -- when a conditional category
         // (policy/source_unavailable) is overridden by a co-occurring genuine service-scope category,
@@ -198,7 +198,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                 .filter(error -> isServiceScope(error.category()))
                 .findFirst()
                 .orElseGet(() -> errors.get(0));
-        throw new ServiceScopeFailure(
+        throw new ServiceScopeFailureException(
                 occurrenceId, serviceScoped.category().name().toLowerCase(Locale.ROOT), reasonFor(serviceScoped));
     }
 

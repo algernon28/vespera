@@ -183,7 +183,7 @@ class ExtractionItemProcessorTest {
                             + " says nothing about the document, so the document is set aside for a later run"
                             + " instead of being judged on it",
                     () -> assertThatThrownBy(() -> processor.process(occurrence))
-                            .isInstanceOf(ServiceScopeFailure.class));
+                            .isInstanceOf(ServiceScopeFailureException.class));
         }
     }
 
@@ -200,7 +200,7 @@ class ExtractionItemProcessorTest {
                 "a failure carrying no reported kind is no evidence about the document either, and the safe"
                         + " reading of no evidence is that nobody has judged it yet",
                 () -> assertThatThrownBy(() -> processor.process(corpus.occurrence(0)))
-                        .isInstanceOf(ServiceScopeFailure.class));
+                        .isInstanceOf(ServiceScopeFailureException.class));
     }
 
     @Test
@@ -245,7 +245,7 @@ class ExtractionItemProcessorTest {
                         + " to work is a response about the converter's own state, so the refusal cannot be"
                         + " taken as a fact about this document and the document is set aside unjudged",
                 () -> assertThatThrownBy(() -> processor.process(corpus.occurrence(0)))
-                        .isInstanceOf(ServiceScopeFailure.class));
+                        .isInstanceOf(ServiceScopeFailureException.class));
         claim(
                 "and no measurement is filed against it either, so a later run finds the document exactly"
                         + " as untouched as it was before -- zero rows recorded for it",
@@ -376,7 +376,7 @@ class ExtractionItemProcessorTest {
                         + " aside unjudged instead",
                 () -> assertThatThrownBy(() -> processor.process(
                                 corpus.occurrence(TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR - 1)))
-                        .isInstanceOf(ServiceScopeFailure.class));
+                        .isInstanceOf(ServiceScopeFailureException.class));
     }
 
     @Test

@@ -7,9 +7,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
-import io.algernon.vespera.corpus.CheckpointMismatch;
+import io.algernon.vespera.corpus.CheckpointMismatchException;
 import io.algernon.vespera.corpus.CorpusFailures;
-import io.algernon.vespera.corpus.ExcludesNothingViolation;
+import io.algernon.vespera.corpus.ExcludesNothingViolationException;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
@@ -137,7 +137,7 @@ class CensusTaskletTest {
         claim(
                 "the invocation fails, rather than exiting nought with the loss recorded as a measurement",
                 () -> assertThatThrownBy(() -> census.execute(null, null))
-                        .isInstanceOf(ExcludesNothingViolation.class));
+                        .isInstanceOf(ExcludesNothingViolationException.class));
         claim(
                 "the corpus walk still ran to completion first, neither walk costing the other its chance",
                 () -> assertThat(walkCount()).isEqualTo(1));
@@ -188,7 +188,7 @@ class CensusTaskletTest {
                         + " invocation, the same as a walk that lost rows — both mean the ledger may hold"
                         + " less than the archive",
                 () -> assertThatThrownBy(() -> census.execute(null, null))
-                        .isInstanceOf(CheckpointMismatch.class));
+                        .isInstanceOf(CheckpointMismatchException.class));
         claim(
                 "and the profile says what went wrong, so the failure is legible after the exit code",
                 () -> assertThat(profileStore.load().seedFolder().measurement().source())

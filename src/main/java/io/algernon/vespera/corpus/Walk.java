@@ -148,7 +148,7 @@ public final class Walk {
      * an earlier session already recorded.
      *
      * @throws IllegalArgumentException if the root does not exist or is not a directory
-     * @throws CheckpointMismatch if the tree no longer matches the checkpoint
+     * @throws CheckpointMismatchException if the tree no longer matches the checkpoint
      */
     static Outcome walk(Path root, Observer observer, Optional<Checkpoint> resumeFrom) throws IOException {
         Path canonical = canonicalRoot(root);
@@ -162,7 +162,7 @@ public final class Walk {
             return new Outcome(canonical, visitor.progress(), false, "the walk did not finish: " + e);
         }
         if (resumeFrom.isPresent() && !visitor.foundTheCheckpoint) {
-            throw new CheckpointMismatch(
+            throw new CheckpointMismatchException(
                     "the tree no longer holds the directory this walk was checkpointed at: " + resumeFrom.get());
         }
         return new Outcome(canonical, visitor.progress(), true, null);
@@ -363,7 +363,7 @@ public final class Walk {
         private void verifyTheTreeStillAgrees(Path dir, List<Integer> entry) {
             String rendering = render(root, dir);
             if (!rendering.equals(resumeFrom.pathRendering())) {
-                throw new CheckpointMismatch(
+                throw new CheckpointMismatchException(
                         "this walk was checkpointed at %s, but that position now holds %s: the tree changed under a walk"
                                 .formatted(resumeFrom, rendering));
             }

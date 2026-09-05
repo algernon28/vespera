@@ -13,11 +13,11 @@ import io.algernon.vespera.ledger.WalkId;
  * <p>So it aborts the invocation. There is no degraded mode where a census that lost rows is still
  * worth judging against.
  */
-public class ExcludesNothingViolation extends IllegalStateException {
+public class ExcludesNothingViolationException extends IllegalStateException {
 
     private static final long serialVersionUID = 1L;
 
-    ExcludesNothingViolation(WalkId walkId, Walk.Progress asWritten) {
+    ExcludesNothingViolationException(WalkId walkId, Walk.Progress asWritten) {
         super(("walk %d met %d entries and entered %d directories, but the ledger holds %d occurrences and %d"
                         + " anomalies: %d entries are unaccounted for, so this walk does not exclude nothing")
                 .formatted(

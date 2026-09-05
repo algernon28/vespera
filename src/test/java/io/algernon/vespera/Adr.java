@@ -198,6 +198,14 @@ public final class Adr {
     public static final String STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT = FILE
             + "0075-stage-3-writes-a-confidence-distribution-report-that-calibrates-tier-2.md";
 
+    /**
+     * ADR-076 — exception types are named for the fault, and end in {@code Exception}. Also settles
+     * what an exception message may say: the event, never the rule that fired and never a repeat of
+     * the chained cause.
+     */
+    public static final String EXCEPTION_TYPES_ARE_NAMED_FOR_THE_FAULT =
+            FILE + "0076-exception-types-are-named-for-the-fault-and-end-in-exception.md";
+
     private Adr() {
     }
 }

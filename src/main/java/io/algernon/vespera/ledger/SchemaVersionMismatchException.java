@@ -10,11 +10,11 @@ package io.algernon.vespera.ledger;
  * which direction the mismatch runs, and the manual upgrade path for this slice is to delete and
  * recreate that module's tables.
  */
-class SchemaVersionMismatch extends IllegalStateException {
+class SchemaVersionMismatchException extends IllegalStateException {
 
     private static final long serialVersionUID = 1L;
 
-    SchemaVersionMismatch(String module, int recordedVersion, int expectedVersion) {
+    SchemaVersionMismatchException(String module, int recordedVersion, int expectedVersion) {
         super("module %s expects schema version %d, but the database records version %d; delete and recreate %s's tables, then re-run census"
                 .formatted(module, expectedVersion, recordedVersion, module));
     }

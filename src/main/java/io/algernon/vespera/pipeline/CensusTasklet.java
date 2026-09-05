@@ -1,7 +1,7 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.corpus.CheckpointMismatch;
-import io.algernon.vespera.corpus.ExcludesNothingViolation;
+import io.algernon.vespera.corpus.CheckpointMismatchException;
+import io.algernon.vespera.corpus.ExcludesNothingViolationException;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Measurement;
@@ -82,8 +82,8 @@ public class CensusTasklet implements Tasklet {
      * Whether a failed walk is one no census may outlive, whichever root it was walking.
      *
      * <p>Both of these say the same thing: the ledger may now hold fewer occurrences than the archive
-     * holds files. {@link ExcludesNothingViolation} is that caught at the finish (ADR-056), and
-     * {@link CheckpointMismatch} is a resumed walk about to skip a subtree that has moved under it
+     * holds files. {@link ExcludesNothingViolationException} is that caught at the finish (ADR-056), and
+     * {@link CheckpointMismatchException} is a resumed walk about to skip a subtree that has moved under it
      * (ADR-055). Neither has a degraded mode, and neither becomes survivable by having happened to the
      * seed folder rather than the corpus — a seed set quietly missing entries scores relevance against
      * the wrong set, silently, for every stage downstream.
@@ -93,7 +93,7 @@ public class CensusTasklet implements Tasklet {
      * beside it.
      */
     private static boolean abortsTheInvocation(Exception failure) {
-        return failure instanceof ExcludesNothingViolation || failure instanceof CheckpointMismatch;
+        return failure instanceof ExcludesNothingViolationException || failure instanceof CheckpointMismatchException;
     }
 
     /** Walks a root, returning what went wrong rather than raising it, so the other walk still runs. */

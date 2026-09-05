@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 /**
  * The consecutive-service-scope-failure circuit breaker (ADR-071): a separate streak from Spring
  * Batch's own cumulative {@code skipLimit}, which stays configured only as a generous backstop. This
- * counts consecutive {@link ServiceScopeFailure} skips, of any mix of categories summed together, and
+ * counts consecutive {@link ServiceScopeFailureException} skips, of any mix of categories summed together, and
  * fails the step outright once the streak crosses {@link #CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT}.
  *
  * <p>One object plays two listener roles, deliberately: {@link SkipListener#onSkipInProcess} is the
@@ -34,7 +34,7 @@ class ExtractionCircuitBreaker implements SkipListener<OccurrenceId, ExtractionO
     public void onSkipInProcess(OccurrenceId item, Throwable t) {
         consecutiveServiceScopeFailures++;
         if (consecutiveServiceScopeFailures >= CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT) {
-            throw new ServiceScopeCircuitBreakerTripped(consecutiveServiceScopeFailures, t);
+            throw new ExtractorStoppedAnsweringException(consecutiveServiceScopeFailures, t);
         }
     }
 
