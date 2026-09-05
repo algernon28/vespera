@@ -8,6 +8,7 @@ import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DoclingError;
 import io.algernon.vespera.extraction.DoclingExtractor;
@@ -86,6 +87,7 @@ import org.springframework.transaction.annotation.Transactional;
     ContentCensusTasklet.class,
     ContentCensusRun.class,
     DocumentFrequency.class,
+    ConfidenceDistribution.class,
     Shingler.class,
     HybridChunkerBeans.class,
     StubbedExtractionBeans.class,

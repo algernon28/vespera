@@ -10,16 +10,18 @@ import org.springframework.stereotype.Component;
  * saying anything about the ledger's or corpus's.
  *
  * <p>Bump {@link #VERSION} in the same commit that changes {@code extraction_cache} (or any later
- * table this module adds — chunk cache, {@code extraction_metric}) in {@code schema.sql}.
+ * table this module adds — chunk cache, {@code extraction_metric}, {@code confidence_distribution})
+ * in {@code schema.sql}.
  *
- * <p>{@code VERSION} 2 is {@code chunk_cache} (ADR-029, ADR-044), added alongside this bump.
+ * <p>{@code VERSION} 2 is {@code chunk_cache} (ADR-029, ADR-044). {@code VERSION} 3 is {@code
+ * confidence_distribution} (ADR-075), added alongside this bump.
  */
 @Component
 @DependsOnDatabaseInitialization
 class ExtractionSchema {
 
     /** The version of extraction's tables this code expects. */
-    static final int VERSION = 2;
+    static final int VERSION = 3;
 
     /** The module name the version is recorded under, matching the package name. */
     static final String MODULE = "extraction";
