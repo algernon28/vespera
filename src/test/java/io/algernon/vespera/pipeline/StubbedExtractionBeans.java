@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Bean;
  * wired into a running job but is not itself about extraction: {@link CensusInvocationTest} and
  * {@link ConfiguredRootTest} run the whole job to check the wiring around census, and would otherwise
  * reach a real {@code docling-serve} over HTTP for every file the job happens to walk, and for
- * {@link Stage2HealthCheckListener}'s readiness check before that.
+ * {@link ExtractionHealthCheckListener}'s readiness check before that.
  *
  * <p>Every conversion this extractor answers succeeds, unconditionally, so those tests never have to
  * predict how many files stage 2 will see.
@@ -46,7 +46,7 @@ class StubbedExtractionBeans {
                         "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"stubbed but real content\"}]}}}"));
     }
 
-    /** Never actually reached over HTTP: only {@link Stage2HealthCheckListener} calls it, and this skips that. */
+    /** Never actually reached over HTTP: only {@link ExtractionHealthCheckListener} calls it, and this skips that. */
     @Bean
     DoclingClient doclingClient() {
         return new DoclingClient("unused") {

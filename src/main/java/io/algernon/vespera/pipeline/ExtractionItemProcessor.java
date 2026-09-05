@@ -34,33 +34,33 @@ import org.springframework.stereotype.Component;
  * that clears the degeneracy floor, so Spring Batch filters it and no verdict row is written for a
  * survivor.
  *
- * <p>Step-scoped because {@link Stage2TimeoutStreak} is: the timeout-versus-consecutive resolution
+ * <p>Step-scoped because {@link ExtractionTimeoutStreak} is: the timeout-versus-consecutive resolution
  * needs to survive a chunk boundary, and every dependant of a step-scoped bean sees the same instance
  * for the life of one step execution.
  */
 @Component
 @StepScope
-class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> {
+class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionOutcome> {
 
     private final Ledger ledger;
     private final ContentIdentity contentIdentity;
     private final DoclingExtractor extractor;
     private final ExtractorIdentity extractorIdentity;
-    private final Stage2TimeoutStreak timeoutStreak;
-    private final Stage2Run stage2Run;
+    private final ExtractionTimeoutStreak timeoutStreak;
+    private final ExtractionRun extractionRun;
     private final ExtractionMetrics extractionMetrics;
     private final DegenerateOutputConfidenceFloor confidenceFloor;
     private final HybridChunker chunker;
     private final Tokenizer tokenizer;
     private final Shingler shingler;
 
-    Stage2ItemProcessor(
+    ExtractionItemProcessor(
             Ledger ledger,
             ContentIdentity contentIdentity,
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
-            Stage2TimeoutStreak timeoutStreak,
-            Stage2Run stage2Run,
+            ExtractionTimeoutStreak timeoutStreak,
+            ExtractionRun extractionRun,
             ExtractionMetrics extractionMetrics,
             DegenerateOutputConfidenceFloor confidenceFloor,
             HybridChunker chunker,
@@ -71,7 +71,7 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
         this.timeoutStreak = timeoutStreak;
-        this.stage2Run = stage2Run;
+        this.extractionRun = extractionRun;
         this.extractionMetrics = extractionMetrics;
         this.confidenceFloor = confidenceFloor;
         this.chunker = chunker;
@@ -80,7 +80,7 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
     }
 
     @Override
-    public Stage2Outcome process(OccurrenceId occurrenceId) {
+    public ExtractionOutcome process(OccurrenceId occurrenceId) {
         Path file = resolvePath(occurrenceId);
         Conversion conversion;
         try {
@@ -95,9 +95,9 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
             // ADR-070: partial_success never earns extraction-failed on its own, whatever errors it
             // carries — degenerate-output is the only verdict reachable from here.
             timeoutStreak.reset();
-            Stage2Outcome outcome = judgeConverted(occurrenceId, response);
+            ExtractionOutcome outcome = judgeConverted(occurrenceId, response);
             chunker.chunk(response.rawResponse(), conversion.contentHash(), tokenizer);
-            shingler.write(occurrenceId, stage2Run.runId(), Stage2ExtractedText.of(response.rawResponse()));
+            shingler.write(occurrenceId, extractionRun.runId(), ExtractionOutputText.of(response.rawResponse()));
             return outcome;
         }
 
@@ -114,7 +114,7 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
 
     private Conversion convert(OccurrenceId occurrenceId, Path file) {
         String contentHash = contentIdentity
-                .hashFor(occurrenceId, stage2Run.stage1RunId())
+                .hashFor(occurrenceId, extractionRun.byteLevelReductionRunId())
                 .orElseGet(() -> extractor.contentHashFor(file));
         return new Conversion(extractor.convert(file, contentHash, extractorIdentity), contentHash);
     }
@@ -127,11 +127,11 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
      * applies the two-tier degeneracy floor over it (#48) — {@code null} for a document that clears
      * both tiers, so it carries no verdict row at all.
      */
-    private Stage2Outcome judgeConverted(OccurrenceId occurrenceId, DoclingResponse response) {
+    private ExtractionOutcome judgeConverted(OccurrenceId occurrenceId, DoclingResponse response) {
         DegeneracyVerdict verdict =
-                extractionMetrics.writeAndJudge(occurrenceId, stage2Run.runId(), response, confidenceFloor.value());
+                extractionMetrics.writeAndJudge(occurrenceId, extractionRun.runId(), response, confidenceFloor.value());
         if (verdict.degenerate()) {
-            return new Stage2Outcome(occurrenceId, VerdictKind.DEGENERATE_OUTPUT, verdict.reason());
+            return new ExtractionOutcome(occurrenceId, VerdictKind.DEGENERATE_OUTPUT, verdict.reason());
         }
         return null;
     }
@@ -142,16 +142,16 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
      * {@code null} for the client's-own-silence case (nothing came back to measure); non-null for a
      * Docling-reported timeout, which earns a metrics row like any other document-scoped failure.
      */
-    private Stage2Outcome resolveTimeout(OccurrenceId occurrenceId, String detail, DoclingResponse response) {
+    private ExtractionOutcome resolveTimeout(OccurrenceId occurrenceId, String detail, DoclingResponse response) {
         int streak = timeoutStreak.recordTimeout();
-        if (streak >= Stage2TimeoutStreak.CONSECUTIVE_TIMEOUT_COUNT) {
+        if (streak >= ExtractionTimeoutStreak.CONSECUTIVE_TIMEOUT_COUNT) {
             throw new ServiceScopeFailure(
                     occurrenceId, "timeout", detail + " (streak of " + streak + " consecutive timeouts)");
         }
         if (response != null) {
-            extractionMetrics.write(occurrenceId, stage2Run.runId(), response);
+            extractionMetrics.write(occurrenceId, extractionRun.runId(), response);
         }
-        return new Stage2Outcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, "timeout: " + detail);
+        return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, "timeout: " + detail);
     }
 
     /**
@@ -169,21 +169,21 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
      * {@code unknown} from earning a verdict on its own. {@code backend_failure} and
      * {@code inference_failure} carry no such conditional: they are document scope unconditionally.
      */
-    private Stage2Outcome categorizeFailure(OccurrenceId occurrenceId, DoclingResponse response) {
+    private ExtractionOutcome categorizeFailure(OccurrenceId occurrenceId, DoclingResponse response) {
         List<DoclingError> errors = response.errors();
 
         Optional<DoclingError> unconditional =
                 errors.stream().filter(error -> isUnconditionalDocumentScope(error.category())).findFirst();
         if (unconditional.isPresent()) {
-            extractionMetrics.write(occurrenceId, stage2Run.runId(), response);
-            return new Stage2Outcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(unconditional.get()));
+            extractionMetrics.write(occurrenceId, extractionRun.runId(), response);
+            return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(unconditional.get()));
         }
 
         Optional<DoclingError> conditional =
                 errors.stream().filter(error -> isConditionalDocumentScope(error.category())).findFirst();
         if (conditional.isPresent() && errors.stream().noneMatch(error -> isServiceScope(error.category()))) {
-            extractionMetrics.write(occurrenceId, stage2Run.runId(), response);
-            return new Stage2Outcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(conditional.get()));
+            extractionMetrics.write(occurrenceId, extractionRun.runId(), response);
+            return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(conditional.get()));
         }
 
         if (errors.isEmpty()) {
@@ -255,6 +255,6 @@ class Stage2ItemProcessor implements ItemProcessor<OccurrenceId, Stage2Outcome> 
         OccurrenceFacts facts = ledger.factsFor(occurrenceId)
                 .orElseThrow(
                         () -> new IllegalStateException("no facts are recorded for occurrence " + occurrenceId.value()));
-        return stage2Run.canonicalRoot().resolve(facts.path().value());
+        return extractionRun.canonicalRoot().resolve(facts.path().value());
     }
 }

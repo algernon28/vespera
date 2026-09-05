@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @StepScope
-class Stage2TimeoutStreak {
+class ExtractionTimeoutStreak {
 
     /** ADR-071: three timeouts in a row flip the reading from document scope to service scope. */
     static final int CONSECUTIVE_TIMEOUT_COUNT = 3;

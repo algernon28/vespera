@@ -184,6 +184,20 @@ public final class Adr {
     /** ADR-018 — stage 4 uses MinHash with LSH banding. */
     public static final String STAGE_4_USES_MINHASH_WITH_LSH_BANDING =
             FILE + "0018-stage-4-uses-minhash-with-lsh-banding.md";
+
+    /**
+     * ADR-074 — stage 3 measures shingle document frequency; a boilerplate floor ships unset. The
+     * decision settled by #58: the document-frequency pass over stage-2 survivors, the omission rule
+     * for singleton hashes, the corpus-size denominator, and {@code boilerplateDocumentFrequencyFloor}
+     * shipping unset per observe-before-enforce.
+     */
+    public static final String STAGE_3_MEASURES_SHINGLE_DOCUMENT_FREQUENCY = FILE
+            + "0074-stage-3-measures-shingle-document-frequency-a-boilerplate-floor-ships-unset.md";
+
+    /** ADR-075 — stage 3 writes a confidence-distribution report that calibrates tier 2. */
+    public static final String STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT = FILE
+            + "0075-stage-3-writes-a-confidence-distribution-report-that-calibrates-tier-2.md";
+
     private Adr() {
     }
 }

@@ -18,7 +18,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * Stage 2's own Batch wiring (extraction), kept apart from {@link CensusJobConfiguration} and
- * {@link Stage1JobConfiguration} for the same reason those are already separate: each stage
+ * {@link ByteLevelReductionJobConfiguration} for the same reason those are already separate: each stage
  * contributes its own step bean rather than growing one shared configuration class.
  *
  * <p>The first chunk-oriented step in the job (ADR: "stage 2 runs as a chunk-oriented Spring Batch
@@ -26,7 +26,7 @@ import org.springframework.transaction.PlatformTransactionManager;
  * machinery they need"), unlike stage 1's tasklet.
  */
 @Configuration
-public class Stage2JobConfiguration {
+public class ExtractionJobConfiguration {
 
     /**
      * The step's chunk size — an implementer's default, not a spec-fixed number (unlike the timeout
@@ -40,42 +40,42 @@ public class Stage2JobConfiguration {
      * Spring Batch's own cumulative skip limit — a generous backstop against a slowly-degrading
      * sidecar over a very long run, deliberately not the circuit breaker (ADR-071's own distinction).
      * An implementer's default: large enough that it is not what fires during a healthy run, however
-     * long, since {@link Stage2CircuitBreaker}'s consecutive-streak count is the mechanism that
+     * long, since {@link ExtractionCircuitBreaker}'s consecutive-streak count is the mechanism that
      * actually protects a run against a dead sidecar.
      */
     static final long SKIP_LIMIT = 10_000;
 
     @Bean
-    Step stage2Step(
+    Step extractionStep(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            ItemStreamReader<OccurrenceId> stage2Reader,
-            Stage2ItemProcessor stage2ItemProcessor,
-            Stage2ItemWriter stage2ItemWriter,
-            Stage2CircuitBreaker stage2CircuitBreaker,
-            Stage2HealthCheckListener stage2HealthCheckListener) {
-        return new StepBuilder(Stage2Run.STAGE, jobRepository)
-                .<OccurrenceId, Stage2Outcome>chunk(CHUNK_SIZE)
+            ItemStreamReader<OccurrenceId> extractionReader,
+            ExtractionItemProcessor extractionItemProcessor,
+            ExtractionItemWriter extractionItemWriter,
+            ExtractionCircuitBreaker extractionCircuitBreaker,
+            ExtractionHealthCheckListener extractionHealthCheckListener) {
+        return new StepBuilder(ExtractionRun.STAGE, jobRepository)
+                .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
-                .reader(stage2Reader)
-                .processor(stage2ItemProcessor)
-                .writer(stage2ItemWriter)
+                .reader(extractionReader)
+                .processor(extractionItemProcessor)
+                .writer(extractionItemWriter)
                 .faultTolerant()
                 .skip(ServiceScopeFailure.class)
                 .skipLimit(SKIP_LIMIT)
-                .listener(stage2CircuitBreaker)
-                .listener(stage2HealthCheckListener)
+                .listener(extractionCircuitBreaker)
+                .listener(extractionHealthCheckListener)
                 .build();
     }
 
     /**
-     * The survivors reader (ADR-060), scoped to whichever run {@link Stage2Run} minted — itself scoped
+     * The survivors reader (ADR-060), scoped to whichever run {@link ExtractionRun} minted — itself scoped
      * to whichever walk the {@code root} job parameter names, never hard-coded to the corpus walk.
      */
     @Bean
     @StepScope
-    ItemStreamReader<OccurrenceId> stage2Reader(Ledger ledger, Stage2Run stage2Run) {
-        return ledger.survivors(stage2Run.runId());
+    ItemStreamReader<OccurrenceId> extractionReader(Ledger ledger, ExtractionRun extractionRun) {
+        return ledger.survivors(extractionRun.runId());
     }
 
     /**

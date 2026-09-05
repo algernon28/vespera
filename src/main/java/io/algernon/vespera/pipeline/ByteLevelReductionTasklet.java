@@ -48,7 +48,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @StepScope
-public class Stage1Tasklet implements Tasklet {
+public class ByteLevelReductionTasklet implements Tasklet {
 
     /** The stage name a run is minted under. */
     static final String STAGE = "byte-level-reduction";
@@ -64,7 +64,7 @@ public class Stage1Tasklet implements Tasklet {
     private final ImplementationVersions implementationVersions;
     private final Path root;
 
-    public Stage1Tasklet(
+    public ByteLevelReductionTasklet(
             Ledger ledger,
             ContentIdentity contentIdentity,
             ImplementationVersions implementationVersions,

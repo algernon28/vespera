@@ -12,11 +12,11 @@ import org.springframework.stereotype.Component;
  * already handles that.
  */
 @Component
-class Stage2HealthCheckListener implements StepExecutionListener {
+class ExtractionHealthCheckListener implements StepExecutionListener {
 
     private final DoclingClient doclingClient;
 
-    Stage2HealthCheckListener(DoclingClient doclingClient) {
+    ExtractionHealthCheckListener(DoclingClient doclingClient) {
         this.doclingClient = doclingClient;
     }
 

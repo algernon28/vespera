@@ -57,7 +57,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-048", url = Adr.WALK_AND_RUN_IDENTITY, type = "adr")
 @Link(name = "ADR-012", url = Adr.EXTRACTION_ENGINE_IS_CONFIGURABLE, type = "adr")
 @Link(name = "ADR-060", url = Adr.SURVIVORS_IS_AN_ITEM_READER, type = "adr")
-class Stage2RunTest {
+class ExtractionRunTest {
 
     /** The configured engine, whose identity is the thing this class claims gets written down. */
     private static final ExtractorIdentity IDENTITY = new ExtractorIdentity("docling-serve;base-url=http://example");
@@ -84,12 +84,12 @@ class Stage2RunTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         walked(ledger, root, FILES_IN_THE_FIRST_ARCHIVE);
 
-        Stage2Run stage2Run = new Stage2Run(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+        ExtractionRun extractionRun = new ExtractionRun(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
 
         claim(
                 "what extraction consumed names the engine it ran against, so a judgement made under one"
                         + " engine is never mistaken for one made under another",
-                () -> assertThat(configConsumedBy(stage2Run.runId())).contains(IDENTITY.value()));
+                () -> assertThat(configConsumedBy(extractionRun.runId())).contains(IDENTITY.value()));
     }
 
     @Test
@@ -98,18 +98,18 @@ class Stage2RunTest {
     void namesThePreviousStagesWorkAsWhatItRead(@TempDir Path root) throws Exception {
         Ledger ledger = new Ledger(jdbcTemplate);
         walked(ledger, root, FILES_IN_THE_FIRST_ARCHIVE);
-        RunId previousStage = theOneRunOf(Stage1Tasklet.STAGE);
+        RunId previousStage = theOneRunOf(ByteLevelReductionTasklet.STAGE);
 
-        Stage2Run stage2Run = new Stage2Run(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+        ExtractionRun extractionRun = new ExtractionRun(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
 
         claim(
                 "extraction works out the identity of the previous stage's work rather than being handed"
                         + " it, and what it works out is that work's own identity -- exact only if it matches",
-                () -> assertThat(stage2Run.stage1RunId()).isEqualTo(previousStage));
+                () -> assertThat(extractionRun.byteLevelReductionRunId()).isEqualTo(previousStage));
         claim(
                 "and it records that " + ONE_PREVIOUS_PIECE_OF_WORK + " piece of work as what it read, so"
                         + " what a judgement was derived from is answerable later without re-deriving it",
-                () -> assertThat(ledger.upstreamRuns(stage2Run.runId())).containsExactly(previousStage));
+                () -> assertThat(ledger.upstreamRuns(extractionRun.runId())).containsExactly(previousStage));
     }
 
     @Test
@@ -119,13 +119,13 @@ class Stage2RunTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         walked(ledger, root, FILES_IN_THE_FIRST_ARCHIVE);
 
-        Stage2Run stage2Run =
-                new Stage2Run(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(0.5), root);
+        ExtractionRun extractionRun =
+                new ExtractionRun(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(0.5), root);
 
         claim(
                 "what extraction consumed also names the tier-2 threshold it ran against, so a run's own"
                         + " row answers what shaped its degeneracy judgements without re-reading the profile",
-                () -> assertThat(configConsumedBy(stage2Run.runId())).contains("0.5"));
+                () -> assertThat(configConsumedBy(extractionRun.runId())).contains("0.5"));
     }
 
     @Test
@@ -136,21 +136,21 @@ class Stage2RunTest {
         List<OccurrenceId> inTheFirst = walked(ledger, firstArchive, FILES_IN_THE_FIRST_ARCHIVE);
         List<OccurrenceId> inTheSecond = walked(ledger, secondArchive, FILES_IN_THE_SECOND_ARCHIVE);
         ImplementationVersions versions = new ImplementationVersions();
-        Stage2JobConfiguration configuration = new Stage2JobConfiguration();
+        ExtractionJobConfiguration configuration = new ExtractionJobConfiguration();
 
-        Stage2Run overTheFirst = new Stage2Run(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstArchive);
-        Stage2Run overTheSecond = new Stage2Run(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondArchive);
+        ExtractionRun overTheFirst = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstArchive);
+        ExtractionRun overTheSecond = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondArchive);
 
         claim(
                 "handed the first archive, extraction reads exactly the " + FILES_IN_THE_FIRST_ARCHIVE
                         + " documents that archive holds",
-                () -> assertThat(everythingRead(configuration.stage2Reader(ledger, overTheFirst)))
+                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheFirst)))
                         .containsExactlyElementsOf(inTheFirst));
         claim(
                 "handed the second, it reads exactly the " + FILES_IN_THE_SECOND_ARCHIVE + " that one holds"
                         + " -- so which archive gets examined is the one an operator named, never one the"
                         + " engine was built around",
-                () -> assertThat(everythingRead(configuration.stage2Reader(ledger, overTheSecond)))
+                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheSecond)))
                         .containsExactlyElementsOf(inTheSecond));
     }
 
@@ -190,7 +190,7 @@ class Stage2RunTest {
         }
         WalkId walkId = new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource))
                 .walk(root);
-        new Stage1Tasklet(ledger, new ContentIdentity(jdbcTemplate), new ImplementationVersions(), root)
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new ImplementationVersions(), root)
                 .execute(null, null);
         return names.stream()
                 .map(name -> ledger.occurrenceId(walkId, new OccurrencePath(name)).orElseThrow())

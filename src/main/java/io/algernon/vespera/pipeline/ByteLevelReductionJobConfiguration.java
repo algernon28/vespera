@@ -13,13 +13,13 @@ import org.springframework.transaction.PlatformTransactionManager;
  * class for every stage the cascade ever adds.
  */
 @Configuration
-public class Stage1JobConfiguration {
+public class ByteLevelReductionJobConfiguration {
 
     @Bean
-    Step stage1Step(
-            JobRepository jobRepository, PlatformTransactionManager transactionManager, Stage1Tasklet stage1Tasklet) {
-        return new StepBuilder(Stage1Tasklet.STAGE, jobRepository)
-                .tasklet(stage1Tasklet, transactionManager)
+    Step byteLevelReductionStep(
+            JobRepository jobRepository, PlatformTransactionManager transactionManager, ByteLevelReductionTasklet byteLevelReductionTasklet) {
+        return new StepBuilder(ByteLevelReductionTasklet.STAGE, jobRepository)
+                .tasklet(byteLevelReductionTasklet, transactionManager)
                 .build();
     }
 }

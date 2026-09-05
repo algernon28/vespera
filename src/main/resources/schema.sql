@@ -210,3 +210,38 @@ CREATE TABLE IF NOT EXISTS shingle (
 );
 
 CREATE INDEX IF NOT EXISTS shingle_by_occurrence ON shingle (occurrence_id, run_id, shingle_parameter_identity);
+
+-- similarity's own table (ADR-074): stage 3's per-hash document frequency, measured over the shingle
+-- rows belonging to stage-2 survivors only (a footer's prevalence among excluded occurrences is not a
+-- fact about the corpus stage 4 will actually deduplicate). document_count is
+-- COUNT(DISTINCT occurrence_id); total_count is COUNT(*), so a phrase repeated many times inside one
+-- document is distinguishable from the same phrase appearing once across many documents.
+--
+-- ONLY HASHES WITH document_count >= 2 GET A ROW HERE. This omission is itself the fact: an absent
+-- hash means exactly one surviving document, never zero -- a reader expecting a complete distribution
+-- must not misread a missing row as "never seen." Writing a row for every singleton hash would
+-- roughly double the cost of the already-largest table in the database (see the shingle table's own
+-- comment) to store a value that carries no corpus-wide signal a boilerplate floor could ever act on.
+--
+-- One row per stage-3 run: keying on run_id (rather than pointing back at the stage-2 run it was
+-- measured over) is enough, because RunId.of already folds the upstream stage-2 run id into stage 3's
+-- own identity (ADR-048), so two different stage-2 runs never collide under one stage-3 run id.
+CREATE TABLE IF NOT EXISTS shingle_document_frequency (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    shingle_parameter_identity TEXT NOT NULL,
+    shingle_hash INTEGER NOT NULL,
+    document_count INTEGER NOT NULL,
+    total_count INTEGER NOT NULL,
+    PRIMARY KEY (run_id, shingle_parameter_identity, shingle_hash)
+);
+
+-- similarity's own table (ADR-074): the denominator a future boilerplate-frequency proportion is
+-- computed against -- how many stage-2-surviving occurrences carried at least one shingle row under a
+-- given granularity, as of this stage-3 run. Kept apart from shingle_document_frequency rather than
+-- folded into it as a sentinel row, since that table's grain is one row per hash, not per corpus.
+CREATE TABLE IF NOT EXISTS shingle_corpus_size (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    shingle_parameter_identity TEXT NOT NULL,
+    shingled_document_count INTEGER NOT NULL,
+    PRIMARY KEY (run_id, shingle_parameter_identity)
+);

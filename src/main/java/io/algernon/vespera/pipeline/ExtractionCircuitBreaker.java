@@ -18,12 +18,12 @@ import org.springframework.stereotype.Component;
  * passed through toward the degeneracy floor, either is evidence the sidecar answered, which is what
  * resets the streak.
  *
- * <p>Step-scoped for the same reason {@link Stage2TimeoutStreak} is: the streak has to survive a chunk
+ * <p>Step-scoped for the same reason {@link ExtractionTimeoutStreak} is: the streak has to survive a chunk
  * boundary.
  */
 @Component
 @StepScope
-class Stage2CircuitBreaker implements SkipListener<OccurrenceId, Stage2Outcome>, ItemProcessListener<OccurrenceId, Stage2Outcome> {
+class ExtractionCircuitBreaker implements SkipListener<OccurrenceId, ExtractionOutcome>, ItemProcessListener<OccurrenceId, ExtractionOutcome> {
 
     /** ADR-071: higher than the timeout count, because this one has to fire on a mix of categories. */
     static final int CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT = 5;
@@ -39,7 +39,7 @@ class Stage2CircuitBreaker implements SkipListener<OccurrenceId, Stage2Outcome>,
     }
 
     @Override
-    public void afterProcess(OccurrenceId item, Stage2Outcome result) {
+    public void afterProcess(OccurrenceId item, ExtractionOutcome result) {
         consecutiveServiceScopeFailures = 0;
     }
 }

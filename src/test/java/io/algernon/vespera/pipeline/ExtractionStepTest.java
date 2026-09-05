@@ -23,6 +23,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.Shingler;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -52,9 +53,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The assembled stage-2 step (ADR-071), driven through the real job rather than through its parts in
- * isolation. {@link Stage2ItemProcessorTest} pins the per-occurrence judgement,
- * {@link Stage2CircuitBreakerTest} pins the streak counter on its own, and {@link Stage2RunTest} pins
- * what the run records — none of them drives {@link Stage2JobConfiguration}'s own {@code stage2Step}
+ * isolation. {@link ExtractionItemProcessorTest} pins the per-occurrence judgement,
+ * {@link ExtractionCircuitBreakerTest} pins the streak counter on its own, and {@link ExtractionRunTest} pins
+ * what the run records — none of them drives {@link ExtractionJobConfiguration}'s own {@code extractionStep}
  * bean, so nothing claims the reader, processor, writer and listeners are actually wired to each
  * other rather than merely each individually correct. This class is that claim.
  *
@@ -72,15 +73,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Import({
     CensusJobConfiguration.class,
     CensusTasklet.class,
-    Stage1JobConfiguration.class,
-    Stage1Tasklet.class,
-    Stage2JobConfiguration.class,
-    Stage2ItemProcessor.class,
-    Stage2ItemWriter.class,
-    Stage2Run.class,
-    Stage2TimeoutStreak.class,
-    Stage2CircuitBreaker.class,
-    Stage2HealthCheckListener.class,
+    ByteLevelReductionJobConfiguration.class,
+    ByteLevelReductionTasklet.class,
+    ExtractionJobConfiguration.class,
+    ExtractionItemProcessor.class,
+    ExtractionItemWriter.class,
+    ExtractionRun.class,
+    ExtractionTimeoutStreak.class,
+    ExtractionCircuitBreaker.class,
+    ExtractionHealthCheckListener.class,
+    ContentCensusJobConfiguration.class,
+    ContentCensusTasklet.class,
+    ContentCensusRun.class,
+    DocumentFrequency.class,
     Shingler.class,
     HybridChunkerBeans.class,
     StubbedExtractionBeans.class,
@@ -101,7 +106,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Feature("Stage 2 step")
 @Issue("47")
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
-class Stage2StepTest {
+class ExtractionStepTest {
 
     /** Documents walked in the "every survivor gets processed" corpus. */
     private static final int SURVIVORS = 3;
@@ -187,7 +192,7 @@ class Stage2StepTest {
     @Story("A dead sidecar stops the run")
     @DisplayName("A consecutive run of service-scope failures fails the step rather than completing it")
     void aDeadSidecarFailsTheStepRatherThanCompletingIt(@TempDir Path root) throws IOException {
-        int deadSidecar = Stage2CircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
+        int deadSidecar = ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
         for (int i = 0; i < deadSidecar; i++) {
             Files.writeString(root.resolve("document-" + i + ".txt"), "content " + i);
         }

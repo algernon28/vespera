@@ -18,11 +18,11 @@ import tools.jackson.databind.json.JsonMapper;
  * text" means for a shingler that only ever sees prose-like passages; #48's metric writer is free to
  * read a wider slice of the same export for its own columns.
  */
-final class Stage2ExtractedText {
+final class ExtractionOutputText {
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
-    private Stage2ExtractedText() {}
+    private ExtractionOutputText() {}
 
     static String of(String rawResponse) {
         JsonNode texts =

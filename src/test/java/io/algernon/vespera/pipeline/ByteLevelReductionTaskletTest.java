@@ -47,7 +47,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-068", url = Adr.BROKEN_IS_A_CROSS_FORMAT_FLOOR_PLUS_PER_FORMAT_CHECKS, type = "adr")
 @Link(name = "ADR-067", url = Adr.CONTENT_IDENTITY_IS_A_SHA_256_HASH, type = "adr")
 @Link(name = "ADR-069", url = Adr.DUPLICATE_SET_RESOLVES_BY_EARLIEST_CREATION_TIME, type = "adr")
-class Stage1TaskletTest {
+class ByteLevelReductionTaskletTest {
 
     /** Written to two occurrences, so they share both size and content. */
     private static final String DUPLICATE_CONTENT = "duplicate-content-x";
@@ -70,7 +70,7 @@ class Stage1TaskletTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = walkRecorder(ledger).walk(root);
 
-        new Stage1Tasklet(ledger, contentIdentity(), new ImplementationVersions(), root).execute(null, null);
+        new ByteLevelReductionTasklet(ledger, contentIdentity(), new ImplementationVersions(), root).execute(null, null);
 
         claim(
                 "the broken pdf is verdicted broken",
@@ -89,7 +89,7 @@ class Stage1TaskletTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = walkRecorder(ledger).walk(root);
 
-        new Stage1Tasklet(ledger, contentIdentity(), new ImplementationVersions(), root).execute(null, null);
+        new ByteLevelReductionTasklet(ledger, contentIdentity(), new ImplementationVersions(), root).execute(null, null);
 
         claim(
                 "one run was minted, for the walk census produced",
@@ -113,7 +113,7 @@ class Stage1TaskletTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = walkRecorder(ledger).walk(root);
 
-        new Stage1Tasklet(ledger, contentIdentity(), new ImplementationVersions(), root).execute(null, null);
+        new ByteLevelReductionTasklet(ledger, contentIdentity(), new ImplementationVersions(), root).execute(null, null);
 
         List<String> aVerdicts = verdictKindsFor(ledger, walkId, "copy-a.txt");
         List<String> bVerdicts = verdictKindsFor(ledger, walkId, "copy-b.txt");

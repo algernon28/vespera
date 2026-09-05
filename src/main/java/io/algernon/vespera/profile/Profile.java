@@ -22,22 +22,48 @@ package io.algernon.vespera.profile;
  *     score distribution over a corpus is never known before a first stage-2 run measures it. Once
  *     set, a {@code null} score (the {@code .docx}/{@code .txt} case, where confidence is never
  *     computed) never crosses this floor, whatever it is set to.
+ * @param boilerplateDocumentFrequencyFloor stage 3's eventual boilerplate threshold (ADR-074): a
+ *     proportion (0 to 1) of a shingle-parameter identity's {@code shingled_document_count} (the
+ *     {@code similarity.shingle_corpus_size} denominator), above which a shingle's measured document
+ *     frequency would mark it as boilerplate. Ships unset, per <b>observe before enforce</b> — stage 3
+ *     only measures document frequency (ADR-038); stage 4 (out of scope here) is where this floor
+ *     would actually exclude a shingle from dedup, and nothing here reads it yet. Stated as a
+ *     proportion rather than an absolute count because a footer in 400 of 500 documents and one in
+ *     400 of 400,000 are different phenomena — the values {@code similarity} itself stores stay
+ *     counts regardless (ADR-073's "counters, never ratios"). Unlike {@code
+ *     degenerateOutputConfidenceFloor}, no {@code Measurement}-pointer method exists for this key:
+ *     {@code similarity.shingle_document_frequency} and {@code similarity.shingle_corpus_size} are
+ *     already what an operator or stage 4 would query directly.
  */
-public record Profile(ProfileValue seedFolder, ProfileValue degenerateOutputConfidenceFloor) {
+public record Profile(
+        ProfileValue seedFolder, ProfileValue degenerateOutputConfidenceFloor, ProfileValue boilerplateDocumentFrequencyFloor) {
 
     public Profile {
         seedFolder = seedFolder == null ? ProfileValue.unset() : seedFolder;
         degenerateOutputConfidenceFloor =
                 degenerateOutputConfidenceFloor == null ? ProfileValue.unset() : degenerateOutputConfidenceFloor;
+        boilerplateDocumentFrequencyFloor =
+                boilerplateDocumentFrequencyFloor == null ? ProfileValue.unset() : boilerplateDocumentFrequencyFloor;
+    }
+
+    /**
+     * The two-key constructor every call site before ADR-074 used, kept so that adding a third key
+     * mints no compile break at every existing caller — the third key arrives unset, the same "a key
+     * the file predates is added unset" merge the canonical constructor already gives a key missing
+     * from the file.
+     */
+    public Profile(ProfileValue seedFolder, ProfileValue degenerateOutputConfidenceFloor) {
+        this(seedFolder, degenerateOutputConfidenceFloor, null);
     }
 
     /** A profile with every key present and none of them answered. */
     static Profile skeleton() {
-        return new Profile(null, null);
+        return new Profile(null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
     public Profile withSeedFolderMeasurement(Measurement measurement) {
-        return new Profile(seedFolder.measuredBy(measurement), degenerateOutputConfidenceFloor);
+        return new Profile(
+                seedFolder.measuredBy(measurement), degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor);
     }
 }

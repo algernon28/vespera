@@ -14,6 +14,7 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.Shingler;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -62,15 +63,19 @@ import picocli.CommandLine;
 @Import({
     CensusJobConfiguration.class,
     CensusTasklet.class,
-    Stage1JobConfiguration.class,
-    Stage1Tasklet.class,
-    Stage2JobConfiguration.class,
-    Stage2ItemProcessor.class,
-    Stage2ItemWriter.class,
-    Stage2Run.class,
-    Stage2TimeoutStreak.class,
-    Stage2CircuitBreaker.class,
-    Stage2HealthCheckListener.class,
+    ByteLevelReductionJobConfiguration.class,
+    ByteLevelReductionTasklet.class,
+    ExtractionJobConfiguration.class,
+    ExtractionItemProcessor.class,
+    ExtractionItemWriter.class,
+    ExtractionRun.class,
+    ExtractionTimeoutStreak.class,
+    ExtractionCircuitBreaker.class,
+    ExtractionHealthCheckListener.class,
+    ContentCensusJobConfiguration.class,
+    ContentCensusTasklet.class,
+    ContentCensusRun.class,
+    DocumentFrequency.class,
     Shingler.class,
     HybridChunkerBeans.class,
     StubbedExtractionBeans.class,

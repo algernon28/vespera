@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  * what would fail if the counter were ever changed to a cumulative one.
  *
  * <p>Both listener roles are called directly rather than driven through a running step: what a
- * service-scope response earns is {@link Stage2ItemProcessorTest}'s question, and what a streak of
+ * service-scope response earns is {@link ExtractionItemProcessorTest}'s question, and what a streak of
  * those earns is this class's. No context and no database — the counter reads nothing but the
  * sequence of calls made to it.
  */
@@ -38,14 +38,14 @@ import org.junit.jupiter.api.Test;
 @Feature("Stage 2 step")
 @Issue("47")
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
-class Stage2CircuitBreakerTest {
+class ExtractionCircuitBreakerTest {
 
     /**
      * How many documents set aside in a row read as a broken converter (ADR-071), read off the
      * counter rather than repeated, so this class cannot disagree with the rule it is claiming.
      */
     private static final int SET_ASIDE_IN_A_ROW_THAT_STOPS_THE_RUN =
-            Stage2CircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
+            ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
 
     /** One fewer than that: a run this long is not yet evidence of anything. */
     private static final int SET_ASIDE_IN_A_ROW_THAT_DOES_NOT = SET_ASIDE_IN_A_ROW_THAT_STOPS_THE_RUN - 1;
@@ -72,7 +72,7 @@ class Stage2CircuitBreakerTest {
     @Story("When a run stops instead of continuing")
     @DisplayName("A converter that has set aside document after document is read as broken, and the run stops")
     void stopsTheRunOnceEnoughDocumentsAreSetAsideInARow() {
-        Stage2CircuitBreaker breaker = new Stage2CircuitBreaker();
+        ExtractionCircuitBreaker breaker = new ExtractionCircuitBreaker();
 
         claim(
                 "the first " + SET_ASIDE_IN_A_ROW_THAT_DOES_NOT + " documents set aside in a row do not stop"
@@ -92,7 +92,7 @@ class Stage2CircuitBreakerTest {
     @Story("When a run stops instead of continuing")
     @DisplayName("A run of set-aside documents is broken by one that converts, however many came before it")
     void oneConvertedDocumentEndsTheRun() {
-        Stage2CircuitBreaker breaker = new Stage2CircuitBreaker();
+        ExtractionCircuitBreaker breaker = new ExtractionCircuitBreaker();
 
         claim(
                 "with " + SET_ASIDE_IN_A_ROW_THAT_DOES_NOT + " documents set aside, one that the converter"
@@ -109,7 +109,7 @@ class Stage2CircuitBreakerTest {
     }
 
     /** {@code count} documents the step set aside, one after another, with nothing between them. */
-    private void setAside(Stage2CircuitBreaker breaker, int count) {
+    private void setAside(ExtractionCircuitBreaker breaker, int count) {
         for (int i = 0; i < count; i++) {
             FailureCategory reason =
                     REASONS_A_DOCUMENT_IS_SET_ASIDE.get(reasonsUsedSoFar++ % REASONS_A_DOCUMENT_IS_SET_ASIDE.size());
@@ -123,8 +123,8 @@ class Stage2CircuitBreakerTest {
      * One document the converter answered about — which is what ends a run, whether the answer earned
      * a verdict or passed the document on for something later to measure.
      */
-    private static void answeredAbout(Stage2CircuitBreaker breaker) {
+    private static void answeredAbout(ExtractionCircuitBreaker breaker) {
         breaker.afterProcess(
-                AN_OCCURRENCE, new Stage2Outcome(AN_OCCURRENCE, VerdictKind.EXTRACTION_FAILED, "answered"));
+                AN_OCCURRENCE, new ExtractionOutcome(AN_OCCURRENCE, VerdictKind.EXTRACTION_FAILED, "answered"));
     }
 }

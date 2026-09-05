@@ -14,7 +14,7 @@ import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
 
 /**
  * The pipeline as Spring Batch sees it: one job, growing by one step per stage. Census's own step
- * lives here; {@link Stage1JobConfiguration} contributes stage 1's.
+ * lives here; {@link ByteLevelReductionJobConfiguration} contributes stage 1's.
  *
  * <p>There is no job repository bean here and that is deliberate. Spring Batch's own default is
  * already {@code ResourcelessJobRepository}, so the decision to keep batch metadata out of the
@@ -32,11 +32,13 @@ public class CensusJobConfiguration {
     static final String JOB_NAME = "vespera";
 
     @Bean
-    Job vesperaJob(JobRepository jobRepository, Step censusStep, Step stage1Step, Step stage2Step) {
+    Job vesperaJob(
+            JobRepository jobRepository, Step censusStep, Step byteLevelReductionStep, Step extractionStep, Step contentCensusStep) {
         return new JobBuilder(JOB_NAME, jobRepository)
                 .start(censusStep)
-                .next(stage1Step)
-                .next(stage2Step)
+                .next(byteLevelReductionStep)
+                .next(extractionStep)
+                .next(contentCensusStep)
                 .build();
     }
 

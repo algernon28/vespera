@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 @Feature("Stage 2's extracted text")
 @Issue("50")
 @Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
-class Stage2ExtractedTextTest {
+class ExtractionOutputTextTest {
 
     @Test
     @Story("Reading extracted text out of the raw response")
@@ -35,7 +35,7 @@ class Stage2ExtractedTextTest {
         claim(
                 "both text items appear, joined so a downstream reader sees one document's worth of"
                         + " prose rather than needing to know the export's item shape",
-                () -> assertThat(Stage2ExtractedText.of(rawResponse)).isEqualTo("Chapter One.\nIt was a dark night."));
+                () -> assertThat(ExtractionOutputText.of(rawResponse)).isEqualTo("Chapter One.\nIt was a dark night."));
     }
 
     @Test
@@ -47,7 +47,7 @@ class Stage2ExtractedTextTest {
         claim(
                 "a document with no reported text items — the fixture shape this repo's own tests"
                         + " already use for a placeholder response — reads back as empty text, not a failure",
-                () -> assertThat(Stage2ExtractedText.of(rawResponse)).isEmpty());
+                () -> assertThat(ExtractionOutputText.of(rawResponse)).isEmpty());
     }
 
     @Test
@@ -61,6 +61,6 @@ class Stage2ExtractedTextTest {
                 "a whitespace-only text item — Docling reports some as structural placeholders — never"
                         + " contributes a blank line that would otherwise widen every downstream shingle"
                         + " window across it",
-                () -> assertThat(Stage2ExtractedText.of(rawResponse)).isEqualTo("Real content."));
+                () -> assertThat(ExtractionOutputText.of(rawResponse)).isEqualTo("Real content."));
     }
 }

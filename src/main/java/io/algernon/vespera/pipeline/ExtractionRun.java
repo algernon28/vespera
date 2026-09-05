@@ -30,14 +30,14 @@ import tools.jackson.databind.json.JsonMapper;
  * would also tie this to running inside the same job invocation stage 1 did rather than to whatever
  * "Run: minted when configuration changes, continued when work resumes" already promises). It is
  * recomputed instead: a run's id is wholly determined by its four inputs (ADR-048), stage 1's are
- * every one of them fixed and known here ({@link Stage1Tasklet#OWNING_MODULE},
- * {@link Stage1Tasklet#CONFIG_CONSUMED}, this walk, no upstream runs of its own), so re-deriving the
+ * every one of them fixed and known here ({@link ByteLevelReductionTasklet#OWNING_MODULE},
+ * {@link ByteLevelReductionTasklet#CONFIG_CONSUMED}, this walk, no upstream runs of its own), so re-deriving the
  * same {@link RunId#of} stage 1 minted its row under is exact, not a guess — and the foreign key
  * {@code run_upstream.upstream_run_id} enforces that a row actually exists under it.
  */
 @Component
 @StepScope
-class Stage2Run {
+class ExtractionRun {
 
     /** The stage name this run is minted under. */
     static final String STAGE = "extraction";
@@ -56,10 +56,10 @@ class Stage2Run {
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     private final RunId runId;
-    private final RunId stage1RunId;
+    private final RunId byteLevelReductionRunId;
     private final Path canonicalRoot;
 
-    Stage2Run(
+    ExtractionRun(
             Ledger ledger,
             ImplementationVersions implementationVersions,
             ExtractorIdentity extractorIdentity,
@@ -69,22 +69,26 @@ class Stage2Run {
         WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 2"));
-        this.stage1RunId = RunId.of(
-                implementationVersions.of(Stage1Tasklet.OWNING_MODULE), Stage1Tasklet.CONFIG_CONSUMED, walkId, List.of());
+        this.byteLevelReductionRunId = RunId.of(
+                implementationVersions.of(ByteLevelReductionTasklet.OWNING_MODULE), ByteLevelReductionTasklet.CONFIG_CONSUMED, walkId, List.of());
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, SIMILARITY_MODULE),
                 configConsumed(extractorIdentity, confidenceFloor),
                 walkId,
-                List.of(this.stage1RunId));
+                List.of(this.byteLevelReductionRunId));
     }
 
     /**
      * {@code configConsumed} records the extractor identity and #48's tier-2 confidence-floor value —
      * what shaped this run's output is recoverable from the run row itself (hand-off spec #45's own
      * requirement).
+     *
+     * <p>Package-visible rather than private: {@link ContentCensusRun} re-derives this exact run's identity
+     * from its known-fixed inputs the same way this class re-derives stage 1's, and an independently
+     * reimplemented copy of this JSON shape would risk drifting from what actually got hashed here.
      */
-    private static String configConsumed(ExtractorIdentity extractorIdentity, DegenerateOutputConfidenceFloor confidenceFloor) {
+    static String configConsumed(ExtractorIdentity extractorIdentity, DegenerateOutputConfidenceFloor confidenceFloor) {
         return JSON_MAPPER.writeValueAsString(
                 new ConfigConsumed(extractorIdentity.value(), confidenceFloor.value()));
     }
@@ -93,8 +97,8 @@ class Stage2Run {
         return runId;
     }
 
-    RunId stage1RunId() {
-        return stage1RunId;
+    RunId byteLevelReductionRunId() {
+        return byteLevelReductionRunId;
     }
 
     Path canonicalRoot() {

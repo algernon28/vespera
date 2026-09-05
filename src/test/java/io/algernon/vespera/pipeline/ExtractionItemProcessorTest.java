@@ -77,7 +77,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Issue("47")
 @Link(name = "ADR-070", url = Adr.EXTRACTION_FAILED_SPLITS_ON_DOCLINGS_STATUS, type = "adr")
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
-class Stage2ItemProcessorTest {
+class ExtractionItemProcessorTest {
 
     /** The engine every response in this class is attributed to; which engine it is does not matter here. */
     private static final ExtractorIdentity IDENTITY = new ExtractorIdentity("docling-serve;scripted");
@@ -89,7 +89,7 @@ class Stage2ItemProcessorTest {
      * How many timeouts in a row stop being a fact about any one document (ADR-071), read off the
      * counter rather than repeated, so this class cannot disagree with the rule it is claiming.
      */
-    private static final int TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR = Stage2TimeoutStreak.CONSECUTIVE_TIMEOUT_COUNT;
+    private static final int TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR = ExtractionTimeoutStreak.CONSECUTIVE_TIMEOUT_COUNT;
 
     /** The timeouts before that one, each still a fact about its own document. */
     private static final int TIMEOUTS_STILL_READ_AS_THE_DOCUMENTS = TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR - 1;
@@ -121,7 +121,7 @@ class Stage2ItemProcessorTest {
         ScriptedExtractor docling =
                 new ScriptedExtractor().answering(failing(FailureCategory.BACKEND_FAILURE));
 
-        Stage2Outcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
 
         claim(
                 "the document is recorded as one extraction could not read, which is the only verdict this"
@@ -143,7 +143,7 @@ class Stage2ItemProcessorTest {
                 .answering(failing(FailureCategory.INFERENCE_FAILURE))
                 .answering(new DoclingResponse(
                         ConversionStatus.SKIPPED, List.of(error(FailureCategory.BACKEND_FAILURE)), 0d, null, "{}"));
-        Stage2ItemProcessor processor = processorOver(corpus, docling);
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
 
         List<VerdictKind> kinds = new ArrayList<>();
         for (int i = 0; i < corpus.size(); i++) {
@@ -173,7 +173,7 @@ class Stage2ItemProcessorTest {
         Corpus corpus = corpusOf(root, blamedOnTheService.size());
         ScriptedExtractor docling = new ScriptedExtractor();
         blamedOnTheService.forEach(category -> docling.answering(failing(category)));
-        Stage2ItemProcessor processor = processorOver(corpus, docling);
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
 
         for (int i = 0; i < blamedOnTheService.size(); i++) {
             FailureCategory category = blamedOnTheService.get(i);
@@ -194,7 +194,7 @@ class Stage2ItemProcessorTest {
         Corpus corpus = corpusOf(root, 1);
         ScriptedExtractor docling = new ScriptedExtractor()
                 .answering(new DoclingResponse(ConversionStatus.FAILURE, List.of(), 0d, null, "{}"));
-        Stage2ItemProcessor processor = processorOver(corpus, docling);
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
 
         claim(
                 "a failure carrying no reported kind is no evidence about the document either, and the safe"
@@ -212,7 +212,7 @@ class Stage2ItemProcessorTest {
         Corpus corpus = corpusOf(root, aboutThisFileUnlessTheResponseSaysOtherwise.size());
         ScriptedExtractor docling = new ScriptedExtractor();
         aboutThisFileUnlessTheResponseSaysOtherwise.forEach(category -> docling.answering(failing(category)));
-        Stage2ItemProcessor processor = processorOver(corpus, docling);
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
 
         for (int i = 0; i < aboutThisFileUnlessTheResponseSaysOtherwise.size(); i++) {
             FailureCategory category = aboutThisFileUnlessTheResponseSaysOtherwise.get(i);
@@ -238,7 +238,7 @@ class Stage2ItemProcessorTest {
         Corpus corpus = corpusOf(root, 1);
         ScriptedExtractor docling =
                 new ScriptedExtractor().answering(failing(FailureCategory.POLICY, FailureCategory.CAPACITY));
-        Stage2ItemProcessor processor = processorOver(corpus, docling);
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
 
         claim(
                 "a response that reports a refusal and, in the same breath, that the converter had no room"
@@ -260,7 +260,7 @@ class Stage2ItemProcessorTest {
         ScriptedExtractor docling =
                 new ScriptedExtractor().answering(failing(FailureCategory.POLICY, FailureCategory.UNKNOWN));
 
-        Stage2Outcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
 
         claim(
                 "an error the converter gave no kind for is no evidence about anything, so it cannot turn a"
@@ -287,7 +287,7 @@ class Stage2ItemProcessorTest {
                         "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"the pages that did convert carried"
                                 + " real content\"}]}}}"));
 
-        Stage2Outcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
 
         claim(
                 "a document that partly converted is judged on what it produced, not on the fact that"
@@ -320,12 +320,12 @@ class Stage2ItemProcessorTest {
                         .isPositive());
         claim(
                 "and the shingle table carries rows against this occurrence's own run, proving the"
-                        + " shingler is called with the same run stage2Run minted",
+                        + " shingler is called with the same run extractionRun minted",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM shingle WHERE occurrence_id = ? AND run_id = ?",
                                 Integer.class,
                                 corpus.occurrence(0).value(),
-                                corpus.stage2Run().runId().value()))
+                                corpus.extractionRun().runId().value()))
                         .isPositive());
     }
 
@@ -338,7 +338,7 @@ class Stage2ItemProcessorTest {
                 .answering(new DoclingResponse(
                         ConversionStatus.SUCCESS, List.of(), 0d, null, "{\"document\":{\"json_content\":{\"texts\":[]}}}"));
 
-        Stage2Outcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
 
         claim(
                 "a clean conversion carrying no extracted text at all trips tier 1, so it is condemned"
@@ -357,10 +357,10 @@ class Stage2ItemProcessorTest {
                 .answering(failing(FailureCategory.TIMEOUT))
                 .timingOut()
                 .answering(failing(FailureCategory.TIMEOUT));
-        Stage2ItemProcessor processor = processorOver(corpus, docling);
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
 
-        Stage2Outcome first = processor.process(corpus.occurrence(0));
-        Stage2Outcome second = processor.process(corpus.occurrence(1));
+        ExtractionOutcome first = processor.process(corpus.occurrence(0));
+        ExtractionOutcome second = processor.process(corpus.occurrence(1));
 
         claim(
                 "a converter that ran out of time on one document says that document was too much for the"
@@ -388,7 +388,7 @@ class Stage2ItemProcessorTest {
                 .timingOut(TIMEOUTS_STILL_READ_AS_THE_DOCUMENTS)
                 .answering(converted())
                 .timingOut(TIMEOUTS_STILL_READ_AS_THE_DOCUMENTS);
-        Stage2ItemProcessor processor = processorOver(corpus, docling);
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
 
         claim(
                 "with " + TIMEOUTS_STILL_READ_AS_THE_DOCUMENTS + " slow documents, one that converted, and"
@@ -426,7 +426,7 @@ class Stage2ItemProcessorTest {
      * because the reading of a reported refusal depends on what else the same response reported.
      */
     private static DoclingResponse failing(FailureCategory... categories) {
-        List<DoclingError> errors = Arrays.stream(categories).map(Stage2ItemProcessorTest::error).toList();
+        List<DoclingError> errors = Arrays.stream(categories).map(ExtractionItemProcessorTest::error).toList();
         return new DoclingResponse(ConversionStatus.FAILURE, errors, 0d, null, "{}");
     }
 
@@ -438,14 +438,14 @@ class Stage2ItemProcessorTest {
      * The processor as the step builds it: over the real ledger, over the run stage 2 mints for this
      * walk, and over the scripted converter this test wants it to read.
      */
-    private Stage2ItemProcessor processorOver(Corpus corpus, ScriptedExtractor docling) {
-        return new Stage2ItemProcessor(
+    private ExtractionItemProcessor processorOver(Corpus corpus, ScriptedExtractor docling) {
+        return new ExtractionItemProcessor(
                 corpus.ledger(),
                 new ContentIdentity(jdbcTemplate),
                 docling,
                 IDENTITY,
-                new Stage2TimeoutStreak(),
-                corpus.stage2Run(),
+                new ExtractionTimeoutStreak(),
+                corpus.extractionRun(),
                 new ExtractionMetrics(jdbcTemplate, new LanguageDetection()),
                 new DegenerateOutputConfidenceFloor(null),
                 HybridChunkerBeans.real(jdbcTemplate),
@@ -471,12 +471,12 @@ class Stage2ItemProcessorTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = walkRecorder(ledger).walk(root);
         ImplementationVersions versions = new ImplementationVersions();
-        new Stage1Tasklet(ledger, new ContentIdentity(jdbcTemplate), versions, root).execute(null, null);
-        Stage2Run stage2Run = new Stage2Run(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), versions, root).execute(null, null);
+        ExtractionRun extractionRun = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
         List<OccurrenceId> occurrences = paths.stream()
                 .map(path -> ledger.occurrenceId(walkId, path).orElseThrow())
                 .toList();
-        return new Corpus(ledger, stage2Run, occurrences);
+        return new Corpus(ledger, extractionRun, occurrences);
     }
 
     private WalkRecorder walkRecorder(Ledger ledger) {
@@ -484,7 +484,7 @@ class Stage2ItemProcessorTest {
     }
 
     /** One walked corpus and the run stage 2 judges it under. */
-    private record Corpus(Ledger ledger, Stage2Run stage2Run, List<OccurrenceId> occurrences) {
+    private record Corpus(Ledger ledger, ExtractionRun extractionRun, List<OccurrenceId> occurrences) {
 
         OccurrenceId occurrence(int index) {
             return occurrences.get(index);
