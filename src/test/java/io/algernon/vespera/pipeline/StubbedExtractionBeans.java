@@ -6,6 +6,7 @@ import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ScriptedExtractor;
 import java.util.List;
+import java.util.Map;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
@@ -52,6 +53,17 @@ class StubbedExtractionBeans {
         return new DoclingClient("unused") {
             @Override
             public void checkHealth() {}
+
+            /**
+             * A version report in the shape a real sidecar answers with, so the extractor identity
+             * these tests compose is built the same way the real one is. Stubbed because no socket is
+             * ever opened here — and answering nothing would compose a blank identity, which is
+             * exactly the thing an identity must never be.
+             */
+            @Override
+            public Map<String, String> version() {
+                return Map.of("docling-serve", "1.32.0", "docling", "2.124.0");
+            }
         };
     }
 }

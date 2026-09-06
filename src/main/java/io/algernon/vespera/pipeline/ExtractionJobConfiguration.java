@@ -1,19 +1,22 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.Tokenizer;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
@@ -79,15 +82,45 @@ public class ExtractionJobConfiguration {
     }
 
     /**
-     * The engine identity {@code configConsumed} records (ADR-012: "the serving runtime is config, not
-     * code"). Composed from the configured base URL, the only engine-selection knob this slice has: no
-     * pipeline-selection profile key exists yet, and {@link io.algernon.vespera.extraction.DoclingClient}
-     * always requests the same export format, so a different base URL is currently the only way this
-     * design lets an operator point stage 2 at a differently-configured Docling.
+     * The engine identity the extraction cache is keyed by and {@code configConsumed} records
+     * (ADR-012: "the serving runtime is config, not code"; ADR-090 for what "full extractor identity"
+     * turned out to mean).
+     *
+     * <p>Two parts, and between them they cover what a conversion depends on. The sidecar's whole
+     * {@code /version} map says what it is built from — {@code docling} and {@code docling-ibm-models}
+     * are what actually convert, and either can move while the serving wrapper stays put. The options
+     * this client sends say what was asked of it. An option that is <em>not</em> sent is the server's
+     * default, and that default is fixed by the schema of a version the map already pins, so the two
+     * parts together need no third.
+     *
+     * <p><b>The base URL is deliberately absent.</b> It says where the sidecar is, never what it does:
+     * two instances on the same versions with the same options produce the same text. Keying on it had
+     * this exactly backwards — moving the sidecar's port invalidated the whole extraction cache, while
+     * a genuine engine change slipped through unnoticed.
+     *
+     * <p>Entries are sorted, so an identity never varies with map iteration order. Two runs against
+     * one unchanged sidecar must key the same rows; an identity that reshuffled would re-extract a
+     * corpus for no reason at all.
+     *
+     * <p>{@code @Lazy}, because composing this needs the sidecar to answer: an eager singleton would
+     * demand that at context refresh, before {@link ExtractionHealthCheckListener} has established the
+     * sidecar is even there (ADR-071's lazy readiness check). Deferred, it is first built when stage
+     * 2's step asks for it — after that listener has run — and then reused, so {@link RedundancyRun}
+     * re-deriving stage 2's identity later in the job costs no second call and does not require the
+     * sidecar to still be up.
+     *
+     * <p>Not {@code @StepScope}: a scoped bean is injected as a CGLIB proxy, and {@link
+     * ExtractorIdentity} is a record and therefore final. That is a fair constraint rather than an
+     * obstacle — the identity does not vary between steps, so nothing wanted it scoped per step.
      */
     @Bean
-    ExtractorIdentity extractorIdentity(@Value("${vespera.docling.base-url}") String baseUrl) {
-        return new ExtractorIdentity("docling-serve;base-url=" + baseUrl);
+    @Lazy
+    ExtractorIdentity extractorIdentity(DoclingClient doclingClient) {
+        String versions = doclingClient.version().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(component -> component.getKey() + "=" + component.getValue())
+                .collect(Collectors.joining(";"));
+        return new ExtractorIdentity("docling-serve;" + versions + ";" + DoclingClient.sentOptions());
     }
 
     /**

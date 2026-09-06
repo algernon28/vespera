@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.DisplayName;
@@ -134,6 +135,44 @@ class DoclingClientIT {
                                 null,
                                 QualityGrade.UNSPECIFIED,
                                 QualityGrade.UNSPECIFIED)));
+    }
+
+    @Test
+    @Story("The sidecar says what it is built from")
+    @DisplayName("The running document service reports the component versions the extractor identity is built from")
+    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
+    void reportsTheComponentsItIsBuiltFrom() {
+        Map<String, String> version = client.version();
+
+        claim(
+                "the running service names the wrapper that serves the endpoint and the library that"
+                        + " actually converts documents as separate entries, because they move separately and"
+                        + " either one changes what a conversion produces",
+                () -> assertThat(version).containsKeys("docling-serve", "docling"));
+        claim(
+                "and every version it reports is an actual value rather than a blank, since a blank one"
+                        + " folded into an extractor identity would claim two different builds were the same",
+                () -> assertThat(version.values()).allSatisfy(reported -> assertThat(reported)
+                        .isNotBlank()));
+    }
+
+    @Test
+    @Story("The conversion pins what it asks for")
+    @DisplayName("The running document service accepts the OCR engine this client names, rather than refusing it")
+    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
+    void acceptsThePinnedOcrEngine(@TempDir Path dir) throws IOException {
+        DoclingResponse response = client.convert(aRealPdf(dir.resolve("pinned-engine.pdf")));
+
+        claim(
+                "naming the OCR engine is a request the service actually honours, and this is the only"
+                        + " test that can say so: a stub built from the same beliefs as the code would accept"
+                        + " an engine the real service refuses, and the refusal arrives as a status code whose"
+                        + " reason appears only in the service's own log",
+                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
+        claim(
+                "and the document still converts to its own content under that engine, so pinning it"
+                        + " bought identity rather than costing extraction",
+                () -> assertThat(response.rawResponse()).contains(PDF_MARKER_WORD));
     }
 
     /**
