@@ -44,7 +44,17 @@ import org.springframework.test.context.ActiveProfiles;
 @Issue("59")
 @Link(name = "ADR-070", url = Adr.EXTRACTION_FAILED_SPLITS_ON_DOCLINGS_STATUS, type = "adr")
 @Link(name = "ADR-075", url = Adr.STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT, type = "adr")
+@Link(name = "ADR-078", url = Adr.TIER_2_IS_A_FLOOR_ON_THE_MEAN_CONFIDENCE_SCORE, type = "adr")
 class ConfidenceDistributionTest {
+
+    /**
+     * A 300-page scan whose mean is excellent on Docling's scale ({@code >= 0.9}) while its one folded
+     * page leaves the worst-page score poor ({@code < 0.5}) — the case that separates a distribution
+     * over {@code mean_score} from one over {@code low_score}.
+     */
+    private static final double EXCELLENT_MEAN_SCORE = 0.91;
+
+    private static final double POOR_WORST_PAGE_SCORE = 0.22;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -123,6 +133,27 @@ class ConfidenceDistributionTest {
                 () -> assertThat(bucketCount(distribution, "poor")).isZero());
         claim(
                 "only the one occurrence carrying an actual score is counted anywhere at all",
+                () -> assertThat(distribution.totalCounted()).isEqualTo(1));
+    }
+
+    @Test
+    @Story("The distribution is over the mean score alone")
+    @DisplayName("A document with an excellent mean and a poor worst page is counted as excellent, and once")
+    void aPoorWorstPageScoreIsNotDistributedAlongsideTheMean() {
+        Fixture fixture = fixture();
+        fixture.survivorWithMeanAndWorstPageScore("folded-page.pdf", EXCELLENT_MEAN_SCORE, POOR_WORST_PAGE_SCORE);
+
+        ConfidenceDistribution.Distribution distribution = fixture.measure();
+
+        claim(
+                "the one document lands in the bucket its mean of 0.91 names",
+                () -> assertThat(bucketCount(distribution, "excellent")).isEqualTo(1));
+        claim(
+                "and its worst-page score of 0.22 puts nothing in the poor bucket -- only the mean is"
+                        + " distributed, since only the mean calibrates a threshold anyone can set",
+                () -> assertThat(bucketCount(distribution, "poor")).isZero());
+        claim(
+                "so the document is counted exactly once across the whole distribution, not once per score",
                 () -> assertThat(distribution.totalCounted()).isEqualTo(1));
     }
 
@@ -226,6 +257,22 @@ class ConfidenceDistributionTest {
         void survivorWithScoreAndStoredGrade(String path, double meanScore, String storedGrade) {
             OccurrenceId occurrenceId = occurrence(path);
             insertMetric(occurrenceId, meanScore, storedGrade);
+        }
+
+        /**
+         * A survivor carrying both scores Docling reports — the mean and the worst page's — so a
+         * distribution that read {@code low_score} as well would be visible as an extra count.
+         */
+        void survivorWithMeanAndWorstPageScore(String path, double meanScore, double worstPageScore) {
+            OccurrenceId occurrenceId = occurrence(path);
+            insertMetric(occurrenceId, meanScore, null);
+            jdbcTemplate.update(
+                    "UPDATE extraction_metric SET low_score = ?, low_grade = ?"
+                            + " WHERE occurrence_id = ? AND run_id = ?",
+                    worstPageScore,
+                    "poor",
+                    occurrenceId.value(),
+                    stage2RunId.value());
         }
 
         void survivorWithNullScore(String path) {

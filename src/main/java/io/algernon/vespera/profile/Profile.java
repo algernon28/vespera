@@ -17,11 +17,14 @@ package io.algernon.vespera.profile;
  * @param seedFolder where the seed set lives, if the operator has said. Purely operator-supplied:
  *     census cannot guess which folder holds the exemplars, and walks it when it is set (ADR-064).
  * @param degenerateOutputConfidenceFloor stage 2's tier-2 quality floor over Docling's {@code
- *     ConfidenceScores} (ADR-070): a number on Docling's own 0-to-1 scale, below which a converted
- *     document is {@code degenerate-output}. Ships unset, per <b>observe before enforce</b> — the
- *     score distribution over a corpus is never known before a first stage-2 run measures it. Once
- *     set, a {@code null} score (the {@code .docx}/{@code .txt} case, where confidence is never
- *     computed) never crosses this floor, whatever it is set to.
+ *     mean_score} specifically (ADR-070, narrowed by ADR-078): a number on Docling's own 0-to-1
+ *     scale, below which a converted document is {@code degenerate-output}. It is the mean and never
+ *     {@code low_score} — a worst-page floor would condemn a long scan for one bad page, which is a
+ *     usability judgement rather than a degeneracy one, and if such a rule is ever wanted it gets a
+ *     key of its own rather than a second meaning for this one. Ships unset, per <b>observe before
+ *     enforce</b> — the score distribution over a corpus is never known before a first stage-2 run
+ *     measures it. Once set, a {@code null} score (the {@code .docx}/{@code .txt} case, where
+ *     confidence is never computed) never crosses this floor, whatever it is set to.
  * @param boilerplateDocumentFrequencyFloor stage 3's eventual boilerplate threshold (ADR-074): a
  *     proportion (0 to 1) of a shingle-parameter identity's {@code shingled_document_count} (the
  *     {@code similarity.shingle_corpus_size} denominator), above which a shingle's measured document

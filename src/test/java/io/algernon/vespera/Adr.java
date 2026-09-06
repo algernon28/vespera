@@ -214,6 +214,14 @@ public final class Adr {
     public static final String A_REGENERATED_MEASUREMENT_IS_KEYED_PER_RUN =
             FILE + "0077-a-regenerated-measurement-is-a-fresh-row-set-under-its-own-run-id.md";
 
+    /**
+     * ADR-078 — tier 2 is a floor on the mean confidence score; {@code low_score} is not distributed.
+     * Amends ADR-070's tier-2 definition and ADR-075's Decision sentence, both of which left the
+     * threshold open to the worst-page score as well as the mean.
+     */
+    public static final String TIER_2_IS_A_FLOOR_ON_THE_MEAN_CONFIDENCE_SCORE = FILE
+            + "0078-tier-2-is-a-floor-on-the-mean-confidence-score-low-score-is-not-distributed.md";
+
     private Adr() {
     }
 }

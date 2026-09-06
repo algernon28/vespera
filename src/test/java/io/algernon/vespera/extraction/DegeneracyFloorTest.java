@@ -20,7 +20,19 @@ import org.junit.jupiter.api.Test;
 @Feature("Derived metrics")
 @Issue("48")
 @Link(name = "ADR-070", url = Adr.EXTRACTION_FAILED_SPLITS_ON_DOCLINGS_STATUS, type = "adr")
+@Link(name = "ADR-078", url = Adr.TIER_2_IS_A_FLOOR_ON_THE_MEAN_CONFIDENCE_SCORE, type = "adr")
 class DegeneracyFloorTest {
+
+    /**
+     * A 300-page scan whose pages are almost all clean: the mean is excellent on Docling's scale
+     * ({@code >= 0.9}), while the one folded page drags the worst-page score down to poor ({@code <
+     * 0.5}). The configured floor sits at the poor/fair boundary.
+     */
+    private static final double EXCELLENT_MEAN_SCORE = 0.91;
+
+    private static final double POOR_WORST_PAGE_SCORE = 0.22;
+
+    private static final double CONFIGURED_FLOOR = 0.5;
 
     @Test
     @Story("Tier 1 — the hard zero-content floor")
@@ -81,6 +93,22 @@ class DegeneracyFloorTest {
     }
 
     @Test
+    @Story("Tier 2 — the confidence floor, once set")
+    @DisplayName("A document whose worst page is poor clears tier 2 while its mean is above the floor")
+    void aPoorWorstPageDoesNotBlockWhileTheMeanClearsTheFloor() {
+        ExtractionMetric metric = metricWithMeanAndWorstPageScore(EXCELLENT_MEAN_SCORE, POOR_WORST_PAGE_SCORE);
+
+        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, CONFIGURED_FLOOR);
+
+        claim(
+                "the floor reads the mean of 0.91, which is above the configured 0.5, and never the"
+                        + " worst-page score of 0.22, which is below it -- a 300-page scan with one folded"
+                        + " page converted fine, and condemning it would be a judgement about part of a"
+                        + " document rather than about whether extraction produced usable text",
+                () -> assertThat(verdict.degenerate()).isFalse());
+    }
+
+    @Test
     @Story("A null score reads as \"not measured\"")
     @DisplayName("A null mean score never crosses tier 2, however low the configured floor is")
     void aNullMeanScoreNeverCrossesTier2EvenWhenSet() {
@@ -94,9 +122,19 @@ class DegeneracyFloorTest {
                 () -> assertThat(verdict.degenerate()).isFalse());
     }
 
+    /** A converted document carrying both scores Docling reports: the mean, and the worst page's. */
+    private static ExtractionMetric metricWithMeanAndWorstPageScore(double meanScore, double worstPageScore) {
+        return metricWithConfidence(
+                1, new ConfidenceScores(null, null, null, null, meanScore, worstPageScore, null, null));
+    }
+
     private static ExtractionMetric metricWithAlphanumericCount(long alphanumericCharCount, Double meanScore) {
         ConfidenceScores confidence =
                 meanScore == null ? null : new ConfidenceScores(null, null, null, null, meanScore, null, null, null);
+        return metricWithConfidence(alphanumericCharCount, confidence);
+    }
+
+    private static ExtractionMetric metricWithConfidence(long alphanumericCharCount, ConfidenceScores confidence) {
         return new ExtractionMetric(
                 ConversionStatus.SUCCESS,
                 null,
