@@ -252,6 +252,14 @@ public final class Adr {
     public static final String STAGE_4_JUDGES_ON_ITS_FIRST_RUN = FILE
             + "0082-stage-4-judges-on-its-first-run-its-thresholds-are-code-defaults-and-it-ships-no-report.md";
 
+    /**
+     * ADR-089 — a stage's run names the immediately preceding stage's run upstream, because blocking
+     * verdicts are cumulative across runs, so any pass over survivors is determined by every
+     * verdict-writing run before it. A verdict-free stage stays in the chain.
+     */
+    public static final String A_RUN_NAMES_ITS_IMMEDIATE_PREDECESSOR_UPSTREAM = FILE
+            + "0089-a-stages-run-names-the-immediately-preceding-stages-run-upstream-because-verdicts-are-cumulative.md";
+
     private Adr() {
     }
 }
