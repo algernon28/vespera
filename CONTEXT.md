@@ -42,6 +42,14 @@ _Avoid_: status, state, flag
 A file occurrence carrying no blocking verdict. A question the ledger answers, not a place documents are moved to.
 _Avoid_: shortlist, whitelist, the keep pile
 
+**Redundancy set**:
+File occurrences whose text says the same thing, of which exactly one is published and the rest are redundant with it. Distinct from a content identity, whose members are byte-identical; these differ, and which one is published is a judgement rather than a tie-break.
+_Avoid_: duplicate group, cluster (a cluster is an arrangement of relevant documents, not a set of interchangeable ones), near-dupe set
+
+**Containment**:
+The relation where one document's text appears near-whole inside another's, and the two are therefore not interchangeable: the container publishes everything the contained document does, and more. Directional, always — naming it of a pair without saying which way round says nothing.
+_Avoid_: overlap, subset, inclusion
+
 ### Relevance
 
 **Seed set**:

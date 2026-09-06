@@ -97,3 +97,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-076](0076-exception-types-are-named-for-the-fault-and-end-in-exception.md) | 2026-09-05 | Exception types are named for the fault, and end in `Exception` |
 | [ADR-077](0077-a-regenerated-measurement-is-a-fresh-row-set-under-its-own-run-id.md) | 2026-09-05 | A regenerated measurement is a fresh row set under its own run id, not an overwritten table *(amends ADR-075)* |
 | [ADR-078](0078-tier-2-is-a-floor-on-the-mean-confidence-score-low-score-is-not-distributed.md) | 2026-09-06 | Tier 2 is a floor on the mean confidence score; `low_score` is not distributed *(amends ADR-070, ADR-075)* |
+| [ADR-079](0079-redundant-with-covers-near-duplication-and-containment-the-fuller-rendering-survives.md) | 2026-09-06 | `redundant-with` covers near-duplication and containment; the fuller rendering survives |
