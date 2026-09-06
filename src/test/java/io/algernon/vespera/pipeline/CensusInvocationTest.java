@@ -25,10 +25,12 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.core.job.Job;
+import org.springframework.batch.core.job.SimpleJob;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.batch.autoconfigure.BatchAutoConfiguration;
@@ -162,6 +164,28 @@ class CensusInvocationTest {
                 "there is one job, named vespera, for later slices to add their stages to rather than to"
                         + " stand beside",
                 () -> assertThat(vesperaJob.getName()).isEqualTo("vespera"));
+    }
+
+    @Test
+    @Story("What census does in one invocation")
+    @DisplayName("The stages run in cheapest-filter-first order, with the content census last")
+    @Link(name = "ADR-075", url = Adr.STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT, type = "adr")
+    void runsTheStagesInOrderWithTheContentCensusAfterExtraction() {
+        List<String> stagesInOrder = List.copyOf(((SimpleJob) vesperaJob).getStepNames());
+
+        claim(
+                "the four stages built so far run in the order they filter in -- census, then the"
+                        + " byte-level reduction, then extraction, then the content census -- so each pass"
+                        + " only ever measures what the cheaper passes before it left standing",
+                () -> assertThat(stagesInOrder)
+                        .containsExactly("census", "byte-level-reduction", "extraction", "content-census"));
+        claim(
+                "and the content census in particular runs after extraction rather than beside it: it"
+                        + " summarises a whole extraction pass, and a summary computed over a pass still"
+                        + " running would shift every time that pass resumed mid-corpus, quietly calibrating"
+                        + " a threshold against part of a corpus",
+                () -> assertThat(stagesInOrder.indexOf("content-census"))
+                        .isGreaterThan(stagesInOrder.indexOf("extraction")));
     }
 
     @Test
