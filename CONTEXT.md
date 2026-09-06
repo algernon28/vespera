@@ -72,6 +72,10 @@ _Avoid_: best match, nearest seed
 All file occurrences sharing a winning seed. The unit within which grouping happens, and the top level of the published tree — so its size is also a statement about the seed that owns it.
 _Avoid_: bucket, category, topic
 
+**Cluster**:
+A group of documents within one seed partition that belong together by subject — the level below the partition in the published tree. An arrangement of relevant documents, never a set of interchangeable ones (that is a redundancy set), and never a judgement: nothing is removed for the cluster it lands in. What a document contributes to it is what the document *is*, not the passage that earned its score.
+_Avoid_: group, theme, cluster of duplicates
+
 ### Measurement
 
 **Census**:
