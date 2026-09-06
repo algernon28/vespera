@@ -98,3 +98,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-077](0077-a-regenerated-measurement-is-a-fresh-row-set-under-its-own-run-id.md) | 2026-09-05 | A regenerated measurement is a fresh row set under its own run id, not an overwritten table *(amends ADR-075)* |
 | [ADR-078](0078-tier-2-is-a-floor-on-the-mean-confidence-score-low-score-is-not-distributed.md) | 2026-09-06 | Tier 2 is a floor on the mean confidence score; `low_score` is not distributed *(amends ADR-070, ADR-075)* |
 | [ADR-079](0079-redundant-with-covers-near-duplication-and-containment-the-fuller-rendering-survives.md) | 2026-09-06 | `redundant-with` covers near-duplication and containment; the fuller rendering survives |
+| [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md) | 2026-09-06 | The boilerplate floor is a gate, applied before signatures are computed |
