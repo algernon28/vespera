@@ -12,7 +12,10 @@ import io.algernon.vespera.extraction.ExtractionBeans;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.similarity.BoilerplateShingles;
 import io.algernon.vespera.similarity.DocumentFrequency;
+import io.algernon.vespera.similarity.RedundancyResolution;
+import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.Shingler;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -71,6 +74,15 @@ import picocli.CommandLine;
     ContentCensusJobConfiguration.class,
     ContentCensusTasklet.class,
     ContentCensusRun.class,
+    RedundancyJobConfiguration.class,
+    RedundancyRun.class,
+    RedundancyGate.class,
+    RedundancyBoilerplate.class,
+    RedundancySignatureItemWriter.class,
+    RedundancyResolutionTasklet.class,
+    RedundancySignatures.class,
+    RedundancyResolution.class,
+    BoilerplateShingles.class,
     DocumentFrequency.class,
     ConfidenceDistribution.class,
     Shingler.class,

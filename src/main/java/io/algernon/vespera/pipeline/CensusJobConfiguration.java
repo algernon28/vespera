@@ -33,12 +33,20 @@ public class CensusJobConfiguration {
 
     @Bean
     Job vesperaJob(
-            JobRepository jobRepository, Step censusStep, Step byteLevelReductionStep, Step extractionStep, Step contentCensusStep) {
+            JobRepository jobRepository,
+            Step censusStep,
+            Step byteLevelReductionStep,
+            Step extractionStep,
+            Step contentCensusStep,
+            Step redundancySignatureStep,
+            Step redundancyResolutionStep) {
         return new JobBuilder(JOB_NAME, jobRepository)
                 .start(censusStep)
                 .next(byteLevelReductionStep)
                 .next(extractionStep)
                 .next(contentCensusStep)
+                .next(redundancySignatureStep)
+                .next(redundancyResolutionStep)
                 .build();
     }
 
