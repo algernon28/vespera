@@ -103,3 +103,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-082](0082-stage-4-judges-on-its-first-run-its-thresholds-are-code-defaults-and-it-ships-no-report.md) | 2026-09-06 | Stage 4 judges on its first run; its thresholds are code defaults, and it ships no report |
 | [ADR-083](0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md) | 2026-09-06 | The seed set is extracted by stage 5, and an unusable seed is recorded rather than gating |
 | [ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md) | 2026-09-06 | The embedding model is a profile gate, and a vector carries its whole embedder identity *(widens ADR-032)* |
+| [ADR-085](0085-vectors-live-in-sqlite-and-the-pairwise-matrix-is-never-materialised.md) | 2026-09-06 | Vectors live in SQLite as a content-addressed cache, and the pairwise matrix is never materialised |
