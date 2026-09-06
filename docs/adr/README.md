@@ -104,3 +104,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-083](0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md) | 2026-09-06 | The seed set is extracted by stage 5, and an unusable seed is recorded rather than gating |
 | [ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md) | 2026-09-06 | The embedding model is a profile gate, and a vector carries its whole embedder identity *(widens ADR-032)* |
 | [ADR-085](0085-vectors-live-in-sqlite-and-the-pairwise-matrix-is-never-materialised.md) | 2026-09-06 | Vectors live in SQLite as a content-addressed cache, and the pairwise matrix is never materialised |
+| [ADR-086](0086-seed-corpus-mismatch-is-measured-before-the-model-gate-and-reported-never-enforced.md) | 2026-09-06 | Seed/corpus mismatch is measured before the model gate, and reported rather than enforced |

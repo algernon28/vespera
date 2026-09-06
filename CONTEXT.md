@@ -60,6 +60,10 @@ _Avoid_: training set, examples, ground truth
 A seed document extraction produced no text from. Recorded and reported, never removed and never a verdict: a seed is not a candidate for publication, so nothing in the verdict vocabulary applies to it, and what it costs is a definition of relevance narrower than the operator intended.
 _Avoid_: broken seed, failed seed, invalid seed
 
+**Seed/corpus mismatch**:
+A difference in *form* between the seed set and the survivors it will be scored against — language, length, born-digital against converted, OCR damage — large enough that the score measures format rather than topic. A measurement and never a judgement: it is reported before the corpus is embedded, and what to do about it is the operator's. It cannot see a mismatch of subject, which only the score distribution reveals.
+_Avoid_: drift, skew, bias, incompatible seeds
+
 **Hard negative**:
 A document near the decision boundary — plausibly relevant, actually not. The only kind of negative that informs a threshold, and one that cannot be supplied in advance.
 _Avoid_: counter-example, negative sample
