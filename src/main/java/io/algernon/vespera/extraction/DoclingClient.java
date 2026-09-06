@@ -4,10 +4,12 @@ import java.net.http.HttpClient;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.MultipartBodyBuilder;
@@ -55,6 +57,29 @@ public class DoclingClient {
      */
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
 
+    /** The shape {@code /version} answers with: component name to version, every entry a string. */
+    private static final ParameterizedTypeReference<Map<String, String>> VERSION_MAP =
+            new ParameterizedTypeReference<>() {};
+
+    /**
+     * The OCR engine every conversion names, rather than leaving the sidecar's {@code auto} to pick
+     * one (ADR-090). Left unnamed, the engine is resolved from whichever models are cached on the
+     * machine and reported in no response, so the same document converts differently elsewhere with
+     * nothing recording that it did.
+     *
+     * <p>{@code rapidocr} specifically, because it is what {@code auto} already resolves to in the
+     * pinned image and its models ship inside it: naming it makes the identity honest without
+     * changing what any corpus extracts to, and without a first-use model download that could fail
+     * offline. It is sent as {@code ocr_preset} rather than {@code ocr_engine}, which docling-serve
+     * deprecated in favour of it.
+     *
+     * <p>A preset is a name the sidecar resolves, so an administrator redefining it is still
+     * invisible here. That gap is narrower than the one this closes, and it is the strongest pin
+     * available without a non-default sidecar: {@code ocr_custom_config}, which would carry the
+     * configuration itself, is refused unless the server opts in.
+     */
+    static final String PINNED_OCR_PRESET = "rapidocr";
+
     /** The export {@code /v1/convert/file} is asked for — see the class javadoc for why JSON. */
     private static final String REQUESTED_EXPORT_FORMAT = "json";
 
@@ -100,6 +125,31 @@ public class DoclingClient {
     }
 
     /**
+     * What the sidecar is built from, as it reports itself (ADR-090): every component version in
+     * {@code GET /version}, not just {@code docling-serve}'s own.
+     *
+     * <p>Read whole and unfiltered. {@code docling} and {@code docling-ibm-models} are what actually
+     * convert a document, and either can move while the serving wrapper's version stays put — so a
+     * component this code does not recognise today is still one whose version changes what a
+     * conversion produces, and dropping it would make the extractor identity claim more stability
+     * than there is.
+     */
+    public Map<String, String> version() {
+        return restClient.get().uri("/version").retrieve().body(VERSION_MAP);
+    }
+
+    /**
+     * The options every conversion sends, as a stable string for the extractor identity (ADR-090).
+     *
+     * <p>Lives here rather than at the composing site so that it cannot drift from {@link #convert}:
+     * an identity naming an option this client does not send, or silent about one it does, would be a
+     * key that claims something untrue about the rows under it.
+     */
+    public static String sentOptions() {
+        return "to_formats=" + REQUESTED_EXPORT_FORMAT + ";ocr_preset=" + PINNED_OCR_PRESET;
+    }
+
+    /**
      * Converts {@code file} through {@code docling-serve}, blocking for the result.
      *
      * @throws DoclingCallTimeoutException if 5 minutes pass with no response at all
@@ -108,6 +158,7 @@ public class DoclingClient {
         MultipartBodyBuilder body = new MultipartBodyBuilder();
         body.part("files", new FileSystemResource(file));
         body.part("to_formats", REQUESTED_EXPORT_FORMAT);
+        body.part("ocr_preset", PINNED_OCR_PRESET);
 
         String rawResponse;
         try {

@@ -30,11 +30,11 @@ The ticket named two facts nobody had established. The pinned image (`quay.io/do
 
 `/health` and `/ready` return only `{"status":"ok"}` and pin nothing.
 
-**Pipeline selection is client-side and per-request.** `POST /v1/convert/file` accepts **52 form fields**, among them `pipeline` (`legacy|standard|vlm|asr`, default `standard`), `ocr_engine` (default `auto`), `vlm_pipeline_model` (16 values, including `granite_docling`, `nanonets_ocr2` and `deepseekocr_ollama`), `table_mode`, `pdf_backend`, `force_ocr` and `do_ocr`. `DoclingClient` sends exactly two: `files` and `to_formats=json`.
+**Pipeline selection is client-side and per-request.** `POST /v1/convert/file` accepts **52 form fields**, among them `pipeline` (`legacy|standard|vlm|asr`, default `standard`), `ocr_engine` and its successor `ocr_preset` (both default `auto`), `vlm_pipeline_model` (16 values, including `granite_docling`, `nanonets_ocr2` and `deepseekocr_ollama`), `table_mode`, `pdf_backend`, `force_ocr` and `do_ocr`. `DoclingClient` sends exactly two: `files` and `to_formats=json`.
 
 **This inverts the ticket's premise.** "Point the same docling-serve at a different OCR backend" is not principally a server-side configuration change the client cannot observe — **it is a request the client would send**. The gap is in what we transmit, not only in what the server reports.
 
-**And one thing genuinely is unobservable.** `ocr_engine` defaults to `auto`, and the container resolves it at startup — the probe's own log reads `Auto OCR model selected rapidocr with onnxruntime`. That choice depends on which models are cached and what hardware is present, it is pinned by no version number, and it appears in no response.
+**And one thing genuinely is unobservable.** The OCR selection defaults to `auto`, and the container resolves it at startup — the probe's own log reads `Auto OCR model selected rapidocr with onnxruntime`. That choice depends on which models are cached and what hardware is present, it is pinned by no version number, and it appears in no response.
 
 ## Decision
 
@@ -54,13 +54,17 @@ Keeping the URL in the key has it exactly backwards: **moving the sidecar's port
 
 **Not all 52 fields.** An option the client does not send is the server's default, and that default is declared by the schema of a version the map pins — so *version map + sent options* covers the rest by construction. Enumerating fifty-two defaults would add a maintenance burden that says nothing the map does not already say, and would go stale against the next image.
 
-### `ocr_engine` is pinned by the client, not recorded as unpinned
+### The OCR engine is pinned by the client, not recorded as unpinned
 
-**Stop sending nothing and letting `auto` resolve server-side. Send an explicit `ocr_engine`.**
+**Stop sending nothing and letting `auto` resolve server-side. Name the engine explicitly.**
+
+The field is `ocr_preset`, not `ocr_engine`: docling-serve deprecated the latter in favour of the former ("DEPRECATED: Use ocr_preset instead"), a correction made after this decision was first written and recorded here rather than left to mislead. The value is `rapidocr` — what `auto` already resolves to in the pinned image, with its models shipped inside it, so naming it makes the identity honest without changing what any corpus extracts to and without a first-use download that could fail offline.
+
+**A preset names a configuration rather than carrying it**, so an administrator redefining that preset is still invisible here. `ocr_custom_config` would carry the configuration itself and close the gap completely — and is refused unless the sidecar opts in (`allow_custom_ocr_config` is `false` by default), which would break the pipeline against any docling-serve this project does not own. So this narrows the gap rather than closing it, deliberately.
 
 This departs from ADR-084 deliberately, and #89 asked that it be argued rather than copied. ADR-084 recorded the absence of a pin because the embedder genuinely could not be pinned from the client — the identity's honest content was "this runtime pins nothing". **Here the client can pin it.** Recording "unpinned" would be accurate and useless: it would faithfully describe a value that changes what every downstream stage sees, while doing nothing to stop it changing.
 
-Extraction is upstream of everything. An `ocr_engine` that silently resolves differently on another machine re-cuts every chunk, re-shingles every document, moves every confidence score that tier 2's floor is calibrated against, and re-scores every relevance comparison — with no error and no new row set. It is the one knob whose drift is both invisible and total.
+Extraction is upstream of everything. An OCR engine that silently resolves differently on another machine re-cuts every chunk, re-shingles every document, moves every confidence score that tier 2's floor is calibrated against, and re-scores every relevance comparison — with no error and no new row set. It is the one knob whose drift is both invisible and total.
 
 **It is not a gate.** Nothing here is a value the pipeline requires and does not have; it is a value the pipeline was leaving to a coin-flip and will now state.
 
@@ -82,6 +86,6 @@ This is [ADR-073](0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-s
 
 **A sidecar that cannot be reached cannot yield an identity.** The readiness check already fails the step in that case (ADR-071), so no new failure mode is introduced; but the ordering is now load-bearing rather than incidental, and the hand-off work should say so.
 
-**`/version`'s `plaform` key is misspelled upstream.** Recorded here because a reader will otherwise assume a typo in our own code. Whether the platform string belongs in the identity at all is a fair question — it pins the machine rather than the software — and the answer is that it stays, because it is exactly what distinguishes two deployments that resolve `auto` differently. With `ocr_engine` now pinned that argument weakens, and it may be droppable later.
+**`/version`'s `plaform` key is misspelled upstream.** Recorded here because a reader will otherwise assume a typo in our own code. Whether the platform string belongs in the identity at all is a fair question — it pins the machine rather than the software — and the answer is that it stays, because it is exactly what distinguishes two deployments that resolve `auto` differently. With the OCR engine now pinned that argument weakens, and it may be droppable later.
 
-**Nothing here fixes the wiring.** Which bean calls `/version`, how the map is serialised into the string, what the explicit `ocr_engine` value should be, and whether the sent options belong in `configConsumed` as well as in the cache key are implementation work — the same deferral every prior decision made to its own spec.
+**Nothing here fixes the wiring.** Which bean calls `/version`, how the map is serialised into the string, and whether the sent options belong in `configConsumed` as well as in the cache key are implementation work — the same deferral every prior decision made to its own spec.

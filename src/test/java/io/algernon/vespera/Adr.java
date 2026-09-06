@@ -260,6 +260,13 @@ public final class Adr {
     public static final String A_RUN_NAMES_ITS_IMMEDIATE_PREDECESSOR_UPSTREAM = FILE
             + "0089-a-stages-run-names-the-immediately-preceding-stages-run-upstream-because-verdicts-are-cumulative.md";
 
+    /**
+     * ADR-090 — the extractor identity is the sidecar's version map and the options the client sends,
+     * never its URL.
+     */
+    public static final String THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP = FILE
+            + "0090-the-extractor-identity-is-the-sidecars-version-map-and-the-options-the-client-sends-never-its-url.md";
+
     private Adr() {
     }
 }

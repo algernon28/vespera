@@ -4,6 +4,8 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
@@ -20,6 +22,7 @@ import java.net.http.HttpTimeoutException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -59,6 +62,37 @@ class DoclingClientTest {
 
     /** The one endpoint this client calls, per ADR-071's single-synchronous-call decision. */
     private static final String CONVERT_ENDPOINT = BASE_URL + "/v1/convert/file";
+
+    /** How many components the stubbed {@code /version} body below reports. */
+    private static final int REPORTED_COMPONENT_COUNT = 8;
+
+    /** The endpoint that reports what the sidecar is built from (ADR-090). */
+    private static final String VERSION_ENDPOINT = BASE_URL + "/version";
+
+    /**
+     * A {@code /version} body in the shape the pinned sidecar really answers with, component
+     * versions and all. {@code plaform} is misspelled by docling-serve itself, not here.
+     */
+    private static final String VERSION_RESPONSE =
+            """
+            {
+              "docling-serve": "1.32.0",
+              "docling-jobkit": "3.5.0",
+              "docling": "2.124.0",
+              "docling-core": "2.93.0",
+              "docling-ibm-models": "4.0.1",
+              "docling-parse": "7.16.0",
+              "python": "cpython-312 (3.12.13)",
+              "plaform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.34"
+            }
+            """;
+
+    /**
+     * The OCR engine this client pins rather than leaving to the sidecar (ADR-090). {@code rapidocr}
+     * is what the sidecar's own {@code auto} already resolves to in the pinned image, so naming it
+     * changes nothing about what is extracted — only about what the identity can honestly claim.
+     */
+    private static final String PINNED_OCR_PRESET = "rapidocr";
 
     /** The call budget ADR-071 fixes: five minutes of silence is a client-side timeout. */
     private static final Duration DOCUMENTED_CALL_BUDGET = Duration.ofMinutes(5);
@@ -235,6 +269,59 @@ class DoclingClientTest {
      * A document to convert. Its bytes never reach a converter here — the stub answers without
      * reading the request body — but the file has to exist, because the client attaches it.
      */
+    @Test
+    @Story("The sidecar says what it is built from")
+    @DisplayName("Asking for the version reads every component the sidecar reports, not just its own")
+    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
+    void readsEveryComponentVersionTheSidecarReports() {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
+        service.expect(requestTo(VERSION_ENDPOINT))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(VERSION_RESPONSE, MediaType.APPLICATION_JSON));
+        DoclingClient client = new DoclingClient(builder.build());
+
+        Map<String, String> version = client.version();
+
+        claim(
+                "the whole report is read rather than one line of it: the wrapper that serves the HTTP"
+                        + " endpoint and the library that actually converts documents are separate things that"
+                        + " move separately, and either can change what a conversion produces",
+                () -> assertThat(version)
+                        .containsEntry("docling-serve", "1.32.0")
+                        .containsEntry("docling", "2.124.0")
+                        .containsEntry("docling-ibm-models", "4.0.1"));
+        claim(
+                "and nothing is dropped on the way through -- every key the sidecar answered with is"
+                        + " carried, because a component this code does not recognise today is still a"
+                        + " component whose version changes what a conversion produces",
+                () -> assertThat(version).hasSize(REPORTED_COMPONENT_COUNT));
+    }
+
+    @Test
+    @Story("The conversion pins what it asks for")
+    @DisplayName("Converting names the OCR engine and the export format, rather than letting the sidecar pick")
+    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
+    void sendsThePinnedOcrPresetAndExportFormat(@TempDir Path dir) throws IOException {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
+        service.expect(requestTo(CONVERT_ENDPOINT))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(containsString("name=\"ocr_preset\"")))
+                .andExpect(content().string(containsString(PINNED_OCR_PRESET)))
+                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
+        DoclingClient client = new DoclingClient(builder.build());
+
+        client.convert(aDocument(dir));
+
+        claim(
+                "the request names the OCR engine it wants instead of leaving the sidecar to choose one:"
+                        + " left unnamed, the engine is resolved from whichever models happen to be cached on"
+                        + " the machine, and the same document converts differently elsewhere with nothing"
+                        + " recording that it did",
+                () -> assertThatCode(service::verify).doesNotThrowAnyException());
+    }
+
     private static Path aDocument(Path dir) throws IOException {
         return Files.writeString(dir.resolve("one-document.txt"), "a document to convert");
     }
