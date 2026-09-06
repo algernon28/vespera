@@ -56,6 +56,10 @@ _Avoid_: overlap, subset, inclusion
 The operator-supplied folder of known-relevant documents. The sole carrier of domain knowledge in the system: it defines relevance, names the published taxonomy, and shapes the page tree.
 _Avoid_: training set, examples, ground truth
 
+**Unusable seed**:
+A seed document extraction produced no text from. Recorded and reported, never removed and never a verdict: a seed is not a candidate for publication, so nothing in the verdict vocabulary applies to it, and what it costs is a definition of relevance narrower than the operator intended.
+_Avoid_: broken seed, failed seed, invalid seed
+
 **Hard negative**:
 A document near the decision boundary — plausibly relevant, actually not. The only kind of negative that informs a threshold, and one that cannot be supplied in advance.
 _Avoid_: counter-example, negative sample

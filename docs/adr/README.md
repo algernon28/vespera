@@ -101,3 +101,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md) | 2026-09-06 | The boilerplate floor is a gate, applied before signatures are computed |
 | [ADR-081](0081-minhash-retrieves-shingle-sets-judge-128-permutations-in-16-bands.md) | 2026-09-06 | MinHash retrieves, shingle sets judge; 128 permutations in 16 bands, and containment gets its own index |
 | [ADR-082](0082-stage-4-judges-on-its-first-run-its-thresholds-are-code-defaults-and-it-ships-no-report.md) | 2026-09-06 | Stage 4 judges on its first run; its thresholds are code defaults, and it ships no report |
+| [ADR-083](0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md) | 2026-09-06 | The seed set is extracted by stage 5, and an unusable seed is recorded rather than gating |
