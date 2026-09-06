@@ -184,7 +184,11 @@ CREATE TABLE IF NOT EXISTS extraction_metric (
 -- non-measurements rather than a bucket over the distribution. Each stage-3 run writes its own row
 -- set under its own run_id and never rewrites an earlier run's (ADR-077, amending ADR-075): a run id
 -- already folds in the stage-2 run measured over (ADR-048), so no row is ever stale and the earlier
--- measurements stay queryable -- the same shape shingle_document_frequency uses below.
+-- measurements stay queryable -- the same shape shingle_document_frequency uses below. mean_score is
+-- the only column distributed here: low_score is deliberately not, and no score_kind column exists to
+-- say which score a row summarizes (ADR-078, amending ADR-070 and ADR-075). Tier 2 is a floor on the
+-- mean alone, so a worst-page distribution would calibrate no threshold; low_score stays in
+-- extraction_metric as re-analyzable data.
 CREATE TABLE IF NOT EXISTS confidence_distribution (
     run_id TEXT NOT NULL REFERENCES run (id),
     grade TEXT NOT NULL,

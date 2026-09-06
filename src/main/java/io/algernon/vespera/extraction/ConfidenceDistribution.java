@@ -21,6 +21,14 @@ import org.springframework.stereotype.Component;
  * {@code boilerplateDocumentFrequencyFloor} already has its own re-analyzable tables and needs no
  * report of its own (ADR-075).
  *
+ * <p><b>{@code mean_score} and nothing else.</b> {@code low_score} — the worst page's score — is
+ * deliberately not distributed, and the table carries no column saying which score a row summarizes
+ * (ADR-078, amending ADR-070 and ADR-075, both of which had left tier 2 open to either). Tier 2 asks
+ * whether extraction produced usable text at all, and a worst-page floor answers a different
+ * question: it would discard a 300-page scan whose mean is excellent because one folded page is
+ * poor. {@code low_score} stays in {@code extraction_metric} as re-analyzable data, and a worst-page
+ * rule, if one is ever wanted, gets its own threshold and its own record.
+ *
  * <p><b>Buckets are {@link QualityGrade}'s own cut-points</b>, read off the enum rather than restated
  * here, so a bucket labelled {@code fair} and a stored {@code mean_grade} of {@code fair} cannot come
  * to mean different things. They are not an arbitrary fixed width. An
