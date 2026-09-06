@@ -137,7 +137,11 @@ public class VesperaCommand implements Callable<Integer> {
 
         @Override
         public Integer call() throws Exception {
-            refuseToRunAgainstADirectoryTheOperatorDidNotName();
+            String misnamedDatabaseDirectory = misnamedDatabaseDirectory();
+            if (misnamedDatabaseDirectory != null) {
+                System.err.println(misnamedDatabaseDirectory);
+                return CommandLine.ExitCode.SOFTWARE;
+            }
             Path corpusRoot = rootToWalk();
             if (corpusRoot == null) {
                 System.err.println(("vespera run named no root and %s is not set: give the root as the argument"
@@ -175,27 +179,33 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /**
-         * Checks that the option the operator typed is the directory the application actually opened.
+         * What to tell the operator when the option they typed is not the directory the application
+         * actually opened, or {@code null} when the two agree.
          *
          * <p>{@code --db-dir} is read twice by two different mechanisms: as a property, before the
          * datasource exists, and as an option here. That is not redundancy — without the option
          * picocli would reject the argument outright — but it does mean the two could drift, and the
          * way they drift is silent: rename the property placeholder and the flag keeps parsing while
          * the database quietly opens somewhere else. Comparing them is what makes that loud.
+         *
+         * <p>Returned as a message rather than thrown, for the same reason the missing-root case is:
+         * this is an operator typing a flag the wrong way round, and the useful answer is the sentence
+         * that says so plus a non-zero exit code. Thrown, it leaves {@code call} through picocli's
+         * default handler, which prints a Java stack trace at somebody who mistyped an argument.
          */
-        private void refuseToRunAgainstADirectoryTheOperatorDidNotName() {
+        private String misnamedDatabaseDirectory() {
             if (databaseDirectory == null) {
-                return;
+                return null;
             }
             Path named = databaseDirectory.toAbsolutePath().normalize();
             Path opened = workingDirectoryInUse.toAbsolutePath().normalize();
-            if (!named.equals(opened)) {
-                throw new IllegalStateException(
-                        ("--db-dir named %s but the database and profile were opened in %s; --db-dir has to be"
-                                        + " given as --db-dir=<path>, because it is read as the %s property"
-                                        + " before this command is parsed")
-                                .formatted(named, opened, WorkingDirectoryPreparer.PROPERTY));
+            if (named.equals(opened)) {
+                return null;
             }
+            return ("vespera run was given --db-dir %s but the database and profile were opened in %s;"
+                            + " --db-dir has to be given as --db-dir=<path>, because it is read as the %s"
+                            + " property before this command is parsed")
+                    .formatted(named, opened, WorkingDirectoryPreparer.PROPERTY);
         }
     }
 
