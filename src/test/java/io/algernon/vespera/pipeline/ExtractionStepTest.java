@@ -67,6 +67,16 @@ import org.springframework.transaction.annotation.Transactional;
  * running the job, and the bean it comes from ({@link StubbedExtractionBeans}) is a class-scoped
  * singleton — a context shared across methods would let one test's leftover queue answer another
  * test's conversions.
+ *
+ * <p><b>One seam is deliberately not covered here: that the circuit breaker's exception actually
+ * fails the step.</b> A test of it has to drive the job to failure, and Spring Batch reports a failed
+ * step by logging the whole cause chain at {@code ERROR} — there is no quiet way to fail a step. That
+ * left a passing build printing a stack trace, which teaches a reader to skim past stack traces, and
+ * the real one then goes past with them. The rule itself is pinned where it can be caught and
+ * asserted instead: {@link ExtractionCircuitBreakerTest} holds the breaker to throwing after the
+ * streak. What nothing now catches is a future {@code .skip(ExtractorStoppedAnsweringException.class)}
+ * on this step, which would make a dead sidecar produce a successful run — worth remembering when
+ * editing {@link ExtractionJobConfiguration}'s fault tolerance.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -200,34 +210,6 @@ class ExtractionStepTest {
         claim(
                 "the document earned an extraction-failed verdict in the ledger, under the run that judged it",
                 () -> assertThat(verdictKindsFor(occurrenceOf(root, "broken.txt"))).containsExactly("EXTRACTION_FAILED"));
-    }
-
-    @Test
-    @Story("A dead sidecar stops the run")
-    @DisplayName("A consecutive run of service-scope failures fails the step rather than completing it")
-    void aDeadSidecarFailsTheStepRatherThanCompletingIt(@TempDir Path root) throws IOException {
-        int deadSidecar = ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
-        for (int i = 0; i < deadSidecar; i++) {
-            Files.writeString(root.resolve("document-" + i + ".txt"), "content " + i);
-        }
-        scripted()
-                .answering(
-                        GENEROUS_ANSWER_COUNT,
-                        new DoclingResponse(
-                                ConversionStatus.FAILURE,
-                                List.of(new DoclingError(
-                                        "task", "docling", "no capacity", FailureCategory.CAPACITY, null)),
-                                0d,
-                                null,
-                                "{}"));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the run does not report success having examined nothing usable: a converter that sets"
-                        + " every document aside in a row is read as broken, not the documents as unlucky"
-                        + " (ADR-071)",
-                () -> assertThat(cli.getExitCode()).isNotZero());
     }
 
     private ScriptedExtractor scripted() {

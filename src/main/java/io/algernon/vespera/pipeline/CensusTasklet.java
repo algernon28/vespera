@@ -75,6 +75,15 @@ public class CensusTasklet implements Tasklet {
         if (seed.isPresent() && abortsTheInvocation(seed.get().failure())) {
             throw seed.get().failure();
         }
+        // The one failure nothing rethrows: a seed folder that could not be walked for a reason census
+        // survives (ADR-064). This is its only report in the log, and the profile carries the same
+        // text for whoever reads it there instead.
+        if (seed.isPresent() && seed.get().failure() != null) {
+            log.warn(
+                    "Census could not walk the seed folder at {}, and carried on: {}",
+                    profile.seedFolder().value(),
+                    causeChain(seed.get().failure()));
+        }
         return RepeatStatus.FINISHED;
     }
 
@@ -96,16 +105,48 @@ public class CensusTasklet implements Tasklet {
         return failure instanceof ExcludesNothingViolationException || failure instanceof CheckpointMismatchException;
     }
 
-    /** Walks a root, returning what went wrong rather than raising it, so the other walk still runs. */
+    /**
+     * Walks a root, returning what went wrong rather than raising it, so the other walk still runs.
+     *
+     * <p><b>Nothing is logged here.</b> A failure this method captures is reported exactly once, by
+     * whoever ends up owning it: {@link #execute} rethrows the ones no census may outlive, and the
+     * exception is then the report; the rest are recorded in the profile and logged once, there.
+     * Logging at the point of capture as well would report the fatal ones twice — once as a stack
+     * nothing had yet decided was fatal, and again as the exception that actually stopped the run.
+     */
     private Walked walkOrCapture(Path walkRoot, String what) {
         try {
             WalkId walkId = walkRecorder.walk(walkRoot);
             log.info("Census recorded {} at {} under walk {}", what, walkRoot, walkId.value());
             return new Walked(walkId, null);
         } catch (Exception e) {
-            log.error("Census could not walk {} at {}", what, walkRoot, e);
             return new Walked(null, e);
         }
+    }
+
+    /**
+     * Every message in a failure's cause chain, joined — {@code "IllegalArgumentException: root cannot
+     * be resolved: C:\seeds; caused by InvalidPathException: Illegal char <?>"}.
+     *
+     * <p>A survivable failure is never rethrown, so this text is the whole of what anyone will ever
+     * learn about it, in the log and in the profile alike. {@link Throwable#getMessage()} alone is not
+     * enough for that: the outermost message names what the code was doing, and the cause names what
+     * actually went wrong, which is usually the half an operator needs. The stack is deliberately not
+     * here — a condition the system handled and recorded is not a crash, and printing one as though it
+     * were teaches a reader to skim the stack traces that do matter.
+     */
+    private static String causeChain(Throwable failure) {
+        StringBuilder chain = new StringBuilder();
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (!chain.isEmpty()) {
+                chain.append("; caused by ");
+            }
+            chain.append(cause.getClass().getSimpleName());
+            if (cause.getMessage() != null) {
+                chain.append(": ").append(cause.getMessage());
+            }
+        }
+        return chain.toString();
     }
 
     /** One walk's outcome, held rather than raised. Exactly one of the two is present. */
@@ -133,7 +174,7 @@ public class CensusTasklet implements Tasklet {
         Walked walked = seed.get();
         if (walked.failure() != null) {
             return new Measurement(
-                    "the seed folder could not be walked: " + walked.failure().getMessage(), clock.instant());
+                    "the seed folder could not be walked: " + causeChain(walked.failure()), clock.instant());
         }
         return new Measurement("walk " + walked.walkId().value(), clock.instant());
     }
