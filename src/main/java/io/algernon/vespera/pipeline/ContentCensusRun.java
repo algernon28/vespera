@@ -91,8 +91,12 @@ class ContentCensusRun {
     /**
      * {@code configConsumed} names the walk/root stage 3 ran against and the stage-2 run it read
      * (ADR-048) — never {@code "{}"}, since both are recoverable from the run row itself.
+     *
+     * <p>Package-visible rather than private: {@link RedundancyRun} re-derives this exact run's identity
+     * from its known-fixed inputs the same way this class re-derives stage 2's, and an independently
+     * reimplemented copy of this JSON shape would risk drifting from what actually got hashed here.
      */
-    private static String configConsumed(Path canonicalRoot, RunId extractionRunId) {
+    static String configConsumed(Path canonicalRoot, RunId extractionRunId) {
         return JSON_MAPPER.writeValueAsString(new ConfigConsumed(canonicalRoot.toString(), extractionRunId.value()));
     }
 

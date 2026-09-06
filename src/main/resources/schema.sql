@@ -235,6 +235,10 @@ CREATE TABLE IF NOT EXISTS shingle (
 
 CREATE INDEX IF NOT EXISTS shingle_by_occurrence ON shingle (occurrence_id, run_id, shingle_parameter_identity);
 
+-- Lookup by hash rather than by occurrence, which is what stage 4's containment retrieval needs: for
+-- one document's 32 rarest shared shingles, which other documents hold them (ADR-081).
+CREATE INDEX IF NOT EXISTS shingle_by_hash ON shingle (run_id, shingle_parameter_identity, shingle_hash);
+
 -- similarity's own table (ADR-074): stage 3's per-hash document frequency, measured over the shingle
 -- rows belonging to stage-2 survivors only (a footer's prevalence among excluded occurrences is not a
 -- fact about the corpus stage 4 will actually deduplicate). document_count is
@@ -268,4 +272,62 @@ CREATE TABLE IF NOT EXISTS shingle_corpus_size (
     shingle_parameter_identity TEXT NOT NULL,
     shingled_document_count INTEGER NOT NULL,
     PRIMARY KEY (run_id, shingle_parameter_identity)
+);
+
+-- similarity's own table (ADR-081): one MinHash signature per stage-2 survivor that had any shingle
+-- left after boilerplate was stripped (ADR-080). signature is 128 32-bit minima, 512 bytes, computed
+-- over the stripped set -- so it stands for what is distinctive about a document rather than for its
+-- whole text. A document whose every shingle was boilerplate gets no row at all: it is empty rather
+-- than redundant, and comparing an empty set matches everything or nothing depending on how the
+-- estimator is written (ADR-080).
+--
+-- signature_identity spells out what the signature means -- shingle parameter identity, permutation
+-- count and seed, boilerplate floor. It is deliberately redundant with run_id, which already folds
+-- all three in: a reader holding one of these rows can say what it is without first resolving the
+-- run row it belongs to.
+CREATE TABLE IF NOT EXISTS minhash_signature (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    signature_identity TEXT NOT NULL,
+    signature BLOB NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id)
+);
+
+-- similarity's own table (ADR-081): the LSH banding index -- 16 rows per signature, one per band of
+-- 8 minima. This is a table rather than an in-memory map so candidate generation is a GROUP BY over
+-- an index instead of a pass holding every signature in memory: two documents are near-duplicate
+-- candidates when they share a (band_ordinal, band_hash), and the index below is what answers that.
+-- Candidates are only candidates -- every pair is then scored exactly from the shingle sets, since
+-- signatures retrieve and shingle sets judge (ADR-081).
+CREATE TABLE IF NOT EXISTS signature_band (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    band_ordinal INTEGER NOT NULL,
+    band_hash INTEGER NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id, band_ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS signature_band_by_bucket ON signature_band (run_id, band_ordinal, band_hash);
+
+-- similarity's own table (ADR-079, ADR-082): which surviving occurrence a redundant occurrence's
+-- content is already published through -- the same shape corpus's superseded_by uses for stage 1
+-- (ADR-069), and for the same reason: the occurrence reference a redundant-with verdict needs is a
+-- typed column here, never a foreign key encoded into verdict.reason (ADR-041). The survivor itself
+-- has no row.
+--
+-- relation is 'near-duplicate' or 'contained-in', and score is the exact Jaccard or containment that
+-- produced the verdict, computed from the shingle sets rather than estimated from the signatures.
+-- Storing it is what replaces the corpus-wide distribution report stage 4 deliberately does not ship
+-- (ADR-082): an operator auditing a removal asks why this document went, which is one join.
+--
+-- The candidate pairs LSH generated are not stored anywhere. Most of a candidate list exists to be
+-- rejected by exact scoring, it would be the largest table in the database, and it is not a
+-- measurement (ADR-082).
+CREATE TABLE IF NOT EXISTS redundant_with (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    redundant_with_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    relation TEXT NOT NULL,
+    score REAL NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id)
 );

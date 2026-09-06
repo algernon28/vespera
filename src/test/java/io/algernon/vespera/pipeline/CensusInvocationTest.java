@@ -15,7 +15,10 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.similarity.BoilerplateShingles;
 import io.algernon.vespera.similarity.DocumentFrequency;
+import io.algernon.vespera.similarity.RedundancyResolution;
+import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.Shingler;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -78,6 +81,15 @@ import picocli.CommandLine;
     ContentCensusJobConfiguration.class,
     ContentCensusTasklet.class,
     ContentCensusRun.class,
+    RedundancyJobConfiguration.class,
+    RedundancyRun.class,
+    RedundancyGate.class,
+    RedundancyBoilerplate.class,
+    RedundancySignatureItemWriter.class,
+    RedundancyResolutionTasklet.class,
+    RedundancySignatures.class,
+    RedundancyResolution.class,
+    BoilerplateShingles.class,
     DocumentFrequency.class,
     ConfidenceDistribution.class,
     Shingler.class,
@@ -170,15 +182,23 @@ class CensusInvocationTest {
     @Story("What census does in one invocation")
     @DisplayName("The stages run in cheapest-filter-first order, with the content census last")
     @Link(name = "ADR-075", url = Adr.STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT, type = "adr")
+    @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
     void runsTheStagesInOrderWithTheContentCensusAfterExtraction() {
         List<String> stagesInOrder = List.copyOf(((SimpleJob) vesperaJob).getStepNames());
 
         claim(
-                "the four stages built so far run in the order they filter in -- census, then the"
-                        + " byte-level reduction, then extraction, then the content census -- so each pass"
-                        + " only ever measures what the cheaper passes before it left standing",
+                "the stages built so far run in the order they filter in -- census, then the byte-level"
+                        + " reduction, then extraction, then the content census, then redundancy in its two"
+                        + " steps -- so each pass only ever measures what the cheaper passes before it left"
+                        + " standing",
                 () -> assertThat(stagesInOrder)
-                        .containsExactly("census", "byte-level-reduction", "extraction", "content-census"));
+                        .containsExactly(
+                                "census",
+                                "byte-level-reduction",
+                                "extraction",
+                                "content-census",
+                                "redundancy-signature",
+                                "content-redundancy"));
         claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
                         + " summarises a whole extraction pass, and a summary computed over a pass still"
@@ -186,6 +206,41 @@ class CensusInvocationTest {
                         + " a threshold against part of a corpus",
                 () -> assertThat(stagesInOrder.indexOf("content-census"))
                         .isGreaterThan(stagesInOrder.indexOf("extraction")));
+        claim(
+                "and redundancy runs after the content census, in that order: it compares documents against"
+                        + " the boilerplate the census measured, and comparing before that measurement exists"
+                        + " would let two documents sharing nothing but a footer read as the same document",
+                () -> assertThat(stagesInOrder.indexOf("redundancy-signature"))
+                        .isGreaterThan(stagesInOrder.indexOf("content-census")));
+        claim(
+                "and a signature is written before anything is resolved against it, since resolution reads"
+                        + " the rows the signature step wrote",
+                () -> assertThat(stagesInOrder.indexOf("content-redundancy"))
+                        .isGreaterThan(stagesInOrder.indexOf("redundancy-signature")));
+    }
+
+    @Test
+    @Story("A gate ends the invocation rather than failing it")
+    @DisplayName("With the boilerplate floor unset, redundancy mints no run and the command still succeeds")
+    @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
+    void stopsAtTheBoilerplateGateWithoutFailing(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "a");
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success: a gate is a value the pipeline needs and does not have,"
+                        + " not an error -- the run ends there having recorded everything the earlier stages"
+                        + " learned (ADR-047)",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and stage 4 minted no run at all, because a run row for a stage that did nothing would"
+                        + " read as a pass that found no redundancy",
+                () -> assertThat(runCount("content-redundancy")).isZero());
+        claim(
+                "so nothing was signed either -- the floor is applied before signatures are computed, so"
+                        + " an unset floor means there is nothing correct to sign yet (ADR-080)",
+                () -> assertThat(signatureCount()).isZero());
     }
 
     @Test
@@ -234,6 +289,14 @@ class CensusInvocationTest {
 
     private long walkCount() {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM walk", Long.class);
+    }
+
+    private long runCount(String stage) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE stage = ?", Long.class, stage);
+    }
+
+    private long signatureCount() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM minhash_signature", Long.class);
     }
 
     private WalkId theWalk() {

@@ -24,7 +24,10 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.similarity.BoilerplateShingles;
 import io.algernon.vespera.similarity.DocumentFrequency;
+import io.algernon.vespera.similarity.RedundancyResolution;
+import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.Shingler;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -86,6 +89,15 @@ import org.springframework.transaction.annotation.Transactional;
     ContentCensusJobConfiguration.class,
     ContentCensusTasklet.class,
     ContentCensusRun.class,
+    RedundancyJobConfiguration.class,
+    RedundancyRun.class,
+    RedundancyGate.class,
+    RedundancyBoilerplate.class,
+    RedundancySignatureItemWriter.class,
+    RedundancyResolutionTasklet.class,
+    RedundancySignatures.class,
+    RedundancyResolution.class,
+    BoilerplateShingles.class,
     DocumentFrequency.class,
     ConfidenceDistribution.class,
     Shingler.class,

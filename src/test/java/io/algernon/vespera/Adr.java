@@ -222,6 +222,36 @@ public final class Adr {
     public static final String TIER_2_IS_A_FLOOR_ON_THE_MEAN_CONFIDENCE_SCORE = FILE
             + "0078-tier-2-is-a-floor-on-the-mean-confidence-score-low-score-is-not-distributed.md";
 
+    /**
+     * ADR-079 — {@code redundant-with} covers near-duplication and containment, and the fuller
+     * rendering survives. Also fixes the direction: the contained document is redundant with its
+     * container, never the reverse.
+     */
+    public static final String REDUNDANT_WITH_COVERS_NEAR_DUPLICATION_AND_CONTAINMENT = FILE
+            + "0079-redundant-with-covers-near-duplication-and-containment-the-fuller-rendering-survives.md";
+
+    /**
+     * ADR-080 — the boilerplate floor is a gate, applied before signatures are computed. Also settles
+     * that an absent {@code shingle_document_frequency} row is never boilerplate, and that an
+     * all-boilerplate document is empty rather than redundant.
+     */
+    public static final String THE_BOILERPLATE_FLOOR_IS_A_GATE =
+            FILE + "0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md";
+
+    /**
+     * ADR-081 — MinHash retrieves, shingle sets judge; 128 permutations in 16 bands, and containment
+     * gets its own index over each document's rarest shared shingles.
+     */
+    public static final String MINHASH_RETRIEVES_SHINGLE_SETS_JUDGE =
+            FILE + "0081-minhash-retrieves-shingle-sets-judge-128-permutations-in-16-bands.md";
+
+    /**
+     * ADR-082 — stage 4 judges on its first run; its thresholds are code defaults, and it ships no
+     * report. Also settles that only the pairs behind a verdict are stored.
+     */
+    public static final String STAGE_4_JUDGES_ON_ITS_FIRST_RUN = FILE
+            + "0082-stage-4-judges-on-its-first-run-its-thresholds-are-code-defaults-and-it-ships-no-report.md";
+
     private Adr() {
     }
 }
