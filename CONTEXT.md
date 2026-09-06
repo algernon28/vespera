@@ -68,6 +68,10 @@ _Avoid_: drift, skew, bias, incompatible seeds
 A document near the decision boundary — plausibly relevant, actually not. The only kind of negative that informs a threshold, and one that cannot be supplied in advance.
 _Avoid_: counter-example, negative sample
 
+**Relevance label**:
+A person's recorded answer about one document: relevant to the seed set, or not. Not a verdict — it removes nothing and no stage writes it — and not a measurement, because no re-run can produce it a second time. It is a fact about the document rather than about the run that showed it, so it outlives the score that prompted it and the model that computed that score.
+_Avoid_: annotation, ground truth, judgement, rating
+
 **Winning seed**:
 The one seed document that produced a file occurrence's relevance score. Stored, so that a seed's influence over the corpus is a question anyone can ask.
 _Avoid_: best match, nearest seed
