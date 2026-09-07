@@ -53,6 +53,13 @@ class ModuleBoundariesTest {
                     "profile",
                     "pipeline");
 
+    /**
+     * The capability modules: the nine less {@code ledger}, which they depend on, and {@code pipeline},
+     * which is the composition root and depends on all of them.
+     */
+    private static final Set<String> CAPABILITY_MODULES = Set.of(
+            "corpus", "extraction", "similarity", "embedding", "synthesis", "publication", "profile");
+
     private static List<String> identifiers(java.util.stream.Stream<org.springframework.modulith.core.ApplicationModule> modules) {
         return modules.map(module -> module.getIdentifier().toString()).sorted().toList();
     }
@@ -99,6 +106,38 @@ class ModuleBoundariesTest {
                 "no module leaves allowedDependencies unset; one named here would be a module the boundary rule"
                         + " has silently stopped applying to",
                 () -> assertThat(undeclared).isEmpty());
+    }
+
+    /**
+     * A capability module may depend on {@code ledger} and nothing else horizontal (ADR-040), and the
+     * one this is aimed at is {@code embedding}: stage 5 is gated on three profile keys — the seed
+     * folder, the embedding model, the relevance floor — and reading them inside the module is the
+     * shortcut an implementer is most likely to take, because it is so much shorter than threading
+     * each value down from {@code pipeline}.
+     *
+     * <p>{@link #moduleDependenciesAreAllowed} would not catch it. That test verifies compiled
+     * references against each module's <em>own</em> declaration, so widening the declaration and then
+     * reading the profile passes both checks. What holds the rule here is the declaration itself being
+     * asserted, which is why this test names the allowed list rather than the references.
+     */
+    @Test
+    @Story("The boundary rule holds for every module")
+    @DisplayName("A capability module declares ledger alone, so it cannot reach the profile")
+    void everyCapabilityModuleDeclaresLedgerAlone() {
+        List<String> declaringMoreThanLedger = identifiers(MODULES.stream()
+                .filter(module -> CAPABILITY_MODULES.contains(
+                        module.getIdentifier().toString()))
+                .filter(module -> !module.getBasePackage()
+                        .getAnnotation(ApplicationModule.class)
+                        .map(declaration -> List.of(declaration.allowedDependencies()).equals(List.of("ledger")))
+                        .orElse(false)));
+
+        claim(
+                "every capability module present declares exactly ledger and nothing more; one named"
+                        + " here has been widened, and the profile is the dependency that would be reached"
+                        + " for first -- a stage's gates are read in pipeline and handed down as plain"
+                        + " values, never read inside the module that acts on them",
+                () -> assertThat(declaringMoreThanLedger).isEmpty());
     }
 
     /**

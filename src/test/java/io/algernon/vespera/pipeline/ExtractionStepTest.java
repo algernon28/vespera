@@ -8,6 +8,7 @@ import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DoclingError;
@@ -86,6 +87,11 @@ import org.springframework.transaction.annotation.Transactional;
 @ImportAutoConfiguration(BatchAutoConfiguration.class)
 @Import({
     CensusJobConfiguration.class,
+    SeedExtractionJobConfiguration.class,
+    SeedExtractionItemProcessor.class,
+    SeedExtractionItemWriter.class,
+    SeedMeasurementRun.class,
+    SeedGate.class,
     CensusTasklet.class,
     ByteLevelReductionJobConfiguration.class,
     ByteLevelReductionTasklet.class,
@@ -119,6 +125,7 @@ import org.springframework.transaction.annotation.Transactional;
     WalkRecorder.class,
     AnomalyLog.class,
     Ledger.class,
+    UnusableSeeds.class,
     ImplementationVersions.class,
     ProfileStore.class,
     VesperaCommand.class,

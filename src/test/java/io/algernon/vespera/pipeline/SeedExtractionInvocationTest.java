@@ -15,6 +15,7 @@ import io.algernon.vespera.extraction.HybridChunkerBeans;
 import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
@@ -129,6 +130,13 @@ class SeedExtractionInvocationTest {
      */
     private static final String BOILERPLATE_FLOOR = "1.0";
 
+    /**
+     * The four stages ahead of stage 5 that mint a run: the byte-level reduction, extraction, the
+     * content census, and redundancy - whose two steps share one run (ADR-080). Census mints none at
+     * all, because it writes no verdicts.
+     */
+    private static final int STAGES_THAT_MINT_A_RUN_BEFORE_STAGE_5 = 4;
+
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
@@ -168,17 +176,18 @@ class SeedExtractionInvocationTest {
                 "stage 5 minted exactly one measurement run: the seed folder was named, its walk had"
                         + " finished, and at least one seed produced text -- the three conditions ADR-083"
                         + " puts in front of a run row existing at all",
-                () -> assertThat(runIdsFor("seed-measurement")).hasSize(1));
+                () -> assertThat(runIdsFor("seed-measurement", root)).hasSize(1));
         claim(
                 "and that run names stage 4's run as its upstream, not stage 2's: the corpus side of"
                         + " everything stage 5 goes on to read is survivors, and survival is cumulative"
                         + " across every run before it, so a run reaching back past stage 4 would carry an"
                         + " id that two different corpora could share (ADR-089)",
-                () -> assertThat(upstreamStagesOf(runIdsFor("seed-measurement").getFirst()))
+                () -> assertThat(upstreamStagesOf(runIdsFor("seed-measurement", root).getFirst()))
                         .containsExactly("content-redundancy"));
         claim(
                 "no seed was recorded unusable, because the one seed converted with text in it",
-                () -> assertThat(unusableSeeds.forRun(runIdsFor("seed-measurement").getFirst()))
+                () -> assertThat(unusableSeeds.forRun(
+                                runIdsFor("seed-measurement", root).getFirst()))
                         .isEmpty());
     }
 
@@ -193,8 +202,7 @@ class SeedExtractionInvocationTest {
 
         cli.run("run", root.toString());
 
-        WalkId seedWalk = ledger.finishedWalkFor(Walk.canonicalRoot(seeds))
-                .orElseThrow(() -> new IllegalStateException("census recorded no finished walk of the seed folder"));
+        WalkId seedWalk = theSeedWalkOf(seeds);
 
         claim(
                 "the invocation reported success: an unusable seed is recorded, not a failure, and"
@@ -204,7 +212,7 @@ class SeedExtractionInvocationTest {
                 "the seed that produced no text is recorded as unusable, with the reason -- an operator"
                         + " fixing a seed folder needs to know which file and what was wrong with it",
                 () -> assertThat(unusableSeeds
-                                .forRun(runIdsFor("seed-measurement").getFirst())
+                                .forRun(runIdsFor("seed-measurement", root).getFirst())
                                 .stream()
                                 .map(seed -> ledger.factsFor(seed.occurrenceId())
                                         .orElseThrow()
@@ -227,7 +235,6 @@ class SeedExtractionInvocationTest {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve(SeedScriptedExtractionBeans.EMPTY_SEED), "not a document");
         profile(seeds);
-        long runsBefore = runCount();
 
         cli.run("run", root.toString());
 
@@ -240,16 +247,16 @@ class SeedExtractionInvocationTest {
                         + " over an empty set it is undefined -- so a run row here would claim a"
                         + " measurement that cannot exist, which is exactly what ADR-080 keeps out of the"
                         + " run table",
-                () -> assertThat(runIdsFor("seed-measurement")).isEmpty());
+                () -> assertThat(runIdsFor("seed-measurement", root)).isEmpty());
         claim(
                 "no unusable-seed row was written either, because those rows carry the run that found"
                         + " them and there is no run -- what the operator gets instead is a successful"
                         + " invocation that removed nothing, and a seed folder to fix",
-                () -> assertThat(unusableSeedRowCount()).isZero());
+                () -> assertThat(unusableSeedRowsAgainst(theSeedWalkOf(seeds))).isZero());
         claim(
-                "and the earlier stages' runs are all still there: stage 5's gate ends stage 5, not the"
-                        + " invocation, so nothing the cheaper passes learned is lost",
-                () -> assertThat(runCount()).isGreaterThan(runsBefore));
+                "and the four earlier stages each still minted their run over this corpus: stage 5's gate"
+                        + " ends stage 5, not the invocation, so nothing the cheaper passes learned is lost",
+                () -> assertThat(runCountOver(root)).isEqualTo(STAGES_THAT_MINT_A_RUN_BEFORE_STAGE_5));
     }
 
     @Test
@@ -269,7 +276,7 @@ class SeedExtractionInvocationTest {
         claim(
                 "and stage 5 minted no run, because there is no seed folder to have measured anything"
                         + " against",
-                () -> assertThat(runIdsFor("seed-measurement")).isEmpty());
+                () -> assertThat(runIdsFor("seed-measurement", root)).isEmpty());
     }
 
     /** The seed folder named and stage 4's gate open — the fixture every claim above the last needs. */
@@ -290,28 +297,57 @@ class SeedExtractionInvocationTest {
                 new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null)));
     }
 
-    private List<io.algernon.vespera.ledger.RunId> runIdsFor(String stage) {
+    /**
+     * The runs one stage minted <em>over this test's own corpus walk</em>.
+     *
+     * <p>Scoped to the walk rather than counted globally, because the whole class shares one database:
+     * an unscoped query would read the run another test's fixture left behind, and two of the claims
+     * below are about the absence of a run - exactly the shape that passes or fails on somebody
+     * else's rows.
+     */
+    private List<RunId> runIdsFor(String stage, Path root) {
         return jdbcTemplate
-                .queryForList("SELECT id FROM run WHERE stage = ?", String.class, stage)
+                .queryForList(
+                        "SELECT id FROM run WHERE stage = ? AND walk_id = ?",
+                        String.class,
+                        stage,
+                        theCorpusWalkOf(root).value())
                 .stream()
-                .map(io.algernon.vespera.ledger.RunId::new)
+                .map(RunId::new)
                 .toList();
     }
 
+    private WalkId theSeedWalkOf(Path seeds) {
+        return ledger.finishedWalkFor(Walk.canonicalRoot(seeds))
+                .orElseThrow(() -> new IllegalStateException("census recorded no finished walk of " + seeds));
+    }
+
+    private WalkId theCorpusWalkOf(Path root) {
+        return ledger.finishedWalkFor(Walk.canonicalRoot(root))
+                .orElseThrow(() -> new IllegalStateException("census recorded no finished walk of " + root));
+    }
+
     /** Which stages the runs named upstream of {@code runId} were minted by. */
-    private List<String> upstreamStagesOf(io.algernon.vespera.ledger.RunId runId) {
+    private List<String> upstreamStagesOf(RunId runId) {
         return jdbcTemplate.queryForList(
                 "SELECT r.stage FROM run_upstream u JOIN run r ON r.id = u.upstream_run_id WHERE u.run_id = ?",
                 String.class,
                 runId.value());
     }
 
-    private long runCount() {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run", Long.class);
+    /** How many runs of any stage stand over this test's own corpus walk. */
+    private long runCountOver(Path root) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM run WHERE walk_id = ?", Long.class, theCorpusWalkOf(root).value());
     }
 
-    private long unusableSeedRowCount() {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM unusable_seed", Long.class);
+    /** Unusable-seed rows against occurrences of this test's own seed walk. */
+    private long unusableSeedRowsAgainst(WalkId seedWalk) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM unusable_seed u JOIN file_occurrence o ON o.id = u.occurrence_id"
+                        + " WHERE o.walk_id = ?",
+                Long.class,
+                seedWalk.value());
     }
 
     /** Every verdict kind standing against any occurrence of one walk, whatever it says. */
