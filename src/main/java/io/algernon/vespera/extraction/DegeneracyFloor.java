@@ -19,7 +19,7 @@ final class DegeneracyFloor {
      */
     static DegeneracyVerdict evaluate(ExtractionMetric metric, Double confidenceFloor) {
         if (metric.alphanumericCharCount() == 0) {
-            return new DegeneracyVerdict(true, "zero alphanumeric content after whitespace normalisation");
+            return new DegeneracyVerdict(true, UsableText.NO_ALPHANUMERIC_CONTENT);
         }
         if (confidenceFloor != null) {
             Double meanScore = metric.confidence() == null ? null : metric.confidence().meanScore();

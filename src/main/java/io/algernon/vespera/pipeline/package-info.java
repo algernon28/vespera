@@ -8,5 +8,5 @@
  * does drive, and not before.
  */
 @org.springframework.modulith.ApplicationModule(
-        allowedDependencies = {"ledger", "corpus", "profile", "extraction", "similarity"})
+        allowedDependencies = {"ledger", "corpus", "profile", "extraction", "similarity", "embedding"})
 package io.algernon.vespera.pipeline;

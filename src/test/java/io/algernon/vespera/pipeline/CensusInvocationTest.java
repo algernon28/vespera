@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
@@ -87,11 +88,17 @@ import picocli.CommandLine;
     RedundancyBoilerplate.class,
     RedundancySignatureItemWriter.class,
     RedundancyResolutionTasklet.class,
+    SeedExtractionJobConfiguration.class,
+    SeedExtractionItemProcessor.class,
+    SeedExtractionItemWriter.class,
+    SeedMeasurementRun.class,
+    SeedGate.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
     BoilerplateShingles.class,
     DocumentFrequency.class,
     ConfidenceDistribution.class,
+    UnusableSeeds.class,
     Shingler.class,
     HybridChunkerBeans.class,
     StubbedExtractionBeans.class,
@@ -189,8 +196,8 @@ class CensusInvocationTest {
         claim(
                 "the stages built so far run in the order they filter in -- census, then the byte-level"
                         + " reduction, then extraction, then the content census, then redundancy in its two"
-                        + " steps -- so each pass only ever measures what the cheaper passes before it left"
-                        + " standing",
+                        + " steps, then the seed set stage 5 scores against -- so each pass only ever"
+                        + " measures what the cheaper passes before it left standing",
                 () -> assertThat(stagesInOrder)
                         .containsExactly(
                                 "census",
@@ -198,7 +205,8 @@ class CensusInvocationTest {
                                 "extraction",
                                 "content-census",
                                 "redundancy-signature",
-                                "content-redundancy"));
+                                "content-redundancy",
+                                "seed-extraction"));
         claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
                         + " summarises a whole extraction pass, and a summary computed over a pass still"

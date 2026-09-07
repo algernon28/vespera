@@ -47,6 +47,26 @@ class ContentHashingTest {
     private static final int HEX_CHARACTERS_IN_A_DIGEST = 64;
 
     @Test
+    @Story("Both hashers compute one content identity")
+    @DisplayName("The hash computed here is byte-for-byte the one corpus records for the same file")
+    @Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
+    @Link(name = "ADR-083", url = Adr.THE_SEED_SET_IS_EXTRACTED_BY_STAGE_5, type = "adr")
+    void agreesWithTheHashCorpusRecordsForTheSameBytes(@TempDir Path dir) throws IOException {
+        Path file = Files.write(dir.resolve("shared.txt"), KNOWN_INPUT.getBytes(StandardCharsets.US_ASCII));
+
+        claim(
+                "the two hashers answer the same digest for the same bytes. There are two"
+                        + " implementations because each part of the system computes its own, and until now"
+                        + " their agreement was only a sentence in a comment. It carries weight: cached"
+                        + " conversions and cached chunks are both filed under the content's hash, so a"
+                        + " document that is both a seed and an archive member is converted once only while"
+                        + " these two agree. Drift would not fail anything loudly -- it would quietly"
+                        + " convert every shared document twice and file the two copies apart",
+                () -> assertThat(ContentHashing.sha256(file))
+                        .isEqualTo(io.algernon.vespera.corpus.ContentHash.sha256(file)));
+    }
+
+    @Test
     @Story("The hash is the standard one")
     @DisplayName("A file's hash is the published digest of its bytes, in lowercase hexadecimal")
     void matchesThePublishedDigestOfAKnownInput(@TempDir Path dir) throws IOException {

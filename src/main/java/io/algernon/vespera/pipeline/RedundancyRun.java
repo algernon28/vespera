@@ -109,8 +109,13 @@ class RedundancyRun {
      * {@code configConsumed} names the walk/root, the stage-3 run id read, and the boilerplate floor
      * value: a run under a different floor must be a different run, since the floor sits in every
      * signature's identity and changes what every signature this run writes actually means (ADR-080).
+     *
+     * <p>Package-visible rather than private, for the reason {@link ExtractionRun#configConsumed} already
+     * is: {@link SeedMeasurementRun} re-derives this exact run's identity from its known-fixed inputs to
+     * name it upstream (ADR-089), and an independently reimplemented copy of this JSON shape would risk
+     * drifting from what actually got hashed here.
      */
-    private static String configConsumed(Path canonicalRoot, RunId stage3RunId, double floor) {
+    static String configConsumed(Path canonicalRoot, RunId stage3RunId, double floor) {
         return JSON_MAPPER.writeValueAsString(
                 new ConfigConsumed(canonicalRoot.toString(), stage3RunId.value(), floor));
     }

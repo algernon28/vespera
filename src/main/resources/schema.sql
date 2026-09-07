@@ -331,3 +331,24 @@ CREATE TABLE IF NOT EXISTS redundant_with (
     score REAL NOT NULL,
     PRIMARY KEY (occurrence_id, run_id)
 );
+
+-- embedding's own table (ADR-083): a seed document that produced no text, recorded as data rather
+-- than judged. The bar is stage 2's tier 1 exactly -- no alphanumeric content at all after
+-- whitespace normalisation (ADR-070) -- and deliberately no stricter, since a confidence threshold
+-- for seeds is one nobody has measured.
+--
+-- There is no verdict here and there never will be: every kind in the closed vocabulary (ADR-042)
+-- exists to remove a document from publication, and a seed is never published. An unreadable seed is
+-- an operator's problem to fix, not a document to filter.
+--
+-- run_id is the measurement run that found it, so a corrected seed folder -- which is a different
+-- run, because the seed folder is part of what that run's identity is derived from (ADR-083) --
+-- records its own row set rather than overwriting this one. That is what keeps scores taken against
+-- a partial seed set from ever being mistaken for scores against a complete one, by identity rather
+-- than by a check.
+CREATE TABLE IF NOT EXISTS unusable_seed (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    reason TEXT NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id)
+);

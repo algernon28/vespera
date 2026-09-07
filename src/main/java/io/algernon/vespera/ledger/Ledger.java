@@ -320,6 +320,44 @@ public class Ledger {
     }
 
     /**
+     * Every occurrence of {@code walkId}, as a reader a step consumes chunk by chunk — the seed
+     * walk's own pass (ADR-083).
+     *
+     * <p>Deliberately not {@link #survivors}, and the difference is the decision rather than a
+     * convenience. Survivorship is the absence of a blocking verdict, and no verdict is ever written
+     * against a seed occurrence: every kind in the closed vocabulary exists to remove a document from
+     * publication, and a seed is never published. Filtering seeds through the survivors query would
+     * quietly make a seed folder subject to the corpus's own removals — a seed that happens to be a
+     * byte-identical copy of another file would vanish from the seed set for a reason that has nothing
+     * to do with seeds.
+     *
+     * <p>A reader rather than a {@code List} for the same reason {@link #survivors} is one: the SQL
+     * stays inside {@code ledger} (ADR-060), and a seed folder large enough to matter is not held in
+     * memory to be counted.
+     */
+    public ItemStreamReader<OccurrenceId> occurrencesOf(WalkId walkId) {
+        SqlitePagingQueryProvider queryProvider = new SqlitePagingQueryProvider();
+        queryProvider.setSelectClause("id");
+        queryProvider.setFromClause("file_occurrence");
+        queryProvider.setWhereClause("walk_id = :walkId");
+        queryProvider.setSortKeys(Map.of("id", Order.ASCENDING));
+
+        JdbcPagingItemReader<OccurrenceId> reader = new JdbcPagingItemReader<>(dataSource(), queryProvider);
+        reader.setName("occurrencesOf" + walkId.value());
+        reader.setParameterValues(Map.of("walkId", walkId.value()));
+        reader.setPageSize(SURVIVORS_PAGE_SIZE);
+        reader.setRowMapper((resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("id")));
+        try {
+            reader.afterPropertiesSet();
+        } catch (Exception e) {
+            // Only ever a mistake in the query above: the reader validates its own configuration
+            // here, and nothing about it depends on the caller.
+            throw new IllegalStateException("the occurrences reader is misconfigured", e);
+        }
+        return reader;
+    }
+
+    /**
      * The blocking kinds as SQL literals rather than as placeholders.
      *
      * <p>Inlining a value into SQL is the thing not to do, with one exception, and this is it: these

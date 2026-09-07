@@ -56,9 +56,12 @@ class SchemaVersionDeclarationTest {
      * schema version for it would be a claim about nothing. {@code pipeline} is absent because it
      * composes the others and owns no tables of its own. Add a module here in the same commit that
      * gives it its first table.
+     *
+     * <p>{@code embedding} joins the list with {@code unusable_seed} (ADR-083), the first table stage
+     * 5 owns and the first this project has added outside the original four table-owning modules.
      */
     private static final Set<String> MODULES_OWNING_TABLES =
-            Set.of("ledger", "corpus", "extraction", "similarity");
+            Set.of("ledger", "corpus", "extraction", "similarity", "embedding");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
