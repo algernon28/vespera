@@ -5,7 +5,8 @@ package io.algernon.vespera.extraction;
  *
  * @param ordinal this chunk's position among the document's chunks, starting at 0
  * @param text the chunk's text, structure-first (ADR-029) rather than an arbitrary character window
- * @param tokenCount {@code text}'s size under the tokenizer it was chunked with — stored so a reader
- *     never has to re-tokenize just to answer how big a chunk is
+ * @param wordCount {@code text}'s size in the unit its {@link ChunkingRule} budgets (ADR-091):
+ *     whitespace-separated words, stored so a reader never has to re-measure a chunk to say how
+ *     big it is. Not a token count — nothing here counts tokens.
  */
-public record Chunk(int ordinal, String text, int tokenCount) {}
+public record Chunk(int ordinal, String text, int wordCount) {}

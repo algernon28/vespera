@@ -160,6 +160,10 @@ _Avoid_: the wiki, the Confluence output, the export
 
 ### Cached artifacts
 
+**Instrument**:
+Anything whose version changes what a cached artifact means: the extractor, the chunker, the tokenizer, the embedder. Each carries an **identity** that keys the rows it produced, so a changed instrument mints new rows rather than overwriting the old ones — which is what lets two of them coexist for comparison. An identity is composed of what the instrument's runtime reports about itself plus what we asked of it, never of where it is served: two deployments answering alike are one instrument, and moving a port is not a change. It refuses a blank value, because an instrument that cannot say what it is cannot be told apart from one that can.
+_Avoid_: engine, tool, model (each names one instrument at most, and "model" is the embedder's name rather than the embedder)
+
 **Extraction cache**:
 Stored extractor output, keyed so that an engine swap can never silently serve output produced by a different model.
 _Avoid_: extraction results, parsed store

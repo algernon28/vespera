@@ -14,9 +14,10 @@ import java.util.List;
 interface StructurelessChunkingFallback {
 
     /**
-     * Splits {@code text} into token-budgeted chunks with no structural boundaries to respect.
+     * Splits {@code text} into chunks within {@code rule}'s budget, with no structural boundaries
+     * to respect.
      * {@code text} is empty exactly when Docling reported no structural items and no other text
      * source exists, in which case the result is empty too.
      */
-    List<String> chunk(String text, Tokenizer tokenizer, int maxChunkTokens);
+    List<String> chunk(String text, ChunkingRule rule);
 }

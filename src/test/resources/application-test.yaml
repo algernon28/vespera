@@ -1,3 +1,12 @@
+vespera:
+  # Bound empty so no test inherits a corpus root from the shipped application.yaml. That file is
+  # layered under this one, not replaced, so a vespera.corpus-root added there -- for a local archive
+  # someone runs against every day -- reaches every test context too. UnconfiguredRootTest asserts a
+  # refusal that only happens when nothing names a root, and it walked the real archive for half a
+  # minute before failing about an exit code when that happened. Empty and absent are the same thing
+  # to the command, which checks for blank, so binding it here costs nothing the tests rely on.
+  corpus-root: ""
+
 # Loaded on top of src/main/resources/application.yaml when the "test" profile is active,
 # because a profile-specific file layers rather than replaces. An identically named
 # application.yaml here would shadow the main one entirely instead — same classpath

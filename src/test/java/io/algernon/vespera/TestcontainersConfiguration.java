@@ -102,4 +102,16 @@ public class TestcontainersConfiguration {
                 () -> "http://%s:%d".formatted(doclingServeContainer.getHost(), doclingServeContainer.getMappedPort(DOCLING_SERVE_PORT)));
     }
 
+    /**
+     * Points {@code spring.ai.ollama.base-url} at the running container. {@code @ServiceConnection}
+     * already tells Spring AI's own auto-configuration where Ollama is, but it does that through
+     * connection details rather than by publishing a property — so anything reading the property
+     * itself, as {@code OllamaClient} does for the identity metadata Spring AI's DTOs cannot compose
+     * (ADR-091), would otherwise fall back to its {@code localhost:11434} default and reach nothing.
+     */
+    @Bean
+    DynamicPropertyRegistrar ollamaProperties(OllamaContainer ollamaContainer) {
+        return registry -> registry.add("spring.ai.ollama.base-url", ollamaContainer::getEndpoint);
+    }
+
 }

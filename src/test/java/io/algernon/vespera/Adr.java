@@ -261,6 +261,13 @@ public final class Adr {
             + "0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md";
 
     /**
+     * ADR-084 — the embedding model is a profile gate, and a vector carries its whole embedder
+     * identity rather than only the model's name.
+     */
+    public static final String THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE = FILE
+            + "0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md";
+
+    /**
      * ADR-089 — a stage's run names the immediately preceding stage's run upstream, because blocking
      * verdicts are cumulative across runs, so any pass over survivors is determined by every
      * verdict-writing run before it. A verdict-free stage stays in the chain.
@@ -274,6 +281,14 @@ public final class Adr {
      */
     public static final String THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP = FILE
             + "0090-the-extractor-identity-is-the-sidecars-version-map-and-the-options-the-client-sends-never-its-url.md";
+
+    /**
+     * ADR-091 — there is no tokenizer: the runtime counts tokens behind {@code truncate: false}, the
+     * chunker enforces a deterministic word budget, and the embedder identity is what Ollama reports
+     * plus what we send.
+     */
+    public static final String THERE_IS_NO_TOKENIZER = FILE
+            + "0091-there-is-no-tokenizer-the-runtime-counts-tokens-and-the-embedder-identity-is-what-ollama-reports.md";
 
     private Adr() {
     }

@@ -66,8 +66,8 @@ class ExtractionSchemaTest {
         new ExtractionSchema(new SchemaVersionGuard(jdbcTemplate));
 
         claim(
-                "the version recorded is exactly VERSION 3, the confidence_distribution bump -- not a"
-                        + " value borrowed from ledger, corpus or similarity's own rows",
+                "the version recorded is exactly VERSION 4, the chunk_cache rename -- not a value"
+                        + " borrowed from ledger, corpus or similarity's own rows",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT version FROM schema_version WHERE module = ?",
                                 Integer.class,
@@ -77,18 +77,20 @@ class ExtractionSchemaTest {
 
     @Test
     @Story("A module states the schema it was built against")
-    @DisplayName("VERSION is the literal 3, and confidence_distribution is the table that came with it")
-    void versionIsTheConfidenceDistributionBumpLiterally() {
+    @DisplayName("VERSION is the literal 4, and chunk_cache carries the renamed column that came with it")
+    void versionIsTheChunkCacheRenameLiterally() {
         claim(
-                "the version and the table it names arrived together, so a later table added without a"
-                        + " bump would leave this constant already committed to the wrong value",
-                () -> assertThat(ExtractionSchema.VERSION).isEqualTo(3));
+                "the version and the change it names arrived together, so a later table or column"
+                        + " changed without a bump would leave this constant already committed to the"
+                        + " wrong value",
+                () -> assertThat(ExtractionSchema.VERSION).isEqualTo(4));
         claim(
-                "confidence_distribution is present in the schema this VERSION claims to describe",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-                                String.class,
-                                "confidence_distribution"))
-                        .isEqualTo("confidence_distribution"));
+                "chunk_cache carries chunking_rule_identity rather than the tokenizer_identity ADR-044"
+                        + " named, which is the rename this VERSION claims to describe: a database"
+                        + " written under the old name holds boundaries no rule here would cut",
+                () -> assertThat(jdbcTemplate.queryForList(
+                                "SELECT name FROM pragma_table_info('chunk_cache')", String.class))
+                        .contains("chunking_rule_identity")
+                        .doesNotContain("tokenizer_identity"));
     }
 }

@@ -33,6 +33,7 @@ import org.springframework.boot.batch.autoconfigure.BatchAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -54,6 +55,21 @@ import picocli.CommandLine;
  * that colon and Spring hands the command the literal string {@code ${vespera.corpus-root}}, which
  * is not blank, so the run walks a path named after a placeholder and fails as though the disk were
  * at fault. Only an invocation with nothing bound catches it.
+ *
+ * <p>{@code application-test.yaml} binds {@code vespera.corpus-root} empty so that this context
+ * cannot inherit one from the shipped {@code application.yaml} — a profile-specific file layers over
+ * that one rather than replacing it, so a root added there for a local archive would otherwise reach
+ * here, and this test would walk it for half a minute before failing about an exit code. Empty and
+ * absent are the same thing to the command, which checks for blank.
+ *
+ * <p>The precondition is <b>claimed rather than assumed</b> all the same, because the binding is
+ * configuration and configuration drifts: the first claim below names the cause, so a root that does
+ * reach here fails in seconds against the file that has to change instead of against the exit code.
+ *
+ * <p>What that binding costs, said plainly: with the key present-but-empty, dropping the {@code :}
+ * default from the command's own {@code @Value} would resolve cleanly rather than yielding the
+ * literal placeholder, so <b>no test guards that any more</b>. The trade is deliberate — a
+ * hypothetical regression against a foot-gun that has already fired.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -128,12 +144,23 @@ class UnconfiguredRootTest {
     private VesperaCli cli;
 
     @Autowired
+    private Environment environment;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
     @Story("Where the root comes from")
     @DisplayName("An invocation with no root named and none configured refuses, and walks nothing")
     void refusesWhenNothingNamesARoot() {
+        claim(
+                "no corpus root worth walking is bound in this context, which is the precondition the"
+                        + " rest of this test rests on. It is claimed rather than assumed because it is"
+                        + " configuration, not code: a real root reaching here would make every claim"
+                        + " below pass or fail for a reason that has nothing to do with the wiring under"
+                        + " test, and would walk that archive to do it",
+                () -> assertThat(environment.getProperty("vespera.corpus-root")).isBlank());
+
         cli.run("run");
 
         claim(

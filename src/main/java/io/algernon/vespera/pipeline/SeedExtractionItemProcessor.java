@@ -3,8 +3,6 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ExtractorIdentity;
-import io.algernon.vespera.extraction.HybridChunker;
-import io.algernon.vespera.extraction.Tokenizer;
 import io.algernon.vespera.extraction.UsableText;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
@@ -15,15 +13,18 @@ import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.stereotype.Component;
 
 /**
- * Extracts and chunks one seed document (ADR-083), reusing stage 2's instruments exactly as they
- * stand: {@link DoclingExtractor}'s content-addressed cache and {@link HybridChunker}'s.
+ * Extracts one seed document (ADR-083), reusing stage 2's instrument exactly as it stands:
+ * {@link DoclingExtractor}'s content-addressed cache.
+ *
+ * <p>It does not chunk (ADR-091). Stage 5 re-chunks from the extraction cache once an embedding
+ * model is named, and until one is there is no budget any reader would agree with.
  *
  * <p>Not stage 2's own processor pointed at a second walk. That one is bound to the corpus walk and
  * exists to write corpus verdicts — {@code extraction-failed}, {@code degenerate-output} — and every
  * one of those removes a document from publication. A seed is never published, so this pass writes no
  * verdict at all, whatever a conversion does.
  *
- * <p><b>Nothing here needs a run.</b> The extraction and chunk caches are content-addressed and carry
+ * <p><b>Nothing here needs a run.</b> The extraction cache is content-addressed and carries
  * no {@code run_id}, which is what lets the whole seed folder be extracted <em>before</em> anything
  * decides whether a run should exist — the ordering ADR-083's gate requires, since "no usable seed at
  * all" cannot be answered without extracting the seeds. It is also what makes ADR-083's "a seed that
@@ -42,22 +43,16 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
     private final Ledger ledger;
     private final DoclingExtractor extractor;
     private final ExtractorIdentity extractorIdentity;
-    private final HybridChunker chunker;
-    private final Tokenizer tokenizer;
     private final SeedGate.SeedWalk seedWalk;
 
     SeedExtractionItemProcessor(
             Ledger ledger,
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
-            HybridChunker chunker,
-            Tokenizer tokenizer,
             SeedGate seedGate) {
         this.ledger = ledger;
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
-        this.chunker = chunker;
-        this.tokenizer = tokenizer;
         this.seedWalk = seedGate.seedWalk()
                 .orElseThrow(() -> new IllegalStateException(
                         "the seed extraction processor must not be instantiated while the seed gate is closed"));
@@ -76,7 +71,6 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
             // folder is part of what that run's identity is derived from (ADR-083).
             return SeedExtractionOutcome.unusable(occurrenceId, UsableText.NO_ALPHANUMERIC_CONTENT);
         }
-        chunker.chunk(response.rawResponse(), contentHash, tokenizer);
         return SeedExtractionOutcome.usable(occurrenceId);
     }
 

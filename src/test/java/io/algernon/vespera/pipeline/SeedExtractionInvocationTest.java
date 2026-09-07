@@ -138,10 +138,11 @@ class SeedExtractionInvocationTest {
     private static final int STAGES_THAT_MINT_A_RUN_BEFORE_STAGE_5 = 4;
 
     /**
-     * The one seed in that fixture that converts with text in it, alongside the one that does not. The
-     * corpus document is chunked too, so the assertion is a floor rather than an equality.
+     * Stage 5 mints exactly one measurement run over a seed folder, and only if a seed produced text
+     * (ADR-083's gate) — which is what makes its existence evidence that the pass reached the seed
+     * after the unusable one.
      */
-    private static final int SEEDS_THAT_PRODUCE_TEXT = 1;
+    private static final int ONE_MEASUREMENT_RUN = 1;
 
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
@@ -234,12 +235,12 @@ class SeedExtractionInvocationTest {
                         + " never published",
                 () -> assertThat(verdictKindsAgainstOccurrencesOf(seedWalk)).isEmpty());
         claim(
-                "and the seed that did produce text was chunked, so the pass carried on past the unusable"
-                        + " one rather than stopping at it. This is the half of \"scoring proceeds against"
-                        + " the seeds that survived\" that a recorded row for the bad seed does not show:"
-                        + " a pass that gave up at the first empty document would leave exactly the same"
-                        + " unusable row behind and no chunks at all",
-                () -> assertThat(chunkedDocuments()).isGreaterThanOrEqualTo(SEEDS_THAT_PRODUCE_TEXT));
+                "and stage 5's run exists, which is what says the pass carried on past the unusable"
+                        + " seed rather than stopping at it: the run is minted only once a seed has"
+                        + " produced text, so a pass that gave up at the first empty document would"
+                        + " leave the gate shut, no run, and — since an unusable-seed row carries the run"
+                        + " that found it — not even the row claimed above",
+                () -> assertThat(runIdsFor("seed-measurement", root)).hasSize(ONE_MEASUREMENT_RUN));
     }
 
     @Test
@@ -355,12 +356,6 @@ class SeedExtractionInvocationTest {
     }
 
     /** Unusable-seed rows against occurrences of this test's own seed walk. */
-    /** How many documents have chunks stored, under any chunker and tokenizer identity. */
-    private long chunkedDocuments() {
-        return jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT content_hash) FROM chunk_cache", Long.class);
-    }
-
     private long unusableSeedRowsAgainst(WalkId seedWalk) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM unusable_seed u JOIN file_occurrence o ON o.id = u.occurrence_id"
