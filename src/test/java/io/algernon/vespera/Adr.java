@@ -261,6 +261,13 @@ public final class Adr {
             + "0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md";
 
     /**
+     * ADR-084 — the embedding model is a profile gate, and a vector carries its whole embedder
+     * identity rather than only the model's name.
+     */
+    public static final String THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE = FILE
+            + "0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md";
+
+    /**
      * ADR-089 — a stage's run names the immediately preceding stage's run upstream, because blocking
      * verdicts are cumulative across runs, so any pass over survivors is determined by every
      * verdict-writing run before it. A verdict-free stage stays in the chain.
