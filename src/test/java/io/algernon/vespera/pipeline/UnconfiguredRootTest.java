@@ -56,12 +56,20 @@ import picocli.CommandLine;
  * is not blank, so the run walks a path named after a placeholder and fails as though the disk were
  * at fault. Only an invocation with nothing bound catches it.
  *
- * <p>That precondition is <b>claimed here rather than assumed</b>. It is a property of a file under
- * {@code src/main} — {@code application-test.yaml} layers over the shipped one rather than replacing
- * it, so a {@code vespera.corpus-root} added there for local convenience reaches this context too.
- * Left unstated, that turns this test into a silent false negative: the invocation finds a root,
- * walks a real archive, and the refusal claim fails naming the exit code rather than the cause. The
- * first claim below states it, so the failure names the file that has to change.
+ * <p>{@code application-test.yaml} binds {@code vespera.corpus-root} empty so that this context
+ * cannot inherit one from the shipped {@code application.yaml} — a profile-specific file layers over
+ * that one rather than replacing it, so a root added there for a local archive would otherwise reach
+ * here, and this test would walk it for half a minute before failing about an exit code. Empty and
+ * absent are the same thing to the command, which checks for blank.
+ *
+ * <p>The precondition is <b>claimed rather than assumed</b> all the same, because the binding is
+ * configuration and configuration drifts: the first claim below names the cause, so a root that does
+ * reach here fails in seconds against the file that has to change instead of against the exit code.
+ *
+ * <p>What that binding costs, said plainly: with the key present-but-empty, dropping the {@code :}
+ * default from the command's own {@code @Value} would resolve cleanly rather than yielding the
+ * literal placeholder, so <b>no test guards that any more</b>. The trade is deliberate — a
+ * hypothetical regression against a foot-gun that has already fired.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -146,11 +154,12 @@ class UnconfiguredRootTest {
     @DisplayName("An invocation with no root named and none configured refuses, and walks nothing")
     void refusesWhenNothingNamesARoot() {
         claim(
-                "nothing binds a corpus root in this context, which is the precondition the rest of"
-                        + " this test rests on — stated here because it belongs to a file under src/main,"
-                        + " and a root configured there would make every claim below pass or fail for a"
-                        + " reason that has nothing to do with the wiring under test",
-                () -> assertThat(environment.getProperty("vespera.corpus-root")).isNull());
+                "no corpus root worth walking is bound in this context, which is the precondition the"
+                        + " rest of this test rests on. It is claimed rather than assumed because it is"
+                        + " configuration, not code: a real root reaching here would make every claim"
+                        + " below pass or fail for a reason that has nothing to do with the wiring under"
+                        + " test, and would walk that archive to do it",
+                () -> assertThat(environment.getProperty("vespera.corpus-root")).isBlank());
 
         cli.run("run");
 
