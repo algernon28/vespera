@@ -208,13 +208,6 @@ class CensusInvocationTest {
                                 "content-redundancy",
                                 "seed-extraction"));
         claim(
-                "and the seed set is extracted last of all, after redundancy: its own comparison reads"
-                        + " corpus survivors, and survival is cumulative across every run before it"
-                        + " (ADR-089), so extracting seeds ahead of the cheaper filters would measure the"
-                        + " seed set against a corpus that no longer exists by the time anything is scored",
-                () -> assertThat(stagesInOrder.indexOf("seed-extraction"))
-                        .isGreaterThan(stagesInOrder.indexOf("content-redundancy")));
-        claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
                         + " summarises a whole extraction pass, and a summary computed over a pass still"
                         + " running would shift every time that pass resumed mid-corpus, quietly calibrating"

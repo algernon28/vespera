@@ -16,6 +16,16 @@ package io.algernon.vespera.extraction;
  */
 public final class UsableText {
 
+    /**
+     * How the absence of text is worded, wherever it is reported.
+     *
+     * <p>Here rather than at each site for the reason the predicate is: the bar is one rule, so it gets
+     * one wording. Stage 2 reports it as a {@code degenerate-output} reason and stage 5 as an unusable
+     * seed's reason, and an operator comparing the two should not have to wonder whether two slightly
+     * different sentences describe two slightly different bars.
+     */
+    public static final String NO_ALPHANUMERIC_CONTENT = "zero alphanumeric content after whitespace normalisation";
+
     private UsableText() {}
 
     /**

@@ -17,9 +17,10 @@ import org.springframework.stereotype.Component;
  * seeds that survived extraction.
  *
  * <p>Rows are per run rather than per occurrence, so a corrected seed folder — which is a different
- * run (ADR-089) — records its own row set beside the earlier one rather than overwriting it. That is
- * what keeps scores taken against a partial seed set from being read as scores against a complete
- * one, by identity rather than by a check anyone has to remember.
+ * run, because the seed folder is part of what the measurement run's identity is derived from
+ * (ADR-083, and #94 §9 for the run's own shape) — records its own row set beside the earlier one
+ * rather than overwriting it. That is what keeps scores taken against a partial seed set from being
+ * read as scores against a complete one, by identity rather than by a check anyone has to remember.
  */
 @Component
 public class UnusableSeeds {

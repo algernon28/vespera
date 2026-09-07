@@ -55,14 +55,13 @@ class ContentHashingTest {
         Path file = Files.write(dir.resolve("shared.txt"), KNOWN_INPUT.getBytes(StandardCharsets.US_ASCII));
 
         claim(
-                "the two hashers answer the same digest for the same bytes. Two implementations of one"
-                        + " content identity exist because each module owns its own (ADR-040), and until"
-                        + " now their agreement was a sentence in a javadoc. It is load-bearing: the"
-                        + " extraction and chunk caches are keyed by content hash, so a document that is"
-                        + " both a seed and a corpus member is extracted once only while these two agree"
-                        + " (ADR-073's same-instrument precondition, which ADR-083 leans on). Drift here"
-                        + " would not fail anything loudly -- it would quietly convert every shared"
-                        + " document twice and file the two copies under different keys",
+                "the two hashers answer the same digest for the same bytes. There are two"
+                        + " implementations because each part of the system computes its own, and until now"
+                        + " their agreement was only a sentence in a comment. It carries weight: cached"
+                        + " conversions and cached chunks are both filed under the content's hash, so a"
+                        + " document that is both a seed and an archive member is converted once only while"
+                        + " these two agree. Drift would not fail anything loudly -- it would quietly"
+                        + " convert every shared document twice and file the two copies apart",
                 () -> assertThat(ContentHashing.sha256(file))
                         .isEqualTo(io.algernon.vespera.corpus.ContentHash.sha256(file)));
     }

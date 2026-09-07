@@ -54,11 +54,13 @@ class ModuleBoundariesTest {
                     "pipeline");
 
     /**
-     * The capability modules: the nine less {@code ledger}, which they depend on, and {@code pipeline},
-     * which is the composition root and depends on all of them.
+     * The capability modules, derived rather than re-listed: the recorded nine less {@code ledger},
+     * which they all depend on, and {@code pipeline}, which is the composition root and may depend on
+     * all of them. Deriving it means a tenth module added above cannot be forgotten here.
      */
-    private static final Set<String> CAPABILITY_MODULES = Set.of(
-            "corpus", "extraction", "similarity", "embedding", "synthesis", "publication", "profile");
+    private static final Set<String> CAPABILITY_MODULES = RECORDED_MODULES.stream()
+            .filter(module -> !"ledger".equals(module) && !"pipeline".equals(module))
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
     private static List<String> identifiers(java.util.stream.Stream<org.springframework.modulith.core.ApplicationModule> modules) {
         return modules.map(module -> module.getIdentifier().toString()).sorted().toList();
@@ -135,8 +137,9 @@ class ModuleBoundariesTest {
         claim(
                 "every capability module present declares exactly ledger and nothing more; one named"
                         + " here has been widened, and the profile is the dependency that would be reached"
-                        + " for first -- a stage's gates are read in pipeline and handed down as plain"
-                        + " values, never read inside the module that acts on them",
+                        + " for first -- the values a pass is switched on and off by are read where the"
+                        + " passes are assembled and handed down as plain numbers and paths, never read"
+                        + " inside the module that acts on them",
                 () -> assertThat(declaringMoreThanLedger).isEmpty());
     }
 

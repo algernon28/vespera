@@ -24,8 +24,6 @@ public final class PathScriptedExtractor extends DoclingExtractor {
 
     private DoclingResponse defaultAnswer;
 
-    private int conversions;
-
     public PathScriptedExtractor() {
         super(null, null);
     }
@@ -42,11 +40,6 @@ public final class PathScriptedExtractor extends DoclingExtractor {
         return this;
     }
 
-    /** How many conversions have been asked of this extractor. */
-    public int conversions() {
-        return conversions;
-    }
-
     @Override
     public DoclingResponse convert(Path file, String contentHash, ExtractorIdentity extractorIdentity) {
         return answerFor(file);
@@ -58,7 +51,6 @@ public final class PathScriptedExtractor extends DoclingExtractor {
     }
 
     private DoclingResponse answerFor(Path file) {
-        conversions++;
         DoclingResponse response =
                 answersByFileName.getOrDefault(file.getFileName().toString(), defaultAnswer);
         if (response == null) {

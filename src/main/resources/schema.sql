@@ -342,9 +342,10 @@ CREATE TABLE IF NOT EXISTS redundant_with (
 -- an operator's problem to fix, not a document to filter.
 --
 -- run_id is the measurement run that found it, so a corrected seed folder -- which is a different
--- run (ADR-089) -- records its own row set rather than overwriting this one. That is what keeps
--- scores taken against a partial seed set from ever being mistaken for scores against a complete
--- one, by identity rather than by a check.
+-- run, because the seed folder is part of what that run's identity is derived from (ADR-083) --
+-- records its own row set rather than overwriting this one. That is what keeps scores taken against
+-- a partial seed set from ever being mistaken for scores against a complete one, by identity rather
+-- than by a check.
 CREATE TABLE IF NOT EXISTS unusable_seed (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),

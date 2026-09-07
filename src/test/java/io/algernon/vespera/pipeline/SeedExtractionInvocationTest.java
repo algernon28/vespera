@@ -137,6 +137,12 @@ class SeedExtractionInvocationTest {
      */
     private static final int STAGES_THAT_MINT_A_RUN_BEFORE_STAGE_5 = 4;
 
+    /**
+     * The one seed in that fixture that converts with text in it, alongside the one that does not. The
+     * corpus document is chunked too, so the assertion is a floor rather than an equality.
+     */
+    private static final int SEEDS_THAT_PRODUCE_TEXT = 1;
+
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
@@ -158,7 +164,7 @@ class SeedExtractionInvocationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @Story("The seed set is extracted under stage 5's measurement run")
+    @Story("The seed set is extracted under its own measurement run")
     @DisplayName("A named seed folder is extracted, and the run names stage 4's run upstream")
     @Link(name = "ADR-089", url = Adr.A_RUN_NAMES_ITS_IMMEDIATE_PREDECESSOR_UPSTREAM, type = "adr")
     void extractsTheSeedSetAndNamesStageFourUpstream(@TempDir Path root, @TempDir Path seeds) throws IOException {
@@ -173,15 +179,16 @@ class SeedExtractionInvocationTest {
                         + " than the wreckage of a failed one",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "stage 5 minted exactly one measurement run: the seed folder was named, its walk had"
-                        + " finished, and at least one seed produced text -- the three conditions ADR-083"
-                        + " puts in front of a run row existing at all",
+                "exactly one measurement run was minted: the seed folder was named, its walk had"
+                        + " finished, and at least one seed produced text -- the three conditions that have"
+                        + " to hold before a run row exists at all",
                 () -> assertThat(runIdsFor("seed-measurement", root)).hasSize(1));
         claim(
-                "and that run names stage 4's run as its upstream, not stage 2's: the corpus side of"
-                        + " everything stage 5 goes on to read is survivors, and survival is cumulative"
-                        + " across every run before it, so a run reaching back past stage 4 would carry an"
-                        + " id that two different corpora could share (ADR-089)",
+                "and that run names the redundancy run as the one before it, rather than reaching"
+                        + " further back to extraction. What this stage goes on to read is the documents"
+                        + " still standing, and a document stops standing the moment any earlier pass rules"
+                        + " it out -- so a run that skipped the pass before it would carry an identity that"
+                        + " two different sets of surviving documents could share",
                 () -> assertThat(upstreamStagesOf(runIdsFor("seed-measurement", root).getFirst()))
                         .containsExactly("content-redundancy"));
         claim(
@@ -221,11 +228,18 @@ class SeedExtractionInvocationTest {
                                 .toList())
                         .containsExactly(SeedScriptedExtractionBeans.EMPTY_SEED));
         claim(
-                "and not one verdict of any kind stands against any seed occurrence -- asserted against"
-                        + " the whole closed vocabulary rather than the plausible kinds, because every kind"
-                        + " in it exists to remove a document from publication and a seed is never"
-                        + " published",
+                "and not one verdict of any kind stands against any seed document -- asserted against"
+                        + " the whole fixed vocabulary rather than the likely-looking kinds, because every"
+                        + " word in it exists to remove a document from what gets published, and a seed is"
+                        + " never published",
                 () -> assertThat(verdictKindsAgainstOccurrencesOf(seedWalk)).isEmpty());
+        claim(
+                "and the seed that did produce text was chunked, so the pass carried on past the unusable"
+                        + " one rather than stopping at it. This is the half of \"scoring proceeds against"
+                        + " the seeds that survived\" that a recorded row for the bad seed does not show:"
+                        + " a pass that gave up at the first empty document would leave exactly the same"
+                        + " unusable row behind and no chunks at all",
+                () -> assertThat(chunkedDocuments()).isGreaterThanOrEqualTo(SEEDS_THAT_PRODUCE_TEXT));
     }
 
     @Test
@@ -239,14 +253,13 @@ class SeedExtractionInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "the invocation reports success: a gate is a value the pipeline needs and does not have,"
-                        + " not an error (ADR-047)",
+                "the invocation reports success: a required value that nobody has supplied is not an"
+                        + " error, and the run ends there having recorded what the earlier passes learned",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "and stage 5 minted no run at all. ADR-020's score is a maximum over the seed set, and"
-                        + " over an empty set it is undefined -- so a run row here would claim a"
-                        + " measurement that cannot exist, which is exactly what ADR-080 keeps out of the"
-                        + " run table",
+                "and no measurement run was minted at all. A relevance score is the highest score"
+                        + " against any seed document, and over no seed documents there is no such value --"
+                        + " so a run row here would claim a measurement that cannot exist",
                 () -> assertThat(runIdsFor("seed-measurement", root)).isEmpty());
         claim(
                 "no unusable-seed row was written either, because those rows carry the run that found"
@@ -342,6 +355,12 @@ class SeedExtractionInvocationTest {
     }
 
     /** Unusable-seed rows against occurrences of this test's own seed walk. */
+    /** How many documents have chunks stored, under any chunker and tokenizer identity. */
+    private long chunkedDocuments() {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT content_hash) FROM chunk_cache", Long.class);
+    }
+
     private long unusableSeedRowsAgainst(WalkId seedWalk) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM unusable_seed u JOIN file_occurrence o ON o.id = u.occurrence_id"

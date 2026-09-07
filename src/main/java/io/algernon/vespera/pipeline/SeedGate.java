@@ -69,9 +69,8 @@ class SeedGate {
             canonicalSeedFolder = Walk.canonicalRoot(Path.of(profile.seedFolder().value()));
         } catch (IllegalArgumentException cannotBeResolved) {
             // InvalidPathException is itself an IllegalArgumentException, so one catch covers both a
-            // name that is not a path at all and one that resolves to nothing.
-            // A name that is not a path, or names nothing that is now a directory. Census already
-            // recorded why it could not walk it, so this is not a second report of the same typo.
+            // name that is not a path at all and one naming nothing that is now a directory. Census
+            // already recorded why it could not walk it, so this is not a second report of one typo.
             return Optional.empty();
         }
         return ledger.finishedWalkFor(canonicalSeedFolder)

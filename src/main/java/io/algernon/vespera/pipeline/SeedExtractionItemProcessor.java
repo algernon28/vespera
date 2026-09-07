@@ -39,9 +39,6 @@ import org.springframework.stereotype.Component;
 @StepScope
 class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExtractionOutcome> {
 
-    /** Stage 2's tier-1 wording, so the two report the same condition in the same words (ADR-070). */
-    static final String NO_TEXT = "zero alphanumeric content after whitespace normalisation";
-
     private final Ledger ledger;
     private final DoclingExtractor extractor;
     private final ExtractorIdentity extractorIdentity;
@@ -75,8 +72,9 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
         String text = ExtractionOutputText.of(response.rawResponse());
         if (!UsableText.hasAlphanumericContent(text)) {
             // Recorded, never judged, and it does not stop the run: scoring proceeds against whatever
-            // survived extraction, and a corrected seed folder is a different run (ADR-083, ADR-089).
-            return SeedExtractionOutcome.unusable(occurrenceId, NO_TEXT);
+            // survived extraction, and a corrected seed folder is a different run because the seed
+            // folder is part of what that run's identity is derived from (ADR-083).
+            return SeedExtractionOutcome.unusable(occurrenceId, UsableText.NO_ALPHANUMERIC_CONTENT);
         }
         chunker.chunk(response.rawResponse(), contentHash, tokenizer);
         return SeedExtractionOutcome.usable(occurrenceId);

@@ -44,8 +44,8 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-083", url = Adr.THE_SEED_SET_IS_EXTRACTED_BY_STAGE_5, type = "adr")
 class UnusableSeedsTest {
 
-    /** Stage 2's tier-1 wording, which this bar is deliberately identical to (ADR-070). */
-    private static final String REASON = "zero alphanumeric content after whitespace normalisation";
+    /** Any reason at all: what this class is about is where the row goes, not how it is worded. */
+    private static final String REASON = "a reason this test supplies";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -98,10 +98,10 @@ class UnusableSeedsTest {
         unusableSeeds.record(fixture.seed(), laterRun, REASON);
 
         claim(
-                "the first run's row is still its own after the second run recorded the same occurrence:"
-                        + " a corrected seed folder is a different run (ADR-089), and that is what keeps"
-                        + " scores taken against a partial seed set from being read as scores against a"
-                        + " complete one",
+                "the first run's row is still its own after the second run recorded the same document:"
+                        + " a corrected seed folder is measured under a different run, and that is what"
+                        + " keeps scores taken against a partial seed set from being read as scores against"
+                        + " a complete one",
                 () -> assertThat(unusableSeeds.forRun(fixture.runId()))
                         .containsExactly(new UnusableSeed(fixture.seed(), REASON)));
     }
