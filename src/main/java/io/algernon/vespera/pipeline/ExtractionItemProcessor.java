@@ -10,8 +10,6 @@ import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.FailureCategory;
-import io.algernon.vespera.extraction.HybridChunker;
-import io.algernon.vespera.extraction.Tokenizer;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -29,8 +27,13 @@ import org.springframework.stereotype.Component;
  * Judges {@code extraction-failed} and {@code degenerate-output} from one occurrence's Docling
  * response, in one open-document pass (ADR-070, ADR-071, ADR-073): cache lookup, convert, the
  * {@code extraction-failed} check, then — on {@code success}/{@code partial_success} — the derived
- * metrics and the two-tier degeneracy floor (#48), the structure-first chunk cache (#49), and the
- * shingle table (#50), in that order. This processor returns {@code null} for a converted document
+ * metrics and the two-tier degeneracy floor (#48) and the shingle table (#50), in that order.
+ *
+ * <p>Nothing is chunked here (ADR-091). Chunk boundaries depend on a budget whose only reader is
+ * an embedding model, and none is named: a chunk cut now is work guaranteed to be discarded, so
+ * stage 5's re-chunk from the extraction cache is the only chunking there is. That is why this is
+ * no longer quite the single open-document pass ADR-073 described — a cost ADR-084 accepted
+ * knowingly when it specified the re-chunk. This processor returns {@code null} for a converted document
  * that clears the degeneracy floor, so Spring Batch filters it and no verdict row is written for a
  * survivor.
  *
@@ -50,8 +53,6 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private final ExtractionRun extractionRun;
     private final ExtractionMetrics extractionMetrics;
     private final DegenerateOutputConfidenceFloor confidenceFloor;
-    private final HybridChunker chunker;
-    private final Tokenizer tokenizer;
     private final Shingler shingler;
 
     ExtractionItemProcessor(
@@ -63,8 +64,6 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             ExtractionRun extractionRun,
             ExtractionMetrics extractionMetrics,
             DegenerateOutputConfidenceFloor confidenceFloor,
-            HybridChunker chunker,
-            Tokenizer tokenizer,
             Shingler shingler) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
@@ -74,8 +73,6 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.extractionRun = extractionRun;
         this.extractionMetrics = extractionMetrics;
         this.confidenceFloor = confidenceFloor;
-        this.chunker = chunker;
-        this.tokenizer = tokenizer;
         this.shingler = shingler;
     }
 
@@ -96,7 +93,6 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             // carries — degenerate-output is the only verdict reachable from here.
             timeoutStreak.reset();
             ExtractionOutcome outcome = judgeConverted(occurrenceId, response);
-            chunker.chunk(response.rawResponse(), conversion.contentHash(), tokenizer);
             shingler.write(occurrenceId, extractionRun.runId(), ExtractionOutputText.of(response.rawResponse()));
             return outcome;
         }

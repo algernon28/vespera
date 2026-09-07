@@ -21,20 +21,8 @@ import org.junit.jupiter.api.Test;
 @Feature("Chunking")
 @Issue("49")
 @Link(name = "ADR-029", url = Adr.CHUNKING_STRUCTURE_FIRST_WITH_A_MEASURED_LLM_FALLBACK, type = "adr")
+@Link(name = "ADR-091", url = Adr.THERE_IS_NO_TOKENIZER, type = "adr")
 class WindowedStructurelessChunkingFallbackTest {
-
-    /** A tokenizer counting one token per whitespace-separated word. */
-    private static final Tokenizer WORD_COUNTING_TOKENIZER = new Tokenizer() {
-        @Override
-        public int countTokens(String text) {
-            return text.isBlank() ? 0 : text.trim().split("\\s+").length;
-        }
-
-        @Override
-        public TokenizerIdentity identity() {
-            return new TokenizerIdentity("word-count-v1");
-        }
-    };
 
     private final WindowedStructurelessChunkingFallback fallback = new WindowedStructurelessChunkingFallback();
 
@@ -44,24 +32,24 @@ class WindowedStructurelessChunkingFallbackTest {
     void emptyTextProducesNoChunks() {
         claim(
                 "no text means no chunks — there is nothing for the seam to split",
-                () -> assertThat(fallback.chunk("", WORD_COUNTING_TOKENIZER, 10)).isEmpty());
+                () -> assertThat(fallback.chunk("", new ChunkingRule(10))).isEmpty());
     }
 
     @Test
-    @Story("A chunk never exceeds its token budget")
+    @Story("A chunk never exceeds its word budget")
     @DisplayName("Text longer than the budget splits into multiple chunks, none exceeding it")
     void splitsLongTextWithinBudget() {
         int budget = 10;
         String text = "word ".repeat(25).trim();
 
-        List<String> chunks = fallback.chunk(text, WORD_COUNTING_TOKENIZER, budget);
+        List<String> chunks = fallback.chunk(text, new ChunkingRule(budget));
 
         claim(
                 "25 words under a 10-word budget need at least three chunks",
                 () -> assertThat(chunks.size()).isGreaterThanOrEqualTo(3));
         claim(
                 "and no chunk exceeds the budget",
-                () -> assertThat(chunks).allSatisfy(chunk -> assertThat(WORD_COUNTING_TOKENIZER.countTokens(chunk))
-                        .isLessThanOrEqualTo(budget)));
+                () -> assertThat(chunks).allSatisfy(
+                        chunk -> assertThat(new ChunkingRule(budget).size(chunk)).isLessThanOrEqualTo(budget)));
     }
 }

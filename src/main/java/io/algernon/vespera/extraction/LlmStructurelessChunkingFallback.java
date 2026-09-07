@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 class LlmStructurelessChunkingFallback implements StructurelessChunkingFallback {
 
     @Override
-    public List<String> chunk(String text, Tokenizer tokenizer, int maxChunkTokens) {
+    public List<String> chunk(String text, ChunkingRule rule) {
         throw new UnsupportedOperationException(
                 "the LLM-based structureless chunking fallback is a seam only (ADR-029); it ships"
                         + " disabled and has no measured implementation yet");

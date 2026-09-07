@@ -20,7 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Chunking respects document structure rather than an arbitrary character window, and the chunk
- * cache never conflates two different tokenizers' output (ADR-029, ADR-044).
+ * cache never conflates two different chunking rules' output (ADR-029, ADR-044, ADR-091).
  *
  * <p>The cache is the real one against a real database, mirroring {@code DoclingExtractorTest}'s own
  * reasoning: a stubbed cache would make a hit an assumption rather than a claim.
@@ -34,13 +34,17 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-029", url = Adr.CHUNKING_STRUCTURE_FIRST_WITH_A_MEASURED_LLM_FALLBACK, type = "adr")
 @Link(name = "ADR-044", url = Adr.THE_BAKE_OFF_RE_CHUNKS_PER_CANDIDATE_MODEL, type = "adr")
 @Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
+@Link(name = "ADR-091", url = Adr.THERE_IS_NO_TOKENIZER, type = "adr")
 class HybridChunkerTest {
 
     /** A content hash standing in for one an earlier stage computed within a size-matched group. */
     private static final String CONTENT_HASH = "0".repeat(63) + "1";
 
-    /** How many words a one-token-per-word stub tokenizer packs into one chunk before it must split. */
-    private static final int WORDS_PER_CHUNK = HybridChunker.MAX_CHUNK_TOKENS;
+    /** How many words the default rule packs into one chunk before it must split. */
+    private static final int WORDS_PER_CHUNK = ChunkingRule.DEFAULT.maxWords();
+
+    /** A second rule, budgeting fewer words, standing in for one tuned to another document kind. */
+    private static final ChunkingRule NARROWER_RULE = new ChunkingRule(64);
 
     /** A document with two headed sections, each short enough to stay inside one chunk. */
     private static final String TWO_SECTION_DOCUMENT =
@@ -74,7 +78,7 @@ class HybridChunkerTest {
     void chunksAlongStructuralBoundaries() {
         HybridChunker chunker = chunker();
 
-        List<Chunk> chunks = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, wordCountingTokenizer("v1"));
+        List<Chunk> chunks = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
 
         claim(
                 "two headed sections, each short enough to fit in one chunk, produce exactly two"
@@ -95,9 +99,9 @@ class HybridChunkerTest {
     }
 
     @Test
-    @Story("A chunk never exceeds its token budget")
-    @DisplayName("A section long enough to exceed the token budget splits into more than one chunk")
-    void splitsASectionThatExceedsTheTokenBudget() {
+    @Story("A chunk never exceeds its word budget")
+    @DisplayName("A section long enough to exceed the word budget splits into more than one chunk")
+    void splitsASectionThatExceedsTheWordBudget() {
         HybridChunker chunker = chunker();
         String longParagraph = "word ".repeat(WORDS_PER_CHUNK + 50).trim();
         String document =
@@ -109,17 +113,17 @@ class HybridChunkerTest {
                 """
                         .formatted(longParagraph);
 
-        List<Chunk> chunks = chunker.chunk(document, CONTENT_HASH, wordCountingTokenizer("v1"));
+        List<Chunk> chunks = chunker.chunk(document, CONTENT_HASH, ChunkingRule.DEFAULT);
 
         claim(
                 "a paragraph whose word count alone exceeds the " + WORDS_PER_CHUNK
-                        + "-token budget is split across more than one chunk, rather than producing"
+                        + "-word budget is split across more than one chunk, rather than producing"
                         + " one oversized chunk",
                 () -> assertThat(chunks.size()).isGreaterThan(1));
         claim(
-                "and no single chunk exceeds the " + WORDS_PER_CHUNK + "-token budget",
+                "and no single chunk exceeds the " + WORDS_PER_CHUNK + "-word budget",
                 () -> assertThat(chunks)
-                        .allSatisfy(chunk -> assertThat(chunk.tokenCount()).isLessThanOrEqualTo(WORDS_PER_CHUNK)));
+                        .allSatisfy(chunk -> assertThat(chunk.wordCount()).isLessThanOrEqualTo(WORDS_PER_CHUNK)));
     }
 
     @Test
@@ -128,7 +132,7 @@ class HybridChunkerTest {
     void structurelessDocumentProducesNoChunks() {
         HybridChunker chunker = chunker();
 
-        List<Chunk> chunks = chunker.chunk(STRUCTURELESS_DOCUMENT, CONTENT_HASH, wordCountingTokenizer("v1"));
+        List<Chunk> chunks = chunker.chunk(STRUCTURELESS_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
 
         claim(
                 "a document Docling reported no structure for produces no chunks, through the"
@@ -137,13 +141,13 @@ class HybridChunkerTest {
     }
 
     @Test
-    @Story("The same content is chunked once per tokenizer")
-    @DisplayName("Chunking the same content twice under the same tokenizer chunks it only once")
-    void cachesChunksUnderOneTokenizer() {
+    @Story("The same content is chunked once per chunking rule")
+    @DisplayName("Chunking the same content twice under the same rule chunks it only once")
+    void cachesChunksUnderOneChunkingRule() {
         HybridChunker chunker = chunker();
 
-        List<Chunk> first = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, wordCountingTokenizer("v1"));
-        List<Chunk> second = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, wordCountingTokenizer("v1"));
+        List<Chunk> first = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
+        List<Chunk> second = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
 
         claim(
                 "the second call answers with the exact chunks stored the first time, rather than"
@@ -151,45 +155,30 @@ class HybridChunkerTest {
                 () -> assertThat(second).isEqualTo(first));
         claim(
                 "and exactly one chunk row per produced chunk is stored under this content and"
-                        + " tokenizer, not one row per call",
-                () -> assertThat(chunker.chunkCount(CONTENT_HASH, wordCountingTokenizer("v1")))
+                        + " rule, not one row per call",
+                () -> assertThat(chunker.chunkCount(CONTENT_HASH, ChunkingRule.DEFAULT))
                         .isEqualTo(first.size()));
     }
 
     @Test
-    @Story("A tokenizer change re-chunks instead of overwriting")
-    @DisplayName("Chunking the same content under a different tokenizer identity adds new rows rather than replacing the old ones")
-    void reChunksUnderADifferentTokenizerIdentity() {
+    @Story("A chunking-rule change re-chunks instead of overwriting")
+    @DisplayName("Chunking the same content under a different chunking rule adds new rows rather than replacing the old ones")
+    void reChunksUnderADifferentChunkingRule() {
         HybridChunker chunker = chunker();
 
-        chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, wordCountingTokenizer("v1"));
-        chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, wordCountingTokenizer("v2"));
+        chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
+        chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, NARROWER_RULE);
 
         claim(
-                "the first tokenizer's chunks are still there — the second tokenizer's run did not"
-                        + " overwrite them",
-                () -> assertThat(chunker.chunkCount(CONTENT_HASH, wordCountingTokenizer("v1"))).isPositive());
+                "the first rule's chunks are still there — the second rule's run did not overwrite"
+                        + " them",
+                () -> assertThat(chunker.chunkCount(CONTENT_HASH, ChunkingRule.DEFAULT)).isPositive());
         claim(
-                "and the second tokenizer's own chunks are stored separately, under its own identity",
-                () -> assertThat(chunker.chunkCount(CONTENT_HASH, wordCountingTokenizer("v2"))).isPositive());
+                "and the second rule's own chunks are stored separately, under its own identity",
+                () -> assertThat(chunker.chunkCount(CONTENT_HASH, NARROWER_RULE)).isPositive());
     }
 
     private HybridChunker chunker() {
         return new HybridChunker(new ChunkCache(jdbcTemplate), new WindowedStructurelessChunkingFallback());
-    }
-
-    /** A tokenizer counting one token per whitespace-separated word — deterministic, no real model needed. */
-    private static Tokenizer wordCountingTokenizer(String identityValue) {
-        return new Tokenizer() {
-            @Override
-            public int countTokens(String text) {
-                return text.isBlank() ? 0 : text.trim().split("\\s+").length;
-            }
-
-            @Override
-            public TokenizerIdentity identity() {
-                return new TokenizerIdentity(identityValue);
-            }
-        };
     }
 }

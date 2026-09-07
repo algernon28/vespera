@@ -198,21 +198,22 @@ CREATE TABLE IF NOT EXISTS confidence_distribution (
     PRIMARY KEY (run_id, grade)
 );
 
--- extraction's own table (ADR-029, ADR-044): one row per chunk, keyed by content hash plus chunker
--- identity plus tokenizer identity -- tokenizer identity supplied by pipeline, never by extraction
--- depending on embedding -- so a future embedding-model bake-off can re-chunk each candidate under
--- its own tokenizer without invalidating another candidate's chunks, and a tokenizer or chunker
--- change mints new rows here rather than overwriting the previous ones. No chunk_count column exists
--- anywhere (ADR-073): the count is a query over this table, comparable only within one chunker plus
--- tokenizer identity.
+-- extraction's own table (ADR-029, ADR-044, ADR-091): one row per chunk, keyed by content hash plus
+-- chunker identity plus chunking-rule identity. ADR-044 required the key carry "tokenizer identity";
+-- ADR-091 kept the slot and changed its occupant, because there is no tokenizer here -- the only
+-- component that tokenizes is the one that embeds, and what the key has to carry is whatever
+-- determines a boundary, which is the budgeting rule. So a re-chunk under a different budget mints
+-- its own rows rather than overwriting the previous rule's, and word_count is a count of
+-- whitespace-separated words, never of tokens. No chunk_count column exists anywhere (ADR-073): the
+-- count is a query over this table, comparable only within one chunker plus rule identity.
 CREATE TABLE IF NOT EXISTS chunk_cache (
     content_hash TEXT NOT NULL,
     chunker_identity TEXT NOT NULL,
-    tokenizer_identity TEXT NOT NULL,
+    chunking_rule_identity TEXT NOT NULL,
     ordinal INTEGER NOT NULL,
     chunk_text TEXT NOT NULL,
-    token_count INTEGER NOT NULL,
-    PRIMARY KEY (content_hash, chunker_identity, tokenizer_identity, ordinal)
+    word_count INTEGER NOT NULL,
+    PRIMARY KEY (content_hash, chunker_identity, chunking_rule_identity, ordinal)
 );
 
 -- similarity's own table (ADR-038, ADR-073): raw shingle hashes over extracted text, computed during

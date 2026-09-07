@@ -34,7 +34,7 @@ class LlmStructurelessChunkingFallbackTest {
         claim(
                 "the seam refuses to pretend it did something — it fails with a message that names"
                         + " what it is, rather than silently returning no chunks",
-                () -> assertThatThrownBy(() -> fallback.chunk("some text", null, 10))
+                () -> assertThatThrownBy(() -> fallback.chunk("some text", ChunkingRule.DEFAULT))
                         .isInstanceOf(UnsupportedOperationException.class)
                         .hasMessageContaining("seam"));
     }

@@ -184,9 +184,9 @@ class SeedSharedWithCorpusTest {
                         + " cache is keyed by content and engine, so the seed pass added no row of its own",
                 () -> assertThat(cachedConversionCount()).isEqualTo(ONE_CONVERSION));
         claim(
-                "the shared document was chunked, and under one chunker and tokenizer identity it holds"
-                        + " one set of chunks rather than a second set the seed pass appended",
-                () -> assertThat(distinctChunkedDocuments()).isEqualTo(ONE_CONVERSION));
+                "and neither pass chunked it (ADR-091): no embedding model is named, so a chunk cut"
+                        + " now would be cut under a budget nothing reads and discarded when one is",
+                () -> assertThat(chunkRowCount()).isZero());
     }
 
     /** The seed folder named and stage 4's gate open. */
@@ -202,10 +202,8 @@ class SeedSharedWithCorpusTest {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM extraction_cache", Long.class);
     }
 
-    /** How many distinct documents have chunks stored, under any chunker and tokenizer identity. */
-    private long distinctChunkedDocuments() {
-        return jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT content_hash || chunker_identity || tokenizer_identity) FROM chunk_cache",
-                Long.class);
+    /** How many chunk rows exist at all -- none, while no embedding model is named (ADR-091). */
+    private long chunkRowCount() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM chunk_cache", Long.class);
     }
 }

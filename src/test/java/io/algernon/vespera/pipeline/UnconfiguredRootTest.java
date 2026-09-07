@@ -33,6 +33,7 @@ import org.springframework.boot.batch.autoconfigure.BatchAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -54,6 +55,13 @@ import picocli.CommandLine;
  * that colon and Spring hands the command the literal string {@code ${vespera.corpus-root}}, which
  * is not blank, so the run walks a path named after a placeholder and fails as though the disk were
  * at fault. Only an invocation with nothing bound catches it.
+ *
+ * <p>That precondition is <b>claimed here rather than assumed</b>. It is a property of a file under
+ * {@code src/main} — {@code application-test.yaml} layers over the shipped one rather than replacing
+ * it, so a {@code vespera.corpus-root} added there for local convenience reaches this context too.
+ * Left unstated, that turns this test into a silent false negative: the invocation finds a root,
+ * walks a real archive, and the refusal claim fails naming the exit code rather than the cause. The
+ * first claim below states it, so the failure names the file that has to change.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -128,12 +136,22 @@ class UnconfiguredRootTest {
     private VesperaCli cli;
 
     @Autowired
+    private Environment environment;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
     @Story("Where the root comes from")
     @DisplayName("An invocation with no root named and none configured refuses, and walks nothing")
     void refusesWhenNothingNamesARoot() {
+        claim(
+                "nothing binds a corpus root in this context, which is the precondition the rest of"
+                        + " this test rests on — stated here because it belongs to a file under src/main,"
+                        + " and a root configured there would make every claim below pass or fail for a"
+                        + " reason that has nothing to do with the wiring under test",
+                () -> assertThat(environment.getProperty("vespera.corpus-root")).isNull());
+
         cli.run("run");
 
         claim(

@@ -15,7 +15,6 @@ import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.FailureCategory;
-import io.algernon.vespera.extraction.HybridChunkerBeans;
 import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.extraction.ScriptedExtractor;
 import io.algernon.vespera.ledger.ImplementationVersions;
@@ -298,9 +297,10 @@ class ExtractionItemProcessorTest {
 
     @Test
     @Story("A conversion that succeeded")
-    @DisplayName("A converted document's text reaches both the chunk cache and the shingle table")
-    @Issue("49")
-    void aConvertedDocumentIsChunkedAndShingled(@TempDir Path root) throws Exception {
+    @DisplayName("A converted document's text reaches the shingle table, and nothing chunks it")
+    @Issue("103")
+    @Link(name = "ADR-091", url = Adr.THERE_IS_NO_TOKENIZER, type = "adr")
+    void aConvertedDocumentIsShingledAndNotChunked(@TempDir Path root) throws Exception {
         Corpus corpus = corpusOf(root, 1);
         ScriptedExtractor docling = new ScriptedExtractor()
                 .answering(new DoclingResponse(
@@ -314,12 +314,13 @@ class ExtractionItemProcessorTest {
         processorOver(corpus, docling).process(corpus.occurrence(0));
 
         claim(
-                "the chunker's own cache carries at least one chunk for the document, proving the"
-                        + " processor actually calls it rather than only building it unused",
+                "nothing was chunked (ADR-091): a chunk cut under a budget no embedding model has"
+                        + " been named for is work guaranteed to be discarded, and stage 5 re-chunks"
+                        + " from the extraction cache once a model exists",
                 () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM chunk_cache", Integer.class))
-                        .isPositive());
+                        .isZero());
         claim(
-                "and the shingle table carries rows against this occurrence's own run, proving the"
+                "while the shingle table carries rows against this occurrence's own run, proving the"
                         + " shingler is called with the same run extractionRun minted",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM shingle WHERE occurrence_id = ? AND run_id = ?",
@@ -448,8 +449,6 @@ class ExtractionItemProcessorTest {
                 corpus.extractionRun(),
                 new ExtractionMetrics(jdbcTemplate, new LanguageDetection()),
                 new DegenerateOutputConfidenceFloor(null),
-                HybridChunkerBeans.real(jdbcTemplate),
-                new WordCountTokenizer(),
                 new Shingler(jdbcTemplate));
     }
 

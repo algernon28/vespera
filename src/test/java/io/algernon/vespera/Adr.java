@@ -275,6 +275,14 @@ public final class Adr {
     public static final String THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP = FILE
             + "0090-the-extractor-identity-is-the-sidecars-version-map-and-the-options-the-client-sends-never-its-url.md";
 
+    /**
+     * ADR-091 — there is no tokenizer: the runtime counts tokens behind {@code truncate: false}, the
+     * chunker enforces a deterministic word budget, and the embedder identity is what Ollama reports
+     * plus what we send.
+     */
+    public static final String THERE_IS_NO_TOKENIZER = FILE
+            + "0091-there-is-no-tokenizer-the-runtime-counts-tokens-and-the-embedder-identity-is-what-ollama-reports.md";
+
     private Adr() {
     }
 }
