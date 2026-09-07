@@ -1,0 +1,329 @@
+package io.algernon.vespera.pipeline;
+
+import static io.algernon.vespera.TestSteps.claim;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.algernon.vespera.Adr;
+import io.algernon.vespera.corpus.AnomalyLog;
+import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.UnusableSeeds;
+import io.algernon.vespera.extraction.ConfidenceDistribution;
+import io.algernon.vespera.extraction.ExtractionMetrics;
+import io.algernon.vespera.extraction.HybridChunkerBeans;
+import io.algernon.vespera.extraction.LanguageDetection;
+import io.algernon.vespera.ledger.ImplementationVersions;
+import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.VerdictKind;
+import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.profile.ProfileValue;
+import io.algernon.vespera.similarity.BoilerplateShingles;
+import io.algernon.vespera.similarity.DocumentFrequency;
+import io.algernon.vespera.similarity.RedundancyResolution;
+import io.algernon.vespera.similarity.RedundancySignatures;
+import io.algernon.vespera.similarity.Shingler;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
+import io.qameta.allure.Link;
+import io.qameta.allure.Story;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.batch.autoconfigure.BatchAutoConfiguration;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * What one invocation does with the seed folder (ADR-083), and — the half that matters more — what it
+ * refuses to leave behind when there is nothing to work with.
+ *
+ * <p>A sibling of {@link CensusInvocationTest} rather than more tests inside it, for the reason
+ * {@link RunUpstreamChainTest} is one: that class asserts the behaviour of a profile with everything
+ * <em>unset</em>, and every claim here needs a seed folder named and stage 4's gate open. Different
+ * fixture, so its own working directory and its own database.
+ */
+@JdbcTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ActiveProfiles("test")
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
+@ImportAutoConfiguration(BatchAutoConfiguration.class)
+@Import({
+    CensusJobConfiguration.class,
+    CensusTasklet.class,
+    ByteLevelReductionJobConfiguration.class,
+    ByteLevelReductionTasklet.class,
+    ExtractionJobConfiguration.class,
+    ExtractionItemProcessor.class,
+    ExtractionItemWriter.class,
+    ExtractionRun.class,
+    ExtractionTimeoutStreak.class,
+    ExtractionCircuitBreaker.class,
+    ExtractionHealthCheckListener.class,
+    ContentCensusJobConfiguration.class,
+    ContentCensusTasklet.class,
+    ContentCensusRun.class,
+    RedundancyJobConfiguration.class,
+    RedundancyRun.class,
+    RedundancyGate.class,
+    RedundancyBoilerplate.class,
+    RedundancySignatureItemWriter.class,
+    RedundancyResolutionTasklet.class,
+    SeedExtractionJobConfiguration.class,
+    SeedExtractionItemProcessor.class,
+    SeedExtractionItemWriter.class,
+    SeedMeasurementRun.class,
+    SeedGate.class,
+    RedundancySignatures.class,
+    RedundancyResolution.class,
+    BoilerplateShingles.class,
+    DocumentFrequency.class,
+    ConfidenceDistribution.class,
+    UnusableSeeds.class,
+    Shingler.class,
+    HybridChunkerBeans.class,
+    SeedScriptedExtractionBeans.class,
+    ExtractionMetrics.class,
+    LanguageDetection.class,
+    ContentIdentity.class,
+    WalkRecorder.class,
+    AnomalyLog.class,
+    Ledger.class,
+    ImplementationVersions.class,
+    ProfileStore.class,
+    VesperaCommand.class,
+    VesperaCommand.Run.class,
+    VesperaCommand.Publish.class,
+    VesperaCli.class
+})
+@Epic("Relevance")
+@Feature("Seed set")
+@Issue("104")
+@Link(name = "ADR-083", url = Adr.THE_SEED_SET_IS_EXTRACTED_BY_STAGE_5, type = "adr")
+class SeedExtractionInvocationTest {
+
+    @TempDir
+    static Path workingDirectory;
+
+    /**
+     * A floor of 1.0: a shingle is boilerplate only when every single document carries it. The least
+     * aggressive value that still opens stage 4's gate, because nothing here is about what stage 4
+     * concludes — only about stage 5 having a stage-4 run to name upstream.
+     */
+    private static final String BOILERPLATE_FLOOR = "1.0";
+
+    @DynamicPropertySource
+    static void workingDirectory(DynamicPropertyRegistry registry) {
+        registry.add("vespera.working-dir", workingDirectory::toString);
+    }
+
+    @Autowired
+    private VesperaCli cli;
+
+    @Autowired
+    private Ledger ledger;
+
+    @Autowired
+    private ProfileStore profileStore;
+
+    @Autowired
+    private UnusableSeeds unusableSeeds;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @Story("The seed set is extracted under stage 5's measurement run")
+    @DisplayName("A named seed folder is extracted, and the run names stage 4's run upstream")
+    @Link(name = "ADR-089", url = Adr.A_RUN_NAMES_ITS_IMMEDIATE_PREDECESSOR_UPSTREAM, type = "adr")
+    void extractsTheSeedSetAndNamesStageFourUpstream(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reported success, so what follows is what a completed pass left rather"
+                        + " than the wreckage of a failed one",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "stage 5 minted exactly one measurement run: the seed folder was named, its walk had"
+                        + " finished, and at least one seed produced text -- the three conditions ADR-083"
+                        + " puts in front of a run row existing at all",
+                () -> assertThat(runIdsFor("seed-measurement")).hasSize(1));
+        claim(
+                "and that run names stage 4's run as its upstream, not stage 2's: the corpus side of"
+                        + " everything stage 5 goes on to read is survivors, and survival is cumulative"
+                        + " across every run before it, so a run reaching back past stage 4 would carry an"
+                        + " id that two different corpora could share (ADR-089)",
+                () -> assertThat(upstreamStagesOf(runIdsFor("seed-measurement").getFirst()))
+                        .containsExactly("content-redundancy"));
+        claim(
+                "no seed was recorded unusable, because the one seed converted with text in it",
+                () -> assertThat(unusableSeeds.forRun(runIdsFor("seed-measurement").getFirst()))
+                        .isEmpty());
+    }
+
+    @Test
+    @Story("A seed is never judged")
+    @DisplayName("No verdict of any kind stands against a seed occurrence, usable or not")
+    void writesNoVerdictAgainstAnySeedOccurrence(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        Files.writeString(seeds.resolve(SeedScriptedExtractionBeans.EMPTY_SEED), "not a document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        WalkId seedWalk = ledger.finishedWalkFor(Walk.canonicalRoot(seeds))
+                .orElseThrow(() -> new IllegalStateException("census recorded no finished walk of the seed folder"));
+
+        claim(
+                "the invocation reported success: an unusable seed is recorded, not a failure, and"
+                        + " scoring proceeds against the seeds that survived extraction",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the seed that produced no text is recorded as unusable, with the reason -- an operator"
+                        + " fixing a seed folder needs to know which file and what was wrong with it",
+                () -> assertThat(unusableSeeds
+                                .forRun(runIdsFor("seed-measurement").getFirst())
+                                .stream()
+                                .map(seed -> ledger.factsFor(seed.occurrenceId())
+                                        .orElseThrow()
+                                        .path()
+                                        .value())
+                                .toList())
+                        .containsExactly(SeedScriptedExtractionBeans.EMPTY_SEED));
+        claim(
+                "and not one verdict of any kind stands against any seed occurrence -- asserted against"
+                        + " the whole closed vocabulary rather than the plausible kinds, because every kind"
+                        + " in it exists to remove a document from publication and a seed is never"
+                        + " published",
+                () -> assertThat(verdictKindsAgainstOccurrencesOf(seedWalk)).isEmpty());
+    }
+
+    @Test
+    @Story("A gate ends the invocation rather than failing it")
+    @DisplayName("With no seed producing text, stage 5 mints no run at all and the command still succeeds")
+    void mintsNoRunWhenNoSeedIsUsable(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve(SeedScriptedExtractionBeans.EMPTY_SEED), "not a document");
+        profile(seeds);
+        long runsBefore = runCount();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success: a gate is a value the pipeline needs and does not have,"
+                        + " not an error (ADR-047)",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and stage 5 minted no run at all. ADR-020's score is a maximum over the seed set, and"
+                        + " over an empty set it is undefined -- so a run row here would claim a"
+                        + " measurement that cannot exist, which is exactly what ADR-080 keeps out of the"
+                        + " run table",
+                () -> assertThat(runIdsFor("seed-measurement")).isEmpty());
+        claim(
+                "no unusable-seed row was written either, because those rows carry the run that found"
+                        + " them and there is no run -- what the operator gets instead is a successful"
+                        + " invocation that removed nothing, and a seed folder to fix",
+                () -> assertThat(unusableSeedRowCount()).isZero());
+        claim(
+                "and the earlier stages' runs are all still there: stage 5's gate ends stage 5, not the"
+                        + " invocation, so nothing the cheaper passes learned is lost",
+                () -> assertThat(runCount()).isGreaterThan(runsBefore));
+    }
+
+    @Test
+    @Story("A gate ends the invocation rather than failing it")
+    @DisplayName("With no seed folder named, stage 5 mints no run and converts nothing")
+    @Link(name = "ADR-064", url = Adr.THE_WALK_INSTRUMENT_GENERALIZES, type = "adr")
+    void mintsNoRunWhenNoSeedFolderIsNamed(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        openTheBoilerplateGateOnly();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success -- a corpus can be censused, reduced and deduplicated"
+                        + " before anybody has decided what the seed set is",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and stage 5 minted no run, because there is no seed folder to have measured anything"
+                        + " against",
+                () -> assertThat(runIdsFor("seed-measurement")).isEmpty());
+    }
+
+    /** The seed folder named and stage 4's gate open — the fixture every claim above the last needs. */
+    private void profile(Path seeds) {
+        Profile profile = profileStore.load();
+        profileStore.save(new Profile(
+                new ProfileValue(seeds.toString(), "set by this test", null),
+                profile.degenerateOutputConfidenceFloor(),
+                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null)));
+    }
+
+    /** Stage 4's gate open, and deliberately no seed folder. */
+    private void openTheBoilerplateGateOnly() {
+        Profile profile = profileStore.load();
+        profileStore.save(new Profile(
+                new ProfileValue(null, null, null),
+                profile.degenerateOutputConfidenceFloor(),
+                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null)));
+    }
+
+    private List<io.algernon.vespera.ledger.RunId> runIdsFor(String stage) {
+        return jdbcTemplate
+                .queryForList("SELECT id FROM run WHERE stage = ?", String.class, stage)
+                .stream()
+                .map(io.algernon.vespera.ledger.RunId::new)
+                .toList();
+    }
+
+    /** Which stages the runs named upstream of {@code runId} were minted by. */
+    private List<String> upstreamStagesOf(io.algernon.vespera.ledger.RunId runId) {
+        return jdbcTemplate.queryForList(
+                "SELECT r.stage FROM run_upstream u JOIN run r ON r.id = u.upstream_run_id WHERE u.run_id = ?",
+                String.class,
+                runId.value());
+    }
+
+    private long runCount() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run", Long.class);
+    }
+
+    private long unusableSeedRowCount() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM unusable_seed", Long.class);
+    }
+
+    /** Every verdict kind standing against any occurrence of one walk, whatever it says. */
+    private List<String> verdictKindsAgainstOccurrencesOf(WalkId walkId) {
+        List<String> kinds = jdbcTemplate.queryForList(
+                "SELECT v.kind FROM verdict v JOIN file_occurrence o ON o.id = v.occurrence_id WHERE o.walk_id = ?",
+                String.class,
+                walkId.value());
+        List<String> vocabulary = Arrays.stream(VerdictKind.values()).map(Enum::name).toList();
+        if (!vocabulary.containsAll(kinds)) {
+            throw new IllegalStateException("a verdict row carries a kind outside the closed vocabulary: " + kinds);
+        }
+        return kinds;
+    }
+}

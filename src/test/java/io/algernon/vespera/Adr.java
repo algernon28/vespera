@@ -253,6 +253,14 @@ public final class Adr {
             + "0082-stage-4-judges-on-its-first-run-its-thresholds-are-code-defaults-and-it-ships-no-report.md";
 
     /**
+     * ADR-083 — the seed set is extracted by stage 5, and an unusable seed is recorded rather than
+     * gated on: no verdict is ever written against a seed occurrence, and scoring proceeds against
+     * whatever survived extraction.
+     */
+    public static final String THE_SEED_SET_IS_EXTRACTED_BY_STAGE_5 = FILE
+            + "0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md";
+
+    /**
      * ADR-089 — a stage's run names the immediately preceding stage's run upstream, because blocking
      * verdicts are cumulative across runs, so any pass over survivors is determined by every
      * verdict-writing run before it. A verdict-free stage stays in the chain.
