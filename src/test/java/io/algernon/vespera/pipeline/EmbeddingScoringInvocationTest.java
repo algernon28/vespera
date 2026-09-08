@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
@@ -48,9 +49,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Gate 3 open (ADR-084, #107, slice 2): a corpus survivor is re-chunked from its cached Docling
- * response once an embedding model is named and stage 5's earlier gates are open, rather than left
- * unchunked or re-converted through Docling a second time.
+ * Gate 3 open (ADR-084, #107): a corpus survivor is re-chunked from its cached Docling response once
+ * an embedding model is named and stage 5's earlier gates are open, and each of its chunks is embedded
+ * and stored as a vector under a scoring run, rather than left unchunked, unembedded, or re-converted
+ * through Docling a second time.
  *
  * <p>A sibling of {@link SeedCorpusComparisonInvocationTest} for the same reason that class is a
  * sibling of {@link SeedExtractionInvocationTest}: this fixture additionally names an embedding
@@ -91,8 +93,11 @@ import org.springframework.transaction.annotation.Transactional;
     EmbeddingScoringTasklet.class,
     EmbeddingModelGate.class,
     SeedMeasurementRun.class,
+    ScoringRun.class,
     SeedGate.class,
     UsableSeedGate.class,
+    ChunkEmbedderBeans.class,
+    EmbeddingScriptedBeans.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
     BoilerplateShingles.class,
@@ -147,7 +152,7 @@ class EmbeddingScoringInvocationTest {
 
     @Test
     @Story("A survivor is re-chunked once a model is named")
-    @DisplayName("With a model named, a corpus survivor's chunks land in the chunk cache")
+    @DisplayName("With a model named, a corpus survivor's chunks land in the chunk cache and each embeds")
     void chunksTheSurvivorFromTheExtractionCache(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
@@ -162,6 +167,14 @@ class EmbeddingScoringInvocationTest {
                 "and the surviving corpus document was chunked, its chunks landing in the chunk cache"
                         + " rather than nowhere",
                 () -> assertThat(chunkCacheRowCount()).isPositive());
+        claim(
+                "and each of those chunks was embedded, its vector landing in the vector table rather"
+                        + " than the re-chunk being the last thing gate 3 does",
+                () -> assertThat(vectorRowCount()).isEqualTo(chunkCacheRowCount()));
+        claim(
+                "and a scoring run was minted for it -- a run row for a pass that scored a survivor"
+                        + " would otherwise be missing from the ledger entirely",
+                () -> assertThat(runCount("embedding-scoring")).isEqualTo(1));
     }
 
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */
@@ -176,5 +189,13 @@ class EmbeddingScoringInvocationTest {
 
     private long chunkCacheRowCount() {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM chunk_cache", Long.class);
+    }
+
+    private long vectorRowCount() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM vector", Long.class);
+    }
+
+    private long runCount(String stage) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE stage = ?", Long.class, stage);
     }
 }

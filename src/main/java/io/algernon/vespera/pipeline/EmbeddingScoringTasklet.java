@@ -1,6 +1,8 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.embedding.ChunkEmbedder;
+import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.ChunkingRule;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
@@ -11,6 +13,8 @@ import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,9 +39,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Once the model is named and stage 5's earlier gates are open, every corpus survivor is re-chunked
  * from {@code extraction_cache} — {@link DoclingExtractor#convert(Path, String, ExtractorIdentity)}'s
- * cache hit means zero Docling calls — and its chunks land in {@code chunk_cache} via {@link
- * HybridChunker}. The {@code /api/embed} calls and the scoring run itself are later slices of this
- * same ticket.
+ * cache hit means zero Docling calls — and each chunk is embedded and stored as a vector via {@link
+ * ChunkEmbedder}, under {@link ScoringRun}'s own run row.
  */
 @Component
 @StepScope
@@ -49,10 +52,12 @@ class EmbeddingScoringTasklet implements Tasklet {
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
     private final ObjectProvider<SeedMeasurementRun> seedMeasurementRun;
+    private final ObjectProvider<ScoringRun> scoringRun;
     private final Ledger ledger;
     private final DoclingExtractor extractor;
     private final ExtractorIdentity extractorIdentity;
     private final HybridChunker hybridChunker;
+    private final ChunkEmbedder chunkEmbedder;
     private final Path root;
 
     EmbeddingScoringTasklet(
@@ -60,25 +65,30 @@ class EmbeddingScoringTasklet implements Tasklet {
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
             ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
+            ObjectProvider<ScoringRun> scoringRun,
             Ledger ledger,
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
             HybridChunker hybridChunker,
+            ChunkEmbedder chunkEmbedder,
             @Value("#{jobParameters['root']}") Path root) {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.seedMeasurementRun = seedMeasurementRun;
+        this.scoringRun = scoringRun;
         this.ledger = ledger;
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
         this.hybridChunker = hybridChunker;
+        this.chunkEmbedder = chunkEmbedder;
         this.root = root;
     }
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        if (embeddingModelGate.modelName().isEmpty()) {
+        Optional<String> modelName = embeddingModelGate.modelName();
+        if (modelName.isEmpty()) {
             LOG.info(
                     "stage 5's scoring step is gated: no embedding model is named. No scoring run was"
                             + " minted, and no vector was computed.");
@@ -98,29 +108,37 @@ class EmbeddingScoringTasklet implements Tasklet {
         }
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
+        ScoringRun scoring = scoringRun.getObject();
         Path canonicalRoot = Walk.canonicalRoot(root);
         Set<OccurrenceId> survivors = drain(ledger.survivors(measurementRun.extractionRunId()));
         LOG.info(
-                "Stage 5c (embedding scoring) starting under measurement run {}: re-chunking {} corpus"
-                        + " survivor(s)",
-                measurementRun.runId().value(),
+                "Stage 5c (embedding scoring) starting under scoring run {}: re-chunking and embedding {}"
+                        + " corpus survivor(s)",
+                scoring.runId().value(),
                 survivors.size());
         for (OccurrenceId occurrenceId : survivors) {
-            rechunk(canonicalRoot, occurrenceId);
+            rechunkAndEmbed(canonicalRoot, occurrenceId, modelName.get());
         }
-        LOG.info(
-                "Stage 5c (embedding scoring) finished under measurement run {}",
-                measurementRun.runId().value());
+        LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.runId().value());
         return RepeatStatus.FINISHED;
     }
 
-    private void rechunk(Path canonicalRoot, OccurrenceId occurrenceId) {
+    private void rechunkAndEmbed(Path canonicalRoot, OccurrenceId occurrenceId, String modelName) {
         OccurrenceFacts facts = ledger.factsFor(occurrenceId)
                 .orElseThrow(() -> new IllegalStateException("no facts recorded for occurrence " + occurrenceId.value()));
         Path file = canonicalRoot.resolve(facts.path().value());
         String contentHash = extractor.contentHashFor(file);
         DoclingResponse response = extractor.convert(file, contentHash, extractorIdentity);
-        hybridChunker.chunk(response.rawResponse(), contentHash, ChunkingRule.DEFAULT);
+        List<Chunk> chunks = hybridChunker.chunk(response.rawResponse(), contentHash, ChunkingRule.DEFAULT);
+        for (Chunk chunk : chunks) {
+            chunkEmbedder.embed(
+                    contentHash,
+                    hybridChunker.identity(),
+                    ChunkingRule.DEFAULT.identity().value(),
+                    chunk.ordinal(),
+                    chunk.text(),
+                    modelName);
+        }
     }
 
     private static Set<OccurrenceId> drain(ItemStreamReader<OccurrenceId> reader) {

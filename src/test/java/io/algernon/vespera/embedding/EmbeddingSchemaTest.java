@@ -46,9 +46,12 @@ import org.springframework.test.context.ActiveProfiles;
 class EmbeddingSchemaTest {
 
     /** The version this module is on, and the table that arrived with it. */
-    private static final int CURRENT_VERSION = 2;
+    private static final int CURRENT_VERSION = 3;
 
-    private static final String TABLE_THIS_VERSION_ADDED = "seed_corpus_comparison";
+    private static final String TABLE_THIS_VERSION_ADDED = "vector";
+
+    /** The table version 2 arrived with, still described by the version above (ADR-086, #106). */
+    private static final String TABLE_VERSION_TWO_ADDED = "seed_corpus_comparison";
 
     /** The table version 1 arrived with, still described by the version above (ADR-083). */
     private static final String TABLE_VERSION_ONE_ADDED = "unusable_seed";
@@ -94,22 +97,24 @@ class EmbeddingSchemaTest {
 
     @Test
     @Story("A module states the schema it was built against")
-    @DisplayName("VERSION is the literal 2, and seed_corpus_comparison is the table that came with it")
-    @Issue("106")
-    @Link(name = "ADR-086", url = Adr.SEED_CORPUS_MISMATCH_IS_MEASURED_AND_REPORTED, type = "adr")
+    @DisplayName("VERSION is the literal 3, and vector is the table that came with it")
+    @Issue("107")
+    @Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
+    @Link(name = "ADR-085", url = Adr.VECTORS_LIVE_IN_SQLITE, type = "adr")
     void versionIsTheSeedCorpusComparisonTableLiterally() {
         claim(
                 "the version and the table it names arrived together, so a later table added without a"
                         + " bump would leave this constant already committed to the wrong value. The"
-                        + " literal 2 is stated here rather than read back off the constant, which would"
+                        + " literal 3 is stated here rather than read back off the constant, which would"
                         + " assert nothing",
                 () -> assertThat(EmbeddingSchema.VERSION).isEqualTo(CURRENT_VERSION));
         claim(
-                "seed_corpus_comparison is present in the schema this version claims to describe, and so"
-                        + " is unusable_seed: a version describes every table this part of the system owns,"
-                        + " not only the newest one",
+                "vector is present in the schema this version claims to describe, and so are"
+                        + " seed_corpus_comparison and unusable_seed: a version describes every table this"
+                        + " part of the system owns, not only the newest one",
                 () -> assertThat(tableNames())
                         .contains(TABLE_THIS_VERSION_ADDED)
+                        .contains(TABLE_VERSION_TWO_ADDED)
                         .contains(TABLE_VERSION_ONE_ADDED));
     }
 

@@ -8,6 +8,7 @@ import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
@@ -82,6 +83,9 @@ import org.springframework.transaction.annotation.Transactional;
     EmbeddingModelJobConfiguration.class,
     EmbeddingScoringTasklet.class,
     EmbeddingModelGate.class,
+    ScoringRun.class,
+    ChunkEmbedderBeans.class,
+    EmbeddingScriptedBeans.class,
     SeedMeasurementRun.class,
     SeedGate.class,
     UsableSeedGate.class,

@@ -73,6 +73,16 @@ public class HybridChunker {
     }
 
     /**
+     * This chunker's own identity, half of a stored chunk's key alongside a {@link ChunkingRule}'s own
+     * (ADR-091) — exposed so a caller outside this package storing a further row keyed the same way
+     * (a vector, ADR-085) names the same chunker without minting its own constant to drift from this
+     * one.
+     */
+    public String identity() {
+        return CHUNKER_IDENTITY;
+    }
+
+    /**
      * Structure-first chunking, at word granularity so a single text item long enough to exceed the
      * word budget on its own still splits: a heading flushes whatever is accumulated so far and
      * leads the next chunk's words, and every other item's words are appended to the same running

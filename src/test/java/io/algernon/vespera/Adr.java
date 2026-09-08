@@ -268,6 +268,13 @@ public final class Adr {
             + "0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md";
 
     /**
+     * ADR-085 — vectors live in a content-addressed SQLite cache with no run id, and the pairwise
+     * distance matrix is never materialised.
+     */
+    public static final String VECTORS_LIVE_IN_SQLITE = FILE
+            + "0085-vectors-live-in-sqlite-and-the-pairwise-matrix-is-never-materialised.md";
+
+    /**
      * ADR-086 — how far the seed set resembles the survivors it will be scored against is measured
      * before the embedding model is named, and reported rather than enforced: no verdict, no gate, no
      * single summarising figure.
