@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -196,20 +197,34 @@ public class SeedCorpusComparison {
             List<MetricRow> seedRows,
             List<MetricRow> corpusRows,
             Function<MetricRow, Double> valueOf) {
-        Quartiles seedQuartiles = Quartiles.of(values(seedRows, valueOf));
-        Quartiles corpusQuartiles = Quartiles.of(values(corpusRows, valueOf));
+        Optional<Quartiles> seedQuartiles = Quartiles.of(values(seedRows, valueOf));
+        Optional<Quartiles> corpusQuartiles = Quartiles.of(values(corpusRows, valueOf));
         String statement = String.format(
                 Locale.ROOT,
-                "%s: the seed set's typical %s is %s (%s to %s); the corpus's is %s (%s to %s).",
+                "%s: %s; %s.",
                 capitalize(label),
-                label,
-                format(seedQuartiles.median()),
-                format(seedQuartiles.lowerQuartile()),
-                format(seedQuartiles.upperQuartile()),
-                format(corpusQuartiles.median()),
-                format(corpusQuartiles.lowerQuartile()),
-                format(corpusQuartiles.upperQuartile()));
-        return new Spread(signal, seedQuartiles, corpusQuartiles, statement);
+                clause("the seed set", "no usable seed document", label, seedQuartiles),
+                clause("the corpus", "no surviving corpus document", label, corpusQuartiles));
+        return new Spread(signal, seedQuartiles.orElse(null), corpusQuartiles.orElse(null), statement);
+    }
+
+    /**
+     * One side of a spread's sentence — and where that side measured nothing at all, a sentence saying
+     * so rather than a middle figure of zero. ADR-086's page-count rule reaches the whole population
+     * and not only one document in it: a born-digital seed folder reports no page count, and "the
+     * typical page count is 0.0" would be a measurement of nothing presented as a measured zero.
+     */
+    private static String clause(String side, String noDocument, String label, Optional<Quartiles> quartiles) {
+        return quartiles
+                .map(present -> String.format(
+                        Locale.ROOT,
+                        "%s's typical %s is %s (%s to %s)",
+                        side,
+                        label,
+                        format(present.median()),
+                        format(present.lowerQuartile()),
+                        format(present.upperQuartile())))
+                .orElseGet(() -> String.format(Locale.ROOT, "%s reports a %s", noDocument, label));
     }
 
     private static List<Double> values(List<MetricRow> rows, Function<MetricRow, Double> valueOf) {
@@ -281,16 +296,32 @@ public class SeedCorpusComparison {
                 runId.value(),
                 SPREAD_COMPARISON,
                 spread.signal(),
-                spread.seed().lowerQuartile(),
-                spread.seed().median(),
-                spread.seed().upperQuartile(),
-                spread.corpus().lowerQuartile(),
-                spread.corpus().median(),
-                spread.corpus().upperQuartile(),
+                lowerQuartileOf(spread.seed()),
+                medianOf(spread.seed()),
+                upperQuartileOf(spread.seed()),
+                lowerQuartileOf(spread.corpus()),
+                medianOf(spread.corpus()),
+                upperQuartileOf(spread.corpus()),
                 comparison.seedDocumentCount(),
                 comparison.corpusDocumentCount(),
                 comparison.unmeasuredSeedDocumentCount(),
                 spread.statement());
+    }
+
+    /**
+     * The three columns of one side, null together where that side measured nothing (ADR-086) — the
+     * absence is stored as absence rather than as a zero any later query would read as a figure.
+     */
+    private static Double lowerQuartileOf(Quartiles quartiles) {
+        return quartiles == null ? null : quartiles.lowerQuartile();
+    }
+
+    private static Double medianOf(Quartiles quartiles) {
+        return quartiles == null ? null : quartiles.median();
+    }
+
+    private static Double upperQuartileOf(Quartiles quartiles) {
+        return quartiles == null ? null : quartiles.upperQuartile();
     }
 
     private Set<Long> unusableSeedIds(RunId measurementRunId) {
@@ -413,17 +444,23 @@ public class SeedCorpusComparison {
             double corpusShare,
             String statement) {}
 
-    /** One signal's middle value and quartiles, on each side, both figures present, judging neither. */
+    /**
+     * One signal's middle value and quartiles, on each side, judging neither.
+     *
+     * <p>Either side is {@code null} where no document in that population reported the signal at all —
+     * a corpus of born-digital files has no page count, and no page count is not a page count of zero
+     * (ADR-086). The columns are written null too, so a reader of the table cannot mistake the absence
+     * for a measured figure either.
+     */
     public record Spread(String signal, Quartiles seed, Quartiles corpus, String statement) {}
 
     /** A median with a quartile either side of it — never a mean (ADR-086). */
     public record Quartiles(double lowerQuartile, double median, double upperQuartile) {
 
-        private static final Quartiles EMPTY = new Quartiles(0.0, 0.0, 0.0);
-
-        static Quartiles of(List<Double> values) {
+        /** Empty where nothing in the population reported this signal, never a zero (ADR-086). */
+        static Optional<Quartiles> of(List<Double> values) {
             if (values.isEmpty()) {
-                return EMPTY;
+                return Optional.empty();
             }
             List<Double> sorted = values.stream().sorted().toList();
             int size = sorted.size();
@@ -432,7 +469,7 @@ public class SeedCorpusComparison {
             List<Double> upperHalf = sorted.subList((size + 1) / 2, size);
             double lowerQuartile = lowerHalf.isEmpty() ? median : middle(lowerHalf);
             double upperQuartile = upperHalf.isEmpty() ? median : middle(upperHalf);
-            return new Quartiles(lowerQuartile, median, upperQuartile);
+            return Optional.of(new Quartiles(lowerQuartile, median, upperQuartile));
         }
 
         private static double middle(List<Double> sortedValues) {

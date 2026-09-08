@@ -306,6 +306,14 @@ public final class Adr {
     public static final String THE_SEED_SIDE_IS_MEASURED_BY_SEED_EXTRACTION = FILE
             + "0092-the-seed-side-of-the-mismatch-comparison-is-measured-by-seed-extraction-under-the-measurement-run.md";
 
+    /**
+     * ADR-093 — logging is explicit and process-scoped: console plus a rolling file, every step and
+     * every occurrence at INFO, and stage progress on a percentage/count cadence where a denominator
+     * exists.
+     */
+    public static final String LOGGING_IS_EXPLICIT_AND_PROCESS_SCOPED = FILE
+            + "0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md";
+
     private Adr() {
     }
 }

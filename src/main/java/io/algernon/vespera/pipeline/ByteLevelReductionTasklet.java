@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
@@ -59,6 +61,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
     /** Stage 1 is fully deterministic — no profile value shapes it, so a run's config is empty. */
     static final String CONFIG_CONSUMED = "{}";
 
+    private static final Logger log = LoggerFactory.getLogger(ByteLevelReductionTasklet.class);
+
     private final Ledger ledger;
     private final ContentIdentity contentIdentity;
     private final ImplementationVersions implementationVersions;
@@ -83,20 +87,29 @@ public class ByteLevelReductionTasklet implements Tasklet {
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 1"));
         RunId runId =
                 ledger.startRun(STAGE, implementationVersions.of(OWNING_MODULE), CONFIG_CONSUMED, walkId, List.of());
+        log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
 
         verdictBrokenSurvivors(runId, canonicalRoot);
         resolveDuplicates(runId, canonicalRoot);
 
+        log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
         return RepeatStatus.FINISHED;
     }
 
     private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot) throws Exception {
+        StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", ledger.survivorCount(runId));
         for (OccurrenceId occurrenceId : drain(ledger.survivors(runId))) {
+            log.info("[byte-level-reduction] starting {}", occurrenceId.value());
             OccurrenceFacts facts = factsFor(occurrenceId);
             BrokenCheck.Result result = BrokenCheck.check(canonicalRoot.resolve(facts.path().value()));
             if (result.broken()) {
                 ledger.verdict(occurrenceId, runId, VerdictKind.BROKEN, result.reason());
             }
+            log.info(
+                    "[byte-level-reduction] finished {} -> {}",
+                    occurrenceId.value(),
+                    result.broken() ? "broken: " + result.reason() : "kept");
+            progress.itemDone();
         }
     }
 
@@ -112,23 +125,35 @@ public class ByteLevelReductionTasklet implements Tasklet {
             bySize.computeIfAbsent(sizeBytes, ignored -> new ArrayList<>()).add(occurrenceId);
         }
 
+        // The hash pass's own denominator, and not the survivor count: a file whose size is unique to it
+        // is never hashed at all (ADR-057), so counting it in would leave this pass reporting a fraction
+        // of a total it will never reach.
+        long toHash = bySize.values().stream()
+                .filter(sameSize -> sameSize.size() >= 2)
+                .mapToLong(List::size)
+                .sum();
+        StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, content hash)", toHash);
+
         for (List<OccurrenceId> sameSize : bySize.values()) {
             if (sameSize.size() < 2) {
                 continue;
             }
-            resolveGroupSharingASize(runId, canonicalRoot, sameSize);
+            resolveGroupSharingASize(runId, canonicalRoot, sameSize, progress);
         }
     }
 
-    private void resolveGroupSharingASize(RunId runId, Path canonicalRoot, List<OccurrenceId> sameSize)
-            throws Exception {
+    private void resolveGroupSharingASize(
+            RunId runId, Path canonicalRoot, List<OccurrenceId> sameSize, StageProgress progress) throws Exception {
         Map<String, List<Candidate>> byHash = new HashMap<>();
         for (OccurrenceId occurrenceId : sameSize) {
+            log.info("[byte-level-reduction] starting {} (content hash)", occurrenceId.value());
             OccurrenceFacts facts = factsFor(occurrenceId);
             String sha256 = ContentHash.sha256(canonicalRoot.resolve(facts.path().value()));
             contentIdentity.recordHash(occurrenceId, runId, sha256);
             byHash.computeIfAbsent(sha256, ignored -> new ArrayList<>())
                     .add(new Candidate(occurrenceId, facts.path(), facts.creationTime()));
+            log.info("[byte-level-reduction] finished {} (content hash) -> {}", occurrenceId.value(), sha256);
+            progress.itemDone();
         }
 
         for (List<Candidate> sameHash : byHash.values()) {
