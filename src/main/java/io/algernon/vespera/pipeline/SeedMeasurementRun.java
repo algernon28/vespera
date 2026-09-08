@@ -64,6 +64,7 @@ class SeedMeasurementRun {
 
     private final RunId runId;
     private final RunId redundancyRunId;
+    private final RunId extractionRunId;
 
     SeedMeasurementRun(
             Ledger ledger,
@@ -86,8 +87,10 @@ class SeedMeasurementRun {
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 5"));
 
-        this.redundancyRunId = redundancyRunId(
-                implementationVersions, extractorIdentity, confidenceFloor, canonicalRoot, walkId, floor);
+        UpstreamRuns upstreamRuns =
+                upstreamRuns(implementationVersions, extractorIdentity, confidenceFloor, canonicalRoot, walkId, floor);
+        this.extractionRunId = upstreamRuns.extractionRunId();
+        this.redundancyRunId = upstreamRuns.redundancyRunId();
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, EXTRACTION_MODULE, PIPELINE_MODULE),
@@ -97,13 +100,17 @@ class SeedMeasurementRun {
     }
 
     /**
-     * Stage 4's run id, re-derived from its known-fixed inputs rather than read off any in-process
-     * state — the same re-derivation {@link RedundancyRun} performs for stages 3, 2 and 1, and for the
-     * same reason: a run's id is wholly determined by ADR-048's four inputs, so recomputing it is
-     * exact rather than a guess, and the {@code run_upstream} foreign key enforces that a row actually
-     * exists under it.
+     * The two upstream run ids this stage needs, re-derived from their known-fixed inputs rather than
+     * read off any in-process state — the same re-derivation {@link RedundancyRun} performs for stages
+     * 3, 2 and 1, and for the same reason: a run's id is wholly determined by ADR-048's four inputs, so
+     * recomputing it is exact rather than a guess, and the {@code run_upstream} foreign key enforces
+     * that a row actually exists under it.
+     *
+     * <p>Stage 4's is this run's upstream (ADR-089). Stage 2's is not — it is the run whose {@code
+     * extraction_metric} rows carry the corpus side of the mismatch comparison (ADR-086), which has to
+     * be named to be read, since the seed side's rows sit under this run instead (ADR-092).
      */
-    private static RunId redundancyRunId(
+    private static UpstreamRuns upstreamRuns(
             ImplementationVersions implementationVersions,
             ExtractorIdentity extractorIdentity,
             DegenerateOutputConfidenceFloor confidenceFloor,
@@ -128,12 +135,13 @@ class SeedMeasurementRun {
                 ContentCensusRun.configConsumed(canonicalRoot, extractionRunId),
                 walkId,
                 List.of(extractionRunId));
-        return RunId.of(
+        RunId redundancyRunId = RunId.of(
                 implementationVersions.of(
                         RedundancyRun.OWNING_MODULE, RedundancyRun.EXTRACTION_MODULE, RedundancyRun.PIPELINE_MODULE),
                 RedundancyRun.configConsumed(canonicalRoot, contentCensusRunId, floor),
                 walkId,
                 List.of(contentCensusRunId));
+        return new UpstreamRuns(extractionRunId, redundancyRunId);
     }
 
     /**
@@ -155,5 +163,16 @@ class SeedMeasurementRun {
         return redundancyRunId;
     }
 
+    /**
+     * Stage 2's run id, which the mismatch comparison reads the corpus side's measurements under
+     * (ADR-086). Not an upstream of this run, and not where its own seed rows go (ADR-092).
+     */
+    RunId extractionRunId() {
+        return extractionRunId;
+    }
+
     private record ConfigConsumed(String root, String seedFolder, String redundancyRunId) {}
+
+    /** The two re-derived upstream ids, returned together so the derivation runs once. */
+    private record UpstreamRuns(RunId extractionRunId, RunId redundancyRunId) {}
 }

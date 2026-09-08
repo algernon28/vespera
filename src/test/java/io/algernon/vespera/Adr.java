@@ -268,6 +268,14 @@ public final class Adr {
             + "0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md";
 
     /**
+     * ADR-086 — how far the seed set resembles the survivors it will be scored against is measured
+     * before the embedding model is named, and reported rather than enforced: no verdict, no gate, no
+     * single summarising figure.
+     */
+    public static final String SEED_CORPUS_MISMATCH_IS_MEASURED_AND_REPORTED = FILE
+            + "0086-seed-corpus-mismatch-is-measured-before-the-model-gate-and-reported-never-enforced.md";
+
+    /**
      * ADR-089 — a stage's run names the immediately preceding stage's run upstream, because blocking
      * verdicts are cumulative across runs, so any pass over survivors is determined by every
      * verdict-writing run before it. A verdict-free stage stays in the chain.
@@ -289,6 +297,14 @@ public final class Adr {
      */
     public static final String THERE_IS_NO_TOKENIZER = FILE
             + "0091-there-is-no-tokenizer-the-runtime-counts-tokens-and-the-embedder-identity-is-what-ollama-reports.md";
+
+    /**
+     * ADR-092 — the seed side of the mismatch comparison is measured by seed extraction, under the
+     * measurement run: a seed carries an {@code extraction_metric} row of its own, that row is never
+     * read as a verdict, and the compared population is the seeds that would actually be scored.
+     */
+    public static final String THE_SEED_SIDE_IS_MEASURED_BY_SEED_EXTRACTION = FILE
+            + "0092-the-seed-side-of-the-mismatch-comparison-is-measured-by-seed-extraction-under-the-measurement-run.md";
 
     private Adr() {
     }

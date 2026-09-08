@@ -353,3 +353,38 @@ CREATE TABLE IF NOT EXISTS unusable_seed (
     reason TEXT NOT NULL,
     PRIMARY KEY (occurrence_id, run_id)
 );
+
+-- embedding's own table (ADR-086, ADR-092): how far the seed set resembles the survivors it will be
+-- scored against, keyed by the measurement run that computed it -- a fresh row set per run (ADR-077),
+-- never an overwrite of an earlier one. Two shapes of row, one table: category is 'language' or
+-- 'provenance' for a Proportion, or one of WORD_COUNT / PAGE_COUNT / VOWELLESS_WORD_RATIO /
+-- SINGLE_CHARACTER_WORD_RATIO for a Spread, distinguished by which columns are populated. A
+-- Proportion row leaves the *_lower_quartile/median/upper_quartile columns null; a Spread row leaves
+-- seed_share/corpus_share null, because a middle figure and a share are not the same kind of number
+-- and a shared "value" column would blur what a reader is looking at.
+--
+-- statement is the sentence ADR-086 requires, computed once here rather than re-derived by every
+-- reader (the HTML report and any future one), so the table's own words and the report's can never
+-- drift apart. seed_document_count and corpus_document_count on every row repeat the same two
+-- populations (SeedCorpusComparison.Comparison carries them once); repeating them is cheap against a
+-- few dozen rows and lets one row be read on its own without a second query for its denominator.
+CREATE TABLE IF NOT EXISTS seed_corpus_comparison (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    comparison TEXT NOT NULL,
+    category TEXT NOT NULL,
+    seed_documents INTEGER,
+    corpus_documents INTEGER,
+    seed_share REAL,
+    corpus_share REAL,
+    seed_lower_quartile REAL,
+    seed_median REAL,
+    seed_upper_quartile REAL,
+    corpus_lower_quartile REAL,
+    corpus_median REAL,
+    corpus_upper_quartile REAL,
+    seed_document_count INTEGER NOT NULL,
+    corpus_document_count INTEGER NOT NULL,
+    unmeasured_seed_document_count INTEGER NOT NULL,
+    statement TEXT NOT NULL,
+    PRIMARY KEY (run_id, comparison, category)
+);
