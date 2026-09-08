@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.ledger.OccurrenceId;
 
 /**
@@ -10,19 +11,25 @@ import io.algernon.vespera.ledger.OccurrenceId;
  * left standing. A seed is never published, so no kind in the closed vocabulary applies to it, and
  * the type that travels through the seed pass says so by having nowhere to put one.
  *
+ * <p>{@code response} travels with every outcome, usable or not, because {@link
+ * SeedExtractionItemWriter} needs it to call {@code ExtractionMetrics.write} once the measurement run
+ * exists (ADR-092): the pass holding the converted document open is the only one that can measure it
+ * without converting a second time, and that pass is this processor, not the writer.
+ *
  * @param occurrenceId the seed occurrence
+ * @param response what the extractor answered with, for every seed it answered for at all
  * @param unusableReason why it produced no text, or {@code null} for a seed that did
  */
-record SeedExtractionOutcome(OccurrenceId occurrenceId, String unusableReason) {
+record SeedExtractionOutcome(OccurrenceId occurrenceId, DoclingResponse response, String unusableReason) {
 
     /** A seed that produced text, and is therefore something ADR-020's maximum can be taken over. */
-    static SeedExtractionOutcome usable(OccurrenceId occurrenceId) {
-        return new SeedExtractionOutcome(occurrenceId, null);
+    static SeedExtractionOutcome usable(OccurrenceId occurrenceId, DoclingResponse response) {
+        return new SeedExtractionOutcome(occurrenceId, response, null);
     }
 
     /** A seed that produced no text, recorded as data rather than judged. */
-    static SeedExtractionOutcome unusable(OccurrenceId occurrenceId, String reason) {
-        return new SeedExtractionOutcome(occurrenceId, reason);
+    static SeedExtractionOutcome unusable(OccurrenceId occurrenceId, DoclingResponse response, String reason) {
+        return new SeedExtractionOutcome(occurrenceId, response, reason);
     }
 
     boolean usable() {

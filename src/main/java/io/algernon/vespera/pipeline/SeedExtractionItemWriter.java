@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.embedding.UnusableSeeds;
+import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.RunId;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +37,13 @@ import org.springframework.stereotype.Component;
  * case is this class's own log line and a successful invocation that removed nothing, which is what a
  * gate is — the invocation ends having recorded what it learned, and the seed folder is what needs
  * fixing.
+ *
+ * <p><b>Once the run exists, it also writes the seed side's {@code extraction_metric} rows</b>
+ * (ADR-092): {@code ExtractionMetrics.write} — never {@code writeAndJudge}, since a seed's tier-2
+ * confidence is never a floor — for every outcome, usable or not. This is the same seam the {@code
+ * unusable_seed} rows are written from and for the same reason: the run cannot exist until the whole
+ * folder has been converted, so a per-document write is impossible without reopening ADR-083's gate
+ * ordering.
  */
 @Component
 @StepScope
@@ -45,30 +53,37 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
 
     private final ObjectProvider<SeedMeasurementRun> seedMeasurementRun;
     private final UnusableSeeds unusableSeeds;
+    private final ExtractionMetrics extractionMetrics;
+    private final UsableSeedGate usableSeedGate;
 
     /** Held rather than written per chunk, because the gate below is a fact about the whole folder. */
-    private final List<SeedExtractionOutcome> unusable = new ArrayList<>();
+    private final List<SeedExtractionOutcome> outcomes = new ArrayList<>();
 
-    private int usableSeeds;
-
-    SeedExtractionItemWriter(ObjectProvider<SeedMeasurementRun> seedMeasurementRun, UnusableSeeds unusableSeeds) {
+    SeedExtractionItemWriter(
+            ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
+            UnusableSeeds unusableSeeds,
+            ExtractionMetrics extractionMetrics,
+            UsableSeedGate usableSeedGate) {
         this.seedMeasurementRun = seedMeasurementRun;
         this.unusableSeeds = unusableSeeds;
+        this.extractionMetrics = extractionMetrics;
+        this.usableSeedGate = usableSeedGate;
     }
 
     @Override
     public void write(Chunk<? extends SeedExtractionOutcome> chunk) {
         for (SeedExtractionOutcome outcome : chunk) {
-            if (outcome.usable()) {
-                usableSeeds++;
-            } else {
-                unusable.add(outcome);
-            }
+            outcomes.add(outcome);
         }
     }
 
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
+        long usableSeeds = outcomes.stream().filter(SeedExtractionOutcome::usable).count();
+        long unusableSeedCount = outcomes.size() - usableSeeds;
+        // Told to the rest of stage 5 before this method can return either way: with no usable seed
+        // there is no run, so nothing is written that a later step could read the answer off (ADR-092).
+        usableSeedGate.recordUsableSeeds(usableSeeds);
         if (usableSeeds == 0) {
             // ADR-083's gate, and a gate for the right reason rather than a quality judgement:
             // ADR-020's scoring function is a maximum over the seed set, and over an empty set it is
@@ -76,18 +91,21 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             log.warn(
                     "No seed document produced any text, so stage 5 minted no run: {} seed documents were"
                             + " extracted and none of them was usable. Fix the seed folder and run again.",
-                    unusable.size());
+                    unusableSeedCount);
             return stepExecution.getExitStatus();
         }
         RunId runId = seedMeasurementRun.getObject().runId();
-        for (SeedExtractionOutcome outcome : unusable) {
-            unusableSeeds.record(outcome.occurrenceId(), runId, outcome.unusableReason());
+        for (SeedExtractionOutcome outcome : outcomes) {
+            extractionMetrics.write(outcome.occurrenceId(), runId, outcome.response());
+            if (!outcome.usable()) {
+                unusableSeeds.record(outcome.occurrenceId(), runId, outcome.unusableReason());
+            }
         }
         log.info(
                 "Stage 5 extracted the seed set under run {}: {} usable, {} recorded as unusable",
                 runId.value(),
                 usableSeeds,
-                unusable.size());
+                unusableSeedCount);
         return stepExecution.getExitStatus();
     }
 }

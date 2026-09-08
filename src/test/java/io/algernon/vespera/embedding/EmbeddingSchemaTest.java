@@ -11,6 +11,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,8 +30,10 @@ import org.springframework.test.context.ActiveProfiles;
  * from whether a mismatch is refused. A module could record its version and refuse nothing.
  *
  * <p>That extraction's own version did <em>not</em> move when the seed set arrived is asserted where it
- * belongs, by that module's own test committing to the literal 3 — the seed pass reuses extraction's
- * extractor, chunker and both caches, and adds no table to it.
+ * belongs, by that module's own test committing to a literal of its own — the seed pass reuses
+ * extraction's extractor, chunker and both caches, and adds no table to it. The seed side's own
+ * {@code extraction_metric} rows (ADR-092) do not move it either: they land in a table that module
+ * already owns, under a run id its shape already accommodates.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -42,10 +45,13 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-083", url = Adr.THE_SEED_SET_IS_EXTRACTED_BY_STAGE_5, type = "adr")
 class EmbeddingSchemaTest {
 
-    /** The first version this module ever had, and the table that arrived with it. */
-    private static final int FIRST_VERSION = 1;
+    /** The version this module is on, and the table that arrived with it. */
+    private static final int CURRENT_VERSION = 2;
 
-    private static final String FIRST_TABLE = "unusable_seed";
+    private static final String TABLE_THIS_VERSION_ADDED = "seed_corpus_comparison";
+
+    /** The table version 1 arrived with, still described by the version above (ADR-083). */
+    private static final String TABLE_VERSION_ONE_ADDED = "unusable_seed";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -88,21 +94,29 @@ class EmbeddingSchemaTest {
 
     @Test
     @Story("A module states the schema it was built against")
-    @DisplayName("VERSION is the literal 1, and unusable_seed is the table that came with it")
-    void versionIsTheFirstOneLiterally() {
+    @DisplayName("VERSION is the literal 2, and seed_corpus_comparison is the table that came with it")
+    @Issue("106")
+    @Link(name = "ADR-086", url = Adr.SEED_CORPUS_MISMATCH_IS_MEASURED_AND_REPORTED, type = "adr")
+    void versionIsTheSeedCorpusComparisonTableLiterally() {
         claim(
                 "the version and the table it names arrived together, so a later table added without a"
                         + " bump would leave this constant already committed to the wrong value. The"
-                        + " literal 1 is stated here rather than read back off the constant, which would"
+                        + " literal 2 is stated here rather than read back off the constant, which would"
                         + " assert nothing",
-                () -> assertThat(EmbeddingSchema.VERSION).isEqualTo(FIRST_VERSION));
+                () -> assertThat(EmbeddingSchema.VERSION).isEqualTo(CURRENT_VERSION));
         claim(
-                "unusable_seed is present in the schema this version claims to describe",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-                                String.class,
-                                FIRST_TABLE))
-                        .isEqualTo(FIRST_TABLE));
+                "seed_corpus_comparison is present in the schema this version claims to describe, and so"
+                        + " is unusable_seed: a version describes every table this part of the system owns,"
+                        + " not only the newest one",
+                () -> assertThat(tableNames())
+                        .contains(TABLE_THIS_VERSION_ADDED)
+                        .contains(TABLE_VERSION_ONE_ADDED));
+    }
+
+    /** Every table the database this test runs against actually holds. */
+    private List<String> tableNames() {
+        return jdbcTemplate.queryForList(
+                "SELECT name FROM sqlite_master WHERE type = 'table'", String.class);
     }
 
 }

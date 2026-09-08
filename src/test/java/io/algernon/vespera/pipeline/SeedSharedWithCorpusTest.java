@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.CountingDoclingBeans;
@@ -96,13 +97,17 @@ import org.springframework.transaction.annotation.Transactional;
     SeedExtractionJobConfiguration.class,
     SeedExtractionItemProcessor.class,
     SeedExtractionItemWriter.class,
+    SeedCorpusComparisonJobConfiguration.class,
+    SeedCorpusComparisonTasklet.class,
     SeedMeasurementRun.class,
     SeedGate.class,
+    UsableSeedGate.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
     BoilerplateShingles.class,
     DocumentFrequency.class,
     ConfidenceDistribution.class,
+    SeedCorpusComparison.class,
     UnusableSeeds.class,
     Shingler.class,
     HybridChunkerBeans.class,
