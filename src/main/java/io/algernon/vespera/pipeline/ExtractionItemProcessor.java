@@ -19,6 +19,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.stereotype.Component;
@@ -45,6 +47,8 @@ import org.springframework.stereotype.Component;
 @StepScope
 class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionOutcome> {
 
+    private static final Logger log = LoggerFactory.getLogger(ExtractionItemProcessor.class);
+
     private final Ledger ledger;
     private final ContentIdentity contentIdentity;
     private final DoclingExtractor extractor;
@@ -54,6 +58,13 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private final ExtractionMetrics extractionMetrics;
     private final DegenerateOutputConfidenceFloor confidenceFloor;
     private final Shingler shingler;
+
+    /**
+     * Stage 2's progress line (ADR-093), counted here because this is the per-item seam the step has:
+     * the denominator is the survivor set the reader was given, read once when the step's processor is
+     * created rather than re-counted per item.
+     */
+    private final StageProgress progress;
 
     ExtractionItemProcessor(
             Ledger ledger,
@@ -74,10 +85,22 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.extractionMetrics = extractionMetrics;
         this.confidenceFloor = confidenceFloor;
         this.shingler = shingler;
+        this.progress = StageProgress.over("Stage 2 (extraction)", ledger.survivorCount(extractionRun.runId()));
     }
 
     @Override
     public ExtractionOutcome process(OccurrenceId occurrenceId) {
+        log.info("[extraction] starting {}", occurrenceId.value());
+        ExtractionOutcome outcome = doProcess(occurrenceId);
+        log.info(
+                "[extraction] finished {} -> {}",
+                occurrenceId.value(),
+                outcome == null ? "survivor" : outcome.kind());
+        progress.itemDone();
+        return outcome;
+    }
+
+    private ExtractionOutcome doProcess(OccurrenceId occurrenceId) {
         Path file = resolvePath(occurrenceId);
         Conversion conversion;
         try {

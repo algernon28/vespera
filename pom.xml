@@ -56,6 +56,13 @@
     </properties>
     <dependencies>
         <dependency>
+            <!-- ADR-093: declared explicitly per ADR-046's convention, rather than left to arrive only
+                 transitively via spring-boot-starter-logging. logback-classic itself stays un-added and
+                 BOM-managed, same as every other starter-provided library here. -->
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>

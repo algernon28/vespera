@@ -356,12 +356,17 @@ CREATE TABLE IF NOT EXISTS unusable_seed (
 
 -- embedding's own table (ADR-086, ADR-092): how far the seed set resembles the survivors it will be
 -- scored against, keyed by the measurement run that computed it -- a fresh row set per run (ADR-077),
--- never an overwrite of an earlier one. Two shapes of row, one table: category is 'language' or
--- 'provenance' for a Proportion, or one of WORD_COUNT / PAGE_COUNT / VOWELLESS_WORD_RATIO /
--- SINGLE_CHARACTER_WORD_RATIO for a Spread, distinguished by which columns are populated. A
--- Proportion row leaves the *_lower_quartile/median/upper_quartile columns null; a Spread row leaves
--- seed_share/corpus_share null, because a middle figure and a share are not the same kind of number
--- and a shared "value" column would blur what a reader is looking at.
+-- never an overwrite of an earlier one. Two shapes of row, one table, told apart by comparison: a
+-- Proportion carries 'language' or 'provenance' there and the language code or born-digital/converted
+-- in category; a Spread carries 'spread' there and the signal -- word-count, page-count,
+-- vowelless-word-ratio, single-character-word-ratio -- in category. A Proportion row leaves the
+-- *_lower_quartile/median/upper_quartile columns null; a Spread row leaves seed_share/corpus_share
+-- null, because a middle figure and a share are not the same kind of number and a shared "value"
+-- column would blur what a reader is looking at.
+--
+-- One side's three quartile columns are null together where that population reported the signal for no
+-- document at all -- a born-digital folder has no page count, and no page count is not a page count of
+-- zero (ADR-086). Null rather than 0.0 so a query cannot read the absence as a measured figure.
 --
 -- statement is the sentence ADR-086 requires, computed once here rather than re-derived by every
 -- reader (the HTML report and any future one), so the table's own words and the report's can never

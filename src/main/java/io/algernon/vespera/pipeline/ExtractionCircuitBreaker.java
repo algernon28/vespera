@@ -1,6 +1,8 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.OccurrenceId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.listener.ItemProcessListener;
 import org.springframework.batch.core.listener.SkipListener;
@@ -25,6 +27,8 @@ import org.springframework.stereotype.Component;
 @StepScope
 class ExtractionCircuitBreaker implements SkipListener<OccurrenceId, ExtractionOutcome>, ItemProcessListener<OccurrenceId, ExtractionOutcome> {
 
+    private static final Logger log = LoggerFactory.getLogger(ExtractionCircuitBreaker.class);
+
     /** ADR-071: higher than the timeout count, because this one has to fire on a mix of categories. */
     static final int CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT = 5;
 
@@ -33,7 +37,20 @@ class ExtractionCircuitBreaker implements SkipListener<OccurrenceId, ExtractionO
     @Override
     public void onSkipInProcess(OccurrenceId item, Throwable t) {
         consecutiveServiceScopeFailures++;
+        // ADR-093: this is the case that motivated logging at all -- a service-scope failure writes no
+        // Ledger row (ADR-071), so this WARN is the only record it happened, until/unless the streak
+        // below trips the breaker.
+        log.warn(
+                "[extraction] service-scope failure on {} (consecutive streak: {}/{}): {}",
+                item.value(),
+                consecutiveServiceScopeFailures,
+                CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT,
+                t.toString());
         if (consecutiveServiceScopeFailures >= CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT) {
+            log.error(
+                    "[extraction] circuit breaker tripped after {} consecutive service-scope failures;"
+                            + " stopping the step",
+                    consecutiveServiceScopeFailures);
             throw new ExtractorStoppedAnsweringException(consecutiveServiceScopeFailures, t);
         }
     }

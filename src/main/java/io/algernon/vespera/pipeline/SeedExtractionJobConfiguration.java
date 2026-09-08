@@ -7,7 +7,6 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,7 +41,7 @@ public class SeedExtractionJobConfiguration {
     Step seedExtractionStep(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            ItemStreamReader<OccurrenceId> seedReader,
+            OccurrenceReader seedReader,
             ObjectProvider<SeedExtractionItemProcessor> seedExtractionItemProcessor,
             SeedExtractionItemWriter seedExtractionItemWriter) {
         return new StepBuilder(STEP_NAME, jobRepository)
@@ -64,27 +63,11 @@ public class SeedExtractionJobConfiguration {
      */
     @Bean
     @StepScope
-    ItemStreamReader<OccurrenceId> seedReader(Ledger ledger, SeedGate seedGate) {
+    OccurrenceReader seedReader(Ledger ledger, SeedGate seedGate) {
         Optional<SeedGate.SeedWalk> seedWalk = seedGate.seedWalk();
         if (seedWalk.isEmpty()) {
-            return new NoSeeds();
+            return OccurrenceReader.yieldingNothing();
         }
-        return ledger.occurrencesOf(seedWalk.get().walkId());
-    }
-
-    /**
-     * The reader a closed gate hands back: it reads nothing, so the processor and the run-minting
-     * writer are never reached at all.
-     *
-     * <p>A reader rather than a skipped step, so the job's stage order is the same whatever the profile
-     * says — and a class rather than a lambda, because the step needs an {@link ItemStreamReader} and
-     * the empty case still has to be opened and closed like any other stream.
-     */
-    private static final class NoSeeds implements ItemStreamReader<OccurrenceId> {
-
-        @Override
-        public OccurrenceId read() {
-            return null;
-        }
+        return new OccurrenceReader(ledger.occurrencesOf(seedWalk.get().walkId()));
     }
 }

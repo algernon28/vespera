@@ -110,6 +110,12 @@ class SeedCorpusComparisonTest {
 
     private static final double MEDIAN_PAGE_COUNT = 20d;
 
+    /** How the sentence puts a population that reported this signal for no document at all. */
+    private static final String NO_SEED_DOCUMENT_REPORTS_ONE = "no usable seed document reports a page count";
+
+    /** The figure a reader must never be shown for a measurement nobody took (ADR-086). */
+    private static final String A_PAGE_COUNT_OF_ZERO = "page count is 0.0";
+
     /**
      * What the median page count would collapse to if the two documents that were never paginated
      * counted as zero pages: the middle of 0, 0, 10, 20, 30.
@@ -353,8 +359,8 @@ class SeedCorpusComparisonTest {
 
         SeedCorpusComparison.Comparison comparison = fixture.measure();
 
-        SeedCorpusComparison.Quartiles pages =
-                spread(comparison, SeedCorpusComparison.PAGE_COUNT).corpus();
+        SeedCorpusComparison.Spread pageCount = spread(comparison, SeedCorpusComparison.PAGE_COUNT);
+        SeedCorpusComparison.Quartiles pages = pageCount.corpus();
         claim(
                 "the reported page count is 20, the middle of the three documents that were paginated --"
                         + " 10, 20 and 30 pages",
@@ -364,6 +370,17 @@ class SeedCorpusComparisonTest {
                         + " documents that were never paginated had been counted as documents of no pages:"
                         + " an absent measurement is not a measurement of nothing",
                 () -> assertThat(pages.median()).isNotEqualTo(MEDIAN_PAGE_COUNT_IF_ABSENCE_WERE_ZERO));
+        claim(
+                "and the seed set, whose one document was never paginated either, reports no page count"
+                        + " at all rather than a page count of zero: the rule reaches a whole population"
+                        + " and not only one document inside one",
+                () -> assertThat(pageCount.seed()).isNull());
+        claim(
+                "which the sentence says in words, so a reader is never shown a middle figure that was"
+                        + " never measured",
+                () -> assertThat(pageCount.statement())
+                        .contains(NO_SEED_DOCUMENT_REPORTS_ONE)
+                        .doesNotContain(A_PAGE_COUNT_OF_ZERO));
     }
 
     @Test

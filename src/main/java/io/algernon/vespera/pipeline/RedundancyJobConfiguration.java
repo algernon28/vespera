@@ -4,11 +4,13 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
+import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -48,13 +50,14 @@ public class RedundancyJobConfiguration {
     Step redundancySignatureStep(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            ItemStreamReader<OccurrenceId> redundancySignatureReader,
+            OccurrenceReader redundancySignatureReader,
             RedundancySignatureItemWriter redundancySignatureItemWriter) {
         return new StepBuilder("redundancy-signature", jobRepository)
                 .<OccurrenceId, OccurrenceId>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
                 .reader(redundancySignatureReader)
                 .writer(redundancySignatureItemWriter)
+                .listener(new SignatureStepBoundaryLog())
                 .build();
     }
 
@@ -75,13 +78,13 @@ public class RedundancyJobConfiguration {
      */
     @Bean
     @StepScope
-    ItemStreamReader<OccurrenceId> redundancySignatureReader(
+    OccurrenceReader redundancySignatureReader(
             Ledger ledger, RedundancyGate redundancyGate, ObjectProvider<RedundancyRun> redundancyRunProvider) {
         if (redundancyGate.floor().isEmpty()) {
             logGateClosed(LoggerFactory.getLogger(RedundancyJobConfiguration.class));
-            return new EmptyItemStreamReader();
+            return OccurrenceReader.yieldingNothing();
         }
-        return ledger.survivors(redundancyRunProvider.getObject().runId());
+        return new OccurrenceReader(ledger.survivors(redundancyRunProvider.getObject().runId()));
     }
 
     /**
@@ -97,21 +100,29 @@ public class RedundancyJobConfiguration {
                         + " No stage-4 run was minted.");
     }
 
-    /** An {@link ItemStreamReader} that yields nothing — the gate's closed state for a chunk step. */
-    private static final class EmptyItemStreamReader implements ItemStreamReader<OccurrenceId> {
+    /**
+     * Stage 4a's step start/end lines (ADR-093), kept out of the writer on purpose: a listener is
+     * resolved at the step's boundaries whatever the gate says, and the writer reaching {@link
+     * RedundancyRun} directly means a step-scoped writer used as a listener would mint a run row on
+     * every closed-gate invocation. This listener depends on nothing, so the counts it reports are all
+     * it can say — the run id is on the reader's own lines, and the closed case says so above.
+     */
+    private static final class SignatureStepBoundaryLog implements StepExecutionListener {
+
+        private static final Logger log = LoggerFactory.getLogger(SignatureStepBoundaryLog.class);
 
         @Override
-        public OccurrenceId read() {
-            return null;
+        public void beforeStep(StepExecution stepExecution) {
+            log.info("Stage 4a (redundancy signatures) starting");
         }
 
         @Override
-        public void open(ExecutionContext executionContext) {}
-
-        @Override
-        public void update(ExecutionContext executionContext) {}
-
-        @Override
-        public void close() {}
+        public ExitStatus afterStep(StepExecution stepExecution) {
+            log.info(
+                    "Stage 4a (redundancy signatures) finished: read={}, written={}",
+                    stepExecution.getReadCount(),
+                    stepExecution.getWriteCount());
+            return stepExecution.getExitStatus();
+        }
     }
 }

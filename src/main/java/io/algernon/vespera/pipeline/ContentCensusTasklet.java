@@ -11,6 +11,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
@@ -43,6 +45,8 @@ class ContentCensusTasklet implements Tasklet {
     /** The confidence-distribution report's fixed name in the working directory (ADR-075). */
     static final String CONFIDENCE_DISTRIBUTION_FILE_NAME = "confidence-distribution.html";
 
+    private static final Logger log = LoggerFactory.getLogger(ContentCensusTasklet.class);
+
     private final DocumentFrequency documentFrequency;
     private final ConfidenceDistribution confidenceDistribution;
     private final ContentCensusRun contentCensusRun;
@@ -67,16 +71,24 @@ class ContentCensusTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+        log.info("Stage 3 (content census) starting under run {}", contentCensusRun.runId().value());
+
         documentFrequency.measure(contentCensusRun.runId(), contentCensusRun.extractionRunId());
+        log.info("Stage 3 (content census) measured shingle document frequency");
 
         ConfidenceDistribution.Distribution distribution =
                 confidenceDistribution.measure(contentCensusRun.runId(), contentCensusRun.extractionRunId());
+        log.info("Stage 3 (content census) measured the confidence distribution");
         Path reportFile = writeReport(distribution);
 
         Profile profile = profileStore.load();
         profileStore.save(profile.withDegenerateOutputConfidenceFloorMeasurement(
                 new Measurement(reportFile.toString(), clock.instant())));
 
+        log.info(
+                "Stage 3 (content census) finished under run {}; report written to {}",
+                contentCensusRun.runId().value(),
+                reportFile);
         return RepeatStatus.FINISHED;
     }
 

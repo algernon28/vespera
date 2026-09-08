@@ -278,6 +278,25 @@ public class Ledger {
     }
 
     /**
+     * How many occurrences {@link #survivors} would hand out for {@code runId} — the denominator a
+     * stage's progress line needs before it starts (ADR-093).
+     *
+     * <p>The same anti-join as the reader, and deliberately not a count the caller keeps as it reads:
+     * a stage reports progress against the set it was given, and that set is a query.
+     */
+    public long survivorCount(RunId runId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM file_occurrence"
+                        + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+                        + " AND NOT EXISTS (SELECT 1 FROM verdict"
+                        + " WHERE verdict.occurrence_id = file_occurrence.id"
+                        + " AND verdict.kind IN (" + blockingKinds() + "))",
+                Long.class,
+                runId.value());
+        return count == null ? 0 : count;
+    }
+
+    /**
      * The occurrences of {@code runId}'s walk that carry no blocking verdict — the survivor set, as a
      * reader a step consumes chunk by chunk (ADR-060).
      *

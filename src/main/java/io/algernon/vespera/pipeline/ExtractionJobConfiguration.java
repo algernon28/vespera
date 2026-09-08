@@ -12,7 +12,6 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -51,7 +50,7 @@ public class ExtractionJobConfiguration {
     Step extractionStep(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            ItemStreamReader<OccurrenceId> extractionReader,
+            OccurrenceReader extractionReader,
             ExtractionItemProcessor extractionItemProcessor,
             ExtractionItemWriter extractionItemWriter,
             ExtractionCircuitBreaker extractionCircuitBreaker,
@@ -76,8 +75,8 @@ public class ExtractionJobConfiguration {
      */
     @Bean
     @StepScope
-    ItemStreamReader<OccurrenceId> extractionReader(Ledger ledger, ExtractionRun extractionRun) {
-        return ledger.survivors(extractionRun.runId());
+    OccurrenceReader extractionReader(Ledger ledger, ExtractionRun extractionRun) {
+        return new OccurrenceReader(ledger.survivors(extractionRun.runId()));
     }
 
     /**

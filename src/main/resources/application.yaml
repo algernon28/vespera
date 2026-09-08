@@ -23,6 +23,26 @@ spring:
     # references would silently accept orphans without it.
     url: "jdbc:sqlite:${vespera.working-dir}/vespera.db?foreign_keys=on"
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite locks the database file for a write, so a pooled connection that sits on one turns the
+      # next writer's attempt into "The database file is locked (database is locked)" - the error these
+      # settings exist for, and whose own advice is a shorter maxLifetime. A connection is therefore
+      # retired quickly rather than kept warm, and a stage that waits on a lock waits a long time
+      # rather than failing: the pipeline runs unattended for days (ADR-035), and a five-minute wait
+      # for a lock is cheaper than a failed run.
+      connection-timeout: 300000
+      validation-timeout: 300000
+      connection-test-query: SELECT 1
+      max-lifetime: 35000
+      idle-timeout: 15000
+      # idleTimeout does nothing unless the pool can actually shrink, and minimumIdle defaults to
+      # maximumPoolSize - a fixed-size pool that retires nothing and says so at every boot
+      # ("idleTimeout has been set but has no effect"). One is the floor the rest grow back from.
+      minimum-idle: 1
+      # Off, not left at its two-minute default: a keepalive ping is exactly what holds a connection,
+      # and its lock, past the 35s lifetime above. Hikari disables it by itself here anyway, since
+      # keepaliveTime >= maxLifetime, and warns on every boot while doing so.
+      keepalive-time: 0
   sql:
     init:
       # SQLite isn't one of the databases Spring Boot auto-detects as embedded, so schema.sql

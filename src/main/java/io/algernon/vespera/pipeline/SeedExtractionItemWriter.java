@@ -43,7 +43,8 @@ import org.springframework.stereotype.Component;
  * confidence is never a floor — for every outcome, usable or not. This is the same seam the {@code
  * unusable_seed} rows are written from and for the same reason: the run cannot exist until the whole
  * folder has been converted, so a per-document write is impossible without reopening ADR-083's gate
- * ordering.
+ * ordering. What is held until then is each seed's measured row, not the document it was measured
+ * from — the processor measures while the document is open and passes the columns on.
  */
 @Component
 @StepScope
@@ -56,7 +57,10 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
     private final ExtractionMetrics extractionMetrics;
     private final UsableSeedGate usableSeedGate;
 
-    /** Held rather than written per chunk, because the gate below is a fact about the whole folder. */
+    /**
+     * Held rather than written per chunk, because the gate below is a fact about the whole folder. One
+     * measured row per seed, against a seed folder of a few dozen to a few thousand documents.
+     */
     private final List<SeedExtractionOutcome> outcomes = new ArrayList<>();
 
     SeedExtractionItemWriter(
@@ -68,6 +72,11 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         this.unusableSeeds = unusableSeeds;
         this.extractionMetrics = extractionMetrics;
         this.usableSeedGate = usableSeedGate;
+    }
+
+    @Override
+    public void beforeStep(StepExecution stepExecution) {
+        log.info("Stage 5a (seed extraction) starting");
     }
 
     @Override
@@ -96,7 +105,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         }
         RunId runId = seedMeasurementRun.getObject().runId();
         for (SeedExtractionOutcome outcome : outcomes) {
-            extractionMetrics.write(outcome.occurrenceId(), runId, outcome.response());
+            extractionMetrics.write(outcome.occurrenceId(), runId, outcome.measurement());
             if (!outcome.usable()) {
                 unusableSeeds.record(outcome.occurrenceId(), runId, outcome.unusableReason());
             }

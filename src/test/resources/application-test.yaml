@@ -27,6 +27,13 @@ spring:
       # empty database. Pinning the pool to one connection is what lets schema.sql and every
       # query in a test land on the same database rather than a fresh one each time.
       maximum-pool-size: 1
+      # And the connection is never retired, which the shipped file's settings would otherwise do
+      # after 35 seconds. There, retiring one releases a file lock; here it would throw away the
+      # database itself, schema and all, and hand the next query an empty one. A pool of one is also
+      # a fixed-size pool by definition, so an idleTimeout it can never act on is turned off rather
+      # than inherited and warned about at every context load.
+      max-lifetime: 0
+      idle-timeout: 0
   batch:
     jdbc:
       initialize-schema: never

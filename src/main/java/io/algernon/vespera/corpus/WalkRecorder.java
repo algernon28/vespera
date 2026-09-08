@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -196,6 +197,17 @@ public class WalkRecorder {
                 ledger.recordProgress(walkId, at.encodedOrdinals(), at.pathRendering(), cumulative(progress));
             });
             entriesAtLastCommit = progress.entriesSeen();
+
+            // A running count and no percentage (ADR-093): the walk is discovering the total as it goes,
+            // so it has no denominator to report against until it finishes. The checkpoint cadence is
+            // this line's cadence too -- both measure entries walked, and a second counter would only
+            // give an operator two numbers that mean the same thing.
+            WalkCounts counts = cumulative(progress);
+            log.info(
+                    "Stage 0 (census): {} entries walked so far, {} directories entered, under walk {}",
+                    String.format(Locale.ROOT, "%,d", counts.entriesSeen()),
+                    String.format(Locale.ROOT, "%,d", counts.directoriesEntered()),
+                    walkId.value());
         }
 
         private void finish(Walk.Progress progress) {
@@ -203,6 +215,15 @@ public class WalkRecorder {
                 writeBuffered();
                 ledger.finishWalk(walkId, cumulative(progress));
             });
+
+            // The walk's end line carries the counts the progress lines were building towards
+            // (ADR-093), and is the only one a corpus smaller than one checkpoint interval ever logs.
+            WalkCounts counts = cumulative(progress);
+            log.info(
+                    "Stage 0 (census): walk {} finished — {} entries walked, {} directories entered",
+                    walkId.value(),
+                    String.format(Locale.ROOT, "%,d", counts.entriesSeen()),
+                    String.format(Locale.ROOT, "%,d", counts.directoriesEntered()));
         }
 
         /** This session's counts added to what earlier sessions of the same walk already recorded. */

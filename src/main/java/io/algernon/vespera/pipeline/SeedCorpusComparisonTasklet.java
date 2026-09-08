@@ -83,9 +83,14 @@ class SeedCorpusComparisonTasklet implements Tasklet {
         }
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
+        LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.runId().value());
         SeedCorpusComparison.Comparison comparison = seedCorpusComparison.measure(
                 measurementRun.runId(), measurementRun.extractionRunId(), seedGate.seedWalk().get().walkId());
-        writeReport(comparison);
+        Path reportFile = writeReport(comparison);
+        LOG.info(
+                "Stage 5b (seed/corpus comparison) finished under run {}; report written to {}",
+                measurementRun.runId().value(),
+                reportFile);
         return RepeatStatus.FINISHED;
     }
 

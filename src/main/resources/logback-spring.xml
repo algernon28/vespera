@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ADR-093. Two appenders, both always on: console for interactive use, and a rolling file in the
+  configured working directory (ADR-054) so a multi-day unattended run (ADR-035 runs the pipeline
+  unattended through 6b) leaves something to read afterward, next to the SQLite database already
+  written there. One continuously-rotating file, not one per run/walk (ADR-055 resumes a walk under
+  one id across invocations) — correlation across lines is by run/walk/occurrence id in the message
+  text, not by filename.
+
+  ${vespera.working-dir} is the same Spring property WorkingDirectoryPreparer resolves and the
+  application's own beans (@Value("${vespera.working-dir}")) read; Logback's Spring extension exposes
+  it here via springProperty so this file needs no separate configuration of its own.
+-->
+<configuration>
+
+    <springProperty scope="context" name="workingDir" source="vespera.working-dir" defaultValue="."/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${workingDir}/vespera.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${workingDir}/vespera.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+
+</configuration>

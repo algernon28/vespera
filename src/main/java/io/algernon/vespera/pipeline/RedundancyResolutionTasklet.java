@@ -51,9 +51,11 @@ class RedundancyResolutionTasklet implements Tasklet {
         }
 
         RedundancyRun redundancyRun = redundancyRunProvider.getObject();
+        LOG.info("Stage 4b (redundancy resolution) starting under run {}", redundancyRun.runId().value());
         Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();
         redundancyResolution.resolve(
                 redundancyRun.runId(), redundancyRun.stage3RunId(), redundancyRun.extractionRunId(), boilerplateHashes);
+        LOG.info("Stage 4b (redundancy resolution) finished under run {}", redundancyRun.runId().value());
         return RepeatStatus.FINISHED;
     }
 }

@@ -1,7 +1,10 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.similarity.RedundancySignatures;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.infrastructure.item.Chunk;
 import org.springframework.batch.infrastructure.item.ItemWriter;
@@ -20,28 +23,39 @@ import org.springframework.stereotype.Component;
 @StepScope
 class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
 
+    private static final Logger log = LoggerFactory.getLogger(RedundancySignatureItemWriter.class);
+
     private final RedundancySignatures redundancySignatures;
     private final RedundancyRun redundancyRun;
     private final RedundancyBoilerplate redundancyBoilerplate;
 
+    /** Stage 4a's progress line (ADR-093), over the survivor set this step's reader was given. */
+    private final StageProgress progress;
+
     RedundancySignatureItemWriter(
+            Ledger ledger,
             RedundancySignatures redundancySignatures,
             RedundancyRun redundancyRun,
             RedundancyBoilerplate redundancyBoilerplate) {
         this.redundancySignatures = redundancySignatures;
         this.redundancyRun = redundancyRun;
         this.redundancyBoilerplate = redundancyBoilerplate;
+        this.progress = StageProgress.over(
+                "Stage 4a (redundancy signatures)", ledger.survivorCount(redundancyRun.runId()));
     }
 
     @Override
     public void write(Chunk<? extends OccurrenceId> chunk) {
         for (OccurrenceId occurrenceId : chunk) {
+            log.info("[redundancy-signature] starting {}", occurrenceId.value());
             redundancySignatures.write(
                     occurrenceId,
                     redundancyRun.runId(),
                     redundancyRun.extractionRunId(),
                     redundancyBoilerplate.hashes(),
                     redundancyRun.floor());
+            log.info("[redundancy-signature] finished {}", occurrenceId.value());
+            progress.itemDone();
         }
     }
 }

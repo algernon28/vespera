@@ -18,6 +18,11 @@ import org.springframework.stereotype.Component;
  * response, where no degeneracy judgement is meaningful; {@link #writeAndJudge} does the same and
  * additionally applies {@link DegeneracyFloor} for a {@code success}/{@code partial_success} response,
  * the only status {@code degenerate-output} is reachable from.
+ *
+ * <p>{@link #measure} splits the computation from the insert, for the one caller that cannot do both
+ * at once: stage 5's seed pass measures each seed as it is converted but cannot write a row until the
+ * whole folder has been (ADR-092), and holding a converted document until then would hold a seed
+ * folder's worth of extracted text in memory. It holds the measured row instead.
  */
 @Component
 public class ExtractionMetrics {
@@ -36,6 +41,20 @@ public class ExtractionMetrics {
     }
 
     /**
+     * Measures {@code response} now and writes nothing, for a caller that does not yet know the run its
+     * row belongs to (ADR-092). What comes back is the row's values — a few dozen numbers — so the
+     * caller holds those rather than the converted document they were derived from.
+     */
+    public Measurement measure(DoclingResponse response) {
+        return new Measurement(compute(response));
+    }
+
+    /** Records a row already measured by {@link #measure}, judging nothing. */
+    public void write(OccurrenceId occurrenceId, RunId runId, Measurement measurement) {
+        insert(occurrenceId, runId, measurement.metric());
+    }
+
+    /**
      * Records the metrics row for {@code response}, and judges the two-tier {@code degenerate-output}
      * floor against it (ADR-070) — {@code confidenceFloor} is {@code pipeline}'s reading of the
      * profile's tier-2 key, {@code null} while it ships unset.
@@ -47,13 +66,19 @@ public class ExtractionMetrics {
     }
 
     private ExtractionMetric computeAndInsert(OccurrenceId occurrenceId, RunId runId, DoclingResponse response) {
+        ExtractionMetric metric = compute(response);
+        insert(occurrenceId, runId, metric);
+        return metric;
+    }
+
+    private ExtractionMetric compute(DoclingResponse response) {
         ExtractedText extracted = ExtractedText.from(response.rawResponse());
         String normalized = TextMetrics.normalizeWhitespace(extracted.text());
         long alphanumericCharCount = TextMetrics.alphanumericCharacterCount(normalized);
         List<String> words = TextMetrics.words(normalized);
         LanguageDetection.Detected detected = languageDetection.detect(normalized, alphanumericCharCount);
 
-        ExtractionMetric metric = new ExtractionMetric(
+        return new ExtractionMetric(
                 response.status(),
                 errorSummary(response.errors()),
                 response.confidence(),
@@ -67,8 +92,23 @@ public class ExtractionMetrics {
                 TextMetrics.singleCharacterWordCount(words),
                 detected.primaryLanguage(),
                 detected.confidence());
-        insert(occurrenceId, runId, metric);
-        return metric;
+    }
+
+    /**
+     * One measured row, opaque to its holder: it carries the columns rather than the document, and the
+     * only thing to do with it is hand it back to {@link #write}.
+     */
+    public static final class Measurement {
+
+        private final ExtractionMetric metric;
+
+        private Measurement(ExtractionMetric metric) {
+            this.metric = metric;
+        }
+
+        ExtractionMetric metric() {
+            return metric;
+        }
     }
 
     private static String errorSummary(List<DoclingError> errors) {

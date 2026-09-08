@@ -58,6 +58,7 @@ public class CensusTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
+        log.info("Stage 0 (census) starting for root {}", root);
         Profile profile = profileStore.load();
 
         // The two walks are independent, so neither is allowed to cost the other its chance to run
@@ -84,6 +85,7 @@ public class CensusTasklet implements Tasklet {
                     profile.seedFolder().value(),
                     causeChain(seed.get().failure()));
         }
+        log.info("Stage 0 (census) finished for root {}", root);
         return RepeatStatus.FINISHED;
     }
 
