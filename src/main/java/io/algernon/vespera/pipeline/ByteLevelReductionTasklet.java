@@ -99,7 +99,6 @@ public class ByteLevelReductionTasklet implements Tasklet {
     private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot) throws Exception {
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", ledger.survivorCount(runId));
         for (OccurrenceId occurrenceId : drain(ledger.survivors(runId))) {
-            log.info("[byte-level-reduction] starting {}", occurrenceId.value());
             OccurrenceFacts facts = factsFor(occurrenceId);
             BrokenCheck.Result result = BrokenCheck.check(canonicalRoot.resolve(facts.path().value()));
             if (result.broken()) {
@@ -146,7 +145,6 @@ public class ByteLevelReductionTasklet implements Tasklet {
             RunId runId, Path canonicalRoot, List<OccurrenceId> sameSize, StageProgress progress) throws Exception {
         Map<String, List<Candidate>> byHash = new HashMap<>();
         for (OccurrenceId occurrenceId : sameSize) {
-            log.info("[byte-level-reduction] starting {} (content hash)", occurrenceId.value());
             OccurrenceFacts facts = factsFor(occurrenceId);
             String sha256 = ContentHash.sha256(canonicalRoot.resolve(facts.path().value()));
             contentIdentity.recordHash(occurrenceId, runId, sha256);

@@ -90,7 +90,6 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
 
     @Override
     public ExtractionOutcome process(OccurrenceId occurrenceId) {
-        log.info("[extraction] starting {}", occurrenceId.value());
         ExtractionOutcome outcome = doProcess(occurrenceId);
         log.info(
                 "[extraction] finished {} -> {}",
