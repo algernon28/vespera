@@ -97,6 +97,9 @@ import picocli.CommandLine;
     SeedMeasurementRun.class,
     SeedGate.class,
     UsableSeedGate.class,
+    EmbeddingModelJobConfiguration.class,
+    EmbeddingScoringTasklet.class,
+    EmbeddingModelGate.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
     BoilerplateShingles.class,
@@ -215,7 +218,8 @@ class CensusInvocationTest {
                                 "redundancy-signature",
                                 "content-redundancy",
                                 "seed-extraction",
-                                "seed-corpus-comparison"));
+                                "seed-corpus-comparison",
+                                "embedding-scoring"));
         claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
                         + " summarises a whole extraction pass, and a summary computed over a pass still"
@@ -270,6 +274,27 @@ class CensusInvocationTest {
                 "so nothing was signed either -- the floor is applied before signatures are computed, so"
                         + " an unset floor means there is nothing correct to sign yet (ADR-080)",
                 () -> assertThat(signatureCount()).isZero());
+    }
+
+    @Test
+    @Story("A gate ends the invocation rather than failing it")
+    @DisplayName("With no embedding model named, stage 5c mints no scoring run and the command still succeeds")
+    @Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
+    @Issue("107")
+    void stopsAtTheEmbeddingModelGateWithoutFailing(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "a");
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation still reports success: gate 3 is a value the pipeline needs and does not"
+                        + " have, not an error -- the run ends there having recorded everything stage 5's"
+                        + " measurement step already learned (ADR-047)",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and no scoring run was minted at all, because a run row for a stage that scored nothing"
+                        + " would read as a corpus scored against zero documents",
+                () -> assertThat(runCount("embedding-scoring")).isZero());
     }
 
     @Test

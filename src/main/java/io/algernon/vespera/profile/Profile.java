@@ -37,9 +37,16 @@ package io.algernon.vespera.profile;
  *     degenerateOutputConfidenceFloor}, no {@code Measurement}-pointer method exists for this key:
  *     {@code similarity.shingle_document_frequency} and {@code similarity.shingle_corpus_size} are
  *     already what an operator or stage 4 would query directly.
+ * @param embeddingModel gate 3's key (ADR-084, #107): which embedding model turns stage 5's scoring
+ *     run on. Ships unset and purely operator-supplied — which model is a profile key, where it is
+ *     served is application configuration. No {@code Measurement}-pointer method exists for this key
+ *     either: naming a model is not something a measurement pass could inform.
  */
 public record Profile(
-        ProfileValue seedFolder, ProfileValue degenerateOutputConfidenceFloor, ProfileValue boilerplateDocumentFrequencyFloor) {
+        ProfileValue seedFolder,
+        ProfileValue degenerateOutputConfidenceFloor,
+        ProfileValue boilerplateDocumentFrequencyFloor,
+        ProfileValue embeddingModel) {
 
     public Profile {
         seedFolder = seedFolder == null ? ProfileValue.unset() : seedFolder;
@@ -47,6 +54,7 @@ public record Profile(
                 degenerateOutputConfidenceFloor == null ? ProfileValue.unset() : degenerateOutputConfidenceFloor;
         boilerplateDocumentFrequencyFloor =
                 boilerplateDocumentFrequencyFloor == null ? ProfileValue.unset() : boilerplateDocumentFrequencyFloor;
+        embeddingModel = embeddingModel == null ? ProfileValue.unset() : embeddingModel;
     }
 
     /**
@@ -56,18 +64,33 @@ public record Profile(
      * from the file.
      */
     public Profile(ProfileValue seedFolder, ProfileValue degenerateOutputConfidenceFloor) {
-        this(seedFolder, degenerateOutputConfidenceFloor, null);
+        this(seedFolder, degenerateOutputConfidenceFloor, null, null);
+    }
+
+    /**
+     * The three-key constructor every call site before #107 used, kept for the same reason the
+     * two-key constructor above was: the fourth key arrives unset rather than breaking every existing
+     * caller.
+     */
+    public Profile(
+            ProfileValue seedFolder,
+            ProfileValue degenerateOutputConfidenceFloor,
+            ProfileValue boilerplateDocumentFrequencyFloor) {
+        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, null);
     }
 
     /** A profile with every key present and none of them answered. */
     static Profile skeleton() {
-        return new Profile(null, null, null);
+        return new Profile(null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
     public Profile withSeedFolderMeasurement(Measurement measurement) {
         return new Profile(
-                seedFolder.measuredBy(measurement), degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor);
+                seedFolder.measuredBy(measurement),
+                degenerateOutputConfidenceFloor,
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel);
     }
 
     /**
@@ -77,6 +100,9 @@ public record Profile(
      */
     public Profile withDegenerateOutputConfidenceFloorMeasurement(Measurement measurement) {
         return new Profile(
-                seedFolder, degenerateOutputConfidenceFloor.measuredBy(measurement), boilerplateDocumentFrequencyFloor);
+                seedFolder,
+                degenerateOutputConfidenceFloor.measuredBy(measurement),
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel);
     }
 }

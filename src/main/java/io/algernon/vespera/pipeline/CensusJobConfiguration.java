@@ -41,7 +41,8 @@ public class CensusJobConfiguration {
             Step redundancySignatureStep,
             Step redundancyResolutionStep,
             Step seedExtractionStep,
-            Step seedCorpusComparisonStep) {
+            Step seedCorpusComparisonStep,
+            Step embeddingScoringStep) {
         return new JobBuilder(JOB_NAME, jobRepository)
                 .start(censusStep)
                 .next(byteLevelReductionStep)
@@ -51,6 +52,7 @@ public class CensusJobConfiguration {
                 .next(redundancyResolutionStep)
                 .next(seedExtractionStep)
                 .next(seedCorpusComparisonStep)
+                .next(embeddingScoringStep)
                 .build();
     }
 

@@ -103,6 +103,9 @@ import org.springframework.transaction.annotation.Transactional;
     SeedExtractionItemWriter.class,
     SeedCorpusComparisonJobConfiguration.class,
     SeedCorpusComparisonTasklet.class,
+    EmbeddingModelJobConfiguration.class,
+    EmbeddingScoringTasklet.class,
+    EmbeddingModelGate.class,
     SeedMeasurementRun.class,
     SeedGate.class,
     UsableSeedGate.class,
@@ -147,8 +150,8 @@ class SeedCorpusComparisonInvocationTest {
     private static final String BOILERPLATE_FLOOR = "1.0";
 
     /** The keys {@code profile.yaml} carries, and every one of them predates this measurement. */
-    private static final List<String> THE_PROFILE_KEYS =
-            List.of("seedFolder", "degenerateOutputConfidenceFloor", "boilerplateDocumentFrequencyFloor");
+    private static final List<String> THE_PROFILE_KEYS = List.of(
+            "seedFolder", "degenerateOutputConfidenceFloor", "boilerplateDocumentFrequencyFloor", "embeddingModel");
 
     /**
      * What census writes against the seed-folder key: the walk it took of that folder. It answers
