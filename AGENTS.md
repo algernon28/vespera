@@ -33,7 +33,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 
 ## Where the work is
 
-Work is charted as a **wayfinder map** on the issue tracker — [issue #1](https://github.com/algernon28/vespera/issues/1) — one child issue per decision, worked one per session. Its open, unblocked children are what is takeable. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
+Work is charted as a **wayfinder map** on the issue tracker — one issue labelled `wayfinder:map` per slice, holding one child issue per decision, worked one per session. The open map is the current slice's: [#78, stage 5](https://github.com/algernon28/vespera/issues/78), the census slice's [#1](https://github.com/algernon28/vespera/issues/1) having closed. Its open, unblocked children are what is takeable. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
 
 ## Building and testing
 
