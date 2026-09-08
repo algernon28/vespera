@@ -77,7 +77,6 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
 
     @Override
     public SeedExtractionOutcome process(OccurrenceId occurrenceId) {
-        log.info("[seed-extraction] starting {}", occurrenceId.value());
         SeedExtractionOutcome outcome = doProcess(occurrenceId);
         log.info(
                 "[seed-extraction] finished {} -> {}",

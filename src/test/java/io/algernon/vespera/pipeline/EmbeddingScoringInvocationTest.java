@@ -12,7 +12,6 @@ import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
-import io.algernon.vespera.extraction.CountingDoclingBeans;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
 import io.algernon.vespera.extraction.LanguageDetection;
@@ -32,7 +31,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
@@ -52,23 +50,14 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * A document that is both a seed and a corpus member costs one extraction, not two.
+ * Gate 3 open (ADR-084, #107): a corpus survivor is re-chunked from its cached Docling response once
+ * an embedding model is named and stage 5's earlier gates are open, and each of its chunks is embedded
+ * and stored as a vector under a scoring run, rather than left unchunked, unembedded, or re-converted
+ * through Docling a second time.
  *
- * <p>This is the claim the seed pass's whole shape rests on, and it holds <em>by construction</em>
- * rather than by anything checking: the extraction and chunk caches are content-addressed and carry no
- * run id, and both passes compute the same content identity for the same bytes, so the second pass to
- * ask for a document finds it already converted. The precondition — that the two modules' hashers
- * agree — is pinned separately by {@code ContentHashingTest}.
- *
- * <p><b>Why this class exists rather than one more test elsewhere.</b> Every other invocation-level
- * test here replaces the extractor itself, which answers without ever consulting the cache. Counting
- * conversions at that seam would prove nothing about caching, however many the count came to. This
- * class alone wires the real extractor over the real cache and counts one layer lower, at the client
- * ({@code CountingDoclingBeans}) — so the number it asserts is the number of conversions that would
- * have been HTTP calls to a live sidecar.
- *
- * <p>The corpus holds exactly one document, deliberately: a total conversion count is only readable as
- * a per-document claim when there is one document to count.
+ * <p>A sibling of {@link SeedCorpusComparisonInvocationTest} for the same reason that class is a
+ * sibling of {@link SeedExtractionInvocationTest}: this fixture additionally names an embedding
+ * model, which every other invocation test in this package deliberately leaves unset.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -106,13 +95,13 @@ import org.springframework.transaction.annotation.Transactional;
     RelevanceScoringJobConfiguration.class,
     RelevanceScoringTasklet.class,
     EmbeddingModelGate.class,
+    SeedMeasurementRun.class,
     ScoringRun.class,
+    SeedGate.class,
+    UsableSeedGate.class,
     ChunkEmbedderBeans.class,
     RelevanceScoringBeans.class,
     EmbeddingScriptedBeans.class,
-    SeedMeasurementRun.class,
-    SeedGate.class,
-    UsableSeedGate.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
     BoilerplateShingles.class,
@@ -122,7 +111,7 @@ import org.springframework.transaction.annotation.Transactional;
     UnusableSeeds.class,
     Shingler.class,
     HybridChunkerBeans.class,
-    CountingDoclingBeans.class,
+    SeedScriptedExtractionBeans.class,
     ExtractionMetrics.class,
     LanguageDetection.class,
     ContentIdentity.class,
@@ -137,26 +126,19 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCli.class
 })
 @Epic("Relevance")
-@Feature("Seed set")
-@Issue("104")
-@Link(name = "ADR-083", url = Adr.THE_SEED_SET_IS_EXTRACTED_BY_STAGE_5, type = "adr")
-@Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
-@Link(name = "ADR-010", url = Adr.EXTRACTION_VIA_DOCLING, type = "adr")
-class SeedSharedWithCorpusTest {
+@Feature("Embedding")
+@Issue("107")
+@Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
+class EmbeddingScoringInvocationTest {
+
+    /** A floor of 1.0 opens stage 4's gate the same way {@link SeedCorpusComparisonInvocationTest} does. */
+    private static final String BOILERPLATE_FLOOR = "1.0";
+
+    /** The model this fixture names, so gate 3 opens too. */
+    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     @TempDir
     static Path workingDirectory;
-
-    /** The one document in the corpus, copied byte-for-byte into the seed folder as well. */
-    private static final String SHARED_DOCUMENT = "shared.txt";
-
-    private static final String SHARED_CONTENT = "a document that is both a seed and a corpus member";
-
-    /** One conversion: the corpus pass converts it, and the seed pass finds it already converted. */
-    private static final int ONE_CONVERSION = 1;
-
-    /** The least aggressive floor that still opens stage 4's gate, so stage 5 has an upstream run. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
@@ -167,59 +149,57 @@ class SeedSharedWithCorpusTest {
     private VesperaCli cli;
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @Autowired
     private ProfileStore profileStore;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
-    @Story("A seed that is also a corpus member costs nothing extra")
-    @DisplayName("The same document in the corpus and the seed folder is converted once, not twice")
-    void convertsADocumentSharedBetweenTheCorpusAndTheSeedFolderOnce(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        Files.write(root.resolve(SHARED_DOCUMENT), SHARED_CONTENT.getBytes(StandardCharsets.UTF_8));
-        Files.write(seeds.resolve(SHARED_DOCUMENT), SHARED_CONTENT.getBytes(StandardCharsets.UTF_8));
-        openTheGates(seeds);
+    @Story("A survivor is re-chunked once a model is named")
+    @DisplayName("With a model named, a corpus survivor's chunks land in the chunk cache and each embeds")
+    void chunksTheSurvivorFromTheExtractionCache(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
 
         cli.run("run", root.toString());
 
         claim(
-                "the invocation reported success, so both passes ran and the count below is what they"
-                        + " between them actually asked the extractor for",
+                "the invocation reports success",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "the document reached the converter exactly once, though two passes each asked for it."
-                        + " The archive pass converted it; the seed pass found it already converted, because"
-                        + " a conversion is filed under the content and the engine, not under which pass"
-                        + " wanted it. A second call here would be the most expensive operation in the tool"
-                        + " paid twice for one document, and would mean the two passes disagree about what"
-                        + " identifies content",
-                () -> assertThat(CountingDoclingBeans.CONVERSIONS.get()).isEqualTo(ONE_CONVERSION));
+                "and the surviving corpus document was chunked, its chunks landing in the chunk cache"
+                        + " rather than nowhere",
+                () -> assertThat(chunkCacheRowCount()).isPositive());
         claim(
-                "and exactly one cached conversion is stored for it, rather than one row per pass -- the"
-                        + " cache is keyed by content and engine, so the seed pass added no row of its own",
-                () -> assertThat(cachedConversionCount()).isEqualTo(ONE_CONVERSION));
+                "and each of those chunks was embedded, its vector landing in the vector table rather"
+                        + " than the re-chunk being the last thing gate 3 does",
+                () -> assertThat(vectorRowCount()).isEqualTo(chunkCacheRowCount()));
         claim(
-                "and neither pass chunked it (ADR-091): no embedding model is named, so a chunk cut"
-                        + " now would be cut under a budget nothing reads and discarded when one is",
-                () -> assertThat(chunkRowCount()).isZero());
+                "and a scoring run was minted for it -- a run row for a pass that scored a survivor"
+                        + " would otherwise be missing from the ledger entirely",
+                () -> assertThat(runCount("embedding-scoring")).isEqualTo(1));
     }
 
-    /** The seed folder named and stage 4's gate open. */
-    private void openTheGates(Path seeds) {
+    /** The seed folder named, stage 4's gate open, and gate 3 open too. */
+    private void profile(Path seeds) {
         Profile profile = profileStore.load();
         profileStore.save(new Profile(
                 new ProfileValue(seeds.toString(), "set by this test", null),
                 profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null)));
+                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
+                new ProfileValue(MODEL_NAME, "set by this test, so gate 3 is open", null)));
     }
 
-    private long cachedConversionCount() {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM extraction_cache", Long.class);
-    }
-
-    /** How many chunk rows exist at all -- none, while no embedding model is named (ADR-091). */
-    private long chunkRowCount() {
+    private long chunkCacheRowCount() {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM chunk_cache", Long.class);
+    }
+
+    private long vectorRowCount() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM vector", Long.class);
+    }
+
+    private long runCount(String stage) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE stage = ?", Long.class, stage);
     }
 }

@@ -48,4 +48,30 @@ class ProfileTest {
                         + " reads exactly like any other key nobody has answered",
                 () -> assertThat(profile.boilerplateDocumentFrequencyFloor()).isEqualTo(ProfileValue.unset()));
     }
+
+    @Test
+    @Story("Gate 3's model key ships unset")
+    @DisplayName("A fresh skeleton carries the embedding-model key, unset")
+    @Issue("107")
+    void skeletonCarriesTheEmbeddingModelKeyUnset() {
+        Profile skeleton = Profile.skeleton();
+
+        claim(
+                "the model key #107 adds is present rather than missing, and unanswered rather than"
+                        + " guessed at -- naming a model is purely the operator's call",
+                () -> assertThat(skeleton.embeddingModel().isSet()).isFalse());
+    }
+
+    @Test
+    @Story("A key the file predates is added unset")
+    @DisplayName("The three-key constructor every call site before #107 used still defaults the fourth key unset")
+    @Issue("107")
+    void theThreeKeyConstructorDefaultsTheFourthKeyUnset() {
+        Profile profile = new Profile(ProfileValue.unset(), ProfileValue.unset(), ProfileValue.unset());
+
+        claim(
+                "a call site that has not been touched since #107 still gets a profile whose fourth key"
+                        + " reads exactly like any other key nobody has answered",
+                () -> assertThat(profile.embeddingModel()).isEqualTo(ProfileValue.unset()));
+    }
 }

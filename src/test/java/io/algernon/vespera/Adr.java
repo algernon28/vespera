@@ -268,6 +268,13 @@ public final class Adr {
             + "0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md";
 
     /**
+     * ADR-085 — vectors live in a content-addressed SQLite cache with no run id, and the pairwise
+     * distance matrix is never materialised.
+     */
+    public static final String VECTORS_LIVE_IN_SQLITE = FILE
+            + "0085-vectors-live-in-sqlite-and-the-pairwise-matrix-is-never-materialised.md";
+
+    /**
      * ADR-086 — how far the seed set resembles the survivors it will be scored against is measured
      * before the embedding model is named, and reported rather than enforced: no verdict, no gate, no
      * single summarising figure.
@@ -313,6 +320,12 @@ public final class Adr {
      */
     public static final String LOGGING_IS_EXPLICIT_AND_PROCESS_SCOPED = FILE
             + "0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md";
+
+    /**
+     * ADR-020 — the relevance scoring function: score = max over seeds of (mean top-3 chunk
+     * similarity), storing which seed won.
+     */
+    public static final String RELEVANCE_SCORING_FUNCTION = FILE + "0020-relevance-scoring-function.md";
 
     private Adr() {
     }

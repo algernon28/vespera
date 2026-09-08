@@ -8,6 +8,8 @@ import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.ChunkEmbedderBeans;
+import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
@@ -74,6 +76,15 @@ import picocli.CommandLine;
     SeedExtractionItemWriter.class,
     SeedCorpusComparisonJobConfiguration.class,
     SeedCorpusComparisonTasklet.class,
+    EmbeddingModelJobConfiguration.class,
+    EmbeddingScoringTasklet.class,
+    RelevanceScoringJobConfiguration.class,
+    RelevanceScoringTasklet.class,
+    EmbeddingModelGate.class,
+    ScoringRun.class,
+    ChunkEmbedderBeans.class,
+    RelevanceScoringBeans.class,
+    EmbeddingScriptedBeans.class,
     SeedMeasurementRun.class,
     SeedGate.class,
     UsableSeedGate.class,

@@ -7,6 +7,8 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.ChunkEmbedderBeans;
+import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
@@ -97,6 +99,15 @@ import picocli.CommandLine;
     SeedMeasurementRun.class,
     SeedGate.class,
     UsableSeedGate.class,
+    EmbeddingModelJobConfiguration.class,
+    EmbeddingScoringTasklet.class,
+    RelevanceScoringJobConfiguration.class,
+    RelevanceScoringTasklet.class,
+    EmbeddingModelGate.class,
+    ScoringRun.class,
+    ChunkEmbedderBeans.class,
+    RelevanceScoringBeans.class,
+    EmbeddingScriptedBeans.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
     BoilerplateShingles.class,
@@ -204,8 +215,9 @@ class CensusInvocationTest {
                 "the stages built so far run in the order they filter in -- census, then the byte-level"
                         + " reduction, then extraction, then the content census, then redundancy in its two"
                         + " steps, then the seed set stage 5 scores against, then how far that seed set"
-                        + " resembles the documents still standing -- so each pass only ever measures what"
-                        + " the cheaper passes before it left standing",
+                        + " resembles the documents still standing, then every vector gate 3 embeds, then"
+                        + " every survivor's relevance score -- so each pass only ever measures what the"
+                        + " cheaper passes before it left standing",
                 () -> assertThat(stagesInOrder)
                         .containsExactly(
                                 "census",
@@ -215,7 +227,9 @@ class CensusInvocationTest {
                                 "redundancy-signature",
                                 "content-redundancy",
                                 "seed-extraction",
-                                "seed-corpus-comparison"));
+                                "seed-corpus-comparison",
+                                "embedding-scoring",
+                                "relevance-scoring"));
         claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
                         + " summarises a whole extraction pass, and a summary computed over a pass still"
@@ -246,6 +260,11 @@ class CensusInvocationTest {
                         + " of them",
                 () -> assertThat(stagesInOrder.indexOf("seed-corpus-comparison"))
                         .isGreaterThan(stagesInOrder.indexOf("content-redundancy")));
+        claim(
+                "and relevance scoring runs after gate 3 embeds every vector, since scoring reads the"
+                        + " rows that step wrote rather than re-deriving them (#108, blocked by #107)",
+                () -> assertThat(stagesInOrder.indexOf("relevance-scoring"))
+                        .isGreaterThan(stagesInOrder.indexOf("embedding-scoring")));
     }
 
     @Test
@@ -270,6 +289,27 @@ class CensusInvocationTest {
                 "so nothing was signed either -- the floor is applied before signatures are computed, so"
                         + " an unset floor means there is nothing correct to sign yet (ADR-080)",
                 () -> assertThat(signatureCount()).isZero());
+    }
+
+    @Test
+    @Story("A gate ends the invocation rather than failing it")
+    @DisplayName("With no embedding model named, stage 5c mints no scoring run and the command still succeeds")
+    @Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
+    @Issue("107")
+    void stopsAtTheEmbeddingModelGateWithoutFailing(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "a");
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation still reports success: gate 3 is a value the pipeline needs and does not"
+                        + " have, not an error -- the run ends there having recorded everything stage 5's"
+                        + " measurement step already learned (ADR-047)",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and no scoring run was minted at all, because a run row for a stage that scored nothing"
+                        + " would read as a corpus scored against zero documents",
+                () -> assertThat(runCount("embedding-scoring")).isZero());
     }
 
     @Test

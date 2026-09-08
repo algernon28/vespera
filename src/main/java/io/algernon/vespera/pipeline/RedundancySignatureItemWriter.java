@@ -47,7 +47,6 @@ class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
     @Override
     public void write(Chunk<? extends OccurrenceId> chunk) {
         for (OccurrenceId occurrenceId : chunk) {
-            log.info("[redundancy-signature] starting {}", occurrenceId.value());
             redundancySignatures.write(
                     occurrenceId,
                     redundancyRun.runId(),
