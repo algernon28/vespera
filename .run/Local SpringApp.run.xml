@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Local SpringApp" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="vespera" />
+    <option name="PROGRAM_PARAMETERS" value="run" />
+    <!-- The "local" profile layers ./application-local.yaml over the shipped application.yaml,
+         which is where this machine's corpus root lives. That file is gitignored, so a checkout
+         without one simply has no root configured and `run` with no argument refuses (ADR-066). -->
+    <option name="ACTIVE_PROFILES" value="local" />
+    <!-- Explicit, because ./application-local.yaml is resolved against the working directory. -->
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="io.algernon.vespera.VesperaApplication" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
