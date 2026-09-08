@@ -2,11 +2,24 @@
   <configuration default="false" name="Local SpringApp" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
     <module name="vespera" />
     <option name="PROGRAM_PARAMETERS" value="run" />
-    <!-- The "local" profile layers ./application-local.yaml over the shipped application.yaml,
-         which is where this machine's corpus root lives. That file is gitignored, so a checkout
-         without one simply has no root configured and `run` with no argument refuses (ADR-066). -->
+    <!-- Names the file outright rather than leaving Spring to find it by profile convention, so
+         what this configuration reads is visible here instead of inferred from a filename. It is
+         src/main/resources/application-local.yaml, gitignored, and it layers over the shipped
+         application.yaml -- which is where this machine's corpus root lives. "optional:" is what
+         makes a checkout without that file start anyway: it then has no root configured, and `run`
+         with no argument refuses (ADR-066) instead of failing to boot.
+
+         A VM parameter and not a program argument: everything after PROGRAM_PARAMETERS is picocli's
+         to parse, and a --spring.* option there is an unknown option to the command.
+
+         ACTIVE_PROFILES stays because the import above loads the file whatever the profile is, so
+         the profile is no longer what pulls it in -- but the file is named for it, and anything
+         profile-gated added later expects it. Tests still never see the file: they run under
+         "test" and set no such import. -->
+    <option name="VM_PARAMETERS" value="-Dspring.config.import=optional:classpath:/application-local.yaml" />
     <option name="ACTIVE_PROFILES" value="local" />
-    <!-- Explicit, because ./application-local.yaml is resolved against the working directory. -->
+    <!-- Explicit, because vespera.working-dir defaults to ${user.dir}/.vespera: this is what keeps
+         the database and profile.yaml at the repo root instead of wherever the IDE last ran from. -->
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="io.algernon.vespera.VesperaApplication" />
     <method v="2">
