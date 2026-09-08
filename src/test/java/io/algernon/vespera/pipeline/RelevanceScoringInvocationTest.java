@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
@@ -224,6 +225,18 @@ class RelevanceScoringInvocationTest {
     }
 
     /**
+     * The spelling the walk recorded for {@code root}, which is the walk's own canonicalisation of
+     * it (ADR-055) rather than the path this test handed the CLI. The two differ wherever the
+     * temporary directory is reached through a link or a short name -- a Windows runner whose
+     * {@code %TEMP%} sits under {@code RUNNER~1} records the expanded {@code runneradmin} -- and a
+     * query joining on the un-canonicalised spelling would then match no row and read as an empty
+     * result rather than a mismatch.
+     */
+    private String walkRoot(Path root) {
+        return Walk.canonicalRoot(root).toString();
+    }
+
+    /**
      * Every query below joins back to {@code root}'s own walk rather than reading the tables whole:
      * this database is shared across every {@code @Test} method in the class (one Spring context, one
      * connection pool), so an absolute count would silently read another test's rows too.
@@ -233,7 +246,7 @@ class RelevanceScoringInvocationTest {
                 "SELECT COUNT(*) FROM relevance_score r JOIN file_occurrence f ON f.id = r.occurrence_id"
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 Long.class,
-                root.toString());
+                walkRoot(root));
         return count == null ? 0 : count;
     }
 
@@ -242,7 +255,7 @@ class RelevanceScoringInvocationTest {
                 "SELECT r.run_id FROM relevance_score r JOIN file_occurrence f ON f.id = r.occurrence_id"
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 String.class,
-                root.toString());
+                walkRoot(root));
     }
 
     private long winningSeedOccurrenceIdFor(Path root) {
@@ -251,7 +264,7 @@ class RelevanceScoringInvocationTest {
                         + " JOIN file_occurrence f ON f.id = r.occurrence_id"
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 Long.class,
-                root.toString());
+                walkRoot(root));
     }
 
     private String scoringRunIdFor(Path root) {
@@ -259,7 +272,7 @@ class RelevanceScoringInvocationTest {
                 "SELECT run.id FROM run JOIN walk w ON w.id = run.walk_id"
                         + " WHERE run.stage = 'embedding-scoring' AND w.root = ?",
                 String.class,
-                root.toString());
+                walkRoot(root));
     }
 
     private long verdictCountFor(Path root) {
@@ -267,7 +280,7 @@ class RelevanceScoringInvocationTest {
                 "SELECT COUNT(*) FROM verdict v JOIN file_occurrence f ON f.id = v.occurrence_id"
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 Long.class,
-                root.toString());
+                walkRoot(root));
         return count == null ? 0 : count;
     }
 }
