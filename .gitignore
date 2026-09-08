@@ -44,6 +44,12 @@ ajcore.*.txt
 # otherwise sweep one in. Remove a stale one with `git worktree remove`.
 /.claude/worktrees/
 
+# Per-machine operator settings for the "local" profile, layered over application.yaml by the
+# "Local SpringApp" run configuration. It names one person's archive -- a path off their own
+# machine -- so it never belongs in a commit, and putting it here rather than in
+# src/main/resources also keeps it out of the packaged jar.
+/application-local.yaml
+
 # The working directory a run writes to: vespera.db and the operator's profile.yaml. The default is
 # ${user.dir}/.vespera (see vespera.working-dir in application.yaml), so a run started from the repo
 # root leaves it here. It is a real corpus's ledger -- file paths, hashes and verdicts from someone's
