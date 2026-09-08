@@ -14,7 +14,6 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import java.nio.file.Path;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -25,8 +24,6 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
-import org.springframework.batch.infrastructure.item.ExecutionContext;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -119,7 +116,7 @@ class EmbeddingScoringTasklet implements Tasklet {
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
         ScoringRun scoring = scoringRun.getObject();
         Path canonicalRoot = Walk.canonicalRoot(root);
-        Set<OccurrenceId> survivors = drain(ledger.survivors(measurementRun.extractionRunId()));
+        Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun.extractionRunId()));
         Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk.get(), measurementRun);
         LOG.info(
                 "Stage 5c (embedding scoring) starting under scoring run {}: re-chunking and embedding {}"
@@ -143,7 +140,7 @@ class EmbeddingScoringTasklet implements Tasklet {
      * vector exists exactly where a corpus chunk's does, keyed the same way.
      */
     private Set<OccurrenceId> usableSeedOccurrences(SeedGate.SeedWalk seedWalk, SeedMeasurementRun measurementRun) {
-        Set<OccurrenceId> allSeeds = drain(ledger.occurrencesOf(seedWalk.walkId()));
+        Set<OccurrenceId> allSeeds = ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId()));
         Set<OccurrenceId> unusable = unusableSeeds.forRun(measurementRun.runId()).stream()
                 .map(UnusableSeed::occurrenceId)
                 .collect(Collectors.toSet());
@@ -167,22 +164,5 @@ class EmbeddingScoringTasklet implements Tasklet {
                     chunk.text(),
                     modelName);
         }
-    }
-
-    private static Set<OccurrenceId> drain(ItemStreamReader<OccurrenceId> reader) {
-        Set<OccurrenceId> ids = new HashSet<>();
-        try {
-            reader.open(new ExecutionContext());
-            try {
-                for (OccurrenceId id = reader.read(); id != null; id = reader.read()) {
-                    ids.add(id);
-                }
-            } finally {
-                reader.close();
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException("could not read stage 5's corpus survivors", e);
-        }
-        return ids;
     }
 }

@@ -321,6 +321,12 @@ public final class Adr {
     public static final String LOGGING_IS_EXPLICIT_AND_PROCESS_SCOPED = FILE
             + "0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md";
 
+    /**
+     * ADR-020 — the relevance scoring function: score = max over seeds of (mean top-3 chunk
+     * similarity), storing which seed won.
+     */
+    public static final String RELEVANCE_SCORING_FUNCTION = FILE + "0020-relevance-scoring-function.md";
+
     private Adr() {
     }
 }

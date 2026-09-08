@@ -11,7 +11,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Bump {@link #VERSION} in the same commit that changes embedding's tables in {@code schema.sql}.
  * Version 1 is {@code unusable_seed} (ADR-083). Version 2 is {@code seed_corpus_comparison}
- * (ADR-086, #106). Version 3 is {@code vector} (ADR-084, ADR-085, #107).
+ * (ADR-086, #106). Version 3 is {@code vector} (ADR-084, ADR-085, #107). Version 4 is {@code
+ * relevance_score} (ADR-020, #108).
  *
  * <p>Note what does <em>not</em> bump alongside it: seed extraction adds no {@code extraction} table
  * and re-chunking writes rows under a new tokenizer identity into the existing {@code chunk_cache},
@@ -25,7 +26,7 @@ import org.springframework.stereotype.Component;
 class EmbeddingSchema {
 
     /** The version of embedding's tables this code expects. */
-    static final int VERSION = 3;
+    static final int VERSION = 4;
 
     /** The module name the version is recorded under, matching the package name. */
     static final String MODULE = "embedding";

@@ -8,6 +8,7 @@ import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.embedding.ChunkEmbedderBeans;
+import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
@@ -100,9 +101,12 @@ import picocli.CommandLine;
     UsableSeedGate.class,
     EmbeddingModelJobConfiguration.class,
     EmbeddingScoringTasklet.class,
+    RelevanceScoringJobConfiguration.class,
+    RelevanceScoringTasklet.class,
     EmbeddingModelGate.class,
     ScoringRun.class,
     ChunkEmbedderBeans.class,
+    RelevanceScoringBeans.class,
     EmbeddingScriptedBeans.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
@@ -211,8 +215,9 @@ class CensusInvocationTest {
                 "the stages built so far run in the order they filter in -- census, then the byte-level"
                         + " reduction, then extraction, then the content census, then redundancy in its two"
                         + " steps, then the seed set stage 5 scores against, then how far that seed set"
-                        + " resembles the documents still standing -- so each pass only ever measures what"
-                        + " the cheaper passes before it left standing",
+                        + " resembles the documents still standing, then every vector gate 3 embeds, then"
+                        + " every survivor's relevance score -- so each pass only ever measures what the"
+                        + " cheaper passes before it left standing",
                 () -> assertThat(stagesInOrder)
                         .containsExactly(
                                 "census",
@@ -223,7 +228,8 @@ class CensusInvocationTest {
                                 "content-redundancy",
                                 "seed-extraction",
                                 "seed-corpus-comparison",
-                                "embedding-scoring"));
+                                "embedding-scoring",
+                                "relevance-scoring"));
         claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
                         + " summarises a whole extraction pass, and a summary computed over a pass still"
@@ -254,6 +260,11 @@ class CensusInvocationTest {
                         + " of them",
                 () -> assertThat(stagesInOrder.indexOf("seed-corpus-comparison"))
                         .isGreaterThan(stagesInOrder.indexOf("content-redundancy")));
+        claim(
+                "and relevance scoring runs after gate 3 embeds every vector, since scoring reads the"
+                        + " rows that step wrote rather than re-deriving them (#108, blocked by #107)",
+                () -> assertThat(stagesInOrder.indexOf("relevance-scoring"))
+                        .isGreaterThan(stagesInOrder.indexOf("embedding-scoring")));
     }
 
     @Test

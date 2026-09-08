@@ -419,3 +419,21 @@ CREATE TABLE IF NOT EXISTS vector (
     embedding BLOB NOT NULL,
     PRIMARY KEY (content_hash, chunker_identity, chunking_rule_identity, ordinal, embedder_identity)
 );
+
+-- embedding's own table (ADR-020, #108): one row per corpus survivor per scoring run -- the relevance
+-- score and the seed occurrence that produced it, ADR-020's argmax over seed documents of the mean of
+-- the top-3 chunk cosine similarities against that seed. Unlike vector above, THIS ONE IS RUN-SCOPED
+-- (ADR-041): a score is a judgement about an occurrence under a run, not a derivation of content under
+-- an instrument, so a re-run under a corrected seed folder or a different model records its own row
+-- set beside the earlier one rather than overwriting it -- the same reasoning unusable_seed already
+-- carries for its own run-scoped rows.
+--
+-- No verdict is written alongside this row: the floor that would read it into a below-threshold
+-- verdict is a later ticket, and until it lands nothing here removes anything.
+CREATE TABLE IF NOT EXISTS relevance_score (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    score REAL NOT NULL,
+    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    PRIMARY KEY (occurrence_id, run_id)
+);
