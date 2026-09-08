@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
@@ -91,13 +92,17 @@ import picocli.CommandLine;
     SeedExtractionJobConfiguration.class,
     SeedExtractionItemProcessor.class,
     SeedExtractionItemWriter.class,
+    SeedCorpusComparisonJobConfiguration.class,
+    SeedCorpusComparisonTasklet.class,
     SeedMeasurementRun.class,
     SeedGate.class,
+    UsableSeedGate.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
     BoilerplateShingles.class,
     DocumentFrequency.class,
     ConfidenceDistribution.class,
+    SeedCorpusComparison.class,
     UnusableSeeds.class,
     Shingler.class,
     HybridChunkerBeans.class,
@@ -190,14 +195,17 @@ class CensusInvocationTest {
     @DisplayName("The stages run in cheapest-filter-first order, with the content census last")
     @Link(name = "ADR-075", url = Adr.STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT, type = "adr")
     @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
+    @Link(name = "ADR-086", url = Adr.SEED_CORPUS_MISMATCH_IS_MEASURED_AND_REPORTED, type = "adr")
+    @Issue("106")
     void runsTheStagesInOrderWithTheContentCensusAfterExtraction() {
         List<String> stagesInOrder = List.copyOf(((SimpleJob) vesperaJob).getStepNames());
 
         claim(
                 "the stages built so far run in the order they filter in -- census, then the byte-level"
                         + " reduction, then extraction, then the content census, then redundancy in its two"
-                        + " steps, then the seed set stage 5 scores against -- so each pass only ever"
-                        + " measures what the cheaper passes before it left standing",
+                        + " steps, then the seed set stage 5 scores against, then how far that seed set"
+                        + " resembles the documents still standing -- so each pass only ever measures what"
+                        + " the cheaper passes before it left standing",
                 () -> assertThat(stagesInOrder)
                         .containsExactly(
                                 "census",
@@ -206,7 +214,8 @@ class CensusInvocationTest {
                                 "content-census",
                                 "redundancy-signature",
                                 "content-redundancy",
-                                "seed-extraction"));
+                                "seed-extraction",
+                                "seed-corpus-comparison"));
         claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
                         + " summarises a whole extraction pass, and a summary computed over a pass still"
@@ -225,6 +234,18 @@ class CensusInvocationTest {
                         + " the rows the signature step wrote",
                 () -> assertThat(stagesInOrder.indexOf("content-redundancy"))
                         .isGreaterThan(stagesInOrder.indexOf("redundancy-signature")));
+        claim(
+                "and the seed set is compared against the corpus only after it has been extracted, since"
+                        + " the comparison reads the measurements that extraction produced: comparing first"
+                        + " would report a seed set of no documents against the whole corpus",
+                () -> assertThat(stagesInOrder.indexOf("seed-corpus-comparison"))
+                        .isGreaterThan(stagesInOrder.indexOf("seed-extraction")));
+        claim(
+                "and after redundancy too, so the documents the seeds are compared against are the ones"
+                        + " that would actually be scored -- a document ruled out as redundant is not one"
+                        + " of them",
+                () -> assertThat(stagesInOrder.indexOf("seed-corpus-comparison"))
+                        .isGreaterThan(stagesInOrder.indexOf("content-redundancy")));
     }
 
     @Test

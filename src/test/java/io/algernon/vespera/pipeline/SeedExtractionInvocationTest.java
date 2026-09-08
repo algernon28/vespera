@@ -8,6 +8,7 @@ import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
+import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
@@ -90,13 +91,17 @@ import org.springframework.transaction.annotation.Transactional;
     SeedExtractionJobConfiguration.class,
     SeedExtractionItemProcessor.class,
     SeedExtractionItemWriter.class,
+    SeedCorpusComparisonJobConfiguration.class,
+    SeedCorpusComparisonTasklet.class,
     SeedMeasurementRun.class,
     SeedGate.class,
+    UsableSeedGate.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
     BoilerplateShingles.class,
     DocumentFrequency.class,
     ConfidenceDistribution.class,
+    SeedCorpusComparison.class,
     UnusableSeeds.class,
     Shingler.class,
     HybridChunkerBeans.class,
@@ -143,6 +148,13 @@ class SeedExtractionInvocationTest {
      * after the unusable one.
      */
     private static final int ONE_MEASUREMENT_RUN = 1;
+
+    /**
+     * The two seeds the folder holds where both are measured: one that produced text and the scripted
+     * one that produced none. Both were converted, so both were measured — being unusable is a thing
+     * the seed report says about a seed, never a reason for nothing to have been recorded about it.
+     */
+    private static final int SEEDS_IN_THIS_FOLDER = 2;
 
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
@@ -241,6 +253,41 @@ class SeedExtractionInvocationTest {
                         + " leave the gate shut, no run, and — since an unusable-seed row carries the run"
                         + " that found it — not even the row claimed above",
                 () -> assertThat(runIdsFor("seed-measurement", root)).hasSize(ONE_MEASUREMENT_RUN));
+    }
+
+    @Test
+    @Story("The seed set is measured by the pass that converts it")
+    @DisplayName("Every seed the extractor answered for carries a metrics row under the measurement run")
+    @Issue("106")
+    @Link(name = "ADR-092", url = Adr.THE_SEED_SIDE_IS_MEASURED_BY_SEED_EXTRACTION, type = "adr")
+    void measuresEverySeedItConverted(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        Files.writeString(seeds.resolve(SeedScriptedExtractionBeans.EMPTY_SEED), "not a document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        WalkId seedWalk = theSeedWalkOf(seeds);
+        RunId measurementRun = runIdsFor("seed-measurement", root).getFirst();
+
+        claim(
+                "both seeds carry a metrics row, the unusable one included: how far the seed set"
+                        + " resembles the corpus is asked of stored columns, and the pass holding the"
+                        + " converted document open is the only pass that can write them without converting"
+                        + " everything a second time",
+                () -> assertThat(metricRowsAgainst(seedWalk, measurementRun)).isEqualTo(SEEDS_IN_THIS_FOLDER));
+        claim(
+                "and they are keyed by the run that measured them, so no seed row lands under the run"
+                        + " that converted the corpus -- that run's identity does not name the seed folder,"
+                        + " and two invocations with different seed folders would otherwise write different"
+                        + " seed measurements under one identity",
+                () -> assertThat(metricRowsAgainst(seedWalk, extractionRunOver(root))).isZero());
+        claim(
+                "no verdict stands against either seed even so: the row records what the converter"
+                        + " reported, which is a fact about a conversion and never a judgement about a"
+                        + " document nothing will publish",
+                () -> assertThat(verdictKindsAgainstOccurrencesOf(seedWalk)).isEmpty());
     }
 
     @Test
@@ -353,6 +400,21 @@ class SeedExtractionInvocationTest {
     private long runCountOver(Path root) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM run WHERE walk_id = ?", Long.class, theCorpusWalkOf(root).value());
+    }
+
+    /** Metrics rows against occurrences of one walk, keyed by one run. */
+    private long metricRowsAgainst(WalkId walkId, RunId runId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM extraction_metric m JOIN file_occurrence o ON o.id = m.occurrence_id"
+                        + " WHERE o.walk_id = ? AND m.run_id = ?",
+                Long.class,
+                walkId.value(),
+                runId.value());
+    }
+
+    /** The run stage 2 minted over this test's own corpus, whose columns the corpus side is read from. */
+    private RunId extractionRunOver(Path root) {
+        return runIdsFor("extraction", root).getFirst();
     }
 
     /** Unusable-seed rows against occurrences of this test's own seed walk. */
