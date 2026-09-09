@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.embedding.LabelledSpread;
 import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.qameta.allure.Epic;
@@ -12,6 +13,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -38,7 +40,7 @@ class RelevanceLabellingReportTest {
     @Story("A measurement to read, never a refusal")
     @DisplayName("The page reports a tight, featureless distribution without ever declining to proceed")
     void reportsATightDistributionWithoutDeclining() {
-        String html = RelevanceLabellingReport.render(aTightDistribution(), noPreviews());
+        String html = RelevanceLabellingReport.render(aTightDistribution(), noPreviews(), noAnswers(), noIgnoredFloor());
 
         claim(
                 "the page states what it found and stops there: it never tells the operator the run"
@@ -56,7 +58,7 @@ class RelevanceLabellingReportTest {
     @Story("A measurement to read, never a refusal")
     @DisplayName("The page says that a spread with no usable separation is a seed-set problem, not a threshold problem")
     void namesAFlatSpreadAsASeedSetProblem() {
-        String html = RelevanceLabellingReport.render(aTightDistribution(), noPreviews());
+        String html = RelevanceLabellingReport.render(aTightDistribution(), noPreviews(), noAnswers(), noIgnoredFloor());
 
         claim(
                 "the page tells the reader what a spread with nothing to separate actually means -- that"
@@ -70,7 +72,7 @@ class RelevanceLabellingReportTest {
     @Story("A page that opens anywhere")
     @DisplayName("The page is one whole document that names no other file and fetches nothing")
     void isSelfContained() {
-        String html = RelevanceLabellingReport.render(aTightDistribution(), noPreviews());
+        String html = RelevanceLabellingReport.render(aTightDistribution(), noPreviews(), noAnswers(), noIgnoredFloor());
 
         claim(
                 "it is a whole, standalone HTML document, openable without any other file present",
@@ -88,7 +90,7 @@ class RelevanceLabellingReportTest {
     @Story("The sixty are shown in band order")
     @DisplayName("Each sampled document is shown with its score, its closest seed and the opening of its text")
     void showsEachSampledDocumentWithItsContext() {
-        String html = RelevanceLabellingReport.render(aTightDistribution(), onePreview());
+        String html = RelevanceLabellingReport.render(aTightDistribution(), onePreview(), noAnswers(), noIgnoredFloor());
 
         claim(
                 "the document is named by the path the walk recorded, which is what the person opens",
@@ -122,6 +124,16 @@ class RelevanceLabellingReportTest {
     }
 
     /** The page still has to render when nothing could be previewed. */
+    /** A page written before anybody has answered anything, which is every first run. */
+    private static LabelledSpread.Spread noAnswers() {
+        return new LabelledSpread.Spread(List.of(), List.of(), 0);
+    }
+
+    /** No threshold is being ignored, which is the ordinary case. */
+    private static Optional<RelevanceLabellingReport.IgnoredFloor> noIgnoredFloor() {
+        return Optional.empty();
+    }
+
     private static List<RelevanceLabellingReport.Preview> noPreviews() {
         return List.of();
     }
