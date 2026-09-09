@@ -13,6 +13,7 @@ import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.embedding.RelevanceDistribution;
+import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
@@ -134,6 +135,9 @@ import picocli.CommandLine;
     ProfileStore.class,
     VesperaCommand.class,
     VesperaCommand.Run.class,
+    VesperaCommand.Label.class,
+    LabelIngestion.class,
+    RelevanceLabels.class,
     VesperaCommand.Publish.class,
     VesperaCli.class
 })
