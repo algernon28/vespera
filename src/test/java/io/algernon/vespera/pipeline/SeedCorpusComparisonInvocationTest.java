@@ -13,6 +13,7 @@ import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
+import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
@@ -110,6 +111,9 @@ import org.springframework.transaction.annotation.Transactional;
     EmbeddingScoringTasklet.class,
     RelevanceScoringJobConfiguration.class,
     RelevanceScoringTasklet.class,
+    RelevanceReportJobConfiguration.class,
+    RelevanceReportTasklet.class,
+    RelevanceDistribution.class,
     EmbeddingModelGate.class,
     ScoringRun.class,
     ChunkEmbedderBeans.class,

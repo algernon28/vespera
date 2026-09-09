@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -157,6 +158,27 @@ public class RelevanceDistribution {
                     SAMPLED_PER_BAND - sampledCount));
         }
         return new Distribution(scored.size(), lowest, highest, List.copyOf(bands), List.copyOf(sample));
+    }
+
+    /**
+     * The embedder identity the stored vectors carry, when they all carry the same one.
+     *
+     * <p>ADR-084 makes a vector carry its whole embedder identity, composed from what the runtime
+     * reported when the vector was made. It is knowable here and nowhere cheaper: recomputing it
+     * would mean asking the runtime what it is today, which is a different question from what it was
+     * when these vectors were made.
+     *
+     * <p>Empty when nothing has been embedded. Where more than one identity is present the rows do
+     * not say which is the newest, so a caller should treat this as a stamp on a file rather than as
+     * proof of what scored a document.
+     */
+    public Optional<String> anyEmbedderIdentity() {
+        return jdbcTemplate
+                .query(
+                        "SELECT DISTINCT embedder_identity FROM vector ORDER BY embedder_identity",
+                        (resultSet, rowNumber) -> resultSet.getString("embedder_identity"))
+                .stream()
+                .findFirst();
     }
 
     /**

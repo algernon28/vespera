@@ -12,6 +12,7 @@ import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
+import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
@@ -104,6 +105,9 @@ import picocli.CommandLine;
     EmbeddingScoringTasklet.class,
     RelevanceScoringJobConfiguration.class,
     RelevanceScoringTasklet.class,
+    RelevanceReportJobConfiguration.class,
+    RelevanceReportTasklet.class,
+    RelevanceDistribution.class,
     EmbeddingModelGate.class,
     ScoringRun.class,
     ChunkEmbedderBeans.class,
@@ -218,8 +222,10 @@ class CensusInvocationTest {
                         + " reduction, then extraction, then the content census, then redundancy in its two"
                         + " steps, then the seed set stage 5 scores against, then how far that seed set"
                         + " resembles the documents still standing, then every vector gate 3 embeds, then"
-                        + " every survivor's relevance score -- so each pass only ever measures what the"
-                        + " cheaper passes before it left standing",
+                        + " every survivor's relevance score, and last the page and the questions a person"
+                        + " needs in order to choose a cut -- so each pass only ever measures what the"
+                        + " cheaper passes before it left standing, and nothing is put to a person until"
+                        + " every score it would be read against exists",
                 () -> assertThat(stagesInOrder)
                         .containsExactly(
                                 "census",
@@ -231,7 +237,8 @@ class CensusInvocationTest {
                                 "seed-extraction",
                                 "seed-corpus-comparison",
                                 "embedding-scoring",
-                                "relevance-scoring"));
+                                "relevance-scoring",
+                                "relevance-report"));
         claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
                         + " summarises a whole extraction pass, and a summary computed over a pass still"
