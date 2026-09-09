@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Test-only logging configuration. Logback picks this file up ahead of anything else, including
+  Spring Boot's own logback-spring.xml (ADR-093), and — unlike that file, which only Spring Boot's
+  LogbackLoggingSystem can read — it applies from the first logger call in a JVM, before any
+  application context exists. That is the whole point: the lines this file quiets are written during
+  test-context bootstrap, which happens before the context Spring would configure logging for.
+
+  Console only, deliberately. ADR-093's rolling file exists so an unattended multi-day run leaves
+  something to read afterwards; a test JVM has Surefire's own captured output for that, and the
+  file appender would otherwise scatter a vespera.log into every @TempDir working directory a test
+  hands the application.
+
+  Root stays at INFO so the per-step and progress lines ADR-093 requires are still emitted, and
+  still capturable — StageProgressTest attaches its own appender to StageProgress's logger and
+  asserts on what arrives there.
+-->
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!--
+      "Found @SpringBootConfiguration io.algernon.vespera.VesperaApplication for test class ..." at
+      INFO, once per test class that bootstraps a context. It reports the thing every test in this
+      repo arranges on purpose — @JdbcTest finding the one @SpringBootConfiguration there is — so it
+      carries no information here while being one of the loudest lines in a full run's output.
+    -->
+    <logger name="org.springframework.boot.test.context.SpringBootTestContextBootstrapper" level="WARN"/>
+
+    <!--
+      The same noise from the layer below, twice per test class: "Could not detect default
+      configuration classes for test class [...]: X does not declare any static, non-private,
+      non-final, nested classes annotated with @Configuration." No test class in this repo declares
+      one — every context here is assembled by @Import instead — so this reports the arrangement
+      working as intended too.
+    -->
+    <logger name="org.springframework.test.context.support.AnnotationConfigContextLoaderUtils" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

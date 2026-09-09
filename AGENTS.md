@@ -18,22 +18,22 @@ This file is what an agent needs to start working. Everything it points at is au
 
 ## Where it stands today
 
-Design is ahead of code, and the census slice — stage 0 — is built. What exists in `src/main`: `ledger` (occurrence and run identity, the verdict vocabulary, the survivors reader, one schema version per module), `corpus` (the walk, its anomalies, and its resumable recorder), `profile` (`profile.yaml` as typed records), and `pipeline` (the picocli CLI and the one-step Spring Batch job). `vespera run <root>` walks a corpus and writes it to SQLite in the configured working directory; the root falls back to `vespera.corpus-root` when the command names none, and an invocation with neither refuses (ADR-066). Stages 1 to 7 are recorded decisions and no code.
+Design is ahead of code: stages 0 to 4 judge, and stage 5 measures without judging yet. What exists in `src/main`: `ledger` (occurrence and run identity, the verdict vocabulary, the survivors reader, one schema version per module), `corpus` (the walk, its anomalies, its resumable recorder, and content identity), `extraction` (the Docling client, chunking and its structureless fallbacks, confidence and degeneracy), `similarity` (shingles, MinHash signatures, document frequency, redundancy resolution), `embedding` (the Ollama client, the vector and score caches, relevance scoring, the seed–corpus comparison), `profile` (`profile.yaml` as typed records), and `pipeline` (the picocli CLI and one Spring Batch job, ten steps long). `vespera run <root>` walks a corpus and writes it to SQLite in the configured working directory; the root falls back to `vespera.corpus-root` when the command names none, and an invocation with neither refuses (ADR-066). Stage 5 extracts the seed set, compares it against the corpus, embeds and scores — but its clustering and its relevance floor are not built, and no `below-threshold` verdict is written yet ([#109](https://github.com/algernon28/vespera/issues/109), [#112](https://github.com/algernon28/vespera/issues/112)). Stages 6a, 6b and 7 are recorded decisions and no code: `synthesis` and `publication` have no package yet, and `vespera publish` is a stub that refuses.
 
-Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no batch metadata tables), Spring Modulith for boundary verification only, SQLite as the single store, Chroma as a disposable vector projection, Ollama as the default extraction engine, picocli for a two-command CLI.
+Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no batch metadata tables), Spring Modulith for boundary verification only, SQLite as the single store, Chroma as a disposable vector projection, Docling out-of-process as the document converter (ADR-010) with Ollama as its default serving engine (ADR-012, ADR-013), picocli for a two-command CLI.
 
 ## Read before working
 
 **`CONTEXT.md`** is binding vocabulary, not background. Name things as it names them — file occurrence, content identity, verdict, survivor, walk, walk anomaly, census, profile, gate, run, invocation. Each entry lists rejected synonyms under `_Avoid_`; keep those words out of identifiers, tests and commit messages.
 
-**`docs/adr/`** holds 52 decisions, and two things about it are invisible from the files:
+**`docs/adr/`** holds 93 decisions, ADR-001 to ADR-093, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **New decisions start at ADR-053** and carry their own full text: context, decision, consequences.
 
 ## Where the work is
 
-Work is charted as a **wayfinder map** on the issue tracker — [issue #1](https://github.com/algernon28/vespera/issues/1) — one child issue per decision, worked one per session. Its open, unblocked children are what is takeable. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
+Work is charted as a **wayfinder map** on the issue tracker — one issue labelled `wayfinder:map` per slice, holding one child issue per decision, worked one per session. The open map is the current slice's: [#78, stage 5](https://github.com/algernon28/vespera/issues/78), the census slice's [#1](https://github.com/algernon28/vespera/issues/1) having closed. Its open, unblocked children are what is takeable. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
 
 ## Building and testing
 
