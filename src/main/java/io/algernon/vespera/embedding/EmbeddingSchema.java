@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
 class EmbeddingSchema {
 
     /** The version of embedding's tables this code expects. */
-    static final int VERSION = 5;
+    static final int VERSION = 6;
 
     /** The module name the version is recorded under, matching the package name. */
     static final String MODULE = "embedding";
