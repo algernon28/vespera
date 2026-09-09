@@ -108,6 +108,9 @@ import picocli.CommandLine;
     EmbeddingScoringTasklet.class,
     RelevanceScoringJobConfiguration.class,
     RelevanceScoringTasklet.class,
+    RelevanceFloorJobConfiguration.class,
+    RelevanceFloorTasklet.class,
+    RelevanceFloor.class,
     ClusteringJobConfiguration.class,
     ClusteringTasklet.class,
     ClusteringBeans.class,
@@ -232,8 +235,8 @@ class CensusInvocationTest {
                         + " reduction, then extraction, then the content census, then redundancy in its two"
                         + " steps, then the seed set stage 5 scores against, then how far that seed set"
                         + " resembles the documents still standing, then every vector gate 3 embeds, then"
-                        + " every survivor's relevance score, then each seed partition grouped into"
-                        + " clusters, and last the page and the questions a person needs in order to"
+                        + " every survivor's relevance score, then the threshold that removes what"
+                        + " scored under it, then each seed partition grouped into clusters, and last the page and the questions a person needs in order to"
                         + " choose a cut -- so each pass only ever measures what the cheaper passes"
                         + " before it left standing, and nothing is put to a person until every score it"
                         + " would be read against exists",
@@ -249,6 +252,7 @@ class CensusInvocationTest {
                                 "seed-corpus-comparison",
                                 "embedding-scoring",
                                 "relevance-scoring",
+                                "relevance-floor",
                                 "clustering",
                                 "relevance-report"));
         claim(
@@ -293,6 +297,15 @@ class CensusInvocationTest {
                         + " forbids (#109)",
                 () -> assertThat(stagesInOrder.indexOf("clustering"))
                         .isGreaterThan(stagesInOrder.indexOf("relevance-scoring")));
+        claim(
+                "and the threshold runs between scoring and clustering, which is the whole of ADR-087's"
+                        + " 'a below-threshold document costs nothing': a document removed here is not a"
+                        + " survivor by the time clustering reads the partition, so it is never grouped and"
+                        + " never given a page. Ordered the other way the run would cluster documents it"
+                        + " was about to remove (#112)",
+                () -> assertThat(stagesInOrder.indexOf("relevance-floor"))
+                        .isGreaterThan(stagesInOrder.indexOf("relevance-scoring"))
+                        .isLessThan(stagesInOrder.indexOf("clustering")));
         claim(
                 "and before the page a person reads, so that everything one invocation derives exists"
                         + " before anything is put to them -- a person who has answered sixty questions"

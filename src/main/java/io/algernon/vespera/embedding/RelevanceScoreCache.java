@@ -69,6 +69,22 @@ class RelevanceScoreCache {
                 winningSeed.value());
     }
 
+    /**
+     * The occurrences {@code runId} scored strictly below {@code floor}, in occurrence order.
+     *
+     * <p>Strictly below: a document scoring exactly the floor survives it. The profile calls the key
+     * a floor and describes the value as the score "below which" a survivor is removed, so the
+     * boundary belongs to the documents that stay — which is the reading that removes less.
+     */
+    List<OccurrenceId> scoredBelow(RunId runId, double floor) {
+        return jdbcTemplate.query(
+                "SELECT occurrence_id FROM relevance_score WHERE run_id = ? AND score < ?"
+                        + " ORDER BY occurrence_id",
+                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
+                runId.value(),
+                floor);
+    }
+
     /** The score {@code runId} recorded for {@code occurrenceId}, if any — a test's own way to read one back. */
     Optional<RelevanceScore> forOccurrence(OccurrenceId occurrenceId, RunId runId) {
         return jdbcTemplate

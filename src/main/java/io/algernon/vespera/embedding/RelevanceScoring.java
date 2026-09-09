@@ -53,6 +53,18 @@ public class RelevanceScoring {
     }
 
     /**
+     * The survivors {@code runId} scored below {@code floor} — the documents a set, applicable
+     * relevance threshold removes (ADR-088, #112).
+     *
+     * <p>Hands back occurrences and writes nothing. A verdict belongs to {@code ledger} and is
+     * written by the step that composes this one, so the module that holds the scores never also
+     * holds the power to remove a document by them (ADR-041, ADR-060).
+     */
+    public List<OccurrenceId> scoredBelow(RunId runId, double floor) {
+        return scoreCache.scoredBelow(runId, floor);
+    }
+
+    /**
      * Scores one corpus survivor against {@code residentSeedVectors} and stores the result under
      * {@code runId} — never materialising more than this one survivor's own chunk vectors alongside
      * the seed side already held resident (ADR-085).

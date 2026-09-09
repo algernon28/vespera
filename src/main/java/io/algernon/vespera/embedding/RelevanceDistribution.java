@@ -182,6 +182,31 @@ public class RelevanceDistribution {
     }
 
     /**
+     * The embedder identity the vectors of {@code modelName} carry, when exactly one identity
+     * answers to that name — this run's own scale, as opposed to {@link #anyEmbedderIdentity}'s
+     * stamp over every model the database has ever held.
+     *
+     * <p>Empty where nothing has been embedded under the name, and empty too where more than one
+     * identity answers to it: a model whose manifest digest, dtype or dimension changed under the
+     * same name has produced two scales, and naming either as the current one would be a guess. The
+     * caller that asks this in order to decide whether a threshold applies reads empty as "do not
+     * remove", which is the direction that loses no archive.
+     */
+    public Optional<String> embedderIdentityFor(String modelName) {
+        List<String> identities = jdbcTemplate.query(
+                "SELECT DISTINCT embedder_identity FROM vector WHERE embedder_identity LIKE ? ESCAPE '\\'"
+                        + " ORDER BY embedder_identity",
+                (resultSet, rowNumber) -> resultSet.getString("embedder_identity"),
+                "model=" + escapeLikePattern(modelName) + ";%");
+        return identities.size() == 1 ? Optional.of(identities.getFirst()) : Optional.empty();
+    }
+
+    /** Escapes {@code %}, {@code _} and the escape character itself, so a name matches only literally. */
+    private static String escapeLikePattern(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /**
      * The seed one band draws with: the run id folded into 64 bits, mixed with the band.
      *
      * <p>FNV-1a rather than {@code String.hashCode}, because this has to give the same answer on
