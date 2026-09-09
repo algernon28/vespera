@@ -213,6 +213,21 @@ public class Ledger {
                 .findFirst();
     }
 
+    /**
+     * The walk a run was recorded against, for a caller holding a run id and needing the occurrences
+     * it was about — label ingestion, which is handed a file naming the run that generated it and
+     * has to turn the paths inside into occurrence ids.
+     */
+    public Optional<WalkId> walkOf(RunId runId) {
+        return jdbcTemplate
+                .query(
+                        "SELECT walk_id FROM run WHERE id = ?",
+                        (resultSet, rowNumber) -> new WalkId(resultSet.getLong("walk_id")),
+                        runId.value())
+                .stream()
+                .findFirst();
+    }
+
     /** The id of an occurrence within a walk, for a stage holding a path and needing the key. */
     public Optional<OccurrenceId> occurrenceId(WalkId walkId, OccurrencePath path) {
         return jdbcTemplate

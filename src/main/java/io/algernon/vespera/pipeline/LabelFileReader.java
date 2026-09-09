@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.dataformat.yaml.YAMLMapper;
 
@@ -86,6 +87,15 @@ final class LabelFileReader {
                     + " are still waiting, so nothing was recorded");
         }
         return new Answers(embedderIdentity, List.copyOf(answers), unanswered);
+    }
+
+    /** The run a file says it was generated under, for a caller working out what the sample is. */
+    static Optional<String> runNamedBy(String yaml) {
+        try {
+            return Optional.ofNullable(text(YAML.readTree(yaml), "generatedUnderRun"));
+        } catch (RuntimeException malformed) {
+            return Optional.empty();
+        }
     }
 
     private static String text(JsonNode root, String field) {

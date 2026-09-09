@@ -16,11 +16,15 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 /**
- * The two-command surface (ADR-047, ADR-054): {@code vespera run <root>} and {@code vespera publish}.
+ * The command surface (ADR-047, ADR-054): {@code vespera run <root>}, {@code vespera label} and
+ * {@code vespera publish}.
  *
- * <p>Two commands and not one, because they are not the same act. A run is unattended and never
- * blocks (ADR-047); publication is terminal, one-shot and always invoked by a person (ADR-035,
- * ADR-024), which is exactly why it is not a stage of the run.
+ * <p>One command per act, because they are not the same act. A run is unattended and never blocks
+ * (ADR-047); publication is terminal, one-shot and always invoked by a person (ADR-035, ADR-024),
+ * which is exactly why it is not a stage of the run. Label ingestion sits on publication's side of
+ * that line and joined the surface for that reason (#105): a person invokes it having just finished
+ * labelling, it reads a file they authored, and it mints no run — so folding it into the run would
+ * weld a deliberate act onto an unattended pass.
  *
  * <p>{@code run} takes the corpus root and nothing else. The root is the argument, and
  * {@code vespera.corpus-root} in {@code application.yaml} answers only an invocation that names none
@@ -32,15 +36,17 @@ import picocli.CommandLine.Parameters;
 @Command(
         name = "vespera",
         mixinStandardHelpOptions = true,
-        subcommands = {VesperaCommand.Run.class, VesperaCommand.Publish.class},
+        subcommands = {VesperaCommand.Run.class, VesperaCommand.Label.class, VesperaCommand.Publish.class},
         description = "Curates a local archive into a publication-ready knowledge base.")
 public class VesperaCommand implements Callable<Integer> {
 
     private final Run run;
+    private final Label label;
     private final Publish publish;
 
-    public VesperaCommand(Run run, Publish publish) {
+    public VesperaCommand(Run run, Label label, Publish publish) {
         this.run = run;
+        this.label = label;
         this.publish = publish;
     }
 
@@ -68,11 +74,15 @@ public class VesperaCommand implements Callable<Integer> {
      */
     CommandLine commandLine() {
         run.forgetPreviousInvocation();
+        label.forgetPreviousInvocation();
         return new CommandLine(this, new CommandLine.IFactory() {
             @Override
             public <K> K create(Class<K> type) throws Exception {
                 if (type.isInstance(run)) {
                     return type.cast(run);
+                }
+                if (type.isInstance(label)) {
+                    return type.cast(label);
                 }
                 if (type.isInstance(publish)) {
                     return type.cast(publish);
@@ -206,6 +216,57 @@ public class VesperaCommand implements Callable<Integer> {
                             + " --db-dir has to be given as --db-dir=<path>, because it is read as the %s"
                             + " property before this command is parsed")
                     .formatted(named, opened, WorkingDirectoryPreparer.PROPERTY);
+        }
+    }
+
+
+    /**
+     * Records the answers a person wrote into the label file (ADR-088, #105) — a separate command
+     * because it is a separate act: invoked deliberately, reading a file the operator authored, and
+     * minting no run.
+     *
+     * <p>The file argument is optional. Omitted, it reads the label file the scoring run wrote in the
+     * working directory, which is not a guess in ADR-066's sense: it is the file this application
+     * itself wrote, under a name it chose, in a directory the operator configured.
+     *
+     * <p>Nothing here prompts. ADR-047's "the pipeline never blocks" is what makes the labelling loop
+     * resumable across days, and a terminal walking a person through sixty documents is a session
+     * that has to be finished or lost.
+     */
+    @Component
+    @Command(name = "label", description = "Records the answers written into the relevance label file.")
+    public static class Label implements Callable<Integer> {
+
+        private final LabelIngestion labelIngestion;
+
+        @Parameters(
+                index = "0",
+                arity = "0..1",
+                paramLabel = "<file>",
+                description = "The completed label file. Defaults to the one the last run wrote in the"
+                        + " working directory.")
+        private Path file;
+
+        public Label(LabelIngestion labelIngestion) {
+            this.labelIngestion = labelIngestion;
+        }
+
+        /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
+        void forgetPreviousInvocation() {
+            file = null;
+        }
+
+        @Override
+        public Integer call() {
+            LabelIngestion.Outcome outcome = labelIngestion.ingest(java.util.Optional.ofNullable(file));
+            if (outcome.refused()) {
+                System.err.println("vespera label recorded nothing: " + outcome.message());
+                return outcome.message().startsWith(LabelIngestion.NO_FILE)
+                        ? CommandLine.ExitCode.USAGE
+                        : CommandLine.ExitCode.SOFTWARE;
+            }
+            System.out.println(outcome.message());
+            return CommandLine.ExitCode.OK;
         }
     }
 
