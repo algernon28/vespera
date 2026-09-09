@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
@@ -121,6 +122,7 @@ import picocli.CommandLine;
     ExtractionMetrics.class,
     LanguageDetection.class,
     ContentIdentity.class,
+    DetectedFormats.class,
     WalkRecorder.class,
     AnomalyLog.class,
     Ledger.class,

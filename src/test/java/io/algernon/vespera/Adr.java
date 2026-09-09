@@ -327,6 +327,22 @@ public final class Adr {
      */
     public static final String RELEVANCE_SCORING_FUNCTION = FILE + "0020-relevance-scoring-function.md";
 
+    /**
+     * ADR-094 — stage 1 decides what a file is from its bytes: one prefix read and signature tests in
+     * a fixed order, with the filename admitted only to narrow within a class the bytes already
+     * fixed, never to decide one and never to reach the {@code broken} verdict.
+     */
+    public static final String FORMAT_IS_DECIDED_FROM_THE_BYTES =
+            FILE + "0094-stage-1-decides-what-a-file-is-from-its-bytes-the-extension-may-only-narrow-within-that-class.md";
+
+    /**
+     * ADR-095 — the detected format and its optional subtype are a stage-1 output keyed by occurrence
+     * and run, and content matching no known format earns no verdict until the format mix has been
+     * measured.
+     */
+    public static final String DETECTED_FORMAT_IS_A_STAGE_1_OUTPUT = FILE
+            + "0095-the-detected-format-is-a-stage-1-output-and-unrecognised-content-earns-no-verdict-until-the-mix-is-measured.md";
+
     private Adr() {
     }
 }

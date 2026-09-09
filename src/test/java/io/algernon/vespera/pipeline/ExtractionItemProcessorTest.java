@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DoclingError;
@@ -470,7 +471,7 @@ class ExtractionItemProcessorTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = walkRecorder(ledger).walk(root);
         ImplementationVersions versions = new ImplementationVersions();
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), versions, root).execute(null, null);
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, null);
         ExtractionRun extractionRun = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
         List<OccurrenceId> occurrences = paths.stream()
                 .map(path -> ledger.occurrenceId(walkId, path).orElseThrow())

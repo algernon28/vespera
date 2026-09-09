@@ -133,16 +133,18 @@ class BrokenCheckTest {
 
     @Test
     @Story("The .pdf structural check")
-    @DisplayName("A .pdf missing the %PDF- header is broken")
-    void pdfMissingHeaderIsBroken(@TempDir Path dir) throws IOException {
-        Path pdf = Files.write(dir.resolve("no-header.pdf"), "not a pdf at all, just some bytes\n%%EOF".getBytes());
+    @DisplayName("Content with no %PDF- header is not judged as a pdf, whatever it is named")
+    void contentWithoutThePdfHeaderIsNotJudgedAsAPdf(@TempDir Path dir) throws IOException {
+        Path misnamed = Files.write(dir.resolve("no-header.pdf"), "not a pdf at all, just some bytes".getBytes());
 
         claim(
-                "no %PDF- header means the file is not recognisable as a pdf at all",
-                () -> assertThat(BrokenCheck.check(pdf).broken()).isTrue());
+                "the opening marker is what makes a file a pdf, so content without one is never put"
+                        + " through the pdf check and cannot fail it",
+                () -> assertThat(BrokenCheck.check(misnamed).format()).isNotEqualTo(DetectedFormat.PDF));
         claim(
-                "the reason names the missing header",
-                () -> assertThat(BrokenCheck.check(pdf).reason()).contains("header"));
+                "these bytes read cleanly as words, so they are text -- and text carries no structure to"
+                        + " validate, so nothing is removed",
+                () -> assertThat(BrokenCheck.check(misnamed).broken()).isFalse());
     }
 
     @Test
@@ -175,16 +177,19 @@ class BrokenCheckTest {
 
     @Test
     @Story("The image structural check")
-    @DisplayName("An image file with an unrecognised signature is broken")
-    void imageWithUnrecognisedSignatureIsBroken(@TempDir Path dir) throws IOException {
-        Path png = Files.write(dir.resolve("not-really.png"), "this is not an image at all".getBytes());
+    @DisplayName("Content matching no image signature is not judged as an image, and is not removed")
+    void contentMatchingNoImageSignatureIsNotJudgedAsAnImage(@TempDir Path dir) throws IOException {
+        byte[] windowsShortcutHeader = {0x4C, 0x00, 0x00, 0x00};
+        Path misnamed = Files.write(dir.resolve("not-really.png"), windowsShortcutHeader);
 
         claim(
-                "bytes that match no known image signature are broken",
-                () -> assertThat(BrokenCheck.check(png).broken()).isTrue());
+                "matching a known image marker is itself the whole validity check, so content matching"
+                        + " none of them is simply not an image and is never put through that check",
+                () -> assertThat(BrokenCheck.check(misnamed).format()).isEqualTo(DetectedFormat.UNRECOGNISED));
         claim(
-                "the reason names the signature as the failed check",
-                () -> assertThat(BrokenCheck.check(png).reason()).contains("signature"));
+                "content of no known kind is intact and perfectly valid -- it is only unrecognised -- so"
+                        + " calling it damaged would be the wrong word, and nothing is removed",
+                () -> assertThat(BrokenCheck.check(misnamed).broken()).isFalse());
     }
 
     private static Path validDocx(Path path) throws IOException {

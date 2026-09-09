@@ -119,6 +119,22 @@ CREATE TABLE IF NOT EXISTS superseded_by (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
+-- corpus's own table (ADR-094, ADR-095): what stage 1 found each file to be, from its leading bytes.
+-- Keyed by run rather than held on the occurrence because a format is derived and not observed: add
+-- one signature to the rule and the same bytes yield a different answer, so a changed rule is a
+-- fresh row set (ADR-077) rather than history rewritten in place. format is the bytes' answer and is
+-- never null; subtype is the filename's, narrowing within a class the bytes already fixed, and is
+-- null wherever nothing named one. A row is written for every occurrence stage 1 examines, including
+-- the ones it verdicts broken, and FLOOR_STOPPED records one the floor stopped before any byte was
+-- read -- distinct from UNRECOGNISED, which means detection ran and matched nothing.
+CREATE TABLE IF NOT EXISTS detected_format (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    format TEXT NOT NULL,
+    subtype TEXT,
+    PRIMARY KEY (occurrence_id, run_id)
+);
+
 -- extraction's own table (ADR-010, ADR-012, ADR-070, ADR-071): a cached Docling response, keyed on
 -- content hash plus full extractor identity, so re-running the same content under the same engine
 -- never issues a second HTTP call and changing the configured engine mints a new row instead of
