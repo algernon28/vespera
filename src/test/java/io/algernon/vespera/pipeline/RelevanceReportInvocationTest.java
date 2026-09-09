@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.DetectedFormats;
+import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
@@ -35,6 +36,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -51,16 +53,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Gate 3 open (ADR-084, #107): a corpus survivor is re-chunked from its cached Docling response once
- * an embedding model is named and stage 5's earlier gates are open, and each of its chunks is embedded
- * and stored as a vector under a scoring run, rather than left unchunked, unembedded, or re-converted
- * through Docling a second time.
- *
- * <p>A sibling of {@link SeedCorpusComparisonInvocationTest} for the same reason that class is a
- * sibling of {@link SeedExtractionInvocationTest}: this fixture additionally names an embedding
- * model, which every other invocation test in this package deliberately leaves unset.
- */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
@@ -131,16 +123,25 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.Publish.class,
     VesperaCli.class
 })
+/**
+ * Stage 5's last step, driven through a whole invocation (ADR-088, #110): the page and the label
+ * file have to exist where the operator will look for them, which is the one claim the rendering
+ * tests beside this class cannot make.
+ *
+ * <p>A sibling of {@code RelevanceScoringInvocationTest}, on the same scripted extraction and
+ * embedding beans, so the whole pipeline runs here without a Docker daemon. What the real sidecars
+ * add is checked separately by {@code RelevanceReportIT}.
+ */
 @Epic("Relevance")
-@Feature("Embedding")
-@Issue("107")
-@Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
-class EmbeddingScoringInvocationTest {
+@Feature("Labelling")
+@Issue("110")
+@Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
+class RelevanceReportInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the same way {@link SeedCorpusComparisonInvocationTest} does. */
+    /** A floor of 1.0 opens stage 4's gate, the way the sibling invocation tests do. */
     private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The model this fixture names, so gate 3 opens too. */
+    /** The model this fixture names, so gate 3 and the steps behind it open. */
     private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     @TempDir
@@ -157,34 +158,90 @@ class EmbeddingScoringInvocationTest {
     @Autowired
     private ProfileStore profileStore;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
     @Test
-    @Story("A survivor is re-chunked once a model is named")
-    @DisplayName("With a model named, a corpus survivor's chunks land in the chunk cache and each embeds")
-    void chunksTheSurvivorFromTheExtractionCache(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @Story("The two files land where the operator will look for them")
+    @DisplayName("A whole invocation leaves the page and the label file beside the database, and inside no corpus")
+    void leavesBothFilesBesideTheDatabase(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profile(seeds);
 
         cli.run("run", root.toString());
 
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "the invocation reports success",
-                () -> assertThat(cli.getExitCode()).isZero());
+                "the page a person reads before choosing a cut is written where the database and the"
+                        + " profile already live, which is the one place an operator has been told to look",
+                () -> assertThat(workingDirectory.resolve("relevance-labelling.html")).exists());
         claim(
-                "and the surviving corpus document was chunked, its chunks landing in the chunk cache"
-                        + " rather than nowhere",
-                () -> assertThat(chunkCacheRowCount()).isPositive());
+                "and so is the file they write their answers into, beside the page that poses the"
+                        + " questions rather than somewhere they have to be told about separately",
+                () -> assertThat(workingDirectory.resolve("relevance-labels.yaml")).exists());
         claim(
-                "and each of those chunks was embedded, its vector landing in the vector table rather"
-                        + " than the re-chunk being the last thing gate 3 does",
-                () -> assertThat(vectorRowCount()).isEqualTo(chunkCacheRowCount()));
+                "and neither is written into the corpus or the seed folder: both hold exactly the files"
+                        + " this test put in them, because a curation tool that leaves its own paperwork"
+                        + " among the documents has changed the thing it was asked to describe",
+                () -> assertThat(filesUnder(root, seeds))
+                        .containsExactlyInAnyOrder(root.resolve("corpus.txt"), seeds.resolve("seed.txt")));
+    }
+
+    @Test
+    @Story("The two files land where the operator will look for them")
+    @DisplayName("The page reports the spread and the label file names the run, so the two can be matched later")
+    void thePageAndTheLabelFileAgreeOnWhatTheyWereGeneratedFrom(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        String page = Files.readString(workingDirectory.resolve("relevance-labelling.html"));
+        String labels = Files.readString(workingDirectory.resolve("relevance-labels.yaml"));
         claim(
-                "and a scoring run was minted for it -- a run row for a pass that scored a survivor"
-                        + " would otherwise be missing from the ledger entirely",
-                () -> assertThat(runCount("embedding-scoring")).isEqualTo(1));
+                "the page shows the bands it cut, so a reader can see the shape rather than be handed a"
+                        + " verdict about it",
+                () -> assertThat(page).contains("Band 1"));
+        claim(
+                "the label file names the run it was generated under, which is what lets a completed file"
+                        + " offered against a different sample be refused rather than partially matched",
+                () -> assertThat(labels).contains("generatedUnderRun"));
+        claim(
+                "and it asks about the document that was scored, with the answer left blank for a person",
+                () -> assertThat(labels).contains("corpus.txt").contains("relevant:"));
+    }
+
+    @Test
+    @Story("The threshold is pointed at, never answered")
+    @DisplayName("The profile gains a pointer to the page and no threshold value")
+    void pointsTheThresholdKeyAtThePageWithoutAnsweringIt(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        Profile profile = profileStore.load();
+        claim(
+                "the threshold key names the page its value is meant to be read off, so an operator"
+                        + " opening the profile is told where the number comes from",
+                () -> assertThat(profile.relevanceScoreFloor().measurement().source())
+                        .isEqualTo("relevance-labelling.html"));
+        claim(
+                "and the value itself is still unanswered: a threshold removes documents, and nothing"
+                        + " here may choose one on a person's behalf",
+                () -> assertThat(profile.relevanceScoreFloor().isSet()).isFalse());
+    }
+
+    /** Every file under either folder, so the claim about leaving nothing behind can be made. */
+    private static java.util.List<Path> filesUnder(Path... folders) throws IOException {
+        java.util.List<Path> found = new java.util.ArrayList<>();
+        for (Path folder : folders) {
+            try (java.util.stream.Stream<Path> walk = Files.walk(folder)) {
+                walk.filter(Files::isRegularFile).forEach(found::add);
+            }
+        }
+        return found;
     }
 
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */
@@ -195,17 +252,5 @@ class EmbeddingScoringInvocationTest {
                 profile.degenerateOutputConfidenceFloor(),
                 new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
                 new ProfileValue(MODEL_NAME, "set by this test, so gate 3 is open", null)));
-    }
-
-    private long chunkCacheRowCount() {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM chunk_cache", Long.class);
-    }
-
-    private long vectorRowCount() {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM vector", Long.class);
-    }
-
-    private long runCount(String stage) {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE stage = ?", Long.class, stage);
     }
 }
