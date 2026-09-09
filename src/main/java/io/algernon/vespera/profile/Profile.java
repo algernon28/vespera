@@ -41,12 +41,22 @@ package io.algernon.vespera.profile;
  *     run on. Ships unset and purely operator-supplied — which model is a profile key, where it is
  *     served is application configuration. No {@code Measurement}-pointer method exists for this key
  *     either: naming a model is not something a measurement pass could inform.
+ * @param relevanceScoreFloor stage 5's relevance threshold (ADR-088, #110): a score on the scale
+ *     ADR-020's function produces, below which a scored survivor is {@code below-threshold}. Ships
+ *     unset, per <b>observe before enforce</b>, and an unset floor does not stop the run — stage 5
+ *     scores every survivor, clusters every partition and writes its reports regardless, removing
+ *     nothing. The value is meant to be read off a stratified sample of sixty labelled documents, so
+ *     it carries a {@link Measurement} pointer at the labelling report the way {@code
+ *     degenerateOutputConfidenceFloor} points at the confidence distribution (ADR-075's shape).
+ *     Nothing checks that a threshold was ever labelled: the floor is an ordinary profile value and
+ *     what stands between a guessed one and the archive is the operator's own {@code provenance}.
  */
 public record Profile(
         ProfileValue seedFolder,
         ProfileValue degenerateOutputConfidenceFloor,
         ProfileValue boilerplateDocumentFrequencyFloor,
-        ProfileValue embeddingModel) {
+        ProfileValue embeddingModel,
+        ProfileValue relevanceScoreFloor) {
 
     public Profile {
         seedFolder = seedFolder == null ? ProfileValue.unset() : seedFolder;
@@ -55,6 +65,7 @@ public record Profile(
         boilerplateDocumentFrequencyFloor =
                 boilerplateDocumentFrequencyFloor == null ? ProfileValue.unset() : boilerplateDocumentFrequencyFloor;
         embeddingModel = embeddingModel == null ? ProfileValue.unset() : embeddingModel;
+        relevanceScoreFloor = relevanceScoreFloor == null ? ProfileValue.unset() : relevanceScoreFloor;
     }
 
     /**
@@ -64,7 +75,7 @@ public record Profile(
      * from the file.
      */
     public Profile(ProfileValue seedFolder, ProfileValue degenerateOutputConfidenceFloor) {
-        this(seedFolder, degenerateOutputConfidenceFloor, null, null);
+        this(seedFolder, degenerateOutputConfidenceFloor, null, null, null);
     }
 
     /**
@@ -76,12 +87,25 @@ public record Profile(
             ProfileValue seedFolder,
             ProfileValue degenerateOutputConfidenceFloor,
             ProfileValue boilerplateDocumentFrequencyFloor) {
-        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, null);
+        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, null, null);
+    }
+
+    /**
+     * The four-key constructor every call site before #110 used, kept for the same reason the two-
+     * and three-key ones above were: the fifth key arrives unset rather than breaking every existing
+     * caller.
+     */
+    public Profile(
+            ProfileValue seedFolder,
+            ProfileValue degenerateOutputConfidenceFloor,
+            ProfileValue boilerplateDocumentFrequencyFloor,
+            ProfileValue embeddingModel) {
+        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, embeddingModel, null);
     }
 
     /** A profile with every key present and none of them answered. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null);
+        return new Profile(null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -90,7 +114,8 @@ public record Profile(
                 seedFolder.measuredBy(measurement),
                 degenerateOutputConfidenceFloor,
                 boilerplateDocumentFrequencyFloor,
-                embeddingModel);
+                embeddingModel,
+                relevanceScoreFloor);
     }
 
     /**
@@ -103,6 +128,25 @@ public record Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor.measuredBy(measurement),
                 boilerplateDocumentFrequencyFloor,
-                embeddingModel);
+                embeddingModel,
+                relevanceScoreFloor);
+    }
+
+    /**
+     * The same profile, with stage 5's pointer to the labelling report brought up to date (ADR-088) —
+     * ADR-075's shape, and the third key to use it.
+     *
+     * <p>Pointing at the report never answers the key. ADR-088 is explicit that nothing writes the
+     * threshold into the profile: doing so would break {@code CONTEXT.md}'s "authored by a person,
+     * never guessed at" and ADR-062's census that never touches an existing value, and any automatic
+     * rule would need a target proportion that is itself an unmeasured threshold.
+     */
+    public Profile withRelevanceScoreFloorMeasurement(Measurement measurement) {
+        return new Profile(
+                seedFolder,
+                degenerateOutputConfidenceFloor,
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel,
+                relevanceScoreFloor.measuredBy(measurement));
     }
 }

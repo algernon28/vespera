@@ -343,6 +343,13 @@ public final class Adr {
     public static final String DETECTED_FORMAT_IS_A_STAGE_1_OUTPUT = FILE
             + "0095-the-detected-format-is-a-stage-1-output-and-unrecognised-content-earns-no-verdict-until-the-mix-is-measured.md";
 
+    /**
+     * ADR-088 — the relevance threshold is read off a stratified sample of sixty labels, and an unset
+     * floor does not stop the run.
+     */
+    public static final String RELEVANCE_THRESHOLD_IS_SIXTY_LABELS = FILE
+            + "0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md";
+
     private Adr() {
     }
 }

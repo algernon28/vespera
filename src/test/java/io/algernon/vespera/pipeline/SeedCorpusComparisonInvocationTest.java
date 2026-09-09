@@ -161,7 +161,11 @@ class SeedCorpusComparisonInvocationTest {
 
     /** The keys {@code profile.yaml} carries, and every one of them predates this measurement. */
     private static final List<String> THE_PROFILE_KEYS = List.of(
-            "seedFolder", "degenerateOutputConfidenceFloor", "boilerplateDocumentFrequencyFloor", "embeddingModel");
+            "seedFolder",
+            "degenerateOutputConfidenceFloor",
+            "boilerplateDocumentFrequencyFloor",
+            "embeddingModel",
+            "relevanceScoreFloor");
 
     /**
      * What census writes against the seed-folder key: the walk it took of that folder. It answers
@@ -294,9 +298,10 @@ class SeedCorpusComparisonInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "the profile carries the three keys it carried before, and no fourth one pointing at this"
-                        + " report: a key exists to hold a judgement the engine cannot make, and this"
-                        + " measurement asks for none -- nothing reads it as a threshold",
+                "the profile carries exactly the keys it carried before this measurement ran, and none"
+                        + " of its own pointing at this report: a key exists to hold a judgement the"
+                        + " engine cannot make, and this measurement asks for none -- nothing reads it as"
+                        + " a threshold",
                 () -> assertThat(profileKeys()).containsExactlyInAnyOrderElementsOf(THE_PROFILE_KEYS));
         Profile profile = profileStore.load();
         claim(
