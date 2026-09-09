@@ -350,6 +350,10 @@ public final class Adr {
     public static final String RELEVANCE_THRESHOLD_IS_SIXTY_LABELS = FILE
             + "0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md";
 
+    /** ADR-087 — clusters are modularity communities over a k-nearest-neighbour graph, built in blocks. */
+    public static final String CLUSTERS_ARE_MODULARITY_COMMUNITIES = FILE
+            + "0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md";
+
     private Adr() {
     }
 }
