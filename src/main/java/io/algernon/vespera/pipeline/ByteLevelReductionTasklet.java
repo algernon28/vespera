@@ -3,6 +3,9 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.BrokenCheck;
 import io.algernon.vespera.corpus.ContentHash;
 import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedFormats;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.corpus.DuplicateResolution;
 import io.algernon.vespera.corpus.DuplicateResolution.Candidate;
 import io.algernon.vespera.corpus.Walk;
@@ -13,12 +16,16 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.ledger.WalkId;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -61,22 +68,34 @@ public class ByteLevelReductionTasklet implements Tasklet {
     /** Stage 1 is fully deterministic — no profile value shapes it, so a run's config is empty. */
     static final String CONFIG_CONSUMED = "{}";
 
+    /** The page stage 1 leaves beside the database: what its detection found across the corpus (ADR-095). */
+    static final String FORMAT_MIX_FILE_NAME = "format-mix.html";
+
+    /** How many leading bytes group the unrecognised branch, so one kind arriving in bulk is visible. */
+    private static final int LEADING_BYTES_REPORTED = 4;
+
     private static final Logger log = LoggerFactory.getLogger(ByteLevelReductionTasklet.class);
 
     private final Ledger ledger;
     private final ContentIdentity contentIdentity;
+    private final DetectedFormats detectedFormats;
+    private final Path workingDirectory;
     private final ImplementationVersions implementationVersions;
     private final Path root;
 
     public ByteLevelReductionTasklet(
             Ledger ledger,
             ContentIdentity contentIdentity,
+            DetectedFormats detectedFormats,
             ImplementationVersions implementationVersions,
-            @Value("#{jobParameters['root']}") Path root) {
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("${vespera.working-dir}") Path workingDirectory) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
+        this.detectedFormats = detectedFormats;
         this.implementationVersions = implementationVersions;
         this.root = root;
+        this.workingDirectory = workingDirectory;
     }
 
     @Override
@@ -98,9 +117,17 @@ public class ByteLevelReductionTasklet implements Tasklet {
 
     private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot) throws Exception {
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", ledger.survivorCount(runId));
+        Map<DetectedFormat, Integer> byFormat = new LinkedHashMap<>();
+        Map<DetectedFormat, Map<DetectedSubtype, Integer>> bySubtype = new LinkedHashMap<>();
+        Map<String, Integer> unrecognisedLeadingBytes = new LinkedHashMap<>();
         for (OccurrenceId occurrenceId : drain(ledger.survivors(runId))) {
             OccurrenceFacts facts = factsFor(occurrenceId);
             BrokenCheck.Result result = BrokenCheck.check(canonicalRoot.resolve(facts.path().value()));
+            // Recorded before the verdict, and for every occurrence rather than for the survivors: a
+            // mix report that dropped the removed files would under-count exactly the formats that
+            // fail most (ADR-095).
+            detectedFormats.record(occurrenceId, runId, result.format(), result.subtype());
+            countInTheMix(byFormat, bySubtype, unrecognisedLeadingBytes, result, canonicalRoot.resolve(facts.path().value()));
             if (result.broken()) {
                 ledger.verdict(occurrenceId, runId, VerdictKind.BROKEN, result.reason());
             }
@@ -109,6 +136,53 @@ public class ByteLevelReductionTasklet implements Tasklet {
                     occurrenceId.value(),
                     result.broken() ? "broken: " + result.reason() : "kept");
             progress.itemDone();
+        }
+        writeFormatMix(new FormatMixReport.Mix(byFormat, bySubtype, unrecognisedLeadingBytes));
+    }
+
+    /**
+     * Counts one examined occurrence into the mix. The leading bytes are re-read only for content
+     * that matched nothing: that group is the one a later floor would be drawn from, and a total
+     * with no shape to it says how much is unrecognised without saying what any of it is (ADR-095).
+     */
+    private void countInTheMix(
+            Map<DetectedFormat, Integer> byFormat,
+            Map<DetectedFormat, Map<DetectedSubtype, Integer>> bySubtype,
+            Map<String, Integer> unrecognisedLeadingBytes,
+            BrokenCheck.Result result,
+            Path file) {
+        byFormat.merge(result.format(), 1, Integer::sum);
+        result.subtype()
+                .ifPresent(subtype -> bySubtype
+                        .computeIfAbsent(result.format(), ignored -> new LinkedHashMap<>())
+                        .merge(subtype, 1, Integer::sum));
+        if (result.format() == DetectedFormat.UNRECOGNISED) {
+            unrecognisedLeadingBytes.merge(leadingBytesOf(file), 1, Integer::sum);
+        }
+    }
+
+    /** The first bytes of {@code file} as hex, or a stand-in where they cannot be read back. */
+    private static String leadingBytesOf(Path file) {
+        try (var in = Files.newInputStream(file)) {
+            byte[] leading = in.readNBytes(LEADING_BYTES_REPORTED);
+            StringBuilder hex = new StringBuilder();
+            for (byte b : leading) {
+                hex.append(String.format("%02X ", b));
+            }
+            return hex.toString().trim();
+        } catch (IOException e) {
+            return "unreadable";
+        }
+    }
+
+    private void writeFormatMix(FormatMixReport.Mix mix) {
+        Path reportFile = workingDirectory.resolve(FORMAT_MIX_FILE_NAME);
+        try {
+            Files.createDirectories(workingDirectory);
+            Files.writeString(reportFile, FormatMixReport.render(mix), StandardCharsets.UTF_8);
+            log.info("[byte-level-reduction] wrote the format mix report to {}", reportFile);
+        } catch (IOException e) {
+            throw new IllegalStateException("the format mix report could not be written to " + reportFile, e);
         }
     }
 
