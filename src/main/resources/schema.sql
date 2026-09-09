@@ -453,3 +453,25 @@ CREATE TABLE IF NOT EXISTS relevance_score (
     winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     PRIMARY KEY (occurrence_id, run_id)
 );
+
+-- embedding's own table (ADR-088): a person's recorded answer about one document -- relevant to this
+-- seed set, or not. Keyed by the occurrence and the seed set and never by the run, because a label
+-- answers a question that stays true however the document was scored. The run, the score the person
+-- was shown and the embedder identity sit beside the answer as the context it was given in.
+--
+-- This is the one table in the system whose rows a re-run never rewrites. ADR-077's fresh-row-set
+-- rule exists for regenerated measurements, where a second computation is a second observation; a
+-- second copy of a person's answer is a duplicate. Do not "fix" this into consistency with the rest:
+-- the two hours that produced these rows cannot be produced again by a machine.
+--
+-- A hard negative is a query over this table -- a row marked not relevant carrying a high score --
+-- and not a thing with a table of its own.
+CREATE TABLE IF NOT EXISTS relevance_label (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    seed_set TEXT NOT NULL,
+    relevant INTEGER NOT NULL,
+    run_id TEXT NOT NULL REFERENCES run (id),
+    score_shown REAL NOT NULL,
+    embedder_identity TEXT NOT NULL,
+    PRIMARY KEY (occurrence_id, seed_set)
+);
