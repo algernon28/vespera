@@ -1,0 +1,51 @@
+name: claims
+
+# AGENTS.md is the file an agent reads before doing anything, and it had drifted six
+# claims away from the tree without a single check going red: docs.yml filters on
+# docs/**, and AGENTS.md is at the root, so nothing had ever opened it.
+#
+# No paths filter, deliberately, and for two separate reasons:
+#
+#   1. A change anywhere in src/ can falsify a sentence here. Adding a module package,
+#      or a class named *IT, makes AGENTS.md wrong without touching AGENTS.md.
+#   2. One claim can rot with no commit at all. The wayfinder map named as current
+#      closes on the tracker, and nothing in this repository changes when it does --
+#      which is exactly how issue #1 stayed named as current for ten days after it
+#      closed. A push-triggered job at least catches it on the next commit.
+#
+# Named for what it checks rather than for what it runs. build.yml carries the same
+# note, after a job called "verify" was read as evidence the Java build had run.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: claims-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  agents-md:
+    name: AGENTS.md still describes this tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # --with-network turns the map check from NOT CHECKED into a real result. It is
+      # the one check that needs the tracker, and the token a workflow already has is
+      # enough to read a public issue.
+      - name: The countable claims AGENTS.md makes
+        run: node docs/check-claims.mjs --with-network
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
