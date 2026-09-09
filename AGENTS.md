@@ -12,7 +12,7 @@ This file is what an agent needs to start working. Everything it points at is au
 
 **Two independent identities.** A **walk** owns file occurrence rows because they are filesystem observations; a **run** owns verdict rows because they are derived under a configuration. Content identity is a relation discovered over occurrences, never a collapse of them.
 
-**Nine capability-shaped modules**, as packages under `io.algernon.vespera`: `ledger`, `corpus`, `extraction`, `similarity`, `embedding`, `synthesis`, `publication`, `profile`, `pipeline`. The rule: **a capability module may depend on `ledger` and nothing else horizontal**; `pipeline` is the composition root and the only module that names a stage.
+**Nine capability-shaped modules**, as packages under `io.algernon.vespera`: `ledger`, `corpus`, `extraction`, `similarity`, `embedding`, `synthesis`, `publication`, `profile`, `pipeline`. Seven of the nine exist as packages today — `synthesis` and `publication` are recorded design and no code. The rule: **a capability module may depend on `ledger` and nothing else horizontal**; `pipeline` is the composition root and the only module that names a stage.
 
 `docs/architecture.md` §1–§2 carries the full version, including the tech-stack table.
 
@@ -26,14 +26,14 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 
 **`CONTEXT.md`** is binding vocabulary, not background. Name things as it names them — file occurrence, content identity, verdict, survivor, walk, walk anomaly, census, profile, gate, run, invocation. Each entry lists rejected synonyms under `_Avoid_`; keep those words out of identifiers, tests and commit messages.
 
-**`docs/adr/`** holds 93 decisions, ADR-001 to ADR-093, and two things about it are invisible from the files:
+**`docs/adr/`** holds 97 decisions, ADR-001 to ADR-097, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
-- **New decisions start at ADR-053** and carry their own full text: context, decision, consequences.
+- **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.
 
 ## Where the work is
 
-Work is charted as a **wayfinder map** on the issue tracker — one issue labelled `wayfinder:map` per slice, holding one child issue per decision, worked one per session. The open map is the current slice's: [#78, stage 5](https://github.com/algernon28/vespera/issues/78), the census slice's [#1](https://github.com/algernon28/vespera/issues/1) having closed. Its open, unblocked children are what is takeable. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
+Work is charted as a **wayfinder map** on the issue tracker — one issue labelled `wayfinder:map` per slice, holding one child issue per decision, worked one per session. The current map is [issue #78, the stage 5 slice](https://github.com/algernon28/vespera/issues/78), the census slice's [#1](https://github.com/algernon28/vespera/issues/1) having closed. Its open, unblocked children are what is takeable. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
 
 ## Building and testing
 
@@ -44,7 +44,7 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 ./mvnw -q test-compile                                         # compile only
 ```
 
-- **A test needing an external tool is an integration test**: named `*IT`, run by failsafe under `./mvnw verify`, excluded from surefire's `./mvnw test`. `VesperaApplicationIT` is the one so far — it needs a Docker daemon to start Chroma and Ollama through Testcontainers. The other classes need neither Docker nor `verify`.
+- **A test needing an external tool is an integration test**: named `*IT`, run by failsafe under `./mvnw verify`, excluded from surefire's `./mvnw test`. There are four — `DoclingClientIT`, `OllamaClientIT`, `RelevanceReportIT`, `VesperaApplicationIT` — and each needs a Docker daemon, starting its sidecar through Testcontainers. Every other class needs neither Docker nor `verify`.
 - **A skipped test is not a passing test.** Several abort by assumption when the environment cannot create a symlink or an unusual filename, so report `Skipped` alongside `Tests run`.
 - **Surefire's console output truncates the cause.** The real stack is in `target/surefire-reports/<class>.txt`.
 - **The build needs Java 26 on `PATH` (or `JAVA_HOME`) — the shell default may be older.** `./mvnw` uses whatever `java` it finds first; an older default fails with `class file version ... only recognizes class file versions up to ...` before any test runs.
