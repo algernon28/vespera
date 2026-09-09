@@ -12,11 +12,11 @@ import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.ClusteringBeans;
 import io.algernon.vespera.embedding.DocumentClusters;
+import io.algernon.vespera.embedding.RelevanceDistribution;
+import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
-import io.algernon.vespera.embedding.RelevanceDistribution;
-import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
@@ -57,13 +57,18 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Stage 5's fourth step, end to end (ADR-020, #108): once gate 3 has embedded every vector, a corpus
- * survivor is scored against the resident seed set and the result lands under the scoring run gate 3
- * already minted -- one row, no verdict, and never a row at all for a document with no chunks.
+ * Stage 5's fifth step, end to end (ADR-087, #109): once every survivor carries a score and a winning
+ * seed, each seed's partition is grouped into clusters under that same scoring run — rows, a size
+ * report, and nothing else.
  *
- * <p>A sibling of {@link EmbeddingScoringInvocationTest} for the same reason that class is a sibling
- * of {@link SeedCorpusComparisonInvocationTest}: this ticket's own step reads what #107's already
- * wrote rather than re-deriving it.
+ * <p>A sibling of {@link RelevanceScoringInvocationTest} for the reason that class is a sibling of
+ * {@link EmbeddingScoringInvocationTest}: this ticket's own step reads what the step before it wrote
+ * rather than re-deriving it.
+ *
+ * <p><b>What this step must be shown not to do matters as much as what it does.</b> Clustering
+ * arranges what survived, so no verdict may appear because of it, and its two parameters are code
+ * defaults — a profile that gained a key here would be a question shipped unset that nobody could
+ * answer, since cluster granularity is only discoverable from output that does not exist yet.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -102,8 +107,6 @@ import org.springframework.transaction.annotation.Transactional;
     RelevanceScoringTasklet.class,
     ClusteringJobConfiguration.class,
     ClusteringTasklet.class,
-    ClusteringBeans.class,
-    DocumentClusters.class,
     RelevanceReportJobConfiguration.class,
     RelevanceReportTasklet.class,
     RelevanceDistribution.class,
@@ -114,6 +117,8 @@ import org.springframework.transaction.annotation.Transactional;
     UsableSeedGate.class,
     ChunkEmbedderBeans.class,
     RelevanceScoringBeans.class,
+    ClusteringBeans.class,
+    DocumentClusters.class,
     EmbeddingScriptedBeans.class,
     RedundancySignatures.class,
     RedundancyResolution.class,
@@ -143,16 +148,27 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCli.class
 })
 @Epic("Relevance")
-@Feature("Relevance scoring")
-@Issue("108")
-@Link(name = "ADR-020", url = Adr.RELEVANCE_SCORING_FUNCTION, type = "adr")
-class RelevanceScoringInvocationTest {
+@Feature("Clustering")
+@Issue("109")
+@Link(name = "ADR-087", url = Adr.CLUSTERS_ARE_MODULARITY_COMMUNITIES, type = "adr")
+class ClusteringInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the same way {@link SeedCorpusComparisonInvocationTest} does. */
+    /** A floor of 1.0 opens stage 4's gate the same way {@link RelevanceScoringInvocationTest} does. */
     private static final String BOILERPLATE_FLOOR = "1.0";
 
     /** The model this fixture names, so gate 3 -- and this ticket's own step -- open too. */
     private static final String MODEL_NAME = "qwen3-embedding:0.6b";
+
+    /** How many corpus documents this fixture walks, all of which survive to be clustered. */
+    private static final int CORPUS_DOCUMENTS = 3;
+
+    /** Every key the profile is allowed to carry after this step has run — the same five it had before. */
+    private static final List<String> THE_KNOWN_PROFILE_KEYS = List.of(
+            "seedFolder",
+            "degenerateOutputConfidenceFloor",
+            "boilerplateDocumentFrequencyFloor",
+            "embeddingModel",
+            "relevanceScoreFloor");
 
     @TempDir
     static Path workingDirectory;
@@ -172,10 +188,12 @@ class RelevanceScoringInvocationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @Story("A survivor is scored under the scoring run gate 3 minted")
-    @DisplayName("A corpus survivor's relevance score lands under gate 3's own scoring run, with no verdict")
-    void scoresTheSurvivorUnderTheScoringRunGate3Minted(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+    @Story("Every survivor lands in exactly one cluster")
+    @DisplayName("Every scored survivor is clustered under gate 3's own scoring run, with no verdict")
+    void clustersEverySurvivorUnderTheScoringRun(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        for (int i = 0; i < CORPUS_DOCUMENTS; i++) {
+            Files.writeString(root.resolve("corpus-" + i + ".txt"), "a corpus document " + i);
+        }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profile(seeds);
 
@@ -185,49 +203,64 @@ class RelevanceScoringInvocationTest {
                 "the invocation reports success",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "the surviving corpus document was scored, its score landing in relevance_score rather"
-                        + " than nowhere",
-                () -> assertThat(relevanceScoreRowCountFor(root)).isEqualTo(1));
+                "each of the " + CORPUS_DOCUMENTS + " scored survivors carries exactly one membership row,"
+                        + " so membership over the partition is total and disjoint through the real"
+                        + " pipeline and not only at the unit",
+                () -> assertThat(documentClusterRowCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
         claim(
-                "the score was recorded under the very run gate 3 minted for embedding -- the row this"
-                        + " step wrote and the vectors #107's step wrote share one run",
-                () -> assertThat(relevanceScoreRunIdsFor(root)).containsExactly(scoringRunIdFor(root)));
+                "recorded under the very run the scores were written beneath -- clustering needs the"
+                        + " vectors and the vectors need the model, so it belongs to the scoring run"
+                        + " rather than to one of its own",
+                () -> assertThat(documentClusterRunIdsFor(root)).containsOnly(scoringRunIdFor(root)));
         claim(
-                "a winning seed occurrence is stored alongside the score, ADR-020's argmax having"
-                        + " something to point at rather than the score standing alone",
-                () -> assertThat(winningSeedOccurrenceIdFor(root)).isPositive());
-        claim(
-                "no verdict of any kind was written against this survivor for the relevance score itself"
-                        + " -- the floor that would read this row into a below-threshold verdict is a"
-                        + " later ticket, and until it lands nothing here removes anything",
+                "no verdict of any kind was written: clustering removes nothing, it arranges what"
+                        + " survived, and the verdict vocabulary is closed (ADR-042) with nothing in it"
+                        + " for this",
                 () -> assertThat(verdictCountFor(root)).isZero());
     }
 
     @Test
-    @Story("A survivor with no chunks is empty by construction, confirmed rather than assumed")
-    @DisplayName("A corpus document with no usable text never reaches relevance scoring at all")
-    void aDocumentWithNoUsableTextIsNeverScored(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        // Named after SeedScriptedExtractionBeans.EMPTY_SEED: the shared scripted extractor answers
-        // this file name with no text at all, wherever it appears -- corpus side or seed side.
-        Files.writeString(root.resolve(SeedScriptedExtractionBeans.EMPTY_SEED), "stands in for a scan with no text");
+    @Story("The parameters are code defaults, never profile keys")
+    @DisplayName("Clustering adds no profile key, so nothing new ships unset")
+    void addsNoProfileKey(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profile(seeds);
 
         cli.run("run", root.toString());
 
         claim(
-                "the invocation reports success -- a document with no text is condemned by stage 2's"
-                        + " tier-1 floor, not a failed invocation",
-                () -> assertThat(cli.getExitCode()).isZero());
+                "the profile carries the same five keys it did before this step existed: k and the"
+                        + " resolution are operational numbers, and cluster granularity is a preference"
+                        + " about page size discoverable only from output that does not exist yet -- a key"
+                        + " for it would ship unset, gate nothing, and be unanswerable",
+                () -> assertThat(topLevelProfileKeys())
+                        .containsExactlyInAnyOrderElementsOf(THE_KNOWN_PROFILE_KEYS));
         claim(
-                "the no-text document earned stage 2's degenerate-output verdict, which is what removes"
-                        + " it from every survivors query reaching stage 5",
-                () -> assertThat(verdictCountFor(root)).isPositive());
+                "and no edge similarity floor appears among them either: an unmeasured threshold is what"
+                        + " observe-before-enforce refuses, and k already bounds the edges",
+                () -> assertThat(topLevelProfileKeys()).noneSatisfy(key -> assertThat(key).contains("similarity")));
+    }
+
+    @Test
+    @Story("The spread of cluster sizes is reported per partition")
+    @DisplayName("The size report is written beside the profile, naming the exemplar's partition")
+    void writesTheSizeReport(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        Path report = workingDirectory.resolve(ClusteringTasklet.CLUSTER_SIZES_FILE_NAME);
         claim(
-                "and consequently no relevance_score row exists for it at all: ADR-020's 'confirm, do"
-                        + " not assume' holds end to end through the real pipeline, not only at the unit"
-                        + " where RelevanceScoring would refuse to score an empty vector list",
-                () -> assertThat(relevanceScoreRowCountFor(root)).isZero());
+                "the report was written to the working directory rather than into the corpus (ADR-054),"
+                        + " beside the profile the operator was already told to look at",
+                () -> assertThat(Files.exists(report)).isTrue());
+        claim(
+                "and it names the exemplar whose partition was grouped, so the sizes belong to something"
+                        + " a reader can find",
+                () -> assertThat(Files.readString(report)).contains("seed.txt"));
     }
 
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */
@@ -240,13 +273,17 @@ class RelevanceScoringInvocationTest {
                 new ProfileValue(MODEL_NAME, "set by this test, so gate 3 is open", null)));
     }
 
+    /** The keys the profile file actually carries, read as text rather than through the record. */
+    private List<String> topLevelProfileKeys() throws IOException {
+        return Files.readAllLines(profileStore.file()).stream()
+                .filter(line -> !line.isBlank() && !Character.isWhitespace(line.charAt(0)) && line.contains(":"))
+                .map(line -> line.substring(0, line.indexOf(':')).trim())
+                .toList();
+    }
+
     /**
-     * The spelling the walk recorded for {@code root}, which is the walk's own canonicalisation of
-     * it (ADR-055) rather than the path this test handed the CLI. The two differ wherever the
-     * temporary directory is reached through a link or a short name -- a Windows runner whose
-     * {@code %TEMP%} sits under {@code RUNNER~1} records the expanded {@code runneradmin} -- and a
-     * query joining on the un-canonicalised spelling would then match no row and read as an empty
-     * result rather than a mismatch.
+     * The spelling the walk recorded for {@code root}, which is the walk's own canonicalisation of it
+     * (ADR-055) rather than the path this test handed the CLI.
      */
     private String walkRoot(Path root) {
         return Walk.canonicalRoot(root).toString();
@@ -254,32 +291,23 @@ class RelevanceScoringInvocationTest {
 
     /**
      * Every query below joins back to {@code root}'s own walk rather than reading the tables whole:
-     * this database is shared across every {@code @Test} method in the class (one Spring context, one
-     * connection pool), so an absolute count would silently read another test's rows too.
+     * this database is shared across every {@code @Test} method in the class, so an absolute count
+     * would silently read another test's rows too.
      */
-    private long relevanceScoreRowCountFor(Path root) {
+    private long documentClusterRowCountFor(Path root) {
         Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM relevance_score r JOIN file_occurrence f ON f.id = r.occurrence_id"
+                "SELECT COUNT(*) FROM document_cluster c JOIN file_occurrence f ON f.id = c.occurrence_id"
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 Long.class,
                 walkRoot(root));
         return count == null ? 0 : count;
     }
 
-    private List<String> relevanceScoreRunIdsFor(Path root) {
+    private List<String> documentClusterRunIdsFor(Path root) {
         return jdbcTemplate.queryForList(
-                "SELECT r.run_id FROM relevance_score r JOIN file_occurrence f ON f.id = r.occurrence_id"
+                "SELECT c.run_id FROM document_cluster c JOIN file_occurrence f ON f.id = c.occurrence_id"
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 String.class,
-                walkRoot(root));
-    }
-
-    private long winningSeedOccurrenceIdFor(Path root) {
-        return jdbcTemplate.queryForObject(
-                "SELECT r.winning_seed_occurrence_id FROM relevance_score r"
-                        + " JOIN file_occurrence f ON f.id = r.occurrence_id"
-                        + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
-                Long.class,
                 walkRoot(root));
     }
 

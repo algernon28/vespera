@@ -466,6 +466,25 @@ CREATE TABLE IF NOT EXISTS relevance_score (
 --
 -- A hard negative is a query over this table -- a row marked not relevant carrying a high score --
 -- and not a thing with a table of its own.
+-- embedding's own table (ADR-087, ADR-045): which cluster each survivor landed in, inside the seed
+-- partition its winning seed defines. A cluster has no row of its own -- it is the set of rows
+-- carrying the same run, winning seed and ordinal -- so there is nothing for membership to fall out
+-- of step with, and a cluster with no members simply has no rows.
+--
+-- Keyed by occurrence and run, which is the ordinary rule (ADR-077): clustering is derived under a
+-- configuration, so a re-run writes its own row set rather than overwriting an earlier one. That is
+-- the opposite of relevance_label above, whose rows are a person's answer and are never rewritten.
+--
+-- No cluster count is stored anywhere, because none was ever supplied: the count falls out of the
+-- structure, and the ordinals here are what it fell out as.
+CREATE TABLE IF NOT EXISTS document_cluster (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    cluster_ordinal INTEGER NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id)
+);
+
 CREATE TABLE IF NOT EXISTS relevance_label (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     seed_set TEXT NOT NULL,
