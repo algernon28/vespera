@@ -2,6 +2,8 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceDistribution;
+import io.algernon.vespera.embedding.RelevanceLabel;
+import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.ChunkingRule;
 import io.algernon.vespera.extraction.DoclingExtractor;
@@ -12,6 +14,7 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.profile.Measurement;
+import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -21,7 +24,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -66,6 +71,8 @@ class RelevanceReportTasklet implements Tasklet {
     private final EmbeddingModelGate embeddingModelGate;
     private final ObjectProvider<ScoringRun> scoringRun;
     private final RelevanceDistribution relevanceDistribution;
+    private final RelevanceLabels relevanceLabels;
+    private final RelevanceFloor relevanceFloor;
     private final Ledger ledger;
     private final DoclingExtractor extractor;
     private final ExtractorIdentity extractorIdentity;
@@ -78,6 +85,8 @@ class RelevanceReportTasklet implements Tasklet {
             EmbeddingModelGate embeddingModelGate,
             ObjectProvider<ScoringRun> scoringRun,
             RelevanceDistribution relevanceDistribution,
+            RelevanceLabels relevanceLabels,
+            RelevanceFloor relevanceFloor,
             Ledger ledger,
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
@@ -88,6 +97,8 @@ class RelevanceReportTasklet implements Tasklet {
         this.embeddingModelGate = embeddingModelGate;
         this.scoringRun = scoringRun;
         this.relevanceDistribution = relevanceDistribution;
+        this.relevanceLabels = relevanceLabels;
+        this.relevanceFloor = relevanceFloor;
         this.ledger = ledger;
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
@@ -129,7 +140,22 @@ class RelevanceReportTasklet implements Tasklet {
             entries.add(new RelevanceLabelFile.Entry(path, sampled, seedPath));
         }
 
-        write(RelevanceLabellingReport.FILE_NAME, RelevanceLabellingReport.render(distribution, previews));
+        // The answers already given, re-banded against this run's own scores. That is ADR-088's
+        // headline consequence made executable: a label is a fact about a document, so a re-score under
+        // a new model re-reads what a person already answered rather than asking them again.
+        Map<OccurrenceId, Boolean> answers = seedSet()
+                .map(seedSet -> relevanceLabels.forSeedSet(seedSet).stream()
+                        .collect(Collectors.toMap(
+                                RelevanceLabel::occurrenceId, RelevanceLabel::relevant, (first, second) -> first)))
+                .orElseGet(Map::of);
+
+        write(
+                RelevanceLabellingReport.FILE_NAME,
+                RelevanceLabellingReport.render(
+                        distribution,
+                        previews,
+                        relevanceDistribution.spreadOf(scoring.runId(), answers),
+                        ignoredFloor()));
         write(
                 RelevanceLabelFile.FILE_NAME,
                 RelevanceLabelFile.render(
@@ -146,6 +172,39 @@ class RelevanceReportTasklet implements Tasklet {
                 distribution.bands().size(),
                 distribution.sample().size());
         return RepeatStatus.FINISHED;
+    }
+
+    /**
+     * The floor this run declined to apply, where there is one.
+     *
+     * <p>Only the calibrated-elsewhere state produces a notice. An unset floor needs no explanation —
+     * the whole page is the explanation — and an applicable one was applied, so saying anything about
+     * it here would describe a removal the reader can see in the counts.
+     */
+    private Optional<RelevanceLabellingReport.IgnoredFloor> ignoredFloor() {
+        Optional<String> modelName = embeddingModelGate.modelName();
+        if (modelName.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<String> currentIdentity = relevanceDistribution.embedderIdentityFor(modelName.get());
+        if (currentIdentity.isEmpty()) {
+            return Optional.empty();
+        }
+        if (relevanceFloor.stateFor(currentIdentity.get())
+                instanceof RelevanceFloor.CalibratedElsewhere elsewhere) {
+            return Optional.of(new RelevanceLabellingReport.IgnoredFloor(
+                    elsewhere.value(), elsewhere.calibratedUnder(), elsewhere.currentIdentity()));
+        }
+        return Optional.empty();
+    }
+
+    /** The seed folder the answers are about, canonicalised the way every other reader of it is. */
+    private Optional<String> seedSet() {
+        Profile profile = profileStore.load();
+        if (!profile.seedFolder().isSet()) {
+            return Optional.empty();
+        }
+        return Optional.of(Walk.canonicalRoot(Path.of(profile.seedFolder().value())).toString());
     }
 
     private String pathOf(OccurrenceId occurrenceId) {

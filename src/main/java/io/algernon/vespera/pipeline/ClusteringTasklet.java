@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -131,16 +132,32 @@ class ClusteringTasklet implements Tasklet {
         String chunkerIdentity = hybridChunker.identity();
         String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
 
+        // The survivor set as it stands after the floor step, drained once: a document removed as
+        // below-threshold still carries the score row that put it in a partition, and clustering it
+        // would give a page to a document this run has just decided is not in the archive. ADR-060
+        // keeps the verdict join in the ledger, so the filter is here rather than in the partition
+        // query embedding owns.
+        Set<OccurrenceId> survivors =
+                ItemStreamReaders.drain(ledger.survivors(scoring.runId()));
+
         LOG.info(
-                "Stage 5e (clustering) starting under scoring run {}: {} seed partition(s) to group",
+                "Stage 5f (clustering) starting under scoring run {}: {} seed partition(s) to group",
                 scoring.runId().value(),
                 partitions.size());
         List<ClusterSizeReport.Partition> reported = new ArrayList<>();
         for (OccurrenceId winningSeed : partitions) {
+            List<OccurrenceId> members = clustering.membersOf(scoring.runId(), winningSeed).stream()
+                    .filter(survivors::contains)
+                    .toList();
+            if (members.isEmpty()) {
+                // Every document this seed won was removed by the floor. A partition of nothing is not
+                // a partition, and a heading with no page under it is not worth minting.
+                continue;
+            }
             clustering.clusterAndRecord(
                     scoring.runId(),
                     winningSeed,
-                    contentHashesOf(canonicalRoot, clustering.membersOf(scoring.runId(), winningSeed)),
+                    contentHashesOf(canonicalRoot, members),
                     chunkerIdentity,
                     chunkingRuleIdentity,
                     modelName.get());
@@ -153,7 +170,7 @@ class ClusteringTasklet implements Tasklet {
 
         write(CLUSTER_SIZES_FILE_NAME, ClusterSizeReport.render(reported));
         LOG.info(
-                "Stage 5e (clustering) finished under scoring run {}: {} partition(s), {} document(s) in"
+                "Stage 5f (clustering) finished under scoring run {}: {} partition(s), {} document(s) in"
                         + " {} cluster(s)",
                 scoring.runId().value(),
                 reported.size(),

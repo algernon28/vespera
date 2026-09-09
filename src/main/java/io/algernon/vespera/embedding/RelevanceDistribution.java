@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -116,14 +117,7 @@ public class RelevanceDistribution {
     public Distribution measure(RunId scoringRunId) {
         // Ordered by occurrence so the list handed to the shuffle is the same list every time: a
         // deterministic draw over an order the database chose freely would not be deterministic at all.
-        List<Scored> scored = jdbcTemplate.query(
-                "SELECT occurrence_id, score, winning_seed_occurrence_id FROM relevance_score"
-                        + " WHERE run_id = ? ORDER BY occurrence_id",
-                (resultSet, rowNumber) -> new Scored(
-                        new OccurrenceId(resultSet.getLong("occurrence_id")),
-                        resultSet.getDouble("score"),
-                        new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id"))),
-                scoringRunId.value());
+        List<Scored> scored = scoredUnder(scoringRunId);
 
         double lowest = scored.stream().mapToDouble(Scored::score).min().orElseThrow();
         double highest = scored.stream().mapToDouble(Scored::score).max().orElseThrow();
@@ -134,7 +128,7 @@ public class RelevanceDistribution {
         for (int ordinal = 0; ordinal < BANDS; ordinal++) {
             List<Scored> inBand = new ArrayList<>();
             for (Scored candidate : scored) {
-                if (bandOf(candidate.score(), lowest, width) == ordinal) {
+                if (bandOf(candidate.score(), lowest, width, BANDS) == ordinal) {
                     inBand.add(candidate);
                 }
             }
@@ -181,6 +175,51 @@ public class RelevanceDistribution {
                 .findFirst();
     }
 
+    /** Every scored document under {@code runId}, in occurrence order — the rows {@link #measure} bands. */
+    List<Scored> scoredUnder(RunId scoringRunId) {
+        return jdbcTemplate.query(
+                "SELECT occurrence_id, score, winning_seed_occurrence_id FROM relevance_score"
+                        + " WHERE run_id = ? ORDER BY occurrence_id",
+                (resultSet, rowNumber) -> new Scored(
+                        new OccurrenceId(resultSet.getLong("occurrence_id")),
+                        resultSet.getDouble("score"),
+                        new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id"))),
+                scoringRunId.value());
+    }
+
+    /**
+     * How {@code answers} fall across {@code scoringRunId}'s bands, and what each candidate cut would
+     * do (ADR-088, #112) — the arithmetic, never the choice.
+     */
+    public LabelledSpread.Spread spreadOf(RunId scoringRunId, Map<OccurrenceId, Boolean> answers) {
+        return LabelledSpread.of(measure(scoringRunId), scoredUnder(scoringRunId), answers);
+    }
+
+    /**
+     * The embedder identity the vectors of {@code modelName} carry, when exactly one identity
+     * answers to that name — this run's own scale, as opposed to {@link #anyEmbedderIdentity}'s
+     * stamp over every model the database has ever held.
+     *
+     * <p>Empty where nothing has been embedded under the name, and empty too where more than one
+     * identity answers to it: a model whose manifest digest, dtype or dimension changed under the
+     * same name has produced two scales, and naming either as the current one would be a guess. The
+     * caller that asks this in order to decide whether a threshold applies reads empty as "do not
+     * remove", which is the direction that loses no archive.
+     */
+    public Optional<String> embedderIdentityFor(String modelName) {
+        List<String> identities = jdbcTemplate.query(
+                "SELECT DISTINCT embedder_identity FROM vector WHERE embedder_identity LIKE ? ESCAPE '\\'"
+                        + " ORDER BY embedder_identity",
+                (resultSet, rowNumber) -> resultSet.getString("embedder_identity"),
+                "model=" + escapeLikePattern(modelName) + ";%");
+        return identities.size() == 1 ? Optional.of(identities.getFirst()) : Optional.empty();
+    }
+
+    /** Escapes {@code %}, {@code _} and the escape character itself, so a name matches only literally. */
+    private static String escapeLikePattern(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
     /**
      * The seed one band draws with: the run id folded into 64 bits, mixed with the band.
      *
@@ -205,13 +244,13 @@ public class RelevanceDistribution {
      * document scored identically — there is nothing to divide, and they all belong to the one band
      * rather than to five that cannot be told apart.
      */
-    private static int bandOf(double score, double lowest, double width) {
+    static int bandOf(double score, double lowest, double width, int bands) {
         if (width == 0) {
-            return BANDS - 1;
+            return bands - 1;
         }
-        return Math.min((int) ((score - lowest) / width + BOUNDARY_TOLERANCE), BANDS - 1);
+        return Math.min((int) ((score - lowest) / width + BOUNDARY_TOLERANCE), bands - 1);
     }
 
-    /** One scored document, as read back. */
-    private record Scored(OccurrenceId occurrenceId, double score, OccurrenceId winningSeedOccurrenceId) {}
+    /** One scored document, as read back — package-visible so {@link LabelledSpread} can band it too. */
+    record Scored(OccurrenceId occurrenceId, double score, OccurrenceId winningSeedOccurrenceId) {}
 }

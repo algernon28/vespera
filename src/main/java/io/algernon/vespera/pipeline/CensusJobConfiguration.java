@@ -44,6 +44,7 @@ public class CensusJobConfiguration {
             Step seedCorpusComparisonStep,
             Step embeddingScoringStep,
             Step relevanceScoringStep,
+            Step relevanceFloorStep,
             Step clusteringStep,
             Step relevanceReportStep) {
         return new JobBuilder(JOB_NAME, jobRepository)
@@ -57,6 +58,7 @@ public class CensusJobConfiguration {
                 .next(seedCorpusComparisonStep)
                 .next(embeddingScoringStep)
                 .next(relevanceScoringStep)
+                .next(relevanceFloorStep)
                 .next(clusteringStep)
                 .next(relevanceReportStep)
                 .build();
