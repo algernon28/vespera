@@ -46,6 +46,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Issue("109")
 @Link(name = "ADR-087", url = Adr.CLUSTERS_ARE_MODULARITY_COMMUNITIES, type = "adr")
 @Link(name = "ADR-045", url = Adr.CLUSTERING_RUNS_WITHIN_EACH_SEED_PARTITION, type = "adr")
+@Link(name = "ADR-096", url = Adr.K_RETAINS_NEIGHBOURS_REGARDLESS_OF_DISTANCE, type = "adr")
 class ClusteringTest {
 
     private static final String MODEL = "qwen3-embedding:0.6b";
@@ -148,9 +149,10 @@ class ClusteringTest {
                         + " document's fifteen nearest neighbours however far away they are and ADR-087"
                         + " deliberately sets no edge similarity floor -- so a partition of documents"
                         + " sharing nothing is grouped by which of them are least unalike. All singletons"
-                        + " is reachable where the neighbour lists are empty, which is a partition of one;"
-                        + " above that, what the sizes mean is what the size report exists to let a person"
-                        + " judge, since nothing here measures whether a group reads as one subject",
+                        + " is reachable where the neighbour lists are empty, which is a partition of one,"
+                        + " and ADR-096 corrects the illustration that said otherwise: what tells this case"
+                        + " apart from a partition that really does resemble itself is the spread of the"
+                        + " retained edges, which is reported rather than acted on",
                 () -> assertThat(clusters.sizesFor(run, seed)).hasSizeLessThan(GROUP_SIZE));
         claim(
                 "and nothing merged them into a catch-all either: the clusters hold the whole partition"

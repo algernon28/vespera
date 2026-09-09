@@ -350,6 +350,10 @@ public final class Adr {
     public static final String RELEVANCE_THRESHOLD_IS_SIXTY_LABELS = FILE
             + "0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md";
 
+    /** ADR-096 — k retains neighbours regardless of distance, so the retained-edge similarities are reported. */
+    public static final String K_RETAINS_NEIGHBOURS_REGARDLESS_OF_DISTANCE = FILE
+            + "0096-k-retains-neighbours-regardless-of-distance-so-the-retained-edge-similarities-are-reported.md";
+
     /** ADR-045 — clustering runs within each seed partition, never corpus-wide. */
     public static final String CLUSTERING_RUNS_WITHIN_EACH_SEED_PARTITION =
             FILE + "0045-clustering-runs-within-each-seed-partition.md";
