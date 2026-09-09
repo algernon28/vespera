@@ -9,6 +9,8 @@ import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.embedding.ChunkEmbedderBeans;
+import io.algernon.vespera.embedding.ClusteringBeans;
+import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
@@ -93,6 +95,10 @@ import picocli.CommandLine;
     EmbeddingScoringTasklet.class,
     RelevanceScoringJobConfiguration.class,
     RelevanceScoringTasklet.class,
+    ClusteringJobConfiguration.class,
+    ClusteringTasklet.class,
+    ClusteringBeans.class,
+    DocumentClusters.class,
     RelevanceReportJobConfiguration.class,
     RelevanceReportTasklet.class,
     RelevanceDistribution.class,

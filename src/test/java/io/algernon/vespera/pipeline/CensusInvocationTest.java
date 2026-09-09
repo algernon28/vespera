@@ -9,6 +9,8 @@ import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.embedding.ChunkEmbedderBeans;
+import io.algernon.vespera.embedding.ClusteringBeans;
+import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import io.algernon.vespera.embedding.UnusableSeeds;
@@ -106,6 +108,10 @@ import picocli.CommandLine;
     EmbeddingScoringTasklet.class,
     RelevanceScoringJobConfiguration.class,
     RelevanceScoringTasklet.class,
+    ClusteringJobConfiguration.class,
+    ClusteringTasklet.class,
+    ClusteringBeans.class,
+    DocumentClusters.class,
     RelevanceReportJobConfiguration.class,
     RelevanceReportTasklet.class,
     RelevanceDistribution.class,
@@ -226,10 +232,11 @@ class CensusInvocationTest {
                         + " reduction, then extraction, then the content census, then redundancy in its two"
                         + " steps, then the seed set stage 5 scores against, then how far that seed set"
                         + " resembles the documents still standing, then every vector gate 3 embeds, then"
-                        + " every survivor's relevance score, and last the page and the questions a person"
-                        + " needs in order to choose a cut -- so each pass only ever measures what the"
-                        + " cheaper passes before it left standing, and nothing is put to a person until"
-                        + " every score it would be read against exists",
+                        + " every survivor's relevance score, then each seed partition grouped into"
+                        + " clusters, and last the page and the questions a person needs in order to"
+                        + " choose a cut -- so each pass only ever measures what the cheaper passes"
+                        + " before it left standing, and nothing is put to a person until every score it"
+                        + " would be read against exists",
                 () -> assertThat(stagesInOrder)
                         .containsExactly(
                                 "census",
@@ -242,6 +249,7 @@ class CensusInvocationTest {
                                 "seed-corpus-comparison",
                                 "embedding-scoring",
                                 "relevance-scoring",
+                                "clustering",
                                 "relevance-report"));
         claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
@@ -278,6 +286,19 @@ class CensusInvocationTest {
                         + " rows that step wrote rather than re-deriving them (#108, blocked by #107)",
                 () -> assertThat(stagesInOrder.indexOf("relevance-scoring"))
                         .isGreaterThan(stagesInOrder.indexOf("embedding-scoring")));
+        claim(
+                "and clustering runs after relevance scoring, because a partition is the set of documents"
+                        + " one seed won: clustering before the winning seeds were recorded would have no"
+                        + " partition to run within, and running it corpus-wide instead is what ADR-045"
+                        + " forbids (#109)",
+                () -> assertThat(stagesInOrder.indexOf("clustering"))
+                        .isGreaterThan(stagesInOrder.indexOf("relevance-scoring")));
+        claim(
+                "and before the page a person reads, so that everything one invocation derives exists"
+                        + " before anything is put to them -- a person who has answered sixty questions"
+                        + " should not find the run still working afterwards",
+                () -> assertThat(stagesInOrder.indexOf("clustering"))
+                        .isLessThan(stagesInOrder.indexOf("relevance-report")));
     }
 
     @Test
