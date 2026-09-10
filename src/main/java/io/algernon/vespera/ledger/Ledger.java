@@ -215,8 +215,12 @@ public class Ledger {
 
     /**
      * The walk a run was recorded against, for a caller holding a run id and needing the occurrences
-     * it was about — label ingestion, which is handed a file naming the run that generated it and
-     * has to turn the paths inside into occurrence ids.
+     * it was about.
+     *
+     * <p>Two callers, wanting different things from it. The relevance report resolves each label's path
+     * into this walk so the answers can be joined to scores keyed by occurrence (ADR-097). Label
+     * ingestion wants only the existence of the row: it records answers against paths and never
+     * resolves one, so an empty result there means the file names a run this database does not hold.
      */
     public Optional<WalkId> walkOf(RunId runId) {
         return jdbcTemplate

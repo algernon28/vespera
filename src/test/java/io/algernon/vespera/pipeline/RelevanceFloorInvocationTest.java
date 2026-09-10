@@ -23,7 +23,7 @@ import io.algernon.vespera.extraction.HybridChunkerBeans;
 import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
@@ -356,20 +356,27 @@ class RelevanceFloorInvocationTest {
     /**
      * One answer about one of this corpus's documents, recorded as though a person had given it while
      * {@code embedderIdentity} was in use — which is what makes a threshold calibrated or not.
+     *
+     * <p>Named by its path rather than resolved to an occurrence (ADR-097), which is also how the
+     * label file already names it.
      */
     private void anAnswerGivenUnder(Path root, Path seeds, String embedderIdentity) {
-        OccurrenceId occurrenceId = new OccurrenceId(jdbcTemplate.queryForObject(
-                "SELECT f.id FROM file_occurrence f JOIN walk w ON w.id = f.walk_id"
-                        + " WHERE w.root = ? ORDER BY f.id LIMIT 1",
-                Long.class,
-                walkRoot(root)));
         relevanceLabels.record(
-                occurrenceId,
+                new OccurrencePath(aDocumentIn(root)),
                 Walk.canonicalRoot(seeds).toString(),
                 true,
                 new RunId(scoringRunIdsFor(root).getFirst()),
                 1.0,
                 embedderIdentity);
+    }
+
+    /** The path of one document this corpus holds, taken from what census recorded. */
+    private String aDocumentIn(Path root) {
+        return jdbcTemplate.queryForObject(
+                "SELECT f.path FROM file_occurrence f JOIN walk w ON w.id = f.walk_id"
+                        + " WHERE w.root = ? ORDER BY f.path LIMIT 1",
+                String.class,
+                walkRoot(root));
     }
 
     private String theLabellingPage() throws IOException {

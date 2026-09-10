@@ -362,6 +362,10 @@ public final class Adr {
     public static final String CLUSTERS_ARE_MODULARITY_COMMUNITIES = FILE
             + "0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md";
 
+    /** ADR-097 — a relevance label is keyed by the document's path and the seed set, not by the occurrence. */
+    public static final String A_LABEL_IS_KEYED_BY_PATH_AND_SEED_SET = FILE
+            + "0097-a-relevance-label-is-keyed-by-the-documents-path-and-the-seed-set-not-by-the-occurrence.md";
+
     private Adr() {
     }
 }
