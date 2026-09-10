@@ -13,6 +13,8 @@ import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
@@ -23,10 +25,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -143,11 +145,8 @@ class RelevanceReportTasklet implements Tasklet {
         // The answers already given, re-banded against this run's own scores. That is ADR-088's
         // headline consequence made executable: a label is a fact about a document, so a re-score under
         // a new model re-reads what a person already answered rather than asking them again.
-        Map<OccurrenceId, Boolean> answers = seedSet()
-                .map(seedSet -> relevanceLabels.forSeedSet(seedSet).stream()
-                        .collect(Collectors.toMap(
-                                RelevanceLabel::occurrenceId, RelevanceLabel::relevant, (first, second) -> first)))
-                .orElseGet(Map::of);
+        Map<OccurrenceId, Boolean> answers =
+                seedSet().map(seedSet -> answersInThisWalk(seedSet, scoring.runId())).orElseGet(Map::of);
 
         write(
                 RelevanceLabellingReport.FILE_NAME,
@@ -196,6 +195,34 @@ class RelevanceReportTasklet implements Tasklet {
                     elsewhere.value(), elsewhere.calibratedUnder(), elsewhere.currentIdentity()));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Every answer given about {@code seedSet}, keyed by the occurrence this run knows each document
+     * as.
+     *
+     * <p><b>This is the resolution ADR-097 leaves to whoever joins labels to scores.</b> A label is
+     * keyed by the path, because that is what survives the re-walk census performs every invocation;
+     * the scores it is banded against are keyed by occurrence, because they were derived under this
+     * run. Bridging the two here is what makes an answer given weeks ago count today, and it is the
+     * only place an occurrence id is wanted at all.
+     *
+     * <p><b>A path this walk does not hold drops out, and the page reports it as unanswered.</b> That
+     * is the document renamed or removed since the question was put, and it is the failure direction
+     * ADR-097 chose: a rename costs a re-question, where matching on content would have discarded an
+     * answer that was still true every time a document was re-scanned or re-exported.
+     */
+    private Map<OccurrenceId, Boolean> answersInThisWalk(String seedSet, RunId runId) {
+        Optional<WalkId> walk = ledger.walkOf(runId);
+        if (walk.isEmpty()) {
+            return Map.of();
+        }
+        Map<OccurrenceId, Boolean> answers = new LinkedHashMap<>();
+        for (RelevanceLabel label : relevanceLabels.forSeedSet(seedSet)) {
+            ledger.occurrenceId(walk.get(), label.path())
+                    .ifPresent(occurrence -> answers.putIfAbsent(occurrence, label.relevant()));
+        }
+        return answers;
     }
 
     /** The seed folder the answers are about, canonicalised the way every other reader of it is. */

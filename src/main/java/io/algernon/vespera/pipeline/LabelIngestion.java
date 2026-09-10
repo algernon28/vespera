@@ -3,10 +3,8 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.io.IOException;
@@ -22,6 +20,10 @@ import org.springframework.stereotype.Component;
 /**
  * Turning a completed label file into rows (ADR-088, #111), invoked by a person through
  * {@code vespera label} and never as a step in the job.
+ *
+ * <p><b>An answer is recorded against the path the file names</b> (ADR-097), which is the identity it
+ * already travelled on. Nothing here resolves that path into a walk: an occurrence id is per-walk, and
+ * keying by one would make these answers unfindable by the next invocation that scores the corpus.
  *
  * <p><b>It mints no run.</b> A label is a fact about a document rather than something derived under
  * a configuration, so there is nothing here for a run to own. That is also why the answers survive
@@ -100,8 +102,11 @@ class LabelIngestion {
 
         LabelFileReader.Answers answers = (LabelFileReader.Answers) outcome;
         RunId run = new RunId(currentRun.get());
-        Optional<WalkId> walk = ledger.walkOf(run);
-        if (walk.isEmpty()) {
+        // The only thing a walk is wanted for here: that the run these answers were given under is one
+        // this database holds. Nothing below resolves a path into it, because a label is keyed by the
+        // path itself (ADR-097) -- so a document renamed or gone since the question was put is not this
+        // command's problem, and the answer is recorded either way.
+        if (ledger.walkOf(run).isEmpty()) {
             return Outcome.refused("the label file names run " + run.value() + ", which this database does"
                     + " not hold. Nothing was recorded.");
         }
@@ -113,16 +118,9 @@ class LabelIngestion {
         }
 
         int recorded = 0;
-        int unknown = 0;
         for (LabelFileReader.Answer answer : answers.answers()) {
-            Optional<OccurrenceId> occurrence =
-                    ledger.occurrenceId(walk.get(), new OccurrencePath(answer.path()));
-            if (occurrence.isEmpty()) {
-                unknown++;
-                continue;
-            }
             relevanceLabels.record(
-                    occurrence.get(),
+                    new OccurrencePath(answer.path()),
                     seedSet,
                     answer.relevant(),
                     run,
@@ -132,8 +130,7 @@ class LabelIngestion {
         }
 
         String message = "recorded " + recorded + " answer(s) about the seed set at " + seedSet
-                + (answers.unanswered() > 0 ? "; " + answers.unanswered() + " question(s) are still blank" : "")
-                + (unknown > 0 ? "; " + unknown + " named a document this walk does not hold" : "");
+                + (answers.unanswered() > 0 ? "; " + answers.unanswered() + " question(s) are still blank" : "");
         LOG.info("{}", message);
         return Outcome.recorded(message);
     }

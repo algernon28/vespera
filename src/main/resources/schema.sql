@@ -454,18 +454,6 @@ CREATE TABLE IF NOT EXISTS relevance_score (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- embedding's own table (ADR-088): a person's recorded answer about one document -- relevant to this
--- seed set, or not. Keyed by the occurrence and the seed set and never by the run, because a label
--- answers a question that stays true however the document was scored. The run, the score the person
--- was shown and the embedder identity sit beside the answer as the context it was given in.
---
--- This is the one table in the system whose rows a re-run never rewrites. ADR-077's fresh-row-set
--- rule exists for regenerated measurements, where a second computation is a second observation; a
--- second copy of a person's answer is a duplicate. Do not "fix" this into consistency with the rest:
--- the two hours that produced these rows cannot be produced again by a machine.
---
--- A hard negative is a query over this table -- a row marked not relevant carrying a high score --
--- and not a thing with a table of its own.
 -- embedding's own table (ADR-087, ADR-045): which cluster each survivor landed in, inside the seed
 -- partition its winning seed defines. A cluster has no row of its own -- it is the set of rows
 -- carrying the same run, winning seed and ordinal -- so there is nothing for membership to fall out
@@ -485,12 +473,44 @@ CREATE TABLE IF NOT EXISTS document_cluster (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
+-- embedding's own table (ADR-088, ADR-097): a person's recorded answer about one document -- relevant
+-- to this seed set, or not. Keyed by the path relative to the corpus root (ADR-051) and the seed set,
+-- and never by the run or the occurrence, because a label answers a question that stays true however
+-- the document was scored. The run, the score the person was shown and the embedder identity sit
+-- beside the answer as the context it was given in, and the walk that asked is still reachable
+-- through run_id.
+--
+-- This is the one table in the system whose rows a re-run never rewrites. ADR-077's fresh-row-set
+-- rule exists for regenerated measurements, where a second computation is a second observation; a
+-- second copy of a person's answer is a duplicate. Do not "fix" this into consistency with the rest:
+-- the two hours that produced these rows cannot be produced again by a machine.
+--
+-- There is no reference into file_occurrence, and that is the point (ADR-097). An occurrence id is
+-- per-walk by design -- ADR-055 resumes only an unfinished walk, so every ordinary run mints a new
+-- one -- and a label keyed by it joins to nothing the next run scores. The answers would survive here
+-- and stop being findable, which is worse than losing them because nothing reports their absence.
+-- Whoever needs to join these answers to scores resolves the path into the walk they are reading.
+--
+-- Path is not a perfect identity and the failure direction was chosen. A document renamed between
+-- runs loses its answer and is asked about again. Matching on content instead would survive a rename
+-- at the cost of discarding an answer whenever the bytes changed -- a re-scan of the same paper, a
+-- re-export of the same report -- and an answer thrown away because the bytes moved is the more
+-- expensive mistake.
+--
+-- A row whose path no longer exists is not an error and is not cleaned up: it is an answer about a
+-- document that was there. Nothing reads it, and it costs a row.
+--
+-- No migration came with the 6 -> 7 re-key, and that was checked rather than skipped: as of ADR-097
+-- no corpus had been labelled outside tests, so there was no answer anywhere to carry across.
+--
+-- A hard negative is a query over this table -- a row marked not relevant carrying a high score --
+-- and not a thing with a table of its own.
 CREATE TABLE IF NOT EXISTS relevance_label (
-    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    path TEXT NOT NULL,
     seed_set TEXT NOT NULL,
     relevant INTEGER NOT NULL,
     run_id TEXT NOT NULL REFERENCES run (id),
     score_shown REAL NOT NULL,
     embedder_identity TEXT NOT NULL,
-    PRIMARY KEY (occurrence_id, seed_set)
+    PRIMARY KEY (path, seed_set)
 );

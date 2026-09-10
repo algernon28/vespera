@@ -207,14 +207,17 @@ class RelevanceFloorTest {
                 value == null ? new ProfileValue(null, null, null) : new ProfileValue(value, "read off the labels", null)));
     }
 
+    /**
+     * One answer given while {@code embedderIdentity} was in use, which is what makes a threshold
+     * calibrated or not. A walk is minted only because a run is recorded against one; the answer
+     * itself is keyed by the path and wants neither (ADR-097).
+     */
     private void aLabelGivenUnder(String embedderIdentity) {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = ledger.startWalk(Path.of("C:/corpus-" + System.nanoTime()));
         OccurrencePath path = new OccurrencePath("labelled-" + System.nanoTime() + ".txt");
-        ledger.fileOccurrence(walkId, path, 1, Instant.EPOCH, Instant.EPOCH);
-        OccurrenceId occurrenceId = ledger.occurrenceId(walkId, path).orElseThrow();
         RunId runId = ledger.startRun("embedding-scoring", "abc" + System.nanoTime(), "{}", walkId, List.of());
         new RelevanceLabels(jdbcTemplate)
-                .record(occurrenceId, Walk.canonicalRoot(seedFolder).toString(), true, runId, 0.9, embedderIdentity);
+                .record(path, Walk.canonicalRoot(seedFolder).toString(), true, runId, 0.9, embedderIdentity);
     }
 }

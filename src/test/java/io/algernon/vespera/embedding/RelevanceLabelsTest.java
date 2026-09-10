@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
@@ -15,7 +14,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +32,11 @@ import org.springframework.test.context.ActiveProfiles;
  * copy of a person's answer is not a second observation — it is a duplicate, and the two hours that
  * produced the first one cannot be produced again by a machine.
  *
+ * <p><b>Keyed by the path and the seed set</b> (ADR-097), because an occurrence id is per-walk and
+ * census re-walks every invocation. A label keyed by the occurrence would join to nothing the next
+ * run scores, so the answers would sit here and stop being findable -- worse than losing them,
+ * because nothing reports their absence. Nothing below builds a walk to record an answer.
+ *
  * <p>What a label is keyed by follows from what it means. "Is this document relevant to this seed
  * set" stays true however the document was scored, so the run, the score on screen and the embedder
  * are recorded beside the answer as the context it was given in, and never as part of its identity.
@@ -45,6 +48,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Feature("Labelling")
 @Issue("111")
 @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
+@Link(name = "ADR-097", url = Adr.A_LABEL_IS_KEYED_BY_PATH_AND_SEED_SET, type = "adr")
 class RelevanceLabelsTest {
 
     /** The folder the exemplars live in, which is what an operator means by "the seed set". */
@@ -53,11 +57,23 @@ class RelevanceLabelsTest {
     /** A different folder, and therefore a different question about the same document. */
     private static final String ANOTHER_SEED_SET = "C:/archive/other-seeds";
 
+    /**
+     * The document judged, named the way ADR-051 names one and the way the label file already does.
+     * No walk is built to arrive at it: that is what re-keying by the path bought (ADR-097).
+     */
+    private static final OccurrencePath DOCUMENT = new OccurrencePath("report.pdf");
+
+    /** A document a person would say no about, so the no can be shown to be an answer. */
+    private static final OccurrencePath AN_UNRELATED_DOCUMENT = new OccurrencePath("holiday-snap.jpg");
+
     /** The score the person was shown when they answered, kept beside the answer as context. */
     private static final double SCORE_ON_SCREEN = 0.83;
 
     /** The score the same document got when a different model scored it later. */
     private static final double SCORE_UNDER_THE_NEW_MODEL = 0.41;
+
+    /** One answer given about one document leaves one row, however many times it is offered. */
+    private static final int ONE_ROW = 1;
 
     private static final String AN_EMBEDDER = "model=all-minilm;digest=abc;dtype=F16;dimension=384;instruction=none";
 
@@ -72,19 +88,19 @@ class RelevanceLabelsTest {
     @DisplayName("A recorded answer is read back by the document and the seed set it was given about")
     void recordsAnAnswerAgainstADocumentAndASeedSet() {
         RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        OccurrenceId document = anOccurrence("report.pdf");
-        RunId run = aRun(document);
+        RunId run = aRun();
 
-        labels.record(document, SEED_SET, true, run, SCORE_ON_SCREEN, AN_EMBEDDER);
+        labels.record(DOCUMENT, SEED_SET, true, run, SCORE_ON_SCREEN, AN_EMBEDDER);
 
         claim(
                 "the answer is found by asking about the document and the seed set it was given about,"
-                        + " which is the question it answers -- no run is named in the asking",
-                () -> assertThat(labels.answerFor(document, SEED_SET)).contains(true));
+                        + " which is the question it answers -- no run is named in the asking, and no walk"
+                        + " either",
+                () -> assertThat(labels.answerFor(DOCUMENT, SEED_SET)).contains(true));
         claim(
                 "the same document against a different seed set is a different question, and nobody has"
                         + " answered that one",
-                () -> assertThat(labels.answerFor(document, ANOTHER_SEED_SET)).isEmpty());
+                () -> assertThat(labels.answerFor(DOCUMENT, ANOTHER_SEED_SET)).isEmpty());
     }
 
     @Test
@@ -92,18 +108,18 @@ class RelevanceLabelsTest {
     @DisplayName("Re-ingesting the same answer leaves one row, not two")
     void reIngestingTheSameAnswerDoesNotDuplicateIt() {
         RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        OccurrenceId document = anOccurrence("report.pdf");
-        RunId firstRun = aRun(document);
+        RunId firstRun = aRun();
 
-        labels.record(document, SEED_SET, true, firstRun, SCORE_ON_SCREEN, AN_EMBEDDER);
-        labels.record(document, SEED_SET, true, firstRun, SCORE_ON_SCREEN, AN_EMBEDDER);
+        labels.record(DOCUMENT, SEED_SET, true, firstRun, SCORE_ON_SCREEN, AN_EMBEDDER);
+        labels.record(DOCUMENT, SEED_SET, true, firstRun, SCORE_ON_SCREEN, AN_EMBEDDER);
 
         claim(
-                "one answer was given, so one row stands: every other table in this system answers a"
-                        + " repeat run with a fresh row set, because a second computation is a second"
-                        + " observation -- a second copy of a person's answer is only a duplicate, and"
-                        + " this table must never be tidied into consistency with the others",
-                () -> assertThat(labels.countFor(SEED_SET)).isEqualTo(1));
+                "one answer was given about that document, so " + ONE_ROW + " row stands: every other"
+                        + " table in this system answers a repeat run with a fresh row set, because a"
+                        + " second computation is a second observation -- a second copy of a person's"
+                        + " answer is only a duplicate, and this table must never be tidied into"
+                        + " consistency with the others",
+                () -> assertThat(rowsAbout(labels, DOCUMENT)).hasSize(ONE_ROW));
     }
 
     @Test
@@ -111,21 +127,20 @@ class RelevanceLabelsTest {
     @DisplayName("An answer given under one model is still there after a re-score under another")
     void anAnswerSurvivesAReScoreUnderANewModel() {
         RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        OccurrenceId document = anOccurrence("report.pdf");
-        RunId firstRun = aRun(document);
-        RunId laterRun = aRun(document);
+        RunId firstRun = aRun();
+        RunId laterRun = aRun();
 
-        labels.record(document, SEED_SET, true, firstRun, SCORE_ON_SCREEN, AN_EMBEDDER);
-        labels.record(document, SEED_SET, true, laterRun, SCORE_UNDER_THE_NEW_MODEL, A_LATER_EMBEDDER);
+        labels.record(DOCUMENT, SEED_SET, true, firstRun, SCORE_ON_SCREEN, AN_EMBEDDER);
+        labels.record(DOCUMENT, SEED_SET, true, laterRun, SCORE_UNDER_THE_NEW_MODEL, A_LATER_EMBEDDER);
 
         claim(
-                "the answer is still there and still one row: a new model is a new set of numbers, not a"
-                        + " new opinion, so re-scoring costs the operator no second sitting",
-                () -> assertThat(labels.countFor(SEED_SET)).isEqualTo(1));
+                "the answer is still there and still " + ONE_ROW + " row: a new model is a new set of"
+                        + " numbers, not a new opinion, so re-scoring costs the operator no second sitting",
+                () -> assertThat(rowsAbout(labels, DOCUMENT)).hasSize(ONE_ROW));
         claim(
                 "and the answer itself is unchanged, because nothing about a different model makes a"
                         + " person's judgement about a document different",
-                () -> assertThat(labels.answerFor(document, SEED_SET)).contains(true));
+                () -> assertThat(labels.answerFor(DOCUMENT, SEED_SET)).contains(true));
     }
 
     @Test
@@ -133,12 +148,11 @@ class RelevanceLabelsTest {
     @DisplayName("The run, the score shown and the embedder are recorded beside the answer")
     void keepsTheContextTheAnswerWasGivenIn() {
         RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        OccurrenceId document = anOccurrence("report.pdf");
-        RunId run = aRun(document);
+        RunId run = aRun();
 
-        labels.record(document, SEED_SET, false, run, SCORE_ON_SCREEN, AN_EMBEDDER);
+        labels.record(DOCUMENT, SEED_SET, false, run, SCORE_ON_SCREEN, AN_EMBEDDER);
 
-        RelevanceLabel recorded = labels.forSeedSet(SEED_SET).getFirst();
+        RelevanceLabel recorded = rowsAbout(labels, DOCUMENT).getFirst();
         claim(
                 "the score the person had in front of them is kept, so a later reader can tell what the"
                         + " judgement was made against rather than guessing",
@@ -158,33 +172,35 @@ class RelevanceLabelsTest {
     @DisplayName("An answer of not-relevant is recorded as an answer, not as the absence of one")
     void recordsNotRelevantAsAnAnswer() {
         RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        OccurrenceId irrelevant = anOccurrence("holiday-snap.jpg");
 
-        labels.record(irrelevant, SEED_SET, false, aRun(irrelevant), SCORE_ON_SCREEN, AN_EMBEDDER);
+        labels.record(AN_UNRELATED_DOCUMENT, SEED_SET, false, aRun(), SCORE_ON_SCREEN, AN_EMBEDDER);
 
         claim(
                 "a person who says no has answered, and the row says so: a hard negative is exactly this"
                         + " -- a no carrying a high score -- and it is a query over these rows rather than"
                         + " a thing anything here has to build",
-                () -> assertThat(labels.answerFor(irrelevant, SEED_SET)).contains(false));
+                () -> assertThat(labels.answerFor(AN_UNRELATED_DOCUMENT, SEED_SET)).contains(false));
     }
 
-    private OccurrenceId anOccurrence(String path) {
+    /**
+     * The rows standing about one document, so a count says what it is counting.
+     *
+     * <p>Scoped to the document rather than taken as the size of the whole pass: this database
+     * outlives each test method, and every method here answers about the same seed set.
+     */
+    private List<RelevanceLabel> rowsAbout(RelevanceLabels labels, OccurrencePath document) {
+        return labels.forSeedSet(SEED_SET).stream()
+                .filter(label -> label.path().equals(document))
+                .toList();
+    }
+
+    /**
+     * A run for the answer to be recorded beside, which needs a walk only because a run is recorded
+     * against one. Nothing about the label wants either.
+     */
+    private RunId aRun() {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        ledger.fileOccurrence(
-                walkId,
-                new OccurrencePath(path),
-                1,
-                Instant.parse("2026-08-29T10:15:30Z"),
-                Instant.parse("2026-08-20T08:00:00Z"));
-        return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
-    }
-
-    private RunId aRun(OccurrenceId anyOccurrenceInTheWalk) {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = new WalkId(jdbcTemplate.queryForObject(
-                "SELECT walk_id FROM file_occurrence WHERE id = ?", Long.class, anyOccurrenceInTheWalk.value()));
         return ledger.startRun("embedding-scoring", "abc" + System.nanoTime(), "{}", walkId, List.of());
     }
 }

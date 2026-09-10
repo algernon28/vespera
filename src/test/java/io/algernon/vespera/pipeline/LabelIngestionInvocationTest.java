@@ -158,6 +158,21 @@ class LabelIngestionInvocationTest {
     /** The file the scoring run writes for a person to answer. */
     private static final String LABEL_FILE = "relevance-labels.yaml";
 
+    /** The page a scoring run writes for a person to read while they answer. */
+    private static final String LABELLING_PAGE = "relevance-labelling.html";
+
+    /** The one corpus document this fixture writes, and so the one thing there is to answer about. */
+    private static final String CORPUS_DOCUMENT = "corpus.txt";
+
+    /** The same document under another name, which is a different path and so a different question. */
+    private static final String RENAMED_DOCUMENT = "corpus-renamed.txt";
+
+    /** The fixture corpus is one document, so one answer is every answer there is to give. */
+    private static final int EVERY_ANSWER = 1;
+
+    /** What the page says while it has nothing to report, and so what it has to stop saying. */
+    private static final String NOBODY_HAS_ANSWERED = "Nobody has answered any of the questions yet";
+
     /** Built rather than written literally, so the fixture carries no escaped quotes. */
     private static final String QUOTE = String.valueOf('"');
 
@@ -274,9 +289,64 @@ class LabelIngestionInvocationTest {
         claim("and no answer was recorded", () -> assertThat(labelCount(seeds)).isZero());
     }
 
+    @Test
+    @Story("An answer outlives the invocation that collected it")
+    @DisplayName("The next invocation counts an answer given under the previous one, with no file supplied")
+    @Issue("130")
+    @Link(name = "ADR-097", url = Adr.A_LABEL_IS_KEYED_BY_PATH_AND_SEED_SET, type = "adr")
+    void countsAnAnswerGivenUnderThePreviousInvocation(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerEveryQuestion();
+        cli.run("label");
+
+        cli.run("run", root.toString());
+
+        claim("the second invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the " + EVERY_ANSWER + " answer this fixture gave is still " + EVERY_ANSWER + " row: a second"
+                        + " invocation walks the corpus again, and nothing about walking it a second time is a"
+                        + " second answer",
+                () -> assertThat(labelCount(seeds)).isEqualTo(EVERY_ANSWER));
+        claim(
+                "and the page the second invocation wrote counts it. That answer was collected by an"
+                        + " earlier invocation, from a file this one was never given, and nobody was asked for"
+                        + " it again -- which is the whole reason a person is asked at all",
+                () -> assertThat(labellingPage())
+                        .contains(EVERY_ANSWER + " document(s) judged so far")
+                        .doesNotContain(NOBODY_HAS_ANSWERED));
+    }
+
+    @Test
+    @Story("An answer outlives the invocation that collected it")
+    @DisplayName("A document renamed between invocations is asked about again rather than answered for")
+    @Issue("130")
+    @Link(name = "ADR-097", url = Adr.A_LABEL_IS_KEYED_BY_PATH_AND_SEED_SET, type = "adr")
+    void asksAgainAboutARenamedDocument(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aScoredCorpus(root, seeds);
+        answerEveryQuestion();
+        cli.run("label");
+        Files.move(root.resolve(CORPUS_DOCUMENT), root.resolve(RENAMED_DOCUMENT));
+
+        cli.run("run", root.toString());
+
+        claim("the second invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the " + EVERY_ANSWER + " answer given is still a row: an answer about a document that was"
+                        + " there is not an error, and nothing tidies it away",
+                () -> assertThat(labelCount(seeds)).isEqualTo(EVERY_ANSWER));
+        claim(
+                "but the page asks about the renamed document afresh rather than carrying another"
+                        + " answer over to it. A rename costs a re-question, and that is the cheaper of the"
+                        + " two mistakes available: matching on content instead would discard an answer every"
+                        + " time the bytes moved, and a re-scan or a re-export of the same paper is a document"
+                        + " a person would answer the same way",
+                () -> assertThat(labellingPage()).contains(NOBODY_HAS_ANSWERED));
+    }
+
     /** Runs the pipeline far enough that a sample exists and a label file has been written. */
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(root.resolve(CORPUS_DOCUMENT), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         Profile profile = profileStore.load();
         profileStore.save(new Profile(
@@ -303,6 +373,11 @@ class LabelIngestionInvocationTest {
                 "SELECT COUNT(*) FROM relevance_label WHERE seed_set = ?",
                 Long.class,
                 io.algernon.vespera.corpus.Walk.canonicalRoot(seeds).toString());
+    }
+
+    /** The labelling page as the last invocation left it, which is what a person would open. */
+    private String labellingPage() throws IOException {
+        return Files.readString(workingDirectory.resolve(LABELLING_PAGE));
     }
 
     private long runCount() {
