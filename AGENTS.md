@@ -82,6 +82,17 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 - **Census is Windows-first.** Its identity rules rest on measured NTFS behaviour — case folding that disagrees with the JDK, filenames with no UTF-8 encoding, reparse points — so some tests are guarded to Windows and say so.
 - **Measure rather than argue.** Decisions here are settled by execution where execution is possible, and the measurement belongs in the record. Probes are throwaway and live outside the repository.
 
+**`README.md` is for the operator; this file is for you.** It documents how the tool is driven — the four
+invocations, which value each stop wants, which report informs it. It must carry no claim about
+project state: what is built, how many ADRs, how many tests, which stage is part-built all live
+here, and two files describing the state is the drift that #132 and #134 each cost a pull request
+to correct (ADR-098).
+
+`docs/check-claims.mjs` reads both documents and checks each for its own kind of claim. The
+README's are all derived from code — the subcommands, the profile keys, the files written beside the
+database — except the invocation count, which is checked against the table underneath it, because
+nothing in the tree can produce it.
+
 ## The documentation site
 
 `docs/architecture.md` and `docs/decision-ledger.md` are the sources; the `.html` beside them is generated and published by GitHub Pages at [algernon28.github.io/vespera](https://algernon28.github.io/vespera/).
