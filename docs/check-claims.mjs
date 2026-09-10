@@ -31,7 +31,11 @@ const ADR_DIR = "docs/adr";
 const MAIN = "src/main/java/io/algernon/vespera";
 const TEST = "src/test/java";
 const POM = "pom.xml";
-const ISSUE_API = "https://api.github.com/repos/algernon28/vespera/issues/";
+// No trailing slash: the list form is /issues?labels=..., and /issues/?labels=... is a 404.
+const ISSUE_API = "https://api.github.com/repos/algernon28/vespera/issues";
+
+/** The label a wayfinder map carries, which is how "none is open" is checked. */
+const MAP_LABEL = "wayfinder:map";
 
 const text = readFileSync(AGENTS, "utf8");
 const withNetwork = process.argv.includes("--with-network");
@@ -161,28 +165,56 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
   }
 }
 
-/* ---------- is the named map still open ---------- */
+/* ---------- is the named map still open, or is none ---------- */
 
 // The only claim here that can go stale with no commit at all: a map closes on the
 // tracker and the file keeps pointing at it. That is exactly what happened to
 // issue #1, which closed on 2026-08-29 and was still named as current ten days later.
+//
+// Two forms are accepted because both are real states, and each is checked against the
+// opposite mistake. Naming a map is checked for that map having closed. Saying none is
+// open is checked for one having since been opened -- otherwise "no map is open" would
+// be a sentence that turns the check off, which is the defect this file exists to catch.
+// Neither sentence present is still a failure.
 {
   const NAME = "the current wayfinder map";
-  const m = claim(/The current map is \[issue #(\d+)/, NAME);
-  if (m && !withNetwork) skip(NAME, `#${m[1]} — run with --with-network to check it`);
-  else if (m) {
+  const named = /The current map is \[issue #(\d+)/.exec(text);
+  const none = /\*\*No wayfinder map is open\.\*\*/.exec(text);
+
+  if (!named && !none) {
+    fail(
+      NAME,
+      `no sentence in ${AGENTS} names a current map or says none is open:`
+        + ` restore the claim, or update this check`,
+    );
+  } else if (!withNetwork) {
+    skip(NAME, named ? `#${named[1]} — run with --with-network to check it`
+      : "none claimed open — run with --with-network to check it");
+  } else {
     const headers = { accept: "application/vnd.github+json" };
     if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
     try {
-      const response = await fetch(ISSUE_API + m[1], { headers });
-      if (!response.ok) fail(NAME, `#${m[1]}: the tracker answered ${response.status}`);
-      else {
-        const issue = await response.json();
-        if (issue.state === "open") pass(NAME, `#${m[1]} is open — ${issue.title}`);
-        else fail(NAME, `#${m[1]} closed on ${issue.closed_at}: name the map that replaced it`);
+      if (named) {
+        const response = await fetch(`${ISSUE_API}/${named[1]}`, { headers });
+        if (!response.ok) fail(NAME, `#${named[1]}: the tracker answered ${response.status}`);
+        else {
+          const issue = await response.json();
+          if (issue.state === "open") pass(NAME, `#${named[1]} is open — ${issue.title}`);
+          else fail(NAME, `#${named[1]} closed on ${issue.closed_at}: name the map that replaced it,`
+            + ` or say that none is open`);
+        }
+      } else {
+        const response = await fetch(`${ISSUE_API}?labels=${encodeURIComponent(MAP_LABEL)}&state=open&per_page=100`, { headers });
+        if (!response.ok) fail(NAME, `the tracker answered ${response.status}`);
+        else {
+          const open = (await response.json()).filter((i) => !i.pull_request);
+          if (open.length === 0) pass(NAME, "none is open, and the tracker holds none");
+          else fail(NAME, `the file says none is open, but ${open.map((i) => `#${i.number}`).join(", ")}`
+            + ` carries ${MAP_LABEL}: name the current map`);
+        }
       }
     } catch (e) {
-      fail(NAME, `#${m[1]}: could not reach the tracker — ${e.message}`);
+      fail(NAME, `could not reach the tracker — ${e.message}`);
     }
   }
 }

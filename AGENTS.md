@@ -33,7 +33,9 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 
 ## Where the work is
 
-Work is charted as a **wayfinder map** on the issue tracker — one issue labelled `wayfinder:map` per slice, holding one child issue per decision, worked one per session. The current map is [issue #78, the stage 5 slice](https://github.com/algernon28/vespera/issues/78), the census slice's [#1](https://github.com/algernon28/vespera/issues/1) having closed. Its open, unblocked children are what is takeable. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
+Work is charted as a **wayfinder map** on the issue tracker — one issue labelled `wayfinder:map` per slice, holding one child issue per decision, worked one per session. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
+
+**No wayfinder map is open.** Six have closed, one per slice, ending with the stage 5 slice's [#78](https://github.com/algernon28/vespera/issues/78) on 2026-09-09; stages 6a, 6b and 7 have never had one. So what is takeable is not "the open children of the current map" but the open issues themselves: a `ready-for-agent` ticket is settled and wants code, and a `wayfinder:grilling` ticket is a decision that has to be argued out before any code is worth writing. Charting the next slice is itself a piece of work, and it is unticketed.
 
 ## Building and testing
 

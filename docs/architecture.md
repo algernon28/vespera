@@ -3,7 +3,7 @@
 **Project:** Document Curation Pipeline → Knowledge Base
 **Source:** compiled 2026-08-21 from the ADRs and `CONTEXT.md`. Demoted from a hand-off note to this repo's standing architecture document on 2026-08-22, when the lost ADR text was reconstituted from the condensed ledger into [`docs/adr/`](./adr/README.md).
 **Reading order:** §1 and §2 describe the system and are the fuller record — most ADR files carry only a one-line summary and point back here. The condensed ledger now lives in [`docs/decision-ledger.md`](./decision-ledger.md), kept as the provenance witness for those files rather than as the place to read a decision.
-**Status:** design is ahead of code — stages 0 to 4 judge, stage 5 measures without judging yet, and 6a, 6b and 7 are recorded decisions with no code. `AGENTS.md` is where that state is kept current; this document describes the system as decided, not as built. Open questions are not tracked here — they live on the wayfinder map, [Stage 5 slice: the way to a hand-off spec](https://github.com/algernon28/vespera/issues/78).
+**Status:** design is ahead of code — stages 0 to 4 judge, stage 5 measures without judging yet, and 6a, 6b and 7 are recorded decisions with no code. `AGENTS.md` is where that state is kept current; this document describes the system as decided, not as built. Open questions are not tracked here — they live on the issue tracker, and `AGENTS.md` says which of them is takeable. No wayfinder map is open: the stage 5 slice's closed on 2026-09-09, and stages 6a, 6b and 7 have never had one.
 
 ---
 
