@@ -1,6 +1,5 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.corpus.BrokenCheck;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ExtractionMetrics;
@@ -90,12 +89,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
     private SeedExtractionOutcome doProcess(OccurrenceId occurrenceId) {
         Path file = resolvePath(occurrenceId);
         String contentHash = extractor.contentHashFor(file);
-        // A seed is not a walked occurrence, so no stage-1 run ever recorded what it is: the same
-        // byte-level detection runs here, so a seed is converted as what its bytes say exactly as a
-        // corpus document is (ADR-094, ADR-100).
-        BrokenCheck.Result detected = BrokenCheck.check(file);
-        DoclingResponse response =
-                extractor.convert(file, contentHash, extractorIdentity, detected.format(), detected.subtype());
+        DoclingResponse response = SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
         // Measured here, while the document is open, and carried out as columns rather than as the
         // document itself: the row cannot be written until the whole folder has been converted
         // (ADR-092), and a seed folder's worth of extracted text is not a thing to hold until then.

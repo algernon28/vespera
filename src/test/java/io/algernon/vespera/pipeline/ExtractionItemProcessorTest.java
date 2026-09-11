@@ -411,6 +411,10 @@ class ExtractionItemProcessorTest {
                 () -> assertThat(docling.conversions()).isEqualTo(corpus.size()));
     }
 
+    /**
+     * ADR-094 narrows plain text by extension only for {@code .md}, {@code .html}, {@code .csv} and
+     * {@code .adoc}, so the {@code .txt} fixture below is plain text with no subtype at all.
+     */
     @Test
     @Story("The format sent is the one stage 1 read off the bytes")
     @DisplayName("The occurrence is converted as what stage 1 found it to be, not as what its path says")
@@ -427,11 +431,16 @@ class ExtractionItemProcessorTest {
                         + " text, and the path plays no part in saying so",
                 () -> assertThat(docling.formatsAsked()).containsExactly(DetectedFormat.PLAIN_TEXT));
         claim(
-                "and it carries no subtype, because .txt is not one of the extensions ADR-094 narrows"
-                        + " plain text by -- an absent subtype is a legitimate answer, not a missing one",
+                "and it carries no subtype, because .txt is not one of the extensions plain text is"
+                        + " narrowed by -- an absent subtype is a legitimate answer, not a missing one",
                 () -> assertThat(docling.subtypesAsked()).containsExactly(Optional.empty()));
     }
 
+    /**
+     * The second occurrence's verdict is ADR-070's tier-1 degeneracy floor — the scripted response
+     * carries no text — which is what makes it evidence that the occurrence was judged rather than
+     * skipped.
+     */
     @Test
     @Story("The format sent is the one stage 1 read off the bytes")
     @DisplayName("An occurrence whose format was never recorded fails on its own, and the pass carries on")
@@ -471,8 +480,8 @@ class ExtractionItemProcessorTest {
                 () -> assertThat(next.kind()).isEqualTo(VerdictKind.DEGENERATE_OUTPUT));
         claim(
                 "and its verdict is the response's, not the missing row's: the scripted answer carried"
-                        + " no text, which is tier 1 of ADR-070's floor, so this occurrence reached a"
-                        + " judgement the first one never got to",
+                        + " no text at all, which is the hard floor over a converted document, so this"
+                        + " occurrence reached a judgement the first one never got to",
                 () -> assertThat(next.reason()).doesNotContain("no detected format"));
     }
 

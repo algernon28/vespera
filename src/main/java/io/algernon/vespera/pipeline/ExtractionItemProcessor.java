@@ -167,7 +167,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private ExtractionOutcome unreadableFormat(OccurrenceId occurrenceId) {
         String reason = "no detected format is recorded for occurrence " + occurrenceId.value() + " under run "
                 + extractionRun.byteLevelReductionRunId().value();
-        log.warn("[extraction] {}", reason);
+        log.info("[extraction] {}", reason);
         return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
     }
 

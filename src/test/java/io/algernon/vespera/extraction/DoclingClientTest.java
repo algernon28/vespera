@@ -27,7 +27,9 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
+import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -124,6 +126,36 @@ class DoclingClientTest {
 
     /** No subtype alongside it, for the same reason. */
     private static final Optional<DetectedSubtype> NO_SUBTYPE = Optional.empty();
+
+    /** Every pairing stage 1 can produce, in ADR-100's table order. */
+    private static final List<Pairing> EVERY_PAIRING = List.of(
+            new Pairing(DetectedFormat.PDF, Optional.empty()),
+            new Pairing(DetectedFormat.IMAGE, Optional.empty()),
+            new Pairing(DetectedFormat.WORDPROCESSING, Optional.empty()),
+            new Pairing(DetectedFormat.ZIP_CONTAINER, Optional.empty()),
+            new Pairing(DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_WORD)),
+            new Pairing(DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_SPREADSHEET)),
+            new Pairing(DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_PRESENTATION)),
+            new Pairing(DetectedFormat.OLE_COMPOUND, Optional.empty()),
+            new Pairing(DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.HTML)),
+            new Pairing(DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.CSV)),
+            new Pairing(DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.ASCIIDOC)),
+            new Pairing(DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.MARKDOWN)),
+            new Pairing(DetectedFormat.PLAIN_TEXT, Optional.empty()),
+            new Pairing(DetectedFormat.UNRECOGNISED, Optional.empty()));
+
+    /**
+     * ADR-100's table as version {@link #NAMING_SCHEME_VERSION} of it renders, written out here
+     * rather than derived, so that a row changing has to be stated twice — once in the client, once
+     * beside the version number it invalidates.
+     */
+    private static final String RECORDED_TABLE = "PDF=document.pdf;IMAGE=document.bin;"
+            + "WORDPROCESSING=document.docx;ZIP_CONTAINER=document.bin;"
+            + "OLE_COMPOUND/LEGACY_WORD=document.doc;OLE_COMPOUND/LEGACY_SPREADSHEET=document.xls;"
+            + "OLE_COMPOUND/LEGACY_PRESENTATION=document.ppt;OLE_COMPOUND=document.bin;"
+            + "PLAIN_TEXT/HTML=document.html;PLAIN_TEXT/CSV=document.csv;"
+            + "PLAIN_TEXT/ASCIIDOC=document.adoc;PLAIN_TEXT/MARKDOWN=document.md;"
+            + "PLAIN_TEXT=document.md;UNRECOGNISED=document.bin";
 
     /** The call budget ADR-071 fixes: five minutes of silence is a client-side timeout. */
     private static final Duration DOCUMENTED_CALL_BUDGET = Duration.ofMinutes(5);
@@ -495,6 +527,34 @@ class DoclingClientTest {
                             .isInstanceOf(IllegalArgumentException.class)
                             .hasMessageContaining(DetectedSubtype.CSV.name());
                 });
+    }
+
+    @Test
+    @Story("The name sent is the format's, not the path's")
+    @DisplayName("The whole table is pinned against the version the identity claims, so one cannot move without the other")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
+    void pinsTheWholeTableAgainstTheVersionTheIdentityClaims(@TempDir Path dir) throws IOException {
+        Path onDisk = aDocument(dir);
+        String table = EVERY_PAIRING.stream()
+                .map(pairing -> pairing.format() + subtypeSuffix(pairing) + "=" + postedName(onDisk, pairing.format(), pairing.subtype()))
+                .collect(Collectors.joining(";"));
+
+        claim(
+                "every pairing stage 1 can produce renders to the name recorded beside it, and this is"
+                        + " the claim that makes the identity's naming=" + NAMING_SCHEME_VERSION + " mean"
+                        + " something: editing a row below without bumping that version would leave every"
+                        + " response cached under the old table being served for calls the new one makes"
+                        + " differently, so change the two together or not at all",
+                () -> assertThat(table).isEqualTo(RECORDED_TABLE));
+    }
+
+    /** One format and the subtype narrowing it, where anything does — a row of ADR-100's table. */
+    private record Pairing(DetectedFormat format, Optional<DetectedSubtype> subtype) {}
+
+    /** How a pairing's subtype is written in the pinned table, and nothing at all where it is absent. */
+    private static String subtypeSuffix(Pairing pairing) {
+        return pairing.subtype().map(subtype -> "/" + subtype).orElse("");
     }
 
     /**

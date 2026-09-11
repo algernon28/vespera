@@ -120,6 +120,8 @@ A `.doc`, `.xls` or `.ppt` is sent as itself, converts nowhere for want of Libre
 
 **`DoclingClient.convert`'s signature changes, and with it the javadoc describing the call as posting the file's own resource.** The `FileSystemResource` still carries the bytes; what travels as the part's filename is now ours.
 
+**Seeds are converted under this rule too, and the record says so rather than leaving it to the implementation.** A seed is not a walked occurrence: no stage-1 run recorded what it is, so the same byte-level detection runs where a seed is converted. One reading does not survive the crossing — `FLOOR_STOPPED` means the cross-format floor stopped a file, and no floor runs in front of the seed folder, so an empty file there is an ordinary thing for an operator to have. It travels as `UNRECOGNISED` and reaches the unusable-seed path it always did; refusing it would abort a stage that, unlike stage 2, is not `faultTolerant`.
+
 **Nothing in stage 1 changes.** No detection rule, no enumeration value, no stored row. This record amends what ADR-094 said would *follow* from its decision, never the decision itself, and no run id moves.
 
 **The findings about `docling-serve` are pinned to versions and will rot.** `from_formats` being a no-op, `filetype`'s matcher ordering, the 6000-byte OOXML window and the absent LibreOffice are all facts about `docling-serve` v1.32.0 and `docling` v2.124.0, which `compose.yaml` pins deliberately. A sidecar upgrade is the event that invalidates this record, and the naming-scheme marker in the extractor identity is not a substitute for re-reading it: the marker catches *our* mapping changing, not theirs.

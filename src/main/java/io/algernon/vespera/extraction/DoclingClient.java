@@ -241,7 +241,7 @@ public class DoclingClient {
             case LEGACY_WORD -> "doc";
             case LEGACY_SPREADSHEET -> "xls";
             case LEGACY_PRESENTATION -> "ppt";
-            case HTML, MARKDOWN, CSV, ASCIIDOC -> throw wrongClass(subtype, DetectedFormat.OLE_COMPOUND);
+            case HTML, MARKDOWN, CSV, ASCIIDOC -> throw notNarrowing(subtype, DetectedFormat.OLE_COMPOUND);
         };
     }
 
@@ -256,7 +256,7 @@ public class DoclingClient {
             case ASCIIDOC -> "adoc";
             case MARKDOWN -> MARKDOWN_EXTENSION;
             case LEGACY_WORD, LEGACY_SPREADSHEET, LEGACY_PRESENTATION ->
-                throw wrongClass(subtype, DetectedFormat.PLAIN_TEXT);
+                throw notNarrowing(subtype, DetectedFormat.PLAIN_TEXT);
         };
     }
 
@@ -265,7 +265,7 @@ public class DoclingClient {
      * produced is a fault rather than a case to default: resolving it to the other class's answer
      * would send a document under a name nothing about it supports.
      */
-    private static IllegalArgumentException wrongClass(DetectedSubtype subtype, DetectedFormat format) {
+    private static IllegalArgumentException notNarrowing(DetectedSubtype subtype, DetectedFormat format) {
         return new IllegalArgumentException(subtype + " does not narrow " + format);
     }
 

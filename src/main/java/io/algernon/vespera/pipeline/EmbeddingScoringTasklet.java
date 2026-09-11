@@ -1,6 +1,5 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.corpus.BrokenCheck;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.ChunkEmbedder;
 import io.algernon.vespera.embedding.UnusableSeed;
@@ -154,12 +153,7 @@ class EmbeddingScoringTasklet implements Tasklet {
                 .orElseThrow(() -> new IllegalStateException("no facts recorded for occurrence " + occurrenceId.value()));
         Path file = canonicalRoot.resolve(facts.path().value());
         String contentHash = extractor.contentHashFor(file);
-        // A seed is not a walked occurrence, so no stage-1 run ever recorded what it is: the same
-        // byte-level detection runs here, so a seed is converted as what its bytes say exactly as a
-        // corpus document is (ADR-094, ADR-100).
-        BrokenCheck.Result detected = BrokenCheck.check(file);
-        DoclingResponse response =
-                extractor.convert(file, contentHash, extractorIdentity, detected.format(), detected.subtype());
+        DoclingResponse response = SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
         List<Chunk> chunks = hybridChunker.chunk(response.rawResponse(), contentHash, ChunkingRule.DEFAULT);
         for (Chunk chunk : chunks) {
             chunkEmbedder.embed(
