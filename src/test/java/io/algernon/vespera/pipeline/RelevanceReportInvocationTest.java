@@ -3,6 +3,8 @@ package io.algernon.vespera.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
@@ -40,8 +42,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -151,6 +156,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
 class RelevanceReportInvocationTest {
 
+    /** The logger every operator-facing line in this application is written through. */
+    private static final String APPLICATION_LOGGER = "io.algernon.vespera";
+
     /** A floor of 1.0 opens stage 4's gate, the way the sibling invocation tests do. */
     private static final String BOILERPLATE_FLOOR = "1.0";
 
@@ -170,6 +178,73 @@ class RelevanceReportInvocationTest {
 
     @Autowired
     private ProfileStore profileStore;
+
+    private ListAppender<ILoggingEvent> logged;
+    private ch.qos.logback.classic.Logger applicationLogger;
+
+    @BeforeEach
+    void captureOperatorLines() {
+        logged = new ListAppender<>();
+        logged.start();
+        applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
+        applicationLogger.addAppender(logged);
+    }
+
+    @AfterEach
+    void releaseOperatorLines() {
+        applicationLogger.detachAppender(logged);
+        logged.stop();
+    }
+
+    @Test
+    @Story("A shut seed gate gates this step, as it gates every other step in stage 5")
+    @DisplayName("Stage 4's gate open and a model named, with no seed folder, still reports success")
+    void aModelNamedWithNoSeedFolderIsGatedRatherThanFatal(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        theFloorAndTheModelButNoSeedFolder();
+        whateverAnotherTestLeftHere();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success: nothing here is a failure -- the operator has answered"
+                        + " two of the three values a run wants and not the third, which is the state"
+                        + " every other step in stage 5 reports as gated and exits 0 on",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and this step says it was gated, in the same sentence its siblings use, rather than"
+                        + " resolving a scoring run that cannot exist while the seed gate is shut",
+                () -> assertThat(operatorLines())
+                        .anyMatch(line -> line.contains("relevance-report step is gated")
+                                && line.contains("no seed folder is named")));
+        claim(
+                "nothing was put to a person, so no page and no label file were written -- there is no"
+                        + " seed set for a question to be about",
+                () -> assertThat(workingDirectory.resolve(RelevanceLabellingReport.FILE_NAME))
+                        .doesNotExist());
+    }
+
+    @Test
+    @Story("A seed folder naming nothing is census's finding, not this step's failure")
+    @DisplayName("A seed folder that is not there is gated rather than fatal")
+    void aSeedFolderThatIsNotThereIsGatedRatherThanFatal(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        profile(seeds.resolve("not-here"));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success, because census already recorded why it could not walk"
+                        + " the folder and carried on (ADR-064) -- turning that into a failed invocation"
+                        + " two steps later reports one typo as two different kinds of problem",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and the step is gated, reached by the same route: a seed folder that resolves to"
+                        + " nothing leaves the seed gate shut, which is what SeedGate already decided",
+                () -> assertThat(operatorLines())
+                        .anyMatch(line -> line.contains("relevance-report step is gated")));
+    }
 
     @Test
     @Story("The two files land where the operator will look for them")
@@ -255,6 +330,35 @@ class RelevanceReportInvocationTest {
             }
         }
         return found;
+    }
+
+    /**
+     * Stage 4's gate open and a model named, with no seed folder -- ADR-098's invocation 2 for an
+     * operator who never took step zero.
+     */
+    private void theFloorAndTheModelButNoSeedFolder() {
+        Profile loaded = profileStore.load();
+        profileStore.save(new Profile(
+                null,
+                loaded.degenerateOutputConfidenceFloor(),
+                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
+                new ProfileValue(MODEL_NAME, "set by this test, so the model gate is open", null)));
+    }
+
+    /**
+     * Clears the two files this step writes, so a claim about them is about this invocation.
+     *
+     * <p>The working directory is static, so it outlives each test method -- a page left by the test
+     * that asserts it gets written would otherwise satisfy a claim that this invocation wrote none.
+     */
+    private void whateverAnotherTestLeftHere() throws IOException {
+        Files.deleteIfExists(workingDirectory.resolve(RelevanceLabellingReport.FILE_NAME));
+        Files.deleteIfExists(workingDirectory.resolve(RelevanceLabelFile.FILE_NAME));
+    }
+
+    /** Every operator-facing line this invocation wrote, in the order it wrote them. */
+    private List<String> operatorLines() {
+        return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
     }
 
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */

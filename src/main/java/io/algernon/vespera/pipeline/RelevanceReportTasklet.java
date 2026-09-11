@@ -71,6 +71,7 @@ class RelevanceReportTasklet implements Tasklet {
     private static final int TEXT_OPENING_CHARACTERS = 400;
 
     private final EmbeddingModelGate embeddingModelGate;
+    private final SeedGate seedGate;
     private final ObjectProvider<ScoringRun> scoringRun;
     private final RelevanceDistribution relevanceDistribution;
     private final RelevanceLabels relevanceLabels;
@@ -85,6 +86,7 @@ class RelevanceReportTasklet implements Tasklet {
 
     RelevanceReportTasklet(
             EmbeddingModelGate embeddingModelGate,
+            SeedGate seedGate,
             ObjectProvider<ScoringRun> scoringRun,
             RelevanceDistribution relevanceDistribution,
             RelevanceLabels relevanceLabels,
@@ -97,6 +99,7 @@ class RelevanceReportTasklet implements Tasklet {
             @Value("#{jobParameters['root']}") Path root,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.embeddingModelGate = embeddingModelGate;
+        this.seedGate = seedGate;
         this.scoringRun = scoringRun;
         this.relevanceDistribution = relevanceDistribution;
         this.relevanceLabels = relevanceLabels;
@@ -110,12 +113,28 @@ class RelevanceReportTasklet implements Tasklet {
         this.workingDirectory = workingDirectory;
     }
 
+    /**
+     * Both gates are checked before anything resolves a run, and the seed gate is not optional here
+     * (#141).
+     *
+     * <p>{@link ScoringRun} resolves {@link SeedMeasurementRun}, which refuses to exist while the seed
+     * gate is shut. So a model named with no seed folder -- ADR-098's invocation 2 for an operator who
+     * never took step zero -- threw out of this step and failed the whole job, in a state every other
+     * step in stage 5 reports as gated and exits 0 on. A mistyped folder arrived the same way: {@link
+     * SeedGate} swallows the resolution failure deliberately, because census already recorded it and
+     * carried on (ADR-064), and this step turned that back into a failed invocation two steps later.
+     */
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
         Optional<String> modelName = embeddingModelGate.modelName();
         if (modelName.isEmpty()) {
             LOG.info("stage 5's relevance-report step is gated: no embedding model is named. Nothing was"
                     + " put to a person.");
+            return RepeatStatus.FINISHED;
+        }
+        if (seedGate.seedWalk().isEmpty()) {
+            LOG.info("stage 5's relevance-report step is gated: no seed folder is named, or stage 4's"
+                    + " gate is shut, or the seed walk has not finished. Nothing was put to a person.");
             return RepeatStatus.FINISHED;
         }
 
