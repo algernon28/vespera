@@ -175,16 +175,16 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 | `ledger` | Occurrence identity, verdict vocabulary + rows, run identity, the `survivors(runId)` query |
 | `corpus` | Walking, byte-level facts |
 | `extraction` | Docling client, extraction cache, derived metrics, chunking (chunker gets tokenizer identity from `pipeline`) |
-| `similarity` | Shingles, MinHash/LSH — shingles are computed during stage 2's pass, but the code and the table are `similarity`'s and the call is composed in `pipeline` (ADR-073), since no capability module may depend on another |
+| `similarity` | Shingles, MinHash/LSH — shingles are computed during stage 2's pass, but the code and the table are `similarity`'s and the call is composed in `pipeline` (ADR-073), since a capability module may not depend on another except where a decision records it |
 | `embedding` | SQLite vector cache, Chroma projection, scoring, clustering |
 | `synthesis` | Arrangement (6a), generation (6b) |
 | `publication` | The ADR-025 rendering adapter |
 | `profile` | Thresholds, provenance, gate inputs |
 | `pipeline` | Batch job definitions; the only module that knows the phrase "stage 4" |
 
-**Rule:** a capability module may depend on `ledger` and nothing else horizontal; `pipeline` depends on all of them (it's the composition root). Enforced by a Spring Modulith `ApplicationModules.verify()` boundary test — with a known, recorded gap: the test checks Java type references via ArchUnit on bytecode, so a raw SQL string crossing a table-ownership boundary is invisible to it. Table ownership (`ledger` owns identity/verdicts; every other capability owns its own tables keyed by `occurrence_id`) is therefore enforced in Java and conventional in the database.
+**Rule:** a capability module may depend on `ledger` and nothing else horizontal, with one recorded exception — `extraction` names `corpus`'s two detection enumerations, because Docling's pipeline choice is derived from them (ADR-100); `pipeline` depends on all of them (it's the composition root). Enforced by a Spring Modulith `ApplicationModules.verify()` boundary test — with a known, recorded gap: the test checks Java type references via ArchUnit on bytecode, so a raw SQL string crossing a table-ownership boundary is invisible to it. Table ownership (`ledger` owns identity/verdicts; every other capability owns its own tables keyed by `occurrence_id`) is therefore enforced in Java and conventional in the database.
 
-**Module boundaries.** Capability-shaped, not stage-shaped: stage assignment moved twice during design while the underlying capability did not. A capability module may depend on `ledger` and nothing else horizontal; `pipeline` is the composition root and depends on all of them.
+**Module boundaries.** Capability-shaped, not stage-shaped: stage assignment moved twice during design while the underlying capability did not. A capability module may depend on `ledger` and nothing else horizontal — the one exception is `extraction`, which also names `corpus`'s two detection enumerations (ADR-100), declared in its `@ApplicationModule` and pinned by name in `ModuleBoundariesTest`; `pipeline` is the composition root and depends on all of them.
 
 ```mermaid
 flowchart TD

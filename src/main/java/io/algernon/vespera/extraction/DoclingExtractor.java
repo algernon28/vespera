@@ -1,6 +1,9 @@
 package io.algernon.vespera.extraction;
 
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import java.nio.file.Path;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,13 +27,19 @@ public class DoclingExtractor {
     }
 
     /**
-     * Converts {@code file} under {@code extractorIdentity}, keyed on {@code contentHash} — the hash
+     * Converts {@code file} as the thing stage 1 found it to be (ADR-100), under
+     * {@code extractorIdentity} and keyed on {@code contentHash} — the hash
      * to use when the caller already has one (e.g. stage 1's {@code content_hash}, computed within a
      * size-matched group, ADR-067).
      */
-    public DoclingResponse convert(Path file, String contentHash, ExtractorIdentity extractorIdentity) {
+    public DoclingResponse convert(
+            Path file,
+            String contentHash,
+            ExtractorIdentity extractorIdentity,
+            DetectedFormat format,
+            Optional<DetectedSubtype> subtype) {
         return cache.get(contentHash, extractorIdentity).orElseGet(() -> {
-            DoclingResponse response = client.convert(file);
+            DoclingResponse response = client.convert(file, format, subtype);
             cache.put(contentHash, extractorIdentity, response);
             return response;
         });
@@ -43,8 +52,9 @@ public class DoclingExtractor {
      * key {@code extraction}'s own cache; it is not written into {@code corpus}'s
      * {@code content_hash} table, which {@code corpus} owns.
      */
-    public DoclingResponse convert(Path file, ExtractorIdentity extractorIdentity) {
-        return convert(file, ContentHashing.sha256(file), extractorIdentity);
+    public DoclingResponse convert(
+            Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+        return convert(file, ContentHashing.sha256(file), extractorIdentity, format, subtype);
     }
 
     /**

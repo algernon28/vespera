@@ -12,7 +12,7 @@ This file is what an agent needs to start working. Everything it points at is au
 
 **Two independent identities.** A **walk** owns file occurrence rows because they are filesystem observations; a **run** owns verdict rows because they are derived under a configuration. Content identity is a relation discovered over occurrences, never a collapse of them.
 
-**Nine capability-shaped modules**, as packages under `io.algernon.vespera`: `ledger`, `corpus`, `extraction`, `similarity`, `embedding`, `synthesis`, `publication`, `profile`, `pipeline`. Seven of the nine exist as packages today — `synthesis` and `publication` are recorded design and no code. The rule: **a capability module may depend on `ledger` and nothing else horizontal**; `pipeline` is the composition root and the only module that names a stage.
+**Nine capability-shaped modules**, as packages under `io.algernon.vespera`: `ledger`, `corpus`, `extraction`, `similarity`, `embedding`, `synthesis`, `publication`, `profile`, `pipeline`. Seven of the nine exist as packages today — `synthesis` and `publication` are recorded design and no code. The rule: **a capability module may depend on `ledger` and nothing else horizontal**, with one declared exception — `extraction` also names `corpus`'s two detection enumerations, because Docling's pipeline choice is derived from them (ADR-100); `pipeline` is the composition root and the only module that names a stage.
 
 `docs/architecture.md` §1–§2 carries the full version, including the tech-stack table.
 

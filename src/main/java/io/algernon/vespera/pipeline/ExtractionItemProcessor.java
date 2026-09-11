@@ -1,6 +1,9 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedFormats;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DegeneracyVerdict;
 import io.algernon.vespera.extraction.DoclingCallTimeoutException;
@@ -51,6 +54,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
 
     private final Ledger ledger;
     private final ContentIdentity contentIdentity;
+    private final DetectedFormats detectedFormats;
     private final DoclingExtractor extractor;
     private final ExtractorIdentity extractorIdentity;
     private final ExtractionTimeoutStreak timeoutStreak;
@@ -69,6 +73,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     ExtractionItemProcessor(
             Ledger ledger,
             ContentIdentity contentIdentity,
+            DetectedFormats detectedFormats,
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
             ExtractionTimeoutStreak timeoutStreak,
@@ -78,6 +83,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             Shingler shingler) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
+        this.detectedFormats = detectedFormats;
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
         this.timeoutStreak = timeoutStreak;
@@ -101,9 +107,14 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
 
     private ExtractionOutcome doProcess(OccurrenceId occurrenceId) {
         Path file = resolvePath(occurrenceId);
+        Optional<DetectedFormat> format =
+                detectedFormats.formatFor(occurrenceId, extractionRun.byteLevelReductionRunId());
+        if (format.isEmpty()) {
+            return unreadableFormat(occurrenceId);
+        }
         Conversion conversion;
         try {
-            conversion = convert(occurrenceId, file);
+            conversion = convert(occurrenceId, file, format.get());
         } catch (DoclingCallTimeoutException timedOut) {
             // No response at all: nothing here for #48's metrics pass to measure.
             return resolveTimeout(occurrenceId, timedOut.getMessage(), null);
@@ -130,11 +141,34 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         return categorizeFailure(occurrenceId, response);
     }
 
-    private Conversion convert(OccurrenceId occurrenceId, Path file) {
+    private Conversion convert(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
         String contentHash = contentIdentity
                 .hashFor(occurrenceId, extractionRun.byteLevelReductionRunId())
                 .orElseGet(() -> extractor.contentHashFor(file));
-        return new Conversion(extractor.convert(file, contentHash, extractorIdentity), contentHash);
+        Optional<DetectedSubtype> subtype =
+                detectedFormats.subtypeFor(occurrenceId, extractionRun.byteLevelReductionRunId());
+        return new Conversion(
+                extractor.convert(file, contentHash, extractorIdentity, format, subtype), contentHash);
+    }
+
+    /**
+     * What an occurrence earns when stage 1 recorded no format for it (ADR-100).
+     *
+     * <p>Detection runs on every occurrence surviving stage 1's floor, so an empty lookup is a broken
+     * invariant rather than a fact about the file — but it costs this occurrence and not the pass: a
+     * run over hundreds of gigabytes that aborts on one unreadable row is a worse tool than one that
+     * records it and carries on. ADR-099's stop-the-run answer is for an ambiguous upstream run,
+     * which would attach every row the stage writes to the wrong parent.
+     *
+     * <p>Docling is not called, and this is the one {@code extraction-failed} in the system that no
+     * Docling status produced — so the reason names the occurrence and the run the row was sought
+     * under, which is all that tells it apart from a conversion that really failed.
+     */
+    private ExtractionOutcome unreadableFormat(OccurrenceId occurrenceId) {
+        String reason = "no detected format is recorded for occurrence " + occurrenceId.value() + " under run "
+                + extractionRun.byteLevelReductionRunId().value();
+        log.info("[extraction] {}", reason);
+        return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
     }
 
     /** One occurrence's response, alongside the content hash it was converted and cached under. */

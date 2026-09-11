@@ -1,7 +1,10 @@
 package io.algernon.vespera.extraction;
 
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -49,7 +52,7 @@ public class CountingDoclingBeans {
             }
 
             @Override
-            DoclingResponse convert(Path file) {
+            DoclingResponse convert(Path file, DetectedFormat format, Optional<DetectedSubtype> subtype) {
                 CONVERSIONS.incrementAndGet();
                 return new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 0d, null, WITH_TEXT);
             }

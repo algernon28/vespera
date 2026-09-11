@@ -1,8 +1,11 @@
 package io.algernon.vespera.extraction;
 
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A {@link DoclingExtractor} that answers by file name rather than in sequence, for a test whose
@@ -41,12 +44,18 @@ public final class PathScriptedExtractor extends DoclingExtractor {
     }
 
     @Override
-    public DoclingResponse convert(Path file, String contentHash, ExtractorIdentity extractorIdentity) {
+    public DoclingResponse convert(
+            Path file,
+            String contentHash,
+            ExtractorIdentity extractorIdentity,
+            DetectedFormat format,
+            Optional<DetectedSubtype> subtype) {
         return answerFor(file);
     }
 
     @Override
-    public DoclingResponse convert(Path file, ExtractorIdentity extractorIdentity) {
+    public DoclingResponse convert(
+            Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, Optional<DetectedSubtype> subtype) {
         return answerFor(file);
     }
 

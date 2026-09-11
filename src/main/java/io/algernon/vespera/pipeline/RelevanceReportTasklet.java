@@ -275,7 +275,7 @@ class RelevanceReportTasklet implements Tasklet {
         }
         Path file = canonicalRoot.resolve(facts.get().path().value());
         String contentHash = extractor.contentHashFor(file);
-        DoclingResponse response = extractor.convert(file, contentHash, extractorIdentity);
+        DoclingResponse response = SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
         List<Chunk> chunks = hybridChunker.chunk(response.rawResponse(), contentHash, ChunkingRule.DEFAULT);
         if (chunks.isEmpty()) {
             return "(no text was extracted)";

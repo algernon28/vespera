@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.extraction.ConversionStatus;
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -410,6 +412,80 @@ class ExtractionItemProcessorTest {
     }
 
     /**
+     * ADR-094 narrows plain text by extension only for {@code .md}, {@code .html}, {@code .csv} and
+     * {@code .adoc}, so the {@code .txt} fixture below is plain text with no subtype at all.
+     */
+    @Test
+    @Story("The format sent is the one stage 1 read off the bytes")
+    @DisplayName("The occurrence is converted as what stage 1 found it to be, not as what its path says")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    void convertsAsTheFormatStageOneRecorded(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, 1);
+        ScriptedExtractor docling = new ScriptedExtractor().answering(converted());
+
+        processorOver(corpus, docling).process(corpus.occurrence(0));
+
+        claim(
+                "what reaches the converter is the format stage 1 read off the leading bytes, looked up"
+                        + " under the stage-1 run this stage names upstream -- prose in a .txt file is plain"
+                        + " text, and the path plays no part in saying so",
+                () -> assertThat(docling.formatsAsked()).containsExactly(DetectedFormat.PLAIN_TEXT));
+        claim(
+                "and it carries no subtype, because .txt is not one of the extensions plain text is"
+                        + " narrowed by -- an absent subtype is a legitimate answer, not a missing one",
+                () -> assertThat(docling.subtypesAsked()).containsExactly(Optional.empty()));
+    }
+
+    /**
+     * The second occurrence's verdict is ADR-070's tier-1 degeneracy floor — the scripted response
+     * carries no text — which is what makes it evidence that the occurrence was judged rather than
+     * skipped.
+     */
+    @Test
+    @Story("The format sent is the one stage 1 read off the bytes")
+    @DisplayName("An occurrence whose format was never recorded fails on its own, and the pass carries on")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    @Link(name = "ADR-057", url = Adr.VERDICT_VOCABULARY_IS_EIGHT_VALUES, type = "adr")
+    void recordsAMissingFormatRowAgainstTheOccurrenceAndCarriesOn(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, 2);
+        jdbcTemplate.update(
+                "DELETE FROM detected_format WHERE occurrence_id = ?",
+                corpus.occurrence(0).value());
+        ScriptedExtractor docling = new ScriptedExtractor().thenAlwaysAnswering(converted());
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
+
+        ExtractionOutcome unreadable = processor.process(corpus.occurrence(0));
+        ExtractionOutcome next = processor.process(corpus.occurrence(1));
+
+        claim(
+                "detection runs on every occurrence that survives stage 1's floor, so a format row that"
+                        + " is not there is a broken invariant rather than a fact about the file -- and it is"
+                        + " recorded as a failure of this occurrence",
+                () -> assertThat(unreadable.kind()).isEqualTo(VerdictKind.EXTRACTION_FAILED));
+        claim(
+                "the reason names the run the row was sought under, because this is the one"
+                        + " extraction-failed verdict in the system that no Docling response produced: in the"
+                        + " ledger it is otherwise indistinguishable from a conversion that really failed",
+                () -> assertThat(unreadable.reason())
+                        .contains(corpus.extractionRun().byteLevelReductionRunId().value())
+                        .contains(String.valueOf(corpus.occurrence(0).value())));
+        claim(
+                "and nothing was converted for it: a document whose format could not be read is not sent"
+                        + " to Docling on a guess, so only the occurrence that kept its row was converted",
+                () -> assertThat(docling.conversions()).isEqualTo(1));
+        claim(
+                "while the very next occurrence is put to the converter and judged on what came back --"
+                        + " one unreadable row costs one occurrence, and a pass over hundreds of gigabytes"
+                        + " does not abort on it",
+                () -> assertThat(next.kind()).isEqualTo(VerdictKind.DEGENERATE_OUTPUT));
+        claim(
+                "and its verdict is the response's, not the missing row's: the scripted answer carried"
+                        + " no text at all, which is the hard floor over a converted document, so this"
+                        + " occurrence reached a judgement the first one never got to",
+                () -> assertThat(next.reason()).doesNotContain("no detected format"));
+    }
+
+    /**
      * The measurement rows standing against one occurrence — the presence-or-absence side of the
      * conditional pair, since a service-scoped reading has to leave the occurrence with none.
      */
@@ -444,6 +520,7 @@ class ExtractionItemProcessorTest {
         return new ExtractionItemProcessor(
                 corpus.ledger(),
                 new ContentIdentity(jdbcTemplate),
+                new DetectedFormats(jdbcTemplate),
                 docling,
                 IDENTITY,
                 new ExtractionTimeoutStreak(),

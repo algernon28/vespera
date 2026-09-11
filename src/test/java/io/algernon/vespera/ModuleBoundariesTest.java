@@ -9,6 +9,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,18 @@ class ModuleBoundariesTest {
                     "publication",
                     "profile",
                     "pipeline");
+
+    /**
+     * What a capability module is allowed to declare, where that is not {@code ledger} alone.
+     *
+     * <p>One entry, and it is the only horizontal capability-to-capability edge in the tree:
+     * {@code extraction} names {@code corpus} for the two detection enumerations Docling's pipeline
+     * choice is derived from (ADR-100). Recorded here as a named exception rather than by relaxing
+     * the assertion, so that a second module widening its declaration still fails this test, and so
+     * does {@code extraction} widening beyond {@code corpus}.
+     */
+    private static final Map<String, List<String>> DECLARED_DEPENDENCIES =
+            Map.of("extraction", List.of("ledger", "corpus"));
 
     /**
      * The capability modules, derived rather than re-listed: the recorded nine less {@code ledger},
@@ -126,21 +139,24 @@ class ModuleBoundariesTest {
     @Story("The boundary rule holds for every module")
     @DisplayName("A capability module declares ledger alone, so it cannot reach the profile")
     void everyCapabilityModuleDeclaresLedgerAlone() {
-        List<String> declaringMoreThanLedger = identifiers(MODULES.stream()
+        List<String> declaringSomethingElse = identifiers(MODULES.stream()
                 .filter(module -> CAPABILITY_MODULES.contains(
                         module.getIdentifier().toString()))
                 .filter(module -> !module.getBasePackage()
                         .getAnnotation(ApplicationModule.class)
-                        .map(declaration -> List.of(declaration.allowedDependencies()).equals(List.of("ledger")))
+                        .map(declaration -> List.of(declaration.allowedDependencies())
+                                .equals(DECLARED_DEPENDENCIES.getOrDefault(
+                                        module.getIdentifier().toString(), List.of("ledger"))))
                         .orElse(false)));
 
         claim(
-                "every capability module present declares exactly ledger and nothing more; one named"
-                        + " here has been widened, and the profile is the dependency that would be reached"
-                        + " for first -- the values a pass is switched on and off by are read where the"
-                        + " passes are assembled and handed down as plain numbers and paths, never read"
+                "every capability module present declares exactly what is recorded for it -- ledger,"
+                        + " and for extraction the one horizontal exception in the tree; one named here has"
+                        + " been widened beyond that, and the profile is the dependency that would be"
+                        + " reached for first -- the values a pass is switched on and off by are read where"
+                        + " the passes are assembled and handed down as plain numbers and paths, never read"
                         + " inside the module that acts on them",
-                () -> assertThat(declaringMoreThanLedger).isEmpty());
+                () -> assertThat(declaringSomethingElse).isEmpty());
     }
 
     /**

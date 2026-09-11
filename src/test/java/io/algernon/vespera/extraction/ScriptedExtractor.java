@@ -1,9 +1,14 @@
 package io.algernon.vespera.extraction;
 
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import java.net.SocketTimeoutException;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -30,6 +35,10 @@ public final class ScriptedExtractor extends DoclingExtractor {
     private Supplier<DoclingResponse> defaultAnswer;
 
     private int conversions;
+
+    private final List<DetectedFormat> formatsAsked = new ArrayList<>();
+
+    private final List<Optional<DetectedSubtype>> subtypesAsked = new ArrayList<>();
 
     public ScriptedExtractor() {
         super(null, null);
@@ -77,18 +86,38 @@ public final class ScriptedExtractor extends DoclingExtractor {
         return this;
     }
 
+    /** What each conversion was asked to convert the document as (ADR-100), in the order asked. */
+    public List<DetectedFormat> formatsAsked() {
+        return List.copyOf(formatsAsked);
+    }
+
+    /** The subtype alongside each of {@link #formatsAsked()}, absent where nothing narrowed the class. */
+    public List<Optional<DetectedSubtype>> subtypesAsked() {
+        return List.copyOf(subtypesAsked);
+    }
+
     /** How many conversions have actually been asked of this extractor. */
     public int conversions() {
         return conversions;
     }
 
     @Override
-    public DoclingResponse convert(Path file, String contentHash, ExtractorIdentity extractorIdentity) {
+    public DoclingResponse convert(
+            Path file,
+            String contentHash,
+            ExtractorIdentity extractorIdentity,
+            DetectedFormat format,
+            Optional<DetectedSubtype> subtype) {
+        formatsAsked.add(format);
+        subtypesAsked.add(subtype);
         return nextAnswer();
     }
 
     @Override
-    public DoclingResponse convert(Path file, ExtractorIdentity extractorIdentity) {
+    public DoclingResponse convert(
+            Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+        formatsAsked.add(format);
+        subtypesAsked.add(subtype);
         return nextAnswer();
     }
 

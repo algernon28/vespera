@@ -89,7 +89,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
     private SeedExtractionOutcome doProcess(OccurrenceId occurrenceId) {
         Path file = resolvePath(occurrenceId);
         String contentHash = extractor.contentHashFor(file);
-        DoclingResponse response = extractor.convert(file, contentHash, extractorIdentity);
+        DoclingResponse response = SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
         // Measured here, while the document is open, and carried out as columns rather than as the
         // document itself: the row cannot be written until the whole folder has been converted
         // (ADR-092), and a seed folder's worth of extracted text is not a thing to hold until then.

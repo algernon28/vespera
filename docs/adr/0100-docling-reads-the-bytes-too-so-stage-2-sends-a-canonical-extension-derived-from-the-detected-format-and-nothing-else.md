@@ -116,7 +116,11 @@ A `.doc`, `.xls` or `.ppt` is sent as itself, converts nowhere for want of Libre
 
 **`extraction` depends on `corpus`.** Both are capability modules, and `AGENTS.md`'s rule is that a capability module may depend on `ledger` and nothing else horizontal. **This is a real boundary change and Spring Modulith will see it**; whether it is expressed as an allowed dependency or by moving the two enumerations somewhere both modules may name is left to the hand-off spec, but it cannot be left to be discovered during implementation.
 
+**How that went, recorded after the fact**: `extraction` declares `allowedDependencies = {"ledger", "corpus"}`, the only horizontal capability-to-capability edge in the tree, and `ModuleBoundariesTest` names it as an exception rather than relaxing its assertion — so a second module widening its declaration still fails, and so does `extraction` widening beyond `corpus`. The alternative of a second enumeration inside `extraction`, translated by `pipeline`, was turned down: it buys the unbroken rule with a copy of the vocabulary that has to track the original, and puts the translation in the composition root, which is what putting the mapping in `extraction` was for.
+
 **`DoclingClient.convert`'s signature changes, and with it the javadoc describing the call as posting the file's own resource.** The `FileSystemResource` still carries the bytes; what travels as the part's filename is now ours.
+
+**Seeds are converted under this rule too, and the record says so rather than leaving it to the implementation.** A seed is not a walked occurrence: no stage-1 run recorded what it is, so the same byte-level detection runs where a seed is converted. One reading does not survive the crossing — `FLOOR_STOPPED` means the cross-format floor stopped a file, and no floor runs in front of the seed folder, so an empty file there is an ordinary thing for an operator to have. It travels as `UNRECOGNISED` and reaches the unusable-seed path it always did; refusing it would abort a stage that, unlike stage 2, is not `faultTolerant`.
 
 **Nothing in stage 1 changes.** No detection rule, no enumeration value, no stored row. This record amends what ADR-094 said would *follow* from its decision, never the decision itself, and no run id moves.
 
