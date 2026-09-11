@@ -123,8 +123,8 @@ class RelevanceScoringTasklet implements Tasklet {
         if (residentSeedVectors.isEmpty()) {
             LOG.info(
                     "stage 5's relevance-scoring step is gated: {} seed occurrence(s) produced text, but"
-                            + " none has a stored vector under {} -- gate 3's own step may not have run, or"
-                            + " named a different model. No survivor was scored.",
+                            + " none has a stored vector under {} -- the step that embeds them may not have"
+                            + " run, or embeddingModel was changed after it did. No survivor was scored.",
                     seedContentHashes.size(),
                     modelName.get());
             return RepeatStatus.FINISHED;
