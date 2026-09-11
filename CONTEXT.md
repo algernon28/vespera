@@ -144,6 +144,10 @@ _Avoid_: step, phase, pass
 One execution of one stage under one configuration. Minted when the configuration changes, continued when work resumes. Not a pass over the pipeline -- each stage has its own.
 _Avoid_: job, pass, execution
 
+**Upstream run**:
+The run a stage names as its immediate predecessor — the run of the stage before it, over the same walk, whose record this stage read. Each run names one, and earlier ones are reached through it rather than listed alongside it. Where one walk holds two runs of the same stage, there is no upstream run until a person says which of them is meant.
+_Avoid_: parent run, previous run, run chain, ancestry
+
 **Invocation**:
 One call of the command. It may advance several stages, and therefore span several runs.
 _Avoid_: run, session, job
