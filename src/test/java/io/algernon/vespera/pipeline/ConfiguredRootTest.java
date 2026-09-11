@@ -141,6 +141,7 @@ import picocli.CommandLine;
     UnusableSeeds.class,
     ImplementationVersions.class,
     ProfileStore.class,
+    NextAction.class,
     VesperaCommand.class,
     VesperaCommand.Run.class,
     VesperaCommand.Label.class,
@@ -247,8 +248,9 @@ class ConfiguredRootTest {
         // Constructed rather than run through the context: this case is the absence of the property
         // this class configures, and a bound property cannot be absent. The blank string is what
         // Spring resolves the shipped, unset `corpus-root:` key to. The job operator and the job are
-        // null because reaching either would itself be the defect -- the refusal comes first.
-        VesperaCommand.Run run = new VesperaCommand.Run(null, null, workingDirectory, "");
+        // null because reaching either would itself be the defect -- the refusal comes first, and so
+        // is the closing line, which a refused invocation never writes.
+        VesperaCommand.Run run = new VesperaCommand.Run(null, null, null, workingDirectory, "");
 
         claim(
                 "the invocation reports a usage error rather than censusing whatever tree it happened to"

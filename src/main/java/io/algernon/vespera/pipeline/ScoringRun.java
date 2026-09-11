@@ -62,7 +62,7 @@ class ScoringRun {
         String modelName = embeddingModelGate
                 .modelName()
                 .orElseThrow(() -> new IllegalStateException(
-                        "ScoringRun must not be instantiated while gate 3 is shut"));
+                        "ScoringRun must not be instantiated while embeddingModel is unset"));
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
 
         Path canonicalRoot = Walk.canonicalRoot(root);

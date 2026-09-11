@@ -366,6 +366,13 @@ public final class Adr {
     public static final String A_LABEL_IS_KEYED_BY_PATH_AND_SEED_SET = FILE
             + "0097-a-relevance-label-is-keyed-by-the-documents-path-and-the-seed-set-not-by-the-occurrence.md";
 
+    /**
+     * ADR-098 — getting from a folder to a curated archive is four invocations, and the operator is
+     * told the next value rather than the stage they are at.
+     */
+    public static final String FOUR_INVOCATIONS_AND_THE_NEXT_VALUE = FILE
+            + "0098-getting-from-a-folder-to-a-curated-archive-is-four-invocations-and-the-operator-is-told-the-next-value-not-the-stage.md";
+
     private Adr() {
     }
 }
