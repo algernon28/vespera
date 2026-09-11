@@ -201,9 +201,14 @@ class DoclingClientIT {
                         + " error",
                 () -> assertThat(response.rawResponse()).contains(PROSE_MARKER_WORD));
         claim(
-                "with no measured quality score, because text is converted by the simple pipeline and"
-                        + " confidence is derived per page -- a null here reads as not measured, never as poor",
-                () -> assertThat(response.confidence()).isNull());
+                "and it carries a quality snapshot with nothing measured in it -- text is converted by"
+                        + " the simple pipeline and confidence is derived per page, so the scores come back"
+                        + " null and the grades unspecified, which reads as not measured and never as poor",
+                () -> {
+                    assertThat(response.confidence().meanScore()).isNull();
+                    assertThat(response.confidence().lowScore()).isNull();
+                    assertThat(response.confidence().meanGrade()).isEqualTo(QualityGrade.UNSPECIFIED);
+                });
     }
 
     /**
