@@ -1,10 +1,13 @@
 package io.algernon.vespera.extraction;
 
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import java.net.http.HttpClient;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
@@ -80,6 +83,38 @@ public class DoclingClient {
      */
     static final String PINNED_OCR_PRESET = "rapidocr";
 
+    /**
+     * The stem every posted filename carries (ADR-100). Fixed, and nothing of the path survives into
+     * it: the point of sending a name is to make the conversion a function of the detected format,
+     * and a stem read off disk would leave one thread of the filename still steering it.
+     */
+    private static final String STEM = "document";
+
+    /**
+     * The extension posted wherever the bytes are decisive and no honest extension exists. It matches
+     * nothing in Docling's extension tables, which is what it is for: it claims no format, so the
+     * sidecar's own reading of the bytes stands.
+     */
+    private static final String NEUTRAL_EXTENSION = "bin";
+
+    /**
+     * What plain text travels as when no subtype narrows it. It asserts a subtype stage 1 declined to
+     * mint, deliberately: {@code .txt} leaves the mime unset and so falls through Docling's CSV sniff,
+     * which reads comma-shaped prose as a spreadsheet, while this resolves in one step. Both reach the
+     * same Markdown backend, so the choice steers nothing downstream.
+     */
+    private static final String MARKDOWN_EXTENSION = "md";
+
+    /**
+     * Which version of {@link #extensionFor}'s table the extractor identity claims (ADR-100).
+     *
+     * <p>Bump it whenever a row changes. The filename is an option this client chooses rather than a
+     * property of the corpus, and it changes what a conversion returns — so without this in the
+     * identity, a response cached under one table would be served for a call the current table makes
+     * differently, and nothing in the key would notice.
+     */
+    private static final int NAMING_SCHEME_VERSION = 1;
+
     /** The export {@code /v1/convert/file} is asked for — see the class javadoc for why JSON. */
     private static final String REQUESTED_EXPORT_FORMAT = "json";
 
@@ -146,17 +181,97 @@ public class DoclingClient {
      * key that claims something untrue about the rows under it.
      */
     public static String sentOptions() {
-        return "to_formats=" + REQUESTED_EXPORT_FORMAT + ";ocr_preset=" + PINNED_OCR_PRESET;
+        return "to_formats=" + REQUESTED_EXPORT_FORMAT + ";ocr_preset=" + PINNED_OCR_PRESET + ";naming="
+                + NAMING_SCHEME_VERSION;
     }
 
     /**
-     * Converts {@code file} through {@code docling-serve}, blocking for the result.
+     * Converts {@code file} through {@code docling-serve} as the thing stage 1 found it to be,
+     * blocking for the result (ADR-100).
+     *
+     * <p>The filename posted is derived from {@code format} and {@code subtype}, never from
+     * {@code file}'s own name. {@code docling-serve} offers no way to state an input format — it
+     * reads the leading bytes and consults the name only where those are silent — so the name is the
+     * one lever there is, and it is spent saying what the bytes already said.
      *
      * @throws DoclingCallTimeoutException if 5 minutes pass with no response at all
      */
-    DoclingResponse convert(Path file) {
+    DoclingResponse convert(Path file, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+        return convert(file, partName(format, subtype));
+    }
+
+    /**
+     * What {@code file} is posted as, given what stage 1 found it to be (ADR-100).
+     *
+     * <p>The stem is fixed and carries nothing of the path: the whole point of sending a name is to
+     * make the conversion a function of the detected format, and a stem read off disk would leave
+     * one thread of the filename still steering it.
+     */
+    private static String partName(DetectedFormat format, Optional<DetectedSubtype> subtype) {
+        return STEM + "." + extensionFor(format, subtype);
+    }
+
+    /**
+     * The extension {@code format} is posted under, narrowed by {@code subtype} in the two classes
+     * ADR-094 narrows (ADR-100's table, and the reasoning for each row is there).
+     *
+     * <p>Read it as three groups. Where the bytes are decisive and no honest extension exists, it is
+     * {@link #NEUTRAL_EXTENSION} — a name Docling's extension tables do not know, so its own reading
+     * of the bytes stands and, for a zip, its central-directory probe runs. Where our name can beat a
+     * lie, it says what stage 1 found. And for text, where Docling has no matcher at all and resolves
+     * by extension alone, it is the whole of what the sidecar has to go on.
+     */
+    private static String extensionFor(DetectedFormat format, Optional<DetectedSubtype> subtype) {
+        return switch (format) {
+            case PDF -> "pdf";
+            case IMAGE, ZIP_CONTAINER, UNRECOGNISED -> NEUTRAL_EXTENSION;
+            case WORDPROCESSING -> "docx";
+            case OLE_COMPOUND -> subtype.map(DoclingClient::legacyExtension).orElse(NEUTRAL_EXTENSION);
+            case PLAIN_TEXT -> subtype.map(DoclingClient::textExtension).orElse(MARKDOWN_EXTENSION);
+            // Stage 1's floor blocked it, so stage 2 never sees it: reaching here is a wiring fault,
+            // and a conversion of a file nothing read is worth stopping for rather than papering over.
+            case FLOOR_STOPPED -> throw new IllegalArgumentException(
+                    "an occurrence the stage-1 floor stopped cannot be converted: " + format);
+        };
+    }
+
+    /** Which legacy Office format an OLE compound file's subtype names; nothing else subtypes one. */
+    private static String legacyExtension(DetectedSubtype subtype) {
+        return switch (subtype) {
+            case LEGACY_WORD -> "doc";
+            case LEGACY_SPREADSHEET -> "xls";
+            case LEGACY_PRESENTATION -> "ppt";
+            case HTML, MARKDOWN, CSV, ASCIIDOC -> throw wrongClass(subtype, DetectedFormat.OLE_COMPOUND);
+        };
+    }
+
+    /**
+     * Which text format a plain-text occurrence's subtype names. {@code adoc} is the load-bearing
+     * one: Docling reaches AsciiDoc by extension and by no other route at all.
+     */
+    private static String textExtension(DetectedSubtype subtype) {
+        return switch (subtype) {
+            case HTML -> "html";
+            case CSV -> "csv";
+            case ASCIIDOC -> "adoc";
+            case MARKDOWN -> MARKDOWN_EXTENSION;
+            case LEGACY_WORD, LEGACY_SPREADSHEET, LEGACY_PRESENTATION ->
+                throw wrongClass(subtype, DetectedFormat.PLAIN_TEXT);
+        };
+    }
+
+    /**
+     * A subtype narrows within one class and one only (ADR-094), so a pairing stage 1 cannot have
+     * produced is a fault rather than a case to default: resolving it to the other class's answer
+     * would send a document under a name nothing about it supports.
+     */
+    private static IllegalArgumentException wrongClass(DetectedSubtype subtype, DetectedFormat format) {
+        return new IllegalArgumentException(subtype + " does not narrow " + format);
+    }
+
+    private DoclingResponse convert(Path file, String partName) {
         MultipartBodyBuilder body = new MultipartBodyBuilder();
-        body.part("files", new FileSystemResource(file));
+        body.part("files", new FileSystemResource(file)).filename(partName);
         body.part("to_formats", REQUESTED_EXPORT_FORMAT);
         body.part("ocr_preset", PINNED_OCR_PRESET);
 

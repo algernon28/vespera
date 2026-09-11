@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.TestcontainersConfiguration;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -14,6 +15,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +74,9 @@ class DoclingClientIT {
     /** The same, for the {@code .docx} fixture, and deliberately a different word from the PDF's. */
     private static final String DOCX_MARKER_WORD = "Palimpsest";
 
+    /** The one distinctive word the extension-less prose fixture is written with. */
+    private static final String PROSE_MARKER_WORD = "Recrudescence";
+
     @Autowired
     private DoclingClient client;
 
@@ -79,7 +84,7 @@ class DoclingClientIT {
     @Story("One call converts one document")
     @DisplayName("A real PDF converted by the running document service comes back readable, content and all")
     void convertsARealPdf(@TempDir Path dir) throws IOException {
-        DoclingResponse response = client.convert(aRealPdf(dir.resolve("one-page.pdf")));
+        DoclingResponse response = client.convert(aRealPdf(dir.resolve("one-page.pdf")), DetectedFormat.PDF, Optional.empty());
 
         claim(
                 "the service reports the conversion succeeded, which is the only status a well-formed"
@@ -107,7 +112,7 @@ class DoclingClientIT {
     @Story("One call converts one document")
     @DisplayName("A real Word document converted by the running document service comes back readable too")
     void convertsARealDocx(@TempDir Path dir) throws IOException {
-        DoclingResponse response = client.convert(aRealDocx(dir.resolve("one-paragraph.docx")));
+        DoclingResponse response = client.convert(aRealDocx(dir.resolve("one-paragraph.docx")), DetectedFormat.WORDPROCESSING, Optional.empty());
 
         claim(
                 "the service reports the conversion succeeded, for the second of the two document"
@@ -161,7 +166,7 @@ class DoclingClientIT {
     @DisplayName("The running document service accepts the OCR engine this client names, rather than refusing it")
     @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
     void acceptsThePinnedOcrEngine(@TempDir Path dir) throws IOException {
-        DoclingResponse response = client.convert(aRealPdf(dir.resolve("pinned-engine.pdf")));
+        DoclingResponse response = client.convert(aRealPdf(dir.resolve("pinned-engine.pdf")), DetectedFormat.PDF, Optional.empty());
 
         claim(
                 "naming the OCR engine is a request the service actually honours, and this is the only"
@@ -173,6 +178,32 @@ class DoclingClientIT {
                 "and the document still converts to its own content under that engine, so pinning it"
                         + " bought identity rather than costing extraction",
                 () -> assertThat(response.rawResponse()).contains(PDF_MARKER_WORD));
+    }
+
+    @Test
+    @Story("One call converts one document")
+    @DisplayName("Prose in a file with no extension converts, because the name sent is the format's")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    void convertsProseThatCarriesNoExtensionOnDisk(@TempDir Path dir) throws IOException {
+        Path noExtension = Files.writeString(
+                dir.resolve("notes"), "A paragraph of ordinary prose, mentioning " + PROSE_MARKER_WORD + ".\n");
+
+        DoclingResponse response = client.convert(noExtension, DetectedFormat.PLAIN_TEXT, Optional.empty());
+
+        claim(
+                "the whole design rests on this and only a real sidecar can contradict it: an upload"
+                        + " whose name carries no extension the converter knows does not fall back to plain"
+                        + " text, it resolves to no format at all and fails -- so the name derived from the"
+                        + " detected format is what makes a file like this convertible",
+                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
+        claim(
+                "and what came back is this file's content, not an empty document that happened not to"
+                        + " error",
+                () -> assertThat(response.rawResponse()).contains(PROSE_MARKER_WORD));
+        claim(
+                "with no measured quality score, because text is converted by the simple pipeline and"
+                        + " confidence is derived per page -- a null here reads as not measured, never as poor",
+                () -> assertThat(response.confidence()).isNull());
     }
 
     /**

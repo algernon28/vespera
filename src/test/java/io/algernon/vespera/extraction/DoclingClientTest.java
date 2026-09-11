@@ -12,6 +12,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -23,6 +25,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -94,6 +99,32 @@ class DoclingClientTest {
      */
     private static final String PINNED_OCR_PRESET = "rapidocr";
 
+    /**
+     * What an occurrence the bytes called plain text, with no subtype the filename could add, is
+     * posted as (ADR-100). The stem carries nothing of the path: the name is a transport detail, and
+     * making it a function of the detected format alone is the point of sending one.
+     */
+    private static final String MARKDOWN_PART_NAME = "document.md";
+
+    /**
+     * What is posted wherever the bytes are decisive and no honest extension exists (ADR-100). It
+     * matches nothing in Docling's extension tables, which is the point: it claims no format, so the
+     * sidecar's own reading of the bytes is left to stand.
+     */
+    private static final String NEUTRAL_PART_NAME = "document.bin";
+
+    /**
+     * Which version of ADR-100's naming table the identity claims. Bumped when a row changes, so
+     * responses cached under the old table are not served for calls the new one makes differently.
+     */
+    private static final int NAMING_SCHEME_VERSION = 1;
+
+    /** What the documents in the calls below are converted as; no claim here turns on which. */
+    private static final DetectedFormat AS_DETECTED = DetectedFormat.PLAIN_TEXT;
+
+    /** No subtype alongside it, for the same reason. */
+    private static final Optional<DetectedSubtype> NO_SUBTYPE = Optional.empty();
+
     /** The call budget ADR-071 fixes: five minutes of silence is a client-side timeout. */
     private static final Duration DOCUMENTED_CALL_BUDGET = Duration.ofMinutes(5);
 
@@ -164,7 +195,7 @@ class DoclingClientTest {
                 .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
         DoclingClient client = new DoclingClient(builder.build());
 
-        DoclingResponse response = client.convert(aDocument(dir));
+        DoclingResponse response = client.convert(aDocument(dir), AS_DETECTED, NO_SUBTYPE);
 
         claim(
                 "the conversion is one request and one answer: the stub expected a single call and saw"
@@ -217,7 +248,7 @@ class DoclingClientTest {
                 "waiting out the call budget with no answer is its own failure, distinct from every"
                         + " transport error, and it names the document so an operator knows which one"
                         + " the service went quiet on",
-                () -> assertThatThrownBy(() -> client.convert(document))
+                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE))
                         .isInstanceOf(DoclingCallTimeoutException.class)
                         .hasMessageContaining(document.toString()));
         claim(
@@ -239,7 +270,7 @@ class DoclingClientTest {
         DoclingClient client = new DoclingClient(builder.build());
         Path document = aDocument(dir);
 
-        DoclingResponse response = client.convert(document);
+        DoclingResponse response = client.convert(document, AS_DETECTED, NO_SUBTYPE);
 
         claim(
                 "an answer that reports running out of time is still an answer: it comes back as a"
@@ -249,7 +280,7 @@ class DoclingClientTest {
                 "while the very same document, converted by the very same client, raises the"
                         + " no-answer-at-all failure when nothing comes back — so the two readings are"
                         + " told apart by which of them happens, never by inspecting a shared type",
-                () -> assertThatThrownBy(() -> client.convert(document)).isInstanceOf(DoclingCallTimeoutException.class));
+                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE)).isInstanceOf(DoclingCallTimeoutException.class));
         claim(
                 "what the service reported is preserved as reported: one error, scoped to the time it"
                         + " ran out of, attributed to page " + REPORTED_PAGE + " as the body said",
@@ -312,7 +343,7 @@ class DoclingClientTest {
                 .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
         DoclingClient client = new DoclingClient(builder.build());
 
-        client.convert(aDocument(dir));
+        client.convert(aDocument(dir), AS_DETECTED, NO_SUBTYPE);
 
         claim(
                 "the request names the OCR engine it wants instead of leaving the sidecar to choose one:"
@@ -320,6 +351,168 @@ class DoclingClientTest {
                         + " the machine, and the same document converts differently elsewhere with nothing"
                         + " recording that it did",
                 () -> assertThatCode(service::verify).doesNotThrowAnyException());
+    }
+
+    @Test
+    @Story("The name sent is the format's, not the path's")
+    @DisplayName("Text with no subtype is posted under a Markdown name, whatever it is called on disk")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    void postsUnsubtypedTextUnderAMarkdownName(@TempDir Path dir) throws IOException {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
+        service.expect(requestTo(CONVERT_ENDPOINT))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(containsString("filename=\"" + MARKDOWN_PART_NAME + "\"")))
+                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
+        DoclingClient client = new DoclingClient(builder.build());
+        Path onDisk = Files.writeString(dir.resolve("notes"), "prose that no extension describes");
+
+        client.convert(onDisk, DetectedFormat.PLAIN_TEXT, Optional.empty());
+
+        claim(
+                "a file the bytes say is text travels under a name the sidecar can read it by, rather"
+                        + " than under the one it happens to carry on disk: Docling resolves text-shaped"
+                        + " content by extension alone, and " + MARKDOWN_PART_NAME + " is the one entry that"
+                        + " reaches its Markdown backend in a single step — an extension-less upload does not"
+                        + " fall back to plain text, it converts to nothing at all",
+                () -> assertThatCode(service::verify).doesNotThrowAnyException());
+    }
+
+    @Test
+    @Story("The name sent is the format's, not the path's")
+    @DisplayName("Every format the bytes can yield is posted under the one name that reaches its pipeline")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    @Link(name = "ADR-095", url = Adr.DETECTED_FORMAT_IS_A_STAGE_1_OUTPUT, type = "adr")
+    void postsEveryDetectedFormatUnderItsCanonicalName(@TempDir Path dir) throws IOException {
+        Path onDisk = Files.writeString(dir.resolve("misleading.xlsx"), "bytes that the name lies about");
+
+        claim(
+                "where the bytes are decisive the name claims only what they already said: Docling"
+                        + " sniffs a PDF whatever it is called, so " + NEUTRAL_PART_NAME + " is sent wherever"
+                        + " no honest extension exists — it names no format, which is what lets Docling's own"
+                        + " reading stand",
+                () -> {
+                    assertThat(postedName(onDisk, DetectedFormat.PDF, Optional.empty())).isEqualTo("document.pdf");
+                    assertThat(postedName(onDisk, DetectedFormat.IMAGE, Optional.empty()))
+                            .isEqualTo(NEUTRAL_PART_NAME);
+                    assertThat(postedName(onDisk, DetectedFormat.UNRECOGNISED, Optional.empty()))
+                            .isEqualTo(NEUTRAL_PART_NAME);
+                });
+        claim(
+                "a wordprocessing document is named as one, because that is the single case where our"
+                        + " name beats a lie: a zip whose identifying entry sits past Docling's 6000-byte"
+                        + " window is read by extension first, and this file is called .xlsx on disk",
+                () -> assertThat(postedName(onDisk, DetectedFormat.WORDPROCESSING, Optional.empty()))
+                        .isEqualTo("document.docx"));
+        claim(
+                "while any other zip container is left nameless, so Docling's own central-directory"
+                        + " probe splits spreadsheet from presentation from open-document — the split stage 1"
+                        + " deliberately did not make, because this is the lookup that would have duplicated it",
+                () -> assertThat(postedName(onDisk, DetectedFormat.ZIP_CONTAINER, Optional.empty()))
+                        .isEqualTo(NEUTRAL_PART_NAME));
+        claim(
+                "a legacy Office file travels as what its subtype says it is, and an OLE compound file"
+                        + " with no subtype -- a Thumbs.db, a .msg -- travels nameless, because there is"
+                        + " nothing to claim about it",
+                () -> {
+                    assertThat(postedName(onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_WORD)))
+                            .isEqualTo("document.doc");
+                    assertThat(postedName(
+                                    onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_SPREADSHEET)))
+                            .isEqualTo("document.xls");
+                    assertThat(postedName(
+                                    onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_PRESENTATION)))
+                            .isEqualTo("document.ppt");
+                    assertThat(postedName(onDisk, DetectedFormat.OLE_COMPOUND, Optional.empty()))
+                            .isEqualTo(NEUTRAL_PART_NAME);
+                });
+        claim(
+                "and text is where the name does the real work, because Docling resolves text-shaped"
+                        + " content by extension alone: AsciiDoc is reachable by no other route at all, and an"
+                        + " HTML fragment that opens with neither a doctype nor a tag Docling anchors on is"
+                        + " read as prose unless the name says otherwise",
+                () -> {
+                    assertThat(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.HTML)))
+                            .isEqualTo("document.html");
+                    assertThat(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.CSV)))
+                            .isEqualTo("document.csv");
+                    assertThat(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.ASCIIDOC)))
+                            .isEqualTo("document.adoc");
+                    assertThat(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.MARKDOWN)))
+                            .isEqualTo(MARKDOWN_PART_NAME);
+                });
+    }
+
+    @Test
+    @Story("The name sent is the format's, not the path's")
+    @DisplayName("The options the identity is built from name the naming scheme, because the name changes what comes back")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
+    void namesTheNamingSchemeAmongTheOptionsItSends() {
+        claim(
+                "the filename is an option this client chooses, not a property of the corpus, and it"
+                        + " changes what a conversion returns -- so the identity the cache is keyed by states"
+                        + " which scheme produced it, as version " + NAMING_SCHEME_VERSION + ": without that,"
+                        + " a response minted under one table is served for a call the current table would"
+                        + " make differently, and nothing in the key notices",
+                () -> assertThat(DoclingClient.sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
+        claim(
+                "and the options are stated whole rather than summarised, so an option added to the"
+                        + " request without being added here fails this claim rather than silently keying"
+                        + " new responses under an identity that predates it",
+                () -> assertThat(DoclingClient.sentOptions())
+                        .isEqualTo("to_formats=json;ocr_preset=" + PINNED_OCR_PRESET + ";naming="
+                                + NAMING_SCHEME_VERSION));
+    }
+
+    @Test
+    @Story("The name sent is the format's, not the path's")
+    @DisplayName("A format stage 2 cannot be handed, and a subtype from the wrong class, are refused rather than named")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    @Link(name = "ADR-094", url = Adr.FORMAT_IS_DECIDED_FROM_THE_BYTES, type = "adr")
+    void refusesWhatStageOneCouldNotHaveProduced(@TempDir Path dir) throws IOException {
+        Path onDisk = aDocument(dir);
+
+        claim(
+                "an occurrence the stage-1 floor stopped carries a blocking verdict and never reaches"
+                        + " stage 2, so being asked to convert one is a wiring fault: it is refused rather"
+                        + " than converted under some name, because nothing ever read the file",
+                () -> assertThatThrownBy(
+                                () -> postedName(onDisk, DetectedFormat.FLOOR_STOPPED, Optional.empty()))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining(DetectedFormat.FLOOR_STOPPED.name()));
+        claim(
+                "and a subtype belongs to exactly one class -- a name may narrow an OLE compound file or"
+                        + " plain text, never both -- so a pairing stage 1 cannot produce is refused too,"
+                        + " rather than quietly resolving to whatever the other class would have sent",
+                () -> {
+                    assertThatThrownBy(() -> postedName(
+                                    onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.LEGACY_WORD)))
+                            .isInstanceOf(IllegalArgumentException.class)
+                            .hasMessageContaining(DetectedSubtype.LEGACY_WORD.name());
+                    assertThatThrownBy(() ->
+                                    postedName(onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.CSV)))
+                            .isInstanceOf(IllegalArgumentException.class)
+                            .hasMessageContaining(DetectedSubtype.CSV.name());
+                });
+    }
+
+    /**
+     * The filename {@link DoclingClient#convert} posts {@code file} under, read back off the request
+     * the stub received. Read rather than matched, so a wrong name fails saying what was sent.
+     */
+    private static String postedName(Path file, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
+        StringBuilder sent = new StringBuilder();
+        service.expect(requestTo(CONVERT_ENDPOINT))
+                .andExpect(request -> sent.append(request.getBody().toString()))
+                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
+
+        new DoclingClient(builder.build()).convert(file, format, subtype);
+
+        Matcher filename = Pattern.compile("filename=\"([^\"]+)\"").matcher(sent);
+        return filename.find() ? filename.group(1) : "no filename was sent at all";
     }
 
     private static Path aDocument(Path dir) throws IOException {

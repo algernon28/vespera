@@ -373,6 +373,13 @@ public final class Adr {
     public static final String FOUR_INVOCATIONS_AND_THE_NEXT_VALUE = FILE
             + "0098-getting-from-a-folder-to-a-curated-archive-is-four-invocations-and-the-operator-is-told-the-next-value-not-the-stage.md";
 
+    /**
+     * ADR-100 — Docling reads the bytes too, so stage 2 sends a canonical extension derived from the
+     * detected format and nothing else.
+     */
+    public static final String DOCLING_READS_THE_BYTES_TOO = FILE
+            + "0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md";
+
     private Adr() {
     }
 }

@@ -7,6 +7,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -15,6 +17,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -51,6 +54,12 @@ import org.springframework.web.client.RestClient;
 @Link(name = "ADR-067", url = Adr.CONTENT_IDENTITY_IS_A_SHA_256_HASH, type = "adr")
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
 class DoclingExtractorTest {
+
+    /** What the documents here are converted as; nothing in this class turns on which format it is. */
+    private static final DetectedFormat AS_DETECTED = DetectedFormat.PLAIN_TEXT;
+
+    /** No subtype, for the same reason: the cache is keyed on content and identity, never on either. */
+    private static final Optional<DetectedSubtype> NO_SUBTYPE = Optional.empty();
 
     /** Where the stubbed service pretends to live; no socket is ever opened on it. */
     private static final String BASE_URL = "http://docling.example";
@@ -92,8 +101,8 @@ class DoclingExtractorTest {
         DoclingExtractor extractor = extractorAgainst(stub);
         Path document = aDocument(dir);
 
-        DoclingResponse first = extractor.convert(document, CONTENT_HASH, IDENTITY);
-        DoclingResponse second = extractor.convert(document, CONTENT_HASH, IDENTITY);
+        DoclingResponse first = extractor.convert(document, CONTENT_HASH, IDENTITY, AS_DETECTED, NO_SUBTYPE);
+        DoclingResponse second = extractor.convert(document, CONTENT_HASH, IDENTITY, AS_DETECTED, NO_SUBTYPE);
 
         claim(
                 "the second request is answered without converting anything: the stubbed service was"
@@ -114,8 +123,8 @@ class DoclingExtractorTest {
         DoclingExtractor extractor = extractorAgainst(stub);
         Path document = aDocument(dir);
 
-        extractor.convert(document, CONTENT_HASH, IDENTITY);
-        extractor.convert(document, CONTENT_HASH, ANOTHER_IDENTITY);
+        extractor.convert(document, CONTENT_HASH, IDENTITY, AS_DETECTED, NO_SUBTYPE);
+        extractor.convert(document, CONTENT_HASH, ANOTHER_IDENTITY, AS_DETECTED, NO_SUBTYPE);
 
         claim(
                 "changing the configured engine converts the content again rather than reusing the"
@@ -136,8 +145,8 @@ class DoclingExtractorTest {
         DoclingExtractor extractor = extractorAgainst(stub);
         Path document = aDocument(dir);
 
-        DoclingResponse first = extractor.convert(document, IDENTITY);
-        DoclingResponse second = extractor.convert(document, IDENTITY);
+        DoclingResponse first = extractor.convert(document, IDENTITY, AS_DETECTED, NO_SUBTYPE);
+        DoclingResponse second = extractor.convert(document, IDENTITY, AS_DETECTED, NO_SUBTYPE);
 
         claim(
                 "a document that arrived with no hash of its own is still converted only once: the"
