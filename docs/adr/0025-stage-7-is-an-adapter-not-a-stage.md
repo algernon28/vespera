@@ -1,5 +1,7 @@
 # ADR-025 — Stage 7 is an adapter, not a stage
 
+> **Amended — see ADR-101.** [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) **amends this record**: stage 7 is not an adapter either, it is struck. What survives is this record's substance — the pipeline terminates at a self-contained artifact, and rendering it anywhere is someone else's concern.
+
 > **Reconstituted record — the original text of this ADR is lost.**
 > Rebuilt on 2026-08-22 from the decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md), the only surviving record of these decisions. The summary below is transcribed **verbatim** from that digest.
 > There are deliberately no Context, Decision or Consequences sections: that rationale was not recorded in the digest, and inferring it would place invented reasoning under an original date. Where a later decision amends this one, the digest says so inside the summary, and it is transcribed as written.

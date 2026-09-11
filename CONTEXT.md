@@ -137,7 +137,7 @@ An entry a walk encountered and did not record as a file occurrence, carrying th
 _Avoid_: error, skip, exclusion, warning
 
 **Stage**:
-One step of the cascade, identified by the verdicts it writes. The two measurement stages write none, and the publication step is an adapter rather than a stage.
+One step of the cascade, identified by the verdicts it writes. The two measurement stages write none. There are seven, ending at generation (6b), and nothing follows them.
 _Avoid_: step, phase, pass
 
 **Run**:
@@ -159,7 +159,7 @@ A generated document that makes a set of survivors coherent by connecting them. 
 _Avoid_: summary, digest, abstract
 
 **Publication-ready artifact**:
-The pipeline's terminal state: page tree, surviving originals, generated text, and citations resolved to file occurrences. What an adapter renders, for any target.
+The pipeline's terminal state, and the deliverable: page tree, surviving originals, generated text, and citations resolved to file occurrences. Nothing in this project renders it — an operator who wants a wiki makes one.
 _Avoid_: the wiki, the Confluence output, the export
 
 ### Cached artifacts
