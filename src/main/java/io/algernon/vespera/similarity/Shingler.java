@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Locale;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * {@code similarity}'s own shingling function and its table (ADR-038, ADR-073): overlapping word
@@ -34,6 +36,11 @@ public class Shingler {
     }
 
     /** Computes and stores {@code text}'s shingle hashes under today's default granularity. */
+    // Its own transaction, for the reason ExtractionCache#put carries in full: this is written
+    // mid-chunk by stage 2's processor, and a chunk-long transaction would hold SQLite's single
+    // write lock across every later document's conversion. One document's shingles are many
+    // rows, so they stay one transaction -- just a short one.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void write(OccurrenceId occurrenceId, RunId runId, String text) {
         write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
     }

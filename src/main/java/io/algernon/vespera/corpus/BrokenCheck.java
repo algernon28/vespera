@@ -55,6 +55,9 @@ public final class BrokenCheck {
     /** The part ECMA-376 fixes for a WordprocessingML package, and the only thing separating one from any other zip. */
     private static final String WORDPROCESSING_MAIN_PART = "word/document.xml";
 
+    /** The entry the jar tool always writes, and what separates a jar from a document archive. */
+    private static final String JAVA_ARCHIVE_MANIFEST = "META-INF/MANIFEST.MF";
+
     private static final byte[] UTF_16_BE_BOM = {(byte) 0xFE, (byte) 0xFF};
     private static final byte[] UTF_16_LE_BOM = {(byte) 0xFF, (byte) 0xFE};
     private static final byte[] UTF_32_BE_BOM = {0x00, 0x00, (byte) 0xFE, (byte) 0xFF};
@@ -285,12 +288,17 @@ public final class BrokenCheck {
      * <p>Reading {@code [Content_Types].xml} instead would be more general and is rejected: it means
      * inflating an entry and parsing XML, the exact parse work ADR-068 refused when it turned down
      * Apache POI. The filename plays no part on this branch — every distinction it could offer is
-     * already available from the directory at the same cost (ADR-094).
+     * already available from the directory at the same cost (ADR-094), which is why the jar is
+     * answered by {@code META-INF/MANIFEST.MF} and not by {@code .jar}: the directory is open
+     * either way, so the name would be a weaker fact bought for nothing.
      */
     private static Result checkZipContainer(Path file) {
         try (ZipFile zip = new ZipFile(file.toFile())) {
-            return zip.getEntry(WORDPROCESSING_MAIN_PART) != null
-                    ? Result.ok(DetectedFormat.WORDPROCESSING)
+            if (zip.getEntry(WORDPROCESSING_MAIN_PART) != null) {
+                return Result.ok(DetectedFormat.WORDPROCESSING);
+            }
+            return zip.getEntry(JAVA_ARCHIVE_MANIFEST) != null
+                    ? Result.ok(DetectedFormat.JAVA_ARCHIVE)
                     : Result.ok(DetectedFormat.ZIP_CONTAINER);
         } catch (ZipException e) {
             return Result.broken("zip central directory unreadable: " + e.getMessage(), DetectedFormat.ZIP_CONTAINER);

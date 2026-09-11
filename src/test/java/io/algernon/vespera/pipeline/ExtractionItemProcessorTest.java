@@ -450,7 +450,10 @@ class ExtractionItemProcessorTest {
                 corpus.extractionRun(),
                 new ExtractionMetrics(jdbcTemplate, new LanguageDetection()),
                 new DegenerateOutputConfidenceFloor(null),
-                new Shingler(jdbcTemplate));
+                new Shingler(jdbcTemplate),
+                // The real table: stage 1 has run over this corpus, so the rows the refusal reads
+                // are the ones stage 1 actually wrote rather than a stand-in that could disagree.
+                new DetectedFormats(jdbcTemplate));
     }
 
     /**

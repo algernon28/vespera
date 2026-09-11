@@ -14,9 +14,13 @@ import org.slf4j.LoggerFactory;
  * discovering the count as it goes — so it reports a running count of its own from {@code
  * WalkRecorder}, at its checkpoint cadence, rather than through this class.
  *
- * <p>One instance per pass, held by whatever runs that pass, and single-threaded like the steps that
- * use it: Spring Batch runs these steps on the thread that launched them, and no progress counter is
- * shared across two of them.
+ * <p>One instance per pass, held by whatever runs that pass, and never shared across two passes.
+ * Most of the steps that use it are single-threaded, but stage 2 is not any more ({@link
+ * ExtractionJobConfiguration#CONCURRENT_CONVERSIONS}), so counting is synchronised rather than
+ * assumed safe: four threads finishing items with a bare {@code done++} lose lines, and the cadence
+ * ADR-093 fixed is a promise about how often an operator hears something, which a lost increment
+ * quietly breaks. The lock is held for a counter bump and, at most, one log call every 1,000 items —
+ * next to a step whose items take seconds each, it costs nothing worth measuring.
  */
 final class StageProgress {
 
@@ -54,7 +58,7 @@ final class StageProgress {
      * once per item, after the item is finished rather than before: a line saying 40% is done means 40%
      * is done.
      */
-    void itemDone() {
+    synchronized void itemDone() {
         done++;
         if (done - reportedAt < reportInterval) {
             return;

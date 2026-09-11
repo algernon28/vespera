@@ -1,25 +1,65 @@
 # Pinned rather than floating, and the same versions TestcontainersConfiguration names -- a service
 # present in one and absent from the other, or at a different version, means tests and runtime
 # disagree about what exists. Raise both in one commit (ADR-012, ADR-032).
+#
+# Every host port is pinned to the container port it serves, and each one is pinned for the same
+# reason: the value an operator's configuration already names has to be the value the container is
+# actually on. Spring AI's ServiceConnection support reads a running container back and needs no
+# help with Chroma or Ollama -- but only when spring-boot-docker-compose is on the classpath, and
+# it is <optional> in pom.xml, so the Boot plugin leaves it out of the repackaged jar. Under
+# `./mvnw spring-boot:run` an ephemeral port resolves itself; from `java -jar` nothing reads it
+# back, so the defaults in application.yaml and Spring AI (8000, 11434) are all the invocation has,
+# and a Docker-assigned port makes them wrong. Pinning costs a port collision when something else
+# local already holds one of these -- which is the failure an operator can diagnose from the
+# message, unlike "Connection refused" against a container that is up.
 services:
   chroma:
     image: 'chromadb/chroma:1.5.9'
     ports:
-      - '8000'
+      - '8000:8000'
   ollama:
     image: 'ollama/ollama:0.33.2'
     ports:
-      - '11434'
+      - '11434:11434'
   docling-serve:
-    # -cpu: docling-serve also ships a GPU variant; nothing in this design asks for GPU inference
-    # (ADR-013's Ollama default is the only serving runtime this repo currently GPU-accelerates),
-    # and the CPU image is the one that runs anywhere the rest of the stack does.
+    # The CUDA image, not -cpu. Extraction is the pipeline's only long step -- 2.0 to 2.6 seconds a
+    # document measured over a real archive, where every other stage is milliseconds -- and what
+    # costs those seconds is the paginated PDF/image pipeline with OCR, which is what a GPU
+    # accelerates. The -cpu variant was the right default while nothing had ever run a real corpus
+    # (ADR-013's Ollama default was the only GPU consumer); a 13,000-document archive is what
+    # changed the answer.
     #
-    # Host port pinned to 5001, unlike Chroma/Ollama's ephemeral ports above: those two are
-    # resolved automatically by Spring AI's ServiceConnection support reading the running
-    # container back, which does not exist for docling-serve (ADR-071's own consequence -- "the
-    # exact endpoint/health path... are the hand-off spec's"). application.yaml's
-    # vespera.docling.base-url default has to name a port the operator can rely on instead.
-    image: 'quay.io/docling-project/docling-serve-cpu:v1.32.0'
+    # TestcontainersConfiguration deliberately stays on -cpu, and that is not the drift the header
+    # above forbids: the *version* is the same v1.32.0 in both, and a test that demanded a GPU
+    # would fail on any machine and every CI runner without one. The variant is where the two are
+    # allowed to differ; the version is not.
+    image: 'quay.io/docling-project/docling-serve:v1.32.0'
+    # This one has never had a choice about being pinned: there is no connection-details factory
+    # for docling-serve to be read back from at all (ADR-071's own consequence -- "the exact
+    # endpoint/health path... are the hand-off spec's"), so application.yaml's
+    # vespera.docling.base-url default has to name a port the operator can rely on.
     ports:
       - '5001:5001'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Bounded, because unbounded is how the first real run ended: the container was OOM-killed
+    # (exit 137) 109 documents in, having grown until it hit the whole Docker VM's memory. The
+    # limit does not make a leak stop leaking -- it makes the death local to the container that
+    # caused it, and it makes the container the one thing that restarts.
+    mem_limit: 12g
+    # A sidecar that dies mid-run is the failure this pipeline is least equipped for: the transport
+    # error it raises is not a ServiceScopeFailureException, so stage 2's skip policy rejects it and
+    # the whole step fails. Restarting the container is the cheap half of that fix; the classification
+    # is the other half and belongs in the code.
+    restart: unless-stopped
+    environment:
+      # How many conversions the sidecar will run at once. Kept in step with the extraction step's
+      # own concurrency: a step that issues more parallel requests than the sidecar has workers just
+      # queues them, and a sidecar with more workers than the step uses holds models in memory for
+      # nothing -- which is exactly the memory the limit above now bounds.
+      DOCLING_SERVE_ENG_LOC_NUM_WORKERS: 4

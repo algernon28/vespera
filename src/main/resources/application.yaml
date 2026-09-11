@@ -21,7 +21,20 @@ spring:
     # One SQLite file, holding everything (ADR-008, ADR-009). foreign_keys=on because SQLite ignores
     # foreign key constraints per connection unless told otherwise, and schema.sql's walk_id
     # references would silently accept orphans without it.
-    url: "jdbc:sqlite:${vespera.working-dir}/vespera.db?foreign_keys=on"
+    # journal_mode=WAL, because stage 2 converts four documents at a time and SQLite's default
+    # rollback journal makes a writer block readers outright. WAL's own documentation puts it as
+    # "writers do not block readers and readers do not block writers" -- it does not give a second
+    # writer (there is one WAL file, so one writer), which is why the write transactions themselves
+    # are kept short in ExtractionCache#put and its two neighbours. Two consequences worth knowing:
+    # WAL writes vespera.db-wal and vespera.db-shm beside the database, so ADR-008's one file is
+    # three on disk between checkpoints; and WAL needs shared memory, so it silently stays in the
+    # previous mode on a network filesystem, where SQLite advises against multi-process access
+    # anyway.
+    #
+    # busy_timeout, because the effective value was otherwise sqlite-jdbc's own 3s default and
+    # nothing here said so. Thirty seconds is far longer than any write now holds the lock, so a
+    # collision waits and proceeds instead of surfacing as SQLITE_BUSY.
+    url: "jdbc:sqlite:${vespera.working-dir}/vespera.db?foreign_keys=on&journal_mode=WAL&busy_timeout=30000"
     driver-class-name: org.sqlite.JDBC
     hikari:
       # SQLite locks the database file for a write, so a pooled connection that sits on one turns the
@@ -39,6 +52,12 @@ spring:
       # maximumPoolSize - a fixed-size pool that retires nothing and says so at every boot
       # ("idleTimeout has been set but has no effect"). One is the floor the rest grow back from.
       minimum-idle: 1
+      # Two per extraction thread and room to spare. Each of stage 2's four threads now holds its
+      # chunk transaction's connection while a suspended REQUIRES_NEW write takes a second one, and
+      # the reader takes one to fetch a page. At the default ten, a run could exhaust the pool and
+      # then wait out connection-timeout above -- five minutes of nothing, for want of a connection
+      # that costs nothing to allow.
+      maximum-pool-size: 16
       # Off, not left at its two-minute default: a keepalive ping is exactly what holds a connection,
       # and its lock, past the 35s lifetime above. Hikari disables it by itself here anyway, since
       # keepaliveTime >= maxLifetime, and warns on every boot while doing so.

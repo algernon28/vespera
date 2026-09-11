@@ -7,6 +7,8 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * {@code extraction}'s per-occurrence metrics row, written once while the document is still open
@@ -36,6 +38,10 @@ public class ExtractionMetrics {
     }
 
     /** Records the metrics row for {@code response}, without judging {@code degenerate-output}. */
+    // Its own transaction, for the reason ExtractionCache#put carries in full: written mid-chunk
+    // by stage 2's processor, where a chunk-long transaction would hold SQLite's single write
+    // lock across seconds of another document's conversion.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void write(OccurrenceId occurrenceId, RunId runId, DoclingResponse response) {
         computeAndInsert(occurrenceId, runId, response);
     }
@@ -50,6 +56,10 @@ public class ExtractionMetrics {
     }
 
     /** Records a row already measured by {@link #measure}, judging nothing. */
+    // Its own transaction, for the reason ExtractionCache#put carries in full: written mid-chunk
+    // by stage 2's processor, where a chunk-long transaction would hold SQLite's single write
+    // lock across seconds of another document's conversion.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void write(OccurrenceId occurrenceId, RunId runId, Measurement measurement) {
         insert(occurrenceId, runId, measurement.metric());
     }
@@ -59,6 +69,10 @@ public class ExtractionMetrics {
      * floor against it (ADR-070) — {@code confidenceFloor} is {@code pipeline}'s reading of the
      * profile's tier-2 key, {@code null} while it ships unset.
      */
+    // Its own transaction, for the reason ExtractionCache#put carries in full: written mid-chunk
+    // by stage 2's processor, where a chunk-long transaction would hold SQLite's single write
+    // lock across seconds of another document's conversion.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public DegeneracyVerdict writeAndJudge(
             OccurrenceId occurrenceId, RunId runId, DoclingResponse response, Double confidenceFloor) {
         ExtractionMetric metric = computeAndInsert(occurrenceId, runId, response);

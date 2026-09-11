@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -54,7 +56,32 @@ class ExtractionCache {
     }
 
     /** Records {@code response} under {@code contentHash} and {@code extractorIdentity}. */
-    void put(String contentHash, ExtractorIdentity extractorIdentity, DoclingResponse response) {
+    /**
+     * Its own transaction, committed before the caller's chunk continues, and that is what keeps
+     * stage 2's concurrency workable rather than merely configured.
+     *
+     * <p>SQLite takes the database's single write lock at a transaction's first write and holds it
+     * until commit. This row is written by the processor, in the middle of a chunk -- so under one
+     * transaction per chunk, a thread acquired the lock on its first document and held it across
+     * every remaining document's conversion, seconds of HTTP each. Four such threads did not
+     * contend occasionally; they contended always, and a real run died of {@code SQLITE_BUSY}
+     * twelve seconds in. Committing here bounds the lock to this insert.
+     *
+     * <p>Sound only because the suspended outer transaction has not written yet: stage 2's verdicts
+     * are appended by the writer at chunk end, after every call to this method. A change that made
+     * the chunk transaction write first would have one thread's two connections deadlock against
+     * each other, which is worse than what this fixes and would not show up until it did.
+     *
+     * <p>Nothing is lost if the chunk that produced this row later rolls back. The row is keyed on
+     * content hash plus the whole extractor identity (ADR-090), so it is a cache entry that is
+     * either correct or unreachable -- never a verdict, which is the one thing ADR-042 keeps behind
+     * a single gate.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    // Public only so the annotation above takes effect: Spring's proxies advise public methods
+    // and silently ignore package-private ones, which would leave the transaction boundary
+    // documented and absent. The class itself is package-private, so nothing is exposed.
+    public void put(String contentHash, ExtractorIdentity extractorIdentity, DoclingResponse response) {
         jdbcTemplate.update(
                 "INSERT INTO extraction_cache"
                         + " (content_hash, extractor_identity, status, errors_json, confidence_json,"

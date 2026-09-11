@@ -15,6 +15,9 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.core.task.AsyncTaskExecutor;
+import org.springframework.jdbc.UncategorizedSQLException;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
@@ -46,6 +49,66 @@ public class ExtractionJobConfiguration {
      */
     static final long SKIP_LIMIT = 10_000;
 
+    /**
+     * How many conversions are in flight at once, and the one number in this class that was measured
+     * rather than chosen: extraction is the only step whose items cost seconds instead of
+     * milliseconds — 2.0 to 2.6 of them per document over a real archive — and every one of those
+     * seconds is spent waiting on an out-of-process sidecar, with the calling thread doing nothing.
+     * Serially, a 13,000-document archive is an eight-hour step on a sixteen-core machine using one
+     * core.
+     *
+     * <p>Four rather than sixteen, for two reasons that both cap it well below the core count.
+     * {@code compose.yaml} gives the sidecar four workers, and a fifth parallel request only queues
+     * behind them — the number is kept in step with that file deliberately, and raising one without
+     * the other buys nothing. And every completed item writes to SQLite, which locks the file per
+     * write (see {@code application.yaml}), so concurrency past the sidecar's own limit converts
+     * waiting on HTTP into waiting on a lock.
+     */
+    static final int CONCURRENT_CONVERSIONS = 4;
+
+    /**
+     * How many times a chunk is retried when the database was locked, and why that is a retry
+     * rather than a skip.
+     *
+     * <p>A lock collision says nothing about the document -- the same item under the same converter
+     * will succeed the moment the lock is free, which is what makes it retryable where a
+     * service-scope failure is skippable (ADR-071's distinction, applied to a failure it did not
+     * have to consider). Skipping would silently drop a document for a reason that had nothing to
+     * do with it.
+     *
+     * <p>Three, because the writes this contends with are now milliseconds long and
+     * {@code busy_timeout} already absorbs 30 seconds of waiting before an exception is raised at
+     * all. If three retries are not enough, the cause is not contention and a failed step is the
+     * honest outcome.
+     */
+    static final int LOCK_RETRY_LIMIT = 3;
+
+    /**
+     * The step's own pool, fixed-size and named for what it does.
+     *
+     * <p>Fixed rather than a {@code SimpleAsyncTaskExecutor}: an unbounded executor would launch a
+     * thread per chunk and put the sidecar's memory — the thing that OOM-killed it on the first real
+     * run — back under exactly the pressure {@code compose.yaml}'s limit now bounds. The pool size
+     * <em>is</em> the concurrency, since Spring Batch no longer throttles a multi-threaded step
+     * separately from the executor it was given.
+     */
+    @Bean
+    AsyncTaskExecutor extractionTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(CONCURRENT_CONVERSIONS);
+        executor.setMaxPoolSize(CONCURRENT_CONVERSIONS);
+        executor.setThreadNamePrefix("extraction-");
+        // Daemon threads, or `vespera run` never returns. An invocation is one process that ends
+        // (ADR-047), and SpringApplication.run hands control back as soon as the job is over -- the
+        // JVM then exits only when no non-daemon thread is left, and exiting is what fires the
+        // shutdown hook that closes the context. A pool of four non-daemon core threads sitting
+        // idle after the step is therefore not a leak that gets cleaned up later: it is a process
+        // that never terminates, on a successful run as readily as a failed one.
+        executor.setDaemon(true);
+        executor.initialize();
+        return executor;
+    }
+
     @Bean
     Step extractionStep(
             JobRepository jobRepository,
@@ -54,7 +117,8 @@ public class ExtractionJobConfiguration {
             ExtractionItemProcessor extractionItemProcessor,
             ExtractionItemWriter extractionItemWriter,
             ExtractionCircuitBreaker extractionCircuitBreaker,
-            ExtractionHealthCheckListener extractionHealthCheckListener) {
+            ExtractionHealthCheckListener extractionHealthCheckListener,
+            AsyncTaskExecutor extractionTaskExecutor) {
         return new StepBuilder(ExtractionRun.STAGE, jobRepository)
                 .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
@@ -64,8 +128,19 @@ public class ExtractionJobConfiguration {
                 .faultTolerant()
                 .skip(ServiceScopeFailureException.class)
                 .skipLimit(SKIP_LIMIT)
+                // A locked database is Spring's UncategorizedSQLException, because SQLITE_BUSY has no
+                // portable SQLState for the translator to map. That is broader than this needs, and
+                // it is the narrowest type the exception actually arrives as; the retry is bounded so
+                // a genuinely uncategorized failure costs three attempts rather than a run.
+                .retry(UncategorizedSQLException.class)
+                .retryLimit(LOCK_RETRY_LIMIT)
                 .listener(extractionCircuitBreaker)
                 .listener(extractionHealthCheckListener)
+                // Chunks run in parallel from here, which is safe only because the reader is a
+                // JdbcPagingItemReader (Spring Batch's own thread-safe reader) and because the three
+                // pieces of state a chunk touches -- both streaks and the progress counter -- were
+                // made concurrent alongside this line rather than left to be discovered.
+                .taskExecutor(extractionTaskExecutor)
                 .build();
     }
 

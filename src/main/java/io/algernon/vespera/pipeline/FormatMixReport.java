@@ -36,6 +36,7 @@ final class FormatMixReport {
         LABELS.put(DetectedFormat.PDF, "PDF documents");
         LABELS.put(DetectedFormat.IMAGE, "Images");
         LABELS.put(DetectedFormat.WORDPROCESSING, "Word processing documents");
+        LABELS.put(DetectedFormat.JAVA_ARCHIVE, "Java archives");
         LABELS.put(DetectedFormat.ZIP_CONTAINER, "Archives of another kind");
         LABELS.put(DetectedFormat.OLE_COMPOUND, "Older Office containers");
         LABELS.put(DetectedFormat.PLAIN_TEXT, "Text");

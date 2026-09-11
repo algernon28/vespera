@@ -1,6 +1,8 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DegeneracyVerdict;
 import io.algernon.vespera.extraction.DoclingCallTimeoutException;
@@ -58,6 +60,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private final ExtractionMetrics extractionMetrics;
     private final DegenerateOutputConfidenceFloor confidenceFloor;
     private final Shingler shingler;
+    private final DetectedFormats detectedFormats;
 
     /**
      * Stage 2's progress line (ADR-093), counted here because this is the per-item seam the step has:
@@ -75,7 +78,8 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             ExtractionRun extractionRun,
             ExtractionMetrics extractionMetrics,
             DegenerateOutputConfidenceFloor confidenceFloor,
-            Shingler shingler) {
+            Shingler shingler,
+            DetectedFormats detectedFormats) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
         this.extractor = extractor;
@@ -85,6 +89,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.extractionMetrics = extractionMetrics;
         this.confidenceFloor = confidenceFloor;
         this.shingler = shingler;
+        this.detectedFormats = detectedFormats;
         this.progress = StageProgress.over("Stage 2 (extraction)", ledger.survivorCount(extractionRun.runId()));
     }
 
@@ -100,6 +105,10 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     }
 
     private ExtractionOutcome doProcess(OccurrenceId occurrenceId) {
+        Optional<ExtractionOutcome> refused = refuseUnconvertible(occurrenceId);
+        if (refused.isPresent()) {
+            return refused.get();
+        }
         Path file = resolvePath(occurrenceId);
         Conversion conversion;
         try {
@@ -267,6 +276,45 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
 
     private static String reasonFor(DoclingError error) {
         return error.category().name().toLowerCase(Locale.ROOT) + ": " + error.errorMessage();
+    }
+
+    /**
+     * The verdict for a file no converter can turn into text, decided from stage 1's own row and
+     * without a call to the sidecar.
+     *
+     * <p>Measured rather than assumed: over a stratified sample of a real archive, <b>none</b> of the
+     * {@link DetectedFormat#UNRECOGNISED} occurrences sent to Docling came back with usable text, and
+     * a {@link DetectedFormat#JAVA_ARCHIVE} never can — it is compiled code in a zip. Sending them
+     * costs two seconds each and a slot the sidecar owes a document, on an archive where they are a
+     * fifth of what reaches this stage.
+     *
+     * <p>{@code extraction-failed} is the honest verdict and not a borrowed one: it says extraction
+     * did not produce text, which is true of a file nobody sent. The reason names which rule fired,
+     * so a later query can tell a refusal from a conversion that was tried and failed.
+     *
+     * <p>An occurrence with no {@code detected_format} row is converted rather than refused. Stage 1
+     * writes a row for every occurrence it examines, so a missing one means this occurrence never
+     * went through stage 1 at all, and refusing on an absent fact would turn a wiring mistake into a
+     * corpus-wide verdict.
+     */
+    private Optional<ExtractionOutcome> refuseUnconvertible(OccurrenceId occurrenceId) {
+        Optional<DetectedFormat> detected =
+                detectedFormats.formatFor(occurrenceId, extractionRun.byteLevelReductionRunId());
+        if (detected.isEmpty()) {
+            return Optional.empty();
+        }
+        return switch (detected.get()) {
+            case UNRECOGNISED -> Optional.of(new ExtractionOutcome(
+                    occurrenceId,
+                    VerdictKind.EXTRACTION_FAILED,
+                    "not sent: the leading bytes match no format any converter here reads"));
+            case JAVA_ARCHIVE -> Optional.of(new ExtractionOutcome(
+                    occurrenceId,
+                    VerdictKind.EXTRACTION_FAILED,
+                    "not sent: a Java archive carries compiled code, not a document"));
+            case PDF, IMAGE, WORDPROCESSING, ZIP_CONTAINER, OLE_COMPOUND, PLAIN_TEXT, FLOOR_STOPPED ->
+                Optional.empty();
+        };
     }
 
     private Path resolvePath(OccurrenceId occurrenceId) {
