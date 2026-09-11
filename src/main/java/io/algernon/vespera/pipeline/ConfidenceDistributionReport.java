@@ -66,6 +66,12 @@ final class ConfidenceDistributionReport {
                 + rows
                 + "</tbody>\n"
                 + "</table>\n"
+                + "<p>Write the number you choose into <code>degenerateOutputConfidenceFloor</code> in "
+                + "the profile, and say in its <code>provenance</code> how you arrived at it. A document "
+                + "whose mean score falls below it is treated as degenerate output and removed. The key "
+                + "ships unset, and while it is unset no score is low enough to remove anything — "
+                + "this distribution is what a first run measures so that the number can be read off it "
+                + "rather than guessed.</p>\n"
                 + "</body>\n"
                 + "</html>\n";
     }

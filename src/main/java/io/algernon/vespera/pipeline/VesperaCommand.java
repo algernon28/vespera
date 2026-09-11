@@ -104,6 +104,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         private final JobOperator jobOperator;
         private final Job vesperaJob;
+        private final NextAction nextAction;
         private final Path workingDirectoryInUse;
         private final String configuredRoot;
 
@@ -125,10 +126,12 @@ public class VesperaCommand implements Callable<Integer> {
         public Run(
                 JobOperator jobOperator,
                 Job vesperaJob,
+                NextAction nextAction,
                 @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
                 @Value("${" + ROOT_PROPERTY + ":}") String configuredRoot) {
             this.jobOperator = jobOperator;
             this.vesperaJob = vesperaJob;
+            this.nextAction = nextAction;
             this.workingDirectoryInUse = workingDirectoryInUse;
             this.configuredRoot = configuredRoot;
         }
@@ -170,7 +173,11 @@ public class VesperaCommand implements Callable<Integer> {
                             .addString("root", corpusRoot.toString())
                             .addLocalDateTime("startedAt", java.time.LocalDateTime.now())
                             .toJobParameters());
-            return execution.getStatus().isUnsuccessful() ? CommandLine.ExitCode.SOFTWARE : CommandLine.ExitCode.OK;
+            if (execution.getStatus().isUnsuccessful()) {
+                return CommandLine.ExitCode.SOFTWARE;
+            }
+            log.info("{}", nextAction.line());
+            return CommandLine.ExitCode.OK;
         }
 
         /**
@@ -238,6 +245,7 @@ public class VesperaCommand implements Callable<Integer> {
     public static class Label implements Callable<Integer> {
 
         private final LabelIngestion labelIngestion;
+        private final NextAction nextAction;
 
         @Parameters(
                 index = "0",
@@ -247,8 +255,9 @@ public class VesperaCommand implements Callable<Integer> {
                         + " working directory.")
         private Path file;
 
-        public Label(LabelIngestion labelIngestion) {
+        public Label(LabelIngestion labelIngestion, NextAction nextAction) {
             this.labelIngestion = labelIngestion;
+            this.nextAction = nextAction;
         }
 
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
@@ -266,6 +275,7 @@ public class VesperaCommand implements Callable<Integer> {
                         : CommandLine.ExitCode.SOFTWARE;
             }
             System.out.println(outcome.message());
+            System.out.println(nextAction.line());
             return CommandLine.ExitCode.OK;
         }
     }

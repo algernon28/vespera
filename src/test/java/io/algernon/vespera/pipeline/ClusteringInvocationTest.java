@@ -142,6 +142,7 @@ import org.springframework.transaction.annotation.Transactional;
     Ledger.class,
     ImplementationVersions.class,
     ProfileStore.class,
+    NextAction.class,
     VesperaCommand.class,
     VesperaCommand.Run.class,
     VesperaCommand.Label.class,

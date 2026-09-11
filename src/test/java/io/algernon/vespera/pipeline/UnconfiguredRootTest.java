@@ -148,6 +148,7 @@ import picocli.CommandLine;
     UnusableSeeds.class,
     ImplementationVersions.class,
     ProfileStore.class,
+    NextAction.class,
     VesperaCommand.class,
     VesperaCommand.Run.class,
     VesperaCommand.Label.class,

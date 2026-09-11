@@ -142,6 +142,7 @@ import picocli.CommandLine;
     Ledger.class,
     ImplementationVersions.class,
     ProfileStore.class,
+    NextAction.class,
     VesperaCommand.class,
     VesperaCommand.Run.class,
     VesperaCommand.Label.class,
