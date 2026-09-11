@@ -82,7 +82,7 @@ Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vesp
 ```
 vespera run <root>     walk a corpus and take it as far as the next missing value
 vespera label [file]   record the answers you wrote into the label file
-vespera publish        not implemented yet
+vespera publish        withdrawn; refuses
 ```
 
 `vespera run` takes the archive root as its argument, falling back to `vespera.corpus-root` in configuration. Given neither, it refuses rather than guessing — a census of the wrong tree reports success.
@@ -97,4 +97,4 @@ Java 26 and a Docker daemon. Vespera runs its document converter and its embeddi
 
 ## What is not built
 
-`vespera publish` refuses: the publication adapter does not exist. Arranging the survivors into a page tree, generating the connecting text, and rendering it to a target are recorded decisions with no code behind them yet. Everything above works up to and including the point where irrelevant documents are removed.
+`vespera publish` refuses, and now always will: there is no publication step and no publication target (ADR-101). The run ends at the documents it generates, and what you do with them is yours — the subcommand is a leftover that a later change removes. Arranging the survivors into a page tree and generating the connecting text are still recorded decisions with no code behind them yet. Everything above works up to and including the point where irrelevant documents are removed.

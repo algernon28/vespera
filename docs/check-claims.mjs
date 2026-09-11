@@ -117,7 +117,7 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
   const NAME = "the module list";
   const listed = claim(/as packages under `io\.algernon\.vespera`: ([^.]+)\./, NAME);
   const total = claim(/\*\*(\w+) capability-shaped modules\*\*/, NAME);
-  const gap = claim(/(\w+) of the nine exist as packages today — ([^—]+?) are recorded design and no code/, NAME);
+  const gap = claim(/(\w+) of the \w+ exist as packages today — ([^—]+?) (?:is|are) recorded design and no code/, NAME);
   if (listed && total && gap) {
     const named = backticked(listed[1]);
     const absent = backticked(gap[2]);

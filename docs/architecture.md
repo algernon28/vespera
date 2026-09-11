@@ -25,13 +25,12 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 | 3  | Content census               | *(no verdicts)*                           | The corpus-wide pass over what stage 2 stored — document frequency for boilerplate (ADR-038), report distributions. Per-document metrics and shingles are written in stage 2's own pass, under stage 2's run (ADR-019, ADR-073). |
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |
 | 5  | Relevance (embeddings)       | `below-threshold`                         | Scoring against the seed set (ADR-020), clustering within each seed partition (ADR-027, ADR-045).     |
-| 6a | Arrangement                  | *(page tree, no publication)*             | Seed-named taxonomy + within-seed clusters (ADR-022). Human gate before 6b.                           |
+| 6a | Arrangement                  | *(a page tree, nothing rendered)*         | Seed-named taxonomy + within-seed clusters (ADR-022). Human gate before 6b.                           |
 | 6b | Generation                   | —                                         | One overview per cluster, citations resolved to occurrence ids (ADR-022, ADR-026).                    |
-| 7  | Publish                      | —                                         | An **adapter**, not a stage — invoked separately, always human-initiated (ADR-025, ADR-035).          |
 
 Ordering principle: the cheapest filter runs first, so every occurrence removed early is extraction or embedding never paid for (ADR-017).
 
-**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. Stage 7 sits outside the chain because it is an adapter rather than a stage.
+**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. The chain ends at 6b: what it produces is the deliverable, and nothing in this project renders or uploads it anywhere (ADR-101).
 
 ```mermaid
 flowchart TD
@@ -41,11 +40,10 @@ flowchart TD
     S3["<b>3 · Content census</b><br/>corpus-wide pass over stage 2's columns<br/><i>writes no verdicts</i>"]
     S4["<b>4 · Content redundancy</b><br/>redundant-with"]
     S5["<b>5 · Relevance</b><br/>below-threshold"]
-    S6A["<b>6a · Arrangement</b><br/>page tree, no publication"]
+    S6A["<b>6a · Arrangement</b><br/>a page tree, nothing rendered"]
     S6B["<b>6b · Generation</b><br/>cited overviews per cluster"]
-    S7["<b>7 · Publish</b><br/>an adapter, always human-initiated"]
     LEDGER[("<b>Ledger</b><br/>occurrences · verdicts · runs")]
-    ART["Publication-ready artifact<br/><i>the pipeline terminates here</i>"]
+    ART["The generated documents<br/><i>the run ends here</i>"]
 
     S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6A --> S6B --> ART
     ART -. "a person starts it" .-> S7
@@ -82,8 +80,8 @@ flowchart TD
 - **Relevance is one-class, exemplar-based** (ADR-004, ADR-007, ADR-020). No supplied negatives (they'd be "easy negatives" far from the boundary); hard negatives are mined from the corpus after scoring. Score = max over seed documents of (mean of top-3 chunk similarities against that seed), storing the winning seed. Needs no vector database at scoring time — a few dozen seeds fit in memory while corpus chunks stream past.
 - **The seed set does triple duty** (ADR-004, ADR-020, ADR-022): it defines relevance, names the top-level publication taxonomy (one node per seed + `unattributed`), and shapes the page tree. A poorly chosen seed set produces a poorly shaped wiki, not merely a poorly tuned filter — visible via diagnostics (per-seed admission counts, cluster counts).
 - **Clustering runs within each seed partition**, never corpus-wide (ADR-027, ADR-045) — cheap, embarrassingly parallel, keeps the "60%-owned-by-one-seed" alarm aligned with a genuine compute problem, and bounds Chroma's working set to one partition at a time.
-- **Synthesis, not summarisation** (ADR-021). Stage 5 leaves a heap of survivors; stage 6 makes it organic. 6a arranges (page tree, zero publication); 6b generates connective overviews per cluster, gated on a human reading 6a first.
-- **Publication is terminal, one-shot, and separate** (ADR-024, ADR-025, ADR-035). The pipeline runs fully unattended through 6b and stops at a self-describing "publication-ready artifact." Publishing it is a distinct, always-human-initiated invocation against a rendering adapter (Confluence today); nothing reaches Confluence without a person starting it.
+- **Synthesis, not summarisation** (ADR-021). Stage 5 leaves a heap of survivors; stage 6 makes it organic. 6a arranges (a page tree, nothing rendered); 6b generates connective overviews per cluster, gated on a human reading 6a first.
+- **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. Nothing in this project renders, uploads or transmits them: an operator who wants a wiki makes one. What 6b writes, and where it lands, is the first question of the unstarted 6a/6b slice rather than a detail inside it — and so is what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space.
 - **Generated content is verified two ways** (ADR-026): mechanical citation checking (every cited occurrence id must exist, survive, and be reachable in the tree) plus human review at the consolidation gate. Model-checking model output was explicitly rejected.
 
 **Identity and the ledger.** Two independent lifetimes: a walk owns occurrence rows because they are filesystem observations, a run owns verdict rows because they are derived under a configuration. Content identity is a discovered relation over occurrences, never a collapse of them.
@@ -160,8 +158,9 @@ stateDiagram-v2
         then re-invokes.
     end note
     note right of ArtifactReady
-        Publication is a separate,
-        always human-initiated invocation.
+        The run ends here: what
+        the operator does with the
+        documents is their own.
     end note
 ```
 
@@ -178,7 +177,6 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 | `similarity` | Shingles, MinHash/LSH — shingles are computed during stage 2's pass, but the code and the table are `similarity`'s and the call is composed in `pipeline` (ADR-073), since a capability module may not depend on another except where a decision records it |
 | `embedding` | SQLite vector cache, Chroma projection, scoring, clustering |
 | `synthesis` | Arrangement (6a), generation (6b) |
-| `publication` | The ADR-025 rendering adapter |
 | `profile` | Thresholds, provenance, gate inputs |
 | `pipeline` | Batch job definitions; the only module that knows the phrase "stage 4" |
 
@@ -197,7 +195,6 @@ flowchart TD
         SIMILARITY["<b>similarity</b><br/>shingles · MinHash/LSH"]
         EMBEDDING["<b>embedding</b><br/>vector cache · Chroma · scoring · clustering"]
         SYNTHESIS["<b>synthesis</b><br/>arrangement · generation"]
-        PUBLICATION["<b>publication</b><br/>the rendering adapter"]
         PROFILE["<b>profile</b><br/>thresholds · provenance · gate inputs"]
     end
 
@@ -208,7 +205,6 @@ flowchart TD
     PIPELINE --> SIMILARITY
     PIPELINE --> EMBEDDING
     PIPELINE --> SYNTHESIS
-    PIPELINE --> PUBLICATION
     PIPELINE --> PROFILE
     PIPELINE --> LEDGER
 
@@ -217,14 +213,13 @@ flowchart TD
     SIMILARITY --> LEDGER
     EMBEDDING --> LEDGER
     SYNTHESIS --> LEDGER
-    PUBLICATION --> LEDGER
     PROFILE --> LEDGER
 
     classDef root fill:#f3eaff,stroke:#7a4fb5,color:#241238
     classDef cap fill:#eef4ff,stroke:#4a6fa5,color:#12243d
     classDef core fill:#fff4e6,stroke:#b5762a,color:#3d2a12
     class PIPELINE root
-    class CORPUS,EXTRACTION,SIMILARITY,EMBEDDING,SYNTHESIS,PUBLICATION,PROFILE cap
+    class CORPUS,EXTRACTION,SIMILARITY,EMBEDDING,SYNTHESIS,PROFILE cap
     class LEDGER core
 ```
 
@@ -242,7 +237,7 @@ flowchart TD
 - **A verdict judges an occurrence; a failed step judges the tool** (ADR-070). Where a stage's tool reports its failures with a scope of their own — Docling's `FailureCategory` separates task/service scope (`capacity`, `target_unavailable`, `internal`, and the uncategorised `unknown`) from document/page scope (`backend_failure`, `inference_failure`) — only the document-scoped side earns a blocking verdict. A service-scoped failure fails the step and writes no row at all, leaving the occurrence unexamined for a later run rather than blaming a file for an outage; a shared-scope category such as `timeout` is resolved per occurrence versus consecutive.
 - **No Camel** — there's no integration topology to mediate, only one HTTP call to a managed sidecar.
 - **No Spring Modulith event publication registry** — no application events exist in this design (stages never call each other); `spring-modulith-starter-core` is retained for boundary verification only.
-- **CLI surface: two commands** (ADR-047) — run the pipeline through 6b, and invoke the publication adapter. Nothing more, because there's no interactive pause left to expose.
+- **CLI surface** (ADR-047, narrowed by ADR-101) — `vespera run` takes the pipeline through 6b and `vespera label` runs the operator's labelling pass. The `publish` subcommand is withdrawn; its stub still refuses until a follow-up removes it. Nothing more, because there's no interactive pause left to expose.
 
 **One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — census is the only one that exists in this slice, and every later stage is another step appended to the same job. Publication is a second command against the same working directory, never a step of the run.
 
@@ -256,13 +251,10 @@ flowchart TD
     LATER["<b>steps: stages 1 to 6b</b><br/><i>not built in this slice</i>"]
     EXIT(["exit code<br/>0, or non-zero if the job failed"])
 
-    PUBOP(["a person types<br/><b>vespera publish</b>"])
-    PUB["<b>publication adapter</b><br/>reads the ledger, names no root<br/><i>a stub in this slice</i>"]
 
     STORE[("<b>working directory</b><br/>the database · the profile")]
 
     OP --> PREP --> BOOT --> JOB --> S0 --> LATER --> EXIT
-    PUBOP --> PUB
 
     PREP -.-> STORE
     BOOT <-.-> STORE
@@ -274,7 +266,7 @@ flowchart TD
     classDef later fill:#f5f5f5,stroke:#9a9a9a,color:#3a3a3a
     classDef store fill:#f3eaff,stroke:#7a4fb5,color:#241238
     classDef out fill:#eafaf1,stroke:#2f8f5b,color:#0f2e1e
-    class OP,PUBOP human
+    class OP human
     class PREP,BOOT,JOB,S0,PUB step
     class LATER later
     class STORE store
@@ -376,7 +368,7 @@ Fixed as an input constraint (ADR-001), refined through the ledger below.
 | Near-duplicate detection               | MinHash with LSH banding (not SimHash)                                                                                                                                                    | ADR-018                   |
 | Containers / sidecars                  | Application-managed (tool starts/stops its own dependencies)                                                                                                                              | ADR-011                   |
 | CLI                                    | picocli                                                                                                                                                                                   | ADR-047                   |
-| Publication target                     | Confluence Cloud, attachments-based, adapter pattern (target-agnostic)                                                                                                                    | ADR-002, ADR-023, ADR-025 |
+| Publication target                     | None — the run ends at the documents 6b generates                                                                                                                                         | ADR-101                   |
 | Schema management                      | Spring `schema.sql` + manual version check; no Flyway/Liquibase yet                                                                                                                       | ADR-049                   |
 
 **Explicitly removed from the pom** (ADR-046, each citing the ADR that obviates it): `camel-spring-boot-starter`, `spring-ai-vector-store-advisor`, `spring-boot-starter-batch-jdbc`, the Spring AI jsoup/markdown/PDF document readers, `spring-cloud-starter-contract-verifier`, `spring-modulith-observability-api`/`-core`, `spring-modulith-actuator`. Rule: the pom carries what a *recorded decision requires*, not what current code happens to use.
