@@ -88,9 +88,12 @@ public class RedundancyJobConfiguration {
     }
 
     /**
-     * The one place the gate's log line is worded, shared by the reader above and {@link
-     * RedundancyResolutionTasklet} so an operator sees the same sentence regardless of which step logged
-     * it first.
+     * The gate's log line, said once per invocation by the reader above.
+     *
+     * <p>Stage 4 is two steps and this gate stops both, but it is one gate with one missing value and
+     * one action, so {@link RedundancyResolutionTasklet} says nothing and this is the whole of what an
+     * operator reads about it (#135). The reader is where it belongs, because stage 4a is the first
+     * step the gate stops and a value is wanted before the work rather than after half of it.
      */
     static void logGateClosed(Logger log) {
         log.info(

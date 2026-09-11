@@ -52,6 +52,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
 
     private static final Logger log = LoggerFactory.getLogger(SeedExtractionItemWriter.class);
 
+    private final SeedGate seedGate;
     private final ObjectProvider<SeedMeasurementRun> seedMeasurementRun;
     private final UnusableSeeds unusableSeeds;
     private final ExtractionMetrics extractionMetrics;
@@ -64,10 +65,12 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
     private final List<SeedExtractionOutcome> outcomes = new ArrayList<>();
 
     SeedExtractionItemWriter(
+            SeedGate seedGate,
             ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
             UnusableSeeds unusableSeeds,
             ExtractionMetrics extractionMetrics,
             UsableSeedGate usableSeedGate) {
+        this.seedGate = seedGate;
         this.seedMeasurementRun = seedMeasurementRun;
         this.unusableSeeds = unusableSeeds;
         this.extractionMetrics = extractionMetrics;
@@ -93,6 +96,17 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         // Told to the rest of stage 5 before this method can return either way: with no usable seed
         // there is no run, so nothing is written that a later step could read the answer off (ADR-092).
         usableSeedGate.recordUsableSeeds(usableSeeds);
+        if (seedGate.seedWalk().isEmpty()) {
+            // A shut gate, which is not the state the warning below was written for (#135). The reader
+            // yields nothing silently when the gate is shut, so that silence used to be filled by a
+            // sentence telling the operator to fix a seed folder they had never named -- every clause
+            // of it false, and at WARN, the loudest line in the invocation. This says what stage 5's
+            // other steps say, because the three causes SeedGate answers as one are not told apart
+            // anywhere yet.
+            log.info("stage 5's seed-extraction step is gated: no seed folder is named, or stage 4's"
+                    + " gate is shut, or the seed walk has not finished. No seed document was extracted.");
+            return stepExecution.getExitStatus();
+        }
         if (usableSeeds == 0) {
             // ADR-083's gate, and a gate for the right reason rather than a quality judgement:
             // ADR-020's scoring function is a maximum over the seed set, and over an empty set it is
