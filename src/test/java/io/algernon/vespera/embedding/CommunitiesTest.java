@@ -130,9 +130,64 @@ class CommunitiesTest {
                 () -> assertThat(clusters[3]).isEqualTo(1));
     }
 
+    @Test
+    @Story("The similarity reaches the page and not the grouping")
+    @DisplayName("The grouping never reads a similarity, so it cannot be moved by one")
+    void theGroupingNeverReadsASimilarity() {
+        // A graph whose similarities cannot be read without failing the test. Asserting that two
+        // differently-weighted graphs cluster alike would not do it: modularity is scale-invariant, so
+        // weights that are uniform -- however high or low -- give the same answer as weight one, and
+        // such a fixture passes whether or not the pass reads the field.
+        NearestNeighbourGraph.Graph graph = graphRefusingItsSimilarities(new int[] {1}, new int[] {0},
+                new int[] {3}, new int[] {2});
+
+        int[] clusters = Communities.of(graph, RESOLUTION);
+
+        claim(
+                "the pass groups the documents without reading a single similarity: it weights every"
+                        + " retained edge at 1.0, and ADR-096 keeps it that way deliberately -- weighting"
+                        + " modularity by similarity would move every cluster boundary in the system,"
+                        + " which is a change to ADR-087's objective rather than to its reporting",
+                () -> assertThat(clusters).containsExactly(0, 0, 1, 1));
+    }
+
+    /**
+     * A graph whose neighbour lists are as given and whose similarities throw on being read.
+     *
+     * <p>The similarities are a real part of the graph now (ADR-096), and the claim that the grouping
+     * is unmoved by them is only worth making if reading one fails. So one does.
+     */
+    private static NearestNeighbourGraph.Graph graphRefusingItsSimilarities(int[]... neighbours) {
+        List<int[]> lists = List.copyOf(Arrays.asList(neighbours));
+        List<double[]> refusing = new java.util.AbstractList<>() {
+
+            @Override
+            public double[] get(int index) {
+                throw new AssertionError("the grouping read the similarity of document " + index
+                        + "'s edges; ADR-096 says every retained edge is weighted at 1.0");
+            }
+
+            @Override
+            public int size() {
+                return lists.size();
+            }
+        };
+        return new NearestNeighbourGraph.Graph(lists, refusing);
+    }
+
     /** A graph whose neighbour lists are given directly, so the structure is the fixture. */
     private static NearestNeighbourGraph.Graph graphOf(int[]... neighbours) {
         List<int[]> lists = new ArrayList<>(Arrays.asList(neighbours));
-        return new NearestNeighbourGraph.Graph(List.copyOf(lists));
+        // Every edge at 1.0, which is what Communities weights them at regardless (ADR-096): these
+        // fixtures are about which documents link to which, and a similarity this pass does not read
+        // would be a number chosen to look plausible.
+        List<double[]> similarities = lists.stream()
+                .map(list -> {
+                    double[] ones = new double[list.length];
+                    java.util.Arrays.fill(ones, 1.0);
+                    return ones;
+                })
+                .toList();
+        return new NearestNeighbourGraph.Graph(List.copyOf(lists), similarities);
     }
 }

@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.Clustering;
+import io.algernon.vespera.embedding.RetainedEdgeSpread;
 import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.extraction.ChunkingRule;
 import io.algernon.vespera.extraction.DoclingExtractor;
@@ -154,7 +155,10 @@ class ClusteringTasklet implements Tasklet {
                 // a partition, and a heading with no page under it is not worth minting.
                 continue;
             }
-            clustering.clusterAndRecord(
+            // The spread of the kept edges comes back from the pass that built the graph, because that
+            // is the only place the similarities exist: recovering them afterwards would mean the
+            // N-squared-over-two pass a second time (ADR-096). Nothing reads it but the page.
+            Optional<RetainedEdgeSpread> spread = clustering.clusterAndRecord(
                     scoring.runId(),
                     winningSeed,
                     contentHashesOf(canonicalRoot, members),
@@ -165,7 +169,7 @@ class ClusteringTasklet implements Tasklet {
             // its identity, so the sizes a reader is shown are the rows, not what the arithmetic meant to
             // write.
             reported.add(new ClusterSizeReport.Partition(
-                    pathOf(winningSeed), documentClusters.sizesFor(scoring.runId(), winningSeed)));
+                    pathOf(winningSeed), documentClusters.sizesFor(scoring.runId(), winningSeed), spread));
         }
 
         write(CLUSTER_SIZES_FILE_NAME, ClusterSizeReport.render(reported));

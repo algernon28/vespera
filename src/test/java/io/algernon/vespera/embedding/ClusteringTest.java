@@ -127,6 +127,48 @@ class ClusteringTest {
     }
 
     @Test
+    @Story("The retained-edge spread tells resemblance apart from k")
+    @DisplayName("The pass reports the spread of the edges it kept, which is what distinguishes the two cases")
+    void reportsTheSpreadOfTheEdgesItKept() {
+        Clustering clustering = ClusteringBeans.real(jdbcTemplate);
+        long alikeWalk = insertWalk("C:/spread-alike");
+        RunId alikeRun = insertRun(alikeWalk, "clustering-test-spread-alike");
+        OccurrenceId alikeSeed = insertOccurrence(alikeWalk, "seeds/exemplar.pdf");
+        Map<OccurrenceId, String> alike = new LinkedHashMap<>();
+        alike.putAll(insertGroup(alikeWalk, alikeRun, alikeSeed, "spread-alike", 0));
+        long distantWalk = insertWalk("C:/spread-distant");
+        RunId distantRun = insertRun(distantWalk, "clustering-test-spread-distant");
+        OccurrenceId distantSeed = insertOccurrence(distantWalk, "seeds/exemplar.pdf");
+        Map<OccurrenceId, String> distant =
+                insertMutuallyDistant(distantWalk, distantRun, distantSeed, GROUP_SIZE);
+
+        RetainedEdgeSpread alikeSpread = clustering
+                .clusterAndRecord(alikeRun, alikeSeed, alike, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL)
+                .orElseThrow();
+        RetainedEdgeSpread distantSpread = clustering
+                .clusterAndRecord(distantRun, distantSeed, distant, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL)
+                .orElseThrow();
+
+        claim(
+                "documents built to point the same way are held together by edges near the top of the"
+                        + " range, so even the weakest edge kept in that partition is a strong one",
+                () -> assertThat(alikeSpread.lowest()).isGreaterThan(0.5));
+        claim(
+                "documents built to share nothing are held together by edges at the bottom of it --"
+                        + " not one of them resembles another, and the strongest edge the graph could"
+                        + " find says so. Both partitions came back grouped, which is why the sizes"
+                        + " cannot tell them apart and this number can",
+                () -> assertThat(distantSpread.highest()).isLessThan(0.5));
+        claim(
+                "and both spreads describe edges rather than documents: twenty documents keeping"
+                        + " fifteen neighbours each is far more than twenty edges, and fewer than the"
+                        + " three hundred entries their lists hold, because a mutual pair is one edge",
+                () -> assertThat(alikeSpread.edgeCount())
+                        .isGreaterThan(GROUP_SIZE)
+                        .isLessThan(GROUP_SIZE * Clustering.NEIGHBOURS));
+    }
+
+    @Test
     @Story("All singletons is an answer, not a failure")
     @DisplayName("A partition of mutually distant documents is still grouped, because k has no distance floor")
     void groupsEvenAPartitionOfMutuallyDistantDocuments() {

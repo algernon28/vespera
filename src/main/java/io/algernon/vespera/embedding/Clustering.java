@@ -5,6 +5,7 @@ import io.algernon.vespera.ledger.RunId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
@@ -86,6 +87,12 @@ public class Clustering {
      * vectors are stored under. The caller owes the hashes because only it can reach the files;
      * nothing here touches one.
      *
+     * <p><b>What comes back is an observation about the graph, not about the recording.</b> The
+     * spread of the similarities on the edges the graph kept is the one number that tells a partition
+     * grouped by resemblance from a partition grouped by k (ADR-096), and it is returned rather than
+     * stored because nothing reads it but the page: no verdict, no profile key and no gate follows
+     * from it. Empty where the graph kept no edge, which is a partition of one.
+     *
      * <p>Every document in the partition comes back with exactly one cluster ordinal, including a
      * document that resembles nothing, which lands in a cluster of its own. Nothing is merged and
      * nothing is left out: a survivor with no cluster is a page-tree hole, and a partition-level
@@ -93,7 +100,7 @@ public class Clustering {
      * level, for documents with no winning seed, which is a different condition with a different
      * cause).
      */
-    public void clusterAndRecord(
+    public Optional<RetainedEdgeSpread> clusterAndRecord(
             RunId runId,
             OccurrenceId winningSeed,
             Map<OccurrenceId, String> contentHashesByOccurrence,
@@ -102,7 +109,7 @@ public class Clustering {
             String modelName) {
         List<OccurrenceId> members = List.copyOf(contentHashesByOccurrence.keySet());
         if (members.isEmpty()) {
-            return;
+            return Optional.empty();
         }
         StoredMeanVectors vectors = new StoredMeanVectors(
                 List.copyOf(contentHashesByOccurrence.values()), chunkerIdentity, chunkingRuleIdentity, modelName);
@@ -112,6 +119,7 @@ public class Clustering {
         for (int document = 0; document < members.size(); document++) {
             documentClusters.record(runId, members.get(document), winningSeed, ordinals[document]);
         }
+        return RetainedEdgeSpread.over(graph);
     }
 
     /**

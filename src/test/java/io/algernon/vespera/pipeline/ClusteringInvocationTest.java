@@ -265,6 +265,43 @@ class ClusteringInvocationTest {
                 "and it names the exemplar whose partition was grouped, so the sizes belong to something"
                         + " a reader can find",
                 () -> assertThat(Files.readString(report)).contains("seed.txt"));
+        claim(
+                "and it reports how alike the documents on the kept links were, which is the one thing"
+                        + " the sizes cannot say: a partition grouped by resemblance and one grouped"
+                        + " because k links every document to its nearest few produce the same rows"
+                        + " (ADR-096)",
+                () -> assertThat(Files.readString(report))
+                        .contains("Weakest link")
+                        .contains("Strongest link"));
+        claim(
+                "and this partition holds one document, so it shows no resemblance at all rather than"
+                        + " 0.00: there is no pair of documents for a number to describe, and a zero"
+                        + " would read as a document resembling nothing",
+                () -> assertThat(Files.readString(report)).contains("&mdash;"));
+    }
+
+    @Test
+    @Story("The retained-edge spread is reported beside the sizes")
+    @DisplayName("A partition with links reports how alike the documents on them were")
+    void reportsTheResemblanceOfAPartitionThatHasLinks(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        Files.writeString(root.resolve("corpus-a.txt"), "a corpus document");
+        Files.writeString(root.resolve("corpus-b.txt"), "another corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "two documents make one link, and the page carries the number that link is worth --"
+                        + " read off the graph this invocation built rather than recomputed afterwards,"
+                        + " since the similarities exist only inside the pass that chose the edges",
+                () -> assertThat(theSizeReport()).containsPattern(">[01]\\.\\d\\d<"));
+    }
+
+    /** The size report as written, for a claim about what a reader would see. */
+    private String theSizeReport() throws IOException {
+        return Files.readString(workingDirectory.resolve(ClusteringTasklet.CLUSTER_SIZES_FILE_NAME));
     }
 
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */

@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import java.util.Comparator;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -103,6 +104,32 @@ class NearestNeighbourGraphTest {
     }
 
     @Test
+    @Story("The retained edges carry the similarity that chose them")
+    @DisplayName("Each kept neighbour comes back with the similarity that kept it, alongside its index")
+    void eachKeptNeighbourCarriesItsSimilarity() {
+        // Twelve documents on a line again, so which neighbour is nearer is known by construction
+        // rather than computed the way the code computes it.
+        NearestNeighbourGraph.Graph graph = NearestNeighbourGraph.build(new PointsOnALine(12), 2, BLOCK_SIZE);
+
+        claim(
+                "a similarity comes back for every index kept, and exactly as many: a list of edges"
+                        + " where one of the two halves is shorter is a graph whose similarities belong"
+                        + " to whichever neighbour happened to line up with them",
+                () -> assertThat(graph.similaritiesOf(5)).hasSameSizeAs(graph.neighboursOf(5)));
+        claim(
+                "the values are similarities rather than distances -- nothing downstream converts one"
+                        + " into the other, so a cosine that arrived negated would read as documents"
+                        + " being unalike when they are alike",
+                () -> assertThat(boxed(graph.similaritiesOf(5)))
+                        .allMatch(similarity -> similarity >= -1.0 && similarity <= 1.0));
+        claim(
+                "and they are in the order the indices are, which is nearest first: the heaps keep the"
+                        + " best at the front while choosing, and handing the two halves back in"
+                        + " different orders would pair each edge with another edge's similarity",
+                () -> assertThat(boxed(graph.similaritiesOf(5))).isSortedAccordingTo(Comparator.reverseOrder()));
+    }
+
+    @Test
     @Story("Every document keeps its nearest neighbours")
     @DisplayName("A partition smaller than k gives every document every other document")
     void aPartitionSmallerThanKKeepsEveryoneElse() {
@@ -112,6 +139,12 @@ class NearestNeighbourGraphTest {
                 "k is floored to one less than the partition, so a partition of four leaves each document"
                         + " with the other three rather than asking for neighbours that do not exist",
                 () -> assertThat(graph.neighboursOf(0)).containsExactlyInAnyOrder(1, 2, 3));
+    }
+
+
+    /** The same similarities as a list, which is what the assertions above read them as. */
+    private static List<Double> boxed(double[] similarities) {
+        return java.util.stream.DoubleStream.of(similarities).boxed().toList();
     }
 
     /** Vectors on a line, so the nearest neighbours of any document are known in advance. */
