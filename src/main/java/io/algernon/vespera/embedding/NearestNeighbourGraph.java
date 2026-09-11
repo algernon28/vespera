@@ -44,16 +44,32 @@ final class NearestNeighbourGraph {
     }
 
     /**
-     * Which documents each document is nearest to, by index within the partition.
+     * Which documents each document is nearest to, by index within the partition, and how alike the
+     * two were.
      *
      * <p>Undirected in meaning: an edge appears in the neighbour list of whichever endpoints kept it,
      * and the community pass reads it as a link between the two either way.
+     *
+     * <p><b>The similarities are carried out, not recomputed.</b> The top-k heaps hold them while
+     * choosing what to keep and used to drop them on the way out, so a reader wanting to know whether
+     * a partition was grouped by resemblance or by k had nothing to read (ADR-096). Recovering them
+     * afterwards would mean the N²/2 pass a second time; this is one array per document instead.
+     *
+     * <p>The two lists are parallel in both length and order — {@code similarities.get(d)[n]} is the
+     * similarity of the edge to {@code neighbours.get(d)[n]}, nearest first. Nothing enforces that at
+     * the type level, which is why {@link #build} is the only thing that constructs one from a pass
+     * and the tests claim the pairing directly.
      */
-    record Graph(List<int[]> neighbours) {
+    record Graph(List<int[]> neighbours, List<double[]> similarities) {
 
         /** The documents {@code index} is nearest to. */
         int[] neighboursOf(int index) {
             return neighbours.get(index);
+        }
+
+        /** How alike {@code index} is to each of the documents it kept, in the same order. */
+        double[] similaritiesOf(int index) {
+            return similarities.get(index);
         }
 
         /** How many documents the graph covers. */
@@ -99,10 +115,12 @@ final class NearestNeighbourGraph {
         }
 
         List<int[]> kept = new ArrayList<>(count);
+        List<double[]> keptSimilarities = new ArrayList<>(count);
         for (TopK heap : heaps) {
             kept.add(heap.indices());
+            keptSimilarities.add(heap.similarities());
         }
-        return new Graph(List.copyOf(kept));
+        return new Graph(List.copyOf(kept), List.copyOf(keptSimilarities));
     }
 
     /** Cosine similarity over two unit-length-agnostic vectors. */
@@ -165,6 +183,13 @@ final class NearestNeighbourGraph {
         int[] indices() {
             int[] kept = new int[held];
             System.arraycopy(indices, 0, kept, 0, held);
+            return kept;
+        }
+
+        /** The similarities of those same neighbours, in the same order — nearest first. */
+        double[] similarities() {
+            double[] kept = new double[held];
+            System.arraycopy(similarities, 0, kept, 0, held);
             return kept;
         }
     }

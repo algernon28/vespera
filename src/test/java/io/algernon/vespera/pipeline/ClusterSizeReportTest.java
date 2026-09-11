@@ -4,12 +4,14 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.embedding.RetainedEdgeSpread;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +31,22 @@ class ClusterSizeReportTest {
 
     /** One partition of 55 documents in five clusters: 40, 12, and three documents each alone. */
     private static final ClusterSizeReport.Partition ONE_LARGE_GROUP_AND_THREE_ALONE =
-            new ClusterSizeReport.Partition("seeds/contracts.pdf", List.of(40, 12, 1, 1, 1));
+            new ClusterSizeReport.Partition("seeds/contracts.pdf", List.of(40, 12, 1, 1, 1), Optional.empty());
+
+
+    /** A partition whose kept links run from 0.62 up to 0.95 — documents that genuinely resemble each other. */
+    private static final ClusterSizeReport.Partition GROUPED_BY_RESEMBLANCE = new ClusterSizeReport.Partition(
+            "seeds/contracts.pdf",
+            List.of(18, 9),
+            Optional.of(new RetainedEdgeSpread(0.62, 0.81, 0.95, 240)));
+
+    /** A partition whose strongest link is 0.04 — forty documents k forced together. */
+    private static final ClusterSizeReport.Partition GROUPED_BY_K = new ClusterSizeReport.Partition(
+            "seeds/minutes.pdf", List.of(21, 19), Optional.of(new RetainedEdgeSpread(0.01, 0.02, 0.04, 240)));
+
+    /** One document under its own exemplar: no pair, so no link and nothing to measure. */
+    private static final ClusterSizeReport.Partition ONE_DOCUMENT_ALONE =
+            new ClusterSizeReport.Partition("seeds/lonely.pdf", List.of(1), Optional.empty());
 
     @Test
     @Story("The spread of cluster sizes is reported per partition")
@@ -58,13 +75,71 @@ class ClusterSizeReportTest {
                 () -> assertThat(html).contains(">3<"));
     }
 
+
+    @Test
+    @Story("The retained-edge spread is reported beside the sizes")
+    @DisplayName("A partition reports how alike the documents on its kept links actually were")
+    void reportsTheRetainedEdgeSpread() {
+        String html = ClusterSizeReport.render(List.of(GROUPED_BY_RESEMBLANCE));
+
+        claim(
+                "the weakest link in the partition is shown, which is the number that says whether the"
+                        + " grouping had to reach for documents that resemble nothing",
+                () -> assertThat(html).contains(">0.62<"));
+        claim(
+                "so is the middle one, so a reader sees where the bulk of the links sit rather than"
+                        + " only the two ends",
+                () -> assertThat(html).contains(">0.81<"));
+        claim(
+                "and the strongest, because links running from 0.95 down to 0.62 is a different"
+                        + " partition from links all sitting at 0.62",
+                () -> assertThat(html).contains(">0.95<"));
+    }
+
+    @Test
+    @Story("The retained-edge spread is reported beside the sizes")
+    @DisplayName("The page says what a low spread means, in documents rather than in statistics")
+    void saysWhatALowSpreadMeans() {
+        String html = ClusterSizeReport.render(List.of(GROUPED_BY_K));
+
+        claim(
+                "the page explains a low spread as what it is about the documents -- that they were put"
+                        + " together because every document is joined to its nearest few whether or not"
+                        + " they are close, and not because they resemble each other",
+                () -> assertThat(html).contains("whether or not"));
+        claim(
+                "and says what such a group will read as to a person opening it, which is the thing the"
+                        + " number is for",
+                () -> assertThat(html).containsIgnoringCase("unrelated"));
+        claim(
+                "without naming a threshold: no number here is a cut, and a page that suggested one"
+                        + " would be the unmeasured floor ADR-087 refused",
+                () -> assertThat(html).doesNotContainIgnoringCase("threshold"));
+    }
+
+    @Test
+    @Story("The retained-edge spread is reported beside the sizes")
+    @DisplayName("A partition of one has no links, and says so rather than showing a resemblance of zero")
+    void aPartitionWithNoLinksSaysSo() {
+        String html = ClusterSizeReport.render(List.of(ONE_DOCUMENT_ALONE));
+
+        claim(
+                "a partition of one document reports no resemblance at all: there is no pair of"
+                        + " documents for a number to describe, and 0.00 would read as a document"
+                        + " resembling nothing when what is true is that it has nothing to resemble",
+                () -> assertThat(html).doesNotContain(">0.00<"));
+        claim(
+                "and the row is still there, holding the one document it holds",
+                () -> assertThat(html).contains("seeds/lonely.pdf"));
+    }
+
     @Test
     @Story("The spread of cluster sizes is reported per partition")
     @DisplayName("Each partition is reported on its own, never folded in with another exemplar's")
     void reportsEachPartitionSeparately() {
         String html = ClusterSizeReport.render(List.of(
                 ONE_LARGE_GROUP_AND_THREE_ALONE,
-                new ClusterSizeReport.Partition("seeds/invoices.pdf", List.of(3, 2))));
+                new ClusterSizeReport.Partition("seeds/invoices.pdf", List.of(3, 2), Optional.empty())));
 
         claim(
                 "both exemplars appear, each with its own row: clustering runs within a partition and"
@@ -78,7 +153,7 @@ class ClusterSizeReportTest {
     @DisplayName("A partition of nothing but one-document clusters is reported, not repaired")
     void reportsAPartitionOfSingletonsWithoutRepairingIt() {
         String html = ClusterSizeReport.render(
-                List.of(new ClusterSizeReport.Partition("seeds/exemplar.pdf", List.of(1, 1, 1, 1))));
+                List.of(new ClusterSizeReport.Partition("seeds/exemplar.pdf", List.of(1, 1, 1, 1), Optional.empty())));
 
         claim(
                 "the page says outright that nothing was removed, merged or renamed: merging small"
@@ -100,7 +175,7 @@ class ClusterSizeReportTest {
     @DisplayName("The middle cluster is reported rather than an average")
     void reportsTheMiddleClusterRatherThanAnAverage() {
         ClusterSizeReport.Partition oneLargeGroupAndFourAlone =
-                new ClusterSizeReport.Partition("seeds/exemplar.pdf", List.of(100, 1, 1, 1, 1));
+                new ClusterSizeReport.Partition("seeds/exemplar.pdf", List.of(100, 1, 1, 1, 1), Optional.empty());
 
         claim(
                 "the middle group is 1 rather than the mean of 20.8: one group holding most of a"
