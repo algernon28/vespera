@@ -3,6 +3,8 @@ package io.algernon.vespera.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
@@ -44,8 +46,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -156,6 +161,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Link(name = "ADR-083", url = Adr.THE_SEED_SET_IS_EXTRACTED_BY_STAGE_5, type = "adr")
 class SeedExtractionInvocationTest {
 
+    /** The logger every operator-facing line in this application is written through. */
+    private static final String APPLICATION_LOGGER = "io.algernon.vespera";
+
+    /** What the writer says when a seed folder was named and produced nothing usable (ADR-083). */
+    private static final String THE_UNUSABLE_SEED_LINE = "No seed document produced any text";
+
     @TempDir
     static Path workingDirectory;
 
@@ -206,6 +217,23 @@ class SeedExtractionInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    private ListAppender<ILoggingEvent> logged;
+    private ch.qos.logback.classic.Logger applicationLogger;
+
+    @BeforeEach
+    void captureOperatorLines() {
+        logged = new ListAppender<>();
+        logged.start();
+        applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
+        applicationLogger.addAppender(logged);
+    }
+
+    @AfterEach
+    void releaseOperatorLines() {
+        applicationLogger.detachAppender(logged);
+        logged.stop();
+    }
 
     @Test
     @Story("The seed set is extracted under its own measurement run")
@@ -349,6 +377,12 @@ class SeedExtractionInvocationTest {
                 "and the four earlier stages each still minted their run over this corpus: stage 5's gate"
                         + " ends stage 5, not the invocation, so nothing the cheaper passes learned is lost",
                 () -> assertThat(runCountOver(root)).isEqualTo(STAGES_THAT_MINT_A_RUN_BEFORE_STAGE_5));
+        claim(
+                "and this is the state that message was written for, so it still says exactly what it"
+                        + " said: a seed folder was named, it was converted, and nothing came out --"
+                        + " ADR-083's recorded-not-a-gate behaviour is untouched",
+                () -> assertThat(operatorLines()).anyMatch(line -> line.contains(THE_UNUSABLE_SEED_LINE)
+                        && line.contains("Fix the seed folder and run again")));
     }
 
     @Test
@@ -369,6 +403,67 @@ class SeedExtractionInvocationTest {
                 "and stage 5 minted no run, because there is no seed folder to have measured anything"
                         + " against",
                 () -> assertThat(runIdsFor("seed-measurement", root)).isEmpty());
+        claim(
+                "nothing tells the operator to fix a seed folder they never named: every clause of that"
+                        + " sentence is false here -- there is no folder to fix, nothing was extracted"
+                        + " because there was nowhere to extract from, and none of them was usable is a"
+                        + " claim about zero documents",
+                () -> assertThat(operatorLines()).noneMatch(line -> line.contains(THE_UNUSABLE_SEED_LINE)));
+        claim(
+                "the step says it was gated instead, in the sentence stage 5's other steps already"
+                        + " share, so the silence a shut gate used to leave is filled by what is true",
+                () -> assertThat(operatorLines())
+                        .anyMatch(line -> line.contains("seed-extraction step is gated")
+                                && line.contains("no seed folder is named")));
+        claim(
+                "and it is not a warning: a value nobody has supplied yet is the ordinary state of an"
+                        + " early invocation, and the loudest line in the log should not describe it",
+                () -> assertThat(warnings()).noneMatch(line -> line.contains("seed")));
+    }
+
+
+    @Test
+    @Story("One gate, one missing value, one paragraph")
+    @DisplayName("Stage 4's gate states itself once per invocation, not once per step it stops")
+    void stageFoursGateIsStatedOnce(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        nothingIsAnswered();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the gate says what it wants exactly once. It stops two steps -- the signature reader and"
+                        + " the resolution tasklet -- and said its whole forty-word paragraph at each of"
+                        + " them, though there is one gate, one missing value and one action",
+                () -> assertThat(operatorLines().stream()
+                                .filter(line -> line.contains("stage 4 (content redundancy) is gated")))
+                        .hasSize(1));
+        claim(
+                "and it still names the value and where to read what informs it, which is the half of"
+                        + " the message that was never the defect (ADR-080)",
+                () -> assertThat(operatorLines())
+                        .anyMatch(line -> line.contains("boilerplateDocumentFrequencyFloor is unset")
+                                && line.contains("shingle_document_frequency")));
+    }
+
+    /** Nothing answered at all, which is the state an invocation 1 with no profile is in. */
+    private void nothingIsAnswered() {
+        Profile profile = profileStore.load();
+        profileStore.save(new Profile(
+                new ProfileValue(null, null, null), profile.degenerateOutputConfidenceFloor(), null));
+    }
+
+    /** Every operator-facing line this invocation wrote, in the order it wrote them. */
+    private List<String> operatorLines() {
+        return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
+
+    /** The lines written loudly enough to read as something being wrong. */
+    private List<String> warnings() {
+        return logged.list.stream()
+                .filter(event -> event.getLevel().isGreaterOrEqual(ch.qos.logback.classic.Level.WARN))
+                .map(ILoggingEvent::getFormattedMessage)
+                .toList();
     }
 
     /** The seed folder named and stage 4's gate open — the fixture every claim above the last needs. */
