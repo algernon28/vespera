@@ -1,25 +1,35 @@
 # Pinned rather than floating, and the same versions TestcontainersConfiguration names -- a service
 # present in one and absent from the other, or at a different version, means tests and runtime
 # disagree about what exists. Raise both in one commit (ADR-012, ADR-032).
+#
+# Every host port is pinned to the container port it serves, and each one is pinned for the same
+# reason: the value an operator's configuration already names has to be the value the container is
+# actually on. Spring AI's ServiceConnection support reads a running container back and needs no
+# help with Chroma or Ollama -- but only when spring-boot-docker-compose is on the classpath, and
+# it is <optional> in pom.xml, so the Boot plugin leaves it out of the repackaged jar. Under
+# `./mvnw spring-boot:run` an ephemeral port resolves itself; from `java -jar` nothing reads it
+# back, so the defaults in application.yaml and Spring AI (8000, 11434) are all the invocation has,
+# and a Docker-assigned port makes them wrong. Pinning costs a port collision when something else
+# local already holds one of these -- which is the failure an operator can diagnose from the
+# message, unlike "Connection refused" against a container that is up.
 services:
   chroma:
     image: 'chromadb/chroma:1.5.9'
     ports:
-      - '8000'
+      - '8000:8000'
   ollama:
     image: 'ollama/ollama:0.33.2'
     ports:
-      - '11434'
+      - '11434:11434'
   docling-serve:
     # -cpu: docling-serve also ships a GPU variant; nothing in this design asks for GPU inference
     # (ADR-013's Ollama default is the only serving runtime this repo currently GPU-accelerates),
     # and the CPU image is the one that runs anywhere the rest of the stack does.
     #
-    # Host port pinned to 5001, unlike Chroma/Ollama's ephemeral ports above: those two are
-    # resolved automatically by Spring AI's ServiceConnection support reading the running
-    # container back, which does not exist for docling-serve (ADR-071's own consequence -- "the
-    # exact endpoint/health path... are the hand-off spec's"). application.yaml's
-    # vespera.docling.base-url default has to name a port the operator can rely on instead.
+    # This one has never had a choice about being pinned: there is no connection-details factory
+    # for docling-serve to be read back from at all (ADR-071's own consequence -- "the exact
+    # endpoint/health path... are the hand-off spec's"), so application.yaml's
+    # vespera.docling.base-url default has to name a port the operator can rely on.
     image: 'quay.io/docling-project/docling-serve-cpu:v1.32.0'
     ports:
       - '5001:5001'
