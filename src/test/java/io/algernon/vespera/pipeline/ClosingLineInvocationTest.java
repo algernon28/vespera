@@ -335,9 +335,14 @@ class ClosingLineInvocationTest {
      * A mistyped seed folder and nothing else answered — the state an operator reaches by taking step
      * zero and getting the path wrong.
      *
-     * <p>The other two run values stay unset deliberately. A model named alongside an unwalkable seed
-     * folder fails the job outright, for a reason that has nothing to do with this line and is not
-     * this ticket's: the relevance-report step resolves a scoring run while the seed gate is shut.
+     * <p>The other two run values stay unset because the seed folder is the only one this claim is
+     * about: what is pinned here is that reading an unwalkable folder does not end a successful
+     * invocation, and naming a model as well would add a scoring run to a claim that wants none.
+     *
+     * <p>It also used to be the only state that could be pinned. A model named alongside an
+     * unwalkable seed folder failed the job outright until #141 — the relevance-report step resolved
+     * a scoring run while the seed gate was shut — which is a different defect, fixed separately, and
+     * {@code RelevanceReportInvocationTest} is where it is now pinned.
      */
     private void theOnlyAnsweredValueIsASeedFolderThatIsNotThere(Path seeds) {
         Profile profile = profileStore.load();
