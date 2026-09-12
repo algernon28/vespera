@@ -144,7 +144,6 @@ import static org.assertj.core.api.Assertions.assertThat;
     VesperaCommand.Label.class,
     LabelIngestion.class,
     RelevanceLabels.class,
-    VesperaCommand.Publish.class,
     VesperaCli.class
 })
 

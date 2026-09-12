@@ -32,8 +32,8 @@ import org.springframework.test.context.ActiveProfiles;
  *
  * <p>The claim worth stating plainly, because it is the one an implementer is most likely to
  * "correct": there is no verdict here, and there never will be. Every kind in the closed vocabulary
- * exists to remove a document from publication, and a seed is never published — an unreadable seed
- * is an operator's problem to fix, not a document to filter.
+ * exists to remove a document from the survivor set, and a seed is not a candidate — an unreadable
+ * seed is an operator's problem to fix, not a document to filter.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

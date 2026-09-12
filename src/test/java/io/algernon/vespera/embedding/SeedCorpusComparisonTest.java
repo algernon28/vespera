@@ -588,7 +588,7 @@ class SeedCorpusComparisonTest {
         claim(
                 "no verdict row of any kind stands against any document on either side -- asserted"
                         + " against the whole closed vocabulary rather than the plausible kinds, because"
-                        + " every word in it exists to remove a document from what gets published and this"
+                        + " every word in it exists to remove a document from the survivor set and this"
                         + " pass removes nothing at all",
                 () -> assertThat(verdictKindsRecorded()).isEmpty());
     }

@@ -147,7 +147,6 @@ import picocli.CommandLine;
     VesperaCommand.Label.class,
     LabelIngestion.class,
     RelevanceLabels.class,
-    VesperaCommand.Publish.class,
     VesperaCli.class
 })
 @Epic("Census")
