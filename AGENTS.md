@@ -26,7 +26,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 
 **`CONTEXT.md`** is binding vocabulary, not background. Name things as it names them — file occurrence, content identity, verdict, survivor, walk, walk anomaly, census, profile, gate, run, invocation. Each entry lists rejected synonyms under `_Avoid_`; keep those words out of identifiers, tests and commit messages.
 
-**`docs/adr/`** holds 102 decisions, ADR-001 to ADR-102, and two things about it are invisible from the files:
+**`docs/adr/`** holds 103 decisions, ADR-001 to ADR-103, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.
@@ -35,7 +35,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 
 Work is charted as a **wayfinder map** on the issue tracker — one issue labelled `wayfinder:map` per slice, holding one child issue per decision, worked one per session. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
 
-**No wayfinder map is open.** Six have closed, one per slice, ending with the stage 5 slice's [#78](https://github.com/algernon28/vespera/issues/78) on 2026-09-09; stages 6a, 6b and 7 have never had one. So what is takeable is not "the open children of the current map" but the open issues themselves: a `ready-for-agent` ticket is settled and wants code, and a `wayfinder:grilling` ticket is a decision that has to be argued out before any code is worth writing. Charting the next slice is itself a piece of work, and it is unticketed.
+**The current map is [issue #151](https://github.com/algernon28/vespera/issues/151), the stage 6a/6b slice**, charted on 2026-09-12 — the seventh, after six closed one per slice, ending with the stage 5 slice's [#78](https://github.com/algernon28/vespera/issues/78) on 2026-09-09. What is takeable is its **frontier**: open child issues with no open blocker and no assignee. The map's own body carries the destination, what is already settled, and what is deliberately out of scope; read it before picking a ticket. Stage 7 never had a map and never will — ADR-101 struck it.
 
 ## Building and testing
 
