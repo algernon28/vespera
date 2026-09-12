@@ -157,7 +157,6 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.Label.class,
     LabelIngestion.class,
     RelevanceLabels.class,
-    VesperaCommand.Publish.class,
     VesperaCli.class
 })
 @Epic("Relevance")
@@ -297,7 +296,7 @@ class SeedCorpusComparisonInvocationTest {
                         .doesNotContainIgnoringCase(WORDING_THE_REPORT_REFUSES.toArray(String[]::new)));
         claim(
                 "and no verdict of any kind stands against any document, on either side. Every word in"
-                        + " the fixed vocabulary exists to remove a document from what gets published, and"
+                        + " the fixed vocabulary exists to remove a document from the survivor set, and"
                         + " this measurement removes nothing: the seeds were readable, the corpus document"
                         + " converted, and a difference in form between the two is not grounds for"
                         + " discarding either",

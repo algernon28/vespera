@@ -152,7 +152,6 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.Label.class,
     LabelIngestion.class,
     RelevanceLabels.class,
-    VesperaCommand.Publish.class,
     VesperaCli.class
 })
 @Epic("Relevance")
@@ -302,8 +301,8 @@ class SeedExtractionInvocationTest {
         claim(
                 "and not one verdict of any kind stands against any seed document -- asserted against"
                         + " the whole fixed vocabulary rather than the likely-looking kinds, because every"
-                        + " word in it exists to remove a document from what gets published, and a seed is"
-                        + " never published",
+                        + " word in it exists to remove a document from the survivor set, and a seed is"
+                        + " not a candidate",
                 () -> assertThat(verdictKindsAgainstOccurrencesOf(seedWalk)).isEmpty());
         claim(
                 "and stage 5's run exists, which is what says the pass carried on past the unusable"
@@ -345,7 +344,7 @@ class SeedExtractionInvocationTest {
         claim(
                 "no verdict stands against either seed even so: the row records what the converter"
                         + " reported, which is a fact about a conversion and never a judgement about a"
-                        + " document nothing will publish",
+                        + " document that was never a candidate",
                 () -> assertThat(verdictKindsAgainstOccurrencesOf(seedWalk)).isEmpty());
     }
 

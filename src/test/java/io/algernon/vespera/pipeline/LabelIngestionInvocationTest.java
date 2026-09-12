@@ -134,7 +134,6 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.Run.class,
     VesperaCommand.Label.class,
     LabelIngestion.class,
-    VesperaCommand.Publish.class,
     VesperaCli.class
 })
 /**

@@ -90,9 +90,9 @@ class RedundancyResolutionTest {
                 "and the thinner one is redundant with it, pointing at the survivor",
                 () -> assertThat(redundantWith(scan)).isEqualTo(digital.value()));
         claim(
-                "even though the thinner one is six years older -- stage 1 publishes the earliest copy"
+                "even though the thinner one is six years older -- stage 1 keeps the earliest copy"
                         + " because byte-identical copies leave nothing else to choose on, and stage 4"
-                        + " publishes the fullest because here content can choose (ADR-079)",
+                        + " keeps the fullest because here content can choose (ADR-079)",
                 () -> assertThat(creationTimeOf(scan)).isLessThan(creationTimeOf(digital)));
         claim(
                 "the stored relation says which of the two rules removed it",

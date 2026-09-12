@@ -148,7 +148,6 @@ import picocli.CommandLine;
     VesperaCommand.Label.class,
     LabelIngestion.class,
     RelevanceLabels.class,
-    VesperaCommand.Publish.class,
     VesperaCli.class
 })
 @Epic("Census")
@@ -358,18 +357,6 @@ class CensusInvocationTest {
                 "and no scoring run was minted at all, because a run row for a stage that scored nothing"
                         + " would read as a corpus scored against zero documents",
                 () -> assertThat(runCount("embedding-scoring")).isZero());
-    }
-
-    @Test
-    @Story("The commands the tool offers")
-    @DisplayName("Publishing reports that it is not built yet rather than appearing to have run")
-    void publishSaysItIsNotBuiltYet() {
-        cli.run("publish");
-
-        claim(
-                "publishing fails, because a command that quietly does nothing is worse than one that says"
-                        + " it cannot",
-                () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.SOFTWARE));
     }
 
     @Test

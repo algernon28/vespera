@@ -16,14 +16,13 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 /**
- * The command surface (ADR-047, ADR-054): {@code vespera run <root>}, {@code vespera label} and
- * {@code vespera publish}.
+ * The command surface (ADR-047, ADR-054, narrowed by ADR-101): {@code vespera run <root>} and
+ * {@code vespera label}.
  *
  * <p>One command per act, because they are not the same act. A run is unattended and never blocks
- * (ADR-047); publication is terminal, one-shot and always invoked by a person (ADR-035, ADR-024),
- * which is exactly why it is not a stage of the run. Label ingestion sits on publication's side of
- * that line and joined the surface for that reason (#105): a person invokes it having just finished
- * labelling, it reads a file they authored, and it mints no run — so folding it into the run would
+ * (ADR-047), and it now runs the cascade to its end (ADR-101). Label ingestion is the deliberate
+ * act, and joined the surface for that reason (#105): a person invokes it having just finished
+ * labelling, it reads a file they authored, and it mints no run, so folding it into the run would
  * weld a deliberate act onto an unattended pass.
  *
  * <p>{@code run} takes the corpus root and nothing else. The root is the argument, and
@@ -36,18 +35,16 @@ import picocli.CommandLine.Parameters;
 @Command(
         name = "vespera",
         mixinStandardHelpOptions = true,
-        subcommands = {VesperaCommand.Run.class, VesperaCommand.Label.class, VesperaCommand.Publish.class},
+        subcommands = {VesperaCommand.Run.class, VesperaCommand.Label.class},
         description = "Curates a local archive into a publication-ready knowledge base.")
 public class VesperaCommand implements Callable<Integer> {
 
     private final Run run;
     private final Label label;
-    private final Publish publish;
 
-    public VesperaCommand(Run run, Label label, Publish publish) {
+    public VesperaCommand(Run run, Label label) {
         this.run = run;
         this.label = label;
-        this.publish = publish;
     }
 
     /** Bare {@code vespera} names no act, so it prints what the acts are. */
@@ -83,9 +80,6 @@ public class VesperaCommand implements Callable<Integer> {
                 }
                 if (type.isInstance(label)) {
                     return type.cast(label);
-                }
-                if (type.isInstance(publish)) {
-                    return type.cast(publish);
                 }
                 return CommandLine.defaultFactory().create(type);
             }
@@ -277,24 +271,6 @@ public class VesperaCommand implements Callable<Integer> {
             System.out.println(outcome.message());
             System.out.println(nextAction.line());
             return CommandLine.ExitCode.OK;
-        }
-    }
-
-    /**
-     * Publishes the survivors to Confluence — the adapter, invoked separately and always by a person
-     * (ADR-025, ADR-035).
-     *
-     * <p>A stub in this slice. It takes no root because it reads the ledger, which already knows
-     * which corpus was censused (ADR-054).
-     */
-    @Component
-    @Command(name = "publish", description = "Publishes what survived. Not implemented yet.")
-    public static class Publish implements Callable<Integer> {
-
-        @Override
-        public Integer call() {
-            System.err.println("vespera publish is not implemented: the publication adapter does not exist yet.");
-            return CommandLine.ExitCode.SOFTWARE;
         }
     }
 }

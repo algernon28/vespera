@@ -166,7 +166,6 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.Label.class,
     LabelIngestion.class,
     RelevanceLabels.class,
-    VesperaCommand.Publish.class,
     VesperaCli.class
 })
 @Epic("Extraction")
