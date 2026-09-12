@@ -345,7 +345,7 @@ function readmeSection(heading, name) {
 const UNCHECKED = [
   'the whole of "The shape of the system" — the ledger model, the two identities, the module rule',
   '"Stages 0 to 4 are built, and stage 5 is part-built", and what stage 5 still owes',
-  "the ten job steps and their order, and that a later stage is a step on that same job",
+  "the thirteen job steps and their order, and that a later stage is a step on that same job",
   "the ADR-052 test conventions, and whether the report a run produces actually reads that way",
   "docs/architecture.md, which this never opens — its own status line has rotted the same way",
   "whether four invocations is still the right number — three gates imply it, and nothing counts gates",

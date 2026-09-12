@@ -40,7 +40,7 @@ class ModuleBoundariesTest {
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
 
     /**
-     * The eight modules ADR-040 defines, less the one ADR-101 struck. Six are capability modules;
+     * ADR-040's modules, less the one ADR-101 struck — eight. Six are capability modules;
      * {@code ledger} is what they depend on, and {@code pipeline} is the composition root that
      * depends on all of them.
      *
