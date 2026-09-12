@@ -380,6 +380,13 @@ public final class Adr {
     public static final String DOCLING_READS_THE_BYTES_TOO = FILE
             + "0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md";
 
+    /**
+     * ADR-101 — the run ends at the generated documents; there is no publication stage and no
+     * publication target.
+     */
+    public static final String THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS = FILE
+            + "0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md";
+
     private Adr() {
     }
 }

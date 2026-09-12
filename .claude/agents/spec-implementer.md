@@ -28,7 +28,7 @@ In this order, and no further than you need:
 
 ## Respect the module boundaries
 
-Capability-shaped, not stage-shaped (ADR-040). The modules are `ledger`, `corpus`, `extraction`, `similarity`, `embedding`, `synthesis`, `publication`, `profile`, `pipeline`, as packages under `io.algernon.vespera`.
+Capability-shaped, not stage-shaped (ADR-040). The modules are `ledger`, `corpus`, `extraction`, `similarity`, `embedding`, `synthesis`, `profile`, `pipeline` (ADR-101 struck `publication`), as packages under `io.algernon.vespera`.
 
 The rule: **a capability module may depend on `ledger` and nothing else horizontal.** `pipeline` is the composition root and may depend on all of them, and it is the only module that knows the phrase "stage 4". `ledger` owns occurrence identity, the verdict vocabulary and rows, run identity, and the survivors query; every other capability owns its own tables (ADR-041).
 

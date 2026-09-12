@@ -34,13 +34,20 @@ import org.springframework.modulith.core.ApplicationModules;
 @Link(name = "ADR-037", url = Adr.MODULITH_RETAINED_FOR_BOUNDARY_CHECKS, type = "adr")
 @Link(name = "ADR-040", url = Adr.MODULES_ARE_CAPABILITY_SHAPED, type = "adr")
 @Link(name = "ADR-041", url = Adr.LEDGER_OWNS_IDENTITY_AND_VERDICTS, type = "adr")
+@Link(name = "ADR-101", url = Adr.THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS, type = "adr")
 class ModuleBoundariesTest {
 
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
 
     /**
-     * The nine modules ADR-040 defines. Seven are capability modules; {@code ledger} is what they
-     * depend on, and {@code pipeline} is the composition root that depends on all of them.
+     * ADR-040's modules, less the one ADR-101 struck — eight. Six are capability modules;
+     * {@code ledger} is what they depend on, and {@code pipeline} is the composition root that
+     * depends on all of them.
+     *
+     * <p>{@code publication} is deliberately absent (ADR-101, ADR-110): the run ends at the generated
+     * documents, so nothing renders or uploads them and no module exists to. This list is an
+     * allow-list, so a struck name left in it is invisible until somebody creates the package it
+     * permits — which is the one moment it would do harm.
      */
     private static final Set<String> RECORDED_MODULES =
             Set.of(
@@ -50,7 +57,6 @@ class ModuleBoundariesTest {
                     "similarity",
                     "embedding",
                     "synthesis",
-                    "publication",
                     "profile",
                     "pipeline");
 
@@ -67,9 +73,9 @@ class ModuleBoundariesTest {
             Map.of("extraction", List.of("ledger", "corpus"));
 
     /**
-     * The capability modules, derived rather than re-listed: the recorded nine less {@code ledger},
+     * The capability modules, derived rather than re-listed: the recorded eight less {@code ledger},
      * which they all depend on, and {@code pipeline}, which is the composition root and may depend on
-     * all of them. Deriving it means a tenth module added above cannot be forgotten here.
+     * all of them. Deriving it means a ninth module added above cannot be forgotten here.
      */
     private static final Set<String> CAPABILITY_MODULES = RECORDED_MODULES.stream()
             .filter(module -> !"ledger".equals(module) && !"pipeline".equals(module))
@@ -160,20 +166,20 @@ class ModuleBoundariesTest {
     }
 
     /**
-     * A package under the application root that is not one of the nine is a module nobody decided
+     * A package under the application root that is not one of the eight is a module nobody decided
      * on. Catching it here is cheaper than finding it once things depend on it.
      */
     @Test
     @Story("The boundary rule holds for every module")
-    @DisplayName("Every module is one of the nine the architecture defines")
-    void everyModuleIsOneOfTheNineRecorded() {
+    @DisplayName("Every module is one the architecture defines")
+    void everyModuleIsOneOfTheRecordedModules() {
         List<String> unrecorded =
                 identifiers(MODULES.stream()).stream()
                         .filter(identifier -> !RECORDED_MODULES.contains(identifier))
                         .toList();
 
         claim(
-                "every module found in the application is one of the nine the architecture defines;"
+                "every module found in the application is one of the eight the architecture defines;"
                         + " one named here is a module nobody decided on",
                 () -> assertThat(unrecorded).isEmpty());
     }
