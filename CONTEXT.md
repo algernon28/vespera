@@ -178,6 +178,10 @@ _Avoid_: reference, source, footnote
 A cluster stage 6b could not write a synthesis doc for: the call came back, and what came back did not survive checking. Recorded against the cluster, never against its documents — nothing is wrong with them, and nothing is removed. The deliverable keeps the hole, headed by the cluster's label.
 _Avoid_: error, failure, skipped cluster, verdict (a verdict is about a document, and it removes one)
 
+**Repair pass**:
+A re-run of generation that finishes what an earlier one left behind: the clusters it never reached, and the clusters it could not write. It asks the same question again and is never shown what went wrong before, so nothing is corrected — only completed, and each pass is smaller than the one before it.
+_Avoid_: retry, regeneration, repairing a synthesis doc (a synthesis doc is written or it is not; nothing edits one)
+
 **Publication-ready artifact**:
 The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries no copy of the surviving originals: those stay in the archive and are referenced from it. Nothing in this project renders it: publication is the state it is handed over in, never something this system does.
 _Avoid_: the wiki, the Confluence output, the export
