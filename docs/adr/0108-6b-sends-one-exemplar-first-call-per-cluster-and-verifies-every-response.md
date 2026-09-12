@@ -72,7 +72,7 @@ The model name plus the options actually sent — `num_ctx`, `num_predict`, `tem
 
 **The deliverable may be incomplete, visibly.** Holes are expected output, not an error state, and the index shows them.
 
-**Generation cannot go through `OllamaClient`.** Spring AI 2.0.0 has no `/api/generate` binding at all, so this is `/api/chat` or a client of this project's own — and `OllamaClient` lives in `embedding`, which `synthesis` may not name under the module rule. That lands on the module-seam decision, not here.
+**Generation goes through `/api/chat`, and no new HTTP client is written.** Spring AI 2.0.0 has no `/api/generate` binding — `OllamaApi` in the resolved `spring-ai-ollama-2.0.0.jar` exposes `chat`, `streamingChat`, `embed`, `listModels`, `showModel`, `copyModel`, `deleteModel` and `pullModel`, and nothing else — but `/api/chat` needs none: it is fully bound, it carries `format` for the imposed schema, and it is the endpoint Ollama's own structured-output documentation uses in every example. A client of this project's own would only be owed if 6b wanted `/api/generate`, and it does not. What remains open is which module owns the call, since `OllamaClient` belongs to `embedding` and `synthesis` may not name it under the module rule — that is the module-seam decision, not this one.
 
 **Determinism stays open.** No Ollama source claims a fixed seed reproduces output, and `cache_prompt` is hardcoded on in 0.33.2 — so what a re-run under the same 6b run id writes is not settled by this record.
 
