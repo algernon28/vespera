@@ -162,8 +162,16 @@ _Avoid_: summary, digest, abstract
 The shape stage 6a gives the survivors: seed partitions at the top, clusters beneath them. An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there.
 _Avoid_: page tree, hierarchy, taxonomy (a seed set names one; the arrangement is what that naming produces)
 
+**Cluster label**:
+What stage 6a calls a cluster: derived from the cluster's own members — the title of its highest-scoring document, and how many documents it holds. Derived rather than written, so it exists before anything is generated and can be checked against a document anyone can open. Never unique and never edited by hand: a cluster is identified by its ordinal within its seed partition, not by what it is called.
+_Avoid_: cluster name (a cluster has two, and the word chosen says which), heading
+
+**Cluster title**:
+What stage 6b calls a cluster in the deliverable: written by the model that read the whole cluster, as the head of the synthesis doc it belongs to. A cluster whose synthesis doc could not be generated shows its label instead.
+_Avoid_: cluster name, cluster label (the label is derived and 6a's; this is generated and 6b's)
+
 **Publication-ready artifact**:
-The pipeline's terminal state, and the deliverable: the arrangement and the synthesis docs written over it, self-contained and handed over as files. What else it carries — the surviving originals above all — is undecided, and ADR-101 makes it the first question of the 6a/6b slice rather than a detail inside it. Nothing in this project renders it: publication is the state it is handed over in, never something this system does.
+The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries no copy of the surviving originals: those stay in the archive and are referenced from it. Nothing in this project renders it: publication is the state it is handed over in, never something this system does.
 _Avoid_: the wiki, the Confluence output, the export
 
 ### Cached artifacts
