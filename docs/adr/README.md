@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-049.
+One file per architecture decision, ADR-001 through ADR-111.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -121,3 +121,12 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-100](0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md) | 2026-09-11 | Docling reads the bytes too, so stage 2 sends a canonical extension derived from the detected format and nothing else *(amends ADR-094, ADR-090)* |
 | [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) | 2026-09-11 | The run ends at the generated documents; there is no publication stage and no publication target *(supersedes ADR-002, ADR-023, ADR-024, ADR-035; amends ADR-025)* |
 | [ADR-102](0102-publication-is-the-state-the-deliverable-is-handed-over-in-never-a-verb-this-project-uses.md) | 2026-09-12 | Publication is the state the deliverable is handed over in, never a verb this project uses *(amends ADR-101)* |
+| [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md) | 2026-09-12 | The deliverable is a Markdown tree in the working directory, one tree per run id |
+| [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md) | 2026-09-12 | The surviving originals stay where they are, and the deliverable references them |
+| [ADR-105](0105-stage-6a-names-the-arrangement-stage-5-already-built-and-unattributed-is-struck.md) | 2026-09-12 | Stage 6a names the arrangement stage 5 already built, and `unattributed` is struck *(amends ADR-022)* |
+| [ADR-106](0106-a-cluster-gets-a-derived-label-from-6a-and-a-generated-title-from-6b.md) | 2026-09-12 | A cluster gets a derived label from 6a and a generated title from 6b |
+| [ADR-107](0107-the-arrangement-gate-approves-a-named-6a-run-and-the-path-becomes-five-invocations.md) | 2026-09-12 | The arrangement gate approves a named 6a run, and the operator's path becomes five invocations *(amends ADR-098)* |
+| [ADR-108](0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md) | 2026-09-12 | 6b sends one exemplar-first call per cluster, and verifies every response |
+| [ADR-109](0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md) | 2026-09-12 | A citation is an exemplar ordinal minted for one call, and the check is that it is in range *(amends ADR-026)* |
+| [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md) | 2026-09-12 | `pipeline` hands `synthesis` its inputs, so the module rule gains no second exception *(amends ADR-108)* |
+| [ADR-111](0111-a-cluster-fault-is-a-row-in-synthesis-and-a-re-run-under-the-same-id-repairs-rather-than-regenerates.md) | 2026-09-12 | A cluster fault is a row in `synthesis`, and a re-run under the same id repairs rather than regenerates *(amends ADR-108, ADR-109, ADR-110)* |

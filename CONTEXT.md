@@ -175,7 +175,7 @@ How a synthesis doc points at a document it was written from: an ordinal into th
 _Avoid_: reference, source, footnote
 
 **Cluster fault**:
-A cluster stage 6b could not write a synthesis doc for: the model answered and the answer was rejected on its merits. Recorded against the cluster, never against its documents — nothing is wrong with them, and nothing is removed. The deliverable keeps the hole, headed by the cluster's label.
+A cluster stage 6b could not write a synthesis doc for: the call came back, and what came back did not survive checking. Recorded against the cluster, never against its documents — nothing is wrong with them, and nothing is removed. The deliverable keeps the hole, headed by the cluster's label.
 _Avoid_: error, failure, skipped cluster, verdict (a verdict is about a document, and it removes one)
 
 **Publication-ready artifact**:
