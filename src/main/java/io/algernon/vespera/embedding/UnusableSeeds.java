@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>There is no verdict method here, deliberately.</b> This module cannot write one — the
  * vocabulary is closed and lives in {@code ledger} (ADR-042) — but the point is stronger than
- * mechanical: a seed is never published, so no kind in that vocabulary applies to it. An unusable
+ * mechanical: a seed is not a candidate, so no kind in that vocabulary applies to it. An unusable
  * seed does not stop the run either; it is recorded, reported, and scoring proceeds against the
  * seeds that survived extraction.
  *

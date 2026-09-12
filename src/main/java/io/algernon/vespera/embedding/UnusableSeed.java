@@ -6,7 +6,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
  * One seed document that produced no text, and why (ADR-083).
  *
  * <p>Not a verdict, and the distinction is the decision rather than a naming preference: a verdict
- * removes an occurrence from publication, and a seed is never published. What this records is a fact
+ * removes a candidate from the survivor set, and a seed is not a candidate. What this records is a fact
  * about the seed folder for whoever has to go and fix it.
  *
  * @param occurrenceId which seed occurrence it was — an operator needs the file, not a count

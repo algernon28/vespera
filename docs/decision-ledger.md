@@ -65,7 +65,7 @@ All decisions are append-only: a decision is reopened only by a later ADR that e
 
 ## Vocabulary reference
 
-Project-specific terms (file occurrence, content identity, ledger, verdict, survivor, seed set, hard negative, winning seed, seed partition, census, observe-before-enforce, profile, gate, walk, walk anomaly, stage, run, invocation, synthesis doc, publication-ready artifact, extraction cache, chunk cache) are defined in `CONTEXT.md` in the repo and are binding usage across the codebase and its documentation.
+Project-specific terms (file occurrence, content identity, ledger, verdict, survivor, seed set, hard negative, winning seed, seed partition, census, observe-before-enforce, profile, gate, walk, walk anomaly, stage, run, invocation, arrangement, synthesis doc, publication-ready artifact, extraction cache, chunk cache) are defined in `CONTEXT.md` in the repo and are binding usage across the codebase and its documentation.
 
 ## Open questions
 

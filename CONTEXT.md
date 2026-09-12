@@ -21,7 +21,7 @@ A distinct byte sequence. A relation over file occurrences, never a replacement 
 _Avoid_: document, duplicate, hash
 
 **Representative occurrence**:
-The single copy chosen for publication when several file occurrences share one content identity.
+The single copy left standing when several file occurrences share one content identity, the rest being recorded as duplicates of it.
 _Avoid_: canonical copy, the original
 
 ### Curation
@@ -43,21 +43,21 @@ A file occurrence carrying no blocking verdict. A question the ledger answers, n
 _Avoid_: shortlist, whitelist, the keep pile
 
 **Redundancy set**:
-File occurrences whose text says the same thing, of which exactly one is published and the rest are redundant with it. Distinct from a content identity, whose members are byte-identical; these differ, and which one is published is a judgement rather than a tie-break.
+File occurrences whose text says the same thing, of which exactly one survives and the rest are redundant with it. Distinct from a content identity, whose members are byte-identical; these differ, and which one survives is a judgement rather than a tie-break.
 _Avoid_: duplicate group, cluster (a cluster is an arrangement of relevant documents, not a set of interchangeable ones), near-dupe set
 
 **Containment**:
-The relation where one document's text appears near-whole inside another's, and the two are therefore not interchangeable: the container publishes everything the contained document does, and more. Directional, always — naming it of a pair without saying which way round says nothing.
+The relation where one document's text appears near-whole inside another's, and the two are therefore not interchangeable: the container carries everything the contained document does, and more. Directional, always — naming it of a pair without saying which way round says nothing.
 _Avoid_: overlap, subset, inclusion
 
 ### Relevance
 
 **Seed set**:
-The operator-supplied folder of known-relevant documents. The sole carrier of domain knowledge in the system: it defines relevance, names the published taxonomy, and shapes the page tree.
+The operator-supplied folder of known-relevant documents. The sole carrier of domain knowledge in the system: it defines relevance, names the top level of the arrangement, and shapes what sits beneath it.
 _Avoid_: training set, examples, ground truth
 
 **Unusable seed**:
-A seed document extraction produced no text from. Recorded and reported, never removed and never a verdict: a seed is not a candidate for publication, so nothing in the verdict vocabulary applies to it, and what it costs is a definition of relevance narrower than the operator intended.
+A seed document extraction produced no text from. Recorded and reported, never removed and never a verdict: a seed is not a candidate at all, so nothing in the verdict vocabulary applies to it, and what it costs is a definition of relevance narrower than the operator intended.
 _Avoid_: broken seed, failed seed, invalid seed
 
 **Seed/corpus mismatch**:
@@ -77,11 +77,11 @@ The one seed document that produced a file occurrence's relevance score. Stored,
 _Avoid_: best match, nearest seed
 
 **Seed partition**:
-All file occurrences sharing a winning seed. The unit within which grouping happens, and the top level of the published tree — so its size is also a statement about the seed that owns it.
+All file occurrences sharing a winning seed. The unit within which grouping happens, and the top level of the arrangement — so its size is also a statement about the seed that owns it.
 _Avoid_: bucket, category, topic
 
 **Cluster**:
-A group of documents within one seed partition that belong together by subject — the level below the partition in the published tree. An arrangement of relevant documents, never a set of interchangeable ones (that is a redundancy set), and never a judgement: nothing is removed for the cluster it lands in. What a document contributes to it is what the document *is*, not the passage that earned its score.
+A group of documents within one seed partition that belong together by subject — the level below the partition in the arrangement. An arrangement of relevant documents, never a set of interchangeable ones (that is a redundancy set), and never a judgement: nothing is removed for the cluster it lands in. What a document contributes to it is what the document *is*, not the passage that earned its score.
 _Avoid_: group, theme, cluster of duplicates
 
 ### Measurement
@@ -158,8 +158,12 @@ _Avoid_: run, session, job
 A generated document that makes a set of survivors coherent by connecting them. Not a per-document summary — summarising each survivor separately reproduces the heap with an extra layer.
 _Avoid_: summary, digest, abstract
 
+**Arrangement**:
+The shape stage 6a gives the survivors: seed partitions at the top, clusters beneath them. An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there.
+_Avoid_: page tree, hierarchy, taxonomy (a seed set names one; the arrangement is what that naming produces)
+
 **Publication-ready artifact**:
-The pipeline's terminal state, and the deliverable: page tree, surviving originals, generated text, and citations resolved to file occurrences. Nothing in this project renders it — an operator who wants a wiki makes one.
+The pipeline's terminal state, and the deliverable: the arrangement and the synthesis docs written over it, self-contained and handed over as files. What else it carries — the surviving originals above all — is undecided, and ADR-101 makes it the first question of the 6a/6b slice rather than a detail inside it. Nothing in this project renders it: publication is the state it is handed over in, never something this system does.
 _Avoid_: the wiki, the Confluence output, the export
 
 ### Cached artifacts
