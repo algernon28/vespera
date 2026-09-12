@@ -8,7 +8,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
  *
  * <p>Note what this record does <em>not</em> carry: a {@code VerdictKind}. Stage 2's own
  * {@link ExtractionOutcome} carries one, because every corpus document it judges is either removed or
- * left standing. A seed is never published, so no kind in the closed vocabulary applies to it, and
+ * left standing. A seed is not a candidate, so no kind in the closed vocabulary applies to it, and
  * the type that travels through the seed pass says so by having nowhere to put one.
  *
  * <p>{@code measurement} travels with every outcome, usable or not, because {@link

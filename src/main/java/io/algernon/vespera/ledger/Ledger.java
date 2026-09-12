@@ -364,7 +364,7 @@ public class Ledger {
      * <p>Deliberately not {@link #survivors}, and the difference is the decision rather than a
      * convenience. Survivorship is the absence of a blocking verdict, and no verdict is ever written
      * against a seed occurrence: every kind in the closed vocabulary exists to remove a document from
-     * publication, and a seed is never published. Filtering seeds through the survivors query would
+     * the survivor set, and a seed was never a candidate for it. Filtering seeds through the survivors query would
      * quietly make a seed folder subject to the corpus's own removals — a seed that happens to be a
      * byte-identical copy of another file would vanish from the seed set for a reason that has nothing
      * to do with seeds.

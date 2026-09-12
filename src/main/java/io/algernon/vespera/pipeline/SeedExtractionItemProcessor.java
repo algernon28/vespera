@@ -24,8 +24,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Not stage 2's own processor pointed at a second walk. That one is bound to the corpus walk and
  * exists to write corpus verdicts — {@code extraction-failed}, {@code degenerate-output} — and every
- * one of those removes a document from publication. A seed is never published, so this pass writes no
- * verdict at all, whatever a conversion does.
+ * one of those removes a document from the survivor set. A seed is not a candidate, so this pass
+ * writes no verdict at all, whatever a conversion does.
  *
  * <p><b>Nothing here needs a run.</b> The extraction cache is content-addressed and carries
  * no {@code run_id}, which is what lets the whole seed folder be extracted <em>before</em> anything
