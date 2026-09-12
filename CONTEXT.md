@@ -170,6 +170,10 @@ _Avoid_: cluster name (a cluster has two, and the word chosen says which), headi
 What stage 6b calls a cluster in the deliverable: written by the model that read the whole cluster, as the head of the synthesis doc it belongs to. A cluster whose synthesis doc could not be generated shows its label instead.
 _Avoid_: cluster name, cluster label (the label is derived and 6a's; this is generated and 6b's)
 
+**Citation**:
+How a synthesis doc points at a document it was written from: an ordinal into the documents that call sent, rendered in the deliverable as a link to that document's entry in the cluster file's membership list. Minted by Vespera for one call rather than written by the model, so a fabricated one is out of range rather than merely wrong. What it points at is never an occurrence id: the reader follows it without a database.
+_Avoid_: reference, source, footnote
+
 **Publication-ready artifact**:
 The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries no copy of the surviving originals: those stay in the archive and are referenced from it. Nothing in this project renders it: publication is the state it is handed over in, never something this system does.
 _Avoid_: the wiki, the Confluence output, the export
