@@ -387,6 +387,10 @@ public final class Adr {
     public static final String THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS = FILE
             + "0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md";
 
+    /** ADR-110 — pipeline hands synthesis its inputs, so the module rule gains no second exception. */
+    public static final String PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS = FILE
+            + "0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md";
+
     /** ADR-104 — the surviving originals stay where they are and the deliverable references them. */
     public static final String THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED =
             FILE + "0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md";

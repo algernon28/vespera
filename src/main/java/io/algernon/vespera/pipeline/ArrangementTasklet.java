@@ -12,8 +12,8 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.Arrangement;
-import io.algernon.vespera.synthesis.Cluster;
 import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.ClusteredDocument;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.Partition;
 import java.io.IOException;
@@ -51,11 +51,12 @@ import org.springframework.stereotype.Component;
  * decision rather than being closed as a side effect of the one stage in the cascade that removes
  * nothing.
  *
- * <p><b>The arrangement is total, and this asserts it.</b> Every survivor has a score, a winning seed
- * and a cluster ordinal, so a cluster whose members carry no score is a broken invariant rather than a
- * case to accommodate — it stops, in the same way and for the same reason {@code scoreAndRecord}
- * refuses to score an unvectored survivor. A defensive miscellaneous bucket would turn that into a
- * silently rendered section of the deliverable.
+ * <p><b>The arrangement is total, and nothing here papers over a gap in it.</b> Every survivor has a
+ * score, a winning seed and a cluster ordinal, so a cluster whose members carry no score is a broken
+ * invariant rather than a case to accommodate — the rows go to {@code synthesis} exactly as they were
+ * read, and it stops, in the same way and for the same reason {@code scoreAndRecord} refuses to score
+ * an unvectored survivor. A defensive miscellaneous bucket here would turn that into a silently
+ * rendered section of the deliverable.
  *
  * <p>Gated exactly as the clustering step before it is, and for the same reasons: with no model
  * named, no seed folder or no usable seed, no score exists, so there is nothing to arrange.
@@ -147,7 +148,7 @@ class ArrangementTasklet implements Tasklet {
 
         Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
                 scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
-        List<Partition> partitions = partitionsOf(membership, scores);
+        List<Partition> partitions = Arrangement.partitionsOf(clusteredDocuments(membership, scores));
 
         RunId arrangement = arrangementRun.getObject().runId();
         List<ArrangedCluster> arranged = Arrangement.order(partitions);
@@ -201,31 +202,24 @@ class ArrangementTasklet implements Tasklet {
         }
     }
 
-    /** Stage 5's membership rows, gathered into the two levels the arrangement orders. */
-    private List<Partition> partitionsOf(List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
-        Map<OccurrenceId, Map<Integer, List<Double>>> bySeedThenOrdinal = new LinkedHashMap<>();
-        for (DocumentCluster member : membership) {
-            Double score = scores.get(member.occurrenceId());
-            if (score == null) {
-                // Every survivor carries a score by the time it carries a cluster. One that does not is a
-                // broken invariant, and a miscellaneous bucket would render it as a section of the
-                // deliverable rather than as something someone reads about.
-                throw new IllegalStateException("occurrence " + member.occurrenceId().value()
-                        + " was grouped but carries no relevance score, so the arrangement is not total");
-            }
-            bySeedThenOrdinal
-                    .computeIfAbsent(member.winningSeedOccurrenceId(), seed -> new LinkedHashMap<>())
-                    .computeIfAbsent(member.clusterOrdinal(), ordinal -> new ArrayList<>())
-                    .add(score);
-        }
-        List<Partition> partitions = new ArrayList<>();
-        bySeedThenOrdinal.forEach((seed, byOrdinal) -> {
-            List<Cluster> members = byOrdinal.entrySet().stream()
-                    .map(entry -> new Cluster(entry.getKey(), entry.getValue()))
-                    .toList();
-            partitions.add(new Partition(seed, pathOf(seed), members));
-        });
-        return partitions;
+    /**
+     * Stage 5's membership rows as plain values {@code synthesis} can gather into the two levels it
+     * orders (ADR-110) — the score joined on here, because only this module may read it.
+     *
+     * <p>A survivor that carries no score is passed through as such rather than dropped: whether that
+     * is something the arrangement can survive is {@code synthesis}'s rule, and it refuses.
+     */
+    private List<ClusteredDocument> clusteredDocuments(
+            List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
+        Map<OccurrenceId, String> seedPaths = new LinkedHashMap<>();
+        return membership.stream()
+                .map(member -> new ClusteredDocument(
+                        member.occurrenceId(),
+                        member.winningSeedOccurrenceId(),
+                        seedPaths.computeIfAbsent(member.winningSeedOccurrenceId(), this::pathOf),
+                        member.clusterOrdinal(),
+                        scores.get(member.occurrenceId())))
+                .toList();
     }
 
     /**
