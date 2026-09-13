@@ -159,7 +159,7 @@ A generated document that makes a set of survivors coherent by connecting them. 
 _Avoid_: summary, digest, abstract
 
 **Arrangement**:
-The shape stage 6a gives the survivors: seed partitions at the top, clusters beneath them. An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there.
+The shape stage 6a gives the survivors: seed partitions at the top, clusters beneath them. An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there. Ordered in both senses: the two levels are a structure, and each level is also a sequence, chosen rather than inherited from the filesystem. The sequence is part of what the operator approves at the gate, so nothing downstream re-sorts it.
 _Avoid_: page tree, hierarchy, taxonomy (a seed set names one; the arrangement is what that naming produces)
 
 **Cluster label**:
