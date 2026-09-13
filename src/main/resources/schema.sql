@@ -514,3 +514,45 @@ CREATE TABLE IF NOT EXISTS relevance_label (
     embedder_identity TEXT NOT NULL,
     PRIMARY KEY (path, seed_set)
 );
+
+-- synthesis's own table (ADR-105, ADR-110, ADR-112, #175): one row per cluster, which is the level
+-- stage 5 left unbuilt. document_cluster above says which documents share a cluster; it says so
+-- without the cluster having a row anywhere, which is what keeps membership from falling out of step
+-- with itself. Stage 6a adds the thing that was missing -- a cluster as something addressable, with
+-- a name and a place in an order -- and leaves membership entirely alone.
+--
+-- Keyed by document_cluster's own vocabulary, so the join needs no translation, with run_id being
+-- the 6a run. No surrogate id: stage 6a added a level to the arrangement, not a second naming
+-- scheme. No column names the stage-5 run this arranges, because run_upstream already holds that.
+--
+-- No verdict is ever written because of a row here (ADR-105). Stage 6a removes nothing, so no
+-- blocking kind applies; and it does not write a passing one either, which is a gap between ADR-049
+-- and this code that is real, deliberate, and not closed as a side effect of the one stage in the
+-- cascade that judges nothing.
+--
+-- label is the cluster label (ADR-106): the Docling title of the cluster's highest-scoring document,
+-- falling back to that document's filename stem and then to the ordinal alone. Derived rather than
+-- written, so it exists before anything is generated and points at a document a reviewer can open
+-- and disagree with. It is NOT unique and a collision is not papered over with a suffix -- identity
+-- is the ordinal, and two clusters led by identically-titled documents is a fact about the corpus
+-- the gate should see. The generated title lives in 6b's own table, never here.
+--
+-- document_count, partition_order and cluster_order are stored rather than derived at render time,
+-- and all three for one reason (ADR-112): the operator approves a SPECIFIC arrangement, named by the
+-- first twelve characters of this run's id, and everything downstream renders what was approved
+-- rather than re-deriving it. A number computed again at render time is a second place for the
+-- arrangement to be stated, and two statements of one arrangement is how the gate ends up approving
+-- something nobody ever sees.
+--
+-- The two order columns are deliberately distinct from cluster_ordinal. Identity never moves; order
+-- is a judgement 6a makes. Conflating them would mean a re-ordering rewrote primary keys.
+CREATE TABLE IF NOT EXISTS cluster (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    cluster_ordinal INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    document_count INTEGER NOT NULL,
+    partition_order INTEGER NOT NULL,
+    cluster_order INTEGER NOT NULL,
+    PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
+);

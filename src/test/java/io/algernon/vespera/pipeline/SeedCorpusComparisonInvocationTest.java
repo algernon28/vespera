@@ -34,6 +34,7 @@ import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
 import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.Shingler;
+import io.algernon.vespera.synthesis.Clusters;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -119,6 +120,11 @@ import org.springframework.transaction.annotation.Transactional;
     RelevanceFloor.class,
     ClusteringJobConfiguration.class,
     ClusteringTasklet.class,
+    ArrangementJobConfiguration.class,
+    ArrangementTasklet.class,
+    ArrangementRun.class,
+    ArrangementGate.class,
+    Clusters.class,
     ClusteringBeans.class,
     DocumentClusters.class,
     RelevanceReportJobConfiguration.class,
@@ -182,6 +188,7 @@ class SeedCorpusComparisonInvocationTest {
             "degenerateOutputConfidenceFloor",
             "boilerplateDocumentFrequencyFloor",
             "embeddingModel",
+            "arrangementApproved",
             "relevanceScoreFloor");
 
     /**

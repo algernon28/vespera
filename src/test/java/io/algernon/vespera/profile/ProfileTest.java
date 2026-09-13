@@ -123,4 +123,37 @@ class ProfileTest {
                         + " person writes one, because nothing may guess a threshold",
                 () -> assertThat(pointed.relevanceScoreFloor().isSet()).isFalse());
     }
+
+    @Test
+    @Story("The arrangement approval ships unset")
+    @DisplayName("A fresh skeleton carries the arrangement-approved key, unset")
+    @Issue("175")
+    @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
+    void skeletonCarriesTheArrangementApprovedKeyUnset() {
+        Profile skeleton = Profile.skeleton();
+
+        claim(
+                "the approval is present as a question rather than missing, and unanswered rather than"
+                        + " assumed -- nothing may be written over an arrangement nobody has looked at, and"
+                        + " an approval that defaulted to yes would be exactly that",
+                () -> assertThat(skeleton.arrangementApproved().isSet()).isFalse());
+    }
+
+    @Test
+    @Story("A key the file predates is added unset")
+    @DisplayName("The five-key constructor every call site before this key used still defaults it unset")
+    @Issue("175")
+    void theFiveKeyConstructorDefaultsTheSixthKeyUnset() {
+        Profile profile = new Profile(
+                ProfileValue.unset(),
+                ProfileValue.unset(),
+                ProfileValue.unset(),
+                ProfileValue.unset(),
+                ProfileValue.unset());
+
+        claim(
+                "a call site that predates the approval still gets a profile whose approval reads exactly"
+                        + " like any other key nobody has answered",
+                () -> assertThat(profile.arrangementApproved()).isEqualTo(ProfileValue.unset()));
+    }
 }

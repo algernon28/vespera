@@ -46,7 +46,8 @@ public class CensusJobConfiguration {
             Step relevanceScoringStep,
             Step relevanceFloorStep,
             Step clusteringStep,
-            Step relevanceReportStep) {
+            Step relevanceReportStep,
+            Step arrangementStep) {
         return new JobBuilder(JOB_NAME, jobRepository)
                 .start(censusStep)
                 .next(byteLevelReductionStep)
@@ -61,6 +62,7 @@ public class CensusJobConfiguration {
                 .next(relevanceFloorStep)
                 .next(clusteringStep)
                 .next(relevanceReportStep)
+                .next(arrangementStep)
                 .build();
     }
 

@@ -2,6 +2,7 @@ package io.algernon.vespera.embedding;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +61,27 @@ public class RelevanceScoring {
      * written by the step that composes this one, so the module that holds the scores never also
      * holds the power to remove a document by them (ADR-041, ADR-060).
      */
+    /**
+     * The relevance score each of {@code occurrences} carries under {@code runId}, for a caller that
+     * needs the numbers themselves rather than a cut through them.
+     *
+     * <p>Handed out rather than read where it is used, because the terminal stages may not name this
+     * module (ADR-110): the score decides which document leads a cluster (ADR-106), how clusters
+     * within a partition compare (ADR-112) and the order exemplars are sent in (ADR-108), and all
+     * three happen where the passes are assembled.
+     *
+     * <p>An occurrence with no score row is absent from the result rather than present with a zero. A
+     * zero would be a score, and "not measured" is not one — the same distinction ADR-070 draws for a
+     * null metric.
+     */
+    public Map<OccurrenceId, Double> scoresFor(RunId runId, Collection<OccurrenceId> occurrences) {
+        Map<OccurrenceId, Double> scores = new LinkedHashMap<>();
+        for (OccurrenceId occurrence : occurrences) {
+            scoreCache.forOccurrence(occurrence, runId).ifPresent(score -> scores.put(occurrence, score.score()));
+        }
+        return scores;
+    }
+
     public List<OccurrenceId> scoredBelow(RunId runId, double floor) {
         return scoreCache.scoredBelow(runId, floor);
     }

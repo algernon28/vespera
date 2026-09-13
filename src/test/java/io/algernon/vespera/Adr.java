@@ -387,6 +387,28 @@ public final class Adr {
     public static final String THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS = FILE
             + "0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md";
 
+    /** ADR-106 — a cluster gets a derived label from 6a and a generated title from 6b. */
+    public static final String A_CLUSTER_GETS_A_DERIVED_LABEL_AND_A_GENERATED_TITLE =
+            FILE + "0106-a-cluster-gets-a-derived-label-from-6a-and-a-generated-title-from-6b.md";
+
+    /**
+     * ADR-112 — the arrangement is ordered by partition size and cluster mean score, and the path
+     * carries the order.
+     */
+    public static final String THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE = FILE
+            + "0112-the-arrangement-is-ordered-by-partition-size-and-cluster-mean-score-and-the-path-carries-the-order.md";
+
+    /** ADR-105 — stage 6a names the arrangement stage 5 already built, and {@code unattributed} is struck. */
+    public static final String STAGE_6A_NAMES_THE_ARRANGEMENT_STAGE_5_BUILT = FILE
+            + "0105-stage-6a-names-the-arrangement-stage-5-already-built-and-unattributed-is-struck.md";
+
+    /**
+     * ADR-107 — the arrangement gate approves a named 6a run, and the operator's path becomes five
+     * invocations.
+     */
+    public static final String THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN = FILE
+            + "0107-the-arrangement-gate-approves-a-named-6a-run-and-the-path-becomes-five-invocations.md";
+
     private Adr() {
     }
 }
