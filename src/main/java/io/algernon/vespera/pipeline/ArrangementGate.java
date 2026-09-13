@@ -33,6 +33,15 @@ class ArrangementGate {
      */
     static final int APPROVAL_LENGTH = 12;
 
+    /**
+     * How an arrangement is named wherever a person has to read or type it — on the page, in the
+     * closing line, and in {@code profile.yaml}. One method, so the three cannot drift into naming one
+     * arrangement three ways.
+     */
+    static String shortNameOf(RunId arrangement) {
+        return arrangement.value().substring(0, APPROVAL_LENGTH);
+    }
+
     private final ProfileStore profileStore;
     private final Ledger ledger;
 

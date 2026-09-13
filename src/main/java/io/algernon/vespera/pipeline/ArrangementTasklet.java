@@ -155,7 +155,7 @@ class ArrangementTasklet implements Tasklet {
             clusters.record(arrangement, cluster, labelFor(cluster, membership, scores));
         }
         write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
-                arrangement.value().substring(0, ArrangementGate.APPROVAL_LENGTH),
+                ArrangementGate.shortNameOf(arrangement),
                 Walk.canonicalRoot(root).toString(),
                 reportOf(arranged, membership, scores)));
         LOG.info(

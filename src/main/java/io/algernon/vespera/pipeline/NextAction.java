@@ -82,20 +82,21 @@ class NextAction {
     }
 
     /**
-     * The short name of the newest arrangement of {@code corpusRoot}, or empty where nothing has been
-     * arranged.
+     * The short name of the arrangement this invocation wrote for {@code corpusRoot}, or empty where
+     * nothing has been arranged.
      *
      * <p>Read off the ledger at the end rather than handed down from the step, for the reason the rest
      * of this class is: a line assembled from what each step happened to see is a line that can
      * disagree with what was actually written.
+     *
+     * <p>The run written last, never the greatest — a run id is a hash of what the run consumed, so
+     * sorting by it would hand the operator whichever arrangement happened to hash highest. The value
+     * on this line has to be the one on the page they were just told to read (ADR-107).
      */
     private Optional<String> arrangementToApprove(Path corpusRoot) {
         return ledger.finishedWalkFor(Walk.canonicalRoot(corpusRoot))
-                .map(walk -> ledger.runsMatching(ArrangementRun.STAGE, walk, ""))
-                .orElse(List.of())
-                .stream()
-                .reduce((first, second) -> second)
-                .map(run -> run.value().substring(0, ArrangementGate.APPROVAL_LENGTH));
+                .flatMap(walk -> ledger.latestRunFor(ArrangementRun.STAGE, walk))
+                .map(ArrangementGate::shortNameOf);
     }
 
     /**

@@ -202,6 +202,9 @@ class ClosingLineInvocationTest {
     @Autowired
     private ProfileStore profileStore;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
 
@@ -319,6 +322,61 @@ class ClosingLineInvocationTest {
     }
 
     /** A corpus and a seed folder, neither of them named in the profile yet. */
+    @Test
+    @Story("An invocation ends by naming the next value, once, after everything else it has to say")
+    @DisplayName("Once the threshold is answered, the line hands over the arrangement that was just written")
+    @Issue("175")
+    @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
+    void namesTheArrangementThisInvocationWrote(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerEveryQuestion();
+        cli.run("label");
+        theThresholdAnswered();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the line names the value the operator has to supply next, which is the approval of what"
+                        + " they have just been shown -- with the threshold answered there is nothing"
+                        + " earlier on the path left to ask for",
+                () -> assertThat(output.getAll()).contains("arrangementApproved"));
+        claim(
+                "and the name it hands over is the name of the arrangement this invocation actually"
+                        + " wrote, read back from the ledger rather than chosen from among the"
+                        + " arrangements by their names -- a name is a hash of what a run consumed and"
+                        + " says nothing about when it happened, so picking by name would hand the"
+                        + " operator a different arrangement from the one on the page",
+                () -> assertThat(output.getAll()).contains(theArrangementJustWritten()));
+        claim(
+                "and it is the same name the page carries, because the value copied and the arrangement"
+                        + " read have to be one arrangement",
+                () -> assertThat(Files.readString(workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_FILE_NAME)))
+                        .contains(theArrangementJustWritten()));
+    }
+
+    /** The short name of the arrangement written last, which is the one the invocation just wrote. */
+    private String theArrangementJustWritten() {
+        return jdbcTemplate
+                .queryForObject(
+                        "SELECT id FROM run WHERE stage = ? ORDER BY rowid DESC LIMIT 1",
+                        String.class,
+                        ArrangementRun.STAGE)
+                .substring(0, ArrangementGate.APPROVAL_LENGTH);
+    }
+
+    /** The threshold answered, so the path has nothing earlier left to ask for. */
+    private void theThresholdAnswered() {
+        Profile profile = profileStore.load();
+        profileStore.save(new Profile(
+                profile.seedFolder(),
+                profile.degenerateOutputConfidenceFloor(),
+                profile.boilerplateDocumentFrequencyFloor(),
+                profile.embeddingModel(),
+                new ProfileValue("0.0", "set by this test, so nothing earlier is asked for", null),
+                profile.arrangementApproved()));
+    }
+
     private void aCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus-0.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");

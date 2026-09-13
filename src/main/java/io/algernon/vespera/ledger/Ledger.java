@@ -275,6 +275,29 @@ public class Ledger {
     }
 
     /**
+     * The run of {@code stage} against {@code walkId} that was written last, or empty where the stage
+     * has never run against this walk.
+     *
+     * <p><b>Written last, not greatest.</b> A run id is the SHA-256 of what the run consumed
+     * (ADR-048), so it carries no order at all: ordering by it would answer with whichever hash
+     * happened to sort highest, which is a different run from the most recent one about as often as
+     * not. Insert order is the only record of sequence this table keeps, and it is the one a caller
+     * asking "which arrangement did this invocation just write" actually means.
+     *
+     * <p>Scoped to one walk, so two corpora in one database stay two histories.
+     */
+    public Optional<RunId> latestRunFor(String stage, WalkId walkId) {
+        return jdbcTemplate
+                .query(
+                        "SELECT id FROM run WHERE stage = ? AND walk_id = ? ORDER BY rowid DESC LIMIT 1",
+                        (resultSet, rowNumber) -> new RunId(resultSet.getString("id")),
+                        stage,
+                        walkId.value())
+                .stream()
+                .findFirst();
+    }
+
+    /**
      * Every run of {@code stage} against {@code walkId} whose id opens with {@code idPrefix}, in id
      * order.
      *
