@@ -101,4 +101,4 @@ Java 26 and a Docker daemon. Vespera runs its document converter and its embeddi
 
 Generating the connecting text over the survivors — stage 6b — is recorded decisions with no code behind it yet. Everything above works up to and including the arrangement: the survivors are grouped, each group is named after its own leading document, the groups are put in order, and `arrangement.html` asks you to approve them. What that approval gates has not been built, so invocation 5 records your answer and produces nothing from it.
 
-The run ends at the documents stage 6b will generate, and what you do with them is yours: nothing here renders or uploads them anywhere (ADR-101).
+The run ends at the documents stage 6b will generate. Those documents are real files — a directory of Markdown in your working directory, one file per group, with a listing of every document that went into it — and they are where Vespera stops. It does not turn them into a wiki, a site or a page anywhere, and it does not upload or send them (ADR-101). What you do with them is yours.

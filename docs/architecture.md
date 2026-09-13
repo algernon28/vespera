@@ -30,7 +30,7 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 
 Ordering principle: the cheapest filter runs first, so every occurrence removed early is extraction or embedding never paid for (ADR-017).
 
-**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. The chain ends at 6b: what it produces is the deliverable, and nothing in this project renders or uploads it anywhere (ADR-101).
+**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. The chain ends at 6b: what it produces is the deliverable — a Markdown tree in the working directory, one tree per run id (ADR-103) — and nothing in this project carries it to a destination of any kind (ADR-101).
 
 ```mermaid
 flowchart TD
@@ -81,7 +81,7 @@ flowchart TD
 - **The seed set does triple duty** (ADR-004, ADR-020, ADR-022): it defines relevance, names the top level of the arrangement (one node per seed + `unattributed`), and shapes what sits beneath it. A poorly chosen seed set produces a poorly shaped arrangement, not merely a poorly tuned filter — visible via diagnostics (per-seed admission counts, cluster counts).
 - **Clustering runs within each seed partition**, never corpus-wide (ADR-027, ADR-045) — cheap, embarrassingly parallel, keeps the "60%-owned-by-one-seed" alarm aligned with a genuine compute problem, and bounds Chroma's working set to one partition at a time.
 - **Synthesis, not summarisation** (ADR-021). Stage 5 leaves a heap of survivors; stage 6 makes it organic. 6a names each cluster after its own highest-scoring document and puts the arrangement in an order, judging nothing and removing nothing; 6b generates connective overviews per cluster, gated on a human reading 6a first.
-- **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. Nothing in this project renders, uploads or transmits them: an operator who wants a wiki makes one. What 6b writes and where it lands was settled by ADR-103 — a Markdown tree in the working directory, one tree per run id — and what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space, by ADR-104: they stay in the archive and are referenced from the tree.
+- **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. The documents themselves are written and are the terminus. What no part of this project does is turn them into a published thing — a wiki, a space, a site — or upload or transmit them anywhere: an operator who wants a wiki makes one. What 6b writes and where it lands was settled by ADR-103 — a Markdown tree in the working directory, one tree per run id — and what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space, by ADR-104: they stay in the archive and are referenced from the tree.
 - **Generated content is verified two ways** (ADR-026): mechanical citation checking (every cited occurrence id must exist, survive, and be reachable in the tree) plus human review at the consolidation gate. Model-checking model output was explicitly rejected.
 
 **Identity and the ledger.** Two independent lifetimes: a walk owns occurrence rows because they are filesystem observations, a run owns verdict rows because they are derived under a configuration. Content identity is a discovered relation over occurrences, never a collapse of them.

@@ -183,7 +183,7 @@ A re-run of generation that finishes what an earlier one left behind: the cluste
 _Avoid_: retry, regeneration, repairing a synthesis doc (a synthesis doc is written or it is not; nothing edits one)
 
 **Publication-ready artifact**:
-The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries no copy of the surviving originals: those stay in the archive and are referenced from it. Nothing in this project renders it: publication is the state it is handed over in, never something this system does.
+The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries no copy of the surviving originals: those stay in the archive and are referenced from it. The files are written; nothing in this project carries them to a destination. Publication is the state they are handed over in, never an action this system takes.
 _Avoid_: the wiki, the Confluence output, the export
 
 ### Cached artifacts
