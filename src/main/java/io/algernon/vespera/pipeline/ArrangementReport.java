@@ -17,6 +17,12 @@ import java.util.List;
  * reason — the review is of a derivation, and a reviewer checking generated text would be reviewing
  * the thing the gate exists to authorise.
  *
+ * <p><b>Every document named on it is a link to the document itself</b> (ADR-104) — an absolute
+ * {@code file:} target composed from the recorded corpus root and the occurrence's root-relative
+ * path. Nothing is copied in order to be linked to, and nothing is checked to still be there: a name
+ * a reviewer cannot open is a name they can only take on trust, which is the one thing this page
+ * exists to spare them.
+ *
  * <p>The order shown is the stored order, never re-sorted here. If this page and the deliverable
  * sorted independently, the arrangement approved and the arrangement received would be two
  * arrangements sharing one name (ADR-112).
@@ -30,9 +36,10 @@ final class ArrangementReport {
      *
      * @param label what the group is called, derived from its own highest-scoring document
      * @param documentCount how many documents it holds
-     * @param leadDocument the document the name was taken from, so a reviewer can open it and disagree
+     * @param leadDocument the document the name was taken from, named as a reader would recognise it
+     * @param leadDocumentLink where that document actually is, so a reviewer can open it and disagree
      */
-    record Group(String label, int documentCount, String leadDocument) {}
+    record Group(String label, int documentCount, String leadDocument, String leadDocumentLink) {}
 
     /**
      * One exemplar's documents.
@@ -104,9 +111,11 @@ final class ArrangementReport {
                         .append(escape(group.label()))
                         .append("</td><td class=\"count\">")
                         .append(group.documentCount())
-                        .append("</td><td>")
+                        .append("</td><td><a href=\"")
+                        .append(escape(group.leadDocumentLink()))
+                        .append("\">")
                         .append(escape(group.leadDocument()))
-                        .append("</td></tr>\n");
+                        .append("</a></td></tr>\n");
             }
             page.append("</table>\n");
         }
@@ -117,9 +126,10 @@ final class ArrangementReport {
                         + " one, groups holding several documents come before groups holding one, and"
                         + " within those two tiers the groups closest to the exemplar come first.</p>\n")
                 .append("<p><em>Named after</em> is the document each group's name was taken from — the"
-                        + " one closest to the exemplar. Open a few. If a name does not describe the"
-                        + " group it heads, that is what this page is for, and grouping the documents"
-                        + " again with different settings is cheap compared with what comes next.</p>\n")
+                        + " one closest to the exemplar, and a link straight to where it already sits."
+                        + " Open a few. If a name does not describe the group it heads, that is what"
+                        + " this page is for, and grouping the documents again with different settings"
+                        + " is cheap compared with what comes next.</p>\n")
                 .append("<p>A group holding one document is a real outcome rather than a mistake: it"
                         + " means that document was collected on its own merits and not because it"
                         + " belongs with the others.</p>\n")

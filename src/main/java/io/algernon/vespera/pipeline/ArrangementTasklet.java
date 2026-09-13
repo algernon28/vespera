@@ -183,7 +183,8 @@ class ArrangementTasklet implements Tasklet {
                             ClusterLabel.derivedFrom(titleOf(lead).orElse(null), pathObjectOf(lead), cluster.ordinal())
                                     .value(),
                             cluster.documentCount(),
-                            pathOf(lead)));
+                            pathOf(lead),
+                            linkTo(lead)));
         }
         List<ArrangementReport.Partition> partitions = new ArrayList<>();
         bySeed.forEach((seed, groups) -> partitions.add(new ArrangementReport.Partition(pathOf(seed), groups)));
@@ -261,6 +262,22 @@ class ArrangementTasklet implements Tasklet {
                 .max(Comparator.comparingDouble(occurrence -> scores.getOrDefault(occurrence, 0.0)))
                 .orElseThrow(() -> new IllegalStateException(
                         "cluster " + cluster.ordinal() + " was arranged with no members"));
+    }
+
+    /**
+     * Where a document actually is, as something a reader's browser can open (ADR-104): the recorded
+     * corpus root joined to the occurrence's root-relative path, rendered as an absolute {@code file:}
+     * target.
+     *
+     * <p>Nothing is stat-ed. A link that has gone dead because the archive moved is a fact about the
+     * archive, and a page that quietly dropped such a link would be hiding the document rather than
+     * reporting it.
+     */
+    private String linkTo(OccurrenceId occurrenceId) {
+        return Walk.canonicalRoot(root)
+                .resolve(pathObjectOf(occurrenceId).value())
+                .toUri()
+                .toString();
     }
 
     private String pathOf(OccurrenceId occurrenceId) {

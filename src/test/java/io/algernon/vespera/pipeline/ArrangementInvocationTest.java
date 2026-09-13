@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.DetectedFormats;
+import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.ClusteringBeans;
@@ -160,6 +161,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Issue("175")
 @Link(name = "ADR-105", url = Adr.STAGE_6A_NAMES_THE_ARRANGEMENT_STAGE_5_BUILT, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
+@Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
 class ArrangementInvocationTest {
 
     /** A floor of 1.0 opens stage 4's gate the same way {@link ClusteringInvocationTest} does. */
@@ -317,6 +319,29 @@ class ArrangementInvocationTest {
                 "and every group on it arrives with the documents it holds, because a name with no size"
                         + " beside it gives a reviewer nothing to weigh",
                 () -> assertThat(Files.readString(page)).contains(String.valueOf(CORPUS_DOCUMENTS)));
+    }
+
+    @Test
+    @Story("The person who has to approve it is shown what they are approving")
+    @DisplayName("The document a group is named after is a link the reader can open")
+    void linksEachGroupToTheDocumentItWasNamedAfter(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        String page = Files.readString(workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_FILE_NAME));
+        claim(
+                "the document each name was taken from is a link, so a reviewer opens it and disagrees"
+                        + " with the name rather than taking the name on trust -- which is the only thing"
+                        + " this page can be checked against",
+                () -> assertThat(page)
+                        .contains("<a href=\"" + Walk.canonicalRoot(root).resolve("corpus.txt").toUri() + "\""));
+        claim(
+                "and the link points into the archive where the document already is, because nothing here"
+                        + " copies or moves a document to be linked to",
+                () -> assertThat(page).contains(Walk.canonicalRoot(root).toUri().toString()));
     }
 
     @Test

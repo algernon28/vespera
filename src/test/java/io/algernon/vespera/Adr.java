@@ -387,6 +387,10 @@ public final class Adr {
     public static final String THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS = FILE
             + "0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md";
 
+    /** ADR-104 — the surviving originals stay where they are and the deliverable references them. */
+    public static final String THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED =
+            FILE + "0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md";
+
     /** ADR-106 — a cluster gets a derived label from 6a and a generated title from 6b. */
     public static final String A_CLUSTER_GETS_A_DERIVED_LABEL_AND_A_GENERATED_TITLE =
             FILE + "0106-a-cluster-gets-a-derived-label-from-6a-and-a-generated-title-from-6b.md";
