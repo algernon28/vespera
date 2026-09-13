@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-112.
+One file per architecture decision, ADR-001 through ADR-113.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -131,3 +131,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md) | 2026-09-12 | `pipeline` hands `synthesis` its inputs, so the module rule gains no second exception *(amends ADR-108)* |
 | [ADR-111](0111-a-cluster-fault-is-a-row-in-synthesis-and-a-re-run-under-the-same-id-repairs-rather-than-regenerates.md) | 2026-09-12 | A cluster fault is a row in `synthesis`, and a re-run under the same id repairs rather than regenerates *(amends ADR-108, ADR-109, ADR-110)* |
 | [ADR-112](0112-the-arrangement-is-ordered-by-partition-size-and-cluster-mean-score-and-the-path-carries-the-order.md) | 2026-09-13 | The arrangement is ordered by partition size and cluster mean score, and the path carries the order *(amends ADR-104)* |
+| [ADR-113](0113-no-corpus-wide-synthesis-doc-sits-above-the-seed-partitions.md) | 2026-09-13 | No corpus-wide synthesis doc sits above the seed partitions; the deliverable's top level stays mechanical |
