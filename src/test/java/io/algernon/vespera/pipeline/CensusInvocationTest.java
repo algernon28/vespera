@@ -116,6 +116,7 @@ import picocli.CommandLine;
     ClusteringTasklet.class,
     ArrangementJobConfiguration.class,
     ArrangementTasklet.class,
+    io.algernon.vespera.extraction.DocumentTitles.class,
     ArrangementRun.class,
     ArrangementGate.class,
     Clusters.class,

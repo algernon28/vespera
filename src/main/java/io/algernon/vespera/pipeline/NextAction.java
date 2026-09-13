@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceLabels;
+import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
@@ -9,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -36,14 +38,17 @@ class NextAction {
 
     private final ProfileStore profileStore;
     private final RelevanceLabels relevanceLabels;
+    private final Ledger ledger;
     private final Path workingDirectory;
 
     NextAction(
             ProfileStore profileStore,
             RelevanceLabels relevanceLabels,
+            Ledger ledger,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
         this.profileStore = profileStore;
         this.relevanceLabels = relevanceLabels;
+        this.ledger = ledger;
         this.workingDirectory = workingDirectory;
     }
 
@@ -57,7 +62,40 @@ class NextAction {
      */
     String line() {
         Profile profile = profileStore.load();
-        return line(profile, answersRecordedAgainst(profile), questionsWritten());
+        return line(profile, answersRecordedAgainst(profile), questionsWritten(), Optional.empty());
+    }
+
+    /**
+     * The closing line for an invocation against {@code corpusRoot}, which is the one that can hand
+     * over an arrangement to approve.
+     *
+     * <p>{@code vespera label} has no root and uses {@link #line()}: it ingests answers and arranges
+     * nothing, so there is never an arrangement of its making to name.
+     */
+    String line(Path corpusRoot) {
+        Profile profile = profileStore.load();
+        return line(
+                profile,
+                answersRecordedAgainst(profile),
+                questionsWritten(),
+                arrangementToApprove(corpusRoot));
+    }
+
+    /**
+     * The short name of the newest arrangement of {@code corpusRoot}, or empty where nothing has been
+     * arranged.
+     *
+     * <p>Read off the ledger at the end rather than handed down from the step, for the reason the rest
+     * of this class is: a line assembled from what each step happened to see is a line that can
+     * disagree with what was actually written.
+     */
+    private Optional<String> arrangementToApprove(Path corpusRoot) {
+        return ledger.finishedWalkFor(Walk.canonicalRoot(corpusRoot))
+                .map(walk -> ledger.runsMatching(ArrangementRun.STAGE, walk, ""))
+                .orElse(List.of())
+                .stream()
+                .reduce((first, second) -> second)
+                .map(run -> run.value().substring(0, ArrangementGate.APPROVAL_LENGTH));
     }
 
     /**
@@ -106,8 +144,16 @@ class NextAction {
      *
      * @param profile the profile as it stands after the invocation
      * @param answersRecorded how many relevance labels are recorded against the seed set
+     * @param arrangementToApprove the short name of the arrangement this invocation wrote, or empty
+     *     where none was. It is a parameter rather than a profile key because an approval can only be
+     *     asked for once the thing it is about exists: naming it any earlier would ask the operator
+     *     for a value they have no way to supply (ADR-107).
      */
-    static String line(Profile profile, int answersRecorded, boolean questionsWritten) {
+    static String line(
+            Profile profile,
+            int answersRecorded,
+            boolean questionsWritten,
+            Optional<String> arrangementToApprove) {
         List<String> unsetRunValues = unsetRunValues(profile);
         if (!unsetRunValues.isEmpty()) {
             return whatIsSet(profile, answersRecorded) + " Next: write "
@@ -120,9 +166,20 @@ class NextAction {
                     + " a score on the scale " + RelevanceLabellingReport.FILE_NAME + " reports into"
                     + " relevanceScoreFloor in " + PROFILE + ", and run again.";
         }
+        if (profile.relevanceScoreFloor().isSet() && !profile.arrangementApproved().isSet()) {
+            return arrangementToApprove
+                    .map(name -> "Every value the profile asks for is answered, and the documents are"
+                            + " arranged. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
+                            + ", and if that arrangement is the one you want, write " + quoted(name)
+                            + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
+                            + " provenance beside it -- and run again.")
+                    .orElse("Every value the profile asks for is answered, including relevanceScoreFloor."
+                            + " Nothing was arranged this invocation, so there is nothing to approve yet."
+                            + " Next: fix what the gated line above names, and run again.");
+        }
         if (profile.relevanceScoreFloor().isSet()) {
-            return "Every value the profile asks for is answered, including relevanceScoreFloor."
-                    + " Nothing is left to set.";
+            return "Every value the profile asks for is answered, including the arrangement you"
+                    + " approved. Nothing is left to set.";
         }
         if (!questionsWritten) {
             return whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"

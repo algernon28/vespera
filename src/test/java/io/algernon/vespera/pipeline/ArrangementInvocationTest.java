@@ -113,6 +113,7 @@ import org.springframework.transaction.annotation.Transactional;
     RelevanceReportTasklet.class,
     ArrangementJobConfiguration.class,
     ArrangementTasklet.class,
+    io.algernon.vespera.extraction.DocumentTitles.class,
     ArrangementRun.class,
     ArrangementGate.class,
     Clusters.class,
@@ -229,6 +230,27 @@ class ArrangementInvocationTest {
     }
 
     @Test
+    @Story("Every group of documents is given a name and a place")
+    @DisplayName("A group is named after its leading document's own title, not its filename")
+    void namesAGroupAfterItsLeadingDocumentsTitle(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the group is named after what its leading document calls itself, which is a name a"
+                        + " reviewer can check by opening that document -- the filename is the fallback for"
+                        + " documents that have no title of their own, not the first choice",
+                () -> assertThat(clusters.forRun(theArrangementRun()))
+                        .singleElement()
+                        .satisfies(recorded ->
+                                assertThat(recorded.label().value())
+                                        .isEqualTo(SeedScriptedExtractionBeans.STUBBED_TITLE)));
+    }
+
+    @Test
     @Story("Arranging documents takes nothing out of the archive")
     @DisplayName("Arranging the documents records no judgement against any of them")
     void writesNoVerdict(@TempDir Path root, @TempDir Path seeds) throws IOException {
@@ -262,6 +284,59 @@ class ArrangementInvocationTest {
                         + " not one row of it is written again: two places holding one truth is two places"
                         + " for it to drift apart",
                 () -> assertThat(membershipRowsUnder(theArrangementRun())).isZero());
+    }
+
+    @Test
+    @Story("The person who has to approve it is shown what they are approving")
+    @DisplayName("The page a person reads is written beside the database, naming every group")
+    void writesTheArrangementPage(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        for (int i = 0; i < CORPUS_DOCUMENTS; i++) {
+            Files.writeString(root.resolve("corpus-" + i + ".txt"), "a corpus document " + i);
+        }
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        Path page = workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_FILE_NAME);
+        claim(
+                "the page was written to the working directory rather than into the archive, beside the"
+                        + " database and the other pages the operator was already told to look at",
+                () -> assertThat(Files.exists(page)).isTrue());
+        claim(
+                "it names the exemplar whose documents were arranged, so what is on the page belongs to"
+                        + " something a reader can find",
+                () -> assertThat(Files.readString(page)).contains("seed.txt"));
+        claim(
+                "and it carries the short name of this arrangement, which is the value the operator"
+                        + " copies: what they approve has to be the arrangement they read, and a page that"
+                        + " did not say which one it was could only be approved in general",
+                () -> assertThat(Files.readString(page))
+                        .contains(theArrangementRun().value().substring(0, ArrangementGate.APPROVAL_LENGTH)));
+        claim(
+                "and every group on it arrives with the documents it holds, because a name with no size"
+                        + " beside it gives a reviewer nothing to weigh",
+                () -> assertThat(Files.readString(page)).contains(String.valueOf(CORPUS_DOCUMENTS)));
+    }
+
+    @Test
+    @Story("The person who has to approve it is shown what they are approving")
+    @DisplayName("Nothing on that page was written by a model")
+    void writesNoGeneratedTextOntoThatPage(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "no group on the page carries a written-up name or any prose: what is being approved is a"
+                        + " derivation, and a reviewer checking written-up text would be reviewing the very"
+                        + " thing this page exists to authorise",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'synthesis_doc'",
+                                Integer.class))
+                        .isZero());
     }
 
     /** The arrangement run this invocation minted — the one this test's claims are about. */

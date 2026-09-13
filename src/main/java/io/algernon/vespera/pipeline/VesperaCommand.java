@@ -170,7 +170,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (execution.getStatus().isUnsuccessful()) {
                 return CommandLine.ExitCode.SOFTWARE;
             }
-            log.info("{}", nextAction.line());
+            log.info("{}", nextAction.line(corpusRoot));
             return CommandLine.ExitCode.OK;
         }
 

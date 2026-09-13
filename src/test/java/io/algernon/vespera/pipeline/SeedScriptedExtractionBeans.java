@@ -29,9 +29,16 @@ class SeedScriptedExtractionBeans {
     /** A seed Docling converts successfully and reports no text for — an intact file, just not a document. */
     static final String EMPTY_SEED = "empty-seed.pdf";
 
+    /**
+     * The title every document this fixture converts carries, so that a caller naming a group after a
+     * document's own title has one to find (ADR-106).
+     */
+    static final String STUBBED_TITLE = "A Stubbed Document";
+
     /** Real text, so nothing else in the fixture trips stage 2's degeneracy floor. */
-    private static final String WITH_TEXT =
-            "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"stubbed but real content\"}]}}}";
+    private static final String WITH_TEXT = "{\"document\":{\"json_content\":{\"texts\":["
+            + "{\"text\":\"" + STUBBED_TITLE + "\",\"label\":\"title\"},"
+            + "{\"text\":\"stubbed but real content\"}]}}}";
 
     /**
      * A successful conversion carrying an empty {@code texts[]}: not a failure, not a timeout, and
@@ -41,8 +48,9 @@ class SeedScriptedExtractionBeans {
     private static final String WITHOUT_TEXT = "{\"document\":{\"json_content\":{\"texts\":[]}}}";
 
     @Bean
-    DoclingExtractor doclingExtractor() {
+    DoclingExtractor doclingExtractor(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         return new PathScriptedExtractor()
+                .cachingInto(jdbcTemplate)
                 .answering(EMPTY_SEED, response(WITHOUT_TEXT))
                 .otherwiseAnswering(response(WITH_TEXT));
     }
