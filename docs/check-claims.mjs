@@ -117,10 +117,15 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
   const NAME = "the module list";
   const listed = claim(/as packages under `io\.algernon\.vespera`: ([^.]+)\./, NAME);
   const total = claim(/\*\*(\w+) capability-shaped modules\*\*/, NAME);
-  const gap = claim(/(\w+) of the \w+ exist as packages today — ([^—]+?) (?:is|are) recorded design and no code/, NAME);
+  // Two forms, because "none is still design only" is a real state and a sentence that
+  // simply dropped the clause would turn this check off -- the defect this file exists
+  // to catch. Each is checked against the opposite mistake below.
+  const gapRe = /(\w+) of the \w+ exist as packages today — ([^—]+?) (?:is|are) recorded design and no code/;
+  const allRe = /All (\w+) exist as packages today\./;
+  const gap = gapRe.test(text) || !allRe.test(text) ? claim(gapRe, NAME) : allRe.exec(text);
   if (listed && total && gap) {
     const named = backticked(listed[1]);
-    const absent = backticked(gap[2]);
+    const absent = gap.length > 2 ? backticked(gap[2]) : [];
     const present = named.filter((n) => !absent.includes(n));
     const onDisk = subdirs(MAIN);
     const wrong = [];
@@ -240,7 +245,7 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
 // sequence where an operator would actually look.
 //
 // Every check below is derived from code, never restated here. The one exception is the
-// invocation count, which nothing in the tree can produce: three gates imply four
+// invocation count, which nothing in the tree can produce: four gates imply five
 // invocations only if you already know a gate implies a stop. So that one is checked for
 // internal consistency instead -- the headline against the table underneath it -- which
 // is exactly the drift #98 shipped, where its prose said five and its own table showed
@@ -261,7 +266,7 @@ function readmeSection(heading, name) {
 {
   const NAME = "the invocation count";
   const m = claim(/takes \*\*(\w+) invocations\*\*/, NAME, readme);
-  const section = readmeSection("## The path is four invocations", NAME);
+  const section = readmeSection("## The path is five invocations", NAME);
   if (m && section) {
     const said = wordNumber(m[1]);
     const rows = [...section.matchAll(/^\| \*\*(\d+)\*\* \|/gm)].map((r) => Number(r[1]));
@@ -345,10 +350,10 @@ function readmeSection(heading, name) {
 const UNCHECKED = [
   'the whole of "The shape of the system" — the ledger model, the two identities, the module rule',
   '"Stages 0 to 4 are built, and stage 5 is part-built", and what stage 5 still owes',
-  "the thirteen job steps and their order, and that a later stage is a step on that same job",
+  "the fourteen job steps and their order, and that a later stage is a step on that same job",
   "the ADR-052 test conventions, and whether the report a run produces actually reads that way",
   "docs/architecture.md, which this never opens — its own status line has rotted the same way",
-  "whether four invocations is still the right number — three gates imply it, and nothing counts gates",
+  "whether five invocations is still the right number — four gates imply it, and nothing counts gates",
   "whether the reports README points at actually inform the value it points them at for",
 ];
 
