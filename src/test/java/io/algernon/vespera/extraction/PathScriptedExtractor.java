@@ -20,6 +20,11 @@ import java.util.Optional;
  * <p>Lives in this package for the same reason {@code ScriptedExtractor} does:
  * {@link DoclingExtractor}'s constructor is package-private, deliberately, so subclassing from inside
  * the package is the one way to script it without widening anything.
+ *
+ * <p><b>It can cache what it answers, and a fixture whose later steps read a conversion back must ask
+ * it to.</b> The real extractor stores every conversion, and a double that answers without storing is
+ * one a later step cannot read from — which makes a step that works against a real corpus fail in a
+ * test for a reason that has nothing to do with the step.
  */
 public final class PathScriptedExtractor extends DoclingExtractor {
 
@@ -27,8 +32,19 @@ public final class PathScriptedExtractor extends DoclingExtractor {
 
     private DoclingResponse defaultAnswer;
 
+    private ExtractionCache cache;
+
     public PathScriptedExtractor() {
         super(null, null);
+    }
+
+    /**
+     * Stores every answer the way the real extractor stores every conversion, so that a later step
+     * reading one back finds it there.
+     */
+    public PathScriptedExtractor cachingInto(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+        this.cache = new ExtractionCache(jdbcTemplate);
+        return this;
     }
 
     /** What Docling returns for the file with this name, whenever it is converted. */
@@ -50,13 +66,20 @@ public final class PathScriptedExtractor extends DoclingExtractor {
             ExtractorIdentity extractorIdentity,
             DetectedFormat format,
             Optional<DetectedSubtype> subtype) {
-        return answerFor(file);
+        return cached(contentHash, extractorIdentity, answerFor(file));
     }
 
     @Override
     public DoclingResponse convert(
             Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, Optional<DetectedSubtype> subtype) {
-        return answerFor(file);
+        return cached(contentHashFor(file), extractorIdentity, answerFor(file));
+    }
+
+    private DoclingResponse cached(String contentHash, ExtractorIdentity extractorIdentity, DoclingResponse response) {
+        if (cache != null && cache.get(contentHash, extractorIdentity).isEmpty()) {
+            cache.put(contentHash, extractorIdentity, response);
+        }
+        return response;
     }
 
     private DoclingResponse answerFor(Path file) {

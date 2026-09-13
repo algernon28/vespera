@@ -33,6 +33,12 @@ import org.junit.jupiter.api.Test;
 @Issue("136")
 class NextActionTest {
 
+    /** The short name of the arrangement this invocation wrote, as the gate page prints it. */
+    private static final java.util.Optional<String> AN_ARRANGEMENT = java.util.Optional.of("9f2c41ab77de");
+
+    /** No arrangement was written this invocation, so there is nothing to approve. */
+    private static final java.util.Optional<String> NOTHING_ARRANGED = java.util.Optional.empty();
+
     /** No answers have been written into the label file yet. */
     private static final int NOTHING_ANSWERED = 0;
 
@@ -49,7 +55,7 @@ class NextActionTest {
     @Story("Step zero is the seed folder, because it is the only key available on day one")
     @DisplayName("With nothing set, the next action is to name the seed folder")
     void withNothingSetTheNextActionIsTheSeedFolder() {
-        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET);
+        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED);
 
         claim(
                 "the line names seedFolder as the value to write, which is the one key no measurement"
@@ -69,7 +75,7 @@ class NextActionTest {
     @Story("The next action names every value the next invocation needs, so no invocation is spent discovering one")
     @DisplayName("With nothing set, the line also names the two values invocation 2 needs")
     void withNothingSetTheLineNamesEveryValueTheNextInvocationNeeds() {
-        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET);
+        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED);
 
         claim(
                 "the boilerplate floor is named, and it is actionable now rather than later: the"
@@ -91,7 +97,7 @@ class NextActionTest {
     @Story("With the run's own values answered, the next act is the operator's own: labelling")
     @DisplayName("With the three run values set and nothing answered, the next action is to label and ingest")
     void withTheRunValuesSetTheNextActionIsToLabel() {
-        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, QUESTIONS_WRITTEN);
+        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED);
 
         claim(
                 "the line says what is set, so an operator who has forgotten what they wrote is not sent"
@@ -111,7 +117,7 @@ class NextActionTest {
     @Story("Answers recorded and no threshold: the number is the operator's to write")
     @DisplayName("With answers recorded, the next action is to write the threshold off the labelling report")
     void withAnswersRecordedTheNextActionIsTheThreshold() {
-        String line = NextAction.line(theRunValuesSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN);
+        String line = NextAction.line(theRunValuesSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED);
 
         claim(
                 "the threshold is named now, because the page it is read off exists now -- which is why"
@@ -132,17 +138,17 @@ class NextActionTest {
 
     @Test
     @Story("The last point on the path still ends with a line, and it says there is nothing to do")
-    @DisplayName("With the threshold set and applied, the line says nothing is left to set")
+    @DisplayName("With everything answered, including the arrangement approved, nothing is left to set")
     void withTheThresholdSetThereIsNothingLeftToSet() {
-        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN);
+        String line = NextAction.line(everythingApproved(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT);
 
         claim(
                 "the line says every value is answered, rather than the invocation ending on silence --"
                         + " an operator cannot tell a finished path from a forgotten line",
                 () -> assertThat(line).contains("Every value"));
         claim(
-                "and it asks for nothing, because nothing is left: the fourth invocation is where the"
-                        + " documents are removed and the path ends",
+                "and it asks for nothing, because nothing is left: the path ends once the arrangement"
+                        + " the documents were written over is one the operator approved",
                 () -> assertThat(line).doesNotContain("Next:"));
         claim(
                 "it says the value is answered and claims nothing about what was done with it: a set key"
@@ -158,7 +164,7 @@ class NextActionTest {
     @Story("An operator who took step zero is not told their answer is missing")
     @DisplayName("With only the seed folder set, the line says so and names the two values still wanted")
     void withOnlyTheSeedFolderSetTheLineCreditsIt() {
-        String line = NextAction.line(onlyTheSeedFolderSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET);
+        String line = NextAction.line(onlyTheSeedFolderSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED);
 
         claim(
                 "the seed folder is reported as set -- this is where the table in ADR-098 puts an"
@@ -186,7 +192,7 @@ class NextActionTest {
     @Story("A threshold nobody can parse is not a threshold, and the line says so")
     @DisplayName("A non-numeric threshold is reported as wanting a number, not as answered")
     void aThresholdThatIsNotANumberIsNotAnAnswer() {
-        String line = NextAction.line(theFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN);
+        String line = NextAction.line(theFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED);
 
         claim(
                 "the line does not call the path finished: the run read this value, failed to parse it"
@@ -206,7 +212,7 @@ class NextActionTest {
     @Story("The operator is never sent to a file the invocation did not write")
     @DisplayName("With no questions written, the line does not send the operator to the label file")
     void withNoQuestionsWrittenTheOperatorIsNotSentToTheLabelFile() {
-        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET);
+        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED);
 
         claim(
                 "no label file is named, because none was written -- a seed folder that produced no"
@@ -224,6 +230,41 @@ class NextActionTest {
     /** A profile census has created and nobody has answered — every key present and unset. */
     private static Profile nothingSet() {
         return new Profile(null, null, null, null, null);
+    }
+
+    @Test
+    @Story("With the threshold answered, the next act is approving what was arranged")
+    @DisplayName("With the threshold set and an arrangement written, the next action is to approve it")
+    @Issue("175")
+    @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
+    void withTheThresholdSetTheNextActionIsToApproveTheArrangement() {
+        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT);
+
+        claim(
+                "the approval is named now, because the arrangement it is about exists now -- which is"
+                        + " exactly why it was not named at the end of any invocation before this one",
+                () -> assertThat(line).contains("arrangementApproved"));
+        claim(
+                "and the line hands over the short name itself, ready to paste: the operator must not"
+                        + " have to go and look up which arrangement they just read about",
+                () -> assertThat(line).contains(AN_ARRANGEMENT.orElseThrow()));
+        claim(
+                "and it names the page that arrangement is described on, so the value is not copied"
+                        + " out of a message into a file without anybody having looked at what it names",
+                () -> assertThat(line).contains(ArrangementTasklet.ARRANGEMENT_FILE_NAME));
+    }
+
+    @Test
+    @Story("With the threshold answered, the next act is approving what was arranged")
+    @DisplayName("With the threshold set and nothing arranged, the approval is not asked for yet")
+    @Issue("175")
+    void withNothingArrangedTheApprovalIsNotAskedForYet() {
+        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED);
+
+        claim(
+                "nothing asks the operator to approve an arrangement that was never written: a value"
+                        + " they cannot supply is not a next action, it is a dead end with instructions",
+                () -> assertThat(line).doesNotContain("arrangementApproved"));
     }
 
     /** Step zero taken and nothing else: the seed folder named before the first invocation. */
@@ -247,6 +288,17 @@ class NextActionTest {
     /** The end of the path: every value the four invocations ask for, answered. */
     private static Profile everythingSet() {
         return new Profile(set("/corpus/exemplars"), null, set("0.4"), set("embeddinggemma"), set("0.62"));
+    }
+
+    /** The true end of the path: every value answered, the arrangement among them. */
+    private static Profile everythingApproved() {
+        return new Profile(
+                set("/corpus/exemplars"),
+                null,
+                set("0.4"),
+                set("embeddinggemma"),
+                set("0.62"),
+                set(AN_ARRANGEMENT.orElseThrow()));
     }
 
     /** An answered key, with the provenance an operator is asked to record beside it. */

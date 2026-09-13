@@ -18,9 +18,9 @@ Put the path in `profile.yaml` in your working directory, under `seedFolder`.
 
 Do this first. Nothing the tool prints can ask you for it, because by the time anything is printed the first invocation has already happened — and discovering at the second invocation that exemplars were needed all along is the worst way to meet this tool.
 
-## The path is four invocations
+## The path is five invocations
 
-Getting from a folder of documents to a curated archive takes **four invocations**. Each one stops where a value is missing that only you can supply. Every stop is deliberate: the tool ends the invocation, keeps everything it learned, and tells you the one thing to do next.
+Getting from a folder of documents to a curated archive takes **five invocations**. Each one stops where a value is missing that only you can supply. Every stop is deliberate: the tool ends the invocation, keeps everything it learned, and tells you the one thing to do next.
 
 | | You set | You run | It does |
 |---|---|---|---|
@@ -28,10 +28,11 @@ Getting from a folder of documents to a curated archive takes **four invocations
 | **2** | `boilerplateDocumentFrequencyFloor`, `embeddingModel` | `vespera run` | deduplicates, reads your seed folder, scores every survivor against it, groups them, and writes you sixty documents to judge. **Removes nothing** |
 | **3** | sixty answers in `relevance-labels.yaml` | `vespera label` | records your answers. They belong to the documents, not to the run, so they survive everything afterwards |
 | **4** | `relevanceScoreFloor` | `vespera run` | applies your threshold. This is the first invocation that removes anything for being irrelevant |
+| **5** | `arrangementApproved` | `vespera run` | records that the arrangement you read is the one you want. Nothing is written from it yet — see **What is not built** |
 
 **You will be told which value is missing, every time.** You do not need this table in front of you and you do not need to know which stage you are at — read the last line of the output and it names what to set next.
 
-**Five is what you get if you set one value per invocation.** All three of invocation 2's prerequisites are settable as soon as invocation 1 finishes, so setting them together is what makes the path four rather than five or six.
+**Six is what you get if you set one value per invocation.** All three of invocation 2's prerequisites are settable as soon as invocation 1 finishes, so setting them together is what makes the path five rather than six or seven.
 
 ## What you have to decide, and where to read it
 
@@ -44,8 +45,9 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `embeddingModel` | whichever model you can serve locally | — |
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
+| `arrangementApproved` | whether the groups the tool formed are worth writing over | `arrangement.html` |
 
-`degenerateOutputConfidenceFloor` is **optional** and is not one of the four stops. Left unset, nothing is removed for extracting badly. It is here so that you know it exists.
+`degenerateOutputConfidenceFloor` is **optional** and is not one of the five stops. Left unset, nothing is removed for extracting badly. It is here so that you know it exists.
 
 Every value you set carries a `provenance` field. Write down how you arrived at the number. Nothing checks that you read the report first — what stands between a guess and your archive is what you record there.
 
@@ -73,6 +75,7 @@ seed-corpus-comparison.html      how far your exemplars resemble the archive
 relevance-labelling.html         the report you read to choose the threshold
 relevance-labels.yaml            the sixty questions you answer
 cluster-sizes.html               how the survivors grouped under each exemplar
+arrangement.html                 the groups, named and in order, for you to approve
 ```
 
 Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration.
@@ -96,6 +99,6 @@ Java 26 and a Docker daemon. Vespera runs its document converter and its embeddi
 
 ## What is not built
 
-Arranging the survivors and generating the connecting text over them — stages 6a and 6b — are recorded decisions with no code behind them yet. Everything above works up to and including the point where irrelevant documents are removed.
+Generating the connecting text over the survivors — stage 6b — is recorded decisions with no code behind it yet. Everything above works up to and including the arrangement: the survivors are grouped, each group is named after its own leading document, the groups are put in order, and `arrangement.html` asks you to approve them. What that approval gates has not been built, so invocation 5 records your answer and produces nothing from it.
 
-The run ends at the documents stage 6b will generate, and what you do with them is yours: nothing here renders or uploads them anywhere (ADR-101).
+The run ends at the documents stage 6b will generate. Those documents are real files — a directory of Markdown in your working directory, one file per group, with a listing of every document that went into it — and they are where Vespera stops. It does not turn them into a wiki, a site or a page anywhere, and it does not upload or send them (ADR-101). What you do with them is yours.

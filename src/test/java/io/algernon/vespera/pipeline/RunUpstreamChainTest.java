@@ -32,6 +32,7 @@ import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
 import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.Shingler;
+import io.algernon.vespera.synthesis.Clusters;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -95,6 +96,12 @@ import org.springframework.transaction.annotation.Transactional;
     RelevanceFloor.class,
     ClusteringJobConfiguration.class,
     ClusteringTasklet.class,
+    ArrangementJobConfiguration.class,
+    ArrangementTasklet.class,
+    io.algernon.vespera.extraction.DocumentTitles.class,
+    ArrangementRun.class,
+    ArrangementGate.class,
+    Clusters.class,
     ClusteringBeans.class,
     DocumentClusters.class,
     RelevanceReportJobConfiguration.class,
@@ -102,6 +109,7 @@ import org.springframework.transaction.annotation.Transactional;
     RelevanceDistribution.class,
     EmbeddingModelGate.class,
     ScoringRun.class,
+    SeedMeasurementRun.class,
     ChunkEmbedderBeans.class,
     RelevanceScoringBeans.class,
     EmbeddingScriptedBeans.class,
@@ -134,7 +142,7 @@ import org.springframework.transaction.annotation.Transactional;
     ConfidenceDistribution.class,
     Shingler.class,
     HybridChunkerBeans.class,
-    StubbedExtractionBeans.class,
+    SeedScriptedExtractionBeans.class,
     ExtractionMetrics.class,
     LanguageDetection.class,
     ContentIdentity.class,
@@ -169,9 +177,19 @@ class RunUpstreamChainTest {
      * The stages that mint a run, in the order {@code vesperaJob} runs them. Census writes no
      * verdicts and mints no run at all, so it is deliberately absent; {@code redundancy-signature}
      * and {@code content-redundancy} are two steps sharing one run (ADR-080), so the run appears once.
+     *
+     * <p>This fixture opens every gate, which is what the last three entries cost. Before the
+     * arrangement existed the chain could stop at redundancy and still be a chain; now the newest run
+     * is the furthest from the root, so a gap anywhere behind it has somewhere to show up.
      */
-    private static final List<String> STAGES_THAT_MINT_A_RUN =
-            List.of("byte-level-reduction", "extraction", "content-census", "content-redundancy");
+    private static final List<String> STAGES_THAT_MINT_A_RUN = List.of(
+            "byte-level-reduction",
+            "extraction",
+            "content-census",
+            "content-redundancy",
+            "seed-measurement",
+            "embedding-scoring",
+            "arrangement");
 
     /**
      * A floor of 1.0: a shingle counts as boilerplate only when it appears in every single document.
@@ -179,6 +197,9 @@ class RunUpstreamChainTest {
      * is about the run rows and not about what stage 4 concludes.
      */
     private static final String BOILERPLATE_FLOOR = "1.0";
+
+    /** The model this fixture names, so gate 3 and the stages behind it open. */
+    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
@@ -200,10 +221,11 @@ class RunUpstreamChainTest {
     @Test
     @Story("Every run names the run before it")
     @DisplayName("One invocation past the boilerplate gate leaves an unbroken chain of runs, one per stage")
-    void mintsOneRunPerStageEachNamingTheOneBefore(@TempDir Path root) throws IOException {
+    void mintsOneRunPerStageEachNamingTheOneBefore(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("a.txt"), "the first document");
         Files.writeString(root.resolve("b.txt"), "the second document");
-        openTheBoilerplateGate();
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        openEveryGate(seeds);
 
         cli.run("run", root.toString());
 
@@ -215,9 +237,9 @@ class RunUpstreamChainTest {
                         + " rather than the wreckage of a failed one",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "every stage that judges documents minted exactly one run -- the byte-level reduction,"
-                        + " extraction, the content census and redundancy -- and redundancy's two steps share"
-                        + " a single run rather than minting one each",
+                "every stage that measures or judges documents minted exactly one run, from the"
+                        + " byte-level reduction through to the arrangement -- and redundancy's two steps"
+                        + " share a single run rather than minting one each",
                 () -> assertThat(stagesInChainOrder).containsExactlyElementsOf(STAGES_THAT_MINT_A_RUN));
         claim(
                 "the first stage names no upstream, because there is nothing before it: it is the root of"
@@ -236,10 +258,12 @@ class RunUpstreamChainTest {
     @Test
     @Story("Every run names the run before it")
     @DisplayName("No run skips a stage, including the one stage that writes no verdicts")
-    void namesTheImmediatelyPrecedingStageAndNeverReachesPastIt(@TempDir Path root) throws IOException {
+    void namesTheImmediatelyPrecedingStageAndNeverReachesPastIt(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
         Files.writeString(root.resolve("a.txt"), "the first document");
         Files.writeString(root.resolve("b.txt"), "the second document");
-        openTheBoilerplateGate();
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        openEveryGate(seeds);
 
         cli.run("run", root.toString());
 
@@ -257,8 +281,9 @@ class RunUpstreamChainTest {
 
         claim(
                 "each run names the stage immediately before it and never reaches back past one -- so"
-                        + " extraction names the byte-level reduction, the content census names extraction, and"
-                        + " redundancy names the content census",
+                        + " extraction names the byte-level reduction, the content census names extraction,"
+                        + " redundancy names the content census, and the arrangement names the scoring that"
+                        + " produced what it arranges",
                 () -> assertThat(namedUpstreamStages).containsExactlyElementsOf(expectedUpstreamStages));
         claim(
                 "and the content census stays in the chain even though it renders no verdict of its own,"
@@ -269,20 +294,23 @@ class RunUpstreamChainTest {
                 "so following the chain from the last stage reaches every earlier one exactly once, with"
                         + " none skipped: a run id is derived from everything that determines what it would"
                         + " produce, and a skipped stage is a run claiming two different corpora are the same",
-                () -> assertThat(walkTheChainBackFrom("content-redundancy", upstreamByStage, stageByRunId))
+                () -> assertThat(walkTheChainBackFrom(
+                                STAGES_THAT_MINT_A_RUN.getLast(), upstreamByStage, stageByRunId))
                         .containsExactlyElementsOf(STAGES_THAT_MINT_A_RUN.reversed()));
     }
 
     /**
-     * Sets the boilerplate floor before the job runs. Census merges new keys and never touches a value
-     * already in the file (ADR-062), so a floor written here survives the invocation that reads it.
+     * Opens every gate before the job runs, so that each stage that mints a run actually reaches the
+     * point of minting one. Census merges new keys and never touches a value already in the file
+     * (ADR-062), so what is written here survives the invocation that reads it.
      */
-    private void openTheBoilerplateGate() {
+    private void openEveryGate(Path seeds) {
         Profile profile = profileStore.load();
         profileStore.save(new Profile(
-                profile.seedFolder(),
+                new ProfileValue(seeds.toString(), "set by this test, so the seed gate is open", null),
                 profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null)));
+                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
+                new ProfileValue(MODEL_NAME, "set by this test, so gate 3 is open", null)));
     }
 
     /** Each stage's upstream run ids, in the order the stages minted their runs. */

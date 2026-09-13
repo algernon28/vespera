@@ -274,6 +274,60 @@ public class Ledger {
         return runId;
     }
 
+    /**
+     * The run of {@code stage} against {@code walkId} that was written last, or empty where the stage
+     * has never run against this walk.
+     *
+     * <p><b>Written last, not greatest.</b> A run id is the SHA-256 of what the run consumed
+     * (ADR-048), so it carries no order at all: ordering by it would answer with whichever hash
+     * happened to sort highest, which is a different run from the most recent one about as often as
+     * not. Insert order is the only record of sequence this table keeps, and it is the one a caller
+     * asking "which arrangement did this invocation just write" actually means.
+     *
+     * <p>Scoped to one walk, so two corpora in one database stay two histories.
+     */
+    public Optional<RunId> latestRunFor(String stage, WalkId walkId) {
+        return jdbcTemplate
+                .query(
+                        "SELECT id FROM run WHERE stage = ? AND walk_id = ? ORDER BY rowid DESC LIMIT 1",
+                        (resultSet, rowNumber) -> new RunId(resultSet.getString("id")),
+                        stage,
+                        walkId.value())
+                .stream()
+                .findFirst();
+    }
+
+    /**
+     * Every run of {@code stage} against {@code walkId} whose id opens with {@code idPrefix}, in id
+     * order.
+     *
+     * <p>A lookup rather than a re-derivation, which is the one case ADR-099's rule cannot be served
+     * any other way: a run id is derived from its inputs, so a stage that knows those inputs can mint
+     * the id again — but a person who has copied twelve characters off a page has no inputs to derive
+     * anything from. What they have is a name, and this is what turns a name back into a run.
+     *
+     * <p>It returns every match rather than the first, deliberately. A caller that meant one run and
+     * received two has to be able to see that it did: silently taking either would mean acting on a
+     * run nobody chose (ADR-099).
+     */
+    public List<RunId> runsMatching(String stage, WalkId walkId, String idPrefix) {
+        return jdbcTemplate.query(
+                "SELECT id FROM run WHERE stage = ? AND walk_id = ? AND id LIKE ? ESCAPE '\\' ORDER BY id",
+                (resultSet, rowNumber) -> new RunId(resultSet.getString("id")),
+                stage,
+                walkId.value(),
+                escapedForPrefixMatch(idPrefix) + "%");
+    }
+
+    /**
+     * {@code idPrefix} with SQL's own wildcards made literal, so a prefix carrying {@code %} or
+     * {@code _} matches those characters rather than standing for any others. A run id is hexadecimal
+     * and can carry neither, but the prefix arrives from a person typing into a file.
+     */
+    private static String escapedForPrefixMatch(String idPrefix) {
+        return idPrefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
     /** The runs {@code runId} read, as a set rather than an order (ADR-048). */
     public List<RunId> upstreamRuns(RunId runId) {
         return jdbcTemplate.query(

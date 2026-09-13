@@ -50,13 +50,23 @@ package io.algernon.vespera.profile;
  *     degenerateOutputConfidenceFloor} points at the confidence distribution (ADR-075's shape).
  *     Nothing checks that a threshold was ever labelled: the floor is an ordinary profile value and
  *     what stands between a guessed one and the archive is the operator's own {@code provenance}.
+ * @param arrangementApproved the arrangement gate's key (ADR-107, #175): the first twelve characters
+ *     of the id of the arrangement the operator read and approved. Ships unset, and unset means the
+ *     gate is shut — nothing is generated over an arrangement nobody has looked at. It names a
+ *     <em>specific</em> arrangement rather than being a yes, because an approval of one shape of the
+ *     archive must not be spent on a different shape re-derived later: a boolean never expires, and a
+ *     gate that cannot close again is a switch flipped once. Twelve characters rather than the whole
+ *     id is the entire concession to typing, and the ledger keeps the whole one. No {@link
+ *     Measurement} pointer: what informs this key is a page, not a pass, and the operator records
+ *     what they actually checked in {@code provenance}.
  */
 public record Profile(
         ProfileValue seedFolder,
         ProfileValue degenerateOutputConfidenceFloor,
         ProfileValue boilerplateDocumentFrequencyFloor,
         ProfileValue embeddingModel,
-        ProfileValue relevanceScoreFloor) {
+        ProfileValue relevanceScoreFloor,
+        ProfileValue arrangementApproved) {
 
     public Profile {
         seedFolder = seedFolder == null ? ProfileValue.unset() : seedFolder;
@@ -66,6 +76,7 @@ public record Profile(
                 boilerplateDocumentFrequencyFloor == null ? ProfileValue.unset() : boilerplateDocumentFrequencyFloor;
         embeddingModel = embeddingModel == null ? ProfileValue.unset() : embeddingModel;
         relevanceScoreFloor = relevanceScoreFloor == null ? ProfileValue.unset() : relevanceScoreFloor;
+        arrangementApproved = arrangementApproved == null ? ProfileValue.unset() : arrangementApproved;
     }
 
     /**
@@ -75,7 +86,7 @@ public record Profile(
      * from the file.
      */
     public Profile(ProfileValue seedFolder, ProfileValue degenerateOutputConfidenceFloor) {
-        this(seedFolder, degenerateOutputConfidenceFloor, null, null, null);
+        this(seedFolder, degenerateOutputConfidenceFloor, null, null, null, null);
     }
 
     /**
@@ -87,7 +98,7 @@ public record Profile(
             ProfileValue seedFolder,
             ProfileValue degenerateOutputConfidenceFloor,
             ProfileValue boilerplateDocumentFrequencyFloor) {
-        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, null, null);
+        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, null, null, null);
     }
 
     /**
@@ -100,12 +111,32 @@ public record Profile(
             ProfileValue degenerateOutputConfidenceFloor,
             ProfileValue boilerplateDocumentFrequencyFloor,
             ProfileValue embeddingModel) {
-        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, embeddingModel, null);
+        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, embeddingModel, null, null);
+    }
+
+    /**
+     * The five-key constructor every call site before #175 used, kept for the same reason the two-,
+     * three- and four-key ones above were: the sixth key arrives unset rather than breaking every
+     * existing caller.
+     */
+    public Profile(
+            ProfileValue seedFolder,
+            ProfileValue degenerateOutputConfidenceFloor,
+            ProfileValue boilerplateDocumentFrequencyFloor,
+            ProfileValue embeddingModel,
+            ProfileValue relevanceScoreFloor) {
+        this(
+                seedFolder,
+                degenerateOutputConfidenceFloor,
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel,
+                relevanceScoreFloor,
+                null);
     }
 
     /** A profile with every key present and none of them answered. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null, null);
+        return new Profile(null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -115,7 +146,8 @@ public record Profile(
                 degenerateOutputConfidenceFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
-                relevanceScoreFloor);
+                relevanceScoreFloor,
+                arrangementApproved);
     }
 
     /**
@@ -129,7 +161,8 @@ public record Profile(
                 degenerateOutputConfidenceFloor.measuredBy(measurement),
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
-                relevanceScoreFloor);
+                relevanceScoreFloor,
+                arrangementApproved);
     }
 
     /**
@@ -147,6 +180,7 @@ public record Profile(
                 degenerateOutputConfidenceFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
-                relevanceScoreFloor.measuredBy(measurement));
+                relevanceScoreFloor.measuredBy(measurement),
+                arrangementApproved);
     }
 }

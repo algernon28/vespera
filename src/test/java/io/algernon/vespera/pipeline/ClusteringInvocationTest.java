@@ -31,6 +31,7 @@ import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
 import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.Shingler;
+import io.algernon.vespera.synthesis.Clusters;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -110,6 +111,12 @@ import org.springframework.transaction.annotation.Transactional;
     RelevanceFloor.class,
     ClusteringJobConfiguration.class,
     ClusteringTasklet.class,
+    ArrangementJobConfiguration.class,
+    ArrangementTasklet.class,
+    io.algernon.vespera.extraction.DocumentTitles.class,
+    ArrangementRun.class,
+    ArrangementGate.class,
+    Clusters.class,
     RelevanceReportJobConfiguration.class,
     RelevanceReportTasklet.class,
     RelevanceDistribution.class,
@@ -165,12 +172,17 @@ class ClusteringInvocationTest {
     /** How many corpus documents this fixture walks, all of which survive to be clustered. */
     private static final int CORPUS_DOCUMENTS = 3;
 
-    /** Every key the profile is allowed to carry after this step has run — the same five it had before. */
+    /**
+     * Every key the profile is allowed to carry after this step has run — the same set it had before,
+     * which is the claim. The list grows when a <em>later</em> stage adds a key of its own, as the
+     * arrangement's approval did (ADR-107, #175); it must never grow because of this step.
+     */
     private static final List<String> THE_KNOWN_PROFILE_KEYS = List.of(
             "seedFolder",
             "degenerateOutputConfidenceFloor",
             "boilerplateDocumentFrequencyFloor",
             "embeddingModel",
+            "arrangementApproved",
             "relevanceScoreFloor");
 
     @TempDir

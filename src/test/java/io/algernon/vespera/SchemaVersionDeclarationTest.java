@@ -59,9 +59,14 @@ class SchemaVersionDeclarationTest {
      *
      * <p>{@code embedding} joins the list with {@code unusable_seed} (ADR-083), the first table stage
      * 5 owns and the first this project has added outside the original four table-owning modules.
+     *
+     * <p>{@code synthesis} joins it with {@code cluster} (ADR-110, #175), the table the terminal
+     * stages arrange beneath. It is the one module named in the architecture that had no package at
+     * all until this point, so it is also the first to be added here and in {@code
+     * ModuleBoundariesTest} at the same time.
      */
     private static final Set<String> MODULES_OWNING_TABLES =
-            Set.of("ledger", "corpus", "extraction", "similarity", "embedding");
+            Set.of("ledger", "corpus", "extraction", "similarity", "embedding", "synthesis");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

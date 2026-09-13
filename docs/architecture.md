@@ -3,7 +3,7 @@
 **Project:** Document Curation Pipeline → Knowledge Base
 **Source:** compiled 2026-08-21 from the ADRs and `CONTEXT.md`. Demoted from a hand-off note to this repo's standing architecture document on 2026-08-22, when the lost ADR text was reconstituted from the condensed ledger into [`docs/adr/`](./adr/README.md).
 **Reading order:** §1 and §2 describe the system and are the fuller record — most ADR files carry only a one-line summary and point back here. The condensed ledger now lives in [`docs/decision-ledger.md`](./decision-ledger.md), kept as the provenance witness for those files rather than as the place to read a decision.
-**Status:** design is ahead of code — stages 0 to 4 judge, stage 5 measures without judging yet, and 6a and 6b are recorded decisions with no code. `AGENTS.md` is where that state is kept current; this document describes the system as decided, not as built. Open questions are not tracked here — they live on the issue tracker, and `AGENTS.md` says which of them is takeable. The stage 6a/6b slice's wayfinder map was charted on 2026-09-12 and is open; the stage 5 slice's closed on 2026-09-09.
+**Status:** design is ahead of code — stages 0 to 4 judge, stage 5 measures without judging, stage 6a names and orders what stage 5 grouped, and 6b is recorded decisions with no code. `AGENTS.md` is where that state is kept current; this document describes the system as decided, not as built. Open questions are not tracked here — they live on the issue tracker, and `AGENTS.md` says which of them is takeable. The stage 6a/6b slice's wayfinder map was charted on 2026-09-12 and is open; the stage 5 slice's closed on 2026-09-09.
 
 ---
 
@@ -25,12 +25,12 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 | 3  | Content census               | *(no verdicts)*                           | The corpus-wide pass over what stage 2 stored — document frequency for boilerplate (ADR-038), report distributions. Per-document metrics and shingles are written in stage 2's own pass, under stage 2's run (ADR-019, ADR-073). |
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |
 | 5  | Relevance (embeddings)       | `below-threshold`                         | Scoring against the seed set (ADR-020), clustering within each seed partition (ADR-027, ADR-045).     |
-| 6a | Arrangement                  | *(a page tree, nothing rendered)*         | Seed-named taxonomy + within-seed clusters (ADR-022). Human gate before 6b.                           |
+| 6a | Arrangement                  | *(no verdicts)*                           | Seed-named taxonomy + within-seed clusters (ADR-022), each cluster given a row of its own carrying a derived label, a count and a place in the order (ADR-105, ADR-106, ADR-112). Writes `arrangement.html`, the human gate before 6b (ADR-107). |
 | 6b | Generation                   | —                                         | One overview per cluster, citations resolved to occurrence ids (ADR-022, ADR-026).                    |
 
 Ordering principle: the cheapest filter runs first, so every occurrence removed early is extraction or embedding never paid for (ADR-017).
 
-**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. The chain ends at 6b: what it produces is the deliverable, and nothing in this project renders or uploads it anywhere (ADR-101).
+**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. The chain ends at 6b: what it produces is the deliverable — a Markdown tree in the working directory, one tree per run id (ADR-103) — and nothing in this project carries it to a destination of any kind (ADR-101).
 
 ```mermaid
 flowchart TD
@@ -40,7 +40,7 @@ flowchart TD
     S3["<b>3 · Content census</b><br/>corpus-wide pass over stage 2's columns<br/><i>writes no verdicts</i>"]
     S4["<b>4 · Content redundancy</b><br/>redundant-with"]
     S5["<b>5 · Relevance</b><br/>below-threshold"]
-    S6A["<b>6a · Arrangement</b><br/>a page tree, nothing rendered"]
+    S6A["<b>6a · Arrangement</b><br/>cluster rows: label · count · order<br/><i>writes no verdicts</i>"]
     S6B["<b>6b · Generation</b><br/>cited overviews per cluster"]
     LEDGER[("<b>Ledger</b><br/>occurrences · verdicts · runs")]
     ART["The generated documents<br/><i>the run ends here</i>"]
@@ -80,8 +80,8 @@ flowchart TD
 - **Relevance is one-class, exemplar-based** (ADR-004, ADR-007, ADR-020). No supplied negatives (they'd be "easy negatives" far from the boundary); hard negatives are mined from the corpus after scoring. Score = max over seed documents of (mean of top-3 chunk similarities against that seed), storing the winning seed. Needs no vector database at scoring time — a few dozen seeds fit in memory while corpus chunks stream past.
 - **The seed set does triple duty** (ADR-004, ADR-020, ADR-022): it defines relevance, names the top level of the arrangement (one node per seed + `unattributed`), and shapes what sits beneath it. A poorly chosen seed set produces a poorly shaped arrangement, not merely a poorly tuned filter — visible via diagnostics (per-seed admission counts, cluster counts).
 - **Clustering runs within each seed partition**, never corpus-wide (ADR-027, ADR-045) — cheap, embarrassingly parallel, keeps the "60%-owned-by-one-seed" alarm aligned with a genuine compute problem, and bounds Chroma's working set to one partition at a time.
-- **Synthesis, not summarisation** (ADR-021). Stage 5 leaves a heap of survivors; stage 6 makes it organic. 6a arranges (a page tree, nothing rendered); 6b generates connective overviews per cluster, gated on a human reading 6a first.
-- **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. Nothing in this project renders, uploads or transmits them: an operator who wants a wiki makes one. What 6b writes, and where it lands, is the first question of the unstarted 6a/6b slice rather than a detail inside it — and so is what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space.
+- **Synthesis, not summarisation** (ADR-021). Stage 5 leaves a heap of survivors; stage 6 makes it organic. 6a names each cluster after its own highest-scoring document and puts the arrangement in an order, judging nothing and removing nothing; 6b generates connective overviews per cluster, gated on a human reading 6a first.
+- **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. The documents themselves are written and are the terminus. What no part of this project does is turn them into a published thing — a wiki, a space, a site — or upload or transmit them anywhere: an operator who wants a wiki makes one. What 6b writes and where it lands was settled by ADR-103 — a Markdown tree in the working directory, one tree per run id — and what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space, by ADR-104: they stay in the archive and are referenced from the tree.
 - **Generated content is verified two ways** (ADR-026): mechanical citation checking (every cited occurrence id must exist, survive, and be reachable in the tree) plus human review at the consolidation gate. Model-checking model output was explicitly rejected.
 
 **Identity and the ledger.** Two independent lifetimes: a walk owns occurrence rows because they are filesystem observations, a run owns verdict rows because they are derived under a configuration. Content identity is a discovered relation over occurrences, never a collapse of them.
@@ -239,7 +239,7 @@ flowchart TD
 - **No Spring Modulith event publication registry** — no application events exist in this design (stages never call each other); `spring-modulith-starter-core` is retained for boundary verification only.
 - **CLI surface** (ADR-047, narrowed by ADR-101) — `vespera run` takes the pipeline through 6b and `vespera label` runs the operator's labelling pass. The `publish` subcommand is gone, removed under ADR-101's own follow-up. Nothing more, because there's no interactive pause left to expose.
 
-**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — census is the only one that exists in this slice, and every later stage is another step appended to the same job. The run ends at stage 6b, and nothing follows it (ADR-101).
+**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — fourteen of them today, census through the arrangement, each later stage having been another step appended to the same job. Stage 6b is the one still to be appended. The run ends at stage 6b, and nothing follows it (ADR-101).
 
 ```mermaid
 flowchart TD
@@ -248,18 +248,19 @@ flowchart TD
     BOOT["<b>application starts</b><br/>SQLite opened · schema applied<br/>schema_version checked, refuses on mismatch"]
     JOB["<b>job 'vespera' started</b><br/>one job parameter: the root<br/><i>never started by the app coming up</i>"]
     S0["<b>step: census</b><br/>stage 0 — walk, record, merge the profile"]
-    LATER["<b>steps: stages 1 to 6b</b><br/><i>not built in this slice</i>"]
+    LATER["<b>steps: stages 1 to 6a</b><br/>thirteen more on the same job<br/><i>through the arrangement and its gate</i>"]
+    S6BSTEP["<b>step: stage 6b</b><br/><i>not built</i>"]
     EXIT(["exit code<br/>0, or non-zero if the job failed"])
 
 
     STORE[("<b>working directory</b><br/>the database · the profile")]
 
-    OP --> PREP --> BOOT --> JOB --> S0 --> LATER --> EXIT
+    OP --> PREP --> BOOT --> JOB --> S0 --> LATER --> S6BSTEP --> EXIT
 
     PREP -.-> STORE
     BOOT <-.-> STORE
     S0 <-.-> STORE
-    PUB <-.-> STORE
+    LATER <-.-> STORE
 
     classDef human fill:#fff4e6,stroke:#b5762a,color:#3d2a12
     classDef step fill:#eef4ff,stroke:#4a6fa5,color:#12243d
@@ -267,8 +268,8 @@ flowchart TD
     classDef store fill:#f3eaff,stroke:#7a4fb5,color:#241238
     classDef out fill:#eafaf1,stroke:#2f8f5b,color:#0f2e1e
     class OP human
-    class PREP,BOOT,JOB,S0,PUB step
-    class LATER later
+    class PREP,BOOT,JOB,S0,LATER step
+    class S6BSTEP later
     class STORE store
     class EXIT out
 ```
@@ -340,9 +341,11 @@ flowchart TD
 
 ### 1.7 Open items
 
-Tracked on the wayfinder map, [Census slice: the way to a hand-off spec](https://github.com/algernon28/vespera/issues/1), rather than in this file. Its open child issues **are** the live list; its **Out of scope** section carries the two items parked on measurement data — shingle granularity, blocked on stage-3 OCR error rates, and target hardware, blocked on a census scanned-page count — each with the trigger that revives it.
+Tracked on the wayfinder map, [Stage 6a/6b slice: the way to a hand-off spec](https://github.com/algernon28/vespera/issues/151), rather than in this file. Its open children **are** the live list — today that is the hand-off spec [#175](https://github.com/algernon28/vespera/issues/175) — and the map stays open until 6a and 6b ship.
 
-The standing design question, [Is the seed set profiled with the corpus instrument](https://github.com/algernon28/vespera/issues/16), is resolved: the walk instrument generalizes to any root, a seed folder is walked the same way as the corpus (ADR-064), and the full mismatch-detection question is deferred to stage 5, which this slice does not build. ADR-073 has since placed the three signals that question is blocked on — chunk count is a query against the chunk cache and comparable only within one tokenizer identity, language is a stage-2 column, and no OCR-error rate exists as a Docling signal, so stage 2 stores the counters a definition of one can be computed from — and records the precondition stage 5 inherits: the comparison needs the seed set extracted with the same instrument.
+Two items parked on measurement data have outlived the map that parked them. **Shingle granularity** (word vs. character n-grams) waits on an OCR error rate, which ADR-073 established Docling does not report — stage 2 stores the counters one could be computed from instead. **Target hardware** waits on the scanned-page count from a census over a real archive. Both were carried in the census map's **Out of scope**, [#1](https://github.com/algernon28/vespera/issues/1), which closed on 2026-08-29; no map since has picked them up, so that closed issue is the only place either is written down.
+
+The standing design question, [Is the seed set profiled with the corpus instrument](https://github.com/algernon28/vespera/issues/16), closed with the census slice: the walk instrument generalizes to any root, and a seed folder is walked the same way as the corpus (ADR-064). ADR-073 then placed the three signals the fuller mismatch question was blocked on — chunk count is a query against the chunk cache and comparable only within one tokenizer identity, language is a stage-2 column, and no OCR-error rate exists as a Docling signal, so stage 2 stores the counters a definition of one can be computed from — and recorded the precondition stage 5 inherited: the comparison needs the seed set extracted with the same instrument. Stage 5 built it, and ADR-086 settled what it does with the answer — measured before the model gate, reported and never enforced, which is what `seed-corpus-comparison.html` carries.
 
 _This section previously duplicated `docs/frontier.md`, which no longer exists. The map replaced both: a second open-items register drifts from the first, and the tracker is the one with a claim to being canonical._
 ---
