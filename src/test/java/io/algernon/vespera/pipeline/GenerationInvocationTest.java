@@ -166,19 +166,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
 @Link(name = "ADR-108", url = Adr.SIX_B_SENDS_ONE_EXEMPLAR_FIRST_CALL_PER_CLUSTER, type = "adr")
 @Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
+@Link(name = "ADR-099", url = Adr.AN_UPSTREAM_IS_LOOKED_UP_AND_TWO_CANDIDATES_STOP_THE_RUN, type = "adr")
+@Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
 class GenerationInvocationTest {
 
     /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
     private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The model this fixture names, so gate 3 and everything behind it open. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
+    /** The embedding model this fixture names, so gate 3 and everything behind it open. Named for
+     * which model it is because two different ones matter in this class, and the one under test is
+     * the other. */
+    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** An approval of the right shape that is nobody's arrangement: twelve hexadecimal characters. */
     private static final String NAMES_NOTHING = "0123456789ab";
 
-    /** What one approval is worth: one opening, and not a second one over the same approval. */
-    private static final int ONE_OPENING = 1;
+    /** What one approval is worth: one record of the work, and not a second over the same approval. */
+    private static final int ONE_RECORD = 1;
 
     @TempDir
     static Path workingDirectory;
@@ -209,10 +213,10 @@ class GenerationInvocationTest {
 
         claim("the second invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "one opening was recorded and no more: an approval is spent on the arrangement it named,"
-                        + " and a second opening over the same approval would be a second claim on work"
-                        + " already accounted for",
-                () -> assertThat(generationRuns()).hasSize(ONE_OPENING));
+                "the step recorded its work once and no more: an approval is spent on the groups it"
+                        + " named, and a second record against the same approval would be a second claim"
+                        + " on work already accounted for",
+                () -> assertThat(generationRuns()).hasSize(ONE_RECORD));
         claim(
                 "and what it reads is the very arrangement the approval named, rather than whichever was"
                         + " arranged most recently -- an approval is of a particular shape of the archive,"
@@ -236,8 +240,8 @@ class GenerationInvocationTest {
                         + " be telling them they had",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "and nothing at all was opened -- not an empty opening, no record of one: what is"
-                        + " recorded is what was actually done, and nothing was",
+                "and nothing at all was recorded -- not an empty record, none: what is written down is"
+                        + " what was actually done, and nothing was",
                 () -> assertThat(generationRuns()).isEmpty());
     }
 
@@ -278,7 +282,7 @@ class GenerationInvocationTest {
                         + " be writing over something nobody read, and doing it without saying so",
                 () -> assertThat(cli.getExitCode()).isNotZero());
         claim(
-                "and it stopped before anything was opened, so there is no half-finished record of work"
+                "and it stopped before recording anything, so there is no half-finished record of work"
                         + " nobody authorised",
                 () -> assertThat(generationRuns()).isEmpty());
     }
@@ -294,10 +298,15 @@ class GenerationInvocationTest {
         cli.run("run", root.toString());
 
         claim(
+                "the step ran at all over the approved groups, which is what the claim below is about --"
+                        + " asserted first and separately, so that a step which never ran fails saying so"
+                        + " rather than failing while reaching for something that is not there",
+                () -> assertThat(generationRuns()).isNotEmpty());
+        claim(
                 "no judgement was recorded: every judgement this system records exists to take a document"
                         + " out of what gets published, and writing connecting text over what survived"
                         + " takes nothing out of anything",
-                () -> assertThat(verdictCountUnder(generationRuns().getFirst())).isZero());
+                () -> assertThat(verdictsAgainstTheGeneratedWork()).isZero());
     }
 
     /** One corpus document and one exemplar, with every gate before this one open. */
@@ -309,7 +318,7 @@ class GenerationInvocationTest {
                 new ProfileValue(seeds.toString(), "set by this test", null),
                 profile.degenerateOutputConfidenceFloor(),
                 new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
-                new ProfileValue(MODEL_NAME, "set by this test, so gate 3 is open", null)));
+                new ProfileValue(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open", null)));
     }
 
     /** Writes the approval, leaving every other key as the fixture left it. */
@@ -354,7 +363,7 @@ class GenerationInvocationTest {
                 first.value());
     }
 
-    /** Every opening this corpus has recorded, oldest first. */
+    /** Every record of this step having run over this corpus, oldest first. */
     private List<String> generationRuns() {
         return jdbcTemplate.queryForList(
                 "SELECT id FROM run WHERE stage = ? ORDER BY rowid", String.class, GenerationRun.STAGE);
@@ -365,7 +374,14 @@ class GenerationInvocationTest {
                 "SELECT upstream_run_id FROM run_upstream WHERE run_id = ?", String.class, runId);
     }
 
-    private int verdictCountUnder(String runId) {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM verdict WHERE run_id = ?", Integer.class, runId);
+    /**
+     * Judgements recorded against anything this step wrote, counted without reaching for a particular
+     * record — so a step that never ran answers zero rather than raising.
+     */
+    private int verdictsAgainstTheGeneratedWork() {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE run_id IN (SELECT id FROM run WHERE stage = ?)",
+                Integer.class,
+                GenerationRun.STAGE);
     }
 }
