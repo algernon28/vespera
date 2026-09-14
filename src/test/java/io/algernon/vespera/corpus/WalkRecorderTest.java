@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -40,6 +41,12 @@ import org.springframework.transaction.support.TransactionTemplate;
  * walk stops when the machine does. They drive the traversal through the seam
  * {@link WalkRecorder}'s package-private constructor exposes, and use a commit interval of one so
  * that a three-file corpus reaches a checkpoint at all.
+ *
+ * <p>Four of them walk the same root twice and ask which walk id came back (ADR-115): a traversal
+ * that observed exactly what the previous finished walk observed is discarded, and the earlier id
+ * is what census returns. What "exactly" covers is the whole of what a walk records — the occurrence
+ * rows, the anomaly rows and {@code directories_entered} — so one of the four differs in nothing but
+ * an anomaly, and one changes the root and changes it back.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -279,6 +286,132 @@ class WalkRecorderTest {
                 () -> assertThat(ledger.occurrencesForWalk(resumed))
                         .extracting(RecordedOccurrence::path)
                         .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
+    }
+
+
+    /** One look at a folder, which is what two looks that saw the same thing amount to. */
+    private static final int ONE_LOOK = 1;
+
+    /** Two looks, kept apart because they did not see the same thing. */
+    private static final int TWO_LOOKS = 2;
+
+    /** Three looks: a folder that changed and changed back was looked at three times, not twice. */
+    private static final int THREE_LOOKS = 3;
+
+    /** The single file these fixtures put in the folder before anyone looks at it. */
+    private static final int THE_ONE_FILE = 1;
+
+    @Test
+    @Story("Looking twice at a folder nothing has happened to is one look")
+    @DisplayName("Looking again at an unchanged folder keeps the record of the first look")
+    @Issue("191")
+    @Disabled("waits on issue 191: nothing ever reuses a finished walk, so no run id survives one invocation and this cannot hold yet")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void aSecondLookAtAnUnchangedFolderKeepsTheFirstLooksRecord(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "hi");
+
+        WalkId first = recorder().walk(root);
+        WalkId second = recorder().walk(root);
+
+        claim(
+                "the second look answers with the first look's own record: nothing about the folder had"
+                        + " changed, so there is only one thing here that was ever seen, and two records of"
+                        + " seeing it would be the tool disagreeing with itself about how many times this"
+                        + " folder has existed",
+                () -> assertThat(second).isEqualTo(first));
+        claim(
+                "exactly " + ONE_LOOK + " record of looking at this folder is kept, which is the number of"
+                        + " distinct things that were seen -- everything recorded later against a corpus"
+                        + " points at one of these records, so a spare one is a second corpus nobody has",
+                () -> assertThat(looksAt(root)).isEqualTo(ONE_LOOK));
+        claim(
+                "and the one file that was there is recorded once beneath it, not " + TWO_LOOKS + " times:"
+                        + " the second look's copy of it went with the look that was discarded",
+                () -> assertThat(ledger().occurrencesForWalk(first)).hasSize(THE_ONE_FILE));
+    }
+
+    @Test
+    @Story("Looking twice at a folder nothing has happened to is one look")
+    @DisplayName("Looking again after a file is added is a second look, kept separately")
+    @Issue("191")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void aSecondLookAtAChangedFolderIsItsOwnRecord(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "hi");
+        WalkId first = recorder().walk(root);
+        Files.writeString(root.resolve("b.txt"), "and one more");
+
+        WalkId second = recorder().walk(root);
+
+        claim(
+                "a folder with a file in it that was not there before is not the folder that was seen"
+                        + " before, so the second look is its own record -- everything judged about the"
+                        + " first one was judged without that file in front of it",
+                () -> assertThat(second).isNotEqualTo(first));
+        claim(
+                "both records are kept, " + TWO_LOOKS + " of them, because what each of them saw is"
+                        + " different and neither is a copy of the other",
+                () -> assertThat(looksAt(root)).isEqualTo(TWO_LOOKS));
+    }
+
+    @Test
+    @Story("Looking twice at a folder nothing has happened to is one look")
+    @DisplayName("Something new that could not be recorded as a file still makes it a second look")
+    @Issue("191")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void somethingNewThatIsNotAFileStillMakesItASecondLook(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "hi");
+        WalkId first = recorder().walk(root);
+        try {
+            Files.writeString(root.resolve("orphan-" + (char) 0xD800 + ".txt"), "content");
+        } catch (InvalidPathException | IOException e) {
+            abort("this filesystem will not create a name with an unpaired surrogate: " + e.getMessage());
+        }
+
+        WalkId second = recorder().walk(root);
+
+        claim(
+                "the files are exactly the files that were there before, and the look is still a new one:"
+                        + " something appeared that could not be taken in as a file, it was written down as"
+                        + " such, and discarding this look would throw away the only note anyone has of it",
+                () -> assertThat(second).isNotEqualTo(first));
+        claim(
+                "so " + TWO_LOOKS + " records are kept rather than one, for a difference that never touched"
+                        + " a single file",
+                () -> assertThat(looksAt(root)).isEqualTo(TWO_LOOKS));
+    }
+
+    @Test
+    @Story("Looking twice at a folder nothing has happened to is one look")
+    @DisplayName("A folder that changed and changed back is looked at afresh, not restored to an older record")
+    @Issue("191")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void aFolderThatChangedAndChangedBackIsLookedAtAfresh(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "hi");
+        WalkId first = recorder().walk(root);
+        Path added = Files.writeString(root.resolve("b.txt"), "and one more");
+        WalkId second = recorder().walk(root);
+        Files.delete(added);
+
+        WalkId third = recorder().walk(root);
+
+        claim(
+                "the third look is neither of the two before it: only the look immediately before is ever"
+                        + " compared, so a folder that came back to how it started gets a fresh record"
+                        + " rather than the oldest one handed back -- and anything a person approved while"
+                        + " the extra file was there stays expired, which is the truthful answer",
+                () -> assertThat(third).isNotEqualTo(first).isNotEqualTo(second));
+        claim(
+                "leaving " + THREE_LOOKS + " records: one per time the folder was seen to be different from"
+                        + " the time before",
+                () -> assertThat(looksAt(root)).isEqualTo(THREE_LOOKS));
+    }
+
+    /** How many records of looking at {@code root} the database holds. */
+    private int looksAt(Path root) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM walk WHERE root = ?",
+                Integer.class,
+                Walk.canonicalRoot(root).toString());
     }
 
     /**
