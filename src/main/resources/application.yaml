@@ -66,6 +66,11 @@ spring:
       # the moment the application starts.
       chat: ollama
       embedding: ollama
+      image: none
+      moderation: none
+      audio:
+        transcription: none
+        speech: none
     ollama:
       chat:
         options:
@@ -79,11 +84,6 @@ spring:
           # It lives here, where Spring AI's own auto-configuration reads it, rather than under a
           # vespera.* key, so the chat model bean and the call name one model instead of two.
           model: qwen3:8b
-      image: none
-      moderation: none
-      audio:
-        transcription: none
-        speech: none
     vectorstore:
       chroma:
         # Chroma is a derived, disposable projection of the vectors SQLite holds
