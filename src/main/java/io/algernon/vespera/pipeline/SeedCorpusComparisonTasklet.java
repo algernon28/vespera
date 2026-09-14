@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -52,6 +53,7 @@ class SeedCorpusComparisonTasklet implements Tasklet {
     private final UsableSeedGate usableSeedGate;
     private final ObjectProvider<SeedMeasurementRun> seedMeasurementRun;
     private final SeedCorpusComparison seedCorpusComparison;
+    private final Ledger ledger;
     private final Path workingDirectory;
 
     SeedCorpusComparisonTasklet(
@@ -59,11 +61,13 @@ class SeedCorpusComparisonTasklet implements Tasklet {
             UsableSeedGate usableSeedGate,
             ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
             SeedCorpusComparison seedCorpusComparison,
+            Ledger ledger,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.seedMeasurementRun = seedMeasurementRun;
         this.seedCorpusComparison = seedCorpusComparison;
+        this.ledger = ledger;
         this.workingDirectory = workingDirectory;
     }
 
@@ -83,10 +87,21 @@ class SeedCorpusComparisonTasklet implements Tasklet {
         }
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
+
+        // Everything this run names is already measured (ADR-115), report included: the page was
+        // written from these very rows, so measuring again would answer the same question twice.
+        if (ledger.runFinished(measurementRun.runId())) {
+            LOG.info(
+                    "Stage 5b (seed/corpus comparison) was already recorded under run {}",
+                    measurementRun.runId().value());
+            return RepeatStatus.FINISHED;
+        }
+
         LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.runId().value());
         SeedCorpusComparison.Comparison comparison = seedCorpusComparison.measure(
                 measurementRun.runId(), measurementRun.extractionRunId(), seedGate.seedWalk().get().walkId());
         Path reportFile = writeReport(comparison);
+        ledger.finishRun(measurementRun.runId());
         LOG.info(
                 "Stage 5b (seed/corpus comparison) finished under run {}; report written to {}",
                 measurementRun.runId().value(),

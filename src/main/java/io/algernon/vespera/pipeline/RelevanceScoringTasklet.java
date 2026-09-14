@@ -112,6 +112,14 @@ class RelevanceScoringTasklet implements Tasklet {
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
         ScoringRun scoring = scoringRun.getObject();
+
+        // Every survivor this run names already carries its score (ADR-115). Scoring again would ask
+        // the same model the same question about the same text and write the answer it already gave.
+        if (ledger.runFinished(scoring.runId())) {
+            LOG.info("Stage 5d (relevance scoring) was already recorded under run {}", scoring.runId().value());
+            return RepeatStatus.FINISHED;
+        }
+
         Path canonicalRoot = Walk.canonicalRoot(root);
         String chunkerIdentity = hybridChunker.identity();
         String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
@@ -152,6 +160,7 @@ class RelevanceScoringTasklet implements Tasklet {
                     modelName.get(),
                     residentSeedVectors);
         }
+        ledger.finishRun(scoring.runId());
         LOG.info("Stage 5d (relevance scoring) finished under scoring run {}", scoring.runId().value());
         return RepeatStatus.FINISHED;
     }
