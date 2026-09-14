@@ -246,7 +246,17 @@ public class Ledger {
 
     /**
      * Mints the identity a stage's run is recorded under, and records what it was derived from
-     * (ADR-048).
+     * (ADR-048) — or carries on under the row already standing for that identity (ADR-115).
+     *
+     * <p><b>Mint or continue, never mint twice.</b> A run id is a total function of the four things
+     * hashed into it, so a re-derived id names a row that agrees with the caller in every column it
+     * has. There is nothing to update and nothing to reconcile: the row is already what this call
+     * would have written. Before ADR-115 the second insert could not happen, because a fresh walk id
+     * on every invocation made every derived id fresh too; with a repeated observation discarded, it
+     * happens the moment a corpus is re-walked unchanged.
+     *
+     * <p>Not {@code INSERT OR IGNORE}: that would swallow a genuine conflict as readily as this one,
+     * and the conflict it must never swallow is two different runs colliding on one id.
      *
      * <p>Nothing in the census slice calls this: stage 0 writes no verdicts, so it mints no run.
      */
@@ -257,6 +267,9 @@ public class Ledger {
             WalkId walkId,
             List<RunId> upstreamRunIds) {
         RunId runId = RunId.of(implementationVersion, configConsumed, walkId, upstreamRunIds);
+        if (runExists(runId)) {
+            return runId;
+        }
         jdbcTemplate.update(
                 "INSERT INTO run (id, stage, implementation_version, config_consumed, walk_id)"
                         + " VALUES (?, ?, ?, ?, ?)",
@@ -272,6 +285,11 @@ public class Ledger {
                     upstream.value());
         }
         return runId;
+    }
+
+    /** Whether a row already stands under this identity. */
+    private boolean runExists(RunId runId) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE id = ?", Integer.class, runId.value()) > 0;
     }
 
     /**

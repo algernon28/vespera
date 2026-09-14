@@ -112,7 +112,6 @@ class LedgerTest {
     @Story("What the ledger records")
     @DisplayName("Asking twice for a record of the same work carries on under the one already there")
     @Issue("191")
-    @Disabled("waits on issue 191: nothing ever reuses a finished walk, so no run id survives one invocation and this cannot hold yet")
     @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
     void askingTwiceForOnePieceOfWorkCarriesOnUnderTheRecordAlreadyThere() {
         Ledger ledger = new Ledger(jdbcTemplate);
