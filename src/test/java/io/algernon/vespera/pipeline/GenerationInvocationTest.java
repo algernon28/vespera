@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.DetectedFormats;
+import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.embedding.ClusteringBeans;
@@ -207,7 +208,7 @@ class GenerationInvocationTest {
     void opensOnTheArrangementThatWasApproved(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement()));
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
 
         cli.run("run", root.toString());
 
@@ -216,13 +217,13 @@ class GenerationInvocationTest {
                 "the step recorded its work once and no more: an approval is spent on the groups it"
                         + " named, and a second record against the same approval would be a second claim"
                         + " on work already accounted for",
-                () -> assertThat(generationRuns()).hasSize(ONE_RECORD));
+                () -> assertThat(generationRuns(root)).hasSize(ONE_RECORD));
         claim(
                 "and what it reads is the very arrangement the approval named, rather than whichever was"
                         + " arranged most recently -- an approval is of a particular shape of the archive,"
                         + " and writing over a later one would spend an approval nobody gave",
-                () -> assertThat(upstreamOf(generationRuns().getFirst()))
-                        .containsExactly(theApprovedArrangement().value()));
+                () -> assertThat(upstreamOf(generationRuns(root).getFirst()))
+                        .containsExactly(theApprovedArrangement(root).value()));
     }
 
     @Test
@@ -242,7 +243,7 @@ class GenerationInvocationTest {
         claim(
                 "and nothing at all was recorded -- not an empty record, none: what is written down is"
                         + " what was actually done, and nothing was",
-                () -> assertThat(generationRuns()).isEmpty());
+                () -> assertThat(generationRuns(root)).isEmpty());
     }
 
     @Test
@@ -258,7 +259,7 @@ class GenerationInvocationTest {
                 "a mistyped name leaves the archive exactly where a blank one does: the one outcome this"
                         + " must never have is quietly behaving like an approval, because a person who"
                         + " mistyped believes they approved something",
-                () -> assertThat(generationRuns()).isEmpty());
+                () -> assertThat(generationRuns(root)).isEmpty());
         claim(
                 "and the invocation still succeeded, because a name matching nothing is something to"
                         + " correct and run again, not a broken tool",
@@ -271,7 +272,7 @@ class GenerationInvocationTest {
     void stopsWhenTheApprovalMatchesTwo(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         cli.run("run", root.toString());
-        RunId arranged = theLatestArrangement();
+        RunId arranged = theLatestArrangement(root);
         anotherArrangementSharingThePrefixOf(arranged);
         approve(ArrangementGate.shortNameOf(arranged));
 
@@ -284,7 +285,7 @@ class GenerationInvocationTest {
         claim(
                 "and it stopped before recording anything, so there is no half-finished record of work"
                         + " nobody authorised",
-                () -> assertThat(generationRuns()).isEmpty());
+                () -> assertThat(generationRuns(root)).isEmpty());
     }
 
     @Test
@@ -293,7 +294,7 @@ class GenerationInvocationTest {
     void recordsNoJudgementAgainstAnyDocument(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement()));
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
 
         cli.run("run", root.toString());
 
@@ -301,12 +302,12 @@ class GenerationInvocationTest {
                 "the step ran at all over the approved groups, which is what the claim below is about --"
                         + " asserted first and separately, so that a step which never ran fails saying so"
                         + " rather than failing while reaching for something that is not there",
-                () -> assertThat(generationRuns()).isNotEmpty());
+                () -> assertThat(generationRuns(root)).isNotEmpty());
         claim(
                 "no judgement was recorded: every judgement this system records exists to take a document"
                         + " out of what gets published, and writing connecting text over what survived"
                         + " takes nothing out of anything",
-                () -> assertThat(verdictsAgainstTheGeneratedWork()).isZero());
+                () -> assertThat(verdictsAgainstTheGeneratedWork(root)).isZero());
     }
 
     /** One corpus document and one exemplar, with every gate before this one open. */
@@ -333,18 +334,24 @@ class GenerationInvocationTest {
                 new ProfileValue(approval, approval == null ? null : "read by this test", null)));
     }
 
-    /** The arrangement the most recent invocation recorded — the one its page names. */
-    private RunId theLatestArrangement() {
+    /** The arrangement the most recent invocation over {@code root} recorded — the one its page names. */
+    private RunId theLatestArrangement(Path root) {
         return new RunId(jdbcTemplate.queryForObject(
-                "SELECT id FROM run WHERE stage = ? ORDER BY rowid DESC LIMIT 1", String.class, ArrangementRun.STAGE));
-    }
-
-    /** The arrangement the profile's approval actually names, whichever invocation recorded it. */
-    private RunId theApprovedArrangement() {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT id FROM run WHERE stage = ? AND id LIKE ? ORDER BY rowid LIMIT 1",
+                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
+                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
                 String.class,
                 ArrangementRun.STAGE,
+                Walk.canonicalRoot(root).toString()));
+    }
+
+    /** The arrangement of {@code root} the profile's approval names, whichever invocation recorded it. */
+    private RunId theApprovedArrangement(Path root) {
+        return new RunId(jdbcTemplate.queryForObject(
+                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
+                        + " WHERE r.stage = ? AND w.root = ? AND r.id LIKE ? ORDER BY r.rowid LIMIT 1",
+                String.class,
+                ArrangementRun.STAGE,
+                Walk.canonicalRoot(root).toString(),
                 profileStore.load().arrangementApproved().value() + "%"));
     }
 
@@ -363,10 +370,21 @@ class GenerationInvocationTest {
                 first.value());
     }
 
-    /** Every record of this step having run over this corpus, oldest first. */
-    private List<String> generationRuns() {
+    /**
+     * Every record of this step having run over {@code root}, oldest first.
+     *
+     * <p>Scoped to the walk of this corpus rather than counted across the table. One working directory
+     * serves the whole class and the database outlives each method, so an unscoped count would be a
+     * claim about every corpus any method in this class ever walked — and "the step recorded its work
+     * once" would quietly become a statement about test execution order.
+     */
+    private List<String> generationRuns(Path root) {
         return jdbcTemplate.queryForList(
-                "SELECT id FROM run WHERE stage = ? ORDER BY rowid", String.class, GenerationRun.STAGE);
+                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
+                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid",
+                String.class,
+                GenerationRun.STAGE,
+                Walk.canonicalRoot(root).toString());
     }
 
     private List<String> upstreamOf(String runId) {
@@ -378,10 +396,13 @@ class GenerationInvocationTest {
      * Judgements recorded against anything this step wrote, counted without reaching for a particular
      * record — so a step that never ran answers zero rather than raising.
      */
-    private int verdictsAgainstTheGeneratedWork() {
+    private int verdictsAgainstTheGeneratedWork(Path root) {
         return jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM verdict WHERE run_id IN (SELECT id FROM run WHERE stage = ?)",
+                "SELECT COUNT(*) FROM verdict WHERE run_id IN"
+                        + " (SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
+                        + " WHERE r.stage = ? AND w.root = ?)",
                 Integer.class,
-                GenerationRun.STAGE);
+                GenerationRun.STAGE,
+                Walk.canonicalRoot(root).toString());
     }
 }
