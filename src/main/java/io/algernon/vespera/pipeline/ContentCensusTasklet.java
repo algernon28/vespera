@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.extraction.ConfidenceDistribution;
+import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
@@ -50,6 +51,7 @@ class ContentCensusTasklet implements Tasklet {
     private final DocumentFrequency documentFrequency;
     private final ConfidenceDistribution confidenceDistribution;
     private final ContentCensusRun contentCensusRun;
+    private final Ledger ledger;
     private final ProfileStore profileStore;
     private final Clock clock;
     private final Path workingDirectory;
@@ -58,12 +60,14 @@ class ContentCensusTasklet implements Tasklet {
             DocumentFrequency documentFrequency,
             ConfidenceDistribution confidenceDistribution,
             ContentCensusRun contentCensusRun,
+            Ledger ledger,
             ProfileStore profileStore,
             Clock clock,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.documentFrequency = documentFrequency;
         this.confidenceDistribution = confidenceDistribution;
         this.contentCensusRun = contentCensusRun;
+        this.ledger = ledger;
         this.profileStore = profileStore;
         this.clock = clock;
         this.workingDirectory = workingDirectory;
@@ -71,6 +75,17 @@ class ContentCensusTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+        // Everything this run names is already measured, so there is nothing here to do (ADR-115).
+        // The report beside the database is not rewritten either: it was written from these very
+        // rows, and a step that skipped its measuring and rewrote its page would be claiming to have
+        // looked again.
+        if (ledger.runFinished(contentCensusRun.runId())) {
+            log.info(
+                    "Stage 3 (content census) was already recorded under run {}",
+                    contentCensusRun.runId().value());
+            return RepeatStatus.FINISHED;
+        }
+
         log.info("Stage 3 (content census) starting under run {}", contentCensusRun.runId().value());
 
         documentFrequency.measure(contentCensusRun.runId(), contentCensusRun.extractionRunId());
@@ -85,6 +100,7 @@ class ContentCensusTasklet implements Tasklet {
         profileStore.save(profile.withDegenerateOutputConfidenceFloorMeasurement(
                 new Measurement(reportFile.toString(), clock.instant())));
 
+        ledger.finishRun(contentCensusRun.runId());
         log.info(
                 "Stage 3 (content census) finished under run {}; report written to {}",
                 contentCensusRun.runId().value(),

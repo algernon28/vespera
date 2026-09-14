@@ -54,7 +54,8 @@ public class ExtractionJobConfiguration {
             ExtractionItemProcessor extractionItemProcessor,
             ExtractionItemWriter extractionItemWriter,
             ExtractionCircuitBreaker extractionCircuitBreaker,
-            ExtractionHealthCheckListener extractionHealthCheckListener) {
+            ExtractionHealthCheckListener extractionHealthCheckListener,
+            RunCompletion extractionRunCompletion) {
         return new StepBuilder(ExtractionRun.STAGE, jobRepository)
                 .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
@@ -66,6 +67,7 @@ public class ExtractionJobConfiguration {
                 .skipLimit(SKIP_LIMIT)
                 .listener(extractionCircuitBreaker)
                 .listener(extractionHealthCheckListener)
+                .listener(extractionRunCompletion)
                 .build();
     }
 
@@ -76,7 +78,19 @@ public class ExtractionJobConfiguration {
     @Bean
     @StepScope
     OccurrenceReader extractionReader(Ledger ledger, ExtractionRun extractionRun) {
+        // Everything this run names is already extracted, so the step runs in its usual place and
+        // reads nothing (ADR-115) -- the shape a shut gate already uses, for a different reason.
+        if (ledger.runFinished(extractionRun.runId())) {
+            return OccurrenceReader.yieldingNothing();
+        }
         return new OccurrenceReader(ledger.survivors(extractionRun.runId()));
+    }
+
+    /** Marks this run as holding all of its work, once the step has finished doing it (ADR-115). */
+    @Bean
+    @StepScope
+    RunCompletion extractionRunCompletion(Ledger ledger, ExtractionRun extractionRun) {
+        return new RunCompletion(ledger, extractionRun::runId);
     }
 
     /**

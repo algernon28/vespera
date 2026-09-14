@@ -93,6 +93,7 @@ class ContentCensusTaskletTest {
                 new DocumentFrequency(jdbcTemplate, ledger),
                 new ConfidenceDistribution(jdbcTemplate, ledger),
                 contentCensusRun,
+                ledger,
                 profileStore,
                 clock,
                 workingDirectory);
@@ -167,6 +168,7 @@ class ContentCensusTaskletTest {
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
                         contentCensusRun,
+                ledger,
                         profileStore,
                         clock,
                         workingDirectory)
@@ -209,6 +211,7 @@ class ContentCensusTaskletTest {
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
                         contentCensusRun,
+                ledger,
                         profileStore,
                         clock,
                         workingDirectory)
@@ -253,6 +256,7 @@ class ContentCensusTaskletTest {
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
                         firstContentCensusRun,
+                        ledger,
                         profileStore,
                         Clock.fixed(Instant.parse("2026-09-05T10:00:00Z"), ZoneOffset.UTC),
                         workingDirectory)
@@ -267,6 +271,7 @@ class ContentCensusTaskletTest {
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
                         secondContentCensusRun,
+                        ledger,
                         profileStore,
                         Clock.fixed(secondRanAt, ZoneOffset.UTC),
                         workingDirectory)

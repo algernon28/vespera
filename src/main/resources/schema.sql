@@ -57,12 +57,17 @@ CREATE TABLE IF NOT EXISTS file_occurrence (
 --
 -- Nothing in the census slice writes here. The table exists because stage 1 is the next slice and
 -- the pom carries what a recorded decision requires ahead of the code that uses it (ADR-046).
+-- finished is the column walk has had since ADR-055, and it means the same thing here (ADR-115): the
+-- work this identity names is all recorded. A step that meets a finished run of its own does nothing
+-- and writes nothing, which is what content-derived identity was for. An unfinished one is a pass
+-- that stopped partway, and the step discards its own rows and does the work again.
 CREATE TABLE IF NOT EXISTS run (
     id TEXT PRIMARY KEY,
     stage TEXT NOT NULL,
     implementation_version TEXT NOT NULL,
     config_consumed TEXT NOT NULL,
-    walk_id INTEGER NOT NULL REFERENCES walk (id)
+    walk_id INTEGER NOT NULL REFERENCES walk (id),
+    finished INTEGER NOT NULL DEFAULT 0
 );
 
 -- A run's upstream runs, as rows rather than a delimited column so the chain stays queryable.

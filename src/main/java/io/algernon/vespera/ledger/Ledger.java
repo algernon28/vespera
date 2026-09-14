@@ -324,6 +324,30 @@ public class Ledger {
     }
 
     /**
+     * Records that everything this run names is written (ADR-115), the way {@link #finishWalk} does
+     * for a walk.
+     *
+     * <p>Called by the step that owns the run, after its last row and never before: what separates a
+     * finished run from an unfinished one is the difference between work a later invocation may skip
+     * and work it must do again.
+     */
+    public void finishRun(RunId runId) {
+        jdbcTemplate.update("UPDATE run SET finished = 1 WHERE id = ?", runId.value());
+    }
+
+    /**
+     * Whether this run's work is all recorded.
+     *
+     * <p>False for a run that does not exist, which is the honest answer: nothing is recorded under an
+     * identity nothing was ever written under.
+     */
+    public boolean runFinished(RunId runId) {
+        Integer finished = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM run WHERE id = ? AND finished = 1", Integer.class, runId.value());
+        return finished != null && finished > 0;
+    }
+
+    /**
      * The run of {@code stage} against {@code walkId} that was written last, or empty where the stage
      * has never run against this walk.
      *
