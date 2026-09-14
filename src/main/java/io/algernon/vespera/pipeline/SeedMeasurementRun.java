@@ -30,9 +30,13 @@ import tools.jackson.databind.json.JsonMapper;
  * bean must not depend on every caller remembering to check first.
  *
  * <p>{@code @JobScope} rather than {@code @StepScope}, following {@link RedundancyRun}: one instance
- * serves every step of stage 5 within one invocation, which is what keeps {@code Ledger.startRun} —
- * which has no continuation clause — from being called twice with the same content-derived id and
- * colliding on {@code run}'s primary key.
+ * serves every step of stage 5 within one invocation, so the id is derived once from inputs that
+ * cannot change within it. No longer because a second call would collide — since ADR-115
+ * {@code Ledger.startRun} carries on under the row already standing.
+ *
+ * <p>Two steps write under this one run, {@code seed-extraction} and {@code seed-corpus-comparison},
+ * which is why whether their work is done is recorded per step and not here (ADR-116). A flag on the
+ * run would let the second of them answer for the first.
  *
  * <p>The walk this run is recorded against is the <b>corpus</b> walk, not the seed walk. A run's walk
  * is the corpus it judges (and stage 5 goes on to judge corpus survivors); the seed folder is

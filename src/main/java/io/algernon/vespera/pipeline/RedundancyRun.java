@@ -15,10 +15,19 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Mints stage 4's run exactly once per job execution, shared by both of its steps — the #75 hand-off
- * comment's settlement of the map's open fog. {@code Ledger.startRun} has no continuation clause: a
- * second call minting the same content-derived id (ADR-048) would collide against {@code run}'s primary
- * key, so one bean held for the whole job is what avoids that, rather than a {@code Ledger} change that
- * would make "a run already exists" unremarkable for every stage.
+ * comment's settlement of the map's open fog.
+ *
+ * <p><b>This paragraph used to argue the opposite of what the record now says</b>, and the disagreement
+ * is worth keeping rather than quietly deleting. It read that one bean held for the whole job was what
+ * kept {@code Ledger.startRun} from colliding on {@code run}'s primary key, "rather than a
+ * {@code Ledger} change that would make 'a run already exists' unremarkable for every stage". ADR-115
+ * made exactly that change, because a re-walk of an unchanged corpus re-derives every id and the
+ * collision stops being avoidable by scoping. What was given up is what this paragraph was protecting:
+ * "a run already exists" is now ordinary, so it can no longer be read as a fault.
+ *
+ * <p>The scope stays all the same. One instance means the id is derived once from inputs that cannot
+ * change within an invocation — and, because both of stage 4's steps write under this one run,
+ * completion is recorded per step rather than per run (ADR-116).
  *
  * <p>{@code @JobScope} rather than {@code @StepScope}: {@link ContentCensusRun}'s reason for being
  * step-scoped is reading {@code jobParameters['root']}, which a job-scoped bean reads equally well, and
