@@ -387,6 +387,13 @@ public final class Adr {
     public static final String THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS = FILE
             + "0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md";
 
+    /**
+     * ADR-108 — 6b sends one exemplar-first call per cluster, each document contributing its leading
+     * chunk, and verifies every response.
+     */
+    public static final String SIX_B_SENDS_ONE_EXEMPLAR_FIRST_CALL_PER_CLUSTER =
+            FILE + "0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md";
+
     /** ADR-110 — pipeline hands synthesis its inputs, so the module rule gains no second exception. */
     public static final String PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS = FILE
             + "0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md";
