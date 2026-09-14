@@ -83,6 +83,13 @@ import org.springframework.transaction.annotation.Transactional;
  * written nothing — in each case nobody has approved anything, and a typo must not be able to behave
  * like an approval. An approval naming two arrangements stops instead, which is what this system
  * already does anywhere it would otherwise have to guess which of two runs was meant (ADR-099).
+ *
+ * <p><b>The tests that invoke more than once rest on ADR-115.</b> An approval names a 6a run id, a
+ * run id hashes the walk it read, and until that record a finished walk was never reused — so the
+ * approval named an arrangement of a walk the next invocation was not looking at, and the gate could
+ * not be opened by any value an operator could type. The third-invocation test is the other half of
+ * the same record: with walk churn stopped, a re-derived generation run id meets the row it already
+ * wrote, and {@code Ledger.startRun} continues under it rather than inserting a second time.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -324,6 +331,34 @@ class GenerationInvocationTest {
                         + " out of what gets published, and writing connecting text over what survived"
                         + " takes nothing out of anything",
                 () -> assertThat(verdictsAgainstTheGeneratedWork(root)).isZero());
+    }
+
+    @Test
+    @Story("Nothing is written over the archive until a person approves what they read")
+    @DisplayName("Invoking a third time with the approval still standing adds nothing and breaks nothing")
+    @Disabled("waits on issue 191: nothing ever reuses a finished walk, so no run id survives one invocation and this cannot hold yet")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void aThirdInvocationUnderAStandingApprovalAddsNothing(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        cli.run("run", root.toString());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the third invocation reports success: nothing about the archive, the values a person set"
+                        + " or the tool had changed since the second, so there was nothing for it to do --"
+                        + " and an invocation that ends in red for having nothing to do is telling a person"
+                        + " something is wrong when nothing is",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and the work is still recorded exactly " + ONE_RECORD + " time: the third invocation"
+                        + " works out the same name for this work as the second did, finds that name already"
+                        + " written down, and carries on under it -- writing it a second time is the one"
+                        + " thing the record of work will not accept",
+                () -> assertThat(generationRuns(root)).hasSize(ONE_RECORD));
     }
 
     /** One corpus document and one exemplar, with every gate before this one open. */

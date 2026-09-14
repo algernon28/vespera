@@ -438,6 +438,13 @@ public final class Adr {
     public static final String THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT = FILE
             + "0114-the-generation-model-is-named-in-application-configuration-with-a-code-default-and-is-not-a-gate.md";
 
+    /**
+     * ADR-115 — a re-walk that observed nothing new is discarded, and a run is continued under its
+     * own id.
+     */
+    public static final String A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED = FILE
+            + "0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md";
+
     private Adr() {
     }
 }
