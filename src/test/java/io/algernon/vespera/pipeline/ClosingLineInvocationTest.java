@@ -74,6 +74,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ImportAutoConfiguration(BatchAutoConfiguration.class)
 @Import({
     CensusJobConfiguration.class,
+    GenerationJobConfiguration.class,
+    GenerationTasklet.class,
+    GenerationRun.class,
+    GenerationModel.class,
     CensusTasklet.class,
     ByteLevelReductionJobConfiguration.class,
     ByteLevelReductionTasklet.class,

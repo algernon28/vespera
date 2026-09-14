@@ -39,17 +39,36 @@ class NextAction {
     private final ProfileStore profileStore;
     private final RelevanceLabels relevanceLabels;
     private final Ledger ledger;
+    private final GenerationModel generationModel;
     private final Path workingDirectory;
 
     NextAction(
             ProfileStore profileStore,
             RelevanceLabels relevanceLabels,
             Ledger ledger,
+            GenerationModel generationModel,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
         this.profileStore = profileStore;
         this.relevanceLabels = relevanceLabels;
         this.ledger = ledger;
+        this.generationModel = generationModel;
         this.workingDirectory = workingDirectory;
+    }
+
+    /**
+     * The model the next invocation would generate under, or null where none resolves.
+     *
+     * <p>Swallowed for the reason {@link #answersRecordedAgainst} swallows its own failure: this line
+     * is the last thing a successful invocation prints, and a misconfiguration that has not stopped
+     * anything yet must not turn it into a stack trace. The run that would actually generate refuses
+     * on its own, before minting anything (ADR-114).
+     */
+    private String generationModelName() {
+        try {
+            return generationModel.name();
+        } catch (IllegalStateException nothingNamed) {
+            return null;
+        }
     }
 
     /**
@@ -62,7 +81,7 @@ class NextAction {
      */
     String line() {
         Profile profile = profileStore.load();
-        return line(profile, answersRecordedAgainst(profile), questionsWritten(), Optional.empty());
+        return line(profile, answersRecordedAgainst(profile), questionsWritten(), Optional.empty(), generationModelName());
     }
 
     /**
@@ -78,7 +97,8 @@ class NextAction {
                 profile,
                 answersRecordedAgainst(profile),
                 questionsWritten(),
-                arrangementToApprove(corpusRoot));
+                arrangementToApprove(corpusRoot),
+                generationModelName());
     }
 
     /**
@@ -154,7 +174,8 @@ class NextAction {
             Profile profile,
             int answersRecorded,
             boolean questionsWritten,
-            Optional<String> arrangementToApprove) {
+            Optional<String> arrangementToApprove,
+            String generationModel) {
         List<String> unsetRunValues = unsetRunValues(profile);
         if (!unsetRunValues.isEmpty()) {
             return whatIsSet(profile, answersRecorded) + " Next: write "
@@ -173,7 +194,7 @@ class NextAction {
                             + " arranged. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
                             + ", and if that arrangement is the one you want, write " + quoted(name)
                             + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
-                            + " provenance beside it -- and run again.")
+                            + " provenance beside it -- and run again" + writtenWith(generationModel) + ".")
                     .orElse("Every value the profile asks for is answered, including relevanceScoreFloor."
                             + " Nothing was arranged this invocation, so there is nothing to approve yet."
                             + " Next: fix what the gated line above names, and run again.");
@@ -217,6 +238,25 @@ class NextAction {
         } catch (NumberFormatException notANumber) {
             return true;
         }
+    }
+
+    /**
+     * The clause naming the model the next invocation will generate under (ADR-114), on the one line
+     * where that is about to happen.
+     *
+     * <p>It is here because the generation model is the only thing about the next invocation the
+     * operator is never asked to supply: every other value this line names is one they write, and a
+     * default they never chose would otherwise reach them only afterwards, as provenance on a
+     * deliverable already written. Naming it is disclosure before the call is spent, and it is still a
+     * value rather than a stage, which is what ADR-098 asks of everything on this line.
+     *
+     * <p>Empty where nothing resolved, so a misconfigured default costs this line one clause rather
+     * than replacing a successful invocation's last words with a stack trace.
+     */
+    private static String writtenWith(String generationModel) {
+        return generationModel == null || generationModel.isBlank()
+                ? ""
+                : " to write the connecting text with " + generationModel;
     }
 
     /** What the operator actually wrote, quoted so a stray comma or space is visible as one. */

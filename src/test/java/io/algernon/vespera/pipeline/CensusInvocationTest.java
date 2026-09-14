@@ -78,6 +78,10 @@ import picocli.CommandLine;
 @ImportAutoConfiguration(BatchAutoConfiguration.class)
 @Import({
     CensusJobConfiguration.class,
+    GenerationJobConfiguration.class,
+    GenerationTasklet.class,
+    GenerationRun.class,
+    GenerationModel.class,
     CensusTasklet.class,
     ByteLevelReductionJobConfiguration.class,
     ByteLevelReductionTasklet.class,
@@ -243,8 +247,10 @@ class CensusInvocationTest {
                         + " steps, then the seed set stage 5 scores against, then how far that seed set"
                         + " resembles the documents still standing, then every vector gate 3 embeds, then"
                         + " every survivor's relevance score, then the threshold that removes what"
-                        + " scored under it, then each seed partition grouped into clusters, and last the page and the questions a person needs in order to"
-                        + " choose a cut -- so each pass only ever measures what the cheaper passes"
+                        + " scored under it, then each seed partition grouped into clusters, then the page"
+                        + " and the questions a person needs in order to choose a cut, then the groups that"
+                        + " page is written from, and last the step that writes over the groups a person"
+                        + " approved -- so each pass only ever measures what the cheaper passes"
                         + " before it left standing, and nothing is put to a person until every score it"
                         + " would be read against exists",
                 () -> assertThat(stagesInOrder)
@@ -262,7 +268,8 @@ class CensusInvocationTest {
                                 "relevance-floor",
                                 "clustering",
                                 "relevance-report",
-                                "arrangement"));
+                                "arrangement",
+                                "generation"));
         claim(
                 "and the content census in particular runs after extraction rather than beside it: it"
                         + " summarises a whole extraction pass, and a summary computed over a pass still"

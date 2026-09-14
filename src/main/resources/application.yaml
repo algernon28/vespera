@@ -71,6 +71,19 @@ spring:
       audio:
         transcription: none
         speech: none
+    ollama:
+      chat:
+        options:
+          # Which model stage 6b generates under (ADR-114). Unlike the embedding model -- which is a
+          # profile key with no default, gated, because it keys every vector and every relevance
+          # verdict -- this one keys a run whose output is prose, so it ships with a default and the
+          # profile's generationModel overrides it. Chosen on friction and changeable without a new
+          # ADR (ADR-013's terms): it is not a measured choice and beat nothing, and what stands
+          # behind a corpus is the generator identity recording which weights actually answered.
+          #
+          # It lives here, where Spring AI's own auto-configuration reads it, rather than under a
+          # vespera.* key, so the chat model bean and the call name one model instead of two.
+          model: qwen3:8b
     vectorstore:
       chroma:
         # Chroma is a derived, disposable projection of the vectors SQLite holds

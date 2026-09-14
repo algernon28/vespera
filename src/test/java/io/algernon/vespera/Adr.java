@@ -424,6 +424,13 @@ public final class Adr {
     public static final String THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN = FILE
             + "0107-the-arrangement-gate-approves-a-named-6a-run-and-the-path-becomes-five-invocations.md";
 
+    /**
+     * ADR-114 — the generation model is named in application configuration with a code default,
+     * overridable in the profile, and is not a gate.
+     */
+    public static final String THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT = FILE
+            + "0114-the-generation-model-is-named-in-application-configuration-with-a-code-default-and-is-not-a-gate.md";
+
     private Adr() {
     }
 }
