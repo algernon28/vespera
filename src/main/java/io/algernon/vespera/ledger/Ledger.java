@@ -158,6 +158,37 @@ public class Ledger {
                 .findFirst();
     }
 
+    /**
+     * The finished walk of {@code root} recorded before {@code walkId}, if there is one (ADR-115).
+     *
+     * <p>The immediately preceding one, never the best match among all of them. Searching earlier
+     * walks would reintroduce the ambiguity ADR-099 refuses, and an approval given while the archive
+     * was different should stay expired rather than be revived by the archive changing back.
+     */
+    public Optional<WalkId> finishedWalkBefore(Path root, WalkId walkId) {
+        return jdbcTemplate
+                .query(
+                        "SELECT id FROM walk WHERE root = ? AND finished = 1 AND id < ? ORDER BY id DESC LIMIT 1",
+                        (resultSet, rowNumber) -> new WalkId(resultSet.getLong("id")),
+                        root.toString(),
+                        walkId.value())
+                .stream()
+                .findFirst();
+    }
+
+    /**
+     * Removes a walk and everything recorded beneath it (ADR-115).
+     *
+     * <p>Only ever called on a traversal that observed what the previous one already recorded, so
+     * what is deleted is a duplicate rather than a loss. Deleted rather than left standing because a
+     * spare walk row is a second corpus nobody has, and everything downstream points at a walk.
+     */
+    public void discardWalk(WalkId walkId) {
+        jdbcTemplate.update("DELETE FROM file_occurrence WHERE walk_id = ?", walkId.value());
+        jdbcTemplate.update("DELETE FROM walk_anomaly WHERE walk_id = ?", walkId.value());
+        jdbcTemplate.update("DELETE FROM walk WHERE id = ?", walkId.value());
+    }
+
     /** Records one file occurrence against {@code walkId}. */
     public void fileOccurrence(
             WalkId walkId, OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime) {
