@@ -239,7 +239,7 @@ flowchart TD
 - **No Spring Modulith event publication registry** — no application events exist in this design (stages never call each other); `spring-modulith-starter-core` is retained for boundary verification only.
 - **CLI surface** (ADR-047, narrowed by ADR-101) — `vespera run` takes the pipeline through 6b and `vespera label` runs the operator's labelling pass. The `publish` subcommand is gone, removed under ADR-101's own follow-up. Nothing more, because there's no interactive pause left to expose.
 
-**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — fourteen of them today, census through the arrangement, each later stage having been another step appended to the same job. Stage 6b is the one still to be appended. The run ends at stage 6b, and nothing follows it (ADR-101).
+**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — fifteen of them today, census through the generation gate, each later stage having been another step appended to the same job. Stage 6b is appended and is its gate, its run and its wiring: it opens over the arrangement the operator approved and mints the run everything it writes will be recorded under, and writes nothing yet. The run ends at stage 6b, and nothing follows it (ADR-101).
 
 ```mermaid
 flowchart TD
@@ -249,7 +249,7 @@ flowchart TD
     JOB["<b>job 'vespera' started</b><br/>one job parameter: the root<br/><i>never started by the app coming up</i>"]
     S0["<b>step: census</b><br/>stage 0 — walk, record, merge the profile"]
     LATER["<b>steps: stages 1 to 6a</b><br/>thirteen more on the same job<br/><i>through the arrangement and its gate</i>"]
-    S6BSTEP["<b>step: stage 6b</b><br/><i>not built</i>"]
+    S6BSTEP["<b>step: stage 6b</b><br/><i>gate and run only</i>"]
     EXIT(["exit code<br/>0, or non-zero if the job failed"])
 
 

@@ -8,8 +8,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 /**
- * Reads what the embedding runtime reports about itself (ADR-091), for the parts of an
- * {@link EmbedderIdentity} that are not ours to choose.
+ * Reads what a serving runtime reports about itself (ADR-091), for the parts of an instrument
+ * identity that are not ours to choose.
+ *
+ * <p><b>It serves two callers, and says so.</b> It was written for {@link EmbedderIdentity} and read
+ * only by the embedder until stage 6b's generator identity needed the same manifest digest from the
+ * same endpoint (ADR-110, ADR-114). Nothing about the reading is specific to either: {@code /api/tags}
+ * answers for whichever model was asked about. What was specific was the wording of the two refusals,
+ * which named the embedder and would have told an operator who mistyped {@code generationModel} that
+ * no <em>embedder</em> identity could be composed. They name the model asked about instead, which is
+ * what ADR-114 requires of 6b in one further way — generalise this, or grow a sibling beside it.
  *
  * <p><b>Why a client of our own, beside {@code DoclingClient}.</b> Spring AI 2.0.0 reaches this
  * endpoint, and its typed DTOs cannot compose this identity: {@code ShowModelResponse} carries no
@@ -54,7 +62,7 @@ public class OllamaClient {
                 .filter(candidate -> modelName.equals(candidate.name()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the runtime serves no model named " + modelName
-                        + ", so there is nothing to compose an embedder identity from"));
+                        + ", so there is nothing to compose an identity from"));
         return new ModelArtefact(
                 stated("digest", modelName, model.digest()),
                 stated("quantization level", modelName, model.details() == null ? null : model.details().dtype()));
@@ -63,7 +71,7 @@ public class OllamaClient {
     private static String stated(String field, String modelName, String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalStateException("the runtime reported no " + field + " for " + modelName
-                    + ", so an embedder identity composed now would carry a blank where that part belongs");
+                    + ", so an identity composed now would carry a blank where that part belongs");
         }
         return value;
     }

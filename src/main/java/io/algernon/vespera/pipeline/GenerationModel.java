@@ -22,12 +22,15 @@ import org.springframework.stereotype.Component;
 @Component
 class GenerationModel {
 
+    /** Where the shipped default lives, named once so the refusal and the binding cannot disagree. */
+    static final String CONFIGURED_DEFAULT_KEY = "spring.ai.ollama.chat.options.model";
+
     private final ProfileStore profileStore;
     private final String configuredDefault;
 
     GenerationModel(
             ProfileStore profileStore,
-            @Value("${spring.ai.ollama.chat.options.model:}") String configuredDefault) {
+            @Value("${" + CONFIGURED_DEFAULT_KEY + ":}") String configuredDefault) {
         this.profileStore = profileStore;
         this.configuredDefault = configuredDefault;
     }
@@ -46,9 +49,7 @@ class GenerationModel {
             return profile.generationModel().value().trim();
         }
         if (configuredDefault == null || configuredDefault.isBlank()) {
-            throw new IllegalStateException("no generation model is named: spring.ai.ollama.chat.options.model"
-                    + " carries no value and generationModel is unanswered in the profile, so there is no"
-                    + " honest name to compose a generator identity around");
+            throw new NoGenerationModelNamedException(CONFIGURED_DEFAULT_KEY);
         }
         return configuredDefault;
     }

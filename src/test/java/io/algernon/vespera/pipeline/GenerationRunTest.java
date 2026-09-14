@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 @Feature("Generation")
 @Issue("179")
 @Link(name = "ADR-108", url = Adr.SIX_B_SENDS_ONE_EXEMPLAR_FIRST_CALL_PER_CLUSTER, type = "adr")
+@Link(name = "ADR-110", url = Adr.PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS, type = "adr")
 class GenerationRunTest {
 
     /** The corpus root this run reads, canonicalised as every other run records it. */
@@ -33,8 +34,8 @@ class GenerationRunTest {
     /** The arrangement the operator approved, which this run is chained to. */
     private static final RunId AN_ARRANGEMENT = new RunId("9f2c41ab77de0000000000000000000000000000000000000000000000000000");
 
-    /** The model resolved for this invocation. */
-    private static final String THE_MODEL = "a-generation-model:8b";
+    /** The generation model resolved for this invocation. */
+    private static final String THE_GENERATION_MODEL = "a-generation-model:8b";
 
     /** What the runtime reports for those weights — the part a mutable tag cannot fake. */
     private static final String THE_DIGEST = "sha256:0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0";
@@ -46,12 +47,12 @@ class GenerationRunTest {
     @Story("The generator identity is what was asked and what answered, never where it was served")
     @DisplayName("The identity carries the model's name and its weights digest")
     void carriesTheModelNameAndItsDigest() {
-        String identity = GenerationRun.configConsumed(A_CORPUS_ROOT, AN_ARRANGEMENT, THE_MODEL, THE_DIGEST);
+        String identity = GenerationRun.configConsumed(A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST);
 
         claim(
                 "the model's name is in it, because two models write different documents over one"
                         + " cluster and a run that cannot tell them apart claims one wrote the other's",
-                () -> assertThat(identity).contains(THE_MODEL));
+                () -> assertThat(identity).contains(THE_GENERATION_MODEL));
         claim(
                 "and the weights digest beside it: a mutable tag re-pulled after upstream republishes"
                         + " would otherwise mint the same run id over different weights, which is the"
@@ -63,7 +64,7 @@ class GenerationRunTest {
     @Story("The generator identity is what was asked and what answered, never where it was served")
     @DisplayName("The identity carries no trace of where the model was served")
     void carriesNoServingUrl() {
-        String identity = GenerationRun.configConsumed(A_CORPUS_ROOT, AN_ARRANGEMENT, THE_MODEL, THE_DIGEST);
+        String identity = GenerationRun.configConsumed(A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST);
 
         claim(
                 "two deployments answering alike are one instrument, and moving a port is not a change --"
@@ -75,7 +76,7 @@ class GenerationRunTest {
     @Story("A run names the arrangement it was approved against")
     @DisplayName("The identity names the approved arrangement it reads")
     void namesTheApprovedArrangement() {
-        String identity = GenerationRun.configConsumed(A_CORPUS_ROOT, AN_ARRANGEMENT, THE_MODEL, THE_DIGEST);
+        String identity = GenerationRun.configConsumed(A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST);
 
         claim(
                 "the arrangement is in the identity as well as in the upstream chain, so a re-arrangement"

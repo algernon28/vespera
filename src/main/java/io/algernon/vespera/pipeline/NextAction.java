@@ -11,6 +11,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -32,6 +34,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class NextAction {
+
+    private static final Logger LOG = LoggerFactory.getLogger(NextAction.class);
 
     /** Where every value this line names is written, and the only file it ever asks anyone to edit. */
     private static final String PROFILE = "profile.yaml";
@@ -62,11 +66,24 @@ class NextAction {
      * is the last thing a successful invocation prints, and a misconfiguration that has not stopped
      * anything yet must not turn it into a stack trace. The run that would actually generate refuses
      * on its own, before minting anything (ADR-114).
+     *
+     * <p><b>Swallowed is not the same as silent.</b> ADR-114 decides that a blanked default is not a
+     * gate and earns no clause on this line; it does not decide that the operator learns nothing until
+     * the invocation that would generate dies inside a constructor. The warning is what makes the
+     * missing clause legible as a misconfiguration rather than as a line that happens to be shorter.
+     *
+     * <p>The catch names {@link NoGenerationModelNamedException} rather than its supertype, so it
+     * swallows the one fault it was written for and nothing else the profile read might raise.
      */
     private String generationModelName() {
         try {
             return generationModel.name();
-        } catch (IllegalStateException nothingNamed) {
+        } catch (NoGenerationModelNamedException nothingNamed) {
+            LOG.warn(
+                    "No model is named to generate under, so the closing line does not say what the next"
+                            + " invocation would write with: {} carries no value and generationModel is"
+                            + " unanswered in the profile. The invocation that reaches stage 6b will refuse.",
+                    GenerationModel.CONFIGURED_DEFAULT_KEY);
             return null;
         }
     }
