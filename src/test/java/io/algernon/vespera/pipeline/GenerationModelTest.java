@@ -120,9 +120,11 @@ class GenerationModelTest {
         claim(
                 "there is no honest name to compose a generator identity around, and the fault poisons"
                         + " every cluster rather than one -- so it stops the run here rather than faulting"
-                        + " each cluster in turn once the calls have started",
+                        + " each cluster in turn once the calls have started. The refusal is its own kind"
+                        + " rather than a general one, because the closing line singles this out to swallow"
+                        + " and would turn any other kind into a stack trace on a successful invocation",
                 () -> assertThatThrownBy(withNoDefault::name)
-                        .isInstanceOf(IllegalStateException.class)
+                        .isInstanceOf(NoGenerationModelNamedException.class)
                         .hasMessageContaining("generationModel"));
     }
 

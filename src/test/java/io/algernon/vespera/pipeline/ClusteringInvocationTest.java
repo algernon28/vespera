@@ -250,7 +250,7 @@ class ClusteringInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "the profile carries the same seven keys it did before this step existed: k and the"
+                "clustering contributes none of the profile's seven keys: k and the"
                         + " resolution are operational numbers, and cluster granularity is a preference"
                         + " about page size discoverable only from output that does not exist yet -- a key"
                         + " for it would ship unset, gate nothing, and be unanswerable",

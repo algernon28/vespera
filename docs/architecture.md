@@ -3,7 +3,7 @@
 **Project:** Document Curation Pipeline → Knowledge Base
 **Source:** compiled 2026-08-21 from the ADRs and `CONTEXT.md`. Demoted from a hand-off note to this repo's standing architecture document on 2026-08-22, when the lost ADR text was reconstituted from the condensed ledger into [`docs/adr/`](./adr/README.md).
 **Reading order:** §1 and §2 describe the system and are the fuller record — most ADR files carry only a one-line summary and point back here. The condensed ledger now lives in [`docs/decision-ledger.md`](./decision-ledger.md), kept as the provenance witness for those files rather than as the place to read a decision.
-**Status:** design is ahead of code — stages 0 to 4 judge, stage 5 measures without judging, stage 6a names and orders what stage 5 grouped, and 6b is recorded decisions with no code. `AGENTS.md` is where that state is kept current; this document describes the system as decided, not as built. Open questions are not tracked here — they live on the issue tracker, and `AGENTS.md` says which of them is takeable. The stage 6a/6b slice's wayfinder map was charted on 2026-09-12 and is open; the stage 5 slice's closed on 2026-09-09.
+**Status:** design is ahead of code — stages 0 to 4 judge, stage 5 measures without judging, stage 6a names and orders what stage 5 grouped, and 6b is its gate, its run and its wiring, so nothing generates a word of connective material yet. `AGENTS.md` is where that state is kept current; this document describes the system as decided, not as built. Open questions are not tracked here — they live on the issue tracker, and `AGENTS.md` says which of them is takeable. The stage 6a/6b slice's wayfinder map was charted on 2026-09-12 and is open; the stage 5 slice's closed on 2026-09-09.
 
 ---
 

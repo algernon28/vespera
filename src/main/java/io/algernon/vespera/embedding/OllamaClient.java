@@ -13,8 +13,14 @@ import org.springframework.web.client.RestClient;
  *
  * <p><b>It serves two callers, and says so.</b> It was written for {@link EmbedderIdentity} and read
  * only by the embedder until stage 6b's generator identity needed the same manifest digest from the
- * same endpoint (ADR-110, ADR-114). Nothing about the reading is specific to either: {@code /api/tags}
- * answers for whichever model was asked about. What was specific was the wording of the two refusals,
+ * same endpoint (ADR-110, ADR-114). {@code /api/tags} answers for whichever model was asked about, but
+ * the reading is not neutral between the two callers: it refuses on a blank {@code dtype} as well as a
+ * blank digest, and the dtype belongs to the embedder's identity alone (ADR-091) — a generator identity
+ * carries the name and the digest and nothing else. A 6b run can therefore be stopped over a field its
+ * own identity never records. Whether the generator's read should require it is not settled by ADR-110
+ * or ADR-114, so the inherited refusal stands and is written down here rather than papered over.
+ *
+ * <p>What was specific and is no longer is the wording of the two refusals,
  * which named the embedder and would have told an operator who mistyped {@code generationModel} that
  * no <em>embedder</em> identity could be composed. They name the model asked about instead, which is
  * what ADR-114 requires of 6b in one further way — generalise this, or grow a sibling beside it.
