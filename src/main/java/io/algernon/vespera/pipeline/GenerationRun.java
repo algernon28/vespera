@@ -28,8 +28,12 @@ import tools.jackson.databind.json.JsonMapper;
  * synthesis} may not reach the serving engine, so {@code pipeline} reads it and hands it down as a
  * plain string (ADR-110).
  *
- * <p>Every caller reaches this bean through an {@code ObjectProvider}, so the run row its constructor
- * mints never exists while the gate is shut (ADR-080's rule, applied again).
+ * <p><b>No run row exists while the gate is shut</b> (ADR-080's rule, applied again), and it is
+ * {@code @JobScope} that gets that: the injected reference is a scoped proxy, and the constructor
+ * below — the thing that mints the row — runs on the first call to {@link #runId()}, which the
+ * tasklet makes only past the gate. The {@code ObjectProvider} every caller reaches it through buys
+ * nothing on top of that today; it is there so that this bean losing {@code @JobScope} and becoming
+ * an eager singleton cannot silently start minting a row per invocation.
  *
  * <p>{@code @JobScope} rather than {@code @StepScope}, for {@link ArrangementRun}'s reason: one
  * instance serves the invocation, and {@code Ledger.startRun} is never called twice with one

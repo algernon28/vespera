@@ -37,6 +37,7 @@ import org.springframework.core.io.ClassPathResource;
 @Feature("Shipped configuration")
 @Issue("179")
 @Link(name = "ADR-012", url = Adr.EXTRACTION_ENGINE_IS_CONFIGURABLE, type = "adr")
+@Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
 class ShippedConfigurationTest {
 
     /** The file the application ships with, layered over by {@code application-test.yaml} at test time. */
