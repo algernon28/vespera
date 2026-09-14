@@ -445,6 +445,19 @@ public final class Adr {
     public static final String A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED = FILE
             + "0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md";
 
+    /**
+     * ADR-116 — a run's completion is recorded per step, because several steps share one run.
+     */
+    public static final String A_RUNS_COMPLETION_IS_RECORDED_PER_STEP = FILE
+            + "0116-a-runs-completion-is-recorded-per-step-because-several-steps-share-one-run.md";
+
+    /**
+     * ADR-117 — the relevance floor joins the scoring run's identity, so a changed threshold is a
+     * different run.
+     */
+    public static final String THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY = FILE
+            + "0117-the-relevance-floor-joins-the-scoring-runs-identity-so-a-changed-threshold-is-a-different-run.md";
+
     private Adr() {
     }
 }

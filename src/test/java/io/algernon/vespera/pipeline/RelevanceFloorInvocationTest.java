@@ -182,7 +182,19 @@ class RelevanceFloorInvocationTest {
     private static final String ANOTHER_MODELS_IDENTITY =
             "model=nomic-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
 
+    /** The same number as {@link #A_FLOOR_BELOW_EVERY_SCORE}, written the way a second person might. */
+    private static final String THE_SAME_FLOOR_WRITTEN_DIFFERENTLY = "0.10";
+
+    /** What a person types when they answer the key with a sentence instead of a number. */
+    private static final String A_FLOOR_THAT_IS_NOT_A_NUMBER = "about halfway";
+
     private static final int CORPUS_DOCUMENTS = 2;
+
+    /** One piece of scoring work, however many times the corpus is invoked over. */
+    private static final int ONE_SCORING_RUN = 1;
+
+    /** Two pieces of scoring work: one under no threshold, one under the threshold that followed it. */
+    private static final int TWO_SCORING_RUNS = 2;
 
     @TempDir
     static Path workingDirectory;
@@ -340,6 +352,110 @@ class RelevanceFloorInvocationTest {
                         + " for the wrong reason, and this confirms that set is empty rather than assuming"
                         + " it (#108)",
                 () -> assertThat(belowThresholdCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
+    }
+
+    @Test
+    @Story("A changed threshold is a different run")
+    @DisplayName("Setting a threshold where there was none is a scoring run of its own")
+    @Issue("199")
+    @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
+    void aChangedFloorIsADifferentScoringRun(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        String theRunWithNoThreshold = scoringRunIdsFor(root).getFirst();
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation scored under a run of its own, so this corpus now carries"
+                        + " " + TWO_SCORING_RUNS + " scoring runs rather than " + ONE_SCORING_RUN + ": a run"
+                        + " name is worked out from everything the run was given, and the threshold is"
+                        + " something it was given -- one that removes every document and one that removes"
+                        + " none cannot answer to the same name",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(TWO_SCORING_RUNS));
+        claim(
+                "and every removal is recorded under the newer of the two, never under the run that"
+                        + " scored with no threshold at all: the run a verdict sits under is the record of"
+                        + " what produced it, and nothing was produced by the earlier one",
+                () -> assertThat(belowThresholdRunIdsFor(root))
+                        .isNotEmpty()
+                        .doesNotContain(theRunWithNoThreshold));
+    }
+
+    @Test
+    @Story("A changed threshold is a different run")
+    @DisplayName("Invoking twice with the same threshold stays one scoring run")
+    @Issue("199")
+    @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
+    void anUnchangedFloorStaysOneScoringRun(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, A_FLOOR_BELOW_EVERY_SCORE);
+        cli.run("run", root.toString());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation carried on under the run the first one made, leaving"
+                        + " " + ONE_SCORING_RUN + " scoring run rather than two: nothing the run reads had"
+                        + " changed, so this is that work rather than another piece of work like it",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(ONE_SCORING_RUN));
+    }
+
+    @Test
+    @Story("A changed threshold is a different run")
+    @DisplayName("The same threshold written two ways is one threshold")
+    @Issue("199")
+    @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
+    void aThresholdWrittenDifferentlyIsOneThreshold(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, A_FLOOR_BELOW_EVERY_SCORE);
+        cli.run("run", root.toString());
+        profile(seeds, THE_SAME_FLOOR_WRITTEN_DIFFERENTLY);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "a trailing zero left " + ONE_SCORING_RUN + " scoring run standing: what a run is named"
+                        + " after is the number the removal will actually be measured against, not the"
+                        + " characters someone typed, and a second run here would remove exactly what the"
+                        + " first one did under a second name",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(ONE_SCORING_RUN));
+    }
+
+    @Test
+    @Story("A changed threshold is a different run")
+    @DisplayName("A threshold that is not a number is the same run as no threshold")
+    @Issue("199")
+    @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
+    void aThresholdThatIsNotANumberIsTheSameRunAsNoThreshold(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        profile(seeds, A_FLOOR_THAT_IS_NOT_A_NUMBER);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "a value nobody can read as a number left " + ONE_SCORING_RUN + " scoring run standing:"
+                        + " this run does exactly what it did when the key was blank -- it removes nothing"
+                        + " -- so the two are one piece of work, and the operator is told about the typo"
+                        + " where they are already looking rather than by a second run appearing",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(ONE_SCORING_RUN));
+        claim(
+                "and nothing was removed on the strength of it",
+                () -> assertThat(belowThresholdCountFor(root)).isZero());
+    }
+
+    /** The scoring runs the below-threshold verdicts over this corpus were written under. */
+    private List<String> belowThresholdRunIdsFor(Path root) {
+        return jdbcTemplate.queryForList(
+                "SELECT DISTINCT v.run_id FROM verdict v JOIN file_occurrence f ON f.id = v.occurrence_id"
+                        + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ? AND v.kind = 'BELOW_THRESHOLD'",
+                String.class,
+                walkRoot(root));
     }
 
     private void aCorpus(Path root, Path seeds) throws IOException {
