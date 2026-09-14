@@ -313,7 +313,7 @@ function readmeSection(heading, name) {
       for (const k of named) if (!real.includes(k)) wrong.push(`${k} is documented and is not a profile key`);
       for (const k of real) if (!named.includes(k)) wrong.push(`${k} is a profile key and is documented nowhere`);
       if (wrong.length) fail(NAME, wrong.join("; "));
-      else pass(NAME, `all ${real.length}, including the one that is not a stop`);
+      else pass(NAME, `all ${real.length}, including the ones that are not stops`);
     }
   }
 }

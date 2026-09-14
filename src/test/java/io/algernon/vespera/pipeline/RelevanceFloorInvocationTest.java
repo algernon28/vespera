@@ -81,6 +81,10 @@ import org.springframework.transaction.annotation.Transactional;
 @ImportAutoConfiguration(BatchAutoConfiguration.class)
 @Import({
     CensusJobConfiguration.class,
+    GenerationJobConfiguration.class,
+    GenerationTasklet.class,
+    GenerationRun.class,
+    GenerationModel.class,
     CensusTasklet.class,
     ByteLevelReductionJobConfiguration.class,
     ByteLevelReductionTasklet.class,

@@ -46,8 +46,11 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
 | `arrangementApproved` | whether the groups the tool formed are worth writing over | `arrangement.html` |
+| `generationModel` | whichever model you can serve locally, if you want a different one | — |
 
-`degenerateOutputConfidenceFloor` is **optional** and is not one of the five stops. Left unset, nothing is removed for extracting badly. It is here so that you know it exists.
+Two of these are **optional** and neither is one of the five stops; both are here so that you know they exist.
+
+`degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `generationModel`, left unset, writes the connecting text with the model Vespera ships with — it is the one value that already has an answer, and setting it only replaces that answer.
 
 Every value you set carries a `provenance` field. Write down how you arrived at the number. Nothing checks that you read the report first — what stands between a guess and your archive is what you record there.
 

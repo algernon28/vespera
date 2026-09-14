@@ -48,6 +48,9 @@ class NextActionTest {
     /** No label file exists: the step that writes one was gated, or the run never reached it. */
     private static final boolean NO_QUESTIONS_YET = false;
 
+    /** The model resolved for this invocation, as {@code GenerationModel} would hand it over. */
+    private static final String THE_GENERATION_MODEL = "a-generation-model:8b";
+
     /** ADR-088's stratified sample, answered in full. */
     private static final int SIXTY_ANSWERED = 60;
 
@@ -55,7 +58,7 @@ class NextActionTest {
     @Story("Step zero is the seed folder, because it is the only key available on day one")
     @DisplayName("With nothing set, the next action is to name the seed folder")
     void withNothingSetTheNextActionIsTheSeedFolder() {
-        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED);
+        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
 
         claim(
                 "the line names seedFolder as the value to write, which is the one key no measurement"
@@ -75,7 +78,7 @@ class NextActionTest {
     @Story("The next action names every value the next invocation needs, so no invocation is spent discovering one")
     @DisplayName("With nothing set, the line also names the two values invocation 2 needs")
     void withNothingSetTheLineNamesEveryValueTheNextInvocationNeeds() {
-        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED);
+        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
 
         claim(
                 "the boilerplate floor is named, and it is actionable now rather than later: the"
@@ -97,7 +100,7 @@ class NextActionTest {
     @Story("With the run's own values answered, the next act is the operator's own: labelling")
     @DisplayName("With the three run values set and nothing answered, the next action is to label and ingest")
     void withTheRunValuesSetTheNextActionIsToLabel() {
-        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED);
+        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
 
         claim(
                 "the line says what is set, so an operator who has forgotten what they wrote is not sent"
@@ -117,7 +120,7 @@ class NextActionTest {
     @Story("Answers recorded and no threshold: the number is the operator's to write")
     @DisplayName("With answers recorded, the next action is to write the threshold off the labelling report")
     void withAnswersRecordedTheNextActionIsTheThreshold() {
-        String line = NextAction.line(theRunValuesSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED);
+        String line = NextAction.line(theRunValuesSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
 
         claim(
                 "the threshold is named now, because the page it is read off exists now -- which is why"
@@ -140,7 +143,7 @@ class NextActionTest {
     @Story("The last point on the path still ends with a line, and it says there is nothing to do")
     @DisplayName("With everything answered, including the arrangement approved, nothing is left to set")
     void withTheThresholdSetThereIsNothingLeftToSet() {
-        String line = NextAction.line(everythingApproved(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT);
+        String line = NextAction.line(everythingApproved(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT, THE_GENERATION_MODEL);
 
         claim(
                 "the line says every value is answered, rather than the invocation ending on silence --"
@@ -164,7 +167,7 @@ class NextActionTest {
     @Story("An operator who took step zero is not told their answer is missing")
     @DisplayName("With only the seed folder set, the line says so and names the two values still wanted")
     void withOnlyTheSeedFolderSetTheLineCreditsIt() {
-        String line = NextAction.line(onlyTheSeedFolderSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED);
+        String line = NextAction.line(onlyTheSeedFolderSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
 
         claim(
                 "the seed folder is reported as set -- this is where the table in ADR-098 puts an"
@@ -192,7 +195,7 @@ class NextActionTest {
     @Story("A threshold nobody can parse is not a threshold, and the line says so")
     @DisplayName("A non-numeric threshold is reported as wanting a number, not as answered")
     void aThresholdThatIsNotANumberIsNotAnAnswer() {
-        String line = NextAction.line(theFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED);
+        String line = NextAction.line(theFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
 
         claim(
                 "the line does not call the path finished: the run read this value, failed to parse it"
@@ -212,7 +215,7 @@ class NextActionTest {
     @Story("The operator is never sent to a file the invocation did not write")
     @DisplayName("With no questions written, the line does not send the operator to the label file")
     void withNoQuestionsWrittenTheOperatorIsNotSentToTheLabelFile() {
-        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED);
+        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
 
         claim(
                 "no label file is named, because none was written -- a seed folder that produced no"
@@ -238,7 +241,7 @@ class NextActionTest {
     @Issue("175")
     @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
     void withTheThresholdSetTheNextActionIsToApproveTheArrangement() {
-        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT);
+        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT, THE_GENERATION_MODEL);
 
         claim(
                 "the approval is named now, because the arrangement it is about exists now -- which is"
@@ -259,12 +262,46 @@ class NextActionTest {
     @DisplayName("With the threshold set and nothing arranged, the approval is not asked for yet")
     @Issue("175")
     void withNothingArrangedTheApprovalIsNotAskedForYet() {
-        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED);
+        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
 
         claim(
                 "nothing asks the operator to approve an arrangement that was never written: a value"
                         + " they cannot supply is not a next action, it is a dead end with instructions",
                 () -> assertThat(line).doesNotContain("arrangementApproved"));
+    }
+
+    @Test
+    @Story("With the threshold answered, the next act is approving what was arranged")
+    @DisplayName("The approval line names the model the next invocation will generate under")
+    @Issue("179")
+    @Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
+    void theApprovalLineNamesTheModelGenerationWillRunUnder() {
+        String line = NextAction.line(
+                everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT, THE_GENERATION_MODEL);
+
+        claim(
+                "the operator is told which model is about to write the connecting text, before the call"
+                        + " is spent rather than after: the model is not a value they have to supply, so a"
+                        + " default they never chose would otherwise reach them only as provenance",
+                () -> assertThat(line).contains(THE_GENERATION_MODEL));
+        claim(
+                "and it is still one line, because a disclosure that doubles the length of the closing"
+                        + " sentence is a disclosure nobody finishes reading",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
+    @Test
+    @Story("With the threshold answered, the next act is approving what was arranged")
+    @DisplayName("With nothing arranged, no model is named either")
+    @Issue("179")
+    void withNothingArrangedNoModelIsNamed() {
+        String line = NextAction.line(
+                everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+
+        claim(
+                "naming the model that would generate is only useful beside an arrangement to approve:"
+                        + " on a line that asks the operator to go and fix something, it is noise",
+                () -> assertThat(line).doesNotContain(THE_GENERATION_MODEL));
     }
 
     /** Step zero taken and nothing else: the seed folder named before the first invocation. */

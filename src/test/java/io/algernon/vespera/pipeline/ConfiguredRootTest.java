@@ -77,6 +77,10 @@ import picocli.CommandLine;
 @ImportAutoConfiguration(BatchAutoConfiguration.class)
 @Import({
     CensusJobConfiguration.class,
+    GenerationJobConfiguration.class,
+    GenerationTasklet.class,
+    GenerationRun.class,
+    GenerationModel.class,
     SeedExtractionJobConfiguration.class,
     SeedExtractionItemProcessor.class,
     SeedExtractionItemWriter.class,
