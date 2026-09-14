@@ -187,7 +187,8 @@ class ClusteringInvocationTest {
             "boilerplateDocumentFrequencyFloor",
             "embeddingModel",
             "arrangementApproved",
-            "relevanceScoreFloor");
+            "relevanceScoreFloor",
+            "generationModel");
 
     @TempDir
     static Path workingDirectory;
@@ -249,7 +250,7 @@ class ClusteringInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "the profile carries the same five keys it did before this step existed: k and the"
+                "the profile carries the same keys it did before this step existed: k and the"
                         + " resolution are operational numbers, and cluster granularity is a preference"
                         + " about page size discoverable only from output that does not exist yet -- a key"
                         + " for it would ship unset, gate nothing, and be unanswerable",
