@@ -425,6 +425,13 @@ public final class Adr {
             + "0107-the-arrangement-gate-approves-a-named-6a-run-and-the-path-becomes-five-invocations.md";
 
     /**
+     * ADR-099 — a stage's upstream run is looked up by stage and walk, not recomputed, and two
+     * candidates stop the run.
+     */
+    public static final String AN_UPSTREAM_IS_LOOKED_UP_AND_TWO_CANDIDATES_STOP_THE_RUN = FILE
+            + "0099-a-stages-upstream-run-is-looked-up-by-stage-and-walk-not-recomputed-and-two-candidates-stop-the-run.md";
+
+    /**
      * ADR-114 — the generation model is named in application configuration with a code default,
      * overridable in the profile, and is not a gate.
      */
