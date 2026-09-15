@@ -35,6 +35,14 @@ class RedundancyGate {
      * ignored. A shut gate is what ADR-080 already says this state is, and the operator is told which
      * value was ignored by the closing line.
      */
+    /**
+     * The key as the profile holds it, so the gate's own sentence can say which of its two reasons is
+     * shutting it (ADR-120) rather than asserting the commoner one.
+     */
+    NumericValue value() {
+        return profileStore.load().boilerplateDocumentFrequencyFloor();
+    }
+
     Optional<Double> floor() {
         Profile profile = profileStore.load();
         return profile.boilerplateDocumentFrequencyFloor().reading() instanceof NumericValue.Answered answered

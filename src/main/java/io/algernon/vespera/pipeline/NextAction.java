@@ -205,7 +205,7 @@ class NextAction {
                     + " a score on the scale " + RelevanceLabellingReport.FILE_NAME + " reports into"
                     + " relevanceScoreFloor in " + PROFILE + ", and run again.";
         }
-        Optional<String> otherUnreadable = otherUnreadableFloor(profile);
+        Optional<String> otherUnreadable = theConfidenceFloorUnreadable(profile);
         if (otherUnreadable.isPresent()) {
             return otherUnreadable.get();
         }
@@ -242,30 +242,24 @@ class NextAction {
     }
 
     /**
-     * The line for either of the other two numeric keys, where one holds something no number can be
-     * read from — empty where both are fine.
+     * The line for the conversion-quality floor, where it holds something no number can be read from —
+     * empty otherwise.
      *
      * <p><b>Every numeric key is reported, not just the relevance floor</b> (ADR-120). Before it, a
-     * mistyped value in these two ended the invocation or stopped the application from starting, which
-     * at least made the mistake impossible to miss. Now that each one is ignored the way the relevance
-     * floor always was, saying so is what keeps "ignored" from meaning "silently dropped" — the same
-     * ground the relevance floor's own line stands on.
+     * mistyped value in this key stopped the application from starting, which at least made the mistake
+     * impossible to miss. Now that it is ignored the way the relevance floor always was, saying so is
+     * what keeps "ignored" from meaning "silently dropped".
      *
-     * <p>Order is fixed rather than incidental: the earlier stage's key comes first, because it is the
-     * one whose absence the operator meets soonest.
+     * <p>It needs a branch of its own because it is not a run value: the other two numeric keys are
+     * reported by {@link #unsetRunValues}, which since ADR-120 counts an unreadable one as unanswered
+     * and quotes back what is written there. This key is named by nothing else, so it is named here.
      */
-    private static Optional<String> otherUnreadableFloor(Profile profile) {
+    private static Optional<String> theConfidenceFloorUnreadable(Profile profile) {
         if (profile.degenerateOutputConfidenceFloor().reading() instanceof NumericValue.Unreadable unreadable) {
             return Optional.of("Every run value is set, but degenerateOutputConfidenceFloor reads "
                     + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and"
                     + " removed nothing for poor conversion quality. Next: write a score between 0 and 1"
                     + " into degenerateOutputConfidenceFloor in " + PROFILE + ", and run again.");
-        }
-        if (profile.boilerplateDocumentFrequencyFloor().reading() instanceof NumericValue.Unreadable unreadable) {
-            return Optional.of("Every run value is set, but boilerplateDocumentFrequencyFloor reads "
-                    + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and"
-                    + " went no further than measuring repetition. Next: write a proportion between 0"
-                    + " and 1 into boilerplateDocumentFrequencyFloor in " + PROFILE + ", and run again.");
         }
         return Optional.empty();
     }
@@ -361,15 +355,43 @@ class NextAction {
     private static List<String> unsetRunValues(Profile profile) {
         return runValues(profile).stream()
                 .filter(value -> !value.isSet())
-                .map(value -> value.key() + " (" + value.hint() + ")")
+                .map(value -> value.key() + " (" + value.hintNow() + ")")
                 .toList();
     }
 
     /** One run value: the key the profile calls it, whether it is answered, and how to choose it. */
     private record RunValue(String key, ProfileValue value, String hint) {
 
+        /**
+         * Whether the next invocation can actually act on this value.
+         *
+         * <p><b>An unreadable number is not an answer here</b> (ADR-120), though {@link
+         * ProfileValue#isSet()} says it is one. Both are true of it: somebody answered, and nothing can
+         * use what they wrote. This line is about what the tool can use, so counting it as answered
+         * would print "boilerplateDocumentFrequencyFloor is set" over a value the run just ignored --
+         * and would leave the operator no line telling them so.
+         */
         boolean isSet() {
+            if (value instanceof NumericValue numeric) {
+                return numeric.reading() instanceof NumericValue.Answered;
+            }
             return value.isSet();
+        }
+
+        /**
+         * What the operator needs in order to choose this value — or, where they already wrote
+         * something unusable, what is sitting there now.
+         *
+         * <p>Quoting it back is the difference between a value ignored and a value silently dropped:
+         * telling someone to write a floor they believe they already wrote is not an action they can
+         * take.
+         */
+        String hintNow() {
+            if (value instanceof NumericValue numeric
+                    && numeric.reading() instanceof NumericValue.Unreadable unreadable) {
+                return "currently reads " + quoted(unreadable.text()) + ", which is not a number";
+            }
+            return hint;
         }
     }
 

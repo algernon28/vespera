@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.embedding.RelevanceLabel;
+import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -13,6 +15,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -47,6 +50,22 @@ class UnreadableFloorsTest {
 
     /** Why a test wrote the value, in the place an operator would explain themselves. */
     private static final String WHY = "set by this test, mistyped on purpose";
+
+    /** The scale this run's vectors are on. Any name will do: no answer is recorded against it. */
+    private static final String AN_EMBEDDER = "an-embedder;deadbeef;F16";
+
+    /**
+     * Labels for a corpus nobody has answered a question about — the one case that lets a readable
+     * floor apply unchallenged, so that what this test observes is the value and not the calibration.
+     */
+    private static RelevanceLabels seedSetWithNoAnswers() {
+        return new RelevanceLabels(null) {
+            @Override
+            public List<RelevanceLabel> forSeedSet(String seedSet) {
+                return List.of();
+            }
+        };
+    }
 
     @Test
     @Story("A mistyped threshold costs the value, never the invocation")
@@ -103,11 +122,16 @@ class UnreadableFloorsTest {
         profileStore.save(ProfileFixture.profile()
                 .relevanceScoreFloor(A_DECIMAL_COMMA, WHY)
                 .build());
+        RelevanceFloor step = new RelevanceFloor(profileStore, seedSetWithNoAnswers());
 
         claim(
-                "the value that names the work carries no number, matching the step that would have"
-                        + " applied one: two spellings of the same mistake have to name one piece of work,"
-                        + " or the same corpus is recorded twice over for reasons nobody can see",
+                "the step removes nothing, because there is no number for it to remove anything by",
+                () -> assertThat(step.stateFor(AN_EMBEDDER).removesAnything()).isFalse());
+        claim(
+                "and the value that names the work carries no number either -- asserted against the very"
+                        + " same profile as the claim above, because what matters is the pair agreeing:"
+                        + " two spellings of one mistake have to name one piece of work, or the same"
+                        + " corpus is recorded twice over for reasons nobody can see",
                 () -> assertThat(RelevanceScoreFloorValue.readFrom(profileStore).value()).isNull());
     }
 }

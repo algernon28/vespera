@@ -231,6 +231,44 @@ class NextActionTest {
                 "and what was typed is quoted back, so the operator is looking at their own mistake"
                         + " rather than at a description of one",
                 () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+        claim(
+                "and the same line does not also call the key answered: the run ignored it, so a sentence"
+                        + " crediting the operator with having set it would contradict the very clause"
+                        + " beside it telling them to go and write one",
+                () -> assertThat(line).doesNotContain("boilerplateDocumentFrequencyFloor is set")
+                        .doesNotContain("boilerplateDocumentFrequencyFloor are set"));
+    }
+
+    @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("A mistyped floor is still reported when another value is unanswered too")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void aMistypedFloorIsReportedEvenWhenSomethingElseIsUnanswered() {
+        Profile mistypedAndIncomplete = ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .build();
+
+        String line = NextAction.line(
+                mistypedAndIncomplete, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+
+        claim(
+                "the mistyped value is quoted back even though another key is unanswered: this is the"
+                        + " state where the operator is least likely to notice, because the line has other"
+                        + " things to talk about, and it is the state where the value has already been"
+                        + " ignored once",
+                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+        claim(
+                "and the key is not credited as answered anywhere in the sentence -- a line that said it"
+                        + " was set while the run ignored it is the one wording that would leave someone"
+                        + " believing a floor is in force when none is",
+                () -> assertThat(line).doesNotContain("boilerplateDocumentFrequencyFloor is set")
+                        .doesNotContain("and boilerplateDocumentFrequencyFloor are set"));
+        claim(
+                "and the value still unanswered is named too, so one invocation is enough to learn about"
+                        + " both rather than one per mistake",
+                () -> assertThat(line).contains("embeddingModel"));
     }
 
     @Test

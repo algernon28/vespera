@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.similarity.RedundancySignatures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +93,7 @@ public class RedundancyJobConfiguration {
             ObjectProvider<RedundancyRun> redundancyRunProvider,
             RedundancySignatures redundancySignatures) {
         if (redundancyGate.floor().isEmpty()) {
-            logGateClosed(LoggerFactory.getLogger(RedundancyJobConfiguration.class));
+            logGateClosed(LoggerFactory.getLogger(RedundancyJobConfiguration.class), redundancyGate.value());
             return OccurrenceReader.yieldingNothing();
         }
         RedundancyRun redundancyRun = redundancyRunProvider.getObject();
@@ -116,15 +117,26 @@ public class RedundancyJobConfiguration {
     /**
      * The gate's log line, said once per invocation by the reader above.
      *
-     * <p>Stage 4 is two steps and this gate stops both, but it is one gate with one missing value and
-     * one action, so {@link RedundancyResolutionTasklet} says nothing and this is the whole of what an
-     * operator reads about it (#135). The reader is where it belongs, because stage 4a is the first
-     * step the gate stops and a value is wanted before the work rather than after half of it.
+     * <p>Stage 4 is two steps and this gate stops both, but it is one gate with one action, so {@link
+     * RedundancyResolutionTasklet} says nothing and this is the whole of what an operator reads about
+     * it (#135). <b>It has two reasons and says which</b> (ADR-120): nobody answered the key, or
+     * somebody answered it in a way no number can be read from. Before ADR-120 the second could not
+     * reach here, because reading the value threw; now that it arrives as a shut gate, a sentence
+     * saying "unset" would be telling an operator who wrote something that they wrote nothing.
+     *
+     * <p>The reader is where it belongs, because stage 4a is the first step the gate stops and a value
+     * is wanted before the work rather than after half of it.
      */
-    static void logGateClosed(Logger log) {
+    static void logGateClosed(Logger log, NumericValue floor) {
+        String whyItIsShut = floor.reading() instanceof NumericValue.Unreadable unreadable
+                ? "stage 4 (content redundancy) is gated: the profile key boilerplateDocumentFrequencyFloor"
+                        + " reads \"" + unreadable.text() + "\", which is not a number, so nothing could be"
+                        + " done with it."
+                : "stage 4 (content redundancy) is gated: the profile key boilerplateDocumentFrequencyFloor"
+                        + " is unset.";
         log.info(
-                "stage 4 (content redundancy) is gated: the profile key boilerplateDocumentFrequencyFloor is"
-                        + " unset. Read similarity's shingle_document_frequency and shingle_corpus_size tables"
+                whyItIsShut
+                        + " Read similarity's shingle_document_frequency and shingle_corpus_size tables"
                         + " (stage 3's measurement) to choose a value, set it in profile.yaml, and re-invoke."
                         + " No stage-4 run was minted.");
     }

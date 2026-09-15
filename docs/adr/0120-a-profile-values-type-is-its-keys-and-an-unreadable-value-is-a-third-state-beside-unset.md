@@ -2,7 +2,7 @@
 
 - **Date**: 2026-09-15
 - **Status**: accepted
-- **Amends**: [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md), whose mechanism — a stray quoted null "fails to parse into a `Double` field and throws at load" — is replaced. Its purpose is kept and finally delivered: the format is not trusted, the deserializer is. What changes is that the bad value is refused *at its key*, as a named state, rather than by ending the invocation.
+- **Amends**: [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md), whose mechanism — a stray quoted null "fails to parse into a `Double` field and throws at load" — is replaced, and **not** by a stricter deserializer. `NumericValue.value` is still a `String` and Jackson still accepts any scalar into it; the check moved to a reading computed from that text, in one place, and the value is refused *at its key* as a named state rather than by ending the invocation. What ADR-061 wanted from load-time typing was that the format not have to be trusted, and that is kept. What it specified — the typed field, the throw — is not done, and this record does not claim otherwise.
 - **Rests on**: [ADR-062](0062-census-merges-new-profile-keys-and-never-touches-an-existing-value.md) (an unset key is a present key with nulls, and must stay distinguishable from a wrong one), [ADR-119](0119-profiles-constructor-overloads-are-deleted-and-the-convenience-they-bought-moves-to-a-test-fixture.md) (adding a key costs no constructor, and the record *is* the schema), [ADR-047](0047-the-pipeline-never-blocks.md) (an invocation ends having recorded what it learned), [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md) (a shut gate is not an error), [ADR-117](0117-the-relevance-floor-joins-the-scoring-runs-identity-so-a-changed-threshold-is-a-different-run.md) (a run's identity has to agree with the step that reads it).
 
 ## Context
@@ -68,11 +68,13 @@ The parse lives in `NumericValue` and nowhere else. It is computed on demand rat
 
 ### Loading does not throw
 
-This is the departure from ADR-061, stated plainly so it is not discovered later as a contradiction. A mistyped numeric value does not end the invocation: it reads as unreadable, the stage that wanted it behaves as though the key were unset, and the operator is told. ADR-061's null-vs-typo hazard is closed regardless — a quoted null can no longer be mistaken for an answer, which was the failure it named.
+This is the departure from ADR-061, stated plainly so it is not discovered later as a contradiction. A mistyped numeric value does not end the invocation: it reads as unreadable, the stage that wanted it behaves as though the key were unset, and the operator is told. ADR-061's null-vs-typo hazard is closed regardless — a quoted null can no longer be *acted on* as an answer, which was the failure it named. It is still `isSet()`, deliberately: somebody did write it, and a line reporting the key as untouched would be as wrong as one applying it. Whether each reader wants "somebody answered" or "there is a number here" is exactly the distinction this record makes available, and the closing line is the one place that wants the first.
 
 ### An unreadable value is named in the closing line, for every numeric key
 
 `NextAction` tells the operator about an unreadable relevance floor today. It now does so for any numeric key, on the rule it already states: a value the engine ignored is worth more to the operator than a value that was never set. Without this, the two keys that crash today would become silently ignored, which would be a regression dressed as a fix.
+
+**An unreadable value is therefore not an answer to that line**, though it is `isSet()`. The line reports what the next invocation can act on, so a key holding `"0,4"` is listed among the values still wanted, with what is written there quoted back, rather than counted as set. Both halves of the sentence then agree, and there is no state in which one half says a key is set while the run ignores it. The same rule reaches stage 4's own gate line, which says which of its two reasons is shutting it rather than asserting the commoner one — before this, a set-but-unreadable floor could not reach that line at all, because reading the value threw first.
 
 ### Two behaviours change, and this is where they are recorded
 
@@ -97,7 +99,7 @@ Both are strictly less destructive than what they replace, and both were unrecor
 
 **The trim is uniform.** Two of five readers trimmed; now one does, once.
 
-**`ProfileFixture` can still express an invalid profile.** `NumericValue` accepts any string, exactly as `ProfileValue` did, so a test can still build the profile an operator actually mistyped — which #203 asked for and ADR-119 already protected.
+**`ProfileFixture` can still express a profile an operator could have mistyped.** `NumericValue` accepts any string, exactly as `ProfileValue` did, so a test can still build one — which #203 asked for and ADR-119 already protected.
 
 **ADR-061's mechanism sentence is now wrong where it stands.** It is amended here rather than edited there, which is this project's append-only rule; a reader of ADR-061 arrives at this record through the amendment link.
 

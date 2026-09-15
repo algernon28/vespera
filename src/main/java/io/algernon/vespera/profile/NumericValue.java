@@ -6,8 +6,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * A profile key whose answer is a number — a floor, a threshold, a proportion (ADR-120).
  *
  * <p><b>The parse lives here and nowhere else.</b> Before ADR-120 each of the three numeric keys was
- * parsed wherever it happened to be wanted, five call sites in all, and they disagreed: two caught a
- * bad value and read it as unset, one caught it to tell the operator, and two let the exception out —
+ * parsed wherever it happened to be wanted, five call sites in all, and they disagreed: two caught an
+ * unreadable value and read it as unset, one caught it to tell the operator, and two let it out —
  * one ending the invocation, one stopping the application context from starting. Which of those a key
  * got was a property of which reader was written first, and it was recorded nowhere.
  *
