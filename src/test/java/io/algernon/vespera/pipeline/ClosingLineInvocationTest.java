@@ -86,6 +86,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     GenerationScriptedBeans.class,
     GenerationRun.class,
     GenerationModel.class,
+    GenerationContextWindow.class,
     CensusTasklet.class,
     ByteLevelReductionJobConfiguration.class,
     ByteLevelReductionTasklet.class,

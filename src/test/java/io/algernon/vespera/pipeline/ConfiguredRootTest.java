@@ -88,6 +88,7 @@ import picocli.CommandLine;
     GenerationScriptedBeans.class,
     GenerationRun.class,
     GenerationModel.class,
+    GenerationContextWindow.class,
     SeedExtractionJobConfiguration.class,
     SeedExtractionItemProcessor.class,
     SeedExtractionItemWriter.class,

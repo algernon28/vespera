@@ -93,6 +93,7 @@ import org.springframework.transaction.annotation.Transactional;
     GenerationScriptedBeans.class,
     GenerationRun.class,
     GenerationModel.class,
+    GenerationContextWindow.class,
     CensusTasklet.class,
     ByteLevelReductionJobConfiguration.class,
     ByteLevelReductionTasklet.class,

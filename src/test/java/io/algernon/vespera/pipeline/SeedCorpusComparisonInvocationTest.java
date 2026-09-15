@@ -99,6 +99,7 @@ import org.springframework.transaction.annotation.Transactional;
     GenerationScriptedBeans.class,
     GenerationRun.class,
     GenerationModel.class,
+    GenerationContextWindow.class,
     CensusTasklet.class,
     ByteLevelReductionJobConfiguration.class,
     ByteLevelReductionTasklet.class,
@@ -203,7 +204,8 @@ class SeedCorpusComparisonInvocationTest {
             "embeddingModel",
             "arrangementApproved",
             "relevanceScoreFloor",
-            "generationModel");
+            "generationModel",
+            "generationContextWindow");
 
     /**
      * What census writes against the seed-folder key: the walk it took of that folder. It answers

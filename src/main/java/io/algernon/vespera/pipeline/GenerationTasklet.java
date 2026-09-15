@@ -67,6 +67,7 @@ class GenerationTasklet implements Tasklet {
     private final ArrangementGate arrangementGate;
     private final ObjectProvider<GenerationRun> generationRun;
     private final GenerationModel generationModel;
+    private final GenerationContextWindow generationContextWindow;
     private final Clusters clusters;
     private final DocumentClusters documentClusters;
     private final RelevanceScoring relevanceScoring;
@@ -81,6 +82,7 @@ class GenerationTasklet implements Tasklet {
             ArrangementGate arrangementGate,
             ObjectProvider<GenerationRun> generationRun,
             GenerationModel generationModel,
+            GenerationContextWindow generationContextWindow,
             Clusters clusters,
             DocumentClusters documentClusters,
             RelevanceScoring relevanceScoring,
@@ -93,6 +95,7 @@ class GenerationTasklet implements Tasklet {
         this.arrangementGate = arrangementGate;
         this.generationRun = generationRun;
         this.generationModel = generationModel;
+        this.generationContextWindow = generationContextWindow;
         this.clusters = clusters;
         this.documentClusters = documentClusters;
         this.relevanceScoring = relevanceScoring;
@@ -144,6 +147,7 @@ class GenerationTasklet implements Tasklet {
         Map<ClusterKey, List<DocumentCluster>> byCluster = membership.stream()
                 .collect(Collectors.groupingBy(ClusterKey::of));
         String modelName = generationModel.name();
+        int contextWindow = generationContextWindow.size();
 
         int written = 0;
         int unsendable = 0;
@@ -165,7 +169,8 @@ class GenerationTasklet implements Tasklet {
                             recorded.label().value(),
                             pathOf(recorded.cluster().winningSeed()),
                             exemplars),
-                    modelName);
+                    modelName,
+                    contextWindow);
             synthesisDocs.record(
                     generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), doc);
             written++;
@@ -187,11 +192,12 @@ class GenerationTasklet implements Tasklet {
         ledger.finishStep(generation, GenerationRun.STAGE);
         LOG.info(
                 "The generation step finished under {}, over the arrangement approved as {}: {} synthesis"
-                        + " doc(s) written under model {}",
+                        + " doc(s) written under model {} in a window of {}",
                 generation.value(),
                 ArrangementGate.shortNameOf(arrangement),
                 written,
-                modelName);
+                modelName,
+                contextWindow);
         return RepeatStatus.FINISHED;
     }
 
@@ -256,7 +262,7 @@ class GenerationTasklet implements Tasklet {
             if (opening.isEmpty()) {
                 continue;
             }
-            exemplars.add(new Exemplar(opening.get().text(), score));
+            exemplars.add(new Exemplar(opening.get().text(), opening.get().wordCount(), score));
         }
         return List.copyOf(exemplars);
     }

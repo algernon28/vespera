@@ -95,6 +95,7 @@ import org.springframework.transaction.annotation.Transactional;
     GenerationScriptedBeans.class,
     GenerationRun.class,
     GenerationModel.class,
+    GenerationContextWindow.class,
     SeedExtractionJobConfiguration.class,
     SeedExtractionItemProcessor.class,
     SeedExtractionItemWriter.class,

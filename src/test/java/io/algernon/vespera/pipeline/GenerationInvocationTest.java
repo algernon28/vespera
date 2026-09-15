@@ -101,6 +101,7 @@ import org.springframework.transaction.annotation.Transactional;
     GenerationTasklet.class,
     GenerationRun.class,
     GenerationModel.class,
+    GenerationContextWindow.class,
     CensusTasklet.class,
     ByteLevelReductionJobConfiguration.class,
     ByteLevelReductionTasklet.class,
@@ -214,6 +215,18 @@ class GenerationInvocationTest {
     /** How many documents the two-document corpus puts in that one group. */
     private static final int TWO_DOCUMENTS = 2;
 
+    /** How many of them fit once the window is set small enough that they no longer both do. */
+    private static final int ONE_DOCUMENT = 1;
+
+    /**
+     * A window with room for one of this fixture's documents and not two.
+     *
+     * <p>Small on purpose, and that is the point of the test: a fixture of a few short documents never
+     * runs out of room under the shipped window, so the arithmetic that decides what fits would ship
+     * having never once been asked a real question.
+     */
+    private static final String A_WINDOW_WITH_ROOM_FOR_ONE = "1300";
+
     /**
      * What stage 6a calls that one group: the title every document this fixture converts carries, which
      * is what the naming rule derives a group's name from.
@@ -245,6 +258,9 @@ class GenerationInvocationTest {
 
     @Autowired
     private SynthesisDocs synthesisDocs;
+
+    @Autowired
+    private Clusters clusters;
 
     @Test
     @Story("Nothing is written over the archive until a person approves what they read")
@@ -435,6 +451,36 @@ class GenerationInvocationTest {
     }
 
     @Test
+    @Issue("182")
+    @Story("A group too big to read in one go sends what fits, rather than being skipped")
+    @DisplayName("With the reading window set small, a group is written from part of itself and says so")
+    void writesFromPartOfAGroupWhenTheWindowIsSetSmall(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpusOfTwoDocuments(root, seeds);
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        setTheReadingWindowTo(A_WINDOW_WITH_ROOM_FOR_ONE);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the writing says it was made from " + ONE_DOCUMENT + " of the group's documents rather"
+                        + " than both: the window this archive's owner set has room for one of them, and"
+                        + " what the page will tell a reader it was written from is this number",
+                () -> assertThat(generatedDocs(root))
+                        .singleElement()
+                        .satisfies(doc -> assertThat(doc.doc().documentsSent()).isEqualTo(ONE_DOCUMENT)));
+        claim(
+                "and the group still holds both documents: what was read is a matter of how much would"
+                        + " fit, and what belongs to the group is not -- a reader is shown every document"
+                        + " under it, which is what keeps writing from part of a group honest",
+                () -> assertThat(clusters.forRun(theApprovedArrangement(root)))
+                        .singleElement()
+                        .satisfies(recorded ->
+                                assertThat(recorded.cluster().documentCount()).isEqualTo(TWO_DOCUMENTS)));
+    }
+
+    @Test
     @Issue("180")
     @Story("Work that was not finished is not recorded as finished")
     @DisplayName("A group nothing could be sent for is not recorded as done")
@@ -488,6 +534,13 @@ class GenerationInvocationTest {
     @AfterEach
     void forgetWhatWasScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
+    }
+
+    /** Writes the reading window into the profile, leaving every other key as it was. */
+    private void setTheReadingWindowTo(String window) {
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .generationContextWindow(window, "set by this test")
+                .build());
     }
 
     /** The same corpus with a second document in it, so a group holds more than one. */

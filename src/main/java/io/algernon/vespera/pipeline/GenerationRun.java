@@ -73,6 +73,7 @@ class GenerationRun {
             ImplementationVersions implementationVersions,
             ArrangementGate arrangementGate,
             GenerationModel generationModel,
+            GenerationContextWindow generationContextWindow,
             OllamaClient ollamaClient,
             @Value("#{jobParameters['root']}") Path root) {
         Path canonicalRoot = Walk.canonicalRoot(root);
@@ -92,7 +93,7 @@ class GenerationRun {
                         arrangement,
                         modelName,
                         ollamaClient.artefactOf(modelName).digest(),
-                        ClusterSynthesis.CONTEXT_WINDOW),
+                        generationContextWindow.size()),
                 walkId,
                 List.of(arrangement));
     }
@@ -106,9 +107,14 @@ class GenerationRun {
      * same work — the rule {@code ExtractorIdentity} and {@code EmbedderIdentity} already follow.
      *
      * <p>Of the options ADR-108 names — {@code num_ctx}, {@code num_predict}, {@code temperature},
-     * {@code seed} — only the context window is here, because it is the only one anything sends
-     * (#180). The other three join this string in the ticket that first puts them on a call, and a
-     * changed identity minting a new run is exactly what should happen when it does.
+     * {@code seed} — the first two are here, because those are the two anything sends (#180, #182).
+     * {@code temperature} and {@code seed} join this string in the ticket that first puts them on a
+     * call, and a changed identity minting a new run is exactly what should happen when it does.
+     *
+     * <p>The window is what an invocation resolved rather than what the code ships with, so an
+     * operator who widens it re-generates the corpus under a run of its own. That is the point of it
+     * being in here: a larger window reads more of each group, so the same archive written under two
+     * windows is two different pieces of work and neither can be mistaken for the other.
      */
     static String configConsumed(
             Path canonicalRoot,
@@ -117,7 +123,12 @@ class GenerationRun {
             String weightsDigest,
             int contextWindow) {
         return JSON_MAPPER.writeValueAsString(new ConfigConsumed(
-                canonicalRoot.toString(), arrangement.value(), modelName, weightsDigest, contextWindow));
+                canonicalRoot.toString(),
+                arrangement.value(),
+                modelName,
+                weightsDigest,
+                contextWindow,
+                ClusterSynthesis.REPLY_ALLOWANCE));
     }
 
     RunId runId() {
@@ -129,5 +140,6 @@ class GenerationRun {
             String arrangementRunId,
             String generationModel,
             String weightsDigest,
-            int contextWindow) {}
+            int contextWindow,
+            int replyAllowance) {}
 }

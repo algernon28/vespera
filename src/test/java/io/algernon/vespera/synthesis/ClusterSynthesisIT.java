@@ -98,7 +98,7 @@ class ClusterSynthesisIT {
     void carriesTheWindowAndReportsWhatThePromptCost() throws Exception {
         ollama.execInContainer("ollama", "pull", MODEL);
 
-        ChatResponse response = chatModel.call(new Prompt(A_TINY_PROMPT, ClusterSynthesis.optionsFor(MODEL)));
+        ChatResponse response = chatModel.call(new Prompt(A_TINY_PROMPT, ClusterSynthesis.optionsFor(MODEL, ClusterSynthesis.CONTEXT_WINDOW)));
 
         claim(
                 "the engine is serving this model under the very window our own call asked for, "

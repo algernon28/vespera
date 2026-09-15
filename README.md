@@ -47,10 +47,13 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
 | `arrangementApproved` | whether the groups the tool formed are worth writing over | `arrangement.html` |
 | `generationModel` | whichever model you can serve locally, if you want a different one | — |
+| `generationContextWindow` | how much your own machine can read in one go | — |
 
-Two of these are **optional** and neither is one of the five stops; both are here so that you know they exist.
+Three of these are **optional** and none of them is one of the five stops; all three are here so that you know they exist.
 
-`degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `generationModel`, left unset, writes the connecting text with the model Vespera ships with — it is the one value that already has an answer, and setting it only replaces that answer.
+`degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `generationModel` and `generationContextWindow`, left unset, write the connecting text with the model and the reading window Vespera ships with — they are the values that already have answers, and setting one only replaces the answer it already had.
+
+The reading window is how much of a group goes into one request. Set it larger and more of each group is read in one go; leave it alone and Vespera uses a size any machine can serve. Groups too large to fit are still written about, from the documents nearest your exemplar, and the finished page says how many of them it was written from.
 
 Every value you set carries a `provenance` field. Write down how you arrived at the number. Nothing checks that you read the report first — what stands between a guess and your archive is what you record there.
 

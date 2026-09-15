@@ -36,6 +36,8 @@ public final class ProfileFixture {
     private ProfileValue arrangementApproved = ProfileValue.unset();
     private ProfileValue generationModel = ProfileValue.unset();
 
+    private ProfileValue generationContextWindow = ProfileValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -54,6 +56,7 @@ public final class ProfileFixture {
         fixture.relevanceScoreFloor = existing.relevanceScoreFloor();
         fixture.arrangementApproved = existing.arrangementApproved();
         fixture.generationModel = existing.generationModel();
+        fixture.generationContextWindow = existing.generationContextWindow();
         return fixture;
     }
 
@@ -127,6 +130,15 @@ public final class ProfileFixture {
         return generationModel(answered(value, provenance));
     }
 
+    public ProfileFixture generationContextWindow(String value, String provenance) {
+        return generationContextWindow(answered(value, provenance));
+    }
+
+    public ProfileFixture generationContextWindow(ProfileValue value) {
+        this.generationContextWindow = value == null ? ProfileValue.unset() : value;
+        return this;
+    }
+
     public ProfileFixture generationModel(ProfileValue value) {
         this.generationModel = value == null ? ProfileValue.unset() : value;
         return this;
@@ -141,6 +153,7 @@ public final class ProfileFixture {
                 embeddingModel,
                 relevanceScoreFloor,
                 arrangementApproved,
-                generationModel);
+                generationModel,
+                generationContextWindow);
     }
 }
