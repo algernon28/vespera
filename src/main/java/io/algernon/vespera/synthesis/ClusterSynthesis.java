@@ -87,18 +87,30 @@ public class ClusterSynthesis {
         List<Exemplar> inScoreOrder =
                 call.exemplars().stream().sorted(CLOSEST_TO_THE_SEED_FIRST).toList();
         String answer = chatModel
-                .call(new Prompt(
-                        promptFor(call, inScoreOrder),
-                        OllamaChatOptions.builder()
-                                .model(modelName)
-                                .numCtx(CONTEXT_WINDOW)
-                                .outputSchema(ANSWER_SCHEMA)
-                                .build()))
+                .call(new Prompt(promptFor(call, inScoreOrder), optionsFor(modelName)))
                 .getResult()
                 .getOutput()
                 .getText();
         Answer parsed = JSON_MAPPER.readValue(answer, Answer.class);
         return new SynthesisDoc(parsed.title(), parsed.prose(), inScoreOrder.size());
+    }
+
+    /**
+     * What every call this module makes is made under: the model, the window it may read in, and the
+     * shape the answer has to arrive in.
+     *
+     * <p>Package-private rather than inlined above, so the integration test that puts these on a real
+     * serving engine asserts about <em>this</em> request rather than about one it composed itself
+     * (#181). What that test is checking is precisely whether the window survives the framework and
+     * reaches the wire, and a test that rebuilt the options would answer that question about its own
+     * copy of them.
+     */
+    static OllamaChatOptions optionsFor(String modelName) {
+        return OllamaChatOptions.builder()
+                .model(modelName)
+                .numCtx(CONTEXT_WINDOW)
+                .outputSchema(ANSWER_SCHEMA)
+                .build();
     }
 
     /** What the call says: what the group is, what it sits under, and the documents under their ordinals. */
