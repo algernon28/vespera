@@ -7,6 +7,7 @@ import io.algernon.vespera.similarity.Shingler;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.util.Map;
@@ -161,13 +162,19 @@ public class ExtractionJobConfiguration {
      * {@code pipeline}'s reading of the profile's tier-2 key (#48, ADR-070): {@code extraction} may
      * depend only on {@code ledger}, so this is read here, not there, and handed down as a plain
      * value.
+     *
+     * <p><b>An unreadable value leaves the floor unset rather than stopping the context</b>
+     * (ADR-120). Until then this called {@code Double.valueOf} with no catch, and because it runs at
+     * bean creation a single mistyped character in this one key meant the application never started —
+     * no invocation, no report, and nothing naming the key at fault. The floor ships unset and stage 2
+     * runs without it, so unset is a state this stage is already built for.
      */
     @Bean
     DegenerateOutputConfidenceFloor degenerateOutputConfidenceFloor(ProfileStore profileStore) {
         Profile profile = profileStore.load();
-        String value = profile.degenerateOutputConfidenceFloor().value();
-        return new DegenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor().isSet()
-                ? Double.valueOf(value)
-                : null);
+        return new DegenerateOutputConfidenceFloor(
+                profile.degenerateOutputConfidenceFloor().reading() instanceof NumericValue.Answered answered
+                        ? answered.number()
+                        : null);
     }
 }

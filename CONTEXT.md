@@ -120,6 +120,10 @@ _Avoid_: fallback, oracle, champion, second opinion
 The per-corpus record of every judgement the engine cannot make for itself. Authored by a person, never guessed at; each value carries how it was arrived at.
 _Avoid_: config, settings, parameters
 
+**Unreadable**:
+A profile value somebody answered in a way nothing can act on — a decimal comma, a stray letter, the word "null" in quotes. A third state beside unset and answered, and the distinction is the point: unset is nobody having decided yet, unreadable is a decision that did not arrive. Neither applies a threshold; only one is worth telling the operator about, and the closing line does (ADR-120).
+_Avoid_: invalid, malformed, bad. Also "unset" **for this state**: a value read as unset is not the same as one nobody wrote.
+
 **Gate**:
 A value the pipeline requires and does not have. Not a pause — supply the value and no gate occurs; leave it unset and the run ends there, having recorded everything it learned.
 _Avoid_: approval step, pause. Also "checkpoint" **for this concept**: a gate is not a point work resumes from, and the word now names one (see Checkpoint below).

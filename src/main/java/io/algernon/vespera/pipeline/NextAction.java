@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
@@ -198,12 +199,15 @@ class NextAction {
             return whatIsSet(profile, answersRecorded) + " Next: write "
                     + listed(unsetRunValues) + " into " + PROFILE + ", and run again.";
         }
-        if (isUnreadable(profile.relevanceScoreFloor())) {
-            return "Every run value is set, but relevanceScoreFloor reads "
-                    + quoted(profile.relevanceScoreFloor().value().trim())
+        if (profile.relevanceScoreFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return "Every run value is set, but relevanceScoreFloor reads " + quoted(unreadable.text())
                     + ", which is not a number, so this run ignored it and removed nothing. Next: write"
                     + " a score on the scale " + RelevanceLabellingReport.FILE_NAME + " reports into"
                     + " relevanceScoreFloor in " + PROFILE + ", and run again.";
+        }
+        Optional<String> otherUnreadable = otherUnreadableFloor(profile);
+        if (otherUnreadable.isPresent()) {
+            return otherUnreadable.get();
         }
         if (profile.relevanceScoreFloor().isSet() && !profile.arrangementApproved().isSet()) {
             return arrangementToApprove
@@ -238,23 +242,32 @@ class NextAction {
     }
 
     /**
-     * Whether a threshold is written but unreadable - set, and not a number.
+     * The line for either of the other two numeric keys, where one holds something no number can be
+     * read from — empty where both are fine.
      *
-     * <p>{@link RelevanceFloor} parses the same value and falls back to treating it as unset, so a
-     * comma written for a decimal point silently removes nothing. Reported rather than passed over: a
-     * value an operator wrote and the engine ignored is the one state where a closing line saying
-     * nothing is left to set would contradict the step line above it.
+     * <p><b>Every numeric key is reported, not just the relevance floor</b> (ADR-120). Before it, a
+     * mistyped value in these two ended the invocation or stopped the application from starting, which
+     * at least made the mistake impossible to miss. Now that each one is ignored the way the relevance
+     * floor always was, saying so is what keeps "ignored" from meaning "silently dropped" — the same
+     * ground the relevance floor's own line stands on.
+     *
+     * <p>Order is fixed rather than incidental: the earlier stage's key comes first, because it is the
+     * one whose absence the operator meets soonest.
      */
-    private static boolean isUnreadable(ProfileValue floor) {
-        if (!floor.isSet()) {
-            return false;
+    private static Optional<String> otherUnreadableFloor(Profile profile) {
+        if (profile.degenerateOutputConfidenceFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but degenerateOutputConfidenceFloor reads "
+                    + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and"
+                    + " removed nothing for poor conversion quality. Next: write a score between 0 and 1"
+                    + " into degenerateOutputConfidenceFloor in " + PROFILE + ", and run again.");
         }
-        try {
-            Double.parseDouble(floor.value().trim());
-            return false;
-        } catch (NumberFormatException notANumber) {
-            return true;
+        if (profile.boilerplateDocumentFrequencyFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but boilerplateDocumentFrequencyFloor reads "
+                    + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and"
+                    + " went no further than measuring repetition. Next: write a proportion between 0"
+                    + " and 1 into boilerplateDocumentFrequencyFloor in " + PROFILE + ", and run again.");
         }
+        return Optional.empty();
     }
 
     /**

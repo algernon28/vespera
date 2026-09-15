@@ -9,6 +9,12 @@ package io.algernon.vespera.profile;
  * file is a deserialisation failure rather than a key nobody reads; and "every currently-known key"
  * — which is what census has to write out — is a fact the compiler already holds.
  *
+ * <p><b>Each component is typed by the kind of answer its key takes</b> (ADR-120): {@link TextValue}
+ * for a folder, a model's name or an approval, {@link NumericValue} for a floor, a threshold or a
+ * proportion. That is ADR-061's "the record is the schema" carried down one level from the key set to
+ * the value — which keys hold a number is now a fact this declaration holds, rather than one each
+ * reader re-derived by reaching for a parse.
+ *
  * <p>The canonical constructor is where ADR-062's merge lives. A key missing from the file arrives
  * here as null and leaves as {@link ProfileValue#unset()}, so simply loading a profile and saving it
  * again adds every key the code has learned about since the file was written, without touching a
@@ -69,27 +75,27 @@ package io.algernon.vespera.profile;
  *     directly. No {@link Measurement} pointer, for the reason {@code embeddingModel} has none.
  */
 public record Profile(
-        ProfileValue seedFolder,
-        ProfileValue degenerateOutputConfidenceFloor,
-        ProfileValue boilerplateDocumentFrequencyFloor,
-        ProfileValue embeddingModel,
-        ProfileValue relevanceScoreFloor,
-        ProfileValue arrangementApproved,
-        ProfileValue generationModel) {
+        TextValue seedFolder,
+        NumericValue degenerateOutputConfidenceFloor,
+        NumericValue boilerplateDocumentFrequencyFloor,
+        TextValue embeddingModel,
+        NumericValue relevanceScoreFloor,
+        TextValue arrangementApproved,
+        TextValue generationModel) {
 
     public Profile {
-        seedFolder = seedFolder == null ? ProfileValue.unset() : seedFolder;
+        seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
         degenerateOutputConfidenceFloor =
-                degenerateOutputConfidenceFloor == null ? ProfileValue.unset() : degenerateOutputConfidenceFloor;
+                degenerateOutputConfidenceFloor == null ? NumericValue.unset() : degenerateOutputConfidenceFloor;
         boilerplateDocumentFrequencyFloor =
-                boilerplateDocumentFrequencyFloor == null ? ProfileValue.unset() : boilerplateDocumentFrequencyFloor;
-        embeddingModel = embeddingModel == null ? ProfileValue.unset() : embeddingModel;
-        relevanceScoreFloor = relevanceScoreFloor == null ? ProfileValue.unset() : relevanceScoreFloor;
-        arrangementApproved = arrangementApproved == null ? ProfileValue.unset() : arrangementApproved;
-        generationModel = generationModel == null ? ProfileValue.unset() : generationModel;
+                boilerplateDocumentFrequencyFloor == null ? NumericValue.unset() : boilerplateDocumentFrequencyFloor;
+        embeddingModel = embeddingModel == null ? TextValue.unset() : embeddingModel;
+        relevanceScoreFloor = relevanceScoreFloor == null ? NumericValue.unset() : relevanceScoreFloor;
+        arrangementApproved = arrangementApproved == null ? TextValue.unset() : arrangementApproved;
+        generationModel = generationModel == null ? TextValue.unset() : generationModel;
     }
 
-    /** A profile with every key present and none of them answered. */
+    /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
         return new Profile(null, null, null, null, null, null, null);
     }

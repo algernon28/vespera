@@ -213,6 +213,47 @@ class NextActionTest {
     }
 
     @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("A non-numeric repetition floor is reported the same way the relevance one is")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void aMistypedBoilerplateFloorIsReportedToo() {
+        String line = NextAction.line(
+                theBoilerplateFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+
+        claim(
+                "the key is named and a number is asked for, exactly as for the other threshold: until"
+                        + " now a mistyped value here ended the invocation outright, which at least made"
+                        + " it impossible to miss -- now that it is ignored instead, saying so is the only"
+                        + " thing standing between ignored and silently dropped",
+                () -> assertThat(line).contains("boilerplateDocumentFrequencyFloor").contains("number"));
+        claim(
+                "and what was typed is quoted back, so the operator is looking at their own mistake"
+                        + " rather than at a description of one",
+                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+    }
+
+    @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("A non-numeric conversion-quality floor is reported the same way")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void aMistypedConfidenceFloorIsReportedToo() {
+        String line = NextAction.line(
+                theConfidenceFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+
+        claim(
+                "this key is named too, and it is the one where saying nothing would be worst: a"
+                        + " mistyped value here used to stop the tool from starting at all, so an operator"
+                        + " who fixed nothing would now get a run that quietly judged no document on the"
+                        + " quality of its conversion",
+                () -> assertThat(line).contains("degenerateOutputConfidenceFloor").contains("number"));
+        claim(
+                "and their own text is quoted back to them",
+                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+    }
+
+    @Test
     @Story("The operator is never sent to a file the invocation did not write")
     @DisplayName("With no questions written, the line does not send the operator to the label file")
     void withNoQuestionsWrittenTheOperatorIsNotSentToTheLabelFile() {
@@ -367,4 +408,23 @@ class NextActionTest {
 
     /** A threshold on the run's own scale, answered, and parseable -- the contrast to the mistyped one. */
     private static final String THE_RELEVANCE_FLOOR = "0.62";
+
+    /** Every run value answered, with the repetition floor written in a form no run can read. */
+    private static Profile theBoilerplateFloorMistyped() {
+        return ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
+                .build();
+    }
+
+    /** Every run value answered, with the conversion-quality floor written in a form no run can read. */
+    private static Profile theConfidenceFloorMistyped() {
+        return ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .degenerateOutputConfidenceFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
+                .build();
+    }
 }
