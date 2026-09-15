@@ -152,10 +152,10 @@ class ProfileTest {
                 "and every key that was not named is unanswered rather than absent or guessed -- which is"
                         + " what lets a new key be added without touching a call site, the one thing the"
                         + " deleted constructors were buying",
-                () -> assertThat(built.generationModel()).isEqualTo(ProfileValue.unset()));
+                () -> assertThat(built.generationModel()).isEqualTo(TextValue.unset()));
         claim(
                 "and so is the key that sits between them, because this is a property of every key the"
                         + " caller left alone rather than of the last one",
-                () -> assertThat(built.relevanceScoreFloor()).isEqualTo(ProfileValue.unset()));
+                () -> assertThat(built.relevanceScoreFloor()).isEqualTo(NumericValue.unset()));
     }
 }

@@ -64,7 +64,7 @@ class ProfileStoreTest {
     void neverTouchesAnAnswerAlreadyInTheFile(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
         store.save(ProfileFixture.profile()
-                .seedFolder(new ProfileValue(
+                .seedFolder(new TextValue(
                         "C:/seeds", "chosen by the archivist from the 2019 handover", new Measurement("walk 1", FIRST_RUN)))
                 .build());
 
@@ -98,7 +98,7 @@ class ProfileStoreTest {
         claim(
                 "the key the code has since learned about is present and unset, which is the same gated"
                         + " state as a key nobody has answered",
-                () -> assertThat(loaded.seedFolder()).isEqualTo(ProfileValue.unset()));
+                () -> assertThat(loaded.seedFolder()).isEqualTo(TextValue.unset()));
     }
 
     @Test
@@ -120,7 +120,7 @@ class ProfileStoreTest {
     void writesWhatItCanReadBack(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
         Profile written = ProfileFixture.profile()
-                .seedFolder(new ProfileValue("C:/seeds", "the archivist's pick", new Measurement("walk 1", FIRST_RUN)))
+                .seedFolder(new TextValue("C:/seeds", "the archivist's pick", new Measurement("walk 1", FIRST_RUN)))
                 .build();
 
         store.save(written);
@@ -136,7 +136,7 @@ class ProfileStoreTest {
     void anOperatorSetConfidenceFloorRoundTrips(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
         Profile written = ProfileFixture.profile()
-                .degenerateOutputConfidenceFloor(new ProfileValue(
+                .degenerateOutputConfidenceFloor(new NumericValue(
                         "0.5", "matched to Docling's own poor/fair cut-off", new Measurement("run 3", FIRST_RUN)))
                 .build();
 
@@ -239,9 +239,70 @@ class ProfileStoreTest {
                 "and every key written since that file was saved is present and unanswered, rather than"
                         + " null or missing -- which is the promise a reader has to keep whatever it builds"
                         + " the record through, and the one thing a shorter way in was ever standing in for",
-                () -> assertThat(loaded.generationModel()).isEqualTo(ProfileValue.unset()));
+                () -> assertThat(loaded.generationModel()).isEqualTo(TextValue.unset()));
         claim(
                 "so the file still loads at all, on a reader that refuses a key it does not recognise",
-                () -> assertThat(loaded.arrangementApproved()).isEqualTo(ProfileValue.unset()));
+                () -> assertThat(loaded.arrangementApproved()).isEqualTo(TextValue.unset()));
+    }
+
+    @Test
+    @Story("A wrong answer in the file is never mistaken for a missing one")
+    @DisplayName("The word null in quotes is read as a wrong answer, not as an unanswered key")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void aQuotedNullIsReadAsAWrongAnswer(@TempDir Path workingDirectory) throws IOException {
+        Files.writeString(
+                workingDirectory.resolve("profile.yaml"),
+                """
+                relevanceScoreFloor:
+                  value: "null"
+                  provenance: meant to clear the threshold
+                """);
+        ProfileStore store = new ProfileStore(workingDirectory);
+
+        Profile loaded = store.load();
+
+        claim(
+                "the file loads rather than the tool refusing to run: a person edits this file by hand"
+                        + " between every invocation, and one mistyped key must not cost them the pass"
+                        + " that was about to tell them what to write",
+                () -> assertThat(loaded).isNotNull());
+        claim(
+                "and the quoted word is read as an answer nothing can act on, carrying back exactly what"
+                        + " was typed -- this is the mistake the file format was chosen to catch, and for"
+                        + " every numeric key it used to arrive at the stages as ordinary text",
+                () -> assertThat(loaded.relevanceScoreFloor().reading())
+                        .isEqualTo(new NumericValue.Unreadable("null")));
+    }
+
+    @Test
+    @Story("A wrong answer in the file is never mistaken for a missing one")
+    @DisplayName("A key left blank in the file stays distinguishable from one answered wrongly")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void anUnansweredNumericKeyStaysDistinguishableFromAWrongOne(@TempDir Path workingDirectory)
+            throws IOException {
+        Files.writeString(
+                workingDirectory.resolve("profile.yaml"),
+                """
+                relevanceScoreFloor:
+                  value: null
+                boilerplateDocumentFrequencyFloor:
+                  value: not a number at all
+                """);
+        ProfileStore store = new ProfileStore(workingDirectory);
+
+        Profile loaded = store.load();
+
+        claim(
+                "an empty value is nobody having answered, which is what every threshold ships as and"
+                        + " what the whole pipeline is built to carry on through",
+                () -> assertThat(loaded.relevanceScoreFloor().reading())
+                        .isInstanceOf(NumericValue.Unset.class));
+        claim(
+                "and a filled-in value nothing can read is the other thing entirely -- the two have to"
+                        + " stay apart, because only one of them is worth going back to the person about",
+                () -> assertThat(loaded.boilerplateDocumentFrequencyFloor().reading())
+                        .isInstanceOf(NumericValue.Unreadable.class));
     }
 }

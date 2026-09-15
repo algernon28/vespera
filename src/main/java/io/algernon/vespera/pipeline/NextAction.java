@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
@@ -198,12 +199,15 @@ class NextAction {
             return whatIsSet(profile, answersRecorded) + " Next: write "
                     + listed(unsetRunValues) + " into " + PROFILE + ", and run again.";
         }
-        if (isUnreadable(profile.relevanceScoreFloor())) {
-            return "Every run value is set, but relevanceScoreFloor reads "
-                    + quoted(profile.relevanceScoreFloor().value().trim())
+        if (profile.relevanceScoreFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return "Every run value is set, but relevanceScoreFloor reads " + quoted(unreadable.text())
                     + ", which is not a number, so this run ignored it and removed nothing. Next: write"
                     + " a score on the scale " + RelevanceLabellingReport.FILE_NAME + " reports into"
                     + " relevanceScoreFloor in " + PROFILE + ", and run again.";
+        }
+        Optional<String> otherUnreadable = theConfidenceFloorUnreadable(profile);
+        if (otherUnreadable.isPresent()) {
+            return otherUnreadable.get();
         }
         if (profile.relevanceScoreFloor().isSet() && !profile.arrangementApproved().isSet()) {
             return arrangementToApprove
@@ -238,23 +242,26 @@ class NextAction {
     }
 
     /**
-     * Whether a threshold is written but unreadable - set, and not a number.
+     * The line for the conversion-quality floor, where it holds something no number can be read from —
+     * empty otherwise.
      *
-     * <p>{@link RelevanceFloor} parses the same value and falls back to treating it as unset, so a
-     * comma written for a decimal point silently removes nothing. Reported rather than passed over: a
-     * value an operator wrote and the engine ignored is the one state where a closing line saying
-     * nothing is left to set would contradict the step line above it.
+     * <p><b>Every numeric key is reported, not just the relevance floor</b> (ADR-120). Before it, a
+     * mistyped value in this key stopped the application from starting, which at least made the mistake
+     * impossible to miss. Now that it is ignored the way the relevance floor always was, saying so is
+     * what keeps "ignored" from meaning "silently dropped".
+     *
+     * <p>It needs a branch of its own because it is not a run value: the other two numeric keys are
+     * reported by {@link #unsetRunValues}, which since ADR-120 counts an unreadable one as unanswered
+     * and quotes back what is written there. This key is named by nothing else, so it is named here.
      */
-    private static boolean isUnreadable(ProfileValue floor) {
-        if (!floor.isSet()) {
-            return false;
+    private static Optional<String> theConfidenceFloorUnreadable(Profile profile) {
+        if (profile.degenerateOutputConfidenceFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but degenerateOutputConfidenceFloor reads "
+                    + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and"
+                    + " removed nothing for poor conversion quality. Next: write a score between 0 and 1"
+                    + " into degenerateOutputConfidenceFloor in " + PROFILE + ", and run again.");
         }
-        try {
-            Double.parseDouble(floor.value().trim());
-            return false;
-        } catch (NumberFormatException notANumber) {
-            return true;
-        }
+        return Optional.empty();
     }
 
     /**
@@ -292,22 +299,43 @@ class NextAction {
      * <p>The threshold is reported as unset only once it is the value actually wanted next. Listing it
      * beside values that are wanted first invites an operator to go and set it, which costs the
      * invocation ADR-098's four exists to save.
+     *
+     * <p><b>A key holding something no number can be read from belongs to neither group</b> (ADR-120),
+     * and gets a clause of its own. Counting it as set would credit the operator with a floor the run
+     * ignored; calling it unset would tell someone who wrote something that they wrote nothing, which
+     * is the one reading {@code CONTEXT.md} rules out for this state. It is a third thing, and the only
+     * sentence that is true of it says what is actually sitting in the file.
      */
     private static String whatIsSet(Profile profile, int answersRecorded) {
         List<String> set = setRunValues(profile);
+        List<String> unreadable = unreadableRunValues(profile);
         List<String> unset = new ArrayList<>(unsetRunValueKeys(profile));
-        if (unset.isEmpty() && !profile.relevanceScoreFloor().isSet()) {
+        if (unset.isEmpty() && unreadable.isEmpty() && !profile.relevanceScoreFloor().isSet()) {
             unset.add("relevanceScoreFloor");
         }
         String answers = answersRecorded == 0
                 ? ""
                 : ", and " + answersRecorded + (answersRecorded == 1 ? " answer is" : " answers are")
                         + " recorded";
+        String mistyped = unreadable.isEmpty() ? "" : "; " + listed(unreadable);
         if (set.isEmpty()) {
-            return "No value in the profile is answered yet" + answers + ".";
+            return "No value in the profile is answered yet" + answers + mistyped + ".";
         }
-        return listed(set) + (set.size() == 1 ? " is" : " are") + " set" + answers
-                + "; " + listed(unset) + (unset.size() == 1 ? " is" : " are") + " not.";
+        String notSet = unset.isEmpty()
+                ? ""
+                : "; " + listed(unset) + (unset.size() == 1 ? " is" : " are") + " not";
+        return listed(set) + (set.size() == 1 ? " is" : " are") + " set" + answers + notSet + mistyped + ".";
+    }
+
+    /**
+     * The run values holding something no number can be read from, each as a whole clause saying what
+     * is there — because the key alone would leave a reader guessing which of the three states it is in.
+     */
+    private static List<String> unreadableRunValues(Profile profile) {
+        return runValues(profile).stream()
+                .filter(RunValue::isUnreadable)
+                .map(value -> value.key() + " reads " + quoted(value.writtenText()) + ", which is not a number")
+                .toList();
     }
 
     /** The values a {@code vespera run} needs, in the order an operator can supply them. */
@@ -332,7 +360,7 @@ class NextAction {
     /** The unanswered keys on their own, for the half of the line that reports state. */
     private static List<String> unsetRunValueKeys(Profile profile) {
         return runValues(profile).stream()
-                .filter(value -> !value.isSet())
+                .filter(value -> !value.isSet() && !value.isUnreadable())
                 .map(RunValue::key)
                 .toList();
     }
@@ -355,8 +383,37 @@ class NextAction {
     /** One run value: the key the profile calls it, whether it is answered, and how to choose it. */
     private record RunValue(String key, ProfileValue value, String hint) {
 
+        /**
+         * Whether the next invocation can actually act on this value.
+         *
+         * <p><b>An unreadable number is not an answer here</b> (ADR-120), though {@link
+         * ProfileValue#isSet()} says it is one. Both are true of it: somebody answered, and nothing can
+         * use what they wrote. This line is about what the tool can use, so counting it as answered
+         * would print "boilerplateDocumentFrequencyFloor is set" over a value the run just ignored --
+         * and would leave the operator no line telling them so.
+         */
         boolean isSet() {
+            if (value instanceof NumericValue numeric) {
+                return numeric.reading() instanceof NumericValue.Answered;
+            }
             return value.isSet();
+        }
+
+        /** Whether somebody answered this key with something no number can be read from (ADR-120). */
+        boolean isUnreadable() {
+            return value instanceof NumericValue numeric
+                    && numeric.reading() instanceof NumericValue.Unreadable;
+        }
+
+        /**
+         * What is actually written there, for the two places that quote it back. Empty for a key in any
+         * other state, which neither caller asks.
+         */
+        String writtenText() {
+            return value instanceof NumericValue numeric
+                            && numeric.reading() instanceof NumericValue.Unreadable unreadable
+                    ? unreadable.text()
+                    : "";
         }
     }
 
