@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
@@ -25,7 +26,6 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.BoilerplateShingles;
 import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
@@ -323,11 +323,12 @@ class ClusteringInvocationTest {
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */
     private void profile(Path seeds) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test", null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
-                new ProfileValue(MODEL_NAME, "set by this test, so gate 3 is open", null)));
+        profileStore.save(aProfile()
+                .seedFolder(seeds)
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR)
+                .embeddingModel(MODEL_NAME)
+                .build());
     }
 
     /** The keys the profile file actually carries, read as text rather than through the record. */

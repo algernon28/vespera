@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
@@ -25,8 +26,8 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.BoilerplateShingles;
 import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
@@ -366,23 +367,18 @@ class GenerationInvocationTest {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test", null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
-                new ProfileValue(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open", null)));
+        profileStore.save(aProfile()
+                .seedFolder(seeds)
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR)
+                .embeddingModel(EMBEDDING_MODEL_NAME)
+                .build());
     }
 
     /** Writes the approval, leaving every other key as the fixture left it. */
     private void approve(String approval) {
         Profile loaded = profileStore.load();
-        profileStore.save(new Profile(
-                loaded.seedFolder(),
-                loaded.degenerateOutputConfidenceFloor(),
-                loaded.boilerplateDocumentFrequencyFloor(),
-                loaded.embeddingModel(),
-                loaded.relevanceScoreFloor(),
-                new ProfileValue(approval, approval == null ? null : "read by this test", null)));
+        profileStore.save(ProfileFixture.from(loaded).arrangementApproved(approval).build());
     }
 
     /** The arrangement the most recent invocation over {@code root} recorded — the one its page names. */

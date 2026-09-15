@@ -445,6 +445,13 @@ public final class Adr {
     public static final String A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED = FILE
             + "0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md";
 
+    /**
+     * ADR-118 — {@code Profile}'s canonical constructor is its only public one, and test convenience
+     * lives in the tests.
+     */
+    public static final String PROFILES_CANONICAL_CONSTRUCTOR_IS_ITS_ONLY_PUBLIC_ONE = FILE
+            + "0118-profiles-canonical-constructor-is-its-only-public-one-and-test-convenience-lives-in-the-tests.md";
+
     private Adr() {
     }
 }

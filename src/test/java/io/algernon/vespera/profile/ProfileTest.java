@@ -14,9 +14,12 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The profile record itself, apart from {@link ProfileStoreTest}'s file round-trip: what a fresh
- * skeleton carries for the key #58 adds, and that a two-key call site the key predates still compiles
- * and still merges the third key in unset (ADR-062's "a key the file predates is added unset,"
- * exercised here at the constructor rather than through YAML).
+ * skeleton carries for each key a ticket has added, and that the record still has exactly one way to
+ * build it (ADR-118).
+ *
+ * <p>ADR-062's "a key the file predates is added unset" is pinned at the YAML boundary, by {@link
+ * ProfileStoreTest}, which is where a file written before a key existed is actually read. It was
+ * pinned here too, once per arity, by four tests over the constructor overloads ADR-118 deleted.
  */
 @Epic("Census")
 @Feature("Profile")
@@ -38,18 +41,6 @@ class ProfileTest {
     }
 
     @Test
-    @Story("A key the file predates is added unset")
-    @DisplayName("The two-key constructor every call site before #58 used still defaults the third key unset")
-    void theTwoKeyConstructorDefaultsTheThirdKeyUnset() {
-        Profile profile = new Profile(ProfileValue.unset(), ProfileValue.unset());
-
-        claim(
-                "a call site that has not been touched since #58 still gets a profile whose third key"
-                        + " reads exactly like any other key nobody has answered",
-                () -> assertThat(profile.boilerplateDocumentFrequencyFloor()).isEqualTo(ProfileValue.unset()));
-    }
-
-    @Test
     @Story("Gate 3's model key ships unset")
     @DisplayName("A fresh skeleton carries the embedding-model key, unset")
     @Issue("107")
@@ -60,19 +51,6 @@ class ProfileTest {
                 "the model key #107 adds is present rather than missing, and unanswered rather than"
                         + " guessed at -- naming a model is purely the operator's call",
                 () -> assertThat(skeleton.embeddingModel().isSet()).isFalse());
-    }
-
-    @Test
-    @Story("A key the file predates is added unset")
-    @DisplayName("The three-key constructor every call site before #107 used still defaults the fourth key unset")
-    @Issue("107")
-    void theThreeKeyConstructorDefaultsTheFourthKeyUnset() {
-        Profile profile = new Profile(ProfileValue.unset(), ProfileValue.unset(), ProfileValue.unset());
-
-        claim(
-                "a call site that has not been touched since #107 still gets a profile whose fourth key"
-                        + " reads exactly like any other key nobody has answered",
-                () -> assertThat(profile.embeddingModel()).isEqualTo(ProfileValue.unset()));
     }
 
     @Test
@@ -88,20 +66,6 @@ class ProfileTest {
                         + " at -- the value is read off sixty answers a person has not given yet, and"
                         + " while it is unset the run scores everything and removes nothing",
                 () -> assertThat(skeleton.relevanceScoreFloor().isSet()).isFalse());
-    }
-
-    @Test
-    @Story("A key the file predates is added unset")
-    @DisplayName("The four-key constructor every call site before #110 used still defaults the fifth key unset")
-    @Issue("110")
-    void theFourKeyConstructorDefaultsTheFifthKeyUnset() {
-        Profile profile =
-                new Profile(ProfileValue.unset(), ProfileValue.unset(), ProfileValue.unset(), ProfileValue.unset());
-
-        claim(
-                "a call site that has not been touched since #110 still gets a profile whose fifth key"
-                        + " reads exactly like any other key nobody has answered",
-                () -> assertThat(profile.relevanceScoreFloor()).isEqualTo(ProfileValue.unset()));
     }
 
     @Test
@@ -140,20 +104,20 @@ class ProfileTest {
     }
 
     @Test
-    @Story("A key the file predates is added unset")
-    @DisplayName("The five-key constructor every call site before this key used still defaults it unset")
-    @Issue("175")
-    void theFiveKeyConstructorDefaultsTheSixthKeyUnset() {
-        Profile profile = new Profile(
-                ProfileValue.unset(),
-                ProfileValue.unset(),
-                ProfileValue.unset(),
-                ProfileValue.unset(),
-                ProfileValue.unset());
-
+    @Story("The record has one way to build it")
+    @DisplayName("Profile declares exactly one public constructor")
+    @Issue("197")
+    @Link(name = "ADR-118", url = Adr.PROFILES_CANONICAL_CONSTRUCTOR_IS_ITS_ONLY_PUBLIC_ONE, type = "adr")
+    void profileDeclaresExactlyOnePublicConstructor() {
         claim(
-                "a call site that predates the approval still gets a profile whose approval reads exactly"
-                        + " like any other key nobody has answered",
-                () -> assertThat(profile.arrangementApproved()).isEqualTo(ProfileValue.unset()));
+                "the canonical constructor is the only one, so a call site cannot name a subset of the"
+                        + " keys by arity alone -- five such overloads had accreted, one per key, every"
+                        + " parameter the same type, and all forty-three of their callers were tests",
+                () -> assertThat(Profile.class.getConstructors()).hasSize(1));
+        claim(
+                "and the one it declares takes every key, so nothing can be built with some of them"
+                        + " silently unset by position",
+                () -> assertThat(Profile.class.getConstructors()[0].getParameterCount())
+                        .isEqualTo(Profile.class.getRecordComponents().length));
     }
 }

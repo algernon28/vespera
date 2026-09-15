@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
@@ -194,12 +195,12 @@ class ContentCensusTaskletTest {
         walkedThroughExtractionWithScores(ledger, versions, root, new double[] {0.95});
         ProfileStore profileStore = new ProfileStore(workingDirectory);
         Instant firstMeasuredAt = Instant.parse("2026-09-01T09:00:00Z");
-        profileStore.save(new Profile(
-                null,
-                new ProfileValue(
+        profileStore.save(aProfile()
+                .degenerateOutputConfidenceFloor(new ProfileValue(
                         "0.55",
                         "matched to last quarter's manual review",
-                        new Measurement("some earlier report", firstMeasuredAt))));
+                        new Measurement("some earlier report", firstMeasuredAt)))
+                .build());
         Instant ranAt = Instant.parse("2026-09-05T12:00:00Z");
         Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
 

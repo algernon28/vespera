@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -30,7 +31,6 @@ import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.BoilerplateShingles;
 import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
@@ -459,8 +459,9 @@ class SeedExtractionInvocationTest {
     /** Nothing answered at all, which is the state an invocation 1 with no profile is in. */
     private void nothingIsAnswered() {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(null, null, null), profile.degenerateOutputConfidenceFloor(), null));
+        profileStore.save(aProfile()
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .build());
     }
 
     /** Every operator-facing line this invocation wrote, in the order it wrote them. */
@@ -479,19 +480,20 @@ class SeedExtractionInvocationTest {
     /** The seed folder named and stage 4's gate open — the fixture every claim above the last needs. */
     private void profile(Path seeds) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test", null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null)));
+        profileStore.save(aProfile()
+                .seedFolder(seeds)
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR)
+                .build());
     }
 
     /** Stage 4's gate open, and deliberately no seed folder. */
     private void openTheBoilerplateGateOnly() {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(null, null, null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null)));
+        profileStore.save(aProfile()
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR)
+                .build());
     }
 
     /**

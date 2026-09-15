@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
@@ -8,9 +9,7 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkCounts;
 import io.algernon.vespera.ledger.WalkId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -154,10 +153,11 @@ class SeedGateTest {
 
     /** The two keys this gate reads, either of them {@code null} for unanswered. */
     private void profile(String seedFolder, String boilerplateFloor) {
-        profileStore.save(new Profile(
-                new ProfileValue(seedFolder, seedFolder == null ? null : "set by this test", null),
-                profileStore.load().degenerateOutputConfidenceFloor(),
-                new ProfileValue(boilerplateFloor, boilerplateFloor == null ? null : "set by this test", null)));
+        profileStore.save(aProfile()
+                .seedFolder(seedFolder)
+                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(boilerplateFloor)
+                .build());
     }
 
     /** A walk of {@code root} that census would have finished. */

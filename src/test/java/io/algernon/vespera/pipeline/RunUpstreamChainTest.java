@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
@@ -310,11 +311,12 @@ class RunUpstreamChainTest {
      */
     private void openEveryGate(Path seeds) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test, so the seed gate is open", null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
-                new ProfileValue(MODEL_NAME, "set by this test, so gate 3 is open", null)));
+        profileStore.save(aProfile()
+                .seedFolder(new ProfileValue(seeds.toString(), "set by this test, so the seed gate is open", null))
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR)
+                .embeddingModel(MODEL_NAME)
+                .build());
     }
 
     /** Each stage's upstream run ids, in the order the stages minted their runs. */

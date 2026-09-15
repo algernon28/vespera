@@ -25,7 +25,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 public record ProfileValue(String value, String provenance, Measurement measurement) {
 
     /** A key census has created and nobody has answered. */
-    static ProfileValue unset() {
+    public static ProfileValue unset() {
         return new ProfileValue(null, null, null);
     }
 
