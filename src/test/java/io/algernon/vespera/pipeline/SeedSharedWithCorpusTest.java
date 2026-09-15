@@ -24,6 +24,7 @@ import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.BoilerplateShingles;
@@ -238,10 +239,11 @@ class SeedSharedWithCorpusTest {
     /** The seed folder named and stage 4's gate open. */
     private void openTheGates(Path seeds) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test", null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null)));
+        profileStore.save(ProfileFixture.profile()
+                .seedFolder(seeds.toString(), "set by this test")
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .build());
     }
 
     private long cachedConversionCount() {

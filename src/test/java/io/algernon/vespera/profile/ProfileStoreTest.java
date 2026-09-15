@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -62,10 +63,10 @@ class ProfileStoreTest {
     @DisplayName("A value and its provenance survive a second census run untouched")
     void neverTouchesAnAnswerAlreadyInTheFile(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
-        store.save(new Profile(
-                new ProfileValue(
-                        "C:/seeds", "chosen by the archivist from the 2019 handover", new Measurement("walk 1", FIRST_RUN)),
-                null));
+        store.save(ProfileFixture.profile()
+                .seedFolder(new ProfileValue(
+                        "C:/seeds", "chosen by the archivist from the 2019 handover", new Measurement("walk 1", FIRST_RUN)))
+                .build());
 
         Profile reloaded = store.load();
         store.save(reloaded.withSeedFolderMeasurement(new Measurement("walk 7", SECOND_RUN)));
@@ -118,8 +119,9 @@ class ProfileStoreTest {
     @DisplayName("A profile written out is a profile that reads back the same")
     void writesWhatItCanReadBack(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
-        Profile written = new Profile(
-                new ProfileValue("C:/seeds", "the archivist's pick", new Measurement("walk 1", FIRST_RUN)), null);
+        Profile written = ProfileFixture.profile()
+                .seedFolder(new ProfileValue("C:/seeds", "the archivist's pick", new Measurement("walk 1", FIRST_RUN)))
+                .build();
 
         store.save(written);
 
@@ -133,10 +135,10 @@ class ProfileStoreTest {
     @DisplayName("An operator-set tier-2 confidence floor round-trips like any other answered key")
     void anOperatorSetConfidenceFloorRoundTrips(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
-        Profile written = new Profile(
-                null,
-                new ProfileValue(
-                        "0.5", "matched to Docling's own poor/fair cut-off", new Measurement("run 3", FIRST_RUN)));
+        Profile written = ProfileFixture.profile()
+                .degenerateOutputConfidenceFloor(new ProfileValue(
+                        "0.5", "matched to Docling's own poor/fair cut-off", new Measurement("run 3", FIRST_RUN)))
+                .build();
 
         store.save(written);
         Profile reloaded = store.load();
@@ -147,5 +149,99 @@ class ProfileStoreTest {
         claim(
                 "and it now reads as set, the same isSet() check every other answered key uses",
                 () -> assertThat(reloaded.degenerateOutputConfidenceFloor().isSet()).isTrue());
+    }
+
+    /**
+     * Every key the profile carries, each answered with a value nothing else in this file uses, so that
+     * a value arriving on the wrong key is visible rather than coincidentally right.
+     */
+    private static final String EVERY_KEY_ANSWERED =
+            """
+            seedFolder:
+              value: "C:/seeds"
+              provenance: "the archivist's pick"
+            degenerateOutputConfidenceFloor:
+              value: "0.51"
+              provenance: "read off the confidence distribution"
+            boilerplateDocumentFrequencyFloor:
+              value: "0.52"
+              provenance: "read off the document-frequency table"
+            embeddingModel:
+              value: "an-embedding-model:0.6b"
+              provenance: "the one the bake-off picked"
+            relevanceScoreFloor:
+              value: "0.53"
+              provenance: "read off sixty answers"
+            arrangementApproved:
+              value: "9f2c41ab77de"
+              provenance: "read and approved on screen"
+            generationModel:
+              value: "a-generation-model:8b"
+              provenance: "overriding what is configured"
+            """;
+
+    /** How many keys the profile carries, and therefore how many the file above answers. */
+    private static final int SEVEN_KEYS = 7;
+
+    @Test
+    @Story("What census writes to the profile")
+    @DisplayName("A file answering every key loads with every answer on the key that carried it")
+    @Issue("197")
+    @Link(name = "ADR-119", url = Adr.PROFILE_HAS_ONE_CONSTRUCTOR, type = "adr")
+    void everyAnswerLandsOnTheKeyThatCarriedIt(@TempDir Path workingDirectory) throws IOException {
+        Files.writeString(workingDirectory.resolve("profile.yaml"), EVERY_KEY_ANSWERED);
+
+        Profile loaded = new ProfileStore(workingDirectory).load();
+
+        claim(
+                "all 7 answers are present, which no reader that built the record any other way than"
+                        + " through its one whole-record constructor could produce -- a shorter one has no"
+                        + " parameter for the last key, and a strict reader would refuse the file over it",
+                () -> assertThat(List.of(
+                                loaded.seedFolder().value(),
+                                loaded.degenerateOutputConfidenceFloor().value(),
+                                loaded.boilerplateDocumentFrequencyFloor().value(),
+                                loaded.embeddingModel().value(),
+                                loaded.relevanceScoreFloor().value(),
+                                loaded.arrangementApproved().value(),
+                                loaded.generationModel().value()))
+                        .hasSize(SEVEN_KEYS)
+                        .doesNotContainNull());
+        claim(
+                "and each one sits on the key the file wrote it under, so no reader silently shifted the"
+                        + " values along by a position",
+                () -> assertThat(loaded.relevanceScoreFloor().value()).isEqualTo("0.53"));
+        claim(
+                "including the last key, which is the one a shorter way in could not have filled",
+                () -> assertThat(loaded.generationModel().value()).isEqualTo("a-generation-model:8b"));
+    }
+
+    @Test
+    @Story("What census writes to the profile")
+    @DisplayName("A file answering one key loads with every other key unanswered")
+    @Issue("197")
+    @Link(name = "ADR-119", url = Adr.PROFILE_HAS_ONE_CONSTRUCTOR, type = "adr")
+    void aFileAnsweringOneKeyLeavesTheRestUnanswered(@TempDir Path workingDirectory) throws IOException {
+        Files.writeString(
+                workingDirectory.resolve("profile.yaml"),
+                """
+                seedFolder:
+                  value: "C:/seeds"
+                  provenance: "the archivist's pick"
+                """);
+
+        Profile loaded = new ProfileStore(workingDirectory).load();
+
+        claim(
+                "the key the file answers is answered",
+                () -> assertThat(loaded.seedFolder().value()).isEqualTo("C:/seeds"));
+        claim(
+                "and every key written since that file was saved is present and unanswered, rather than"
+                        + " null or missing -- which is the promise a reader has to keep whatever it builds"
+                        + " the record through, and the one thing a shorter way in was ever standing in for",
+                () -> assertThat(loaded.generationModel()).isEqualTo(ProfileValue.unset()));
+        claim(
+                "so the file still loads at all, on a reader that refuses a key it does not recognise",
+                () -> assertThat(loaded.arrangementApproved()).isEqualTo(ProfileValue.unset()));
     }
 }

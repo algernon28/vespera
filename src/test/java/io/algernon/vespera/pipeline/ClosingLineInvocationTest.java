@@ -26,6 +26,7 @@ import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.BoilerplateShingles;
@@ -216,7 +217,7 @@ class ClosingLineInvocationTest {
     void forgetWhatAnotherTestAnswered() {
         // The working directory is static, so profile.yaml outlives each test method. A test whose
         // claim is about an unanswered profile has to say so rather than inherit one.
-        profileStore.save(new Profile(null, null, null, null, null));
+        profileStore.save(ProfileFixture.profile().build());
     }
 
     @BeforeEach
@@ -372,13 +373,9 @@ class ClosingLineInvocationTest {
     /** The threshold answered, so the path has nothing earlier left to ask for. */
     private void theThresholdAnswered() {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                profile.seedFolder(),
-                profile.degenerateOutputConfidenceFloor(),
-                profile.boilerplateDocumentFrequencyFloor(),
-                profile.embeddingModel(),
-                new ProfileValue("0.0", "set by this test, so nothing earlier is asked for", null),
-                profile.arrangementApproved()));
+        profileStore.save(ProfileFixture.profileFrom(profile)
+                .relevanceScoreFloor("0.0", "set by this test, so nothing earlier is asked for")
+                .build());
     }
 
     private void aCorpus(Path root, Path seeds) throws IOException {
@@ -414,22 +411,21 @@ class ClosingLineInvocationTest {
      */
     private void theOnlyAnsweredValueIsASeedFolderThatIsNotThere(Path seeds) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test", null),
-                profile.degenerateOutputConfidenceFloor(),
-                null,
-                null,
-                null));
+        profileStore.save(ProfileFixture.profile()
+                .seedFolder(seeds.toString(), "set by this test")
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .build());
     }
 
     /** Stage 4's gate open and a model named, so the only thing left to vary is the seed folder. */
     private void theProfileSaying(String seedFolder) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seedFolder, "set by this test", null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
-                new ProfileValue(MODEL_NAME, "set by this test, so the scoring run is minted", null)));
+        profileStore.save(ProfileFixture.profile()
+                .seedFolder(seedFolder, "set by this test")
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(MODEL_NAME, "set by this test, so the scoring run is minted")
+                .build());
     }
 
     /**

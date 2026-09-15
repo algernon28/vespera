@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
@@ -78,10 +79,8 @@ class EmbeddingModelGateTest {
 
     private void profile(String modelName) {
         Profile loaded = profileStore.load();
-        profileStore.save(new Profile(
-                loaded.seedFolder(),
-                loaded.degenerateOutputConfidenceFloor(),
-                loaded.boilerplateDocumentFrequencyFloor(),
-                new ProfileValue(modelName, modelName == null ? null : "set by this test", null)));
+        profileStore.save(ProfileFixture.profileFrom(loaded)
+                .embeddingModel(modelName, modelName == null ? null : "set by this test")
+                .build());
     }
 }

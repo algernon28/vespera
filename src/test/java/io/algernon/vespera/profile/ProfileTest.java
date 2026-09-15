@@ -9,14 +9,19 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.lang.reflect.Constructor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
  * The profile record itself, apart from {@link ProfileStoreTest}'s file round-trip: what a fresh
- * skeleton carries for the key #58 adds, and that a two-key call site the key predates still compiles
- * and still merges the third key in unset (ADR-062's "a key the file predates is added unset,"
- * exercised here at the constructor rather than through YAML).
+ * skeleton carries for each key as it was added, and the shape of the record's one way in.
+ *
+ * <p>The four tests that used to sit here — one per arity, each asserting that a call site untouched
+ * since an earlier ticket still got the later key unset — went with the constructors they were about
+ * (ADR-119). What they claimed is claimed still: through the file, by {@link ProfileStoreTest}, which
+ * is where ADR-062's merge actually lives, and through {@link ProfileFixture} below, which is where
+ * the source compatibility they were really defending now sits.
  */
 @Epic("Census")
 @Feature("Profile")
@@ -38,18 +43,6 @@ class ProfileTest {
     }
 
     @Test
-    @Story("A key the file predates is added unset")
-    @DisplayName("The two-key constructor every call site before #58 used still defaults the third key unset")
-    void theTwoKeyConstructorDefaultsTheThirdKeyUnset() {
-        Profile profile = new Profile(ProfileValue.unset(), ProfileValue.unset());
-
-        claim(
-                "a call site that has not been touched since #58 still gets a profile whose third key"
-                        + " reads exactly like any other key nobody has answered",
-                () -> assertThat(profile.boilerplateDocumentFrequencyFloor()).isEqualTo(ProfileValue.unset()));
-    }
-
-    @Test
     @Story("Gate 3's model key ships unset")
     @DisplayName("A fresh skeleton carries the embedding-model key, unset")
     @Issue("107")
@@ -60,19 +53,6 @@ class ProfileTest {
                 "the model key #107 adds is present rather than missing, and unanswered rather than"
                         + " guessed at -- naming a model is purely the operator's call",
                 () -> assertThat(skeleton.embeddingModel().isSet()).isFalse());
-    }
-
-    @Test
-    @Story("A key the file predates is added unset")
-    @DisplayName("The three-key constructor every call site before #107 used still defaults the fourth key unset")
-    @Issue("107")
-    void theThreeKeyConstructorDefaultsTheFourthKeyUnset() {
-        Profile profile = new Profile(ProfileValue.unset(), ProfileValue.unset(), ProfileValue.unset());
-
-        claim(
-                "a call site that has not been touched since #107 still gets a profile whose fourth key"
-                        + " reads exactly like any other key nobody has answered",
-                () -> assertThat(profile.embeddingModel()).isEqualTo(ProfileValue.unset()));
     }
 
     @Test
@@ -88,20 +68,6 @@ class ProfileTest {
                         + " at -- the value is read off sixty answers a person has not given yet, and"
                         + " while it is unset the run scores everything and removes nothing",
                 () -> assertThat(skeleton.relevanceScoreFloor().isSet()).isFalse());
-    }
-
-    @Test
-    @Story("A key the file predates is added unset")
-    @DisplayName("The four-key constructor every call site before #110 used still defaults the fifth key unset")
-    @Issue("110")
-    void theFourKeyConstructorDefaultsTheFifthKeyUnset() {
-        Profile profile =
-                new Profile(ProfileValue.unset(), ProfileValue.unset(), ProfileValue.unset(), ProfileValue.unset());
-
-        claim(
-                "a call site that has not been touched since #110 still gets a profile whose fifth key"
-                        + " reads exactly like any other key nobody has answered",
-                () -> assertThat(profile.relevanceScoreFloor()).isEqualTo(ProfileValue.unset()));
     }
 
     @Test
@@ -139,21 +105,57 @@ class ProfileTest {
                 () -> assertThat(skeleton.arrangementApproved().isSet()).isFalse());
     }
 
+    /**
+     * How many constructors {@link Profile} is allowed to have: one, the canonical seven-component
+     * one. Before ADR-119 there were six — the canonical one plus five of arity two through six, each
+     * added by the ticket that added a profile key so that the previous ticket's test call sites would
+     * still compile. None of the five had a production caller.
+     */
+    private static final int ONE_CONSTRUCTOR = 1;
+
+    /** How many keys the profile carries today, and therefore how many the one constructor takes. */
+    private static final int SEVEN_KEYS = 7;
+
     @Test
-    @Story("A key the file predates is added unset")
-    @DisplayName("The five-key constructor every call site before this key used still defaults it unset")
-    @Issue("175")
-    void theFiveKeyConstructorDefaultsTheSixthKeyUnset() {
-        Profile profile = new Profile(
-                ProfileValue.unset(),
-                ProfileValue.unset(),
-                ProfileValue.unset(),
-                ProfileValue.unset(),
-                ProfileValue.unset());
+    @Story("The profile record has one way in")
+    @DisplayName("The profile record declares a single constructor, taking every key")
+    @Issue("197")
+    @Link(name = "ADR-119", url = Adr.PROFILE_HAS_ONE_CONSTRUCTOR, type = "adr")
+    void theRecordDeclaresASingleConstructor() {
+        Constructor<?>[] constructors = Profile.class.getDeclaredConstructors();
 
         claim(
-                "a call site that predates the approval still gets a profile whose approval reads exactly"
-                        + " like any other key nobody has answered",
-                () -> assertThat(profile.arrangementApproved()).isEqualTo(ProfileValue.unset()));
+                "there is exactly 1 constructor, down from the 6 that had accumulated -- one per key added"
+                        + " since the record shipped, every parameter the same type, and none of them"
+                        + " reachable from anything but a test",
+                () -> assertThat(constructors).hasSize(ONE_CONSTRUCTOR));
+        claim(
+                "and it takes all 7 keys, so a caller wanting a subset says which subset by naming the keys"
+                        + " rather than by choosing a length",
+                () -> assertThat(constructors[0].getParameterCount()).isEqualTo(SEVEN_KEYS));
+    }
+
+    @Test
+    @Story("The profile record has one way in")
+    @DisplayName("A key nobody names is unanswered, so a new key disturbs no existing test")
+    @Issue("197")
+    @Link(name = "ADR-119", url = Adr.PROFILE_HAS_ONE_CONSTRUCTOR, type = "adr")
+    void aKeyNobodyNamesIsUnanswered() {
+        Profile built = ProfileFixture.profile()
+                .seedFolder("/corpus/exemplars", "chosen by the archivist")
+                .build();
+
+        claim(
+                "the key that was named carries the answer it was given",
+                () -> assertThat(built.seedFolder().value()).isEqualTo("/corpus/exemplars"));
+        claim(
+                "and every key that was not named is unanswered rather than absent or guessed -- which is"
+                        + " what lets a new key be added without touching a call site, the one thing the"
+                        + " deleted constructors were buying",
+                () -> assertThat(built.generationModel()).isEqualTo(ProfileValue.unset()));
+        claim(
+                "and so is the key that sits between them, because this is a property of every key the"
+                        + " caller left alone rather than of the last one",
+                () -> assertThat(built.relevanceScoreFloor()).isEqualTo(ProfileValue.unset()));
     }
 }

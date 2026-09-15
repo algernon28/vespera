@@ -27,6 +27,7 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.BoilerplateShingles;
@@ -345,10 +346,11 @@ class SeedCorpusComparisonInvocationTest {
     /** The seed folder named and stage 4's gate open — the fixture every claim above needs. */
     private void profile(Path seeds) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test", null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null)));
+        profileStore.save(ProfileFixture.profile()
+                .seedFolder(seeds.toString(), "set by this test")
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .build());
     }
 
     /** The report's own file, beside the database and the profile in the working directory. */

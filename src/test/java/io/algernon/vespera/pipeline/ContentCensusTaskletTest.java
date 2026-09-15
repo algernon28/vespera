@@ -18,6 +18,7 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.DocumentFrequency;
@@ -196,12 +197,12 @@ class ContentCensusTaskletTest {
         walkedThroughExtractionWithScores(ledger, versions, root, new double[] {0.95});
         ProfileStore profileStore = new ProfileStore(workingDirectory);
         Instant firstMeasuredAt = Instant.parse("2026-09-01T09:00:00Z");
-        profileStore.save(new Profile(
-                null,
-                new ProfileValue(
+        profileStore.save(ProfileFixture.profile()
+                .degenerateOutputConfidenceFloor(new ProfileValue(
                         "0.55",
                         "matched to last quarter's manual review",
-                        new Measurement("some earlier report", firstMeasuredAt))));
+                        new Measurement("some earlier report", firstMeasuredAt)))
+                .build());
         Instant ranAt = Instant.parse("2026-09-05T12:00:00Z");
         Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
 

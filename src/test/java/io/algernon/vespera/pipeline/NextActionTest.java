@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -232,7 +233,7 @@ class NextActionTest {
 
     /** A profile census has created and nobody has answered — every key present and unset. */
     private static Profile nothingSet() {
-        return new Profile(null, null, null, null, null);
+        return ProfileFixture.profile().build();
     }
 
     @Test
@@ -306,12 +307,16 @@ class NextActionTest {
 
     /** Step zero taken and nothing else: the seed folder named before the first invocation. */
     private static Profile onlyTheSeedFolderSet() {
-        return new Profile(set("/corpus/exemplars"), null, null, null, null);
+        return ProfileFixture.profile().seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR).build();
     }
 
     /** Everything invocation 2 needs, answered; the threshold still the operator's to read off. */
     private static Profile theRunValuesSet() {
-        return new Profile(set("/corpus/exemplars"), null, set("0.4"), set("embeddinggemma"), null);
+        return ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
+                .build();
     }
 
     /** What an operator writes when their keyboard or their locale disagrees with Double.parseDouble. */
@@ -319,27 +324,47 @@ class NextActionTest {
 
     /** Every run value answered, and a threshold written in a form no run can read. */
     private static Profile theFloorMistyped() {
-        return new Profile(set("/corpus/exemplars"), null, set("0.4"), set("embeddinggemma"), set(A_MISTYPED_FLOOR));
+        return ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
+                .relevanceScoreFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .build();
     }
 
     /** The end of the path: every value the four invocations ask for, answered. */
     private static Profile everythingSet() {
-        return new Profile(set("/corpus/exemplars"), null, set("0.4"), set("embeddinggemma"), set("0.62"));
+        return ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
+                .relevanceScoreFloor(THE_RELEVANCE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .build();
     }
 
     /** The true end of the path: every value answered, the arrangement among them. */
     private static Profile everythingApproved() {
-        return new Profile(
-                set("/corpus/exemplars"),
-                null,
-                set("0.4"),
-                set("embeddinggemma"),
-                set("0.62"),
-                set(AN_ARRANGEMENT.orElseThrow()));
+        return ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
+                .relevanceScoreFloor(THE_RELEVANCE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .arrangementApproved(AN_ARRANGEMENT.orElseThrow(), RECORDED_BY_THE_OPERATOR)
+                .build();
     }
 
-    /** An answered key, with the provenance an operator is asked to record beside it. */
-    private static ProfileValue set(String value) {
-        return new ProfileValue(value, "recorded by the operator", null);
-    }
+    /** The provenance an operator is asked to record beside every answer they give. */
+    private static final String RECORDED_BY_THE_OPERATOR = "recorded by the operator";
+
+    /** The folder of known-relevant documents, as the operator would write it into the profile. */
+    private static final String THE_SEED_FOLDER = "/corpus/exemplars";
+
+    /** Stage 3's floor, answered: any value at all opens stage 4's gate, and the number is not read here. */
+    private static final String THE_BOILERPLATE_FLOOR = "0.4";
+
+    /** Gate 3's model, answered: the name opens the gate, and nothing here embeds anything. */
+    private static final String THE_EMBEDDING_MODEL = "embeddinggemma";
+
+    /** A threshold on the run's own scale, answered, and parseable -- the contrast to the mistyped one. */
+    private static final String THE_RELEVANCE_FLOOR = "0.62";
 }
