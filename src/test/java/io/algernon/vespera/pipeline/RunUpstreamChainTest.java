@@ -23,6 +23,7 @@ import io.algernon.vespera.extraction.HybridChunkerBeans;
 import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
@@ -194,7 +195,8 @@ class RunUpstreamChainTest {
             "content-redundancy",
             "seed-measurement",
             "embedding-scoring",
-            "arrangement");
+            "arrangement",
+            "generation");
 
     /**
      * A floor of 1.0: a shingle counts as boilerplate only when it appears in every single document.
@@ -232,7 +234,7 @@ class RunUpstreamChainTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         openEveryGate(seeds);
 
-        cli.run("run", root.toString());
+        twoInvocationsWithTheArrangementApproved(root);
 
         Map<String, List<String>> upstreamByStage = upstreamByStageFor(theWalkOf(root));
         List<String> stagesInChainOrder = new ArrayList<>(upstreamByStage.keySet());
@@ -243,8 +245,8 @@ class RunUpstreamChainTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
                 "every stage that measures or judges documents minted exactly one run, from the"
-                        + " byte-level reduction through to the arrangement -- and redundancy's two steps"
-                        + " share a single run rather than minting one each",
+                        + " byte-level reduction through to the writing at the end -- and redundancy's two"
+                        + " steps share a single run rather than minting one each",
                 () -> assertThat(stagesInChainOrder).containsExactlyElementsOf(STAGES_THAT_MINT_A_RUN));
         claim(
                 "the first stage names no upstream, because there is nothing before it: it is the root of"
@@ -270,7 +272,7 @@ class RunUpstreamChainTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         openEveryGate(seeds);
 
-        cli.run("run", root.toString());
+        twoInvocationsWithTheArrangementApproved(root);
 
         WalkId walkId = theWalkOf(root);
         Map<String, List<String>> upstreamByStage = upstreamByStageFor(walkId);
@@ -287,8 +289,9 @@ class RunUpstreamChainTest {
         claim(
                 "each run names the stage immediately before it and never reaches back past one -- so"
                         + " extraction names the byte-level reduction, the content census names extraction,"
-                        + " redundancy names the content census, and the arrangement names the scoring that"
-                        + " produced what it arranges",
+                        + " redundancy names the content census, the arrangement names the scoring that"
+                        + " produced what it arranges, and the writing names the arrangement a person"
+                        + " approved rather than the latest one",
                 () -> assertThat(namedUpstreamStages).containsExactlyElementsOf(expectedUpstreamStages));
         claim(
                 "and the content census stays in the chain even though it renders no verdict of its own,"
@@ -317,6 +320,38 @@ class RunUpstreamChainTest {
                 .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
                 .build());
+    }
+
+    /**
+     * One invocation, the approval a person would copy off what it arranged, then a second.
+     *
+     * <p><b>Two, because the last stage cannot be reached in one.</b> Nothing is written over the
+     * archive until a person has read the arrangement and named it, and the name they copy is of
+     * something the first invocation had to produce before it existed to be named. The second
+     * invocation is therefore the only one in which every stage runs -- and it reaches the same runs
+     * rather than fresh ones, because a re-walk that observed nothing new is discarded and each run
+     * carries on under the id it already had.
+     */
+    private void twoInvocationsWithTheArrangementApproved(Path root) {
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theArrangementOf(theWalkOf(root))));
+        cli.run("run", root.toString());
+    }
+
+    /** Writes the approval into the profile, the way an operator does (ADR-107). */
+    private void approve(String approval) {
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .arrangementApproved(approval, "read by this test")
+                .build());
+    }
+
+    /** The arrangement this walk holds, which is what the approval above names. */
+    private RunId theArrangementOf(WalkId walkId) {
+        return new RunId(jdbcTemplate.queryForObject(
+                "SELECT id FROM run WHERE walk_id = ? AND stage = ?",
+                String.class,
+                walkId.value(),
+                ArrangementRun.STAGE));
     }
 
     /** Each stage's upstream run ids, in the order the stages minted their runs. */
