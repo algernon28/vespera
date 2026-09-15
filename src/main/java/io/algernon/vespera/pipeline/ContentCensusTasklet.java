@@ -75,16 +75,21 @@ class ContentCensusTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        // Everything this run names is already measured, so there is nothing here to do (ADR-115).
-        // The report beside the database is not rewritten either: it was written from these very
-        // rows, and a step that skipped its measuring and rewrote its page would be claiming to have
-        // looked again.
-        if (ledger.runFinished(contentCensusRun.runId())) {
+        // This step's own work under this run is already measured, so there is nothing here to do
+        // (ADR-115, ADR-116). The report beside the database is not rewritten either: it was written
+        // from these very rows, and a step that skipped its measuring and rewrote its page would be
+        // claiming to have looked again.
+        if (ledger.stepFinished(contentCensusRun.runId(), ContentCensusRun.STAGE)) {
             log.info(
                     "Stage 3 (content census) was already recorded under run {}",
                     contentCensusRun.runId().value());
             return RepeatStatus.FINISHED;
         }
+
+        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
+        // this step's own rows before working is ADR-115's other half (ADR-116).
+        documentFrequency.discardForRun(contentCensusRun.runId());
+        confidenceDistribution.discardForRun(contentCensusRun.runId());
 
         log.info("Stage 3 (content census) starting under run {}", contentCensusRun.runId().value());
 
@@ -100,7 +105,7 @@ class ContentCensusTasklet implements Tasklet {
         profileStore.save(profile.withDegenerateOutputConfidenceFloorMeasurement(
                 new Measurement(reportFile.toString(), clock.instant())));
 
-        ledger.finishRun(contentCensusRun.runId());
+        ledger.finishStep(contentCensusRun.runId(), ContentCensusRun.STAGE);
         log.info(
                 "Stage 3 (content census) finished under run {}; report written to {}",
                 contentCensusRun.runId().value(),

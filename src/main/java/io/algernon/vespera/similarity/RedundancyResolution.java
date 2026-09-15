@@ -354,6 +354,16 @@ public class RedundancyResolution {
 
     // -- Shared reads and writes -----------------------------------------------------------------
 
+    /**
+     * Deletes every {@code redundant_with} row recorded under {@code stage4RunId} — the discard half
+     * of ADR-115/ADR-116, for a step whose completion under this run is not recorded. The {@code
+     * redundant-with} verdicts themselves are the ledger's own rows, discarded separately by the
+     * caller that owns {@code verdict} (ADR-041).
+     */
+    public void discardForRun(RunId stage4RunId) {
+        jdbcTemplate.update("DELETE FROM redundant_with WHERE run_id = ?", stage4RunId.value());
+    }
+
     private void writeVerdict(
             RunId stage4RunId, long occurrenceId, long redundantWithOccurrenceId, String relation, double score, String reason) {
         ledger.verdict(new OccurrenceId(occurrenceId), stage4RunId, VerdictKind.REDUNDANT_WITH, reason);

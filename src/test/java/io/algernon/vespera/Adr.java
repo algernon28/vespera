@@ -458,6 +458,13 @@ public final class Adr {
     public static final String THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY = FILE
             + "0117-the-relevance-floor-joins-the-scoring-runs-identity-so-a-changed-threshold-is-a-different-run.md";
 
+    /**
+     * ADR-118 — the answers a person gave never join a run's identity, so the two steps that read
+     * them record no completion.
+     */
+    public static final String THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY = FILE
+            + "0118-the-answers-a-person-gave-never-join-a-runs-identity-so-the-two-steps-that-read-them-record-no-completion.md";
+
     private Adr() {
     }
 }

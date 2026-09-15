@@ -62,6 +62,9 @@ class ClusteringTasklet implements Tasklet {
     /** The size report's name in the working directory, beside the profile and the database (ADR-054). */
     static final String CLUSTER_SIZES_FILE_NAME = "cluster-sizes.html";
 
+    /** The step's own name, and the name its completion is recorded under (ADR-116). */
+    static final String STEP = "clustering";
+
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
@@ -120,6 +123,15 @@ class ClusteringTasklet implements Tasklet {
         }
 
         ScoringRun scoring = scoringRun.getObject();
+
+        // This step's own work under this run is already recorded, so there is nothing here to do
+        // (ADR-115, ADR-116). relevance-scoring and relevance-floor, which share this run, are not
+        // asked -- each step answers only for itself.
+        if (ledger.stepFinished(scoring.runId(), STEP)) {
+            LOG.info("Stage 5f (clustering) was already recorded under scoring run {}", scoring.runId().value());
+            return RepeatStatus.FINISHED;
+        }
+
         List<OccurrenceId> partitions = clustering.partitions(scoring.runId());
         if (partitions.isEmpty()) {
             LOG.info(
@@ -128,6 +140,10 @@ class ClusteringTasklet implements Tasklet {
                     scoring.runId().value());
             return RepeatStatus.FINISHED;
         }
+
+        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
+        // this step's own rows before working is ADR-115's other half (ADR-116).
+        documentClusters.discardForRun(scoring.runId());
 
         Path canonicalRoot = Walk.canonicalRoot(root);
         String chunkerIdentity = hybridChunker.identity();
@@ -173,6 +189,7 @@ class ClusteringTasklet implements Tasklet {
         }
 
         write(CLUSTER_SIZES_FILE_NAME, ClusterSizeReport.render(reported));
+        ledger.finishStep(scoring.runId(), STEP);
         LOG.info(
                 "Stage 5f (clustering) finished under scoring run {}: {} partition(s), {} document(s) in"
                         + " {} cluster(s)",

@@ -115,6 +115,16 @@ class EmbeddingScoringTasklet implements Tasklet {
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
         ScoringRun scoring = scoringRun.getObject();
+
+        // This step's own work under this run is already recorded, so there is nothing here to do
+        // (ADR-115, ADR-116). Nothing is discarded first: a vector is content under an instrument, not
+        // a judgement under a run (ADR-085), so it is keyed outside the run and re-embedding it would
+        // cost a second call to Ollama for no reason at all.
+        if (ledger.stepFinished(scoring.runId(), ScoringRun.STAGE)) {
+            LOG.info("Stage 5c (embedding scoring) was already recorded under run {}", scoring.runId().value());
+            return RepeatStatus.FINISHED;
+        }
+
         Path canonicalRoot = Walk.canonicalRoot(root);
         Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun.extractionRunId()));
         Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk.get(), measurementRun);
@@ -130,6 +140,7 @@ class EmbeddingScoringTasklet implements Tasklet {
         for (OccurrenceId occurrenceId : usableSeeds) {
             rechunkAndEmbed(seedWalk.get().canonicalRoot(), occurrenceId, modelName.get());
         }
+        ledger.finishStep(scoring.runId(), ScoringRun.STAGE);
         LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.runId().value());
         return RepeatStatus.FINISHED;
     }

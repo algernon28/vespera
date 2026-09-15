@@ -40,6 +40,14 @@ public class UnusableSeeds {
                 reason);
     }
 
+    /**
+     * Deletes every unusable-seed row recorded under {@code runId} — the discard half of
+     * ADR-115/ADR-116, for a step whose completion under this run is not recorded.
+     */
+    public void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM unusable_seed WHERE run_id = ?", runId.value());
+    }
+
     /** The seeds {@code runId} found unusable, for the report that tells an operator what to fix. */
     public List<UnusableSeed> forRun(RunId runId) {
         return jdbcTemplate.query(

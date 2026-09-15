@@ -131,6 +131,14 @@ public class SeedCorpusComparison {
         return comparison;
     }
 
+    /**
+     * Deletes every comparison row recorded under {@code measurementRunId} — the discard half of
+     * ADR-115/ADR-116, for a step whose completion under this run is not recorded.
+     */
+    public void discardForRun(RunId measurementRunId) {
+        jdbcTemplate.update("DELETE FROM seed_corpus_comparison WHERE run_id = ?", measurementRunId.value());
+    }
+
     private List<Proportion> proportions(
             String comparisonName,
             List<MetricRow> seedRows,

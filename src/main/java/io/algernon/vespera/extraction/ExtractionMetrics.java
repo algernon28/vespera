@@ -41,6 +41,16 @@ public class ExtractionMetrics {
     }
 
     /**
+     * Deletes every metrics row recorded under {@code runId} — the discard half of ADR-115/ADR-116,
+     * for a step whose completion under this run is not recorded: {@code extraction_metric} is keyed
+     * {@code (occurrence_id, run_id)}, so a second write over a stopped invocation's rows would collide on
+     * the first one rather than silently double it.
+     */
+    public void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM extraction_metric WHERE run_id = ?", runId.value());
+    }
+
+    /**
      * Measures {@code response} now and writes nothing, for a caller that does not yet know the run its
      * row belongs to (ADR-092). What comes back is the row's values — a few dozen numbers — so the
      * caller holds those rather than the converted document they were derived from.

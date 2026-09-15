@@ -38,6 +38,17 @@ public class Shingler {
         write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
     }
 
+    /**
+     * Deletes every shingle row recorded under {@code runId} — the discard half of ADR-115/ADR-116,
+     * for a step whose completion under this run is not recorded. {@code shingle} carries no natural
+     * key of its own (a document's shingle set legitimately repeats a hash), so a second write over a
+     * stopped run's rows would not collide — it would silently double stage 3's document-frequency
+     * count, which is the failure this discard exists to prevent.
+     */
+    public void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM shingle WHERE run_id = ?", runId.value());
+    }
+
     /** As {@link #write(OccurrenceId, RunId, String)}, under an explicitly named granularity. */
     void write(OccurrenceId occurrenceId, RunId runId, String text, ShingleParameters parameters) {
         for (long hash : hashesOf(text, parameters)) {

@@ -107,20 +107,26 @@ public class ByteLevelReductionTasklet implements Tasklet {
         RunId runId =
                 ledger.startRun(STAGE, implementationVersions.of(OWNING_MODULE), CONFIG_CONSUMED, walkId, List.of());
 
-        // Everything this run names is already written, so there is nothing here to do (ADR-115).
-        // This is what a content-derived identity was always for: the same inputs name the same work,
-        // and work already done is recognised rather than repeated.
-        if (ledger.runFinished(runId)) {
+        // This step's own work under this run is already written, so there is nothing here to do
+        // (ADR-115, ADR-116). This is what a content-derived identity was always for: the same inputs
+        // name the same work, and work already done is recognised rather than repeated.
+        if (ledger.stepFinished(runId, STAGE)) {
             log.info("Stage 1 (byte-level reduction) was already recorded under run {}", runId.value());
             return RepeatStatus.FINISHED;
         }
+
+        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
+        // this step's own rows before working is ADR-115's other half (ADR-116).
+        ledger.discardVerdicts(runId, VerdictKind.BROKEN, VerdictKind.SUPERSEDED_BY);
+        detectedFormats.discardForRun(runId);
+        contentIdentity.discardForRun(runId);
 
         log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
 
         verdictBrokenSurvivors(runId, canonicalRoot);
         resolveDuplicates(runId, canonicalRoot);
 
-        ledger.finishRun(runId);
+        ledger.finishStep(runId, STAGE);
         log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
         return RepeatStatus.FINISHED;
     }

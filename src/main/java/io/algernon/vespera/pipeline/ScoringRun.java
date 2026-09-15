@@ -5,6 +5,7 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.batch.core.configuration.annotation.JobScope;
@@ -30,8 +31,10 @@ import tools.jackson.databind.json.JsonMapper;
  * check first.
  *
  * <p>{@code @JobScope} rather than {@code @StepScope}: one instance serves every step of stage 5's
- * scoring half within one invocation, which is what keeps {@link Ledger#startRun} — which has no
- * continuation clause — from being called twice with the same content-derived id.
+ * scoring half within one invocation, so the id is derived once from inputs that cannot change within
+ * it. Not because a second call would be refused — {@code Ledger.startRun} mints or carries on under
+ * the row already standing (ADR-115) — but because five steps write under this one run, and each of
+ * them asks about its own completion rather than the run's (ADR-116).
  */
 @Component
 @JobScope
@@ -58,12 +61,17 @@ class ScoringRun {
             ImplementationVersions implementationVersions,
             EmbeddingModelGate embeddingModelGate,
             ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
+            ProfileStore profileStore,
             @Value("#{jobParameters['root']}") Path root) {
         String modelName = embeddingModelGate
                 .modelName()
                 .orElseThrow(() -> new IllegalStateException(
                         "ScoringRun must not be instantiated while embeddingModel is unset"));
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
+        // Read here, fresh on every mint, rather than through a bean of its own: this constructor
+        // runs once per job execution (this bean is @JobScope), which is exactly the freshness
+        // ADR-117 needs a changed profile value to be seen with.
+        Double relevanceScoreFloor = RelevanceScoreFloorValue.readFrom(profileStore).value();
 
         Path canonicalRoot = Walk.canonicalRoot(root);
         WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
@@ -73,25 +81,31 @@ class ScoringRun {
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, EXTRACTION_MODULE, PIPELINE_MODULE),
-                configConsumed(canonicalRoot, modelName, measurementRun.runId()),
+                configConsumed(canonicalRoot, modelName, measurementRun.runId(), relevanceScoreFloor),
                 walkId,
                 List.of(measurementRun.runId()));
     }
 
     /**
-     * {@code configConsumed} names the corpus root, the embedding model and the upstream measurement
-     * run — the model because naming a different one is a different scoring run by definition
-     * (ADR-084), and the root for the same reason every other stage's own {@code configConsumed} names
-     * it.
+     * {@code configConsumed} names the corpus root, the embedding model, the upstream measurement run
+     * and the relevance floor — the model because naming a different one is a different scoring run by
+     * definition (ADR-084), the root for the same reason every other stage's own {@code configConsumed}
+     * names it, and the floor because a corpus scored under a different threshold is a different run,
+     * on the same terms stage 4 already applies to its own boilerplate floor (ADR-117). {@code
+     * relevanceScoreFloor} is the parsed value the relevance-floor step will act on, never the text an
+     * operator typed — {@code null} where the key ships unset or holds nothing a number can be read
+     * from — and never the derived {@link RelevanceFloor.State}, which depends on this run's own
+     * output rather than being an input to it.
      */
-    static String configConsumed(Path canonicalRoot, String modelName, RunId measurementRunId) {
+    static String configConsumed(Path canonicalRoot, String modelName, RunId measurementRunId, Double relevanceScoreFloor) {
         return JSON_MAPPER.writeValueAsString(
-                new ConfigConsumed(canonicalRoot.toString(), modelName, measurementRunId.value()));
+                new ConfigConsumed(canonicalRoot.toString(), modelName, measurementRunId.value(), relevanceScoreFloor));
     }
 
     RunId runId() {
         return runId;
     }
 
-    private record ConfigConsumed(String root, String embeddingModel, String measurementRunId) {}
+    private record ConfigConsumed(
+            String root, String embeddingModel, String measurementRunId, Double relevanceScoreFloor) {}
 }

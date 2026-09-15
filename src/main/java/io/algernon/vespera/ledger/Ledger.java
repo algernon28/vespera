@@ -280,9 +280,11 @@ public class Ledger {
      * (ADR-048) — or carries on under the row already standing for that identity (ADR-115).
      *
      * <p><b>Mint or continue, never mint twice.</b> A run id is a total function of the four things
-     * hashed into it, so a re-derived id names a row that agrees with the caller in every column it
-     * has. There is nothing to update and nothing to reconcile: the row is already what this call
-     * would have written. Before ADR-115 the second insert could not happen, because a fresh walk id
+     * hashed into it, so a re-derived id names a row that agrees with the caller in all four. There is
+     * nothing to update and nothing to reconcile: the row is already what this call would have
+     * written. {@code stage} is the one column not among them -- it is recorded, not hashed -- so two
+     * stages agreeing on all four would collide here rather than being told apart, which is precisely
+     * the conflict the next paragraph refuses to swallow. Before ADR-115 the second insert could not happen, because a fresh walk id
      * on every invocation made every derived id fresh too; with a repeated observation discarded, it
      * happens the moment a corpus is re-walked unchanged.
      *
@@ -324,27 +326,60 @@ public class Ledger {
     }
 
     /**
-     * Records that everything this run names is written (ADR-115), the way {@link #finishWalk} does
-     * for a walk.
+     * Records that {@code step}'s work under {@code runId} is entirely recorded (ADR-116, re-keying
+     * {@link #finishWalk}'s shape from a run to the step that actually did the work).
      *
-     * <p>Called by the step that owns the run, after its last row and never before: what separates a
-     * finished run from an unfinished one is the difference between work a later invocation may skip
-     * and work it must do again.
+     * <p>Called by the step itself, after its last row and never before: what separates a step whose
+     * completion is recorded from one whose is not is the difference between work a later invocation
+     * may skip and work it must do again. Several runs are shared by more than one step, which is
+     * exactly why this is keyed by step rather than by run alone — a flag on the run would let the
+     * first step to finish answer for every step behind it.
+     *
+     * <p>{@code OR IGNORE} rather than a bare insert: a step-completion listener runs at every step
+     * boundary, including one a reader already recognised as finished and skipped, so this method has
+     * to tolerate being told the same true thing twice. That is unlike {@link #startRun}, where a
+     * second insert under one id could be hiding two different runs colliding — here, one row already
+     * says everything a second one would, since {@code (run_id, step)} carries no other column.
      */
-    public void finishRun(RunId runId) {
-        jdbcTemplate.update("UPDATE run SET finished = 1 WHERE id = ?", runId.value());
+    public void finishStep(RunId runId, String step) {
+        jdbcTemplate.update(
+                "INSERT OR IGNORE INTO finished_step (run_id, step) VALUES (?, ?)", runId.value(), step);
     }
 
     /**
-     * Whether this run's work is all recorded.
+     * Whether {@code step}'s work under {@code runId} is entirely recorded.
      *
-     * <p>False for a run that does not exist, which is the honest answer: nothing is recorded under an
-     * identity nothing was ever written under.
+     * <p>False for a step that has never run under this run, failed partway through, or has not been
+     * written yet — the same honest answer for all three, which is what makes the discard-and-redo
+     * half of ADR-115/ADR-116 safe: a step meeting {@code false} here owes its own rows a clean start.
      */
-    public boolean runFinished(RunId runId) {
+    public boolean stepFinished(RunId runId, String step) {
         Integer finished = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM run WHERE id = ? AND finished = 1", Integer.class, runId.value());
+                "SELECT COUNT(*) FROM finished_step WHERE run_id = ? AND step = ?",
+                Integer.class,
+                runId.value(),
+                step);
         return finished != null && finished > 0;
+    }
+
+    /**
+     * Deletes every verdict of {@code kinds} recorded under {@code runId} — the discard half of
+     * ADR-115/ADR-116, for the one table every stage shares. Safe because a run is one stage's
+     * identity (CONTEXT.md, "Run"): a kind named here is only ever written by the one step of that
+     * run's stage that writes it, so discarding by kind under this run id discards that step's own
+     * rows and nothing another step under the same run wrote.
+     */
+    public void discardVerdicts(RunId runId, VerdictKind... kinds) {
+        if (kinds.length == 0) {
+            return;
+        }
+        String placeholders = Arrays.stream(kinds).map(kind -> "?").collect(Collectors.joining(", "));
+        Object[] arguments = new Object[kinds.length + 1];
+        arguments[0] = runId.value();
+        for (int i = 0; i < kinds.length; i++) {
+            arguments[i + 1] = kinds[i].name();
+        }
+        jdbcTemplate.update("DELETE FROM verdict WHERE run_id = ? AND kind IN (" + placeholders + ")", arguments);
     }
 
     /**

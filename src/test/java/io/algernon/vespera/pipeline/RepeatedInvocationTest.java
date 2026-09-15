@@ -215,32 +215,33 @@ class RepeatedInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "the second invocation reports success: every step met the work its own run already"
-                        + " held and did nothing, which is what a name worked out from what a run was"
-                        + " given was always for",
+                "the second invocation reports success: everything it was asked to do was already"
+                        + " recorded from the first, so it was left alone rather than done again",
                 () -> assertThat(cli.getExitCode()).isZero());
+        // Stage 4 is deliberately not asserted on here. This fixture's extractor answers every
+        // document the same text, so every shingle occurs in all of them, and a boilerplate floor of
+        // 1.0 -- the value that opens stage 4's gate -- strips all of them as boilerplate. Stage 4a
+        // therefore signs an empty shingle set and writes no row for any document, whatever the step
+        // completion records say, so a count here would pin the fixture rather than the behaviour.
+        // The seed measurement below makes the same point about two steps sharing one run.
         claim(
-                "stage 4 wrote no second signature for either document, leaving " + ONE_ROW_EACH
-                        + " rows for " + CORPUS_DOCUMENTS + " documents: its two steps share one run, and"
-                        + " the step that runs first must not be answered for by the step after it",
-                () -> assertThat(rowsOver(root, "minhash_signature")).isEqualTo(ONE_ROW_EACH));
-        claim(
-                "and the seed measurement wrote no second metric row, though the step that extracts"
-                        + " runs before the step that compares and the two share one run",
+                "the seed measurement still holds " + ONE_ROW_EACH + " rows for " + CORPUS_DOCUMENTS
+                        + " documents rather than twice that: reading the seeds and comparing them are"
+                        + " recorded together, and the first finishing does not speak for the second",
                 () -> assertThat(rowsOver(root, "extraction_metric")).isEqualTo(ONE_ROW_EACH));
         claim(
-                "stage 5 scored each of the " + CORPUS_DOCUMENTS + " documents once, though five steps"
-                        + " write under its one scoring run",
+                "each of the " + CORPUS_DOCUMENTS + " documents carries one relevance score rather than"
+                        + " two, although five separate pieces of work are recorded together",
                 () -> assertThat(rowsOver(root, "relevance_score")).isEqualTo(ONE_ROW_EACH));
         claim(
-                "and clustered each of them once -- the last of those five, and the one that would"
-                        + " otherwise be told by the first that its own work was already recorded",
+                "and each is in exactly one cluster -- the last of those five, and the one a shared"
+                        + " record would have let the first answer for",
                 () -> assertThat(rowsOver(root, "document_cluster")).isEqualTo(ONE_ROW_EACH));
     }
 
     @Test
-    @Story("A step answers for itself, never for the step beside it")
-    @DisplayName("A step whose work is missing does it again, though the steps sharing its run are done")
+    @Story("Work answers for itself, never for the work beside it")
+    @DisplayName("Work that is missing is done again, although everything recorded alongside it is finished")
     void aStepWhoseWorkIsMissingDoesItAgainThoughItsStepMatesAreDone(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpus(root, seeds);
@@ -252,23 +253,23 @@ class RepeatedInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "the invocation reports success rather than colliding with the row the stopped pass"
-                        + " left behind: a step whose work is not recorded discards its own rows under"
-                        + " this run before doing the work again",
+                "the invocation reports success rather than colliding with the row the interrupted"
+                        + " invocation left behind: work that is not recorded as finished throws away"
+                        + " what it wrote before and does it again",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "each of the " + CORPUS_DOCUMENTS + " documents is in exactly one cluster again --"
-                        + " " + ONE_ROW_EACH + " rows, neither the one the stopped pass left nor three --"
-                        + " so this step did its own work again although every step sharing its run had"
-                        + " finished",
+                "each of the " + CORPUS_DOCUMENTS + " documents is in exactly one cluster again -- "
+                        + ONE_ROW_EACH + " rows, neither the single row the interrupted invocation left"
+                        + " nor three -- so the clustering was done afresh although everything recorded"
+                        + " alongside it had finished",
                 () -> assertThat(rowsOver(root, "document_cluster")).isEqualTo(ONE_ROW_EACH));
         claim(
-                "under the same scoring run as before, because nothing the run reads had changed and"
-                        + " work left unfinished is carried on rather than started somewhere else",
+                "and it was recorded under the same name as before, because nothing it reads had"
+                        + " changed: unfinished work is carried on rather than started somewhere new",
                 () -> assertThat(scoringRunIdFor(root)).isEqualTo(scoringRun));
         claim(
-                "and the step that scored wrote nothing a second time, so redoing one step is not"
-                        + " redoing the stage",
+                "while the scoring beside it wrote nothing a second time, so redoing one piece of"
+                        + " work is not redoing all of it",
                 () -> assertThat(rowsOver(root, "relevance_score")).isEqualTo(ONE_ROW_EACH));
     }
 

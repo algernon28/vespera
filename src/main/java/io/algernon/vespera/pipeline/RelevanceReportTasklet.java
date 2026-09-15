@@ -70,6 +70,20 @@ class RelevanceReportTasklet implements Tasklet {
      */
     private static final int TEXT_OPENING_CHARACTERS = 400;
 
+    /**
+     * The step's own name, which its own wiring builds it under. It is not the name of a completion
+     * record, and there is no {@code finishStep} call in this class.
+     *
+     * <p>ADR-118 names this step and {@code relevance-floor} as the only two that read the answers a
+     * person gave, and takes them out of ADR-116's list for the reason ADR-116's own governing clause
+     * gives: a completion record is safe only where a run's identity names everything the step
+     * consumes. Answers are keyed by path and seed set (ADR-097) and no run names them -- deliberately,
+     * since a run id that moved when someone answered the page would re-score the corpus in reply to
+     * its own question. So this step keeps only the second of ADR-116's two rules: it does its work
+     * again on every invocation, and rewriting a file is its own discard.
+     */
+    static final String STEP = "relevance-report";
+
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final ObjectProvider<ScoringRun> scoringRun;

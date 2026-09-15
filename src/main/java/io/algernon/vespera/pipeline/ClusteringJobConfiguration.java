@@ -20,7 +20,7 @@ public class ClusteringJobConfiguration {
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
             ClusteringTasklet clusteringTasklet) {
-        return new StepBuilder("clustering", jobRepository)
+        return new StepBuilder(ClusteringTasklet.STEP, jobRepository)
                 .tasklet(clusteringTasklet, transactionManager)
                 .build();
     }

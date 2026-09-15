@@ -20,7 +20,7 @@ public class RelevanceFloorJobConfiguration {
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
             RelevanceFloorTasklet relevanceFloorTasklet) {
-        return new StepBuilder("relevance-floor", jobRepository)
+        return new StepBuilder(RelevanceFloorTasklet.STEP, jobRepository)
                 .tasklet(relevanceFloorTasklet, transactionManager)
                 .build();
     }

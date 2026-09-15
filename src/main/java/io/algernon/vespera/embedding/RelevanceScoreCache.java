@@ -85,6 +85,16 @@ class RelevanceScoreCache {
                 floor);
     }
 
+    /**
+     * Deletes every relevance-score row recorded under {@code runId} — the discard half of
+     * ADR-115/ADR-116, for a step whose completion under this run is not recorded: this table is
+     * keyed {@code (occurrence_id, run_id)}, so a second write over a stopped invocation's rows would
+     * otherwise collide on the first survivor it re-scored.
+     */
+    void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM relevance_score WHERE run_id = ?", runId.value());
+    }
+
     /** The score {@code runId} recorded for {@code occurrenceId}, if any — a test's own way to read one back. */
     Optional<RelevanceScore> forOccurrence(OccurrenceId occurrenceId, RunId runId) {
         return jdbcTemplate

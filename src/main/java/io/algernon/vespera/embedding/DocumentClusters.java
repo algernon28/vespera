@@ -41,6 +41,14 @@ public class DocumentClusters {
                 ordinal);
     }
 
+    /**
+     * Deletes every membership row recorded under {@code runId} — the discard half of
+     * ADR-115/ADR-116, for a step whose completion under this run is not recorded.
+     */
+    public void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM document_cluster WHERE run_id = ?", runId.value());
+    }
+
     /** Every membership recorded under {@code runId}, in occurrence order. */
     public List<DocumentCluster> forRun(RunId runId) {
         return jdbcTemplate.query(

@@ -305,6 +305,7 @@ class LabelIngestionInvocationTest {
     @DisplayName("The next invocation counts an answer given under the previous one, with no file supplied")
     @Issue("130")
     @Link(name = "ADR-097", url = Adr.A_LABEL_IS_KEYED_BY_PATH_AND_SEED_SET, type = "adr")
+    @Link(name = "ADR-118", url = Adr.THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY, type = "adr")
     void countsAnAnswerGivenUnderThePreviousInvocation(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aScoredCorpus(root, seeds);

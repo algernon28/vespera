@@ -88,6 +88,15 @@ public class DocumentFrequency {
     }
 
     /**
+     * Deletes every document-frequency and corpus-size row recorded under {@code stage3RunId} — the
+     * discard half of ADR-115/ADR-116, for a step whose completion under this run is not recorded.
+     */
+    public void discardForRun(RunId stage3RunId) {
+        jdbcTemplate.update("DELETE FROM shingle_document_frequency WHERE run_id = ?", stage3RunId.value());
+        jdbcTemplate.update("DELETE FROM shingle_corpus_size WHERE run_id = ?", stage3RunId.value());
+    }
+
+    /**
      * Reads {@code stage2RunId}'s survivors to exhaustion — the whole set is needed to test shingle
      * rows against, not one chunk of it.
      */

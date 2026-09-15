@@ -146,11 +146,23 @@ class ArrangementTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
+        RunId arrangement = arrangementRun.getObject().runId();
+
+        // This step's own work under this run is already recorded, so there is nothing here to do
+        // (ADR-115, ADR-116).
+        if (ledger.stepFinished(arrangement, ArrangementRun.STAGE)) {
+            LOG.info("the arrangement step was already recorded under run {}", arrangement.value());
+            return RepeatStatus.FINISHED;
+        }
+
+        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
+        // this step's own rows before working is ADR-115's other half (ADR-116).
+        clusters.discardForRun(arrangement);
+
         Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
                 scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
         List<Partition> partitions = Arrangement.partitionsOf(clusteredDocuments(membership, scores));
 
-        RunId arrangement = arrangementRun.getObject().runId();
         List<ArrangedCluster> arranged = Arrangement.order(partitions);
         for (ArrangedCluster cluster : arranged) {
             clusters.record(arrangement, cluster, labelFor(cluster, membership, scores));
@@ -159,6 +171,7 @@ class ArrangementTasklet implements Tasklet {
                 ArrangementGate.shortNameOf(arrangement),
                 Walk.canonicalRoot(root).toString(),
                 reportOf(arranged, membership, scores)));
+        ledger.finishStep(arrangement, ArrangementRun.STAGE);
         LOG.info(
                 "The arrangement step finished under {}: {} seed partition(s), {} cluster(s), {}"
                         + " document(s)",

@@ -450,6 +450,66 @@ class RelevanceFloorInvocationTest {
     }
 
     /** The scoring runs the below-threshold verdicts over this corpus were written under. */
+    @Test
+    @Story("An answer given after the run is read by the next invocation")
+    @DisplayName("Re-answering under the model this run used gets the threshold applied on the next invocation")
+    @Issue("191")
+    @Link(name = "ADR-118", url = Adr.THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY, type = "adr")
+    void anAnswerReAnsweredUnderThisModelGetsTheThresholdApplied(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, ANOTHER_MODELS_IDENTITY);
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, thisRunsIdentity());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the third invocation changed nothing the run is named after, so this corpus still carries"
+                        + " " + TWO_SCORING_RUNS + " scoring runs: an answer is a fact about a document"
+                        + " rather than something the run was configured with, and naming it would mint a"
+                        + " fresh run every time a person replied to the page asking them to reply",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(TWO_SCORING_RUNS));
+        claim(
+                "and all " + CORPUS_DOCUMENTS + " documents were removed, the threshold now sitting on a"
+                        + " scale the answers were given on. Re-answering the sample under the model that"
+                        + " actually scored it is the one repair available to an operator whose number was"
+                        + " being ignored, and it has to take effect without them editing anything",
+                () -> assertThat(belowThresholdCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
+    }
+
+    @Test
+    @Story("An answer given after the run is read by the next invocation")
+    @DisplayName("An answer given under another model withdraws removals the threshold had already made")
+    @Issue("191")
+    @Link(name = "ADR-118", url = Adr.THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY, type = "adr")
+    void anAnswerGivenUnderAnotherModelWithdrawsTheRemovals(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, thisRunsIdentity());
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, ANOTHER_MODELS_IDENTITY);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "nothing stands removed any more. The same answer that let the number be applied now says"
+                        + " it was read off another model's scores, and a removal a run can no longer"
+                        + " justify must not outlive the reason it was made -- the two directions are one"
+                        + " event, and leaving the removals standing would keep the harsher half of it",
+                () -> assertThat(belowThresholdCountFor(root)).isZero());
+        claim(
+                "and still " + TWO_SCORING_RUNS + " scoring runs, because withdrawing them is this run"
+                        + " deciding again rather than a second run deciding differently",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(TWO_SCORING_RUNS));
+    }
+
     private List<String> belowThresholdRunIdsFor(Path root) {
         return jdbcTemplate.queryForList(
                 "SELECT DISTINCT v.run_id FROM verdict v JOIN file_occurrence f ON f.id = v.occurrence_id"

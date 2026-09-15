@@ -1,5 +1,7 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.similarity.RedundancyResolution;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -27,20 +29,26 @@ class RedundancyResolutionTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(RedundancyResolutionTasklet.class);
 
+    /** The step's own name, and the name its completion is recorded under (ADR-116). */
+    static final String STEP = RedundancyRun.STAGE;
+
     private final RedundancyGate redundancyGate;
     private final ObjectProvider<RedundancyRun> redundancyRunProvider;
     private final ObjectProvider<RedundancyBoilerplate> redundancyBoilerplateProvider;
     private final RedundancyResolution redundancyResolution;
+    private final Ledger ledger;
 
     RedundancyResolutionTasklet(
             RedundancyGate redundancyGate,
             ObjectProvider<RedundancyRun> redundancyRunProvider,
             ObjectProvider<RedundancyBoilerplate> redundancyBoilerplateProvider,
-            RedundancyResolution redundancyResolution) {
+            RedundancyResolution redundancyResolution,
+            Ledger ledger) {
         this.redundancyGate = redundancyGate;
         this.redundancyRunProvider = redundancyRunProvider;
         this.redundancyBoilerplateProvider = redundancyBoilerplateProvider;
         this.redundancyResolution = redundancyResolution;
+        this.ledger = ledger;
     }
 
     @Override
@@ -53,10 +61,25 @@ class RedundancyResolutionTasklet implements Tasklet {
         }
 
         RedundancyRun redundancyRun = redundancyRunProvider.getObject();
+
+        // This step's own work under this run is already recorded, so there is nothing here to do
+        // (ADR-115, ADR-116) -- redundancy-signature, the step before it, is not asked: the two share
+        // a run but each answers only for itself.
+        if (ledger.stepFinished(redundancyRun.runId(), STEP)) {
+            LOG.info("Stage 4b (redundancy resolution) was already recorded under run {}", redundancyRun.runId().value());
+            return RepeatStatus.FINISHED;
+        }
+
+        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
+        // this step's own rows before working is ADR-115's other half (ADR-116).
+        ledger.discardVerdicts(redundancyRun.runId(), VerdictKind.REDUNDANT_WITH);
+        redundancyResolution.discardForRun(redundancyRun.runId());
+
         LOG.info("Stage 4b (redundancy resolution) starting under run {}", redundancyRun.runId().value());
         Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();
         redundancyResolution.resolve(
                 redundancyRun.runId(), redundancyRun.stage3RunId(), redundancyRun.extractionRunId(), boilerplateHashes);
+        ledger.finishStep(redundancyRun.runId(), STEP);
         LOG.info("Stage 4b (redundancy resolution) finished under run {}", redundancyRun.runId().value());
         return RepeatStatus.FINISHED;
     }

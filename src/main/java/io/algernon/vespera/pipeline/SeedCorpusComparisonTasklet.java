@@ -47,6 +47,9 @@ class SeedCorpusComparisonTasklet implements Tasklet {
     /** The seed/corpus comparison report's fixed name in the working directory (ADR-086). */
     static final String SEED_CORPUS_COMPARISON_FILE_NAME = "seed-corpus-comparison.html";
 
+    /** The step's own name, and the name its completion is recorded under (ADR-116). */
+    static final String STEP = "seed-corpus-comparison";
+
     private static final Logger LOG = LoggerFactory.getLogger(SeedCorpusComparisonTasklet.class);
 
     private final SeedGate seedGate;
@@ -88,20 +91,26 @@ class SeedCorpusComparisonTasklet implements Tasklet {
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
 
-        // Everything this run names is already measured (ADR-115), report included: the page was
-        // written from these very rows, so measuring again would answer the same question twice.
-        if (ledger.runFinished(measurementRun.runId())) {
+        // This step's own work under this run is already measured (ADR-115, ADR-116), report
+        // included: the page was written from these very rows, so measuring again would answer the
+        // same question twice. seed-extraction, which shares this run, is not asked -- each step
+        // answers only for itself.
+        if (ledger.stepFinished(measurementRun.runId(), STEP)) {
             LOG.info(
                     "Stage 5b (seed/corpus comparison) was already recorded under run {}",
                     measurementRun.runId().value());
             return RepeatStatus.FINISHED;
         }
 
+        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
+        // this step's own rows before working is ADR-115's other half (ADR-116).
+        seedCorpusComparison.discardForRun(measurementRun.runId());
+
         LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.runId().value());
         SeedCorpusComparison.Comparison comparison = seedCorpusComparison.measure(
                 measurementRun.runId(), measurementRun.extractionRunId(), seedGate.seedWalk().get().walkId());
         Path reportFile = writeReport(comparison);
-        ledger.finishRun(measurementRun.runId());
+        ledger.finishStep(measurementRun.runId(), STEP);
         LOG.info(
                 "Stage 5b (seed/corpus comparison) finished under run {}; report written to {}",
                 measurementRun.runId().value(),
