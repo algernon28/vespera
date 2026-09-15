@@ -1,11 +1,11 @@
 package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -50,6 +50,18 @@ class NextActionTest {
 
     /** The model resolved for this invocation, as {@code GenerationModel} would hand it over. */
     private static final String THE_GENERATION_MODEL = "a-generation-model:8b";
+
+    /** The seed folder an operator names before the first invocation (ADR-064). */
+    private static final String THE_SEED_FOLDER = "/corpus/exemplars";
+
+    /** Stage 3's boilerplate threshold, answered, so stage 4's gate is open. */
+    private static final String A_BOILERPLATE_FLOOR = "0.4";
+
+    /** Gate 3's model, answered, so a scoring run is minted (ADR-084). */
+    private static final String AN_EMBEDDING_MODEL = "embeddinggemma";
+
+    /** A threshold read off the labelling report, in a form a run can read (ADR-088). */
+    private static final String A_RELEVANCE_FLOOR = "0.62";
 
     /** ADR-088's stratified sample, answered in full. */
     private static final int SIXTY_ANSWERED = 60;
@@ -232,7 +244,7 @@ class NextActionTest {
 
     /** A profile census has created and nobody has answered — every key present and unset. */
     private static Profile nothingSet() {
-        return new Profile(null, null, null, null, null);
+        return aProfile().build();
     }
 
     @Test
@@ -306,12 +318,16 @@ class NextActionTest {
 
     /** Step zero taken and nothing else: the seed folder named before the first invocation. */
     private static Profile onlyTheSeedFolderSet() {
-        return new Profile(set("/corpus/exemplars"), null, null, null, null);
+        return aProfile().seedFolder(THE_SEED_FOLDER).build();
     }
 
     /** Everything invocation 2 needs, answered; the threshold still the operator's to read off. */
     private static Profile theRunValuesSet() {
-        return new Profile(set("/corpus/exemplars"), null, set("0.4"), set("embeddinggemma"), null);
+        return aProfile()
+                .seedFolder(THE_SEED_FOLDER)
+                .boilerplateDocumentFrequencyFloor(A_BOILERPLATE_FLOOR)
+                .embeddingModel(AN_EMBEDDING_MODEL)
+                .build();
     }
 
     /** What an operator writes when their keyboard or their locale disagrees with Double.parseDouble. */
@@ -319,27 +335,32 @@ class NextActionTest {
 
     /** Every run value answered, and a threshold written in a form no run can read. */
     private static Profile theFloorMistyped() {
-        return new Profile(set("/corpus/exemplars"), null, set("0.4"), set("embeddinggemma"), set(A_MISTYPED_FLOOR));
+        return aProfile()
+                .seedFolder(THE_SEED_FOLDER)
+                .boilerplateDocumentFrequencyFloor(A_BOILERPLATE_FLOOR)
+                .embeddingModel(AN_EMBEDDING_MODEL)
+                .relevanceScoreFloor(A_MISTYPED_FLOOR)
+                .build();
     }
 
     /** The end of the path: every value the four invocations ask for, answered. */
     private static Profile everythingSet() {
-        return new Profile(set("/corpus/exemplars"), null, set("0.4"), set("embeddinggemma"), set("0.62"));
+        return aProfile()
+                .seedFolder(THE_SEED_FOLDER)
+                .boilerplateDocumentFrequencyFloor(A_BOILERPLATE_FLOOR)
+                .embeddingModel(AN_EMBEDDING_MODEL)
+                .relevanceScoreFloor(A_RELEVANCE_FLOOR)
+                .build();
     }
 
     /** The true end of the path: every value answered, the arrangement among them. */
     private static Profile everythingApproved() {
-        return new Profile(
-                set("/corpus/exemplars"),
-                null,
-                set("0.4"),
-                set("embeddinggemma"),
-                set("0.62"),
-                set(AN_ARRANGEMENT.orElseThrow()));
-    }
-
-    /** An answered key, with the provenance an operator is asked to record beside it. */
-    private static ProfileValue set(String value) {
-        return new ProfileValue(value, "recorded by the operator", null);
+        return aProfile()
+                .seedFolder(THE_SEED_FOLDER)
+                .boilerplateDocumentFrequencyFloor(A_BOILERPLATE_FLOOR)
+                .embeddingModel(AN_EMBEDDING_MODEL)
+                .relevanceScoreFloor(A_RELEVANCE_FLOOR)
+                .arrangementApproved(AN_ARRANGEMENT.orElseThrow())
+                .build();
     }
 }

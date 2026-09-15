@@ -9,6 +9,12 @@ package io.algernon.vespera.profile;
  * file is a deserialisation failure rather than a key nobody reads; and "every currently-known key"
  * — which is what census has to write out — is a fact the compiler already holds.
  *
+ * <p>The canonical constructor is the only one (ADR-118). It is what production calls — {@link
+ * #skeleton()}, the measurement withers below, and Jackson — and an arity-per-key overload beside it
+ * would be a production API shaped by test convenience, where every parameter has the same type and
+ * the call site says nothing about which keys it named. A test names its keys through {@code
+ * ProfileFixture} instead.
+ *
  * <p>The canonical constructor is where ADR-062's merge lives. A key missing from the file arrives
  * here as null and leaves as {@link ProfileValue#unset()}, so simply loading a profile and saving it
  * again adds every key the code has learned about since the file was written, without touching a
@@ -87,84 +93,6 @@ public record Profile(
         relevanceScoreFloor = relevanceScoreFloor == null ? ProfileValue.unset() : relevanceScoreFloor;
         arrangementApproved = arrangementApproved == null ? ProfileValue.unset() : arrangementApproved;
         generationModel = generationModel == null ? ProfileValue.unset() : generationModel;
-    }
-
-    /**
-     * The two-key constructor every call site before ADR-074 used, kept so that adding a third key
-     * mints no compile break at every existing caller — the third key arrives unset, the same "a key
-     * the file predates is added unset" merge the canonical constructor already gives a key missing
-     * from the file.
-     */
-    public Profile(ProfileValue seedFolder, ProfileValue degenerateOutputConfidenceFloor) {
-        this(seedFolder, degenerateOutputConfidenceFloor, null, null, null, null, null);
-    }
-
-    /**
-     * The three-key constructor every call site before #107 used, kept for the same reason the
-     * two-key constructor above was: the fourth key arrives unset rather than breaking every existing
-     * caller.
-     */
-    public Profile(
-            ProfileValue seedFolder,
-            ProfileValue degenerateOutputConfidenceFloor,
-            ProfileValue boilerplateDocumentFrequencyFloor) {
-        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, null, null, null, null);
-    }
-
-    /**
-     * The four-key constructor every call site before #110 used, kept for the same reason the two-
-     * and three-key ones above were: the fifth key arrives unset rather than breaking every existing
-     * caller.
-     */
-    public Profile(
-            ProfileValue seedFolder,
-            ProfileValue degenerateOutputConfidenceFloor,
-            ProfileValue boilerplateDocumentFrequencyFloor,
-            ProfileValue embeddingModel) {
-        this(seedFolder, degenerateOutputConfidenceFloor, boilerplateDocumentFrequencyFloor, embeddingModel, null, null, null);
-    }
-
-    /**
-     * The five-key constructor every call site before #175 used, kept for the same reason the two-,
-     * three- and four-key ones above were: the sixth key arrives unset rather than breaking every
-     * existing caller.
-     */
-    public Profile(
-            ProfileValue seedFolder,
-            ProfileValue degenerateOutputConfidenceFloor,
-            ProfileValue boilerplateDocumentFrequencyFloor,
-            ProfileValue embeddingModel,
-            ProfileValue relevanceScoreFloor) {
-        this(
-                seedFolder,
-                degenerateOutputConfidenceFloor,
-                boilerplateDocumentFrequencyFloor,
-                embeddingModel,
-                relevanceScoreFloor,
-                null,
-                null);
-    }
-
-    /**
-     * The six-key constructor every call site before #179 used, kept for the same reason the two-,
-     * three-, four- and five-key ones above were: the seventh key arrives unset rather than breaking
-     * every existing caller.
-     */
-    public Profile(
-            ProfileValue seedFolder,
-            ProfileValue degenerateOutputConfidenceFloor,
-            ProfileValue boilerplateDocumentFrequencyFloor,
-            ProfileValue embeddingModel,
-            ProfileValue relevanceScoreFloor,
-            ProfileValue arrangementApproved) {
-        this(
-                seedFolder,
-                degenerateOutputConfidenceFloor,
-                boilerplateDocumentFrequencyFloor,
-                embeddingModel,
-                relevanceScoreFloor,
-                arrangementApproved,
-                null);
     }
 
     /** A profile with every key present and none of them answered. */

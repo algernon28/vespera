@@ -10,8 +10,8 @@ import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -140,13 +140,7 @@ class ArrangementGateTest {
 
     private void approve(String approval) {
         Profile loaded = profileStore.load();
-        profileStore.save(new Profile(
-                loaded.seedFolder(),
-                loaded.degenerateOutputConfidenceFloor(),
-                loaded.boilerplateDocumentFrequencyFloor(),
-                loaded.embeddingModel(),
-                loaded.relevanceScoreFloor(),
-                new ProfileValue(approval, approval == null ? null : "read by this test", null)));
+        profileStore.save(ProfileFixture.from(loaded).arrangementApproved(approval).build());
     }
 
     private WalkId aWalk() {

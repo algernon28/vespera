@@ -3,13 +3,8 @@ package io.algernon.vespera.pipeline;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileValue;
-import io.algernon.vespera.corpus.ContentIdentity;
-import io.algernon.vespera.embedding.SeedCorpusComparison;
-import io.algernon.vespera.embedding.UnusableSeeds;
-import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.corpus.AnomalyLog;
+import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.corpus.WalkRecorder;
@@ -19,13 +14,17 @@ import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
+import io.algernon.vespera.embedding.SeedCorpusComparison;
+import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
 import io.algernon.vespera.extraction.LanguageDetection;
+import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.BoilerplateShingles;
@@ -65,6 +64,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @JdbcTest
@@ -216,7 +216,7 @@ class ClosingLineInvocationTest {
     void forgetWhatAnotherTestAnswered() {
         // The working directory is static, so profile.yaml outlives each test method. A test whose
         // claim is about an unanswered profile has to say so rather than inherit one.
-        profileStore.save(new Profile(null, null, null, null, null));
+        profileStore.save(aProfile().build());
     }
 
     @BeforeEach
@@ -372,13 +372,9 @@ class ClosingLineInvocationTest {
     /** The threshold answered, so the path has nothing earlier left to ask for. */
     private void theThresholdAnswered() {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                profile.seedFolder(),
-                profile.degenerateOutputConfidenceFloor(),
-                profile.boilerplateDocumentFrequencyFloor(),
-                profile.embeddingModel(),
-                new ProfileValue("0.0", "set by this test, so nothing earlier is asked for", null),
-                profile.arrangementApproved()));
+        profileStore.save(ProfileFixture.from(profile)
+                .relevanceScoreFloor(new ProfileValue("0.0", "set by this test, so nothing earlier is asked for", null))
+                .build());
     }
 
     private void aCorpus(Path root, Path seeds) throws IOException {
@@ -414,22 +410,21 @@ class ClosingLineInvocationTest {
      */
     private void theOnlyAnsweredValueIsASeedFolderThatIsNotThere(Path seeds) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test", null),
-                profile.degenerateOutputConfidenceFloor(),
-                null,
-                null,
-                null));
+        profileStore.save(aProfile()
+                .seedFolder(seeds)
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .build());
     }
 
     /** Stage 4's gate open and a model named, so the only thing left to vary is the seed folder. */
     private void theProfileSaying(String seedFolder) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seedFolder, "set by this test", null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
-                new ProfileValue(MODEL_NAME, "set by this test, so the scoring run is minted", null)));
+        profileStore.save(aProfile()
+                .seedFolder(seedFolder)
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR)
+                .embeddingModel(new ProfileValue(MODEL_NAME, "set by this test, so the scoring run is minted", null))
+                .build());
     }
 
     /**

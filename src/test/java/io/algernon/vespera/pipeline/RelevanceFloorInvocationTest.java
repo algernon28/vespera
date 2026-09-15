@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
@@ -25,9 +26,8 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.BoilerplateShingles;
 import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
@@ -310,7 +310,7 @@ class RelevanceFloorInvocationTest {
                         + " threshold was ever labelled, and what stands between a guess and the archive is"
                         + " exactly this line (ADR-031)",
                 () -> assertThat(profileStore.load().relevanceScoreFloor().provenance())
-                        .isEqualTo("set by this test"));
+                        .isEqualTo(ProfileFixture.SET_BY_THIS_TEST));
         claim(
                 "a floor under every score removes nothing, so an applicable threshold is not a blanket"
                         + " removal -- it removes what falls under it and nothing else",
@@ -351,12 +351,13 @@ class RelevanceFloorInvocationTest {
 
     /** The seed folder named, stage 4's gate open, gate 3 open, and the threshold as given. */
     private void profile(Path seeds, String floor) {
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test", null),
-                profileStore.load().degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
-                new ProfileValue(MODEL_NAME, "set by this test, so gate 3 is open", null),
-                floor == null ? new ProfileValue(null, null, null) : new ProfileValue(floor, "set by this test", null)));
+        profileStore.save(aProfile()
+                .seedFolder(seeds)
+                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR)
+                .embeddingModel(MODEL_NAME)
+                .relevanceScoreFloor(floor)
+                .build());
     }
 
     /** The embedder identity the scripted runtime actually produced, read back rather than assumed. */

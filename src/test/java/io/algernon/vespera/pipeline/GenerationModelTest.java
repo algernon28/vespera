@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
@@ -131,13 +132,6 @@ class GenerationModelTest {
     /** Writes {@code generationModel}, leaving every other key as census created it. */
     private void profile(String modelName) {
         Profile loaded = profileStore.load();
-        profileStore.save(new Profile(
-                loaded.seedFolder(),
-                loaded.degenerateOutputConfidenceFloor(),
-                loaded.boilerplateDocumentFrequencyFloor(),
-                loaded.embeddingModel(),
-                loaded.relevanceScoreFloor(),
-                loaded.arrangementApproved(),
-                new ProfileValue(modelName, modelName == null ? null : "set by this test", null)));
+        profileStore.save(ProfileFixture.from(loaded).generationModel(modelName).build());
     }
 }

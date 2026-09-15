@@ -1,6 +1,7 @@
 package io.algernon.vespera.profile;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.profile.ProfileFixture.aProfile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -62,10 +63,12 @@ class ProfileStoreTest {
     @DisplayName("A value and its provenance survive a second census run untouched")
     void neverTouchesAnAnswerAlreadyInTheFile(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
-        store.save(new Profile(
-                new ProfileValue(
-                        "C:/seeds", "chosen by the archivist from the 2019 handover", new Measurement("walk 1", FIRST_RUN)),
-                null));
+        store.save(aProfile()
+                .seedFolder(new ProfileValue(
+                        "C:/seeds",
+                        "chosen by the archivist from the 2019 handover",
+                        new Measurement("walk 1", FIRST_RUN)))
+                .build());
 
         Profile reloaded = store.load();
         store.save(reloaded.withSeedFolderMeasurement(new Measurement("walk 7", SECOND_RUN)));
@@ -118,8 +121,9 @@ class ProfileStoreTest {
     @DisplayName("A profile written out is a profile that reads back the same")
     void writesWhatItCanReadBack(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
-        Profile written = new Profile(
-                new ProfileValue("C:/seeds", "the archivist's pick", new Measurement("walk 1", FIRST_RUN)), null);
+        Profile written = aProfile()
+                .seedFolder(new ProfileValue("C:/seeds", "the archivist's pick", new Measurement("walk 1", FIRST_RUN)))
+                .build();
 
         store.save(written);
 
@@ -133,10 +137,12 @@ class ProfileStoreTest {
     @DisplayName("An operator-set tier-2 confidence floor round-trips like any other answered key")
     void anOperatorSetConfidenceFloorRoundTrips(@TempDir Path workingDirectory) {
         ProfileStore store = new ProfileStore(workingDirectory);
-        Profile written = new Profile(
-                null,
-                new ProfileValue(
-                        "0.5", "matched to Docling's own poor/fair cut-off", new Measurement("run 3", FIRST_RUN)));
+        Profile written = aProfile()
+                .degenerateOutputConfidenceFloor(new ProfileValue(
+                        "0.5",
+                        "matched to Docling's own poor/fair cut-off",
+                        new Measurement("run 3", FIRST_RUN)))
+                .build();
 
         store.save(written);
         Profile reloaded = store.load();
