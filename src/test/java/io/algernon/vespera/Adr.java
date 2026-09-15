@@ -465,6 +465,13 @@ public final class Adr {
     public static final String THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY = FILE
             + "0118-the-answers-a-person-gave-never-join-a-runs-identity-so-the-two-steps-that-read-them-record-no-completion.md";
 
+    /**
+     * ADR-119 — {@code Profile}'+chr(39)+'s constructor overloads are deleted, and the convenience they bought
+     * moves to a test fixture.
+     */
+    public static final String PROFILE_HAS_ONE_CONSTRUCTOR = FILE
+            + "0119-profiles-constructor-overloads-are-deleted-and-the-convenience-they-bought-moves-to-a-test-fixture.md";
+
     private Adr() {
     }
 }

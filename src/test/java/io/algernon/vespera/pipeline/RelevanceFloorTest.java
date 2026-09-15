@@ -12,6 +12,7 @@ import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
@@ -199,12 +200,11 @@ class RelevanceFloorTest {
     }
 
     private void profileWithFloor(String value) {
-        profileStore.save(new Profile(
-                new ProfileValue(seedFolder.toString(), "set by this test", null),
-                new ProfileValue(null, null, null),
-                new ProfileValue(null, null, null),
-                new ProfileValue("qwen3-embedding:0.6b", "set by this test", null),
-                value == null ? new ProfileValue(null, null, null) : new ProfileValue(value, "read off the labels", null)));
+        profileStore.save(ProfileFixture.profile()
+                .seedFolder(seedFolder.toString(), "set by this test")
+                .embeddingModel("qwen3-embedding:0.6b", "set by this test")
+                .relevanceScoreFloor(value, value == null ? null : "read off the labels")
+                .build());
     }
 
     /**

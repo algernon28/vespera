@@ -25,6 +25,7 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.similarity.BoilerplateShingles;
@@ -310,11 +311,12 @@ class RunUpstreamChainTest {
      */
     private void openEveryGate(Path seeds) {
         Profile profile = profileStore.load();
-        profileStore.save(new Profile(
-                new ProfileValue(seeds.toString(), "set by this test, so the seed gate is open", null),
-                profile.degenerateOutputConfidenceFloor(),
-                new ProfileValue(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open", null),
-                new ProfileValue(MODEL_NAME, "set by this test, so gate 3 is open", null)));
+        profileStore.save(ProfileFixture.profile()
+                .seedFolder(seeds.toString(), "set by this test, so the seed gate is open")
+                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
+                .build());
     }
 
     /** Each stage's upstream run ids, in the order the stages minted their runs. */
