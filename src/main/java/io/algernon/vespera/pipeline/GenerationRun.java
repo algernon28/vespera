@@ -6,6 +6,7 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.synthesis.ClusterSynthesis;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.batch.core.configuration.annotation.JobScope;
@@ -86,7 +87,12 @@ class GenerationRun {
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, EXTRACTION_MODULE, EMBEDDING_MODULE, PIPELINE_MODULE),
-                configConsumed(canonicalRoot, arrangement, modelName, ollamaClient.artefactOf(modelName).digest()),
+                configConsumed(
+                        canonicalRoot,
+                        arrangement,
+                        modelName,
+                        ollamaClient.artefactOf(modelName).digest(),
+                        ClusterSynthesis.CONTEXT_WINDOW),
                 walkId,
                 List.of(arrangement));
     }
@@ -99,14 +105,19 @@ class GenerationRun {
      * moving a port is not a change, so an identity carrying the URL would mint a second run for the
      * same work — the rule {@code ExtractorIdentity} and {@code EmbedderIdentity} already follow.
      *
-     * <p>The options ADR-108 names — {@code num_ctx}, {@code num_predict}, {@code temperature},
-     * {@code seed} — are not here yet because nothing sends them yet. They join this string in the
-     * ticket that first puts them on a call, and a changed identity minting a new run is exactly what
-     * should happen when it does.
+     * <p>Of the options ADR-108 names — {@code num_ctx}, {@code num_predict}, {@code temperature},
+     * {@code seed} — only the context window is here, because it is the only one anything sends
+     * (#180). The other three join this string in the ticket that first puts them on a call, and a
+     * changed identity minting a new run is exactly what should happen when it does.
      */
-    static String configConsumed(Path canonicalRoot, RunId arrangement, String modelName, String weightsDigest) {
+    static String configConsumed(
+            Path canonicalRoot,
+            RunId arrangement,
+            String modelName,
+            String weightsDigest,
+            int contextWindow) {
         return JSON_MAPPER.writeValueAsString(new ConfigConsumed(
-                canonicalRoot.toString(), arrangement.value(), modelName, weightsDigest));
+                canonicalRoot.toString(), arrangement.value(), modelName, weightsDigest, contextWindow));
     }
 
     RunId runId() {
@@ -114,5 +125,9 @@ class GenerationRun {
     }
 
     private record ConfigConsumed(
-            String corpusRoot, String arrangementRunId, String generationModel, String weightsDigest) {}
+            String corpusRoot,
+            String arrangementRunId,
+            String generationModel,
+            String weightsDigest,
+            int contextWindow) {}
 }

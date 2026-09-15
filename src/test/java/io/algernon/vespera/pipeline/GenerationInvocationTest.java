@@ -21,6 +21,7 @@ import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
 import io.algernon.vespera.extraction.LanguageDetection;
+import io.algernon.vespera.extraction.LeadingChunks;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
@@ -33,7 +34,10 @@ import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
 import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.Shingler;
+import io.algernon.vespera.synthesis.ClusterSynthesis;
 import io.algernon.vespera.synthesis.Clusters;
+import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
+import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -43,6 +47,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -60,11 +65,12 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Stage 6b's gate and its run, end to end (ADR-107, ADR-108, ADR-110, ADR-114, #179).
+ * Stage 6b end to end (ADR-107, ADR-108, ADR-110, ADR-114, #179, #180): the decision the step makes
+ * before anything could be written, and then the writing itself.
  *
- * <p>Nothing is generated yet. What is under test is the decision the step makes before anything
- * could be: whether the operator has approved the arrangement it would write over, and what is
- * recorded when they have.
+ * <p>Most of what is under test here is the gate: whether the operator has approved the arrangement
+ * that would be written over, and what is recorded when they have. The last two tests are what
+ * happens past it — one piece of writing per group, kept against the group it was about.
  *
  * <p>An assumption would have been the house idiom and is wrong here: it would abort on the very
  * condition under test, so a gate that opened and did the wrong thing would look exactly like a gate
@@ -136,6 +142,10 @@ import org.springframework.transaction.annotation.Transactional;
     ArrangementRun.class,
     ArrangementGate.class,
     Clusters.class,
+    SynthesisDocs.class,
+    ClusterSynthesis.class,
+    LeadingChunks.class,
+    GenerationScriptedBeans.class,
     RelevanceDistribution.class,
     EmbeddingModelGate.class,
     SeedMeasurementRun.class,
@@ -198,6 +208,24 @@ class GenerationInvocationTest {
     /** What one approval is worth: one record of the work, and not a second over the same approval. */
     private static final int ONE_RECORD = 1;
 
+    /** What one group of documents is worth: one piece of writing, however many documents are in it. */
+    private static final int ONE_PIECE_OF_WRITING = 1;
+
+    /** How many documents the two-document corpus puts in that one group. */
+    private static final int TWO_DOCUMENTS = 2;
+
+    /**
+     * What stage 6a calls that one group: the title every document this fixture converts carries, which
+     * is what the naming rule derives a group's name from.
+     */
+    private static final String THE_GROUPS_NAME = SeedScriptedExtractionBeans.STUBBED_TITLE;
+
+    /** A heading scripted for that group alone, so a record holding any other answer is visible. */
+    private static final String ITS_OWN_TITLE = "What The Two Stubbed Documents Have In Common";
+
+    /** And the writing scripted with it. */
+    private static final String ITS_OWN_PROSE = "Both of them [1] say the same thing twice.";
+
     @TempDir
     static Path workingDirectory;
 
@@ -214,6 +242,9 @@ class GenerationInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private SynthesisDocs synthesisDocs;
 
     @Test
     @Story("Nothing is written over the archive until a person approves what they read")
@@ -348,6 +379,129 @@ class GenerationInvocationTest {
                         + " written down, and carries on under it -- writing it a second time is the one"
                         + " thing the record of work will not accept",
                 () -> assertThat(generationRuns(root)).hasSize(ONE_RECORD));
+    }
+
+    @Test
+    @Issue("180")
+    @Story("Every approved group of documents is written over, once")
+    @DisplayName("Each approved group comes out with one piece of writing over the whole group")
+    void writesOnePieceOverEachApprovedGroup(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpusOfTwoDocuments(root, seeds);
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success, which the claims below are about",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "every group the person approved has writing over it, and one piece of writing for the"
+                        + " whole group rather than one per document: the two documents here are one group,"
+                        + " and a piece of writing about each of them separately would be the pile this"
+                        + " system exists to replace",
+                () -> assertThat(generatedDocs(root)).hasSize(ONE_PIECE_OF_WRITING));
+        claim(
+                "and what is kept is what came back -- the heading, the text with its markers untouched,"
+                        + " and the number of documents it was written from, both " + TWO_DOCUMENTS + " of"
+                        + " them, which is what lets the finished page say what it was written over",
+                () -> assertThat(generatedDocs(root)).singleElement().satisfies(doc -> {
+                    assertThat(doc.doc().title()).isEqualTo(GenerationScriptedBeans.GENERATED_TITLE);
+                    assertThat(doc.doc().prose()).isEqualTo(GenerationScriptedBeans.GENERATED_PROSE);
+                    assertThat(doc.doc().documentsSent()).isEqualTo(TWO_DOCUMENTS);
+                }));
+    }
+
+    @Test
+    @Issue("180")
+    @Story("Every approved group of documents is written over, once")
+    @DisplayName("What was written over a particular group is what is kept against that group")
+    void keepsWhatWasWrittenAgainstTheGroupItWasAbout(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        GenerationScriptedBeans.answerFor(THE_GROUPS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
+        aCorpusOfTwoDocuments(root, seeds);
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the writing kept against this group is the writing that was produced for this group, not"
+                        + " whatever was produced last: every group gets its own call, and a record that"
+                        + " could hold another group's answer would be a page about the wrong documents",
+                () -> assertThat(generatedDocs(root)).singleElement().satisfies(doc -> {
+                    assertThat(doc.doc().title()).isEqualTo(ITS_OWN_TITLE);
+                    assertThat(doc.doc().prose()).isEqualTo(ITS_OWN_PROSE);
+                }));
+    }
+
+    @Test
+    @Issue("180")
+    @Story("Work that was not finished is not recorded as finished")
+    @DisplayName("A group nothing could be sent for is not recorded as done")
+    void leavesTheStepOpenWhenAGroupCouldNotBeWrittenOver(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpusOfTwoDocuments(root, seeds);
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        theArchiveNoLongerHandsOverItsDocuments(root);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "nothing was written over the group, because there was nothing to write from",
+                () -> assertThat(generatedDocs(root)).isEmpty());
+        claim(
+                "and the work is not recorded as done: a group that was never written over is not a"
+                        + " finished job, and it is exactly that record which every later invocation reads"
+                        + " to decide whether to walk past this step -- so marking it done here would leave"
+                        + " a hole in the finished work that nothing anywhere reports and nothing retries",
+                () -> assertThat(theWorkIsRecordedAsFinished(root)).isFalse());
+        claim(
+                "the invocation still reports success: an archive that moved underneath a run is something"
+                        + " to look at and run again, not a broken tool",
+                () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    /**
+     * Takes both corpus documents away, so nothing in the group can be opened when the call is built.
+     *
+     * <p>An archive is a live filesystem and this is the ordinary version of that: a document moved,
+     * renamed or locked between being walked and being written about. Every earlier step has already
+     * recorded its work, so this reaches the run at exactly the point the group is gathered.
+     */
+    private void theArchiveNoLongerHandsOverItsDocuments(Path root) throws IOException {
+        Files.delete(root.resolve("corpus.txt"));
+        Files.delete(root.resolve("another-corpus-document.txt"));
+    }
+
+    /** Whether this step's own work is recorded as complete under the run it wrote. */
+    private boolean theWorkIsRecordedAsFinished(Path root) {
+        return generationRuns(root).stream()
+                .anyMatch(run -> jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM finished_step WHERE run_id = ? AND step = ?",
+                                Integer.class,
+                                run,
+                                GenerationRun.STAGE)
+                        > 0);
+    }
+
+    @AfterEach
+    void forgetWhatWasScripted() {
+        GenerationScriptedBeans.forgetScriptedAnswers();
+    }
+
+    /** The same corpus with a second document in it, so a group holds more than one. */
+    private void aCorpusOfTwoDocuments(Path root, Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        Files.writeString(root.resolve("another-corpus-document.txt"), "a second corpus document");
+    }
+
+    /** Everything stage 6b wrote over the groups of {@code root}, under whichever run it wrote them. */
+    private List<RecordedSynthesisDoc> generatedDocs(Path root) {
+        return generationRuns(root).stream()
+                .map(RunId::new)
+                .flatMap(run -> synthesisDocs.forRun(run).stream())
+                .toList();
     }
 
     /** One corpus document and one exemplar, with every gate before this one open. */
