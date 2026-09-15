@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-115.
+One file per architecture decision, ADR-001 through ADR-118.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -134,3 +134,6 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-113](0113-no-corpus-wide-synthesis-doc-sits-above-the-seed-partitions.md) | 2026-09-13 | No corpus-wide synthesis doc sits above the seed partitions; the deliverable's top level stays mechanical |
 | [ADR-114](0114-the-generation-model-is-named-in-application-configuration-with-a-code-default-and-is-not-a-gate.md) | 2026-09-14 | The generation model is named in application configuration with a code default, overridable in the profile, and is not a gate *(amends ADR-084, ADR-107)* |
 | [ADR-115](0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md) | 2026-09-14 | A re-walk that observed nothing new is discarded, and a run is continued under its own id *(amends ADR-048, ADR-055, ADR-077, ADR-107)* |
+| [ADR-116](0116-a-runs-completion-is-recorded-per-step-because-several-steps-share-one-run.md) | 2026-09-14 | A run's completion is recorded per step, because several steps share one run *(amends ADR-115)* |
+| [ADR-117](0117-the-relevance-floor-joins-the-scoring-runs-identity-so-a-changed-threshold-is-a-different-run.md) | 2026-09-14 | The relevance floor joins the scoring run's identity, so a changed threshold is a different run |
+| [ADR-118](0118-the-answers-a-person-gave-never-join-a-runs-identity-so-the-two-steps-that-read-them-record-no-completion.md) | 2026-09-15 | The answers a person gave never join a run's identity, so the two steps that read them record no completion *(amends ADR-116)* |

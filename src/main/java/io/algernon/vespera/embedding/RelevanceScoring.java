@@ -87,6 +87,14 @@ public class RelevanceScoring {
     }
 
     /**
+     * Deletes every score recorded under {@code runId} — the discard half of ADR-115/ADR-116, for a
+     * step whose completion under this run is not recorded.
+     */
+    public void discardForRun(RunId runId) {
+        scoreCache.discardForRun(runId);
+    }
+
+    /**
      * Scores one corpus survivor against {@code residentSeedVectors} and stores the result under
      * {@code runId} — never materialising more than this one survivor's own chunk vectors alongside
      * the seed side already held resident (ADR-085).

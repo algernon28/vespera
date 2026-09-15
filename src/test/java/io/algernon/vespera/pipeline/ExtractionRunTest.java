@@ -33,6 +33,9 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
+import io.algernon.vespera.extraction.ExtractionMetrics;
+import io.algernon.vespera.extraction.LanguageDetection;
+import io.algernon.vespera.similarity.Shingler;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.test.context.ActiveProfiles;
@@ -141,17 +144,22 @@ class ExtractionRunTest {
 
         ExtractionRun overTheFirst = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstArchive);
         ExtractionRun overTheSecond = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondArchive);
+        // The reader discards this step's own rows where its work is not recorded as finished, so it is
+        // handed the two tables holding them. Neither archive here has ever been read, so both discards
+        // delete nothing; what this test is about is which archive gets read.
+        ExtractionMetrics extractionMetrics = new ExtractionMetrics(jdbcTemplate, new LanguageDetection());
+        Shingler shingler = new Shingler(jdbcTemplate);
 
         claim(
                 "handed the first archive, extraction reads exactly the " + FILES_IN_THE_FIRST_ARCHIVE
                         + " documents that archive holds",
-                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheFirst)))
+                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheFirst, extractionMetrics, shingler)))
                         .containsExactlyElementsOf(inTheFirst));
         claim(
                 "handed the second, it reads exactly the " + FILES_IN_THE_SECOND_ARCHIVE + " that one holds"
                         + " -- so which archive gets examined is the one an operator named, never one the"
                         + " engine was built around",
-                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheSecond)))
+                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheSecond, extractionMetrics, shingler)))
                         .containsExactlyElementsOf(inTheSecond));
     }
 

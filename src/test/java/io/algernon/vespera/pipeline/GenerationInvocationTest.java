@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -66,14 +65,6 @@ import org.springframework.transaction.annotation.Transactional;
  * could be: whether the operator has approved the arrangement it would write over, and what is
  * recorded when they have.
  *
- * <p><b>Three of these do not run yet, and say so.</b> They describe what happens once the operator
- * has approved an arrangement, which cannot happen today: a run id is derived in part from the walk it
- * read, every invocation over a finished corpus observes it afresh, and the approval an operator copies
- * therefore names something that no longer exists by the time the next invocation looks. They are
- * disabled rather than deleted, because they are the only executable description of that defect, and
- * disabled rather than left failing, because a build that is always red is a build nobody reads. Each
- * carries the issue it waits on, and every run reports them as skipped.
- *
  * <p>An assumption would have been the house idiom and is wrong here: it would abort on the very
  * condition under test, so a gate that opened and did the wrong thing would look exactly like a gate
  * that could not open.
@@ -85,11 +76,12 @@ import org.springframework.transaction.annotation.Transactional;
  * already does anywhere it would otherwise have to guess which of two runs was meant (ADR-099).
  *
  * <p><b>The tests that invoke more than once rest on ADR-115.</b> An approval names a 6a run id, a
- * run id hashes the walk it read, and until that record a finished walk was never reused — so the
+ * run id hashes the walk it read; before that record a finished walk was never reused, so the
  * approval named an arrangement of a walk the next invocation was not looking at, and the gate could
- * not be opened by any value an operator could type. The third-invocation test is the other half of
- * the same record: with walk churn stopped, a re-derived generation run id meets the row it already
- * wrote, and {@code Ledger.startRun} continues under it rather than inserting a second time.
+ * not be opened by any value an operator could type. With walk churn stopped, the approval names the
+ * very walk the next invocation reads, and the gate opens on it. The third-invocation test is the
+ * other half of the same record: a re-derived generation run id meets the row it already wrote, and
+ * {@code Ledger.startRun} continues under it rather than inserting a second time.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -222,7 +214,6 @@ class GenerationInvocationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Disabled("waits on issue 191: the arrangement gate cannot open, because every invocation mints a new walk and a run id is derived from the walk it read")
     @Test
     @Story("Nothing is written over the archive until a person approves what they read")
     @DisplayName("With the groups approved, the next invocation opens on exactly the groups that were read")
@@ -287,7 +278,6 @@ class GenerationInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
     }
 
-    @Disabled("waits on issue 191: the arrangement gate cannot open, because every invocation mints a new walk and a run id is derived from the walk it read")
     @Test
     @Story("An approval that names two things stops rather than guessing")
     @DisplayName("An approval matching two sets of groups stops the invocation instead of choosing one")
@@ -310,7 +300,6 @@ class GenerationInvocationTest {
                 () -> assertThat(generationRuns(root)).isEmpty());
     }
 
-    @Disabled("waits on issue 191: the arrangement gate cannot open, because every invocation mints a new walk and a run id is derived from the walk it read")
     @Test
     @Story("Nothing is written over the archive until a person approves what they read")
     @DisplayName("Opening on the approved groups records no judgement against any document")
@@ -336,7 +325,6 @@ class GenerationInvocationTest {
     @Test
     @Story("Nothing is written over the archive until a person approves what they read")
     @DisplayName("Invoking a third time with the approval still standing adds nothing and breaks nothing")
-    @Disabled("waits on issue 191: nothing ever reuses a finished walk, so no run id survives one invocation and this cannot hold yet")
     @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
     void aThirdInvocationUnderAStandingApprovalAddsNothing(@TempDir Path root, @TempDir Path seeds)
             throws IOException {

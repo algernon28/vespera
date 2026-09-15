@@ -48,6 +48,16 @@ public class Clusters {
     }
 
     /**
+     * Deletes every cluster row recorded under {@code runId} — the discard half of ADR-115/ADR-116,
+     * for a step whose completion under this run is not recorded: this table is keyed {@code (run_id,
+     * winning_seed_occurrence_id, cluster_ordinal)}, so a second write over a stopped invocation's rows
+     * would otherwise collide on the first cluster it re-arranged.
+     */
+    public void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM cluster WHERE run_id = ?", runId.value());
+    }
+
+    /**
      * Every cluster recorded under {@code runId}, in the order the arrangement gives them.
      *
      * <p>Ordered by the stored columns rather than re-sorted, because the arrangement the operator

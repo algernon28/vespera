@@ -44,6 +44,20 @@ class RelevanceFloorTasklet implements Tasklet {
     private static final Logger LOG = LoggerFactory.getLogger(RelevanceFloorTasklet.class);
 
     /**
+     * The step's own name, which its own wiring builds it under. It is not the name of a completion
+     * record, and there is no {@code finishStep} call in this class.
+     *
+     * <p>ADR-118 names this step and {@code relevance-report} as the only two that read the answers a
+     * person gave, and takes them out of ADR-116's list for the reason ADR-116's own governing clause
+     * gives: a completion record is safe only where a run's identity names everything the step
+     * consumes. Answers are keyed by path and seed set (ADR-097) and no run names them -- deliberately,
+     * since a run id that moved when someone answered the page would re-score the corpus in reply to
+     * its own question. So this step decides again on every invocation, which is what lets an answer
+     * given between two of them take effect at all.
+     */
+    static final String STEP = "relevance-floor";
+
+    /**
      * What the verdict row records as its reason. It names the number and the scale it was read on,
      * because a removal a person is reading a year later has to say what it was measured against.
      */
@@ -88,9 +102,12 @@ class RelevanceFloorTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
+        ScoringRun scoring = scoringRun.getObject();
+
         // This run's own scale, not a stamp over every model the database has held: comparing a
         // threshold against the wrong identity is what would let a number calibrated elsewhere remove
-        // documents here.
+        // documents here. Not yet a decision this run can be finished on -- a later invocation, once
+        // embedding-scoring has actually run, may answer differently under this very run id.
         Optional<String> currentIdentity = relevanceDistribution.embedderIdentityFor(modelName.get());
         if (currentIdentity.isEmpty()) {
             LOG.info(
@@ -103,29 +120,31 @@ class RelevanceFloorTasklet implements Tasklet {
         }
 
         RelevanceFloor.State state = relevanceFloor.stateFor(currentIdentity.get());
+
+        // Every removal this run has standing goes before the state is acted on, whichever way it
+        // turns out (ADR-118). The answers decide this step and no run names them, so the decision can
+        // turn either way between two invocations: a threshold that became applicable removes
+        // documents, and one that stopped being applicable must withdraw the removals it already made.
+        // Discarding only inside the applicable branch would keep the harsher half of that.
+        ledger.discardVerdicts(scoring.runId(), VerdictKind.BELOW_THRESHOLD);
+
         switch (state) {
             case RelevanceFloor.Unset ignored -> {
                 LOG.info("stage 5's relevance-floor step removed nothing: no relevance threshold is set."
                         + " Every scored survivor stands, and the labelling report is what a person reads"
                         + " to choose the number.");
-                return RepeatStatus.FINISHED;
             }
-            case RelevanceFloor.CalibratedElsewhere elsewhere -> {
-                LOG.info(
-                        "stage 5's relevance-floor step removed nothing: the threshold {} was read off"
-                                + " labels given under {}, and this run scored under {}. A threshold is a"
-                                + " number on a scale and the model is the scale, so applying it here would"
-                                + " remove documents against a distribution it was never calibrated on. The"
-                                + " labelling report says so too.",
-                        elsewhere.value(),
-                        elsewhere.calibratedUnder(),
-                        elsewhere.currentIdentity());
-                return RepeatStatus.FINISHED;
-            }
+            case RelevanceFloor.CalibratedElsewhere elsewhere -> LOG.info(
+                    "stage 5's relevance-floor step removed nothing: the threshold {} was read off"
+                            + " labels given under {}, and this run scored under {}. A threshold is a"
+                            + " number on a scale and the model is the scale, so applying it here would"
+                            + " remove documents against a distribution it was never calibrated on. The"
+                            + " labelling report says so too.",
+                    elsewhere.value(),
+                    elsewhere.calibratedUnder(),
+                    elsewhere.currentIdentity());
             case RelevanceFloor.Applicable applicable -> {
-                ScoringRun scoring = scoringRun.getObject();
-                List<OccurrenceId> below =
-                        relevanceScoring.scoredBelow(scoring.runId(), applicable.value());
+                List<OccurrenceId> below = relevanceScoring.scoredBelow(scoring.runId(), applicable.value());
                 for (OccurrenceId occurrenceId : below) {
                     ledger.verdict(occurrenceId, scoring.runId(), VerdictKind.BELOW_THRESHOLD, REASON);
                 }
@@ -135,8 +154,8 @@ class RelevanceFloorTasklet implements Tasklet {
                         scoring.runId().value(),
                         applicable.value(),
                         below.size());
-                return RepeatStatus.FINISHED;
             }
         }
+        return RepeatStatus.FINISHED;
     }
 }

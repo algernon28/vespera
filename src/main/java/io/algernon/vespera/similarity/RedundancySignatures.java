@@ -65,6 +65,17 @@ public class RedundancySignatures {
     }
 
     /**
+     * Deletes every signature and band row recorded under {@code stage4RunId} — the discard half of
+     * ADR-115/ADR-116, for a step whose completion under this run is not recorded: both tables are
+     * keyed with {@code run_id} in their primary key, so a second write over a stopped invocation's rows would
+     * otherwise collide on the first document it re-signed.
+     */
+    public void discardForRun(RunId stage4RunId) {
+        jdbcTemplate.update("DELETE FROM minhash_signature WHERE run_id = ?", stage4RunId.value());
+        jdbcTemplate.update("DELETE FROM signature_band WHERE run_id = ?", stage4RunId.value());
+    }
+
+    /**
      * What a signature computed under {@link ShingleParameters#DEFAULT} and {@link
      * MinHashParameters#DEFAULT} means (ADR-080, ADR-081): the shingle parameter identity, the
      * permutation identity, and the boilerplate floor that stripped its input — deliberately redundant

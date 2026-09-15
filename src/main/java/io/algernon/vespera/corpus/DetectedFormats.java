@@ -40,6 +40,14 @@ public class DetectedFormats {
                 subtype.map(Enum::name).orElse(null));
     }
 
+    /**
+     * Deletes every detected-format row recorded under {@code runId} — the discard half of
+     * ADR-115/ADR-116, for a step whose completion under this run is not recorded.
+     */
+    public void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM detected_format WHERE run_id = ?", runId.value());
+    }
+
     /** What {@code occurrenceId} was found to be under {@code runId}, if stage 1 examined it. */
     public Optional<DetectedFormat> formatFor(OccurrenceId occurrenceId, RunId runId) {
         return jdbcTemplate

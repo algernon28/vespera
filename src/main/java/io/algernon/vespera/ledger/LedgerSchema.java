@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 class LedgerSchema {
 
     /** The version of ledger's tables this code expects. */
-    static final int VERSION = 2;
+    static final int VERSION = 4;
 
     /** The module name the version is recorded under, matching the package name. */
     static final String MODULE = "ledger";

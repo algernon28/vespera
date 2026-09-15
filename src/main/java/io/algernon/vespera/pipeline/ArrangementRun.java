@@ -31,8 +31,12 @@ import tools.jackson.databind.json.JsonMapper;
  * {@code extraction}'s cache and the scores out of {@code embedding}.
  *
  * <p>{@code @JobScope} rather than {@code @StepScope}, so that one instance serves the invocation and
- * {@code Ledger.startRun} — which has no continuation clause — is never called twice with one
- * content-derived id.
+ * this run is minted once within it rather than once per step that reads it.
+ *
+ * <p>The reason is no longer that {@code Ledger.startRun} would refuse a second call: it now mints or
+ * carries on under the row already standing (ADR-115), so a repeated call is answered rather than
+ * rejected. What one instance still buys is that the id is derived once, from inputs that cannot
+ * change mid-invocation.
  */
 @Component
 @JobScope

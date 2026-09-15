@@ -305,7 +305,6 @@ class WalkRecorderTest {
     @Story("Looking twice at a folder nothing has happened to is one look")
     @DisplayName("Looking again at an unchanged folder keeps the record of the first look")
     @Issue("191")
-    @Disabled("waits on issue 191: nothing ever reuses a finished walk, so no run id survives one invocation and this cannot hold yet")
     @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
     void aSecondLookAtAnUnchangedFolderKeepsTheFirstLooksRecord(@TempDir Path root) throws IOException {
         Files.writeString(root.resolve("a.txt"), "hi");
@@ -328,6 +327,29 @@ class WalkRecorderTest {
                 "and the one file that was there is recorded once beneath it, not " + TWO_LOOKS + " times:"
                         + " the second look's copy of it went with the look that was discarded",
                 () -> assertThat(ledger().occurrencesForWalk(first)).hasSize(THE_ONE_FILE));
+    }
+
+    @Test
+    @Story("Looking twice at a folder nothing has happened to is one look")
+    @DisplayName("An empty folder appearing is a second look, though no file changed")
+    @Issue("191")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void anEmptyFolderAppearingMakesItASecondLook(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "hi");
+        WalkId first = recorder().walk(root);
+        Files.createDirectory(root.resolve("empty"));
+
+        WalkId second = recorder().walk(root);
+
+        claim(
+                "the files are the same files and nothing odd was met, and it is still a new look: a"
+                        + " folder that was not there before is part of what is out there, and a look that"
+                        + " went into one more place than the last look did saw something the last one"
+                        + " could not have",
+                () -> assertThat(second).isNotEqualTo(first));
+        claim(
+                "so " + TWO_LOOKS + " records are kept, for a difference no file and no oddity records",
+                () -> assertThat(looksAt(root)).isEqualTo(TWO_LOOKS));
     }
 
     @Test

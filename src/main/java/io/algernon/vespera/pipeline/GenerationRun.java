@@ -36,8 +36,9 @@ import tools.jackson.databind.json.JsonMapper;
  * an eager singleton cannot silently start minting a row per invocation.
  *
  * <p>{@code @JobScope} rather than {@code @StepScope}, for {@link ArrangementRun}'s reason: one
- * instance serves the invocation, and {@code Ledger.startRun} is never called twice with one
- * content-derived id.
+ * instance serves the invocation, so the id is derived once from inputs that cannot change within it.
+ * Not because a second call would be refused — since ADR-115 {@code Ledger.startRun} carries on under
+ * the row already there.
  */
 @Component
 @JobScope

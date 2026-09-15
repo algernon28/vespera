@@ -91,6 +91,9 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.extractionMetrics = extractionMetrics;
         this.confidenceFloor = confidenceFloor;
         this.shingler = shingler;
+        // Nothing is discarded here. ExtractionJobConfiguration's reader does it, where a delete is
+        // outside the chunk transaction and so cannot be rolled back under this step's fault tolerance
+        // (ADR-115's discard half, ADR-116).
         this.progress = StageProgress.over("Stage 2 (extraction)", ledger.survivorCount(extractionRun.runId()));
     }
 

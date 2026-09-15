@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,12 +47,16 @@ class SeedCorpusComparisonTasklet implements Tasklet {
     /** The seed/corpus comparison report's fixed name in the working directory (ADR-086). */
     static final String SEED_CORPUS_COMPARISON_FILE_NAME = "seed-corpus-comparison.html";
 
+    /** The step's own name, and the name its completion is recorded under (ADR-116). */
+    static final String STEP = "seed-corpus-comparison";
+
     private static final Logger LOG = LoggerFactory.getLogger(SeedCorpusComparisonTasklet.class);
 
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
     private final ObjectProvider<SeedMeasurementRun> seedMeasurementRun;
     private final SeedCorpusComparison seedCorpusComparison;
+    private final Ledger ledger;
     private final Path workingDirectory;
 
     SeedCorpusComparisonTasklet(
@@ -59,11 +64,13 @@ class SeedCorpusComparisonTasklet implements Tasklet {
             UsableSeedGate usableSeedGate,
             ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
             SeedCorpusComparison seedCorpusComparison,
+            Ledger ledger,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.seedMeasurementRun = seedMeasurementRun;
         this.seedCorpusComparison = seedCorpusComparison;
+        this.ledger = ledger;
         this.workingDirectory = workingDirectory;
     }
 
@@ -83,10 +90,27 @@ class SeedCorpusComparisonTasklet implements Tasklet {
         }
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
+
+        // This step's own work under this run is already measured (ADR-115, ADR-116), report
+        // included: the page was written from these very rows, so measuring again would answer the
+        // same question twice. seed-extraction, which shares this run, is not asked -- each step
+        // answers only for itself.
+        if (ledger.stepFinished(measurementRun.runId(), STEP)) {
+            LOG.info(
+                    "Stage 5b (seed/corpus comparison) was already recorded under run {}",
+                    measurementRun.runId().value());
+            return RepeatStatus.FINISHED;
+        }
+
+        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
+        // this step's own rows before working is ADR-115's other half (ADR-116).
+        seedCorpusComparison.discardForRun(measurementRun.runId());
+
         LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.runId().value());
         SeedCorpusComparison.Comparison comparison = seedCorpusComparison.measure(
                 measurementRun.runId(), measurementRun.extractionRunId(), seedGate.seedWalk().get().walkId());
         Path reportFile = writeReport(comparison);
+        ledger.finishStep(measurementRun.runId(), STEP);
         LOG.info(
                 "Stage 5b (seed/corpus comparison) finished under run {}; report written to {}",
                 measurementRun.runId().value(),

@@ -20,7 +20,7 @@ public class EmbeddingModelJobConfiguration {
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
             EmbeddingScoringTasklet embeddingScoringTasklet) {
-        return new StepBuilder("embedding-scoring", jobRepository)
+        return new StepBuilder(ScoringRun.STAGE, jobRepository)
                 .tasklet(embeddingScoringTasklet, transactionManager)
                 .build();
     }

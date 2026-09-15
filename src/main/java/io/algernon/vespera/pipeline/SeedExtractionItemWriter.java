@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ExtractionMetrics;
+import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +58,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
     private final UnusableSeeds unusableSeeds;
     private final ExtractionMetrics extractionMetrics;
     private final UsableSeedGate usableSeedGate;
+    private final Ledger ledger;
 
     /**
      * Held rather than written per chunk, because the gate below is a fact about the whole folder. One
@@ -69,12 +71,14 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
             UnusableSeeds unusableSeeds,
             ExtractionMetrics extractionMetrics,
-            UsableSeedGate usableSeedGate) {
+            UsableSeedGate usableSeedGate,
+            Ledger ledger) {
         this.seedGate = seedGate;
         this.seedMeasurementRun = seedMeasurementRun;
         this.unusableSeeds = unusableSeeds;
         this.extractionMetrics = extractionMetrics;
         this.usableSeedGate = usableSeedGate;
+        this.ledger = ledger;
     }
 
     @Override
@@ -118,12 +122,30 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             return stepExecution.getExitStatus();
         }
         RunId runId = seedMeasurementRun.getObject().runId();
+
+        // This step's own work under this run is already recorded, so there is nothing left to write
+        // (ADR-115, ADR-116) -- seed-corpus-comparison, which shares this run, is not asked: each step
+        // answers only for itself. The read-and-convert above still ran (cheap: DoclingExtractor's
+        // cache is keyed by content hash, not by run), which is what keeps usableSeedGate answered on
+        // every invocation regardless of whether this step's own rows are rewritten.
+        if (ledger.stepFinished(runId, SeedExtractionJobConfiguration.STEP_NAME)) {
+            log.info("Stage 5a (seed extraction) was already recorded under run {}", runId.value());
+            return stepExecution.getExitStatus();
+        }
+
+        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
+        // this step's own rows before working is ADR-115's other half (ADR-116) -- extraction_metric is
+        // keyed (occurrence_id, run_id), so a second write would otherwise collide on the first seed.
+        extractionMetrics.discardForRun(runId);
+        unusableSeeds.discardForRun(runId);
+
         for (SeedExtractionOutcome outcome : outcomes) {
             extractionMetrics.write(outcome.occurrenceId(), runId, outcome.measurement());
             if (!outcome.usable()) {
                 unusableSeeds.record(outcome.occurrenceId(), runId, outcome.unusableReason());
             }
         }
+        ledger.finishStep(runId, SeedExtractionJobConfiguration.STEP_NAME);
         log.info(
                 "Stage 5 extracted the seed set under run {}: {} usable, {} recorded as unusable",
                 runId.value(),

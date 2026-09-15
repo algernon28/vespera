@@ -25,7 +25,7 @@ public class SeedCorpusComparisonJobConfiguration {
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
             SeedCorpusComparisonTasklet seedCorpusComparisonTasklet) {
-        return new StepBuilder("seed-corpus-comparison", jobRepository)
+        return new StepBuilder(SeedCorpusComparisonTasklet.STEP, jobRepository)
                 .tasklet(seedCorpusComparisonTasklet, transactionManager)
                 .build();
     }

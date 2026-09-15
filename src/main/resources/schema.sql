@@ -57,6 +57,11 @@ CREATE TABLE IF NOT EXISTS file_occurrence (
 --
 -- Nothing in the census slice writes here. The table exists because stage 1 is the next slice and
 -- the pom carries what a recorded decision requires ahead of the code that uses it (ADR-046).
+--
+-- No finished column: several runs are shared by more than one step (stage 4's two, the seed
+-- measurement's two, stage 5's scoring half's five), so a flag here would say "all of this run's
+-- work is recorded" on the strength of whichever step reached the end first. Completion is recorded
+-- per step instead, in finished_step below (ADR-116, amending ADR-115's run half).
 CREATE TABLE IF NOT EXISTS run (
     id TEXT PRIMARY KEY,
     stage TEXT NOT NULL,
@@ -70,6 +75,24 @@ CREATE TABLE IF NOT EXISTS run_upstream (
     run_id TEXT NOT NULL REFERENCES run (id),
     upstream_run_id TEXT NOT NULL REFERENCES run (id),
     PRIMARY KEY (run_id, upstream_run_id)
+);
+
+-- One row per (run, step) means that step's work under that run is all recorded (ADR-116, re-keying
+-- ADR-115's run-level flag once several steps under one run made it say "all of this run's work is
+-- recorded" on the strength of whichever step finished first). A step is named by its own name -- the
+-- string pipeline's own StepBuilder already gives it. Where a run carries exactly one step that string
+-- is also run.stage. Where a run is shared it may or may not be: one of the scoring run's five is
+-- named embedding-scoring after it, and one of stage 4's two is named content-redundancy after it,
+-- while the seed measurement run is named seed-measurement and neither of its steps is -- they are
+-- seed-extraction and seed-corpus-comparison. Keying on the step rather than the run is what makes
+-- that difference stop mattering. No row means a step has never run, failed partway, or has not been written yet, and every
+-- one of those gets the same honest answer: do the work. A step that meets its own row here does
+-- nothing and writes nothing; a step that does not discards its own rows under that run and does the
+-- work again (ADR-115's two rules, re-keyed word for word).
+CREATE TABLE IF NOT EXISTS finished_step (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    step TEXT NOT NULL,
+    PRIMARY KEY (run_id, step)
 );
 
 -- The verdict row is generic regardless of kind (ADR-057): a kind from the closed vocabulary plus

@@ -47,6 +47,9 @@ import org.springframework.stereotype.Component;
 @StepScope
 class RelevanceScoringTasklet implements Tasklet {
 
+    /** The step's own name, and the name its completion is recorded under (ADR-116). */
+    static final String STEP = "relevance-scoring";
+
     private static final Logger LOG = LoggerFactory.getLogger(RelevanceScoringTasklet.class);
 
     private final EmbeddingModelGate embeddingModelGate;
@@ -112,6 +115,20 @@ class RelevanceScoringTasklet implements Tasklet {
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
         ScoringRun scoring = scoringRun.getObject();
+
+        // This step's own work under this run is already recorded (ADR-115, ADR-116). Scoring again
+        // would ask the same model the same question about the same text and write the answer it
+        // already gave. embedding-scoring, relevance-floor and the rest of stage 5's scoring half
+        // share this run, and none of them is asked -- each step answers only for itself.
+        if (ledger.stepFinished(scoring.runId(), STEP)) {
+            LOG.info("Stage 5d (relevance scoring) was already recorded under run {}", scoring.runId().value());
+            return RepeatStatus.FINISHED;
+        }
+
+        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
+        // this step's own rows before working is ADR-115's other half (ADR-116).
+        relevanceScoring.discardForRun(scoring.runId());
+
         Path canonicalRoot = Walk.canonicalRoot(root);
         String chunkerIdentity = hybridChunker.identity();
         String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
@@ -152,6 +169,7 @@ class RelevanceScoringTasklet implements Tasklet {
                     modelName.get(),
                     residentSeedVectors);
         }
+        ledger.finishStep(scoring.runId(), STEP);
         LOG.info("Stage 5d (relevance scoring) finished under scoring run {}", scoring.runId().value());
         return RepeatStatus.FINISHED;
     }

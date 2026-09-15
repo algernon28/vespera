@@ -22,7 +22,7 @@ public class RelevanceReportJobConfiguration {
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
             RelevanceReportTasklet relevanceReportTasklet) {
-        return new StepBuilder("relevance-report", jobRepository)
+        return new StepBuilder(RelevanceReportTasklet.STEP, jobRepository)
                 .tasklet(relevanceReportTasklet, transactionManager)
                 .build();
     }

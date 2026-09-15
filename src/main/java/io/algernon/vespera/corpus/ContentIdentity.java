@@ -55,6 +55,17 @@ public class ContentIdentity {
                 representativeOccurrenceId.value());
     }
 
+    /**
+     * Deletes every content-hash and superseded-by row recorded under {@code runId} — the discard
+     * half of ADR-115/ADR-116, for a step whose completion under this run is not recorded: both
+     * tables are keyed {@code (occurrence_id, run_id)}, so a second write over a stopped invocation's rows
+     * would otherwise collide on the first hash it recomputed.
+     */
+    public void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM content_hash WHERE run_id = ?", runId.value());
+        jdbcTemplate.update("DELETE FROM superseded_by WHERE run_id = ?", runId.value());
+    }
+
     /** The representative {@code occurrenceId} was superseded by under {@code runId}, if any. */
     Optional<OccurrenceId> representativeFor(OccurrenceId occurrenceId, RunId runId) {
         return jdbcTemplate

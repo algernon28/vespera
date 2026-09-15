@@ -20,7 +20,7 @@ public class RelevanceScoringJobConfiguration {
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
             RelevanceScoringTasklet relevanceScoringTasklet) {
-        return new StepBuilder("relevance-scoring", jobRepository)
+        return new StepBuilder(RelevanceScoringTasklet.STEP, jobRepository)
                 .tasklet(relevanceScoringTasklet, transactionManager)
                 .build();
     }

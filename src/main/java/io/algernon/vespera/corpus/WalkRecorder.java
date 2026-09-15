@@ -121,7 +121,55 @@ public class WalkRecorder {
 
         session.finish(outcome.progress());
         reconcile(walkId);
-        return walkId;
+        return discardIfNothingNewWasSeen(canonical, walkId);
+    }
+
+    /**
+     * The id this traversal answers with: its own, or the earlier one it turned out to repeat
+     * (ADR-115).
+     *
+     * <p><b>Nothing is adopted; something is discarded.</b> The traversal minted its own id and
+     * recorded everything it saw, exactly as ADR-055 says. Only now, with both observations sitting in
+     * the database as rows, is the comparison possible at all — and a comparison of rows to rows is
+     * not the prediction ADR-048 rules out. If the two agree, this traversal saw nothing that was not
+     * already written down, so its rows go and the earlier id is what comes back.
+     *
+     * <p>Only the immediately preceding finished walk is considered, so a corpus that changed and
+     * changed back is looked at afresh.
+     */
+    private WalkId discardIfNothingNewWasSeen(Path canonical, WalkId walkId) {
+        Optional<WalkId> previous = ledger.finishedWalkBefore(canonical, walkId);
+        if (previous.isEmpty() || !sawTheSameThing(previous.get(), walkId)) {
+            return walkId;
+        }
+        log.info(
+                "Walk {} of {} observed what walk {} already recorded, and was discarded",
+                walkId.value(),
+                canonical,
+                previous.get().value());
+        transactions.executeWithoutResult(status -> ledger.discardWalk(walkId));
+        return previous.get();
+    }
+
+    /**
+     * Whether two finished walks are one observation.
+     *
+     * <p>Every occurrence row and every anomaly row, because the rule that needs no exception list is
+     * "a walk recorded it, so it counts". Occurrences alone would call two walks the same when
+     * something appeared that could not be taken in as a file — and discarding then would throw away
+     * the only note anyone has of it.
+     *
+     * <p>And {@code directoriesEntered} beside them, which is neither: an empty directory appearing
+     * writes no occurrence and no anomaly, yet the later walk went somewhere the earlier one could
+     * not have. {@code entriesSeen} is deliberately not a fourth term — ADR-056's reconciliation
+     * already makes it follow from the occurrence rows, and one fact stated twice is how two
+     * statements drift apart.
+     */
+    private boolean sawTheSameThing(WalkId earlier, WalkId later) {
+        return ledger.occurrencesForWalk(earlier).equals(ledger.occurrencesForWalk(later))
+                && anomalyLog.anomaliesForWalk(earlier).equals(anomalyLog.anomaliesForWalk(later))
+                && ledger.countsFor(earlier).directoriesEntered()
+                        == ledger.countsFor(later).directoriesEntered();
     }
 
     /**

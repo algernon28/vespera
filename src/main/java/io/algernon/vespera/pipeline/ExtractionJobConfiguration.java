@@ -3,6 +3,9 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.similarity.Shingler;
+import io.algernon.vespera.ledger.VerdictKind;
+import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
@@ -54,7 +57,8 @@ public class ExtractionJobConfiguration {
             ExtractionItemProcessor extractionItemProcessor,
             ExtractionItemWriter extractionItemWriter,
             ExtractionCircuitBreaker extractionCircuitBreaker,
-            ExtractionHealthCheckListener extractionHealthCheckListener) {
+            ExtractionHealthCheckListener extractionHealthCheckListener,
+            RunCompletion extractionRunCompletion) {
         return new StepBuilder(ExtractionRun.STAGE, jobRepository)
                 .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
@@ -66,6 +70,7 @@ public class ExtractionJobConfiguration {
                 .skipLimit(SKIP_LIMIT)
                 .listener(extractionCircuitBreaker)
                 .listener(extractionHealthCheckListener)
+                .listener(extractionRunCompletion)
                 .build();
     }
 
@@ -75,8 +80,39 @@ public class ExtractionJobConfiguration {
      */
     @Bean
     @StepScope
-    OccurrenceReader extractionReader(Ledger ledger, ExtractionRun extractionRun) {
+    OccurrenceReader extractionReader(
+            Ledger ledger, ExtractionRun extractionRun, ExtractionMetrics extractionMetrics, Shingler shingler) {
+        // This step's own work under this run is already recorded, so it runs in its usual place and
+        // reads nothing (ADR-115, ADR-116) -- the shape a shut gate already uses, for a different
+        // reason.
+        if (ledger.stepFinished(extractionRun.runId(), ExtractionRun.STAGE)) {
+            return OccurrenceReader.yieldingNothing();
+        }
+
+        // Not finished: an invocation that stopped partway may have left rows behind under this same
+        // run id -- extraction_metric is keyed (occurrence_id, run_id), so a second write would collide
+        // on the first; shingle carries no such key at all and would otherwise silently double stage
+        // 3's document-frequency count. The two DEGENERATE_OUTPUT/EXTRACTION_FAILED verdict kinds are
+        // this run's own too (ADR-115's discard half, ADR-116).
+        //
+        // Here rather than in ExtractionItemProcessor's constructor, which is where it sat and was
+        // wrong: that bean is step-scoped, so its constructor first runs inside the first chunk's
+        // transaction, and this step is fault-tolerant. A skip in that chunk rolls the transaction
+        // back, restoring the rows just deleted, and step scope survives the rollback -- so the
+        // discard never runs again and the collision it exists to prevent comes back. A reader is
+        // opened outside the chunk transaction, which is the only place a delete can be made to stick.
+        ledger.discardVerdicts(extractionRun.runId(), VerdictKind.EXTRACTION_FAILED, VerdictKind.DEGENERATE_OUTPUT);
+        extractionMetrics.discardForRun(extractionRun.runId());
+        shingler.discardForRun(extractionRun.runId());
+
         return new OccurrenceReader(ledger.survivors(extractionRun.runId()));
+    }
+
+    /** Marks this step's own work as holding all of it, once it has finished doing it (ADR-115, ADR-116). */
+    @Bean
+    @StepScope
+    RunCompletion extractionRunCompletion(Ledger ledger, ExtractionRun extractionRun) {
+        return new RunCompletion(ledger, extractionRun::runId, ExtractionRun.STAGE);
     }
 
     /**

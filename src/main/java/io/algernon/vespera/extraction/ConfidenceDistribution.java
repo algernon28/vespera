@@ -102,6 +102,14 @@ public class ConfidenceDistribution {
         return distribution;
     }
 
+    /**
+     * Deletes every confidence-distribution row recorded under {@code stage3RunId} — the discard half
+     * of ADR-115/ADR-116, for a step whose completion under this run is not recorded.
+     */
+    public void discardForRun(RunId stage3RunId) {
+        jdbcTemplate.update("DELETE FROM confidence_distribution WHERE run_id = ?", stage3RunId.value());
+    }
+
     private void write(RunId stage3RunId, Distribution distribution) {
         for (Bucket bucket : distribution.buckets()) {
             jdbcTemplate.update(
