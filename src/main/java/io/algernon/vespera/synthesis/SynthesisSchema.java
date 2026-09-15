@@ -11,7 +11,10 @@ import org.springframework.stereotype.Component;
  *
  * <p>Bump {@link #VERSION} in the same commit that changes synthesis's tables in {@code schema.sql}.
  * Version 1 is {@code cluster} (ADR-105, ADR-110, ADR-112, #175) — the level stage 5 left unbuilt: a
- * cluster as something addressable, with a name and a place in an order.
+ * cluster as something addressable, with a name and a place in an order. Version 2 adds
+ * {@code synthesis_doc} (ADR-108, ADR-110, #180), the second table ADR-110 gives this module: what
+ * one call produced for one cluster, kept because the file a reader opens is a rendering of the row
+ * rather than a copy of it.
  *
  * <p>Note what does <em>not</em> bump alongside it. {@code document_cluster} is untouched and stays
  * {@code embedding}'s (ADR-110): membership is stage 5's and is not restated here, so
@@ -23,7 +26,7 @@ import org.springframework.stereotype.Component;
 class SynthesisSchema {
 
     /** The version of synthesis's tables this code expects. */
-    static final int VERSION = 1;
+    static final int VERSION = 2;
 
     /** The module name the version is recorded under, matching the package name. */
     static final String MODULE = "synthesis";

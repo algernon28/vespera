@@ -21,6 +21,7 @@ import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
 import io.algernon.vespera.extraction.LanguageDetection;
+import io.algernon.vespera.extraction.LeadingChunks;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrencePath;
@@ -34,7 +35,9 @@ import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
 import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.Shingler;
+import io.algernon.vespera.synthesis.ClusterSynthesis;
 import io.algernon.vespera.synthesis.Clusters;
+import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -84,8 +87,13 @@ import org.springframework.transaction.annotation.Transactional;
     CensusJobConfiguration.class,
     GenerationJobConfiguration.class,
     GenerationTasklet.class,
+    ClusterSynthesis.class,
+    SynthesisDocs.class,
+    LeadingChunks.class,
+    GenerationScriptedBeans.class,
     GenerationRun.class,
     GenerationModel.class,
+    GenerationContextWindow.class,
     CensusTasklet.class,
     ByteLevelReductionJobConfiguration.class,
     ByteLevelReductionTasklet.class,

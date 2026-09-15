@@ -579,3 +579,41 @@ CREATE TABLE IF NOT EXISTS cluster (
     cluster_order INTEGER NOT NULL,
     PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
 );
+
+-- synthesis's second table (ADR-108, ADR-110): what one call produced for one cluster, keyed by the
+-- 6b run plus the cluster's own natural key -- document_cluster's vocabulary again, so the join
+-- needs no translation, and no surrogate id for the reason the row above carries none.
+--
+-- run_id is the GENERATION run, never the arrangement's. The two are separate runs on purpose
+-- (ADR-107, ADR-110): the operator approves a named 6a run, and no 6b run exists until they have.
+-- Which arrangement was written over is reachable through run_upstream rather than restated here.
+--
+-- title is the generated cluster title (ADR-106), and it does not replace the label in the row
+-- above: that one is derived and 6a's, this one is written by the model that read the whole cluster.
+-- A cluster with no row here shows its label instead, which is what makes the fallback exist.
+--
+-- prose is stored exactly as the model returned it, citation markers and all (ADR-109). The file a
+-- reader opens is a RENDERING of this row rather than a copy of it -- each [n] becomes a link and
+-- the membership list is composed at write time -- so text tidied on the way in would leave the
+-- record and the deliverable disagreeing about what was actually said.
+--
+-- documents_sent is how many of the cluster's documents that call was written from, which is what
+-- lets the deliverable disclose "written from the 40 highest-scoring of 412" (ADR-108). It is a fact
+-- about the call rather than about the cluster: the cluster's own size is document_count above, and
+-- the two differing is the disclosure rather than an inconsistency.
+--
+-- Absence is the fault record. A cluster with a row here was written; a cluster without one is a
+-- cluster stage 6b could not write, and the deliverable keeps that hole headed by its 6a label
+-- (ADR-111). Nothing is written to say a cluster failed, because the missing row already says it.
+--
+-- No verdict is ever written because of a row here, for the reason the table above carries none:
+-- generation removes nothing from anything.
+CREATE TABLE IF NOT EXISTS synthesis_doc (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    cluster_ordinal INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    prose TEXT NOT NULL,
+    documents_sent INTEGER NOT NULL,
+    PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
+);
