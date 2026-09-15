@@ -266,6 +266,11 @@ class NextActionTest {
                 () -> assertThat(line).doesNotContain("boilerplateDocumentFrequencyFloor is set")
                         .doesNotContain("and boilerplateDocumentFrequencyFloor are set"));
         claim(
+                "and it is not called unset either, which is the other wrong answer: the operator wrote"
+                        + " something, and sending them to look at a key they would find already filled in"
+                        + " is how a person concludes the tool is broken rather than their value",
+                () -> assertThat(line).doesNotContain("boilerplateDocumentFrequencyFloor is not"));
+        claim(
                 "and the value still unanswered is named too, so one invocation is enough to learn about"
                         + " both rather than one per mistake",
                 () -> assertThat(line).contains("embeddingModel"));

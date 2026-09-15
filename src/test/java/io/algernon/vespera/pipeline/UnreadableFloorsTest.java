@@ -55,14 +55,20 @@ class UnreadableFloorsTest {
     private static final String AN_EMBEDDER = "an-embedder;deadbeef;F16";
 
     /**
-     * Labels for a corpus nobody has answered a question about — the one case that lets a readable
-     * floor apply unchallenged, so that what this test observes is the value and not the calibration.
+     * A label reader that answers nothing.
+     *
+     * <p><b>It is never called, and that is the claim.</b> An unreadable floor is settled before any
+     * question of calibration arises — {@code stateFor} returns on the reading, without reaching the
+     * labels at all — so a double that would fail loudly if consulted is how this test says the
+     * threshold's scale never entered into it. Give it a seed folder and answers and the outcome is the
+     * same, because there is no number for a scale to be wrong about.
      */
     private static RelevanceLabels seedSetWithNoAnswers() {
         return new RelevanceLabels(null) {
             @Override
             public List<RelevanceLabel> forSeedSet(String seedSet) {
-                return List.of();
+                throw new AssertionError("an unreadable floor was checked against a scale; it has no number"
+                        + " for a scale to be wrong about");
             }
         };
     }

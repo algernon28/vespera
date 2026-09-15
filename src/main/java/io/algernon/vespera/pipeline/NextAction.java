@@ -299,22 +299,43 @@ class NextAction {
      * <p>The threshold is reported as unset only once it is the value actually wanted next. Listing it
      * beside values that are wanted first invites an operator to go and set it, which costs the
      * invocation ADR-098's four exists to save.
+     *
+     * <p><b>A key holding something no number can be read from belongs to neither group</b> (ADR-120),
+     * and gets a clause of its own. Counting it as set would credit the operator with a floor the run
+     * ignored; calling it unset would tell someone who wrote something that they wrote nothing, which
+     * is the one reading {@code CONTEXT.md} rules out for this state. It is a third thing, and the only
+     * sentence that is true of it says what is actually sitting in the file.
      */
     private static String whatIsSet(Profile profile, int answersRecorded) {
         List<String> set = setRunValues(profile);
+        List<String> unreadable = unreadableRunValues(profile);
         List<String> unset = new ArrayList<>(unsetRunValueKeys(profile));
-        if (unset.isEmpty() && !profile.relevanceScoreFloor().isSet()) {
+        if (unset.isEmpty() && unreadable.isEmpty() && !profile.relevanceScoreFloor().isSet()) {
             unset.add("relevanceScoreFloor");
         }
         String answers = answersRecorded == 0
                 ? ""
                 : ", and " + answersRecorded + (answersRecorded == 1 ? " answer is" : " answers are")
                         + " recorded";
+        String mistyped = unreadable.isEmpty() ? "" : "; " + listed(unreadable);
         if (set.isEmpty()) {
-            return "No value in the profile is answered yet" + answers + ".";
+            return "No value in the profile is answered yet" + answers + mistyped + ".";
         }
-        return listed(set) + (set.size() == 1 ? " is" : " are") + " set" + answers
-                + "; " + listed(unset) + (unset.size() == 1 ? " is" : " are") + " not.";
+        String notSet = unset.isEmpty()
+                ? ""
+                : "; " + listed(unset) + (unset.size() == 1 ? " is" : " are") + " not";
+        return listed(set) + (set.size() == 1 ? " is" : " are") + " set" + answers + notSet + mistyped + ".";
+    }
+
+    /**
+     * The run values holding something no number can be read from, each as a whole clause saying what
+     * is there — because the key alone would leave a reader guessing which of the three states it is in.
+     */
+    private static List<String> unreadableRunValues(Profile profile) {
+        return runValues(profile).stream()
+                .filter(RunValue::isUnreadable)
+                .map(value -> value.key() + " reads " + quoted(value.writtenText()) + ", which is not a number")
+                .toList();
     }
 
     /** The values a {@code vespera run} needs, in the order an operator can supply them. */
@@ -339,7 +360,7 @@ class NextAction {
     /** The unanswered keys on their own, for the half of the line that reports state. */
     private static List<String> unsetRunValueKeys(Profile profile) {
         return runValues(profile).stream()
-                .filter(value -> !value.isSet())
+                .filter(value -> !value.isSet() && !value.isUnreadable())
                 .map(RunValue::key)
                 .toList();
     }
@@ -355,7 +376,7 @@ class NextAction {
     private static List<String> unsetRunValues(Profile profile) {
         return runValues(profile).stream()
                 .filter(value -> !value.isSet())
-                .map(value -> value.key() + " (" + value.hintNow() + ")")
+                .map(value -> value.key() + " (" + value.hint() + ")")
                 .toList();
     }
 
@@ -378,20 +399,21 @@ class NextAction {
             return value.isSet();
         }
 
+        /** Whether somebody answered this key with something no number can be read from (ADR-120). */
+        boolean isUnreadable() {
+            return value instanceof NumericValue numeric
+                    && numeric.reading() instanceof NumericValue.Unreadable;
+        }
+
         /**
-         * What the operator needs in order to choose this value — or, where they already wrote
-         * something unusable, what is sitting there now.
-         *
-         * <p>Quoting it back is the difference between a value ignored and a value silently dropped:
-         * telling someone to write a floor they believe they already wrote is not an action they can
-         * take.
+         * What is actually written there, for the two places that quote it back. Empty for a key in any
+         * other state, which neither caller asks.
          */
-        String hintNow() {
-            if (value instanceof NumericValue numeric
-                    && numeric.reading() instanceof NumericValue.Unreadable unreadable) {
-                return "currently reads " + quoted(unreadable.text()) + ", which is not a number";
-            }
-            return hint;
+        String writtenText() {
+            return value instanceof NumericValue numeric
+                            && numeric.reading() instanceof NumericValue.Unreadable unreadable
+                    ? unreadable.text()
+                    : "";
         }
     }
 

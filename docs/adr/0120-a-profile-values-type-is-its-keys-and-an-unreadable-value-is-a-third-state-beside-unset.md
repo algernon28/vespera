@@ -68,13 +68,20 @@ The parse lives in `NumericValue` and nowhere else. It is computed on demand rat
 
 ### Loading does not throw
 
-This is the departure from ADR-061, stated plainly so it is not discovered later as a contradiction. A mistyped numeric value does not end the invocation: it reads as unreadable, the stage that wanted it behaves as though the key were unset, and the operator is told. ADR-061's null-vs-typo hazard is closed regardless — a quoted null can no longer be *acted on* as an answer, which was the failure it named. It is still `isSet()`, deliberately: somebody did write it, and a line reporting the key as untouched would be as wrong as one applying it. Whether each reader wants "somebody answered" or "there is a number here" is exactly the distinction this record makes available, and the closing line is the one place that wants the first.
+This is the departure from ADR-061, stated plainly so it is not discovered later as a contradiction. A mistyped numeric value does not end the invocation: it reads as unreadable, the stage that wanted it behaves as though the key were unset, and the operator is told. ADR-061's null-vs-typo hazard is closed regardless — a quoted null can no longer be *acted on* as an answer, which was the failure it named. It is still `isSet()`, deliberately: somebody did write it. That is the whole reason the state is worth naming, and it is why neither of the two answers a boolean can give is the right one to show an operator.
 
 ### An unreadable value is named in the closing line, for every numeric key
 
 `NextAction` tells the operator about an unreadable relevance floor today. It now does so for any numeric key, on the rule it already states: a value the engine ignored is worth more to the operator than a value that was never set. Without this, the two keys that crash today would become silently ignored, which would be a regression dressed as a fix.
 
-**An unreadable value is therefore not an answer to that line**, though it is `isSet()`. The line reports what the next invocation can act on, so a key holding `"0,4"` is listed among the values still wanted, with what is written there quoted back, rather than counted as set. Both halves of the sentence then agree, and there is no state in which one half says a key is set while the run ignores it. The same rule reaches stage 4's own gate line, which says which of its two reasons is shutting it rather than asserting the commoner one — before this, a set-but-unreadable floor could not reach that line at all, because reading the value threw first.
+**An unreadable value is neither set nor unset to that line: it gets a clause of its own.** Both of the obvious answers are wrong, and this record is explicit about it because the first cut of this decision shipped one of them:
+
+- *Counted as set* credits the operator with a floor the run ignored, and the action half then tells them to write a value they believe they already wrote.
+- *Counted as unset* tells someone who wrote something that they wrote nothing, which is precisely what `CONTEXT.md`'s entry for this state rules out.
+
+So the sentence says what is actually in the file — *"seedFolder and embeddingModel are set; boilerplateDocumentFrequencyFloor reads `0,4`, which is not a number"* — and the key still appears in the action half as a value the next invocation wants. The text is quoted once, in the state half, because that half is always present whenever a run value is unreadable.
+
+The same rule reaches stage 4's own gate line, which says which of its two reasons is shutting it rather than asserting the commoner one. Before this, a set-but-unreadable floor could not reach that line at all, because reading the value threw first — so the sentence could assert "unset" and be right, and it stopped being right the moment the value stopped throwing.
 
 ### Two behaviours change, and this is where they are recorded
 
