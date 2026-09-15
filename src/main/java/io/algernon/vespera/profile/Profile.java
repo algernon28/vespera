@@ -16,7 +16,8 @@ package io.algernon.vespera.profile;
  * reader re-derived by reaching for a parse.
  *
  * <p>The canonical constructor is where ADR-062's merge lives. A key missing from the file arrives
- * here as null and leaves as {@link ProfileValue#unset()}, so simply loading a profile and saving it
+ * here as null and leaves as {@link TextValue#unset()} or {@link NumericValue#unset()}, according to
+ * the kind of answer its key takes (ADR-120), so simply loading a profile and saving it
  * again adds every key the code has learned about since the file was written, without touching a
  * single answer already in it.
  *
