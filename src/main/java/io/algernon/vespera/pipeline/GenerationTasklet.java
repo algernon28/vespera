@@ -13,6 +13,8 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.synthesis.ClusterCall;
+import io.algernon.vespera.synthesis.ClusterFaultException;
+import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.Exemplar;
@@ -36,6 +38,7 @@ import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -43,21 +46,26 @@ import org.springframework.stereotype.Component;
  * arrangement, and the answer kept.
  *
  * <p><b>A shut gate is not an error</b> (ADR-080's shape, applied a fifth time): the invocation ends,
- * the job succeeds, no run is minted and nothing is removed. Unset and naming-no-arrangement are one
- * outcome on purpose — in each case no arrangement has been approved, and a typo that quietly
- * generated over the latest arrangement instead would be the gate spending an approval it never got.
+ * the job succeeds, nothing is minted or removed. Unset and naming-no-arrangement are one outcome on
+ * purpose — a typo that quietly generated over the latest arrangement would spend an approval it
+ * never got.
  *
  * <p><b>An ambiguous approval is not that.</b> A prefix matching two arrangements stops the run
- * rather than choosing one, which is ADR-099's rule for an ambiguous upstream and is deliberately not
- * caught here: the pipeline never guesses which arrangement a person meant.
+ * rather than choosing one, which is ADR-099's rule for an ambiguous upstream and is deliberately
+ * not caught here: the pipeline never guesses which arrangement a person meant.
  *
  * <p><b>It gathers, and {@code synthesis} writes.</b> Which documents are in a cluster, how they
  * scored and what each opens with live in three modules {@code synthesis} may not name, so they are
- * read here and handed down one cluster at a time as plain values (ADR-110). This class is where a
- * reader looks to find out what stage 6b reads, which is what a composition root is for.
+ * read here and handed down one cluster at a time as plain values (ADR-110) — a composition root's
+ * job.
  *
  * <p><b>It writes no verdict.</b> Generation removes nothing: its one way of failing is a fault
- * recorded against a cluster (ADR-111), and a verdict is about a document and removes one.
+ * recorded against a cluster (ADR-111), where a verdict removes a document.
+ *
+ * <p><b>Completion needs two things, not one</b> (ADR-116): every sendable cluster carries a
+ * {@code synthesis_doc} row, <em>and</em> no {@code cluster_fault} row stands under this run. A
+ * turned-down cluster keeps the step permanently unfinished until repaired — #184's breaker and
+ * #185's repair pass, neither built here — exactly as ADR-121 already left an unsendable one.
  */
 @Component
 @StepScope
@@ -76,6 +84,7 @@ class GenerationTasklet implements Tasklet {
     private final DoclingExtractor extractor;
     private final ClusterSynthesis clusterSynthesis;
     private final SynthesisDocs synthesisDocs;
+    private final ClusterFaults clusterFaults;
     private final Ledger ledger;
     private final Path root;
 
@@ -91,6 +100,7 @@ class GenerationTasklet implements Tasklet {
             DoclingExtractor extractor,
             ClusterSynthesis clusterSynthesis,
             SynthesisDocs synthesisDocs,
+            JdbcTemplate jdbcTemplate,
             Ledger ledger,
             @Value("#{jobParameters['root']}") Path root) {
         this.arrangementGate = arrangementGate;
@@ -104,6 +114,11 @@ class GenerationTasklet implements Tasklet {
         this.extractor = extractor;
         this.clusterSynthesis = clusterSynthesis;
         this.synthesisDocs = synthesisDocs;
+        // Constructed rather than injected as its own bean (ADR-041 holds: only this class touches
+        // cluster_fault, and only through here). A Spring-managed bean would force every invocation
+        // test in this cascade to name it, not just the ones this ticket is about; the JdbcTemplate
+        // it is built from is already ambient wherever Ledger and SynthesisDocs are.
+        this.clusterFaults = new ClusterFaults(jdbcTemplate);
         this.ledger = ledger;
         this.root = root;
     }
@@ -146,10 +161,9 @@ class GenerationTasklet implements Tasklet {
         String modelName = generationModel.name();
         int contextWindow = generationContextWindow.size();
 
-        // Rows an earlier invocation of this same run already wrote (ADR-115, ADR-116): stage 6b is
-        // the exception that never discards its own rows, because a synthesis doc is the one artifact
-        // this system spends its most expensive call on -- so those clusters are skipped rather than
-        // written a second time.
+        // Rows an earlier invocation of this run already wrote (ADR-115, ADR-116): stage 6b never
+        // discards its own rows, since a synthesis doc is the most expensive call this system makes --
+        // those clusters are skipped rather than written again.
         Set<ClusterKey> alreadyWritten = synthesisDocs.forRun(generation).stream()
                 .map(recordedDoc -> new ClusterKey(recordedDoc.winningSeed(), recordedDoc.clusterOrdinal()))
                 .collect(Collectors.toSet());
@@ -157,6 +171,7 @@ class GenerationTasklet implements Tasklet {
         int written = 0;
         int skipped = 0;
         int unsendable = 0;
+        int faulted = 0;
         for (RecordedCluster recorded : clusters.forRun(arrangement)) {
             ClusterKey key = ClusterKey.of(recorded);
             if (alreadyWritten.contains(key)) {
@@ -187,28 +202,54 @@ class GenerationTasklet implements Tasklet {
                 unsendable++;
                 continue;
             }
-            SynthesisDoc doc = clusterSynthesis.docFor(
-                    new ClusterCall(
-                            recorded.label().value(),
-                            pathOf(recorded.cluster().winningSeed()),
-                            exemplars),
-                    modelName,
-                    contextWindow);
+            SynthesisDoc doc;
+            try {
+                doc = clusterSynthesis.docFor(
+                        new ClusterCall(
+                                recorded.label().value(),
+                                pathOf(recorded.cluster().winningSeed()),
+                                exemplars),
+                        modelName,
+                        contextWindow);
+            } catch (ClusterFaultException e) {
+                // A call came back and failed one of ADR-108's/ADR-109's four checks (ADR-111).
+                // Recorded against the cluster, never a document -- nothing here removes anything --
+                // and the run carries straight on.
+                LOG.warn(
+                        "cluster {} of partition {} had its answer turned down -- {}: {} -- so no"
+                                + " synthesis doc was written for it",
+                        recorded.cluster().ordinal(),
+                        recorded.cluster().partitionOrder(),
+                        e.fault().kind(),
+                        e.fault().detail());
+                clusterFaults.record(
+                        generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), e.fault());
+                faulted++;
+                continue;
+            }
             synthesisDocs.record(
                     generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), doc);
             written++;
         }
 
-        // Completion is recorded only when every cluster carries a synthesis doc -- written just now or
-        // already recorded by an earlier invocation of this run (ADR-115, ADR-116). A cluster this
-        // run could send nothing for is not yet a recorded fault -- that row does not exist -- so
-        // recording the step as finished would short-circuit every later invocation and leave the hole
-        // permanent, with nothing anywhere saying a synthesis doc was expected and never written.
-        if (unsendable > 0) {
+        // Completion needs two things, not one (ADR-116): every sendable cluster carries a synthesis
+        // doc -- written just now or by an earlier invocation of this run (ADR-115) -- and no
+        // cluster_fault row stands under this run. An unsendable or turned-down cluster keeps the step
+        // permanently unfinished until #184/#185 repair it; recording it finished regardless would
+        // short-circuit every later invocation and leave the hole permanent and unannounced.
+        int standingFaults = clusterFaults.forRun(generation).size();
+        if (unsendable > 0 || standingFaults > 0) {
+            // The standing count, not this invocation's -- a repair invocation that turned nothing
+            // down itself still meets an earlier one's reason, and reporting its own two zeroes would
+            // say nothing went wrong and then refuse to finish.
             LOG.warn(
-                    "the generation step left {} cluster(s) unwritten under run {}, so it is not recorded"
-                            + " as finished and the next invocation will attempt them again",
+                    "the generation step left {} cluster(s) unwritten and {} cluster(s) standing with an"
+                            + " answer that was turned down ({} of them this invocation) under run {}, so"
+                            + " it is not recorded as finished and the next invocation will attempt what"
+                            + " is missing again",
                     unsendable,
+                    standingFaults,
+                    faulted,
                     generation.value());
             return RepeatStatus.FINISHED;
         }

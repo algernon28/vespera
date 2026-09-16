@@ -95,6 +95,8 @@ This is the same shape as the case beside it and deliberately not a new one. A c
 
 ADR-111's `cluster_fault` kinds are four things that can happen to **a call that came back** — the prompt-eval ceiling, the truncated answer, the schema violation, the citation failure. This is a call that was never made, and the table does not exist yet. Whether an unsendable cluster earns a kind of its own, and what its `detail` would carry, is [#183](https://github.com/algernon28/vespera/issues/183)'s to settle where that table is built. Nothing decided here is expressible only in a record that has not been written.
 
+**Settled by #183, in the negative.** An unsendable cluster earns no `cluster_fault` kind of its own: `CONTEXT.md`'s **Cluster fault** entry binds the term to a call that came back and failed checking, a fifth kind would buy the operator a row and no change of behaviour now that a standing fault also blocks completion, and the "no row anywhere" worry this record raised does not apply — the 6a `cluster` row is the denominator and the missing `synthesis_doc` row is the hole. Pinned by `GenerationFaultInvocationTest.keepsNoReasonForAGroupNothingWouldFitIn`.
+
 ## Consequences
 
 **A cluster whose every document exceeds the room keeps the step permanently unfinished.** Every invocation reaches it, writes nothing, and declines to record the step as complete; the next invocation does the same. This is accepted, and it is stated rather than mitigated because it is already exactly what an unsendable cluster does today. The permanent case — a hole that is known, recorded and finished with — needs the fault row, and is [#183](https://github.com/algernon28/vespera/issues/183) and [#184](https://github.com/algernon28/vespera/issues/184)'s.

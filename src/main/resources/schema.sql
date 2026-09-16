@@ -602,9 +602,11 @@ CREATE TABLE IF NOT EXISTS cluster (
 -- about the call rather than about the cluster: the cluster's own size is document_count above, and
 -- the two differing is the disclosure rather than an inconsistency.
 --
--- Absence is the fault record. A cluster with a row here was written; a cluster without one is a
--- cluster stage 6b could not write, and the deliverable keeps that hole headed by its 6a label
--- (ADR-111). Nothing is written to say a cluster failed, because the missing row already says it.
+-- A cluster with a row here was written; without one it is a cluster stage 6b did not write, and
+-- the deliverable keeps that hole headed by its 6a label (ADR-111). Absence alone does not say why:
+-- cluster_fault below carries the reason when an answer came back and was turned down, and where no
+-- call was made at all -- nothing fits the reading window -- there is no row in either table
+-- (ADR-121, deliberate).
 --
 -- No verdict is ever written because of a row here, for the reason the table above carries none:
 -- generation removes nothing from anything.
@@ -615,5 +617,37 @@ CREATE TABLE IF NOT EXISTS synthesis_doc (
     title TEXT NOT NULL,
     prose TEXT NOT NULL,
     documents_sent INTEGER NOT NULL,
+    PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
+);
+
+-- synthesis's third table (ADR-108, ADR-109, ADR-110, ADR-111): why a call that came back was
+-- rejected, for a cluster the row above has none for. Keyed the same, under the same GENERATION run.
+-- Within one invocation a cluster lands in exactly one of the two tables. Across invocations it can
+-- briefly carry both: a cluster turned down once is asked again under the same run id, and its fault
+-- row is deleted only when the later answer is believed -- the repair pass, not built yet. A
+-- repeated turn-down replaces the row rather than inserting a second, so what stands is true of the
+-- attempt that stands.
+--
+-- Not a verdict, on the precedent of walk_anomaly (corpus) and unusable_seed (embedding): every
+-- VerdictKind exists to remove a document from publication, and nothing about a cluster's documents
+-- is wrong when its answer is turned down (ADR-111).
+--
+-- kind is the closed four-value enumeration ClusterFaultKind owns: the prompt-evaluation ceiling,
+-- the answer running out of room, a schema violation, and a citation outside the range the call
+-- itself minted. A fifth value is a pull request carrying an ADR.
+--
+-- detail carries the number that failed: the count against the ceiling, the length against the
+-- allowance, where reading stopped, or the ordinal against the documents sent -- so accounting for a
+-- cluster costs a query rather than the most expensive call this system makes, made again.
+--
+-- A cluster nothing could be sent for earns no row here (ADR-121): that is a call never made, and
+-- the four kinds above are things that happen to a call that came back. That case stays legible from
+-- the absence of a row in either table, as it already was before this table existed.
+CREATE TABLE IF NOT EXISTS cluster_fault (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    cluster_ordinal INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    detail TEXT NOT NULL,
     PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
 );

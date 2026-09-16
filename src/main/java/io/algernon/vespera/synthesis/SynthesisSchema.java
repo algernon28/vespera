@@ -14,7 +14,11 @@ import org.springframework.stereotype.Component;
  * cluster as something addressable, with a name and a place in an order. Version 2 adds
  * {@code synthesis_doc} (ADR-108, ADR-110, #180), the second table ADR-110 gives this module: what
  * one call produced for one cluster, kept because the file a reader opens is a rendering of the row
- * rather than a copy of it.
+ * rather than a copy of it. Version 3 adds {@code cluster_fault} (ADR-108, ADR-109, ADR-110,
+ * ADR-111, #183), the third table ADR-111 fills a deferral for: why a call that came back was
+ * rejected, kept beside the group it was about on the same precedent as {@code walk_anomaly} and
+ * {@code unusable_seed} — a fact about content that is not a verdict, because nothing about the
+ * group's documents is wrong.
  *
  * <p>Note what does <em>not</em> bump alongside it. {@code document_cluster} is untouched and stays
  * {@code embedding}'s (ADR-110): membership is stage 5's and is not restated here, so
@@ -26,7 +30,7 @@ import org.springframework.stereotype.Component;
 class SynthesisSchema {
 
     /** The version of synthesis's tables this code expects. */
-    static final int VERSION = 2;
+    static final int VERSION = 3;
 
     /** The module name the version is recorded under, matching the package name. */
     static final String MODULE = "synthesis";

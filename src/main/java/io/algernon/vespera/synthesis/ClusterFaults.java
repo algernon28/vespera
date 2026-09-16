@@ -1,0 +1,74 @@
+package io.algernon.vespera.synthesis;
+
+import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
+import java.util.List;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+/**
+ * Stage 6b's record of a group whose answer it turned down (ADR-108, ADR-109, ADR-111), behind this
+ * class and nothing else querying the table (ADR-041).
+ *
+ * <p><b>The precedent is {@code walk_anomaly} and {@code unusable_seed}, not the ledger.</b> A
+ * verdict removes a file occurrence from what gets published; a cluster fault removes nothing — only
+ * what was said about a group's documents was rejected, not the documents. So this is a fact about
+ * content, never a verdict (ADR-111).
+ *
+ * <p><b>Within one invocation, a group has a row here or in {@link SynthesisDocs}, never both.</b>
+ * Across invocations it briefly can — closing that window is #185's, not this one's (ADR-111).
+ *
+ * <p>Rows are keyed by the 6b run, so a second generation writes beside the first rather than over
+ * it (ADR-077), the rule {@link SynthesisDocs} already follows.
+ *
+ * <p><b>Not {@code @Component}.</b> {@code GenerationTasklet} constructs its own instance from an
+ * ambient {@code JdbcTemplate} rather than have Spring inject one (ADR-041 holds either way: only
+ * this class touches {@code cluster_fault}, and only through here) — a bean nothing in {@code
+ * src/main} would inject would just sit in the context unused. A test that needs one imports this
+ * class and gets it the ordinary way {@code @Import} already provides for a plain class.
+ */
+public class ClusterFaults {
+
+    private final JdbcTemplate jdbcTemplate;
+
+    public ClusterFaults(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /**
+     * Records why one group's answer was turned down, under {@code runId}, which is the 6b run.
+     *
+     * <p><b>Replaces rather than inserts, which is what makes a second invocation possible.</b> A run
+     * that turned an answer down records no completion, so the next invocation re-derives the same
+     * run id and asks again — a plain insert would meet its own row and end the run on a key
+     * collision.
+     *
+     * <p><b>Replaces rather than ignores</b>, because the second attempt may fail a different check,
+     * and what is kept must be true of the attempt that is standing — unlike the neighbouring
+     * recording of a finished step, which ignores a repeat because one row already says everything a
+     * second would.
+     */
+    public void record(RunId runId, OccurrenceId winningSeed, int clusterOrdinal, ClusterFault fault) {
+        jdbcTemplate.update(
+                "INSERT OR REPLACE INTO cluster_fault (run_id, winning_seed_occurrence_id,"
+                        + " cluster_ordinal, kind, detail) VALUES (?, ?, ?, ?, ?)",
+                runId.value(),
+                winningSeed.value(),
+                clusterOrdinal,
+                fault.kind().name(),
+                fault.detail());
+    }
+
+    /** Every cluster fault recorded under {@code runId}, in the order the groups were attempted. */
+    public List<RecordedClusterFault> forRun(RunId runId) {
+        return jdbcTemplate.query(
+                "SELECT winning_seed_occurrence_id, cluster_ordinal, kind, detail FROM cluster_fault"
+                        + " WHERE run_id = ? ORDER BY rowid",
+                (resultSet, rowNumber) -> new RecordedClusterFault(
+                        new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
+                        resultSet.getInt("cluster_ordinal"),
+                        new ClusterFault(
+                                ClusterFaultKind.valueOf(resultSet.getString("kind")),
+                                resultSet.getString("detail"))),
+                runId.value());
+    }
+}
