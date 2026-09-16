@@ -74,6 +74,16 @@ package io.algernon.vespera.profile;
  *     relevance verdict, so a corpus scored under a model nobody chose has verdicts nobody can
  *     defend; this one keys a run whose output is prose, which the operator can read and judge
  *     directly. No {@link Measurement} pointer, for the reason {@code embeddingModel} has none.
+ * @param generationContextWindow how much of the model's window one of stage 6b's calls may work in
+ *     (ADR-108, #182). The second key whose unset state means "a default applies": code carries a
+ *     number, this key overrides it, and an unanswered key never ends an invocation. It is the key
+ *     most likely to be answered wrongly if it were a stop — the right value is a property of the
+ *     machine doing the serving rather than of the archive, and most operators could not name one
+ *     before their first run. What it buys when it <em>is</em> answered is real: a larger window reads
+ *     more of each group in one call, and every group too large for the window is written from part of
+ *     itself. Changing it changes what was read, so it joins the generation run's identity and a
+ *     different window is a different run. No {@link Measurement} pointer: what informs it is the
+ *     machine, not a pass over the corpus.
  */
 public record Profile(
         TextValue seedFolder,
@@ -82,7 +92,8 @@ public record Profile(
         TextValue embeddingModel,
         NumericValue relevanceScoreFloor,
         TextValue arrangementApproved,
-        TextValue generationModel) {
+        TextValue generationModel,
+        NumericValue generationContextWindow) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -94,11 +105,13 @@ public record Profile(
         relevanceScoreFloor = relevanceScoreFloor == null ? NumericValue.unset() : relevanceScoreFloor;
         arrangementApproved = arrangementApproved == null ? TextValue.unset() : arrangementApproved;
         generationModel = generationModel == null ? TextValue.unset() : generationModel;
+        generationContextWindow =
+                generationContextWindow == null ? NumericValue.unset() : generationContextWindow;
     }
 
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null, null, null, null);
+        return new Profile(null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -110,7 +123,8 @@ public record Profile(
                 embeddingModel,
                 relevanceScoreFloor,
                 arrangementApproved,
-                generationModel);
+                generationModel,
+                generationContextWindow);
     }
 
     /**
@@ -126,7 +140,8 @@ public record Profile(
                 embeddingModel,
                 relevanceScoreFloor,
                 arrangementApproved,
-                generationModel);
+                generationModel,
+                generationContextWindow);
     }
 
     /**
@@ -146,6 +161,7 @@ public record Profile(
                 embeddingModel,
                 relevanceScoreFloor.measuredBy(measurement),
                 arrangementApproved,
-                generationModel);
+                generationModel,
+                generationContextWindow);
     }
 }

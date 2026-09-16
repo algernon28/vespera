@@ -100,7 +100,9 @@ Both are strictly less destructive than what they replace, and both were unrecor
 
 ## Consequences
 
-**A new numeric key gets the three readings for free**, and a key of a kind that is neither text nor a number is a new record implementing the sealed interface — visible, and refused by the compiler until it is written. The context-window key ADR-108 implies is the first to arrive under this rule.
+**A new numeric key gets the three readings for free**, and a key of a kind that is neither text nor a number is a new record implementing the sealed interface — visible, and refused by the compiler until it is written.
+
+The context-window key ADR-108 implies arrived on `main` in #206 while this record was in review, and is the first under this rule. It is also the measurement this record's own premise wanted: written against the tree as it stood, it hand-rolled a **sixth** parse — `Integer.parseInt` in a try/catch — which is exactly the growth rate the Context section describes, observed rather than predicted. Merging the two converted it to one more reader of `reading()`, and the count of parses in `src/main` went from six to one.
 
 **`RelevanceFloor` and `RelevanceScoreFloorValue` agree by construction**, which is what ADR-117 needs and currently gets from a comment in each asking the other to match.
 
@@ -112,7 +114,7 @@ Both are strictly less destructive than what they replace, and both were unrecor
 
 ## What this does not decide
 
-**Whether an unreadable value should ever stop a run.** Every numeric key today is a threshold or a floor whose unset state is already legal. A future key whose absence genuinely cannot be tolerated would need its own answer, and this record does not pretend to have given it one.
+**Whether an unreadable value should ever stop a run** — answered, for one key, while this record was in review. Every numeric key this record was written against is a threshold or a floor whose unset state is already legal, and a future key that could not tolerate one was left to answer for itself. `generationContextWindow` (ADR-108, #182) is that key and answers it by stopping: a floor nobody set removes nothing, but a window nobody chose is still used, and the archive is written under it. It takes its reading from `NumericValue` like every other key; what differs is only what it does with the unreadable one, which is the seam this record was for.
 
 **Whether provenance and measurement should be typed.** Both are free text by ADR-061 and ADR-053's rule, and nothing here touches that.
 

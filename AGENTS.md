@@ -46,7 +46,7 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 ./mvnw -q test-compile                                         # compile only
 ```
 
-- **A test needing an external tool is an integration test**: named `*IT`, run by failsafe under `./mvnw verify`, excluded from surefire's `./mvnw test`. There are four — `DoclingClientIT`, `OllamaClientIT`, `RelevanceReportIT`, `VesperaApplicationIT` — and each needs a Docker daemon, starting its sidecar through Testcontainers. Every other class needs neither Docker nor `verify`.
+- **A test needing an external tool is an integration test**: named `*IT`, run by failsafe under `./mvnw verify`, excluded from surefire's `./mvnw test`. There are five — `ClusterSynthesisIT`, `DoclingClientIT`, `OllamaClientIT`, `RelevanceReportIT`, `VesperaApplicationIT` — and each needs a Docker daemon, starting its sidecar through Testcontainers. Every other class needs neither Docker nor `verify`.
 - **A skipped test is not a passing test.** Several abort by assumption when the environment cannot create a symlink or an unusual filename, so report `Skipped` alongside `Tests run`.
 - **Surefire's console output truncates the cause.** The real stack is in `target/surefire-reports/<class>.txt`.
 - **The build needs Java 26 on `PATH` (or `JAVA_HOME`) — the shell default may be older.** `./mvnw` uses whatever `java` it finds first; an older default fails with `class file version ... only recognizes class file versions up to ...` before any test runs.

@@ -41,6 +41,8 @@ public final class ProfileFixture {
     private TextValue arrangementApproved = TextValue.unset();
     private TextValue generationModel = TextValue.unset();
 
+    private NumericValue generationContextWindow = NumericValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -59,6 +61,7 @@ public final class ProfileFixture {
         fixture.relevanceScoreFloor = existing.relevanceScoreFloor();
         fixture.arrangementApproved = existing.arrangementApproved();
         fixture.generationModel = existing.generationModel();
+        fixture.generationContextWindow = existing.generationContextWindow();
         return fixture;
     }
 
@@ -142,6 +145,15 @@ public final class ProfileFixture {
         return this;
     }
 
+    public ProfileFixture generationContextWindow(String value, String provenance) {
+        return generationContextWindow(aNumber(value, provenance));
+    }
+
+    public ProfileFixture generationContextWindow(NumericValue value) {
+        this.generationContextWindow = value == null ? NumericValue.unset() : value;
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -151,6 +163,7 @@ public final class ProfileFixture {
                 embeddingModel,
                 relevanceScoreFloor,
                 arrangementApproved,
-                generationModel);
+                generationModel,
+                generationContextWindow);
     }
 }

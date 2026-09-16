@@ -6,6 +6,7 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.synthesis.ClusterSynthesis;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.batch.core.configuration.annotation.JobScope;
@@ -72,6 +73,7 @@ class GenerationRun {
             ImplementationVersions implementationVersions,
             ArrangementGate arrangementGate,
             GenerationModel generationModel,
+            GenerationContextWindow generationContextWindow,
             OllamaClient ollamaClient,
             @Value("#{jobParameters['root']}") Path root) {
         Path canonicalRoot = Walk.canonicalRoot(root);
@@ -86,7 +88,12 @@ class GenerationRun {
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, EXTRACTION_MODULE, EMBEDDING_MODULE, PIPELINE_MODULE),
-                configConsumed(canonicalRoot, arrangement, modelName, ollamaClient.artefactOf(modelName).digest()),
+                configConsumed(
+                        canonicalRoot,
+                        arrangement,
+                        modelName,
+                        ollamaClient.artefactOf(modelName).digest(),
+                        generationContextWindow.size()),
                 walkId,
                 List.of(arrangement));
     }
@@ -99,14 +106,29 @@ class GenerationRun {
      * moving a port is not a change, so an identity carrying the URL would mint a second run for the
      * same work — the rule {@code ExtractorIdentity} and {@code EmbedderIdentity} already follow.
      *
-     * <p>The options ADR-108 names — {@code num_ctx}, {@code num_predict}, {@code temperature},
-     * {@code seed} — are not here yet because nothing sends them yet. They join this string in the
-     * ticket that first puts them on a call, and a changed identity minting a new run is exactly what
-     * should happen when it does.
+     * <p>Of the options ADR-108 names — {@code num_ctx}, {@code num_predict}, {@code temperature},
+     * {@code seed} — the first two are here, because those are the two anything sends (#180, #182).
+     * {@code temperature} and {@code seed} join this string in the ticket that first puts them on a
+     * call, and a changed identity minting a new run is exactly what should happen when it does.
+     *
+     * <p>The window is what an invocation resolved rather than what the code ships with, so an
+     * operator who widens it re-generates the corpus under a run of its own. That is the point of it
+     * being in here: a larger window reads more of each group, so the same archive written under two
+     * windows is two different pieces of work and neither can be mistaken for the other.
      */
-    static String configConsumed(Path canonicalRoot, RunId arrangement, String modelName, String weightsDigest) {
+    static String configConsumed(
+            Path canonicalRoot,
+            RunId arrangement,
+            String modelName,
+            String weightsDigest,
+            int contextWindow) {
         return JSON_MAPPER.writeValueAsString(new ConfigConsumed(
-                canonicalRoot.toString(), arrangement.value(), modelName, weightsDigest));
+                canonicalRoot.toString(),
+                arrangement.value(),
+                modelName,
+                weightsDigest,
+                contextWindow,
+                ClusterSynthesis.REPLY_ALLOWANCE));
     }
 
     RunId runId() {
@@ -114,5 +136,10 @@ class GenerationRun {
     }
 
     private record ConfigConsumed(
-            String corpusRoot, String arrangementRunId, String generationModel, String weightsDigest) {}
+            String corpusRoot,
+            String arrangementRunId,
+            String generationModel,
+            String weightsDigest,
+            int contextWindow,
+            int replyAllowance) {}
 }

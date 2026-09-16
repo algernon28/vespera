@@ -43,11 +43,15 @@ class GenerationRunTest {
     /** Where the model happens to be served, which is deliberately not part of the identity. */
     private static final String A_SERVING_URL = "http://localhost:11434";
 
+    /** How much each call was allowed to read, which is the first option this stage actually sends. */
+    private static final int THE_READING_WINDOW = 8192;
+
     @Test
     @Story("The generator identity is what was asked and what answered, never where it was served")
     @DisplayName("The identity carries the model's name and its weights digest")
     void carriesTheModelNameAndItsDigest() {
-        String identity = GenerationRun.configConsumed(A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST);
+        String identity = GenerationRun.configConsumed(
+                A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST, THE_READING_WINDOW);
 
         claim(
                 "the model's name is in it, because two models write different documents over one"
@@ -64,7 +68,8 @@ class GenerationRunTest {
     @Story("The generator identity is what was asked and what answered, never where it was served")
     @DisplayName("The identity carries no trace of where the model was served")
     void carriesNoServingUrl() {
-        String identity = GenerationRun.configConsumed(A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST);
+        String identity = GenerationRun.configConsumed(
+                A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST, THE_READING_WINDOW);
 
         claim(
                 "two deployments answering alike are one instrument, and moving a port is not a change --"
@@ -73,10 +78,26 @@ class GenerationRunTest {
     }
 
     @Test
+    @Story("The generator identity is what was asked and what answered, never where it was served")
+    @DisplayName("The identity carries how much each call was allowed to read")
+    void carriesTheReadingWindow() {
+        String identity = GenerationRun.configConsumed(
+                A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST, THE_READING_WINDOW);
+
+        claim(
+                "how much each call could read is part of what was asked, so it belongs in the identity"
+                        + " the same way the model's name does: the same archive read in a smaller window"
+                        + " is written from fewer documents, which is different work and has to be a"
+                        + " different run rather than the same one twice",
+                () -> assertThat(identity).contains(String.valueOf(THE_READING_WINDOW)));
+    }
+
+    @Test
     @Story("A run names the arrangement it was approved against")
     @DisplayName("The identity names the approved arrangement it reads")
     void namesTheApprovedArrangement() {
-        String identity = GenerationRun.configConsumed(A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST);
+        String identity = GenerationRun.configConsumed(
+                A_CORPUS_ROOT, AN_ARRANGEMENT, THE_GENERATION_MODEL, THE_DIGEST, THE_READING_WINDOW);
 
         claim(
                 "the arrangement is in the identity as well as in the upstream chain, so a re-arrangement"

@@ -106,15 +106,15 @@ class ProfileTest {
     }
 
     /**
-     * How many constructors {@link Profile} is allowed to have: one, the canonical seven-component
-     * one. Before ADR-119 there were six — the canonical one plus five of arity two through six, each
+     * How many constructors {@link Profile} is allowed to have: one, the canonical all-keys one.
+     * Before ADR-119 there were six — the canonical one plus five of arity two through six, each
      * added by the ticket that added a profile key so that the previous ticket's test call sites would
      * still compile. None of the five had a production caller.
      */
     private static final int ONE_CONSTRUCTOR = 1;
 
     /** How many keys the profile carries today, and therefore how many the one constructor takes. */
-    private static final int SEVEN_KEYS = 7;
+    private static final int EVERY_KEY = 8;
 
     @Test
     @Story("The profile record has one way in")
@@ -130,9 +130,9 @@ class ProfileTest {
                         + " reachable from anything but a test",
                 () -> assertThat(constructors).hasSize(ONE_CONSTRUCTOR));
         claim(
-                "and it takes all 7 keys, so a caller wanting a subset says which subset by naming the keys"
-                        + " rather than by choosing a length",
-                () -> assertThat(constructors[0].getParameterCount()).isEqualTo(SEVEN_KEYS));
+                "and it takes all " + EVERY_KEY + " keys, so a caller wanting a subset says which subset"
+                        + " by naming the keys rather than by choosing a length",
+                () -> assertThat(constructors[0].getParameterCount()).isEqualTo(EVERY_KEY));
     }
 
     @Test
