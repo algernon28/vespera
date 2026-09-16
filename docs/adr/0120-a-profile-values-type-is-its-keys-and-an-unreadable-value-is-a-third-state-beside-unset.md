@@ -102,7 +102,7 @@ Both are strictly less destructive than what they replace, and both were unrecor
 
 **A new numeric key gets the three readings for free**, and a key of a kind that is neither text nor a number is a new record implementing the sealed interface — visible, and refused by the compiler until it is written.
 
-The context-window key ADR-108 implies arrived on `main` in #206 while this record was in review, and is the first under this rule. It is also the measurement this record's own premise wanted: written against the tree as it stood, it hand-rolled a **sixth** parse — `Integer.parseInt` in a try/catch — which is exactly the growth rate the Context section describes — predicted there, and then observed. Merging the two converted it to one more reader of `reading()`, and the count of parses in `src/main` went from six to one.
+The context-window key ADR-108 implies arrived on `main` in #206 while this record was in review, and is the first under this rule. It is also the measurement this record's own premise wanted: written against the tree as it stood, it hand-rolled a **sixth** parse — `Integer.parseInt` in a try/catch — which is the growth rate this record's third rejected alternative predicted in as many words, and then observed. Merging the two converted it to one more reader of `reading()`, and the count of parses in `src/main` went from six to one.
 
 **`RelevanceFloor` and `RelevanceScoreFloorValue` agree by construction**, which is what ADR-117 needs and currently gets from a comment in each asking the other to match.
 

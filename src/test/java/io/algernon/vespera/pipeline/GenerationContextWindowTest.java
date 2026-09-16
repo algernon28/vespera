@@ -78,6 +78,12 @@ class GenerationContextWindowTest {
     /** The same hole at its most extreme: whole and positive by every test that is not a range check. */
     private static final String NOT_A_FINITE_NUMBER = "Infinity";
 
+    /** No window at all, written as a number — whole, and not positive. */
+    private static final String NO_TOKENS = "0";
+
+    /** A window on the wrong side of zero, which is whole and still not a count of anything. */
+    private static final String FEWER_THAN_NO_TOKENS = "-4096";
+
     @TempDir
     static Path workingDirectory;
 
@@ -208,6 +214,45 @@ class GenerationContextWindowTest {
                         + " tokens here to run anything under",
                 () -> assertThatThrownBy(() -> contextWindow.size())
                         .hasMessageContaining(KEY_IN_THE_PROFILE));
+    }
+
+    @Test
+    @Story("Whoever runs this can say how much their own machine will read")
+    @DisplayName("A window of nothing stops, rather than becoming a call with no room in it")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void refusesAWindowOfNothing() {
+        write(NO_TOKENS);
+
+        claim(
+                "zero stops and is quoted back: it is a number and it is whole, so nothing but the"
+                        + " positive check stands between it and a call with no room to say anything --"
+                        + " and a run that generated nothing under a window the operator did type would"
+                        + " be the quietest failure this key has",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining(KEY_IN_THE_PROFILE)
+                        .hasMessageContaining(NO_TOKENS));
+    }
+
+    @Test
+    @Story("Whoever runs this can say how much their own machine will read")
+    @DisplayName("A negative window stops and says what is wrong with it")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void refusesANegativeWindow() {
+        write(FEWER_THAN_NO_TOKENS);
+
+        claim(
+                "it stops, quoting what was typed rather than a number rebuilt from it",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining(KEY_IN_THE_PROFILE)
+                        .hasMessageContaining(FEWER_THAN_NO_TOKENS));
+        claim(
+                "and it is told what is actually wrong -- that a window has to be positive -- rather than"
+                        + " that it is not a whole number, which it is: a refusal that misdescribes what"
+                        + " somebody wrote sends them looking for the wrong mistake",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining("positive"));
     }
 
     /** Writes the key, leaving every other one as it was. */

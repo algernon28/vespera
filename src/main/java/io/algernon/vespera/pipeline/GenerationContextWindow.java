@@ -19,8 +19,8 @@ import org.springframework.stereotype.Component;
  * name two different models; this number has no such twin, and what it is <em>for</em> — how much of a
  * group one call carries — is a decision {@code synthesis} owns and documents.
  *
- * <p><b>An answer that is not a positive whole number stops rather than being read past.</b> Unset and
- * wrong are different states: somebody who wrote something here meant to change how much gets read,
+ * <p><b>An answer that is not a positive whole number a machine can count to stops rather than being
+ * read past.</b> Unset and wrong are different states: somebody who wrote something here meant to change how much gets read,
  * and quietly falling back would run their archive under a window they did not choose and never
  * mention it — the same reason a mistyped arrangement approval must not behave like an approval.
  *
@@ -68,14 +68,27 @@ class GenerationContextWindow {
      * the archive under a window of two billion tokens that nobody chose and never said so. That is the
      * harm this class exists to prevent, and the finite-and-in-range check is what actually prevents it.
      *
+     * <p>The order is load-bearing and the three refusals are worded apart. Not-a-number comes first,
+     * because {@code NaN} is unequal to its own floor and would otherwise be told it wrote part of a
+     * token. Too-large is its own sentence rather than sharing the first: somebody who wrote {@code
+     * 1e18} <em>did</em> write a whole number, and answering them with "write a whole number" repeats
+     * what they already did — the same thing this project refuses to do to anyone who mistyped a floor.
+     * Every negative is caught by the positive check without a second range guard, since narrowing is
+     * reached only from {@code (0, Integer.MAX_VALUE]}.
+     *
      * @param window the number read from the key
      * @param written what the operator actually typed, which is what any refusal quotes back at them —
      *     a message built from the parsed number tells somebody who wrote {@code 4.0965e3} about
      *     {@code 4096.5}
      */
     private static int aWholeNumberOfTokens(double window, String written) {
-        if (!Double.isFinite(window) || window > Integer.MAX_VALUE) {
+        if (!Double.isFinite(window)) {
             throw notANumberOfTokens(written);
+        }
+        if (window > Integer.MAX_VALUE) {
+            throw new IllegalStateException(KEY + " is \"" + written
+                    + "\", and a window has to be a number of tokens a machine can count to (at most "
+                    + Integer.MAX_VALUE + "); leave the key empty to use the shipped window");
         }
         if (window != Math.floor(window)) {
             throw new IllegalStateException(KEY + " is \"" + written

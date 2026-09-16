@@ -194,10 +194,10 @@ class NextAction {
             boolean questionsWritten,
             Optional<String> arrangementToApprove,
             String generationModel) {
-        List<String> unsetRunValues = runValuesStillWanted(profile);
-        if (!unsetRunValues.isEmpty()) {
+        List<String> stillWanted = runValuesStillWanted(profile);
+        if (!stillWanted.isEmpty()) {
             return whatIsSet(profile, answersRecorded) + " Next: write "
-                    + listed(unsetRunValues) + " into " + PROFILE + ", and run again.";
+                    + listed(stillWanted) + " into " + PROFILE + ", and run again.";
         }
         if (profile.relevanceScoreFloor().reading() instanceof NumericValue.Unreadable unreadable) {
             return "Every run value is set, but relevanceScoreFloor reads " + quoted(unreadable.text())
@@ -251,7 +251,7 @@ class NextAction {
      * what keeps "ignored" from meaning "silently dropped".
      *
      * <p>It needs a branch of its own because it is not a run value: the other two numeric keys are
-     * reported by {@link #unsetRunValues}, which since ADR-120 counts an unreadable one as unanswered
+     * reported by {@link #runValuesStillWanted}, which since ADR-120 counts an unreadable one as unanswered
      * and quotes back what is written there. This key is named by nothing else, so it is named here.
      */
     private static Optional<String> theConfidenceFloorUnreadable(Profile profile) {
