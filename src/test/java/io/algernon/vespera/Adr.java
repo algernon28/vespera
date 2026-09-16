@@ -466,11 +466,18 @@ public final class Adr {
             + "0118-the-answers-a-person-gave-never-join-a-runs-identity-so-the-two-steps-that-read-them-record-no-completion.md";
 
     /**
-     * ADR-119 — {@code Profile}'+chr(39)+'s constructor overloads are deleted, and the convenience they bought
+     * ADR-119 — {@code Profile}'s constructor overloads are deleted, and the convenience they bought
      * moves to a test fixture.
      */
     public static final String PROFILE_HAS_ONE_CONSTRUCTOR = FILE
             + "0119-profiles-constructor-overloads-are-deleted-and-the-convenience-they-bought-moves-to-a-test-fixture.md";
+
+    /**
+     * ADR-120 — a profile value's type is its key's, and an unreadable value is a third state beside
+     * unset.
+     */
+    public static final String A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE = FILE
+            + "0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md";
 
     private Adr() {
     }

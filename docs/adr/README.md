@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-119.
+One file per architecture decision, ADR-001 through ADR-120.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -138,3 +138,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-117](0117-the-relevance-floor-joins-the-scoring-runs-identity-so-a-changed-threshold-is-a-different-run.md) | 2026-09-14 | The relevance floor joins the scoring run's identity, so a changed threshold is a different run |
 | [ADR-118](0118-the-answers-a-person-gave-never-join-a-runs-identity-so-the-two-steps-that-read-them-record-no-completion.md) | 2026-09-15 | The answers a person gave never join a run's identity, so the two steps that read them record no completion *(amends ADR-116)* |
 | [ADR-119](0119-profiles-constructor-overloads-are-deleted-and-the-convenience-they-bought-moves-to-a-test-fixture.md) | 2026-09-15 | `Profile`'s constructor overloads are deleted, and the convenience they bought moves to a test fixture |
+| [ADR-120](0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md) | 2026-09-15 | A profile value's type is its key's, and an unreadable value is a third state beside unset *(amends ADR-061)* |

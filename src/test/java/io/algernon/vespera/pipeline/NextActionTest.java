@@ -213,6 +213,119 @@ class NextActionTest {
     }
 
     @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("A non-numeric repetition floor is reported the same way the relevance one is")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void aMistypedBoilerplateFloorIsReportedToo() {
+        String line = NextAction.line(
+                theBoilerplateFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+
+        claim(
+                "the key is named and a number is asked for, exactly as for the other threshold: until"
+                        + " now a mistyped value here ended the invocation outright, which at least made"
+                        + " it impossible to miss -- now that it is ignored instead, saying so is the only"
+                        + " thing standing between ignored and silently dropped",
+                () -> assertThat(line).contains("boilerplateDocumentFrequencyFloor").contains("number"));
+        claim(
+                "and what was typed is quoted back, so the operator is looking at their own mistake"
+                        + " rather than at a description of one",
+                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+        claim(
+                "and the same line does not also call the key answered: the run ignored it, so a sentence"
+                        + " crediting the operator with having set it would contradict the very clause"
+                        + " beside it telling them to go and write one",
+                () -> assertThat(line).doesNotContain("boilerplateDocumentFrequencyFloor is set")
+                        .doesNotContain("boilerplateDocumentFrequencyFloor are set"));
+    }
+
+    @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("A mistyped floor is still reported when another value is unanswered too")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void aMistypedFloorIsReportedEvenWhenSomethingElseIsUnanswered() {
+        Profile mistypedAndIncomplete = ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .build();
+
+        String line = NextAction.line(
+                mistypedAndIncomplete, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+
+        claim(
+                "the mistyped value is quoted back even though another key is unanswered: this is the"
+                        + " state where the operator is least likely to notice, because the line has other"
+                        + " things to talk about, and it is the state where the value has already been"
+                        + " ignored once",
+                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+        claim(
+                "and the key is not credited as answered anywhere in the sentence -- a line that said it"
+                        + " was set while the run ignored it is the one wording that would leave someone"
+                        + " believing a floor is in force when none is",
+                () -> assertThat(line).doesNotContain("boilerplateDocumentFrequencyFloor is set")
+                        .doesNotContain("and boilerplateDocumentFrequencyFloor are set"));
+        claim(
+                "and it is not called unset either, which is the other wrong answer: the operator wrote"
+                        + " something, and sending them to look at a key they would find already filled in"
+                        + " is how a person concludes the tool is broken rather than their value",
+                () -> assertThat(line).doesNotContain("boilerplateDocumentFrequencyFloor is not"));
+        claim(
+                "and the value still unanswered is named too, so one invocation is enough to learn about"
+                        + " both rather than one per mistake",
+                () -> assertThat(line).contains("embeddingModel"));
+    }
+
+    @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("With nothing else answered, a mistyped floor is still the thing the line reports")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void aMistypedFloorIsReportedWhenNothingElseIsAnsweredEither() {
+        Profile onlyTheMistypedFloor = ProfileFixture.profile()
+                .boilerplateDocumentFrequencyFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .build();
+
+        String line = NextAction.line(
+                onlyTheMistypedFloor, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+
+        claim(
+                "the line still says nothing is answered, which is true: the one key holding anything"
+                        + " holds something the run could not use, so there is no answered value to credit",
+                () -> assertThat(line).contains("No value in the profile is answered yet"));
+        claim(
+                "and it says so without swallowing the mistake -- the clause naming what is written there"
+                        + " is what keeps that sentence from reading as though the file were empty, which"
+                        + " is the one way a person could believe they had never written the key at all",
+                () -> assertThat(line).contains(A_MISTYPED_FLOOR)
+                        .contains("boilerplateDocumentFrequencyFloor"));
+        claim(
+                "it is still one line, because the state of every key has to fit in the sentence a person"
+                        + " actually reads",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
+    @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("A non-numeric conversion-quality floor is reported the same way")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void aMistypedConfidenceFloorIsReportedToo() {
+        String line = NextAction.line(
+                theConfidenceFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+
+        claim(
+                "this key is named too, and it is the one where saying nothing would be worst: a"
+                        + " mistyped value here used to stop the tool from starting at all, so an operator"
+                        + " who fixed nothing would now get a run that quietly judged no document on the"
+                        + " quality of its conversion",
+                () -> assertThat(line).contains("degenerateOutputConfidenceFloor").contains("number"));
+        claim(
+                "and their own text is quoted back to them",
+                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+    }
+
+    @Test
     @Story("The operator is never sent to a file the invocation did not write")
     @DisplayName("With no questions written, the line does not send the operator to the label file")
     void withNoQuestionsWrittenTheOperatorIsNotSentToTheLabelFile() {
@@ -367,4 +480,23 @@ class NextActionTest {
 
     /** A threshold on the run's own scale, answered, and parseable -- the contrast to the mistyped one. */
     private static final String THE_RELEVANCE_FLOOR = "0.62";
+
+    /** Every run value answered, with the repetition floor written in a form no run can read. */
+    private static Profile theBoilerplateFloorMistyped() {
+        return ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
+                .build();
+    }
+
+    /** Every run value answered, with the conversion-quality floor written in a form no run can read. */
+    private static Profile theConfidenceFloorMistyped() {
+        return ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .degenerateOutputConfidenceFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
+                .build();
+    }
 }

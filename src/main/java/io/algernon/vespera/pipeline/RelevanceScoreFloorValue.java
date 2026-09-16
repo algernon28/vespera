@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 
@@ -30,19 +31,20 @@ import io.algernon.vespera.profile.ProfileStore;
  */
 record RelevanceScoreFloorValue(Double value) {
 
-    /** Reads and parses today's profile value, fresh on every call. */
+    /**
+     * Reads today's profile value, fresh on every call.
+     *
+     * <p>Unreadable is unset, because that is what {@link RelevanceFloor} does with it (ADR-117): the
+     * identity has to agree with the step, so two profiles that both mean "no threshold applied"
+     * derive one run however differently they are misspelt. Since ADR-120 the agreement is structural
+     * — both read the same {@link NumericValue.Reading} and both keep only {@link
+     * NumericValue.Answered} — rather than two catches written to match.
+     */
     static RelevanceScoreFloorValue readFrom(ProfileStore profileStore) {
         Profile profile = profileStore.load();
-        if (!profile.relevanceScoreFloor().isSet()) {
-            return new RelevanceScoreFloorValue(null);
-        }
-        try {
-            return new RelevanceScoreFloorValue(Double.valueOf(profile.relevanceScoreFloor().value().trim()));
-        } catch (NumberFormatException notANumber) {
-            // Unreadable is unset, because that is what RelevanceFloor does with it (ADR-117): the
-            // identity has to agree with the step, so two profiles that both mean "no threshold
-            // applied" derive one run however differently they are misspelt.
-            return new RelevanceScoreFloorValue(null);
-        }
+        return new RelevanceScoreFloorValue(
+                profile.relevanceScoreFloor().reading() instanceof NumericValue.Answered answered
+                        ? answered.number()
+                        : null);
     }
 }

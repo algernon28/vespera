@@ -308,7 +308,9 @@ function readmeSection(heading, name) {
     if (!record) {
       fail(NAME, `could not read the Profile record's components from ${PROFILE}`);
     } else {
-      const real = [...record[1].matchAll(/ProfileValue (\w+)/g)].map((k) => k[1]).sort();
+      // Each component is typed by the kind of answer its key takes (ADR-120), so the match is on
+      // either value type rather than on the one name they used to share.
+      const real = [...record[1].matchAll(/(?:NumericValue|TextValue) (\w+)/g)].map((k) => k[1]).sort();
       const wrong = [];
       for (const k of named) if (!real.includes(k)) wrong.push(`${k} is documented and is not a profile key`);
       for (const k of real) if (!named.includes(k)) wrong.push(`${k} is a profile key and is documented nowhere`);

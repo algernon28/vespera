@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceLabel;
 import io.algernon.vespera.embedding.RelevanceLabels;
+import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
@@ -77,19 +78,19 @@ class RelevanceFloor {
      *
      * <p>A value that is not a number reads as unset rather than failing the run: the profile is a
      * file a person edits by hand, ADR-047 says an invocation ends having recorded what it learned,
-     * and a typo in one key is not a reason to lose a whole scoring pass.
+     * and a typo in one key is not a reason to lose a whole scoring pass. Since ADR-120 that judgement
+     * is made once, in {@link NumericValue#reading()}, rather than by a catch here that four other
+     * readers had to be asked to match.
+     *
+     * <p>Unreadable and unset are one answer <em>to this question</em> and not the same state: the
+     * operator is told which one it was, by the closing line rather than by anything here.
      */
     State stateFor(String currentEmbedderIdentity) {
         Profile profile = profileStore.load();
-        if (!profile.relevanceScoreFloor().isSet()) {
+        if (!(profile.relevanceScoreFloor().reading() instanceof NumericValue.Answered answered)) {
             return new Unset();
         }
-        double value;
-        try {
-            value = Double.parseDouble(profile.relevanceScoreFloor().value().trim());
-        } catch (NumberFormatException notANumber) {
-            return new Unset();
-        }
+        double value = answered.number();
         List<String> calibratedUnder = calibratedUnder();
         if (calibratedUnder.isEmpty() || calibratedUnder.equals(List.of(currentEmbedderIdentity))) {
             return new Applicable(value);

@@ -17,10 +17,17 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * to be able to run against a read-only mount, and a file the operator edits has no business inside
  * the archive being curated.
  *
- * <p>The reader is strict — an unknown key or a value of the wrong type fails the load rather than
- * being skipped. That is what catches a typo in a file a person edits by hand, which is the failure
- * mode this file actually has; a lenient reader would carry on with the key silently unset and let
- * the pipeline gate on it as though nobody had answered.
+ * <p><b>The reader is strict about shape and tolerant about content</b> (ADR-120). An unknown key
+ * fails the load, because a key nothing reads is a typo nobody would ever be told about. A value the
+ * key cannot use does not fail the load: it is carried as written and read as unreadable at the point
+ * of use, which is a state of its own beside unset, and the closing line names it and quotes it back.
+ *
+ * <p>That split is the whole of ADR-120, and it is a departure from ADR-061, which asked for the
+ * value to be typed here and to throw on a mismatch. The reason is ADR-047: this is a file a person
+ * edits between every invocation, so one mistyped character must not cost the pass that was about to
+ * tell them what to write. What must never happen is the third thing — carrying on with the key
+ * silently unset, gating on it as though nobody had answered, and saying nothing — and that is what
+ * the unreadable state exists to prevent.
  *
  * <p>Writing is always read-modify-write, which is what makes ADR-062's merge fall out of
  * {@link Profile}'s own constructor rather than needing logic here: load, and every key the code has

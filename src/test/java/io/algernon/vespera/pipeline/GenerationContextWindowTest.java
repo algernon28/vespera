@@ -53,8 +53,36 @@ class GenerationContextWindowTest {
     /** A value written and left empty, which {@code ProfileValue.isSet()} already reads as unset. */
     private static final String BLANK = "";
 
+    /** The key's own name, as any refusal has to name it so the operator knows where to look. */
+    private static final String KEY_IN_THE_PROFILE = "generationContextWindow";
+
     /** What somebody might write meaning to be helpful, which is not a window. */
     private static final String NOT_A_NUMBER = "as much as it can take";
+
+    /** {@link #AN_OPERATOR_CHOICE} written with a decimal point: the same count of tokens (ADR-120). */
+    private static final String THE_SAME_NUMBER_WITH_A_POINT = AN_OPERATOR_CHOICE + ".0";
+
+    /** Half a token, which is no more usable than none. */
+    private static final String HALF_A_TOKEN = "4096.5";
+
+    /**
+     * A number too large for any window, and the one that reads as whole and positive.
+     *
+     * <p>It is here because it nearly shipped. The parse behind this key became a {@code double} under
+     * ADR-120, and {@code (int)} of anything past {@code Integer.MAX_VALUE} saturates rather than
+     * failing — so this value passed both of the obvious checks and silently became a window of two
+     * billion tokens.
+     */
+    private static final String LARGER_THAN_ANY_WINDOW = "1e18";
+
+    /** The same hole at its most extreme: whole and positive by every test that is not a range check. */
+    private static final String NOT_A_FINITE_NUMBER = "Infinity";
+
+    /** No window at all, written as a number — whole, and not positive. */
+    private static final String NO_TOKENS = "0";
+
+    /** A window on the wrong side of zero, which is whole and still not a count of anything. */
+    private static final String FEWER_THAN_NO_TOKENS = "-4096";
 
     @TempDir
     static Path workingDirectory;
@@ -121,6 +149,110 @@ class GenerationContextWindowTest {
                 () -> assertThatThrownBy(() -> contextWindow.size())
                         .hasMessageContaining("generationContextWindow")
                         .hasMessageContaining(NOT_A_NUMBER));
+    }
+
+    @Test
+    @Story("Whoever runs this can say how much their own machine will read")
+    @DisplayName("The same number written with a decimal point is the same number of tokens")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void acceptsAWholeNumberWrittenWithAPoint() {
+        write(THE_SAME_NUMBER_WITH_A_POINT);
+
+        claim(
+                "it is read as " + AN_OPERATOR_CHOICE + " tokens: the rule this key refuses on is a whole"
+                        + " positive number of tokens, and a decimal point is how that number was typed"
+                        + " rather than a different number -- stopping here would refuse a notation nobody"
+                        + " decided against",
+                () -> assertThat(contextWindow.size()).isEqualTo(AN_OPERATOR_CHOICE));
+    }
+
+    @Test
+    @Story("Whoever runs this can say how much their own machine will read")
+    @DisplayName("Part of a token stops, because a window is counted in whole ones")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void refusesPartOfAToken() {
+        write(HALF_A_TOKEN);
+
+        claim(
+                "it stops and quotes back exactly what was typed, rather than rounding to a window the"
+                        + " person did not ask for",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining(KEY_IN_THE_PROFILE)
+                        .hasMessageContaining(HALF_A_TOKEN));
+    }
+
+    @Test
+    @Story("Whoever runs this can say how much their own machine will read")
+    @DisplayName("A number too large for any window stops instead of quietly becoming the largest one")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void refusesANumberTooLargeForAnyWindow() {
+        write(LARGER_THAN_ANY_WINDOW);
+
+        claim(
+                "it stops rather than saturating: this number is whole and positive, so every check but a"
+                        + " range check lets it through, and what it would have become is the largest"
+                        + " window the machine can name -- which is the archive generated under a number"
+                        + " nobody chose, the one outcome this key exists to prevent",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining(KEY_IN_THE_PROFILE)
+                        .hasMessageContaining(LARGER_THAN_ANY_WINDOW));
+    }
+
+    @Test
+    @Story("Whoever runs this can say how much their own machine will read")
+    @DisplayName("A value that is not a finite number stops as well")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void refusesAValueThatIsNotFinite() {
+        write(NOT_A_FINITE_NUMBER);
+
+        claim(
+                "the same hole at its widest is shut too, and for the same reason: there is no count of"
+                        + " tokens here to run anything under",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining(KEY_IN_THE_PROFILE));
+    }
+
+    @Test
+    @Story("Whoever runs this can say how much their own machine will read")
+    @DisplayName("A window of nothing stops, rather than becoming a call with no room in it")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void refusesAWindowOfNothing() {
+        write(NO_TOKENS);
+
+        claim(
+                "zero stops and is quoted back: it is a number and it is whole, so nothing but the"
+                        + " positive check stands between it and a call with no room to say anything --"
+                        + " and a run that generated nothing under a window the operator did type would"
+                        + " be the quietest failure this key has",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining(KEY_IN_THE_PROFILE)
+                        .hasMessageContaining(NO_TOKENS));
+    }
+
+    @Test
+    @Story("Whoever runs this can say how much their own machine will read")
+    @DisplayName("A negative window stops and says what is wrong with it")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void refusesANegativeWindow() {
+        write(FEWER_THAN_NO_TOKENS);
+
+        claim(
+                "it stops, quoting what was typed rather than a number rebuilt from it",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining(KEY_IN_THE_PROFILE)
+                        .hasMessageContaining(FEWER_THAN_NO_TOKENS));
+        claim(
+                "and it is told what is actually wrong -- that a window has to be positive -- rather than"
+                        + " that it is not a whole number, which it is: a refusal that misdescribes what"
+                        + " somebody wrote sends them looking for the wrong mistake",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining("positive"));
     }
 
     /** Writes the key, leaving every other one as it was. */

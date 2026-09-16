@@ -15,12 +15,17 @@ package io.algernon.vespera.profile;
  *   <li><b>A call site names the keys it sets.</b> {@code profile().seedFolder(path, why)} says
  *       which key it is; {@code new Profile(a, null, b, c, null)} did not, and two call sites wanting
  *       different subsets of the same arity were indistinguishable to the compiler.
- *   <li><b>An unnamed key is unset, not absent.</b> Every field starts at {@link
- *       ProfileValue#unset()}, which is the same state {@link Profile}'s canonical constructor gives
- *       a null and the same state a key missing from {@code profile.yaml} loads as (ADR-062). So an
+ *   <li><b>An unnamed key is unset, not absent.</b> Every field starts unset, which is the same
+ *       state {@link Profile}'s canonical constructor gives a null and the same state a key missing
+ *       from {@code profile.yaml} loads as (ADR-062). So an
  *       eighth key costs a field and a pair of methods here, and changes no existing call site —
  *       which is exactly what the deleted constructors were buying, bought in test code instead.
  * </ul>
+ *
+ * <p><b>It still builds a profile an operator could have mistyped</b> (ADR-120). Both value types
+ * take any string, so {@code relevanceScoreFloor("nought point four", why)} is expressible here and
+ * reads as unreadable wherever it is looked at — which is what lets a test cover what an operator can
+ * actually type. A fixture that refused it would leave that behaviour untestable.
  *
  * <p>{@link #profileFrom(Profile)} is for the common shape of "load it, change one key, save it":
  * copying six keys by hand to change the seventh is how a positional call site got long enough to
@@ -28,15 +33,15 @@ package io.algernon.vespera.profile;
  */
 public final class ProfileFixture {
 
-    private ProfileValue seedFolder = ProfileValue.unset();
-    private ProfileValue degenerateOutputConfidenceFloor = ProfileValue.unset();
-    private ProfileValue boilerplateDocumentFrequencyFloor = ProfileValue.unset();
-    private ProfileValue embeddingModel = ProfileValue.unset();
-    private ProfileValue relevanceScoreFloor = ProfileValue.unset();
-    private ProfileValue arrangementApproved = ProfileValue.unset();
-    private ProfileValue generationModel = ProfileValue.unset();
+    private TextValue seedFolder = TextValue.unset();
+    private NumericValue degenerateOutputConfidenceFloor = NumericValue.unset();
+    private NumericValue boilerplateDocumentFrequencyFloor = NumericValue.unset();
+    private TextValue embeddingModel = TextValue.unset();
+    private NumericValue relevanceScoreFloor = NumericValue.unset();
+    private TextValue arrangementApproved = TextValue.unset();
+    private TextValue generationModel = TextValue.unset();
 
-    private ProfileValue generationContextWindow = ProfileValue.unset();
+    private NumericValue generationContextWindow = NumericValue.unset();
 
     private ProfileFixture() {
     }
@@ -68,79 +73,84 @@ public final class ProfileFixture {
      * different method, which matters where the value under test is the parameter of a parameterised
      * test and null is one of its cases.
      */
-    private static ProfileValue answered(String value, String provenance) {
-        return new ProfileValue(value, provenance, null);
+    private static NumericValue aNumber(String value, String provenance) {
+        return new NumericValue(value, provenance, null);
+    }
+
+    /** The same, for a key whose answer is text. */
+    private static TextValue someText(String value, String provenance) {
+        return new TextValue(value, provenance, null);
     }
 
     public ProfileFixture seedFolder(String value, String provenance) {
-        return seedFolder(answered(value, provenance));
+        return seedFolder(someText(value, provenance));
     }
 
-    public ProfileFixture seedFolder(ProfileValue value) {
-        this.seedFolder = value == null ? ProfileValue.unset() : value;
+    public ProfileFixture seedFolder(TextValue value) {
+        this.seedFolder = value == null ? TextValue.unset() : value;
         return this;
     }
 
     public ProfileFixture degenerateOutputConfidenceFloor(String value, String provenance) {
-        return degenerateOutputConfidenceFloor(answered(value, provenance));
+        return degenerateOutputConfidenceFloor(aNumber(value, provenance));
     }
 
-    public ProfileFixture degenerateOutputConfidenceFloor(ProfileValue value) {
-        this.degenerateOutputConfidenceFloor = value == null ? ProfileValue.unset() : value;
+    public ProfileFixture degenerateOutputConfidenceFloor(NumericValue value) {
+        this.degenerateOutputConfidenceFloor = value == null ? NumericValue.unset() : value;
         return this;
     }
 
     public ProfileFixture boilerplateDocumentFrequencyFloor(String value, String provenance) {
-        return boilerplateDocumentFrequencyFloor(answered(value, provenance));
+        return boilerplateDocumentFrequencyFloor(aNumber(value, provenance));
     }
 
-    public ProfileFixture boilerplateDocumentFrequencyFloor(ProfileValue value) {
-        this.boilerplateDocumentFrequencyFloor = value == null ? ProfileValue.unset() : value;
+    public ProfileFixture boilerplateDocumentFrequencyFloor(NumericValue value) {
+        this.boilerplateDocumentFrequencyFloor = value == null ? NumericValue.unset() : value;
         return this;
     }
 
     public ProfileFixture embeddingModel(String value, String provenance) {
-        return embeddingModel(answered(value, provenance));
+        return embeddingModel(someText(value, provenance));
     }
 
-    public ProfileFixture embeddingModel(ProfileValue value) {
-        this.embeddingModel = value == null ? ProfileValue.unset() : value;
+    public ProfileFixture embeddingModel(TextValue value) {
+        this.embeddingModel = value == null ? TextValue.unset() : value;
         return this;
     }
 
     public ProfileFixture relevanceScoreFloor(String value, String provenance) {
-        return relevanceScoreFloor(answered(value, provenance));
+        return relevanceScoreFloor(aNumber(value, provenance));
     }
 
-    public ProfileFixture relevanceScoreFloor(ProfileValue value) {
-        this.relevanceScoreFloor = value == null ? ProfileValue.unset() : value;
+    public ProfileFixture relevanceScoreFloor(NumericValue value) {
+        this.relevanceScoreFloor = value == null ? NumericValue.unset() : value;
         return this;
     }
 
     public ProfileFixture arrangementApproved(String value, String provenance) {
-        return arrangementApproved(answered(value, provenance));
+        return arrangementApproved(someText(value, provenance));
     }
 
-    public ProfileFixture arrangementApproved(ProfileValue value) {
-        this.arrangementApproved = value == null ? ProfileValue.unset() : value;
+    public ProfileFixture arrangementApproved(TextValue value) {
+        this.arrangementApproved = value == null ? TextValue.unset() : value;
         return this;
     }
 
     public ProfileFixture generationModel(String value, String provenance) {
-        return generationModel(answered(value, provenance));
+        return generationModel(someText(value, provenance));
     }
 
-    public ProfileFixture generationContextWindow(String value, String provenance) {
-        return generationContextWindow(answered(value, provenance));
-    }
-
-    public ProfileFixture generationContextWindow(ProfileValue value) {
-        this.generationContextWindow = value == null ? ProfileValue.unset() : value;
+    public ProfileFixture generationModel(TextValue value) {
+        this.generationModel = value == null ? TextValue.unset() : value;
         return this;
     }
 
-    public ProfileFixture generationModel(ProfileValue value) {
-        this.generationModel = value == null ? ProfileValue.unset() : value;
+    public ProfileFixture generationContextWindow(String value, String provenance) {
+        return generationContextWindow(aNumber(value, provenance));
+    }
+
+    public ProfileFixture generationContextWindow(NumericValue value) {
+        this.generationContextWindow = value == null ? NumericValue.unset() : value;
         return this;
     }
 
