@@ -278,6 +278,35 @@ class NextActionTest {
 
     @Test
     @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("With nothing else answered, a mistyped floor is still the thing the line reports")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void aMistypedFloorIsReportedWhenNothingElseIsAnsweredEither() {
+        Profile onlyTheMistypedFloor = ProfileFixture.profile()
+                .boilerplateDocumentFrequencyFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .build();
+
+        String line = NextAction.line(
+                onlyTheMistypedFloor, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+
+        claim(
+                "the line still says nothing is answered, which is true: the one key holding anything"
+                        + " holds something the run could not use, so there is no answered value to credit",
+                () -> assertThat(line).contains("No value in the profile is answered yet"));
+        claim(
+                "and it says so without swallowing the mistake -- the clause naming what is written there"
+                        + " is what keeps that sentence from reading as though the file were empty, which"
+                        + " is the one way a person could believe they had never written the key at all",
+                () -> assertThat(line).contains(A_MISTYPED_FLOOR)
+                        .contains("boilerplateDocumentFrequencyFloor"));
+        claim(
+                "it is still one line, because the state of every key has to fit in the sentence a person"
+                        + " actually reads",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
+    @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
     @DisplayName("A non-numeric conversion-quality floor is reported the same way")
     @Issue("203")
     @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")

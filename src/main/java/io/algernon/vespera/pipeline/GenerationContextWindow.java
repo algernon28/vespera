@@ -1,7 +1,6 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.profile.NumericValue;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import org.springframework.stereotype.Component;
@@ -47,34 +46,54 @@ class GenerationContextWindow {
 
     /** The window this invocation generates under: what the operator wrote, and otherwise the default. */
     int size() {
-        Profile profile = profileStore.load();
-        return switch (profile.generationContextWindow().reading()) {
+        NumericValue written = profileStore.load().generationContextWindow();
+        return switch (written.reading()) {
             case NumericValue.Unset ignored -> ClusterSynthesis.CONTEXT_WINDOW;
-            case NumericValue.Unreadable unreadable -> throw new IllegalStateException(
-                    KEY + " is \"" + unreadable.text() + "\", which is not a number of tokens; write a"
-                            + " whole number of tokens or leave the key empty to use the shipped window");
-            case NumericValue.Answered answered -> aWholeNumberOfTokens(answered.number());
+            case NumericValue.Unreadable unreadable -> throw notANumberOfTokens(unreadable.text());
+            case NumericValue.Answered answered -> aWholeNumberOfTokens(answered.number(), written.value().trim());
         };
     }
 
     /**
      * The window as a count of tokens, or a stop.
      *
-     * <p>Both checks are about what a window <em>is</em> rather than about whether a number could be
+     * <p>These checks are about what a window <em>is</em> rather than about whether a number could be
      * read, which is why they live here and not in {@link NumericValue}: half a token is as unusable as
      * none, and the key's own meaning is the only thing that knows it.
+     *
+     * <p><b>Every check is against the {@code double}, and the narrowing happens only once they have
+     * all passed.</b> A cast is the one operation here that cannot fail loudly: {@code (int)} of
+     * anything past {@code Integer.MAX_VALUE} — including {@code Infinity}, which is whole and positive
+     * and passes both of the obvious tests — saturates silently, so {@code "1e18"} would have generated
+     * the archive under a window of two billion tokens that nobody chose and never said so. That is the
+     * harm this class exists to prevent, and the finite-and-in-range check is what actually prevents it.
+     *
+     * @param window the number read from the key
+     * @param written what the operator actually typed, which is what any refusal quotes back at them —
+     *     a message built from the parsed number tells somebody who wrote {@code 4.0965e3} about
+     *     {@code 4096.5}
      */
-    private static int aWholeNumberOfTokens(double window) {
+    private static int aWholeNumberOfTokens(double window, String written) {
+        if (!Double.isFinite(window) || window > Integer.MAX_VALUE) {
+            throw notANumberOfTokens(written);
+        }
         if (window != Math.floor(window)) {
-            throw new IllegalStateException(KEY + " is \"" + window
+            throw new IllegalStateException(KEY + " is \"" + written
                     + "\", and a window is counted in whole tokens; leave the key empty to use the shipped"
                     + " window");
         }
         if (window <= 0) {
-            throw new IllegalStateException(KEY + " is \"" + (long) window
+            throw new IllegalStateException(KEY + " is \"" + written
                     + "\", and a window has to be a positive number of tokens; leave the key empty to use"
                     + " the shipped window");
         }
         return (int) window;
+    }
+
+    /** The refusal for text no count of tokens can be read from, worded once for both ways in. */
+    private static IllegalStateException notANumberOfTokens(String written) {
+        return new IllegalStateException(
+                KEY + " is \"" + written + "\", which is not a number of tokens; write a whole number of"
+                        + " tokens or leave the key empty to use the shipped window");
     }
 }

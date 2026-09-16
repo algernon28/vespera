@@ -68,7 +68,7 @@ The parse lives in `NumericValue` and nowhere else. It is computed on demand rat
 
 ### Loading does not throw
 
-This is the departure from ADR-061, stated plainly so it is not discovered later as a contradiction. A mistyped numeric value does not end the invocation: it reads as unreadable, the stage that wanted it behaves as though the key were unset, and the operator is told. ADR-061's null-vs-typo hazard is closed regardless — a quoted null can no longer be *acted on* as an answer, which was the failure it named. It is still `isSet()`, deliberately: somebody did write it. That is the whole reason the state is worth naming, and it is why neither of the two answers a boolean can give is the right one to show an operator.
+This is the departure from ADR-061, stated plainly so it is not discovered later as a contradiction. A mistyped numeric value does not end the invocation *for any key this record was written against*: it reads as unreadable, the stage that wanted it behaves as though the key were unset, and the operator is told. One key that arrived afterwards answers otherwise for itself, and says why — see "What this does not decide". ADR-061's null-vs-typo hazard is closed regardless — a quoted null can no longer be *acted on* as an answer, which was the failure it named. It is still `isSet()`, deliberately: somebody did write it. That is the whole reason the state is worth naming, and it is why neither of the two answers a boolean can give is the right one to show an operator.
 
 ### An unreadable value is named in the closing line, for every numeric key
 
@@ -102,7 +102,7 @@ Both are strictly less destructive than what they replace, and both were unrecor
 
 **A new numeric key gets the three readings for free**, and a key of a kind that is neither text nor a number is a new record implementing the sealed interface — visible, and refused by the compiler until it is written.
 
-The context-window key ADR-108 implies arrived on `main` in #206 while this record was in review, and is the first under this rule. It is also the measurement this record's own premise wanted: written against the tree as it stood, it hand-rolled a **sixth** parse — `Integer.parseInt` in a try/catch — which is exactly the growth rate the Context section describes, observed rather than predicted. Merging the two converted it to one more reader of `reading()`, and the count of parses in `src/main` went from six to one.
+The context-window key ADR-108 implies arrived on `main` in #206 while this record was in review, and is the first under this rule. It is also the measurement this record's own premise wanted: written against the tree as it stood, it hand-rolled a **sixth** parse — `Integer.parseInt` in a try/catch — which is exactly the growth rate the Context section describes — predicted there, and then observed. Merging the two converted it to one more reader of `reading()`, and the count of parses in `src/main` went from six to one.
 
 **`RelevanceFloor` and `RelevanceScoreFloorValue` agree by construction**, which is what ADR-117 needs and currently gets from a comment in each asking the other to match.
 

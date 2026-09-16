@@ -27,10 +27,11 @@ class RedundancyGate {
     /**
      * The key as the profile holds it, which is the one read of {@code profile.yaml} this gate makes.
      *
-     * <p>Both the decision and the sentence come from this one value (ADR-120). Loading once matters
-     * rather than merely tidying: a gate that read the file twice could in principle shut on one
-     * reading and explain itself from another, and the explanation is the only thing the operator
-     * gets.
+     * <p>Both the decision and the sentence come from this one value (ADR-120), which is why the caller
+     * holds it and passes it to {@link #floorOf} rather than asking this gate twice. Loading once
+     * matters rather than merely tidying: {@code ProfileStore.load} re-reads the file on every call, so
+     * a gate asked twice could shut on one reading and explain itself from another, and the explanation
+     * is the only thing the operator gets.
      */
     NumericValue value() {
         return profileStore.load().boilerplateDocumentFrequencyFloor();
@@ -50,7 +51,10 @@ class RedundancyGate {
         return floorOf(value());
     }
 
-    /** The number in {@code floor}, where one can be read from it. */
+    /**
+     * The number in {@code floor}, where one can be read from it — static so a caller that already
+     * holds the value can ask what it means without a second read.
+     */
     static Optional<Double> floorOf(NumericValue floor) {
         return floor.reading() instanceof NumericValue.Answered answered
                 ? Optional.of(answered.number())

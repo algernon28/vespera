@@ -92,8 +92,11 @@ public class RedundancyJobConfiguration {
             RedundancyGate redundancyGate,
             ObjectProvider<RedundancyRun> redundancyRunProvider,
             RedundancySignatures redundancySignatures) {
-        if (redundancyGate.floor().isEmpty()) {
-            logGateClosed(LoggerFactory.getLogger(RedundancyJobConfiguration.class), redundancyGate.value());
+        // One read of the profile, decided on and explained from the same value (ADR-120): asking the
+        // gate twice would let it shut on one reading of the file and word its sentence from another.
+        NumericValue floor = redundancyGate.value();
+        if (RedundancyGate.floorOf(floor).isEmpty()) {
+            logGateClosed(LoggerFactory.getLogger(RedundancyJobConfiguration.class), floor);
             return OccurrenceReader.yieldingNothing();
         }
         RedundancyRun redundancyRun = redundancyRunProvider.getObject();

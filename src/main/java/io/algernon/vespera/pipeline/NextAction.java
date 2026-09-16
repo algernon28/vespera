@@ -194,7 +194,7 @@ class NextAction {
             boolean questionsWritten,
             Optional<String> arrangementToApprove,
             String generationModel) {
-        List<String> unsetRunValues = unsetRunValues(profile);
+        List<String> unsetRunValues = runValuesStillWanted(profile);
         if (!unsetRunValues.isEmpty()) {
             return whatIsSet(profile, answersRecorded) + " Next: write "
                     + listed(unsetRunValues) + " into " + PROFILE + ", and run again.";
@@ -372,8 +372,14 @@ class NextAction {
      * <p>The seed folder comes first because it is the only one available on day one: the floor is read
      * off a measurement and the model is a choice from outside, but the exemplars are the operator's
      * own knowledge and nothing the tool prints can ask for them in time (ADR-098).
+     *
+     * <p><b>Named for what it returns rather than for "unset"</b>, because since ADR-120 it is not the
+     * same set as {@link #unsetRunValueKeys}: a key holding something unreadable is wanted here and is
+     * deliberately absent there, since the state half names it in its own clause instead. Two methods
+     * whose names both said "unset" while returning different sets is an invitation to reconcile them
+     * in the wrong direction.
      */
-    private static List<String> unsetRunValues(Profile profile) {
+    private static List<String> runValuesStillWanted(Profile profile) {
         return runValues(profile).stream()
                 .filter(value -> !value.isSet())
                 .map(value -> value.key() + " (" + value.hint() + ")")
