@@ -479,6 +479,12 @@ public final class Adr {
     public static final String A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE = FILE
             + "0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md";
 
+    /**
+     * ADR-121 — a window with no room for documents is refused, and no call is ever made with none.
+     */
+    public static final String A_WINDOW_WITH_NO_ROOM_IS_REFUSED = FILE
+            + "0121-a-window-with-no-room-for-documents-is-refused-and-no-call-is-ever-made-with-none.md";
+
     private Adr() {
     }
 }

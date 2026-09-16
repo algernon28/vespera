@@ -122,9 +122,20 @@ public class ClusterSynthesis {
      *
      * <p>The model is named per call rather than read here: which model generates is configuration,
      * and this module may not read it (ADR-110, ADR-114).
+     *
+     * <p><b>Refuses before the call is made where the fill comes back empty</b> (ADR-121): a group
+     * none of whose documents fit {@code contextWindow} would otherwise be asked for writing over no
+     * documents at all, which is the one row ADR-113's invariant cannot survive. This is the floor
+     * under a caller that forgot to ask {@link #nothingFitsIn} first -- the ordinary run always does --
+     * so reaching it is a defect in that caller rather than a state an archive can be in.
      */
     public SynthesisDoc docFor(ClusterCall call, String modelName, int contextWindow) {
         List<Exemplar> sent = whatFitsIn(contextWindow, call.exemplars());
+        if (sent.isEmpty()) {
+            throw new IllegalStateException("the group \"" + call.label() + "\" has no document that fits"
+                    + " a call in a window of " + contextWindow + " tokens, so there is nothing to write"
+                    + " over -- check nothingFitsIn before calling docFor rather than reaching this");
+        }
         String answer = chatModel
                 .call(new Prompt(promptFor(call, sent), optionsFor(modelName, contextWindow)))
                 .getResult()
@@ -175,9 +186,29 @@ public class ClusterSynthesis {
      * How many words of documents a call in {@code contextWindow} has room for: the window, less what
      * the answer is allowed and what everything around the documents is allowed, converted at the
      * pessimistic ratio above.
+     *
+     * <p><b>Public because the refusal that reads it lives outside this module</b> (ADR-121):
+     * {@code GenerationContextWindow.size()} refuses any window this is not greater than zero for,
+     * since a window with no room for a single document would send every call in the corpus carrying
+     * none. The formula has to be read where that refusal is, and {@code pipeline} reading it and
+     * handing {@code synthesis} the result back as a plain value is ADR-110's rule working rather than
+     * an exception to it — so leave this public rather than narrowing it back.
      */
-    static int roomForDocumentsIn(int contextWindow) {
+    public static int roomForDocumentsIn(int contextWindow) {
         return (int) ((contextWindow - REPLY_ALLOWANCE - INSTRUCTION_RESERVE) / TOKENS_PER_WORD);
+    }
+
+    /**
+     * Whether nothing among {@code exemplars} fits {@code contextWindow} at all (ADR-121): every one
+     * of them is larger than the room, so the fill a call would carry is empty before it is even made.
+     *
+     * <p>Read by the tasklet before {@link #docFor} is reached, so a group whose own documents are all
+     * unusually large never costs a call. This is the other route to an empty fill ADR-121 names —
+     * the window itself can be entirely reasonable, and still leave nothing for one outsized group
+     * while its neighbours are written normally.
+     */
+    public static boolean nothingFitsIn(int contextWindow, List<Exemplar> exemplars) {
+        return whatFitsIn(contextWindow, exemplars).isEmpty();
     }
 
     /**

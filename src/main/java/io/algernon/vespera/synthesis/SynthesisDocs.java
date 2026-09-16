@@ -49,16 +49,6 @@ public class SynthesisDocs {
                 doc.documentsSent());
     }
 
-    /**
-     * Deletes every synthesis doc recorded under {@code runId} — the discard half of ADR-115/ADR-116,
-     * for a step whose completion under this run is not recorded: the table is keyed {@code (run_id,
-     * winning_seed_occurrence_id, cluster_ordinal)}, so a second pass over a stopped invocation's rows
-     * would otherwise collide on the first group it re-wrote.
-     */
-    public void discardForRun(RunId runId) {
-        jdbcTemplate.update("DELETE FROM synthesis_doc WHERE run_id = ?", runId.value());
-    }
-
     /** Every synthesis doc recorded under {@code runId}, in the order the groups were written. */
     public List<RecordedSynthesisDoc> forRun(RunId runId) {
         return jdbcTemplate.query(

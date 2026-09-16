@@ -32,6 +32,11 @@ import org.springframework.stereotype.Component;
  * floor nobody set removes nothing, but a window nobody chose still gets used, and the archive is
  * written under it. So the reading comes from {@link NumericValue} like every other key's, and what
  * differs is only what this class does with the unreadable one.
+ *
+ * <p><b>A positive window with no room for a single document stops too</b> (ADR-121). {@code
+ * ClusterSynthesis.roomForDocumentsIn} is the formula that decides what a call may carry, so it is
+ * read here rather than restated: a number that merely looked like the reserves summed would drift
+ * the moment either reserve or the words-to-tokens ratio did, while reading the formula cannot.
  */
 @Component
 class GenerationContextWindow {
@@ -63,7 +68,10 @@ class GenerationContextWindow {
      * none, and the key's own meaning is the only thing that knows it.
      *
      * <p><b>Every check is against the {@code double}, and the narrowing happens only once they have
-     * all passed.</b> A cast is the one operation here that cannot fail loudly: {@code (int)} of
+     * all passed.</b> The room check below is the one exception, and has to be: it asks {@code
+     * synthesis} what a window of this many tokens leaves for documents, and that formula counts
+     * tokens rather than doubles. It is reached only once the narrowing is known to be safe. A cast is
+     * the one operation here that cannot fail loudly: {@code (int)} of
      * anything past {@code Integer.MAX_VALUE} — including {@code Infinity}, which is whole and positive
      * and passes both of the obvious tests — saturates silently, so {@code "1e18"} would have generated
      * the archive under a window of two billion tokens that nobody chose and never said so. That is the
@@ -103,7 +111,13 @@ class GenerationContextWindow {
                     + "\", and a window has to be a positive number of tokens; leave the key empty to use"
                     + " the shipped window");
         }
-        return (int) window;
+        int tokens = (int) window;
+        if (ClusterSynthesis.roomForDocumentsIn(tokens) <= 0) {
+            throw new IllegalStateException(KEY + " is \"" + written
+                    + "\", and it leaves room for no document at all once the reply and the instructions"
+                    + " around it are allowed for; leave the key empty to use the shipped window");
+        }
+        return tokens;
     }
 
     /** The refusal for text no count of tokens can be read from, worded once for both ways in. */

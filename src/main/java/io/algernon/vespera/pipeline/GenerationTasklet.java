@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -136,10 +137,6 @@ class GenerationTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        // Not finished: an invocation that stopped partway may have left rows behind under this same run id.
-        // Discarding this step's own rows before working is ADR-115's other half (ADR-116).
-        synthesisDocs.discardForRun(generation);
-
         RunId scoring = scoringRunBehind(arrangement);
         List<DocumentCluster> membership = documentClusters.forRun(scoring);
         Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
@@ -149,11 +146,25 @@ class GenerationTasklet implements Tasklet {
         String modelName = generationModel.name();
         int contextWindow = generationContextWindow.size();
 
+        // Rows an earlier invocation of this same run already wrote (ADR-115, ADR-116): stage 6b is
+        // the exception that never discards its own rows, because a synthesis doc is the one artifact
+        // this system spends its most expensive call on -- so those clusters are skipped rather than
+        // written a second time.
+        Set<ClusterKey> alreadyWritten = synthesisDocs.forRun(generation).stream()
+                .map(recordedDoc -> new ClusterKey(recordedDoc.winningSeed(), recordedDoc.clusterOrdinal()))
+                .collect(Collectors.toSet());
+
         int written = 0;
+        int skipped = 0;
         int unsendable = 0;
         for (RecordedCluster recorded : clusters.forRun(arrangement)) {
+            ClusterKey key = ClusterKey.of(recorded);
+            if (alreadyWritten.contains(key)) {
+                skipped++;
+                continue;
+            }
             List<Exemplar> exemplars = exemplarsOf(
-                    byCluster.getOrDefault(ClusterKey.of(recorded), List.of()), scores, canonicalRoot);
+                    byCluster.getOrDefault(key, List.of()), scores, canonicalRoot);
             if (exemplars.isEmpty()) {
                 LOG.warn(
                         "cluster {} of partition {} has no document this run can send -- nothing it holds"
@@ -161,6 +172,18 @@ class GenerationTasklet implements Tasklet {
                                 + " written for it",
                         recorded.cluster().ordinal(),
                         recorded.cluster().partitionOrder());
+                unsendable++;
+                continue;
+            }
+            if (ClusterSynthesis.nothingFitsIn(contextWindow, exemplars)) {
+                LOG.warn(
+                        "cluster {} of partition {} has {} document(s) this run could open but a reading"
+                                + " window of {} leaves room for none of them -- so no call was made and no"
+                                + " synthesis doc was written for it",
+                        recorded.cluster().ordinal(),
+                        recorded.cluster().partitionOrder(),
+                        exemplars.size(),
+                        contextWindow);
                 unsendable++;
                 continue;
             }
@@ -176,7 +199,8 @@ class GenerationTasklet implements Tasklet {
             written++;
         }
 
-        // Completion is recorded only when every cluster was written (ADR-115, ADR-116). A cluster this
+        // Completion is recorded only when every cluster carries a synthesis doc -- written just now or
+        // already recorded by an earlier invocation of this run (ADR-115, ADR-116). A cluster this
         // run could send nothing for is not yet a recorded fault -- that row does not exist -- so
         // recording the step as finished would short-circuit every later invocation and leave the hole
         // permanent, with nothing anywhere saying a synthesis doc was expected and never written.
@@ -192,12 +216,14 @@ class GenerationTasklet implements Tasklet {
         ledger.finishStep(generation, GenerationRun.STAGE);
         LOG.info(
                 "The generation step finished under {}, over the arrangement approved as {}: {} synthesis"
-                        + " doc(s) written under model {} in a window of {}",
+                        + " doc(s) written under model {} in a window of {}, {} already recorded by an"
+                        + " earlier invocation of this run and left as they were",
                 generation.value(),
                 ArrangementGate.shortNameOf(arrangement),
                 written,
                 modelName,
-                contextWindow);
+                contextWindow,
+                skipped);
         return RepeatStatus.FINISHED;
     }
 

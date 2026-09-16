@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-120.
+One file per architecture decision, ADR-001 through ADR-121.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -139,3 +139,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-118](0118-the-answers-a-person-gave-never-join-a-runs-identity-so-the-two-steps-that-read-them-record-no-completion.md) | 2026-09-15 | The answers a person gave never join a run's identity, so the two steps that read them record no completion *(amends ADR-116)* |
 | [ADR-119](0119-profiles-constructor-overloads-are-deleted-and-the-convenience-they-bought-moves-to-a-test-fixture.md) | 2026-09-15 | `Profile`'s constructor overloads are deleted, and the convenience they bought moves to a test fixture |
 | [ADR-120](0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md) | 2026-09-15 | A profile value's type is its key's, and an unreadable value is a third state beside unset *(amends ADR-061)* |
+| [ADR-121](0121-a-window-with-no-room-for-documents-is-refused-and-no-call-is-ever-made-with-none.md) | 2026-09-16 | A window with no room for documents is refused, and no call is ever made with none *(amends ADR-108)* |
