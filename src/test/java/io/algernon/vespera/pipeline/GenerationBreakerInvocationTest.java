@@ -715,7 +715,7 @@ class GenerationBreakerInvocationTest {
                 .build());
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
-        oneGroupPerDocument(theApprovedArrangement(root), groups, theGroupHoldingNothing);
+        oneGroupPerDocument(theApprovedArrangement(root), groups, theGroupHoldingNothing, root);
     }
 
     /** Writes the approval, leaving every other key as the fixture left it. */
@@ -734,37 +734,66 @@ class GenerationBreakerInvocationTest {
      * nothing that can be put in the corpus will arrange itself into nine groups. Identity stays the
      * cluster ordinal and order stays the cluster order, which is what the step reads them in.
      *
-     * <p><b>It leaves the winning seed as the arrangement wrote it</b>, so every group sits in the one
-     * partition the corpus produced and the order is the cluster order alone.
+     * <p><b>It states the whole arrangement rather than adjusting what it finds</b>, and that is not
+     * tidiness. One working directory serves this whole class, and a run's name is derived from what it
+     * reads (ADR-048), so a method whose corpus holds the same documents as an earlier one works under
+     * the <em>same</em> run — and that run's membership then carries both walks' rows, keyed as they
+     * are by occurrence and run. Every document under the run is therefore first moved to an ordinal
+     * no group is arranged at, and only then are this walk's documents placed one per group. Left where
+     * they were, one of the other walk's documents lands in the group this method meant to leave empty,
+     * which is a group that quietly becomes sendable — and whether it does depends on the order a
+     * filesystem hands its entries back, so it passed on NTFS and failed on Linux.
+     *
+     * <p><b>Every placed document is given the cluster rows' winning seed</b>, so membership and
+     * arrangement agree on the key the step reads them by, and the order is the cluster order alone.
      *
      * <p>The group at {@code theGroupHoldingNothing} is given no document and a count of none, which is
      * how a group nothing can be sent for is arranged here: no document of the corpus is moved into it,
      * so the step meets it, finds nothing to send, and makes no call.
      */
-    private void oneGroupPerDocument(RunId arrangement, int groups, int theGroupHoldingNothing) {
+    private void oneGroupPerDocument(RunId arrangement, int groups, int theGroupHoldingNothing, Path root) {
         String scoring = jdbcTemplate.queryForObject(
                 "SELECT upstream_run_id FROM run_upstream WHERE run_id = ?", String.class, arrangement.value());
-        Long winningSeed = jdbcTemplate.queryForObject(
-                "SELECT winning_seed_occurrence_id FROM document_cluster WHERE run_id = ? LIMIT 1",
-                Long.class,
-                scoring);
+        // Scoped to this method's own walk, for the reason the javadoc above gives: the run may carry
+        // another walk's membership as well, and those documents are not this method's to arrange.
         List<Long> documents = jdbcTemplate.queryForList(
-                "SELECT occurrence_id FROM document_cluster WHERE run_id = ? ORDER BY occurrence_id",
+                "SELECT dc.occurrence_id FROM document_cluster dc"
+                        + " JOIN file_occurrence fo ON fo.id = dc.occurrence_id"
+                        + " JOIN walk w ON w.id = fo.walk_id"
+                        + " WHERE dc.run_id = ? AND w.root = ? ORDER BY dc.occurrence_id",
                 Long.class,
-                scoring);
+                scoring,
+                Walk.canonicalRoot(root).toString());
         int documentsNeeded = theGroupHoldingNothing == EVERY_GROUP_HOLDS_A_DOCUMENT ? groups : groups - 1;
         if (documents.size() < documentsNeeded) {
             throw new IllegalStateException("this fixture needs " + documentsNeeded + " documents in the"
-                    + " arrangement to make " + groups + " groups, and the corpus produced " + documents.size());
+                    + " arrangement to make " + groups + " groups, and this walk produced " + documents.size());
         }
+        Long winningSeed = jdbcTemplate.queryForObject(
+                "SELECT winning_seed_occurrence_id FROM document_cluster WHERE run_id = ? AND occurrence_id = ?",
+                Long.class,
+                scoring,
+                documents.getFirst());
+        // Out of the arrangement entirely: no group is arranged at this ordinal, so anything left here
+        // is unreachable rather than quietly part of a group.
+        //
+        // This changes no outcome today and no test notices its removal -- another walk's documents are
+        // already invisible to the step, because the two lines above key this arrangement to a winning
+        // seed only this walk's documents carry. It is kept because that invisibility is a property of
+        // the seed folders happening to differ per test, where this is the fixture saying outright that
+        // it arranges these documents and no others -- which is the thing that was not true before.
+        jdbcTemplate.update(
+                "UPDATE document_cluster SET cluster_ordinal = ? WHERE run_id = ?", groups, scoring);
         int document = 0;
         for (int group = 0; group < groups; group++) {
             if (group == theGroupHoldingNothing) {
                 continue;
             }
             jdbcTemplate.update(
-                    "UPDATE document_cluster SET cluster_ordinal = ? WHERE run_id = ? AND occurrence_id = ?",
+                    "UPDATE document_cluster SET cluster_ordinal = ?, winning_seed_occurrence_id = ?"
+                            + " WHERE run_id = ? AND occurrence_id = ?",
                     group,
+                    winningSeed,
                     scoring,
                     documents.get(document++));
         }
