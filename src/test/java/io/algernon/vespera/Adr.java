@@ -68,6 +68,10 @@ public final class Adr {
     public static final String OCCURRENCE_IDENTIFIED_BY_RELATIVE_PATH =
             FILE + "0051-a-file-occurrence-is-identified-by-its-path-relative-to-the-corpus-root.md";
 
+    /** ADR-052 — the test report is written for a reader outside the project. */
+    public static final String THE_REPORT_IS_WRITTEN_FOR_AN_OUTSIDE_READER =
+            FILE + "0052-the-test-report-is-written-for-a-reader-outside-the-project.md";
+
     /** ADR-053 — the walk anomaly vocabulary is three kinds. */
     public static final String WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS =
             FILE + "0053-the-walk-anomaly-vocabulary-is-three-kinds.md";
