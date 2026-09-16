@@ -90,9 +90,9 @@ import org.springframework.transaction.annotation.Transactional;
  * #turnsDownWritingThatPointsBelowTheFirstDocument} each claim their own reading and the absence of
  * the other's.
  *
- * <p><b>The consecutive-run breaker is #184's and is deliberately not reached.</b> No test here
- * leaves five groups rejected in a row, so nothing in this class depends on what happens when it
- * fires.
+ * <p><b>The consecutive-run breaker is deliberately not reached here.</b> No test in this class
+ * leaves five groups turned down in a row, so nothing here depends on what happens when it fires;
+ * {@link GenerationBreakerInvocationTest} is where that is claimed.
  *
  * <p><b>ADR-121's deferred question is settled here in the negative</b>, and the last test is the
  * pin: a group whose every document is larger than the reading room gets no reason recorded, because

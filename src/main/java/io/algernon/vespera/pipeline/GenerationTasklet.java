@@ -13,6 +13,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.synthesis.ClusterCall;
+import io.algernon.vespera.synthesis.ClusterFault;
 import io.algernon.vespera.synthesis.ClusterFaultException;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
@@ -31,9 +32,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
+import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.ObjectProvider;
@@ -64,14 +68,28 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>Completion needs two things, not one</b> (ADR-116): every sendable cluster carries a
  * {@code synthesis_doc} row, <em>and</em> no {@code cluster_fault} row stands under this run. A
- * turned-down cluster keeps the step permanently unfinished until repaired — #184's breaker and
- * #185's repair pass, neither built here — exactly as ADR-121 already left an unsendable one.
+ * turned-down cluster keeps the step permanently unfinished until #185's repair pass, not built
+ * here, exactly as ADR-121 already left an unsendable one.
+ *
+ * <p><b>Five turned down in a row stop the step</b> (ADR-111, #184), and any answer that is believed
+ * drops the count to nothing. One rejected answer costs its own cluster, which is the paragraph
+ * above; five consecutive ones are not five unlucky clusters but the model, the word budget or the
+ * imposed schema being wrong for this corpus, and every call after the fifth buys another copy of
+ * the same wrong answer. It is what makes an empty deliverable unreachable rather than merely
+ * detectable afterwards.
  */
 @Component
 @StepScope
 class GenerationTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(GenerationTasklet.class);
+
+    /**
+     * How many answers turned down one after another stop the step (ADR-111). Five, matching ADR-071's
+     * service-scope count rather than its lower timeout count, because like that one this fires on a
+     * mix of kinds.
+     */
+    static final int CONSECUTIVE_TURNED_DOWN_ANSWERS = 5;
 
     private final ArrangementGate arrangementGate;
     private final ObjectProvider<GenerationRun> generationRun;
@@ -172,6 +190,12 @@ class GenerationTasklet implements Tasklet {
         int skipped = 0;
         int unsendable = 0;
         int faulted = 0;
+        // The consecutive-fault streak (ADR-111), held here rather than in a class of its own the way
+        // ExtractionCircuitBreaker's is: that one counts across chunk boundaries and so has to outlive
+        // the call that increments it, where this whole step is one pass of one loop. The faults
+        // themselves are kept rather than a count, because what the operator has to act on is which
+        // checks the run of answers failed.
+        List<ClusterFault> turnedDownInARow = new ArrayList<>();
         for (RecordedCluster recorded : clusters.forRun(arrangement)) {
             ClusterKey key = ClusterKey.of(recorded);
             if (alreadyWritten.contains(key)) {
@@ -225,11 +249,21 @@ class GenerationTasklet implements Tasklet {
                 clusterFaults.record(
                         generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), e.fault());
                 faulted++;
+                turnedDownInARow.add(e.fault());
+                if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
+                    stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
+                    return RepeatStatus.FINISHED;
+                }
                 continue;
             }
             synthesisDocs.record(
                     generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), doc);
             written++;
+            // An answer that was believed is the only thing that drops the streak. A cluster skipped
+            // because an earlier invocation already wrote it, and one nothing could be sent for, both
+            // reach neither this line nor the one above: no call was made, so neither is evidence that
+            // the model, the budget and the schema are right -- and neither is evidence they are wrong.
+            turnedDownInARow.clear();
         }
 
         // Completion needs two things, not one (ADR-116): every sendable cluster carries a synthesis
@@ -266,6 +300,55 @@ class GenerationTasklet implements Tasklet {
                 contextWindow,
                 skipped);
         return RepeatStatus.FINISHED;
+    }
+
+    /**
+     * Stops the step on a streak of turned-down answers (ADR-111), and says what it stopped for.
+     *
+     * <p><b>It records the failure rather than throwing one.</b> Everything this step writes is inside
+     * the step's own transaction, so an exception leaving {@code execute} would roll back the very
+     * rows that say why it stopped — the five reasons recorded on the way here, and any writing an
+     * earlier cluster of this invocation had already earned. Writing them through a second transaction
+     * instead is not open either: SQLite locks the database file for a write, so a second connection
+     * opening its own transaction while this one holds that lock fails on the lock after SQLite's own
+     * busy timeout of three seconds — the driver's default, which nothing here sets — and the journal
+     * mode is {@code delete} rather than WAL, so there is no writer concurrency to fall back on.
+     * Hikari's connection timeout plays no part: that times the wait for a connection from the pool,
+     * and the pool has one to hand over. Failing the step on its own execution leaves the transaction to
+     * commit normally, and Spring Batch's status is only ever upgraded afterwards, never lowered, so
+     * the failure stands and the job ends unsuccessfully.
+     *
+     * <p><b>The line is a log line and not a row</b> (ADR-093): that the step stopped is a fact about
+     * this pipeline's own execution, where the reason each answer was turned down is a fact about the
+     * archive and is already a row.
+     *
+     * <p>It names the count and every reason in the streak, and nothing about why five is the number —
+     * the operator's next move is to widen the reading window, raise the answer allowance, or name a
+     * different generation model, and which of those the reasons are what say.
+     */
+    private void stopTheStep(
+            StepContribution contribution,
+            ChunkContext chunkContext,
+            List<ClusterFault> turnedDownInARow,
+            RunId generation) {
+        String why = turnedDownInARow.size() + " answers in a row were turned down -- "
+                + turnedDownInARow.stream()
+                        .map(fault -> fault.kind() + ": " + fault.detail())
+                        .collect(Collectors.joining("; "));
+        LOG.error(
+                "the generation step stopped under run {}: {}. No cluster after them was asked about, and"
+                        + " the reason kept for each is recorded against its cluster under that run",
+                generation.value(),
+                why);
+        StepExecution stepExecution = chunkContext.getStepContext().getStepExecution();
+        // This line alone is what carries the non-zero exit, and it is the one the tests pin.
+        stepExecution.setStatus(BatchStatus.FAILED);
+        // The line below changes no outcome and no test would notice its removal: the status above
+        // already fails the step, and this job repository is resourceless (ADR-036), so the exit
+        // description reaches no table to be read out of. It is kept because a step that failed and
+        // says nothing about why in its own record is worse than one line of belt and braces --
+        // deliberately, rather than left looking like something that was meant to be load-bearing.
+        contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(why));
     }
 
     /**
