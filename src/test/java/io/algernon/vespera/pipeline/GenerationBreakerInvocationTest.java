@@ -351,8 +351,22 @@ class GenerationBreakerInvocationTest {
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
 
+    /**
+     * Drops what was scripted and what was counted <em>before</em> each test as well as after it.
+     *
+     * <p>The count of calls made lives on {@link GenerationScriptedBeans}, which is static because the
+     * context builds the bean and no test can reach the instance. Eighteen classes in this package
+     * name that fixture in their own contexts and every one of them shares that count, while only the
+     * three generation classes drop it. So a class that runs immediately before this one can leave a
+     * count standing, and the first test here then reads its own calls plus that residue.
+     *
+     * <p>Which class runs first is not fixed, so the residue is a lottery held per machine: this class
+     * passed on NTFS and in a Linux container, and failed on the build's Linux runner, where two calls
+     * left behind turned five into seven.
+     */
     @BeforeEach
     void captureOperatorLines() {
+        GenerationScriptedBeans.forgetScriptedAnswers();
         logged = new ListAppender<>();
         logged.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
@@ -798,17 +812,6 @@ class GenerationBreakerInvocationTest {
                     documents.get(document++));
         }
         jdbcTemplate.update("DELETE FROM cluster WHERE run_id = ?", arrangement.value());
-        System.out.println("DIAG arrangement=" + arrangement.value() + " scoring=" + scoring
-                + " groups=" + groups + " holdingNothing=" + theGroupHoldingNothing
-                + " thisWalkDocs=" + documents.size()
-                + " allRunDocs=" + jdbcTemplate.queryForObject(
-                        "SELECT COUNT(*) FROM document_cluster WHERE run_id = ?", Integer.class, scoring)
-                + " winningSeed=" + winningSeed
-                + " membership=" + jdbcTemplate.queryForList(
-                        "SELECT cluster_ordinal, winning_seed_occurrence_id, COUNT(*) AS n FROM"
-                                + " document_cluster WHERE run_id = ? GROUP BY cluster_ordinal,"
-                                + " winning_seed_occurrence_id ORDER BY cluster_ordinal",
-                        scoring));
         for (int group = 0; group < groups; group++) {
             jdbcTemplate.update(
                     "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"

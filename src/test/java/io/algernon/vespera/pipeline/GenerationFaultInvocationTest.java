@@ -51,6 +51,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -852,6 +853,20 @@ class GenerationFaultInvocationTest {
                 "and the work is not recorded as done, which is what brings the next invocation back to"
                         + " this group after the archive's owner has widened the window",
                 () -> assertThat(theWorkIsRecordedAsFinished(root)).isFalse());
+    }
+
+    /**
+     * Drops what was scripted and what was counted before each test as well as after it, so that what
+     * ran before this class cannot be read as this class's own calls.
+     *
+     * <p>Every test here that counts calls carries the same exposure {@link
+     * GenerationBreakerInvocationTest} was caught by: the count is static on the fixture, eighteen
+     * classes in this package share it, and only the three generation classes drop it. Clearing after
+     * a test leaves this class trusting whichever class ran before it to have done the same.
+     */
+    @BeforeEach
+    void forgetWhatAnEarlierClassScripted() {
+        GenerationScriptedBeans.forgetScriptedAnswers();
     }
 
     @AfterEach
