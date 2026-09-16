@@ -798,6 +798,17 @@ class GenerationBreakerInvocationTest {
                     documents.get(document++));
         }
         jdbcTemplate.update("DELETE FROM cluster WHERE run_id = ?", arrangement.value());
+        System.out.println("DIAG arrangement=" + arrangement.value() + " scoring=" + scoring
+                + " groups=" + groups + " holdingNothing=" + theGroupHoldingNothing
+                + " thisWalkDocs=" + documents.size()
+                + " allRunDocs=" + jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM document_cluster WHERE run_id = ?", Integer.class, scoring)
+                + " winningSeed=" + winningSeed
+                + " membership=" + jdbcTemplate.queryForList(
+                        "SELECT cluster_ordinal, winning_seed_occurrence_id, COUNT(*) AS n FROM"
+                                + " document_cluster WHERE run_id = ? GROUP BY cluster_ordinal,"
+                                + " winning_seed_occurrence_id ORDER BY cluster_ordinal",
+                        scoring));
         for (int group = 0; group < groups; group++) {
             jdbcTemplate.update(
                     "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
