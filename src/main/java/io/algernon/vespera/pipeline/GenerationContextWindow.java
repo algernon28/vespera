@@ -20,9 +20,10 @@ import org.springframework.stereotype.Component;
  * group one call carries — is a decision {@code synthesis} owns and documents.
  *
  * <p><b>An answer that is not a positive whole number a machine can count to stops rather than being
- * read past.</b> Unset and wrong are different states: somebody who wrote something here meant to change how much gets read,
- * and quietly falling back would run their archive under a window they did not choose and never
- * mention it — the same reason a mistyped arrangement approval must not behave like an approval.
+ * read past.</b> Unset and wrong are different states: somebody who wrote something here meant to
+ * change how much gets read, and quietly falling back would run their archive under a window they did
+ * not choose and never mention it — the same reason a mistyped arrangement approval must not behave
+ * like an approval.
  *
  * <p><b>This is the one numeric key that stops, and ADR-120 left room for exactly one.</b> That record
  * makes every other numeric key tolerate an unreadable value, because each is a threshold whose unset
@@ -73,8 +74,10 @@ class GenerationContextWindow {
      * token. Too-large is its own sentence rather than sharing the first: somebody who wrote {@code
      * 1e18} <em>did</em> write a whole number, and answering them with "write a whole number" repeats
      * what they already did — the same thing this project refuses to do to anyone who mistyped a floor.
-     * Every negative is caught by the positive check without a second range guard, since narrowing is
-     * reached only from {@code (0, Integer.MAX_VALUE]}.
+     * No negative reaches the narrowing, and not all of them by the same route: a whole one is caught by
+     * the positive check, a fractional one by the whole-number check, an infinite one by the first.
+     * That is why there is no second range guard — narrowing is reached only from {@code (0,
+     * Integer.MAX_VALUE]}.
      *
      * @param window the number read from the key
      * @param written what the operator actually typed, which is what any refusal quotes back at them —
