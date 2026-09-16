@@ -2,6 +2,7 @@ package io.algernon.vespera.synthesis;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -141,12 +142,40 @@ class ClusterSynthesisTest {
      */
     private static final int TOO_BIG_FOR_ANY_CALL = ROOM_FOR + 1;
 
+    /**
+     * A document taking up most of the room on its own: {@link #ROOM_FOR} less this leaves 84 words
+     * free, which is room for a short document and not for a middling one.
+     */
+    private static final int FILLS_MOST_OF_THE_ROOM = 300;
+
+    /**
+     * A document that fits an empty call and does not fit what is left after the one above. It is not
+     * outsized -- a call carrying it alone would carry it -- so what happens to it is a statement about
+     * the fill rather than about the document.
+     */
+    private static final int MORE_THAN_THE_ROOM_LEFT = 200;
+
+    /**
+     * A document short enough to have fitted in the 84 words left over, and it sits furthest from the
+     * seed. It is the one document that tells a fill which stops from a fill which keeps looking.
+     */
+    private static final int SHORT_ENOUGH_FOR_WHAT_IS_LEFT = 50;
+
+    /** How many of those three go: the closest one, and the fill stops where the next will not fit. */
+    private static final int ONE_DOCUMENT = 1;
+
     /** What each long document opens with, which is how a claim tells them apart. */
     private static final String CLOSEST_HEADING = "AUDIT-2019";
 
     private static final String MIDDLE_HEADING = "AUDIT-2020";
 
     private static final String FURTHEST_HEADING = "AUDIT-2021";
+
+    /**
+     * How many times a group no document of which fits is worth asking about: not once, because there
+     * would be nothing in the question.
+     */
+    private static final int NOTHING_WAS_ASKED = 0;
 
     @Test
     @Story("A group of documents becomes a piece of writing that connects them")
@@ -317,6 +346,79 @@ class ClusterSynthesisTest {
                 "and it says it was written from those " + DOCUMENTS_SENT + ", which is what the finished"
                         + " page discloses against a group of " + THREE_DOCUMENTS,
                 () -> assertThat(doc.documentsSent()).isEqualTo(DOCUMENTS_SENT));
+    }
+
+    @Test
+    @Issue("182")
+    @Story("A group too big to read in one go sends what fits, rather than being skipped")
+    @DisplayName("The fill stops at the first document that will not fit, rather than skipping down to a smaller one")
+    void stopsAtTheFirstDocumentThatWillNotFitRatherThanReachingPastIt() {
+        ScriptedChatModel model = new ScriptedChatModel();
+
+        SynthesisDoc doc = new ClusterSynthesis(model)
+                .docFor(
+                        new ClusterCall(
+                                LABEL,
+                                SEED_PATH,
+                                List.of(
+                                        aDocumentOf(FILLS_MOST_OF_THE_ROOM, CLOSEST_HEADING, CLOSEST_SCORE),
+                                        aDocumentOf(MORE_THAN_THE_ROOM_LEFT, MIDDLE_HEADING, MIDDLE_SCORE),
+                                        aDocumentOf(
+                                                SHORT_ENOUGH_FOR_WHAT_IS_LEFT,
+                                                FURTHEST_HEADING,
+                                                FURTHEST_SCORE))),
+                        MODEL_NAME,
+                        A_SMALL_WINDOW);
+
+        claim(
+                "the closest document went, filling " + FILLS_MOST_OF_THE_ROOM + " of the " + ROOM_FOR
+                        + " words there is room for",
+                () -> assertThat(model.whatWasAsked()).contains(CLOSEST_HEADING));
+        claim(
+                "the second one did not, because " + MORE_THAN_THE_ROOM_LEFT + " words do not fit what is"
+                        + " left of the room",
+                () -> assertThat(model.whatWasAsked()).doesNotContain(MIDDLE_HEADING));
+        claim(
+                "and neither did the third, even though its " + SHORT_ENOUGH_FOR_WHAT_IS_LEFT + " words"
+                        + " would have fitted the room still free: what goes is a run of documents from the"
+                        + " closest one down, and picking a further-off document over a nearer one that was"
+                        + " passed by would mean the writing rests on the group's outskirts while a more"
+                        + " central document it skipped is nowhere in the call",
+                () -> assertThat(model.whatWasAsked()).doesNotContain(FURTHEST_HEADING));
+        claim(
+                "so the writing says it was made from " + ONE_DOCUMENT + " document of the "
+                        + THREE_DOCUMENTS + " in the group, which is the number the finished page"
+                        + " discloses",
+                () -> assertThat(doc.documentsSent()).isEqualTo(ONE_DOCUMENT));
+    }
+
+    @Test
+    @Issue("182")
+    @Story("Writing that rests on no document at all is never produced")
+    @DisplayName("Asked to write over a group none of whose documents fit, it refuses instead of asking")
+    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
+    void refusesToWriteOverAGroupNoneOfWhoseDocumentsFit() {
+        ScriptedChatModel model = new ScriptedChatModel();
+        ClusterSynthesis synthesis = new ClusterSynthesis(model);
+        ClusterCall nothingFits = new ClusterCall(
+                LABEL,
+                SEED_PATH,
+                List.of(
+                        aDocumentOf(TOO_BIG_FOR_ANY_CALL, CLOSEST_HEADING, CLOSEST_SCORE),
+                        aDocumentOf(TOO_BIG_FOR_ANY_CALL, MIDDLE_HEADING, MIDDLE_SCORE)));
+
+        claim(
+                "being handed a group nothing of which fits the room is refused outright, rather than"
+                        + " quietly turning into a question about no documents: whoever owns the reading"
+                        + " budget is the only place that can know the fill came out empty, and a rule"
+                        + " enforced only by everyone who calls in is a habit rather than a rule",
+                () -> assertThatThrownBy(() -> synthesis.docFor(nothingFits, MODEL_NAME, A_SMALL_WINDOW))
+                        .isInstanceOf(IllegalStateException.class));
+        claim(
+                "and the model was asked nothing at all -- " + NOTHING_WAS_ASKED + " calls: a piece of"
+                        + " writing made from no documents could point at nothing a reader can open, and"
+                        + " asking for one is the most expensive thing this system does",
+                () -> assertThat(model.callsMade()).isEqualTo(NOTHING_WAS_ASKED));
     }
 
     /** A group of two documents, each opening with its own first chunk, the closer one scoring higher. */

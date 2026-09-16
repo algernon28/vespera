@@ -239,6 +239,36 @@ class GenerationInvocationTest {
     /** And the writing scripted with it. */
     private static final String ITS_OWN_PROSE = "Both of them [1] say the same thing twice.";
 
+    /** A window wider than the one the code ships with, which is the change an operator makes here. */
+    private static final String A_WIDER_WINDOW = "16384";
+
+    /** What two different answers to how much may be read are worth: two records of the work. */
+    private static final int TWO_RECORDS = 2;
+
+    /** What one unfinished piece of work leaves behind: the one group that was written, and no more. */
+    private static final int ONE_GROUP_WRITTEN = 1;
+
+    /** The name given to the group nothing in this run can be sent for, so a claim can name it plainly. */
+    private static final String A_GROUP_WITH_NOTHING_TO_SEND = "A group whose documents cannot be opened";
+
+    /**
+     * The smallest window anything can be read in at all: room for one word, which no document in this
+     * fixture opens with fewer than. Accepted as a window, and too small for any of these documents.
+     */
+    private static final String A_WINDOW_WITH_ROOM_FOR_A_SINGLE_WORD = "1282";
+
+    /** What a group nothing fits into is worth asking about: nothing, because there is nothing to ask. */
+    private static final int NOTHING_WAS_ASKED = 0;
+
+    /** What a finished piece of work leaves behind here: writing over both of the two groups. */
+    private static final int TWO_GROUPS_WRITTEN = 2;
+
+    /** The fewest documents any piece of writing may rest on, because writing over none is never made. */
+    private static final int AT_LEAST_ONE_DOCUMENT = 1;
+
+    /** The name given to the group no document has reached yet, so a claim can name it plainly. */
+    private static final String A_GROUP_NO_DOCUMENT_HAS_REACHED_YET = "A group no document has reached yet";
+
     @TempDir
     static Path workingDirectory;
 
@@ -506,6 +536,243 @@ class GenerationInvocationTest {
                 "the invocation still reports success: an archive that moved underneath a run is something"
                         + " to look at and run again, not a broken tool",
                 () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    @Test
+    @Issue("182")
+    @Story("Writing that rests on no document at all is never produced")
+    @DisplayName("With room for less than one document, the group is left unwritten and nothing is asked")
+    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
+    void asksNothingAndWritesNothingWhenNoDocumentFitsTheWindow(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpusOfTwoDocuments(root, seeds);
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        setTheReadingWindowTo(A_WINDOW_WITH_ROOM_FOR_A_SINGLE_WORD);
+        GenerationScriptedBeans.forgetScriptedAnswers();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success: a window too small for the documents in front of it is"
+                        + " something to widen and run again, not a broken tool",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "nothing was asked of the model at all -- " + NOTHING_WAS_ASKED + " calls: not one"
+                        + " document fits the room this window leaves, so the only piece of writing that"
+                        + " could come back would be about none of them, and that call is the most"
+                        + " expensive thing this system does",
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(NOTHING_WAS_ASKED));
+        claim(
+                "and nothing was kept over the group: a piece of writing made from no documents points at"
+                        + " nothing a reader could open to check it, and every other sentence in what this"
+                        + " produces can be followed back to a file",
+                () -> assertThat(generatedDocs(root)).isEmpty());
+        claim(
+                "and the work is not recorded as done, so a later invocation under a window that fits will"
+                        + " write over this group rather than walking past it as finished",
+                () -> assertThat(theWorkIsRecordedAsFinished(root)).isFalse());
+    }
+
+    @Test
+    @Issue("208")
+    @Story("Reading more of each group is a different piece of work, not the same one again")
+    @DisplayName("With the reading window changed, the archive is written over again under a record of its own")
+    void writesAgainUnderItsOwnRecordWhenTheReadingWindowChanges(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpusOfTwoDocuments(root, seeds);
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        cli.run("run", root.toString());
+
+        setTheReadingWindowTo(A_WIDER_WINDOW);
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation after the change reports success, which the claims below are about",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the work is recorded " + TWO_RECORDS + " times rather than once: how much of a group one"
+                        + " call may read decides how much of it the writing rests on, so the same archive"
+                        + " read two ways is two pieces of work and neither may be mistaken for the other",
+                () -> assertThat(generationRuns(root)).hasSize(TWO_RECORDS));
+        claim(
+                "and the second record is its own name rather than the first one again -- if the number the"
+                        + " archive's owner changed did not reach the name this work is recorded under, the"
+                        + " invocation would find the earlier record, decide the work was done and write"
+                        + " nothing, leaving them with writing made under a window they had stopped using",
+                () -> assertThat(generationRuns(root)).doesNotHaveDuplicates());
+        claim(
+                "and the second record has writing of its own beneath it, one piece over the group, rather"
+                        + " than pointing back at what the first read: a wider window is a different reading"
+                        + " of the same documents, and what a reader opens has to be the reading that was"
+                        + " asked for",
+                () -> assertThat(synthesisDocs.forRun(new RunId(generationRuns(root).getLast())))
+                        .hasSize(ONE_PIECE_OF_WRITING));
+        claim(
+                "and the first record keeps the writing it produced, so the earlier reading is still there"
+                        + " to be compared against rather than having been written over",
+                () -> assertThat(synthesisDocs.forRun(new RunId(generationRuns(root).getFirst())))
+                        .hasSize(ONE_PIECE_OF_WRITING));
+    }
+
+    @Test
+    @Issue("180")
+    @Story("Work already paid for is never paid for twice")
+    @DisplayName("A group already written over is left alone while the next invocation finishes the rest")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
+    void keepsWhatAnEarlierInvocationWroteAndCarriesOnFromThere(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpusOfTwoDocuments(root, seeds);
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        aGroupNothingCanBeSentFor(theApprovedArrangement(root));
+        GenerationScriptedBeans.answerFor(THE_GROUPS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
+        cli.run("run", root.toString());
+
+        GenerationScriptedBeans.forgetScriptedAnswers();
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation reports success rather than falling over the writing the first one"
+                        + " left behind: an invocation that stopped partway is the ordinary case, and"
+                        + " meeting its own earlier work must not be a failure",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the group written over the first time is written over exactly "
+                        + ONE_GROUP_WRITTEN + " time in total, with no second copy beside it",
+                () -> assertThat(generatedDocs(root)).hasSize(ONE_GROUP_WRITTEN));
+        claim(
+                "and what stands is the writing the first invocation produced, word for word -- the model"
+                        + " was told to answer differently the second time, so writing that had been thrown"
+                        + " away and asked for again would read differently here. Asking again is the most"
+                        + " expensive thing this system does and it buys nothing: neither the group nor the"
+                        + " documents under it have changed",
+                () -> assertThat(generatedDocs(root)).singleElement().satisfies(doc -> {
+                    assertThat(doc.doc().title()).isEqualTo(ITS_OWN_TITLE);
+                    assertThat(doc.doc().prose()).isEqualTo(ITS_OWN_PROSE);
+                }));
+        claim(
+                "and the work is still not recorded as done, because the other group still has nothing"
+                        + " written over it: leaving what is already written alone is how the next"
+                        + " invocation gets to the rest, not a claim that there is no rest",
+                () -> assertThat(theWorkIsRecordedAsFinished(root)).isFalse());
+    }
+
+    @Test
+    @Issue("185")
+    @Story("Work left unfinished is finished by the next invocation, and only then recorded as done")
+    @DisplayName("The next invocation writes over the group left behind and records the work as done")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
+    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
+    void finishesTheGroupLeftBehindAndOnlyThenRecordsTheWorkAsDone(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpusOfTwoDocuments(root, seeds);
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        aGroupNothingCanBeSentFor(theApprovedArrangement(root), A_GROUP_NO_DOCUMENT_HAS_REACHED_YET);
+        GenerationScriptedBeans.answerFor(THE_GROUPS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
+        cli.run("run", root.toString());
+        theSecondGroupIsGivenADocumentItCanSend(theApprovedArrangement(root));
+
+        GenerationScriptedBeans.forgetScriptedAnswers();
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation reports success, which the claims below are about",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "both groups now have writing over them, all " + TWO_GROUPS_WRITTEN + " of them: the one"
+                        + " written the first time round, and the one that had nothing to send then and has"
+                        + " something to send now",
+                () -> assertThat(generatedDocs(root)).hasSize(TWO_GROUPS_WRITTEN));
+        claim(
+                "the group written the first time round still carries that first writing, word for word:"
+                        + " the model was told to answer differently this time, so writing that had been"
+                        + " asked for a second time would read differently here -- and asking again buys"
+                        + " nothing, because neither that group nor the documents under it have changed",
+                () -> assertThat(generatedDocs(root)).anySatisfy(doc -> {
+                    assertThat(doc.doc().title()).isEqualTo(ITS_OWN_TITLE);
+                    assertThat(doc.doc().prose()).isEqualTo(ITS_OWN_PROSE);
+                }));
+        claim(
+                "and the group left behind carries writing made this time round rather than the first:"
+                        + " picking up an unfinished job means doing the part that was left, not counting"
+                        + " it done",
+                () -> assertThat(generatedDocs(root))
+                        .anySatisfy(doc -> assertThat(doc.doc().title())
+                                .isEqualTo(GenerationScriptedBeans.GENERATED_TITLE)));
+        claim(
+                "the work is now recorded as done, which is the point of picking it up at all: nothing is"
+                        + " left unwritten, so every later invocation may walk past this step -- and a job"
+                        + " that finished everything and never said so would be started again for ever,"
+                        + " each time reading the whole archive to be told there was nothing to do",
+                () -> assertThat(theWorkIsRecordedAsFinished(root)).isTrue());
+        claim(
+                "and neither piece of writing rests on fewer than " + AT_LEAST_ONE_DOCUMENT + " document:"
+                        + " writing made from none would be text a reader cannot follow back to any file,"
+                        + " so a record saying it was made from none is a sign of something broken rather"
+                        + " than of a reading window set small",
+                () -> assertThat(generatedDocs(root))
+                        .allSatisfy(doc -> assertThat(doc.doc().documentsSent())
+                                .isGreaterThanOrEqualTo(AT_LEAST_ONE_DOCUMENT)));
+    }
+
+    /**
+     * Puts a second group into the approved arrangement holding no document this run can send, so the
+     * invocation writes over one group and leaves the other with nothing.
+     *
+     * <p>Written straight into the table, for the reason the colliding arrangement below is: what is
+     * under test is what the next invocation does when it meets a half-finished piece of work, and a
+     * fixture whose documents all convert alike cannot be steered into producing two groups. It copies
+     * the arranged group's own row one place further along in the order, and no document anywhere
+     * belongs to it, so it reaches the same "nothing here can be sent" branch as a group whose every
+     * document has become unreadable. That branch is what is under test; the two states are not the
+     * same one, and this is not the shape the archive going away actually takes -- there the
+     * membership rows survive and the files do not.
+     *
+     * <p><b>It copies document_count unchanged</b>, so the injected row claims more documents than it
+     * holds, which no arrangement run would write. Harmless here, because a call is sized from
+     * membership and never from that column -- but it means this fixture cannot defend that property,
+     * and a change that started reading document_count would pass it.
+     */
+    private void aGroupNothingCanBeSentFor(RunId arrangement) {
+        aGroupNothingCanBeSentFor(arrangement, A_GROUP_WITH_NOTHING_TO_SEND);
+    }
+
+    /** The same, under a name of the caller's choosing, so two tests can tell their groups apart. */
+    private void aGroupNothingCanBeSentFor(RunId arrangement, String label) {
+        jdbcTemplate.update(
+                "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
+                        + " document_count, partition_order, cluster_order)"
+                        + " SELECT run_id, winning_seed_occurrence_id, cluster_ordinal + 1, ?,"
+                        + " document_count, partition_order, cluster_order + 1"
+                        + " FROM cluster WHERE run_id = ?",
+                label,
+                arrangement.value());
+    }
+
+    /**
+     * Moves one of the corpus documents into the second group, so a group nothing could be sent for now
+     * has something to send.
+     *
+     * <p>This is the obstruction being lifted. What left that group unwritten was that no document this
+     * run could open belonged to it; a document belonging to it is the state in which the very same
+     * invocation, asking the very same question again, finishes the job.
+     *
+     * <p>Written straight into the table, for the reason the group itself is: a fixture whose documents
+     * all convert alike cannot be steered into producing two groups, let alone into moving a document
+     * between them. Which document moves does not matter, so the query names one by taking the last.
+     */
+    private void theSecondGroupIsGivenADocumentItCanSend(RunId arrangement) {
+        jdbcTemplate.update(
+                "UPDATE document_cluster SET cluster_ordinal = cluster_ordinal + 1 WHERE rowid ="
+                        + " (SELECT rowid FROM document_cluster WHERE run_id ="
+                        + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)"
+                        + " ORDER BY occurrence_id DESC LIMIT 1)",
+                arrangement.value());
     }
 
     /**

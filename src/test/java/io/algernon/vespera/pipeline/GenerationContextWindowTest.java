@@ -84,6 +84,21 @@ class GenerationContextWindowTest {
     /** A window on the wrong side of zero, which is whole and still not a count of anything. */
     private static final String FEWER_THAN_NO_TOKENS = "-4096";
 
+    /**
+     * The largest window that leaves room for no document at all, and the one number that tells the two
+     * plausible floors apart.
+     *
+     * <p>Of this, 1024 is kept back for the answer and 256 for everything around the documents, which
+     * leaves 1 token. At the two-tokens-to-the-word rate the budget is counted in, that is half a word,
+     * and half a word rounds down to none. A floor written as "more than 1024 plus 256" lets this value
+     * through and generates a whole archive from no documents; a floor asking the budget itself how much
+     * room is left refuses it.
+     */
+    private static final String ROOM_FOR_NOT_QUITE_A_WORD = "1281";
+
+    /** One token more, which is the smallest window anything can be read in: exactly one word of it. */
+    private static final int ROOM_FOR_ONE_WORD = 1282;
+
     @TempDir
     static Path workingDirectory;
 
@@ -253,6 +268,42 @@ class GenerationContextWindowTest {
                         + " somebody wrote sends them looking for the wrong mistake",
                 () -> assertThatThrownBy(() -> contextWindow.size())
                         .hasMessageContaining("positive"));
+    }
+
+    @Test
+    @Issue("208")
+    @Story("A window nothing could be read in is refused before anything is asked of the model")
+    @DisplayName("A window leaving room for less than one word stops, even though it is a positive number")
+    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
+    void refusesAWindowLeavingRoomForLessThanOneWord() {
+        write(ROOM_FOR_NOT_QUITE_A_WORD);
+
+        claim(
+                "it stops on " + ROOM_FOR_NOT_QUITE_A_WORD + ", which is a positive whole number and still"
+                        + " leaves nothing to read documents in: once the answer and the instructions are"
+                        + " allowed for it comes to half a word, and half a word is no word. Carried on"
+                        + " with, every group in the archive would be written about from none of its"
+                        + " documents, at the price of the most expensive call this system makes",
+                () -> assertThatThrownBy(() -> contextWindow.size())
+                        .hasMessageContaining(GenerationContextWindow.KEY)
+                        .hasMessageContaining(ROOM_FOR_NOT_QUITE_A_WORD));
+    }
+
+    @Test
+    @Issue("208")
+    @Story("A window nothing could be read in is refused before anything is asked of the model")
+    @DisplayName("A window with room for a single word is small, not impossible, and is accepted")
+    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
+    void acceptsTheSmallestWindowAnythingCanBeReadIn() {
+        write(String.valueOf(ROOM_FOR_ONE_WORD));
+
+        claim(
+                "one token more than the value above is accepted: it leaves room for a word, and what"
+                        + " happens to a group that will not fit a small window is already decided -- what"
+                        + " fits goes and the writing says how much that was. Refusing here instead would"
+                        + " be this test deciding a smallest sensible window, which is a number nobody can"
+                        + " work out for an archive nobody has read",
+                () -> assertThat(contextWindow.size()).isEqualTo(ROOM_FOR_ONE_WORD));
     }
 
     /** Writes the key, leaving every other one as it was. */

@@ -54,11 +54,27 @@ class GenerationScriptedBeans {
     /** Drops every scripted answer, so nothing a test wrote outlives it. */
     static void forgetScriptedAnswers() {
         BY_LABEL.clear();
+        callsMade = 0;
+    }
+
+    /**
+     * How many times this fixture's model has been asked anything, so a test can claim that a group it
+     * expects nothing to be written about cost nothing.
+     *
+     * <p>Static for the reason the scripted answers are: the bean belongs to the context, and the count
+     * has to be readable from outside the invocation that produced it.
+     */
+    private static int callsMade;
+
+    /** What has been asked of the model since the count was last dropped. */
+    static int callsMade() {
+        return callsMade;
     }
 
     @Bean
     ChatModel chatModel() {
         return prompt -> {
+            callsMade++;
             Answer answer = BY_LABEL.entrySet().stream()
                     .filter(scripted -> prompt.getContents().contains(scripted.getKey()))
                     .map(Map.Entry::getValue)
