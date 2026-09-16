@@ -91,7 +91,7 @@ Five, matching ADR-071's service-scope count rather than its lower timeout count
 
 **A same-run-id re-run now reproduces the deliverable exactly**, which settles a question two records left open. ADR-103 declined to claim the bytes were idempotent and ADR-108 left determinism open because Ollama guarantees none. Neither needed the guarantee: a successful cluster is never regenerated, so the text is stable because it is **read**, not because it was reproduced. A *fresh* run id still makes no such promise, and is not expected to.
 
-**`synthesis` ships with three tables, and its schema version is still 1.** `cluster`, `synthesis_doc` and `cluster_fault` all land in the same slice, before any database exists outside tests, so there is nothing to migrate and [ADR-059](0059-schema-version-is-one-row-per-module-checked-and-refused-independently.md)'s version starts where it starts.
+**`synthesis` ships with three tables.** `cluster`, `synthesis_doc` and `cluster_fault` landed one per slice rather than together as this record assumed, so the schema version moved with each — 1, then 2, then 3 — rather than starting and staying at 1. [ADR-059](0059-schema-version-is-one-row-per-module-checked-and-refused-independently.md)'s rule is unaffected: each move is a real table added and the version tracks it correctly.
 
 **A fault row outlives the deliverable tree it explains.** Nothing cleans up either, and they are deleted independently — an operator who removes a deliverable directory keeps the rows saying what failed in it. That is the right direction: the rows are small and the explanation is the part worth keeping.
 

@@ -480,6 +480,20 @@ public final class Adr {
             + "0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md";
 
     /**
+     * ADR-109 — a citation is an exemplar ordinal minted for one call, and the check is that it is in
+     * range.
+     */
+    public static final String A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL = FILE
+            + "0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md";
+
+    /**
+     * ADR-111 — a cluster fault is a row in synthesis, and a re-run under the same id repairs rather
+     * than regenerates.
+     */
+    public static final String A_CLUSTER_FAULT_IS_A_ROW_IN_SYNTHESIS = FILE
+            + "0111-a-cluster-fault-is-a-row-in-synthesis-and-a-re-run-under-the-same-id-repairs-rather-than-regenerates.md";
+
+    /**
      * ADR-121 — a window with no room for documents is refused, and no call is ever made with none.
      */
     public static final String A_WINDOW_WITH_NO_ROOM_IS_REFUSED = FILE

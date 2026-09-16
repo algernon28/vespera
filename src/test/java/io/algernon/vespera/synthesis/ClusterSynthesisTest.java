@@ -47,6 +47,15 @@ class ClusterSynthesisTest {
     private static final String GENERATED_PROSE =
             "The earliest audit [1] sets the pattern the later one [2] is measured against.";
 
+    /**
+     * The same writing for a call that was given one document: it points at that one and no further.
+     *
+     * <p>The answer above points at two, which is right for the calls that send two and wrong for the
+     * one that sends a single document — an answer pointing past what it was given is refused, so a
+     * fixture that did it would be testing the refusal rather than the thing it is about.
+     */
+    private static final String PROSE_POINTING_AT_THE_ONE_SENT = "The earliest audit [1] sets the pattern.";
+
     /** What the group is called before anything is generated for it: the name stage 6a derived. */
     private static final String LABEL = "2019 Site Safety Audit";
 
@@ -353,7 +362,7 @@ class ClusterSynthesisTest {
     @Story("A group too big to read in one go sends what fits, rather than being skipped")
     @DisplayName("The fill stops at the first document that will not fit, rather than skipping down to a smaller one")
     void stopsAtTheFirstDocumentThatWillNotFitRatherThanReachingPastIt() {
-        ScriptedChatModel model = new ScriptedChatModel();
+        ScriptedChatModel model = new ScriptedChatModel(PROSE_POINTING_AT_THE_ONE_SENT);
 
         SynthesisDoc doc = new ClusterSynthesis(model)
                 .docFor(
@@ -483,15 +492,32 @@ class ClusterSynthesisTest {
      */
     private static final class ScriptedChatModel implements ChatModel {
 
+        private final String prose;
+
         private Prompt asked;
         private int calls;
+
+        /** Answers with prose pointing at two documents, which is what most of these calls are given. */
+        ScriptedChatModel() {
+            this(GENERATED_PROSE);
+        }
+
+        /**
+         * Answers with prose of the caller's choosing.
+         *
+         * <p>A test that sends fewer documents than the usual answer points at needs its own, because
+         * the answer is now checked against how many were sent and pointing past them is refused.
+         */
+        ScriptedChatModel(String prose) {
+            this.prose = prose;
+        }
 
         @Override
         public ChatResponse call(Prompt prompt) {
             this.asked = prompt;
             this.calls++;
-            return new ChatResponse(List.of(new Generation(new AssistantMessage(
-                    "{\"title\":\"" + GENERATED_TITLE + "\",\"prose\":\"" + GENERATED_PROSE + "\"}"))));
+            return new ChatResponse(List.of(new Generation(
+                    new AssistantMessage("{\"title\":\"" + GENERATED_TITLE + "\",\"prose\":\"" + prose + "\"}"))));
         }
 
         /** Everything the one call carried, as the text the model was handed. */

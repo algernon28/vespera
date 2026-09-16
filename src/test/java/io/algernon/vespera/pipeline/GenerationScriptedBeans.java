@@ -4,6 +4,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.DefaultUsage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -11,17 +14,21 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
 /**
- * {@link EmbeddingScriptedBeans}' sibling one stage along (#180): a generating model that answers in
- * the shape the call imposes on it, and can be told to answer one cluster differently from the next.
+ * {@link EmbeddingScriptedBeans}' sibling one stage along (#180, #183): a generating model that
+ * answers in the shape the call imposes on it, and can be told to answer one cluster differently from
+ * the next — including answering one badly on purpose.
  *
  * <p><b>Scripted by the cluster's name rather than by sequence</b>, for the reason {@code
  * PathScriptedExtractor} keys on the path: the order clusters are written in is the arrangement's to
  * decide, so a fixture that answered by call number would quietly pin an ordering no test is making
  * a claim about.
  *
- * <p>It never refuses, never runs out of room and never returns anything its schema would reject, so
- * nothing here exercises the checks ADR-108 puts on a response — each of those has its own ticket and
- * will want a double that can fail on purpose.
+ * <p><b>Every answer carries what the checks of ADR-108 and ADR-109 read</b>, because those are
+ * properties of the response rather than of its text: how many tokens of prompt the model reports
+ * having evaluated, how many it wrote, and why it stopped. A {@link ScriptedAnswer} left as it comes
+ * out of {@link ScriptedAnswer#saying} passes every one of them, which is what keeps the ordinary
+ * tests in this package about something other than verification; the withers on it are how a test
+ * fails exactly one check and no others.
  *
  * <p>{@code @TestConfiguration} rather than {@code @Configuration}, for the reason {@code
  * StubbedExtractionBeans} documents at length: left plain, this sits inside the application's
@@ -37,8 +44,27 @@ class GenerationScriptedBeans {
     /** The writing it returns, with a marker in it so nothing downstream has to invent one. */
     static final String GENERATED_PROSE = "Both audits [1] cover the same site a year apart.";
 
+    /**
+     * How much prompt an unremarkable answer reports having read, in tokens.
+     *
+     * <p>Comfortably under every reading window any test in this package works in, because a count
+     * that reached the window would mean the prompt had been cut down to fit and the answer covers
+     * less than it was asked about — which is a thing exactly one test is about and every other one
+     * must be clear of.
+     */
+    private static final int AN_UNREMARKABLE_PROMPT_COUNT = 512;
+
+    /** How much an unremarkable answer reports having written, well inside what it is allowed. */
+    private static final int AN_UNREMARKABLE_ANSWER_LENGTH = 120;
+
+    /** Why an answer that said everything it had to say stopped. */
+    static final String STOPPED_HAVING_FINISHED = "stop";
+
+    /** Why an answer that was cut off stopped: it reached the length it was allowed and no further. */
+    static final String STOPPED_FOR_ROOM = "length";
+
     /** Answers scripted for a particular cluster, by the name stage 6a gave it. */
-    private static final Map<String, Answer> BY_LABEL = new LinkedHashMap<>();
+    private static final Map<String, ScriptedAnswer> BY_LABEL = new LinkedHashMap<>();
 
     /**
      * Scripts one answer for the cluster named {@code label}, in place of the default one.
@@ -48,7 +74,12 @@ class GenerationScriptedBeans {
      * script from reaching the next.
      */
     static void answerFor(String label, String title, String prose) {
-        BY_LABEL.put(label, new Answer(title, prose));
+        answerFor(label, ScriptedAnswer.saying(title, prose));
+    }
+
+    /** The same, for an answer whose text is not the only thing a test is scripting about it. */
+    static void answerFor(String label, ScriptedAnswer answer) {
+        BY_LABEL.put(label, answer);
     }
 
     /** Drops every scripted answer, so nothing a test wrote outlives it. */
@@ -75,16 +106,60 @@ class GenerationScriptedBeans {
     ChatModel chatModel() {
         return prompt -> {
             callsMade++;
-            Answer answer = BY_LABEL.entrySet().stream()
+            ScriptedAnswer answer = BY_LABEL.entrySet().stream()
                     .filter(scripted -> prompt.getContents().contains(scripted.getKey()))
                     .map(Map.Entry::getValue)
                     .findFirst()
-                    .orElse(new Answer(GENERATED_TITLE, GENERATED_PROSE));
-            return new ChatResponse(List.of(new Generation(new AssistantMessage(
-                    "{\"title\":\"" + answer.title() + "\",\"prose\":\"" + answer.prose() + "\"}"))));
+                    .orElseGet(() -> ScriptedAnswer.saying(GENERATED_TITLE, GENERATED_PROSE));
+            return new ChatResponse(
+                    List.of(new Generation(
+                            new AssistantMessage(answer.body()),
+                            ChatGenerationMetadata.builder()
+                                    .finishReason(answer.finishReason())
+                                    .build())),
+                    ChatResponseMetadata.builder()
+                            .usage(new DefaultUsage(answer.promptTokens(), answer.answerLength()))
+                            .build());
         };
     }
 
-    /** One scripted answer: what this fixture's model says about one cluster. */
-    private record Answer(String title, String prose) {}
+    /**
+     * One scripted answer: the body the model returns, and the three things it reports about the call
+     * that produced it.
+     *
+     * @param body exactly what comes back as the answer's text, readable or not
+     * @param promptTokens how much prompt the model reports having read, which is what says whether
+     *     the question arrived whole
+     * @param answerLength how much the model reports having written
+     * @param finishReason why it stopped, which is what says whether the answer is all there
+     */
+    record ScriptedAnswer(String body, int promptTokens, int answerLength, String finishReason) {
+
+        /** An answer that says what it was asked for, in the shape the call imposed, and passes. */
+        static ScriptedAnswer saying(String title, String prose) {
+            return arrivingAs("{\"title\":\"" + title + "\",\"prose\":\"" + prose + "\"}");
+        }
+
+        /**
+         * An answer whose text is exactly {@code body}, which is how a test scripts one nothing can
+         * read back into a heading and its writing.
+         */
+        static ScriptedAnswer arrivingAs(String body) {
+            return new ScriptedAnswer(
+                    body,
+                    AN_UNREMARKABLE_PROMPT_COUNT,
+                    AN_UNREMARKABLE_ANSWER_LENGTH,
+                    STOPPED_HAVING_FINISHED);
+        }
+
+        /** The same answer, reporting that it read {@code promptTokens} tokens of the question. */
+        ScriptedAnswer havingRead(int promptTokens) {
+            return new ScriptedAnswer(body, promptTokens, answerLength, finishReason);
+        }
+
+        /** The same answer, reporting that it stopped after {@code answerLength} because it ran out. */
+        ScriptedAnswer stoppedForRoomAfter(int answerLength) {
+            return new ScriptedAnswer(body, promptTokens, answerLength, STOPPED_FOR_ROOM);
+        }
+    }
 }
