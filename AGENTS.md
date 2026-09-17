@@ -24,7 +24,11 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 
 ## Read before working
 
-**`CONTEXT.md`** is binding vocabulary, not background. Name things as it names them — file occurrence, content identity, verdict, survivor, walk, walk anomaly, census, profile, gate, run, invocation. Each entry lists rejected synonyms under `_Avoid_`, and **the lists bind every name this project gives itself** (ADR-122): types, fields, methods, constants, columns, javadoc, log lines, exception messages, test identifiers, commit messages, issue text and the records under `docs/`. They do not bind prose rendered for a reader outside this project — the operator's pages and README, the generation prompt, a test report's display names, labels and claims — where a term whose everyday sense is wrong is replaced by the plain word its entry states under `_Renders as_`. **Cluster** renders as *group*; an entry with no `_Renders as_` line has no rendering, and its own term is used everywhere.
+**`CONTEXT.md`** is binding vocabulary, not background. Name things as it names them — file occurrence, content identity, verdict, survivor, walk, walk anomaly, census, profile, gate, run, invocation. Each entry lists rejected synonyms under `_Avoid_`, and **the lists bind every name this project gives itself and nothing it renders for a reader outside it**. **ADR-122 states that rule once and enumerates both sides; read it there rather than a paraphrase here** — three paraphrases is how the memberships drifted apart in the first place. What it comes to in practice, so you know whether you need to open it:
+
+- A name of ours uses the entry's own term, down to a test method name and a commit message, and a rejected synonym in one is a defect — unless the word names no such thing at all, as in `Collectors.groupingBy` or SQL's `GROUP BY`, which are untouched.
+- Prose written for the operator, for the generation model, for a test report's reader, or for anyone handed the deliverable rather than the repository is free of the lists altogether. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
+- **Cluster** renders as *group*.
 
 **`docs/adr/`** holds 122 decisions, ADR-001 to ADR-122, and two things about it are invisible from the files:
 
