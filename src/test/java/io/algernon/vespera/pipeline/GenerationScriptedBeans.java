@@ -91,7 +91,7 @@ class GenerationScriptedBeans {
     }
 
     /**
-     * How many times this fixture's model has been asked anything, so a test can claim that a group it
+     * How many times this fixture's model has been asked anything, so a test can claim that a cluster it
      * expects nothing to be written about cost nothing.
      *
      * <p>Static for the reason the scripted answers are: the bean belongs to the context, and the count

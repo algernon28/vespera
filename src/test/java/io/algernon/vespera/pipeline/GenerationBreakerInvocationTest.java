@@ -72,11 +72,11 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Stage 6b when answer after answer is turned down (ADR-111, #184): a group whose answer nobody
- * believes costs that group alone, right up until the fifth in a row, at which point the step stops
+ * Stage 6b when answer after answer is turned down (ADR-111, #184): a cluster whose answer nobody
+ * believes costs that cluster alone, right up until the fifth in a row, at which point the step stops
  * and the invocation says so.
  *
- * <p><b>Why five in a row is read differently from five scattered.</b> Four hundred groups do not
+ * <p><b>Why five in a row is read differently from five scattered.</b> Four hundred clusters do not
  * fail one after another by bad luck. They fail because the generation model, the word budget or the
  * shape imposed on the answer is wrong for this archive, and every call after the fifth buys another
  * copy of the same wrong answer. ADR-071 already took this reading one stage back, where a streak of
@@ -88,16 +88,24 @@ import org.springframework.transaction.annotation.Transactional;
  * owner back to the model with no account of what it answered.
  *
  * <p><b>Only an answer that came back counts, in either direction</b> (ADR-111's consequences, as
- * #184 settled them). A group an earlier invocation already wrote (ADR-115, ADR-116) and a group no
+ * #184 settled them). A cluster an earlier invocation already wrote (ADR-115, ADR-116) and a cluster no
  * call could be made for (ADR-121) are walked past without a call, so neither adds to the streak and
  * neither clears it — and the streak belongs to the invocation that made the calls, so an invocation
  * that stopped on five leaves nothing behind that could stop the next one before it has asked
  * anything.
  *
- * <p><b>The groups are written straight into the arrangement.</b> Every document this fixture
- * converts comes back alike, so no corpus can be written that clusters into nine groups of its own.
- * The arranged groups are replaced with one group per document instead, in a stated order, which is
+ * <p><b>The clusters are written straight into the arrangement.</b> Every document this fixture
+ * converts comes back alike, so no corpus can be written that clusters into nine clusters of its own.
+ * The arranged clusters are replaced with one cluster per document instead, in a stated order, which is
  * what lets a test say which answer came fifth.
+ *
+ * <p><b>The report says <em>group</em> and the code says <em>cluster</em>, and that is settled rather
+ * than sloppy</b> (ADR-122). Everything a reader of the report sees -- the feature, the stories, the
+ * display names, every claim -- renders the term as <em>group</em>, because the everyday sense of
+ * "cluster" is a set of interchangeable things, which is what {@code CONTEXT.md} says a cluster is
+ * not, and that reader cannot open {@code CONTEXT.md} to find out. Everything this project names for
+ * itself -- the constants, the fixture methods, these comments -- says cluster. Do not reconcile the
+ * two by changing either side.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -239,10 +247,10 @@ class GenerationBreakerInvocationTest {
             "The audit [" + A_NUMBER_NO_DOCUMENT_WAS_SENT_UNDER + "] states every finding.";
 
     /**
-     * The names this fixture gives the groups it writes into the arrangement, in the order they are
+     * The names this fixture gives the clusters it writes into the arrangement, in the order they are
      * written over. Each is scripted for by name, so no name may read as part of another.
      */
-    private static final List<String> GROUP_NAMES = List.of(
+    private static final List<String> CLUSTER_NAMES = List.of(
             "Group one",
             "Group two",
             "Group three",
@@ -257,54 +265,54 @@ class GenerationBreakerInvocationTest {
     private static final int THE_STREAK_THAT_STOPS_THE_STEP = 5;
 
     /**
-     * How many groups the stopping tests arrange: one more than the streak, so there is a group left
+     * How many clusters the stopping tests arrange: one more than the streak, so there is a cluster left
      * for the step to have walked past. Five alone would be met by a step that stopped because it had
-     * run out of groups rather than because five answers in a row were turned down.
+     * run out of clusters rather than because five answers in a row were turned down.
      */
-    private static final int ONE_MORE_GROUP_THAN_THE_STREAK = THE_STREAK_THAT_STOPS_THE_STEP + 1;
+    private static final int ONE_MORE_CLUSTER_THAN_THE_STREAK = THE_STREAK_THAT_STOPS_THE_STEP + 1;
 
     /** How many of the four ways an answer can be turned down the stopping tests' five cover. */
     private static final int ALL_FOUR_WAYS_AN_ANSWER_IS_TURNED_DOWN = 4;
 
     /**
-     * How many groups the tests that put something in front of the streak arrange: the five, one group
+     * How many clusters the tests that put something in front of the streak arrange: the five, one cluster
      * ahead of them, and one after them the step is never expected to reach.
      */
-    private static final int A_GROUP_EITHER_SIDE_OF_THE_STREAK = THE_STREAK_THAT_STOPS_THE_STEP + 2;
+    private static final int A_CLUSTER_EITHER_SIDE_OF_THE_STREAK = THE_STREAK_THAT_STOPS_THE_STEP + 2;
 
     /**
      * What one believed answer and then the streak cost: a call each. One more than the streak, because
-     * the group ahead of it was asked about too, and one short of the arrangement, because the group
+     * the cluster ahead of it was asked about too, and one short of the arrangement, because the cluster
      * after the fifth never was.
      */
     private static final int A_CALL_FOR_THE_BELIEVED_ANSWER_AND_ONE_EACH_FOR_THE_STREAK =
             THE_STREAK_THAT_STOPS_THE_STEP + 1;
 
     /**
-     * Where the group nothing could be sent for sits among the seven, counting from zero as the order
-     * of the arrangement itself does: the third group, which puts it inside the streak rather than
+     * Where the cluster nothing could be sent for sits among the seven, counting from zero as the order
+     * of the arrangement itself does: the third cluster, which puts it inside the streak rather than
      * before or after it.
      */
-    private static final int THE_GROUP_NOTHING_COULD_BE_SENT_FOR_IS_THIRD = 2;
+    private static final int THE_CLUSTER_NOTHING_COULD_BE_SENT_FOR_IS_THIRD = 2;
 
-    /** Given to the fixture by a test whose groups all hold a document of their own. */
-    private static final int EVERY_GROUP_HOLDS_A_DOCUMENT = -1;
+    /** Given to the fixture by a test whose clusters all hold a document of their own. */
+    private static final int EVERY_CLUSTER_HOLDS_A_DOCUMENT = -1;
 
-    /** What the streak costs when a group nothing could be sent for sits in the middle of it. */
+    /** What the streak costs when a cluster nothing could be sent for sits in the middle of it. */
     private static final int A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK = THE_STREAK_THAT_STOPS_THE_STEP;
 
     /**
-     * The six of the seven groups whose answers are turned down when the third one's is believed,
+     * The six of the seven clusters whose answers are turned down when the third one's is believed,
      * counting from zero as the order of the arrangement does.
      *
      * <p>The third is the one left out because it has to sit <em>inside</em> the streak: two answers
-     * turned down, then the group, then three more, is what says whether the group in the middle
+     * turned down, then the cluster, then three more, is what says whether the cluster in the middle
      * cleared the count or was walked past without touching it.
      */
-    private static final List<Integer> EVERY_GROUP_BUT_THE_THIRD = List.of(0, 1, 3, 4, 5, 6);
+    private static final List<Integer> EVERY_CLUSTER_BUT_THE_THIRD = List.of(0, 1, 3, 4, 5, 6);
 
     /**
-     * How many groups the carrying-on test arranges: four turned down, one believed, four turned
+     * How many clusters the carrying-on test arranges: four turned down, one believed, four turned
      * down. Four either side is the most a run can have without the streak reaching five, so this is
      * the arrangement that fails if a believed answer does not drop the count to nothing.
      */
@@ -319,7 +327,7 @@ class GenerationBreakerInvocationTest {
     /** What the one believed answer leaves behind. */
     private static final int ONE_PIECE_OF_WRITING = 1;
 
-    /** Nothing is written over a group whose answer was turned down. */
+    /** Nothing is written over a cluster whose answer was turned down. */
     private static final int NO_WRITING_AT_ALL = 0;
 
     /** One line, and no second one: what "this and nothing else was said" comes to as a count. */
@@ -385,7 +393,7 @@ class GenerationBreakerInvocationTest {
     @DisplayName("Five answers turned down in a row stop the step and the invocation reports failure")
     void stopsTheStepWhenFiveAnswersInARowAreTurnedDown(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
-        anApprovedArrangementOf(ONE_MORE_GROUP_THAN_THE_STREAK, root, seeds);
+        anApprovedArrangementOf(ONE_MORE_CLUSTER_THAN_THE_STREAK, root, seeds);
         fiveAnswersTurnedDownForFourDifferentReasons();
 
         cli.run("run", root.toString());
@@ -400,7 +408,7 @@ class GenerationBreakerInvocationTest {
                 () -> assertThat(cli.getExitCode()).isNotZero());
         claim(
                 "exactly " + THE_STREAK_THAT_STOPS_THE_STEP + " calls were made, though "
-                        + ONE_MORE_GROUP_THAN_THE_STREAK + " groups were arranged: the group after the"
+                        + ONE_MORE_CLUSTER_THAN_THE_STREAK + " groups were arranged: the group after the"
                         + " fifth was never asked about, which is what makes this cost five calls rather"
                         + " than one for every group in the archive",
                 () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(THE_STREAK_THAT_STOPS_THE_STEP));
@@ -430,7 +438,7 @@ class GenerationBreakerInvocationTest {
     @Story("Answers nobody believes, one after another, stop the step")
     @DisplayName("The line written when it stops says how many answers were turned down, and what for")
     void saysWhatHappenedWhenItStops(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedArrangementOf(ONE_MORE_GROUP_THAN_THE_STREAK, root, seeds);
+        anApprovedArrangementOf(ONE_MORE_CLUSTER_THAN_THE_STREAK, root, seeds);
         fiveAnswersTurnedDownForFourDifferentReasons();
 
         cli.run("run", root.toString());
@@ -501,16 +509,16 @@ class GenerationBreakerInvocationTest {
     @Test
     @Story("Answers nobody believes, one after another, stop the step")
     @DisplayName("Writing an earlier group earned is still there after the step stops")
-    void keepsTheWritingAnEarlierGroupEarnedWhenItStops(@TempDir Path root, @TempDir Path seeds)
+    void keepsTheWritingAnEarlierClusterEarnedWhenItStops(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
-        anApprovedArrangementOf(A_GROUP_EITHER_SIDE_OF_THE_STREAK, root, seeds);
+        anApprovedArrangementOf(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, root, seeds);
         answersTurnedDownFor(List.of(1, 2, 3, 4, 5));
 
         cli.run("run", root.toString());
 
         claim(
                 "the invocation reports failure, though the first answer of the "
-                        + A_GROUP_EITHER_SIDE_OF_THE_STREAK + " was believed: " + THE_STREAK_THAT_STOPS_THE_STEP
+                        + A_CLUSTER_EITHER_SIDE_OF_THE_STREAK + " was believed: " + THE_STREAK_THAT_STOPS_THE_STEP
                         + " turned down one after another are counted from wherever the last believed answer"
                         + " left off, not from the start of the archive",
                 () -> assertThat(cli.getExitCode()).isNotZero());
@@ -526,7 +534,7 @@ class GenerationBreakerInvocationTest {
                 () -> assertThat(reasonsKept(root)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP));
         claim(
                 A_CALL_FOR_THE_BELIEVED_ANSWER_AND_ONE_EACH_FOR_THE_STREAK + " calls were made out of "
-                        + A_GROUP_EITHER_SIDE_OF_THE_STREAK + " groups arranged: one for the group whose"
+                        + A_CLUSTER_EITHER_SIDE_OF_THE_STREAK + " groups arranged: one for the group whose"
                         + " answer was believed and one for each of the " + THE_STREAK_THAT_STOPS_THE_STEP
                         + " turned down, and the group after them was never asked about",
                 () -> assertThat(GenerationScriptedBeans.callsMade())
@@ -537,10 +545,10 @@ class GenerationBreakerInvocationTest {
     @Story("Answers nobody believes, one after another, stop the step")
     @DisplayName("A group nothing could be sent for neither adds to the count nor clears it")
     @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
-    void doesNotClearTheCountForAGroupNothingCouldBeSentFor(@TempDir Path root, @TempDir Path seeds)
+    void doesNotClearTheCountForAClusterNothingCouldBeSentFor(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedArrangementOf(
-                A_GROUP_EITHER_SIDE_OF_THE_STREAK, THE_GROUP_NOTHING_COULD_BE_SENT_FOR_IS_THIRD, root, seeds);
+                A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, THE_CLUSTER_NOTHING_COULD_BE_SENT_FOR_IS_THIRD, root, seeds);
         answersTurnedDownFor(List.of(0, 1, 3, 4, 5));
 
         cli.run("run", root.toString());
@@ -573,14 +581,14 @@ class GenerationBreakerInvocationTest {
     @Story("Answers nobody believes, one after another, stop the step")
     @DisplayName("A group an earlier invocation already wrote neither adds to the count nor clears it")
     @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
-    void doesNotClearTheCountForAGroupAnEarlierInvocationAlreadyWrote(
+    void doesNotClearTheCountForAClusterAnEarlierInvocationAlreadyWrote(
             @TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedArrangementOf(A_GROUP_EITHER_SIDE_OF_THE_STREAK, root, seeds);
-        answersTurnedDownFor(EVERY_GROUP_BUT_THE_THIRD);
+        anApprovedArrangementOf(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, root, seeds);
+        answersTurnedDownFor(EVERY_CLUSTER_BUT_THE_THIRD);
 
         cli.run("run", root.toString());
         GenerationScriptedBeans.forgetScriptedAnswers();
-        answersTurnedDownFor(EVERY_GROUP_BUT_THE_THIRD);
+        answersTurnedDownFor(EVERY_CLUSTER_BUT_THE_THIRD);
 
         cli.run("run", root.toString());
 
@@ -609,9 +617,9 @@ class GenerationBreakerInvocationTest {
     @Story("Running again after it stopped starts the count over")
     @DisplayName("After it stops, nothing is recorded as done and the next run asks about every group")
     @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
-    void asksAboutEveryGroupAgainOnTheInvocationAfterItStopped(@TempDir Path root, @TempDir Path seeds)
+    void asksAboutEveryClusterAgainOnTheInvocationAfterItStopped(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
-        anApprovedArrangementOf(A_GROUP_EITHER_SIDE_OF_THE_STREAK, root, seeds);
+        anApprovedArrangementOf(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, root, seeds);
         answersTurnedDownFor(List.of(0, 1, 2, 3, 4));
 
         cli.run("run", root.toString());
@@ -627,26 +635,26 @@ class GenerationBreakerInvocationTest {
                         + " unwritten while every run after it reported success",
                 () -> assertThat(recordedAsDoneWhenItStopped).isFalse());
         claim(
-                "the next invocation asks about all " + A_GROUP_EITHER_SIDE_OF_THE_STREAK + " groups,"
+                "the next invocation asks about all " + A_CLUSTER_EITHER_SIDE_OF_THE_STREAK + " groups,"
                         + " including the two the stopped run never reached: stopping is what the archive's"
                         + " owner acts on, and a run that then walked past the groups it had never got to"
                         + " would leave them unwritten with nothing left saying they were missing",
                 () -> assertThat(GenerationScriptedBeans.callsMade())
-                        .isEqualTo(A_GROUP_EITHER_SIDE_OF_THE_STREAK));
+                        .isEqualTo(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK));
         claim(
-                "every one of those " + A_GROUP_EITHER_SIDE_OF_THE_STREAK + " groups is written over this"
+                "every one of those " + A_CLUSTER_EITHER_SIDE_OF_THE_STREAK + " groups is written over this"
                         + " time, the five that were turned down before included: the same question is put"
                         + " again with nothing said about what came back last time, and what comes back now"
                         + " is what stands",
-                () -> assertThat(writingKept(root)).hasSize(A_GROUP_EITHER_SIDE_OF_THE_STREAK));
+                () -> assertThat(writingKept(root)).hasSize(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK));
         claim(
                 "and that invocation reports success, because nothing in it was turned down",
                 () -> assertThat(cli.getExitCode()).isZero());
     }
 
     /**
-     * Scripts the first five groups to be turned down, one for each of the four ways an answer can be,
-     * and one of them twice. The sixth group is left unscripted, so an answer nobody doubted is what it
+     * Scripts the first five clusters to be turned down, one for each of the four ways an answer can be,
+     * and one of them twice. The sixth cluster is left unscripted, so an answer nobody doubted is what it
      * would get — which is what makes the call count say the step stopped before reaching it.
      */
     private void fiveAnswersTurnedDownForFourDifferentReasons() {
@@ -654,16 +662,16 @@ class GenerationBreakerInvocationTest {
     }
 
     /**
-     * Scripts each named group to be turned down, walking the four ways an answer can be and starting
+     * Scripts each named cluster to be turned down, walking the four ways an answer can be and starting
      * over when it runs out of them — so any five of them cover all four, which is what makes a streak
      * scripted here a streak of a mix rather than of one kind repeated.
      *
-     * @param groups where each turned-down answer sits in {@link #GROUP_NAMES}
+     * @param clusters where each turned-down answer sits in {@link #CLUSTER_NAMES}
      */
-    private void answersTurnedDownFor(List<Integer> groups) {
-        for (int position = 0; position < groups.size(); position++) {
+    private void answersTurnedDownFor(List<Integer> clusters) {
+        for (int position = 0; position < clusters.size(); position++) {
             GenerationScriptedBeans.answerFor(
-                    GROUP_NAMES.get(groups.get(position)), oneOfTheFourWaysAnAnswerIsTurnedDown(position));
+                    CLUSTER_NAMES.get(clusters.get(position)), oneOfTheFourWaysAnAnswerIsTurnedDown(position));
         }
     }
 
@@ -678,16 +686,16 @@ class GenerationBreakerInvocationTest {
     }
 
     /**
-     * Scripts every group but the fifth to be turned down, so four land, one is believed, and four
+     * Scripts every cluster but the fifth to be turned down, so four land, one is believed, and four
      * more land after it.
      */
     private void everyAnswerTurnedDownExceptTheFifth() {
-        for (int group = 1; group <= FOUR_EITHER_SIDE_OF_A_BELIEVED_ANSWER; group++) {
-            if (group == THE_BELIEVED_ANSWER_IS_THE_FIFTH) {
+        for (int cluster = 1; cluster <= FOUR_EITHER_SIDE_OF_A_BELIEVED_ANSWER; cluster++) {
+            if (cluster == THE_BELIEVED_ANSWER_IS_THE_FIFTH) {
                 continue;
             }
             GenerationScriptedBeans.answerFor(
-                    GROUP_NAMES.get(group - 1), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                    CLUSTER_NAMES.get(cluster - 1), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
         }
     }
 
@@ -698,23 +706,23 @@ class GenerationBreakerInvocationTest {
     }
 
     /**
-     * A corpus of {@code groups} documents, walked once, arranged into {@code groups} groups of one
+     * A corpus of {@code clusters} documents, walked once, arranged into {@code clusters} clusters of one
      * document each, with that arrangement approved.
      */
-    private void anApprovedArrangementOf(int groups, Path root, Path seeds) throws IOException {
-        anApprovedArrangementOf(groups, EVERY_GROUP_HOLDS_A_DOCUMENT, root, seeds);
+    private void anApprovedArrangementOf(int clusters, Path root, Path seeds) throws IOException {
+        anApprovedArrangementOf(clusters, EVERY_CLUSTER_HOLDS_A_DOCUMENT, root, seeds);
     }
 
     /**
-     * The same, with the group at {@code theGroupHoldingNothing} left holding no document at all — the
-     * state a group is in when nothing it holds can be sent, which costs no call and returns no answer.
+     * The same, with the cluster at {@code theClusterHoldingNothing} left holding no document at all — the
+     * state a cluster is in when nothing it holds can be sent, which costs no call and returns no answer.
      *
-     * @param theGroupHoldingNothing where that group sits in the order, or {@link
-     *     #EVERY_GROUP_HOLDS_A_DOCUMENT} when there is no such group
+     * @param theClusterHoldingNothing where that cluster sits in the order, or {@link
+     *     #EVERY_CLUSTER_HOLDS_A_DOCUMENT} when there is no such cluster
      */
-    private void anApprovedArrangementOf(int groups, int theGroupHoldingNothing, Path root, Path seeds)
+    private void anApprovedArrangementOf(int clusters, int theClusterHoldingNothing, Path root, Path seeds)
             throws IOException {
-        int documentsNeeded = theGroupHoldingNothing == EVERY_GROUP_HOLDS_A_DOCUMENT ? groups : groups - 1;
+        int documentsNeeded = theClusterHoldingNothing == EVERY_CLUSTER_HOLDS_A_DOCUMENT ? clusters : clusters - 1;
         for (int document = 1; document <= documentsNeeded; document++) {
             Files.writeString(root.resolve("corpus-" + document + ".txt"), "corpus document " + document);
         }
@@ -729,7 +737,7 @@ class GenerationBreakerInvocationTest {
                 .build());
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
-        oneGroupPerDocument(theApprovedArrangement(root), groups, theGroupHoldingNothing, root);
+        oneClusterPerDocument(theApprovedArrangement(root), clusters, theClusterHoldingNothing, root);
     }
 
     /** Writes the approval, leaving every other key as the fixture left it. */
@@ -740,12 +748,12 @@ class GenerationBreakerInvocationTest {
     }
 
     /**
-     * Replaces the arranged groups with {@code groups} groups of one document each, named in the order
+     * Replaces the arranged clusters with {@code clusters} clusters of one document each, named in the order
      * they will be written over.
      *
      * <p>Written straight into the tables for the reason this package's other fault test writes its
-     * second group in: every document this fixture converts comes back carrying the same text, so
-     * nothing that can be put in the corpus will arrange itself into nine groups. Identity stays the
+     * second cluster in: every document this fixture converts comes back carrying the same text, so
+     * nothing that can be put in the corpus will arrange itself into nine clusters. Identity stays the
      * cluster ordinal and order stays the cluster order, which is what the step reads them in.
      *
      * <p><b>It states the whole arrangement rather than adjusting what it finds</b>, and that is not
@@ -753,19 +761,19 @@ class GenerationBreakerInvocationTest {
      * reads (ADR-048), so a method whose corpus holds the same documents as an earlier one works under
      * the <em>same</em> run — and that run's membership then carries both walks' rows, keyed as they
      * are by occurrence and run. Every document under the run is therefore first moved to an ordinal
-     * no group is arranged at, and only then are this walk's documents placed one per group. Left where
-     * they were, one of the other walk's documents lands in the group this method meant to leave empty,
-     * which is a group that quietly becomes sendable — and whether it does depends on the order a
+     * no cluster is arranged at, and only then are this walk's documents placed one per cluster. Left where
+     * they were, one of the other walk's documents lands in the cluster this method meant to leave empty,
+     * which is a cluster that quietly becomes sendable — and whether it does depends on the order a
      * filesystem hands its entries back, so it passed on NTFS and failed on Linux.
      *
      * <p><b>Every placed document is given the cluster rows' winning seed</b>, so membership and
      * arrangement agree on the key the step reads them by, and the order is the cluster order alone.
      *
-     * <p>The group at {@code theGroupHoldingNothing} is given no document and a count of none, which is
-     * how a group nothing can be sent for is arranged here: no document of the corpus is moved into it,
+     * <p>The cluster at {@code theClusterHoldingNothing} is given no document and a count of none, which is
+     * how a cluster nothing can be sent for is arranged here: no document of the corpus is moved into it,
      * so the step meets it, finds nothing to send, and makes no call.
      */
-    private void oneGroupPerDocument(RunId arrangement, int groups, int theGroupHoldingNothing, Path root) {
+    private void oneClusterPerDocument(RunId arrangement, int clusters, int theClusterHoldingNothing, Path root) {
         String scoring = jdbcTemplate.queryForObject(
                 "SELECT upstream_run_id FROM run_upstream WHERE run_id = ?", String.class, arrangement.value());
         // Scoped to this method's own walk, for the reason the javadoc above gives: the run may carry
@@ -778,18 +786,18 @@ class GenerationBreakerInvocationTest {
                 Long.class,
                 scoring,
                 Walk.canonicalRoot(root).toString());
-        int documentsNeeded = theGroupHoldingNothing == EVERY_GROUP_HOLDS_A_DOCUMENT ? groups : groups - 1;
+        int documentsNeeded = theClusterHoldingNothing == EVERY_CLUSTER_HOLDS_A_DOCUMENT ? clusters : clusters - 1;
         if (documents.size() < documentsNeeded) {
             throw new IllegalStateException("this fixture needs " + documentsNeeded + " documents in the"
-                    + " arrangement to make " + groups + " groups, and this walk produced " + documents.size());
+                    + " arrangement to make " + clusters + " groups, and this walk produced " + documents.size());
         }
         Long winningSeed = jdbcTemplate.queryForObject(
                 "SELECT winning_seed_occurrence_id FROM document_cluster WHERE run_id = ? AND occurrence_id = ?",
                 Long.class,
                 scoring,
                 documents.getFirst());
-        // Out of the arrangement entirely: no group is arranged at this ordinal, so anything left here
-        // is unreachable rather than quietly part of a group.
+        // Out of the arrangement entirely: no cluster is arranged at this ordinal, so anything left here
+        // is unreachable rather than quietly part of a cluster.
         //
         // This changes no outcome today and no test notices its removal -- another walk's documents are
         // already invisible to the step, because the two lines above key this arrangement to a winning
@@ -797,41 +805,41 @@ class GenerationBreakerInvocationTest {
         // the seed folders happening to differ per test, where this is the fixture saying outright that
         // it arranges these documents and no others -- which is the thing that was not true before.
         jdbcTemplate.update(
-                "UPDATE document_cluster SET cluster_ordinal = ? WHERE run_id = ?", groups, scoring);
+                "UPDATE document_cluster SET cluster_ordinal = ? WHERE run_id = ?", clusters, scoring);
         int document = 0;
-        for (int group = 0; group < groups; group++) {
-            if (group == theGroupHoldingNothing) {
+        for (int cluster = 0; cluster < clusters; cluster++) {
+            if (cluster == theClusterHoldingNothing) {
                 continue;
             }
             jdbcTemplate.update(
                     "UPDATE document_cluster SET cluster_ordinal = ?, winning_seed_occurrence_id = ?"
                             + " WHERE run_id = ? AND occurrence_id = ?",
-                    group,
+                    cluster,
                     winningSeed,
                     scoring,
                     documents.get(document++));
         }
         jdbcTemplate.update("DELETE FROM cluster WHERE run_id = ?", arrangement.value());
-        for (int group = 0; group < groups; group++) {
+        for (int cluster = 0; cluster < clusters; cluster++) {
             jdbcTemplate.update(
                     "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
                             + " document_count, partition_order, cluster_order) VALUES (?, ?, ?, ?, ?, 0, ?)",
                     arrangement.value(),
                     winningSeed,
-                    group,
-                    GROUP_NAMES.get(group),
-                    group == theGroupHoldingNothing ? 0 : 1,
-                    group);
+                    cluster,
+                    CLUSTER_NAMES.get(cluster),
+                    cluster == theClusterHoldingNothing ? 0 : 1,
+                    cluster);
         }
     }
 
     /**
      * The lines written at the level this run keeps for work having stopped, which is one louder than
-     * the level a single group left unwritten is reported at.
+     * the level a single cluster left unwritten is reported at.
      *
      * <p>The level is the whole of the distinction being read here: every turned-down answer already
      * writes a line, and those lines name a count and a reason too, so a claim that looked at all of
-     * them together would be met by the per-group lines alone and would say nothing about whether the
+     * them together would be met by the per-cluster lines alone and would say nothing about whether the
      * step reported stopping at all.
      */
     private List<String> linesSayingSomethingStopped() {
@@ -841,7 +849,7 @@ class GenerationBreakerInvocationTest {
                 .toList();
     }
 
-    /** Everything stage 6b wrote over the groups of {@code root}, under whichever run it wrote them. */
+    /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
     private List<RecordedSynthesisDoc> writingKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
@@ -849,7 +857,7 @@ class GenerationBreakerInvocationTest {
                 .toList();
     }
 
-    /** Every reason stage 6b kept for a group of {@code root} it left unwritten. */
+    /** Every reason stage 6b kept for a cluster of {@code root} it left unwritten. */
     private List<RecordedClusterFault> reasonsKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)

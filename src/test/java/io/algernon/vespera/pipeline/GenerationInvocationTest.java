@@ -70,7 +70,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Most of what is under test here is the gate: whether the operator has approved the arrangement
  * that would be written over, and what is recorded when they have. The last two tests are what
- * happens past it — one piece of writing per group, kept against the group it was about.
+ * happens past it — one piece of writing per cluster, kept against the cluster it was about.
  *
  * <p>An assumption would have been the house idiom and is wrong here: it would abort on the very
  * condition under test, so a gate that opened and did the wrong thing would look exactly like a gate
@@ -89,6 +89,14 @@ import org.springframework.transaction.annotation.Transactional;
  * very walk the next invocation reads, and the gate opens on it. The third-invocation test is the
  * other half of the same record: a re-derived generation run id meets the row it already wrote, and
  * {@code Ledger.startRun} continues under it rather than inserting a second time.
+ *
+ * <p><b>The report says <em>group</em> and the code says <em>cluster</em>, and that is settled rather
+ * than sloppy</b> (ADR-122). Everything a reader of the report sees -- the feature, the stories, the
+ * display names, every claim -- renders the term as <em>group</em>, because the everyday sense of
+ * "cluster" is a set of interchangeable things, which is what {@code CONTEXT.md} says a cluster is
+ * not, and that reader cannot open {@code CONTEXT.md} to find out. Everything this project names for
+ * itself -- the constants, the fixture methods, these comments -- says cluster. Do not reconcile the
+ * two by changing either side.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -209,10 +217,10 @@ class GenerationInvocationTest {
     /** What one approval is worth: one record of the work, and not a second over the same approval. */
     private static final int ONE_RECORD = 1;
 
-    /** What one group of documents is worth: one piece of writing, however many documents are in it. */
+    /** What one cluster of documents is worth: one piece of writing, however many documents are in it. */
     private static final int ONE_PIECE_OF_WRITING = 1;
 
-    /** How many documents the two-document corpus puts in that one group. */
+    /** How many documents the two-document corpus puts in that one cluster. */
     private static final int TWO_DOCUMENTS = 2;
 
     /** How many of them fit once the window is set small enough that they no longer both do. */
@@ -228,12 +236,12 @@ class GenerationInvocationTest {
     private static final String A_WINDOW_WITH_ROOM_FOR_ONE = "1300";
 
     /**
-     * What stage 6a calls that one group: the title every document this fixture converts carries, which
-     * is what the naming rule derives a group's name from.
+     * What stage 6a calls that one cluster: the title every document this fixture converts carries, which
+     * is what the naming rule derives a cluster's name from.
      */
-    private static final String THE_GROUPS_NAME = SeedScriptedExtractionBeans.STUBBED_TITLE;
+    private static final String THE_CLUSTERS_NAME = SeedScriptedExtractionBeans.STUBBED_TITLE;
 
-    /** A heading scripted for that group alone, so a record holding any other answer is visible. */
+    /** A heading scripted for that cluster alone, so a record holding any other answer is visible. */
     private static final String ITS_OWN_TITLE = "What The Two Stubbed Documents Have In Common";
 
     /** And the writing scripted with it. */
@@ -245,11 +253,11 @@ class GenerationInvocationTest {
     /** What two different answers to how much may be read are worth: two records of the work. */
     private static final int TWO_RECORDS = 2;
 
-    /** What one unfinished piece of work leaves behind: the one group that was written, and no more. */
-    private static final int ONE_GROUP_WRITTEN = 1;
+    /** What one unfinished piece of work leaves behind: the one cluster that was written, and no more. */
+    private static final int ONE_CLUSTER_WRITTEN = 1;
 
-    /** The name given to the group nothing in this run can be sent for, so a claim can name it plainly. */
-    private static final String A_GROUP_WITH_NOTHING_TO_SEND = "A group whose documents cannot be opened";
+    /** The name given to the cluster nothing in this run can be sent for, so a claim can name it plainly. */
+    private static final String A_CLUSTER_WITH_NOTHING_TO_SEND = "A group whose documents cannot be opened";
 
     /**
      * The smallest window anything can be read in at all: room for one word, which no document in this
@@ -257,17 +265,17 @@ class GenerationInvocationTest {
      */
     private static final String A_WINDOW_WITH_ROOM_FOR_A_SINGLE_WORD = "1282";
 
-    /** What a group nothing fits into is worth asking about: nothing, because there is nothing to ask. */
+    /** What a cluster nothing fits into is worth asking about: nothing, because there is nothing to ask. */
     private static final int NOTHING_WAS_ASKED = 0;
 
-    /** What a finished piece of work leaves behind here: writing over both of the two groups. */
-    private static final int TWO_GROUPS_WRITTEN = 2;
+    /** What a finished piece of work leaves behind here: writing over both of the two clusters. */
+    private static final int TWO_CLUSTERS_WRITTEN = 2;
 
     /** The fewest documents any piece of writing may rest on, because writing over none is never made. */
     private static final int AT_LEAST_ONE_DOCUMENT = 1;
 
-    /** The name given to the group no document has reached yet, so a claim can name it plainly. */
-    private static final String A_GROUP_NO_DOCUMENT_HAS_REACHED_YET = "A group no document has reached yet";
+    /** The name given to the cluster no document has reached yet, so a claim can name it plainly. */
+    private static final String A_CLUSTER_NO_DOCUMENT_HAS_REACHED_YET = "A group no document has reached yet";
 
     @TempDir
     static Path workingDirectory;
@@ -431,7 +439,7 @@ class GenerationInvocationTest {
     @Issue("180")
     @Story("Every approved group of documents is written over, once")
     @DisplayName("Each approved group comes out with one piece of writing over the whole group")
-    void writesOnePieceOverEachApprovedGroup(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void writesOnePieceOverEachApprovedCluster(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
@@ -462,8 +470,8 @@ class GenerationInvocationTest {
     @Issue("180")
     @Story("Every approved group of documents is written over, once")
     @DisplayName("What was written over a particular group is what is kept against that group")
-    void keepsWhatWasWrittenAgainstTheGroupItWasAbout(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        GenerationScriptedBeans.answerFor(THE_GROUPS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
+    void keepsWhatWasWrittenAgainstTheClusterItWasAbout(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
@@ -484,7 +492,7 @@ class GenerationInvocationTest {
     @Issue("182")
     @Story("A group too big to read in one go sends what fits, rather than being skipped")
     @DisplayName("With the reading window set small, a group is written from part of itself and says so")
-    void writesFromPartOfAGroupWhenTheWindowIsSetSmall(@TempDir Path root, @TempDir Path seeds)
+    void writesFromPartOfAClusterWhenTheWindowIsSetSmall(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
@@ -514,7 +522,7 @@ class GenerationInvocationTest {
     @Issue("180")
     @Story("Work that was not finished is not recorded as finished")
     @DisplayName("A group nothing could be sent for is not recorded as done")
-    void leavesTheStepOpenWhenAGroupCouldNotBeWrittenOver(@TempDir Path root, @TempDir Path seeds)
+    void leavesTheStepOpenWhenAClusterCouldNotBeWrittenOver(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
@@ -627,8 +635,8 @@ class GenerationInvocationTest {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
-        aGroupNothingCanBeSentFor(theApprovedArrangement(root));
-        GenerationScriptedBeans.answerFor(THE_GROUPS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
+        aClusterNothingCanBeSentFor(theApprovedArrangement(root));
+        GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
         cli.run("run", root.toString());
 
         GenerationScriptedBeans.forgetScriptedAnswers();
@@ -641,8 +649,8 @@ class GenerationInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
                 "the group written over the first time is written over exactly "
-                        + ONE_GROUP_WRITTEN + " time in total, with no second copy beside it",
-                () -> assertThat(generatedDocs(root)).hasSize(ONE_GROUP_WRITTEN));
+                        + ONE_CLUSTER_WRITTEN + " time in total, with no second copy beside it",
+                () -> assertThat(generatedDocs(root)).hasSize(ONE_CLUSTER_WRITTEN));
         claim(
                 "and what stands is the writing the first invocation produced, word for word -- the model"
                         + " was told to answer differently the second time, so writing that had been thrown"
@@ -667,15 +675,15 @@ class GenerationInvocationTest {
     @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
     @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
     @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
-    void finishesTheGroupLeftBehindAndOnlyThenRecordsTheWorkAsDone(@TempDir Path root, @TempDir Path seeds)
+    void finishesTheClusterLeftBehindAndOnlyThenRecordsTheWorkAsDone(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
-        aGroupNothingCanBeSentFor(theApprovedArrangement(root), A_GROUP_NO_DOCUMENT_HAS_REACHED_YET);
-        GenerationScriptedBeans.answerFor(THE_GROUPS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
+        aClusterNothingCanBeSentFor(theApprovedArrangement(root), A_CLUSTER_NO_DOCUMENT_HAS_REACHED_YET);
+        GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
         cli.run("run", root.toString());
-        theSecondGroupIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        theSecondClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
 
         GenerationScriptedBeans.forgetScriptedAnswers();
         cli.run("run", root.toString());
@@ -684,10 +692,10 @@ class GenerationInvocationTest {
                 "the second invocation reports success, which the claims below are about",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "both groups now have writing over them, all " + TWO_GROUPS_WRITTEN + " of them: the one"
+                "both groups now have writing over them, all " + TWO_CLUSTERS_WRITTEN + " of them: the one"
                         + " written the first time round, and the one that had nothing to send then and has"
                         + " something to send now",
-                () -> assertThat(generatedDocs(root)).hasSize(TWO_GROUPS_WRITTEN));
+                () -> assertThat(generatedDocs(root)).hasSize(TWO_CLUSTERS_WRITTEN));
         claim(
                 "the group written the first time round still carries that first writing, word for word:"
                         + " the model was told to answer differently this time, so writing that had been"
@@ -721,14 +729,14 @@ class GenerationInvocationTest {
     }
 
     /**
-     * Puts a second group into the approved arrangement holding no document this run can send, so the
-     * invocation writes over one group and leaves the other with nothing.
+     * Puts a second cluster into the approved arrangement holding no document this run can send, so the
+     * invocation writes over one cluster and leaves the other with nothing.
      *
      * <p>Written straight into the table, for the reason the colliding arrangement below is: what is
      * under test is what the next invocation does when it meets a half-finished piece of work, and a
-     * fixture whose documents all convert alike cannot be steered into producing two groups. It copies
-     * the arranged group's own row one place further along in the order, and no document anywhere
-     * belongs to it, so it reaches the same "nothing here can be sent" branch as a group whose every
+     * fixture whose documents all convert alike cannot be steered into producing two clusters. It copies
+     * the arranged cluster's own row one place further along in the order, and no document anywhere
+     * belongs to it, so it reaches the same "nothing here can be sent" branch as a cluster whose every
      * document has become unreadable. That branch is what is under test; the two states are not the
      * same one, and this is not the shape the archive going away actually takes -- there the
      * membership rows survive and the files do not.
@@ -738,12 +746,12 @@ class GenerationInvocationTest {
      * membership and never from that column -- but it means this fixture cannot defend that property,
      * and a change that started reading document_count would pass it.
      */
-    private void aGroupNothingCanBeSentFor(RunId arrangement) {
-        aGroupNothingCanBeSentFor(arrangement, A_GROUP_WITH_NOTHING_TO_SEND);
+    private void aClusterNothingCanBeSentFor(RunId arrangement) {
+        aClusterNothingCanBeSentFor(arrangement, A_CLUSTER_WITH_NOTHING_TO_SEND);
     }
 
-    /** The same, under a name of the caller's choosing, so two tests can tell their groups apart. */
-    private void aGroupNothingCanBeSentFor(RunId arrangement, String label) {
+    /** The same, under a name of the caller's choosing, so two tests can tell their clusters apart. */
+    private void aClusterNothingCanBeSentFor(RunId arrangement, String label) {
         jdbcTemplate.update(
                 "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
                         + " document_count, partition_order, cluster_order)"
@@ -755,18 +763,18 @@ class GenerationInvocationTest {
     }
 
     /**
-     * Moves one of the corpus documents into the second group, so a group nothing could be sent for now
+     * Moves one of the corpus documents into the second cluster, so a cluster nothing could be sent for now
      * has something to send.
      *
-     * <p>This is the obstruction being lifted. What left that group unwritten was that no document this
+     * <p>This is the obstruction being lifted. What left that cluster unwritten was that no document this
      * run could open belonged to it; a document belonging to it is the state in which the very same
      * invocation, asking the very same question again, finishes the job.
      *
-     * <p>Written straight into the table, for the reason the group itself is: a fixture whose documents
-     * all convert alike cannot be steered into producing two groups, let alone into moving a document
+     * <p>Written straight into the table, for the reason the cluster itself is: a fixture whose documents
+     * all convert alike cannot be steered into producing two clusters, let alone into moving a document
      * between them. Which document moves does not matter, so the query names one by taking the last.
      */
-    private void theSecondGroupIsGivenADocumentItCanSend(RunId arrangement) {
+    private void theSecondClusterIsGivenADocumentItCanSend(RunId arrangement) {
         jdbcTemplate.update(
                 "UPDATE document_cluster SET cluster_ordinal = cluster_ordinal + 1 WHERE rowid ="
                         + " (SELECT rowid FROM document_cluster WHERE run_id ="
@@ -776,11 +784,11 @@ class GenerationInvocationTest {
     }
 
     /**
-     * Takes both corpus documents away, so nothing in the group can be opened when the call is built.
+     * Takes both corpus documents away, so nothing in the cluster can be opened when the call is built.
      *
      * <p>An archive is a live filesystem and this is the ordinary version of that: a document moved,
      * renamed or locked between being walked and being written about. Every earlier step has already
-     * recorded its work, so this reaches the run at exactly the point the group is gathered.
+     * recorded its work, so this reaches the run at exactly the point the cluster is gathered.
      */
     private void theArchiveNoLongerHandsOverItsDocuments(Path root) throws IOException {
         Files.delete(root.resolve("corpus.txt"));
@@ -810,13 +818,13 @@ class GenerationInvocationTest {
                 .build());
     }
 
-    /** The same corpus with a second document in it, so a group holds more than one. */
+    /** The same corpus with a second document in it, so a cluster holds more than one. */
     private void aCorpusOfTwoDocuments(Path root, Path seeds) throws IOException {
         aCorpus(root, seeds);
         Files.writeString(root.resolve("another-corpus-document.txt"), "a second corpus document");
     }
 
-    /** Everything stage 6b wrote over the groups of {@code root}, under whichever run it wrote them. */
+    /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
     private List<RecordedSynthesisDoc> generatedDocs(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
