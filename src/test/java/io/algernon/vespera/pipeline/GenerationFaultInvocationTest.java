@@ -798,14 +798,14 @@ class GenerationFaultInvocationTest {
     @Story("A group asked about again and answered well keeps writing and no reason")
     @DisplayName("A group whose first answer was turned down keeps no reason once a later answer is believed")
     @Issue("185")
-    void keepsNoReasonForAGroupARepairAnswered(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void keepsNoReasonForAClusterARepairAnswered(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
-        GenerationScriptedBeans.answerFor(theOnlyGroup(), anOrdinaryAnswer());
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), anOrdinaryAnswer());
 
         cli.run("run", root.toString());
 
@@ -843,13 +843,13 @@ class GenerationFaultInvocationTest {
             @TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
         RecordedClusterFault turnedDownFor =
                 reasonsKept(root).stream().findFirst().orElseThrow();
-        GenerationScriptedBeans.answerFor(theOnlyGroup(), anOrdinaryAnswer());
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), anOrdinaryAnswer());
 
         cli.run("run", root.toString());
 
