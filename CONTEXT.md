@@ -81,7 +81,7 @@ All file occurrences sharing a winning seed. The unit within which grouping happ
 _Avoid_: bucket, category, topic
 
 **Cluster**:
-A set of documents within one seed partition that belong together by subject, and one of however many that partition breaks into — the level below the partition in the arrangement. An arrangement of relevant documents, never a set of interchangeable ones (that is a redundancy set), and never a judgement: nothing is removed for the cluster it lands in. What a document contributes to it is what the document *is*, not the passage that earned its score.
+Documents within one seed partition that belong together by subject, and one of however many that partition breaks into — the level below the partition in the arrangement. An arrangement of relevant documents, never a set of interchangeable ones (that is a redundancy set), and never a judgement: nothing is removed for the cluster it lands in. What a document contributes to it is what the document *is*, not the passage that earned its score.
 _Avoid_: group, theme, cluster of duplicates
 _Renders as_: **group**, and only in prose written for a reader outside this project; ADR-122 enumerates the audiences. Everything we name ourselves says cluster, the header of `documents.csv` included. This line is the rendering, not the rule: ADR-122 states the rule once and enumerates what is bound and what is not, and is the place to read it. The rendering exists because the everyday sense of "cluster" is the one this entry spends a sentence refusing, and that reader cannot reach the entry.
 
