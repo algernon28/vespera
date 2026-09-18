@@ -56,6 +56,19 @@ class ClusterFaultsTest {
     /** Which group of its partition this is: its identity, which never moves. */
     private static final int CLUSTER_ORDINAL = 3;
 
+    /** A second group of the same seed's own groups, so dropping one reason has another to spare. */
+    private static final int ANOTHER_CLUSTER_ORDINAL = 4;
+
+    /**
+     * How many reasons stand under one record before anything is dropped: one for the group repaired,
+     * one for the other group of the same seed, and one for a group under a different seed that sits at
+     * the same place in that seed's order.
+     */
+    private static final int THREE_REASONS_KEPT_UNDER_ONE_RECORD = 3;
+
+    /** What those three leave behind once the reason for one of the three groups is dropped. */
+    private static final int TWO_REASONS_LEFT = 2;
+
     /** The number that failed, kept in the row so nobody has to ask the model again to learn it. */
     private static final String DETAIL = "citation 7 against 2 document(s) sent";
 
@@ -125,6 +138,102 @@ class ClusterFaultsTest {
     }
 
     @Test
+    @Story("A reason is dropped once a later answer about the same group is believed")
+    @DisplayName("Dropping the reason kept for a group removes it, and dropping one for a group that has none does nothing")
+    @Issue("185")
+    void dropsTheReasonKeptAndDoesNothingWhenNoneIsKept() {
+        ClusterFaults faults = new ClusterFaults(jdbcTemplate);
+        OccurrenceId seed = anOccurrence("seeds/safety.docx");
+        RunId run = aRun(seed);
+        faults.record(
+                run, seed, CLUSTER_ORDINAL, new ClusterFault(ClusterFaultKind.CITATION_NOT_IN_RANGE, DETAIL));
+
+        faults.delete(run, seed, CLUSTER_ORDINAL);
+
+        claim(
+                "nothing is kept against the group any more. A later answer about it was believed and has"
+                        + " been written over the group, so a reason still standing here would have the"
+                        + " record saying one group under one run was both written over and left unwritten",
+                () -> assertThat(faults.forRun(run)).isEmpty());
+        claim(
+                "and dropping a reason for a group that has none does nothing and fails nothing, which is"
+                        + " the ordinary case: almost every group is answered well the first time and never"
+                        + " had a reason kept against it to drop",
+                () -> {
+                    faults.delete(run, seed, CLUSTER_ORDINAL);
+                    assertThat(faults.forRun(run)).isEmpty();
+                });
+    }
+
+    @Test
+    @Story("A reason is dropped for one group under one record, and for nothing else")
+    @DisplayName("Dropping the reason kept for a group leaves the other group's reason and the same group's reason under another record standing")
+    @Issue("185")
+    @Link(name = "ADR-077", url = Adr.A_REGENERATED_MEASUREMENT_IS_KEYED_PER_RUN, type = "adr")
+    void dropsTheReasonForOneGroupUnderOneRecordAndNoOther() {
+        ClusterFaults faults = new ClusterFaults(jdbcTemplate);
+        OccurrenceId seed = anOccurrence("seeds/safety.docx");
+        RunId run = aRun(seed);
+        OccurrenceId anotherSeed = anotherOccurrenceInTheWalkOf(seed, "seeds/handling.docx");
+        RunId anotherRun = aRun(seed);
+        faults.record(
+                run, seed, CLUSTER_ORDINAL, new ClusterFault(ClusterFaultKind.CITATION_NOT_IN_RANGE, DETAIL));
+        faults.record(
+                run,
+                anotherSeed,
+                CLUSTER_ORDINAL,
+                new ClusterFault(ClusterFaultKind.ANSWER_RAN_OUT_OF_ROOM, DETAIL));
+        faults.record(
+                run,
+                seed,
+                ANOTHER_CLUSTER_ORDINAL,
+                new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, DETAIL));
+        faults.record(
+                anotherRun,
+                seed,
+                CLUSTER_ORDINAL,
+                new ClusterFault(ClusterFaultKind.CITATION_NOT_IN_RANGE, DETAIL));
+
+        faults.delete(run, seed, CLUSTER_ORDINAL);
+
+        claim(
+                "the other two groups under the same record still keep their own reasons -- "
+                        + TWO_REASONS_LEFT + " of the " + THREE_REASONS_KEPT_UNDER_ONE_RECORD
+                        + " kept there. A later answer was believed about one group and says nothing about"
+                        + " any other, so dropping a reason for more than the one group would lose why the"
+                        + " rest were left unwritten",
+                () -> assertThat(faults.forRun(run)).hasSize(TWO_REASONS_LEFT));
+        claim(
+                "one of the two is the other group of the same seed's own groups, told apart from the"
+                        + " repaired one by its place in that seed's order and nothing else",
+                () -> assertThat(faults.forRun(run)).anySatisfy(recorded -> {
+                    assertThat(recorded.winningSeed()).isEqualTo(seed);
+                    assertThat(recorded.clusterOrdinal()).isEqualTo(ANOTHER_CLUSTER_ORDINAL);
+                    assertThat(recorded.fault().kind()).isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION);
+                }));
+        claim(
+                "and the other is a group under a different seed that sits at the same place in its own"
+                        + " seed's order. A group's place is counted afresh for each seed, so the number"
+                        + " alone names no group: dropping a reason by that number would take the reason"
+                        + " away from one group in every seed's set at once, and the run's account of why"
+                        + " those groups are holes would be gone with no sign that it ever existed",
+                () -> assertThat(faults.forRun(run)).anySatisfy(recorded -> {
+                    assertThat(recorded.winningSeed()).isEqualTo(anotherSeed);
+                    assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
+                    assertThat(recorded.fault().kind()).isEqualTo(ClusterFaultKind.ANSWER_RAN_OUT_OF_ROOM);
+                }));
+        claim(
+                "and the same group keeps the reason standing against it under the other record, which is"
+                        + " a separate piece of work over the same documents: a second one writes beside the"
+                        + " first rather than over it, so an answer believed under one record cannot drop"
+                        + " what another recorded about the same group",
+                () -> assertThat(faults.forRun(anotherRun)).singleElement().satisfies(recorded -> {
+                    assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
+                    assertThat(recorded.fault().kind()).isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE);
+                }));
+    }
+
+    @Test
     @Story("A rejected answer takes nothing out of the archive")
     @DisplayName("A group left unwritten records no judgement against any of its documents")
     void writesNoJudgement() {
@@ -159,10 +268,31 @@ class ClusterFaultsTest {
         return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
     }
 
+    /**
+     * A second seed observed by the same walk as {@code sibling}, so that both can be winning seeds of
+     * one run. {@link #anOccurrence} starts a walk of its own each time it is called, and two seeds in
+     * two walks could never be partitions of the same run.
+     */
+    private OccurrenceId anotherOccurrenceInTheWalkOf(OccurrenceId sibling, String path) {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = theWalkOf(sibling);
+        ledger.fileOccurrence(
+                walkId,
+                new OccurrencePath(path),
+                1,
+                Instant.parse("2026-09-15T10:15:30Z"),
+                Instant.parse("2026-09-01T08:00:00Z"));
+        return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+    }
+
     private RunId aRun(OccurrenceId anyOccurrenceInTheWalk) {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = new WalkId(jdbcTemplate.queryForObject(
-                "SELECT walk_id FROM file_occurrence WHERE id = ?", Long.class, anyOccurrenceInTheWalk.value()));
-        return ledger.startRun("generation", "abc" + System.nanoTime(), "{}", walkId, List.of());
+        return ledger.startRun(
+                "generation", "abc" + System.nanoTime(), "{}", theWalkOf(anyOccurrenceInTheWalk), List.of());
+    }
+
+    private WalkId theWalkOf(OccurrenceId occurrence) {
+        return new WalkId(jdbcTemplate.queryForObject(
+                "SELECT walk_id FROM file_occurrence WHERE id = ?", Long.class, occurrence.value()));
     }
 }

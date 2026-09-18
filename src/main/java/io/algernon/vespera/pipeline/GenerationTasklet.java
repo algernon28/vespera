@@ -68,8 +68,16 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>Completion needs two things, not one</b> (ADR-116): every sendable cluster carries a
  * {@code synthesis_doc} row, <em>and</em> no {@code cluster_fault} row stands under this run. A
- * turned-down cluster keeps the step permanently unfinished until #185's repair pass, not built
- * here, exactly as ADR-121 already left an unsendable one.
+ * turned-down cluster carries no {@code synthesis_doc} row, so the next invocation of this run asks
+ * about it again, and its fault row is deleted the moment that answer is believed (ADR-111, #185) —
+ * which is what makes completion reachable for it at all. An unsendable cluster is reached again too
+ * and refused again: no call is ever made for a cluster nothing fits into (ADR-121), so no later
+ * invocation can turn one into a {@code synthesis_doc} row and this step never records completion
+ * for it. Widening the reading window is not the repair — the window is consumed into this run's own
+ * id ({@link GenerationRun}), so an operator who widens it generates under a run of its own rather
+ * than finishing this one. ADR-121 accepts that permanence rather than mitigating it, and #183
+ * settled in the negative that such a cluster earns no {@code cluster_fault} row of its own: the 6a
+ * {@code cluster} row is the denominator, and the missing {@code synthesis_doc} row is the hole.
  *
  * <p><b>Five turned down in a row stop the step</b> (ADR-111, #184), and any answer that is believed
  * drops the count to nothing. One rejected answer costs its own cluster, which is the paragraph
@@ -258,6 +266,11 @@ class GenerationTasklet implements Tasklet {
             }
             synthesisDocs.record(
                     generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), doc);
+            // A repair pass re-attempts a cluster that already carries a fault row from an earlier
+            // invocation of this run (ADR-111, #185). It just succeeded, so that row would now say the
+            // cluster both failed and succeeded under one run -- which the ledger must never say -- and
+            // is deleted. A no-op for the ordinary cluster that never faulted.
+            clusterFaults.delete(generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal());
             written++;
             // An answer that was believed is the only thing that drops the streak. A cluster skipped
             // because an earlier invocation already wrote it, and one nothing could be sent for, both
@@ -268,9 +281,12 @@ class GenerationTasklet implements Tasklet {
 
         // Completion needs two things, not one (ADR-116): every sendable cluster carries a synthesis
         // doc -- written just now or by an earlier invocation of this run (ADR-115) -- and no
-        // cluster_fault row stands under this run. An unsendable or turned-down cluster keeps the step
-        // permanently unfinished until #184/#185 repair it; recording it finished regardless would
-        // short-circuit every later invocation and leave the hole permanent and unannounced.
+        // cluster_fault row stands under this run. A turned-down cluster leaves the step unfinished
+        // until the next invocation asks about it again and the answer is believed, which deletes the
+        // fault row above and lets this finish (ADR-111, #185). An unsendable one leaves it unfinished
+        // with nothing to repair it: no call is ever made for a cluster nothing fits into (ADR-121), so
+        // no later invocation can turn that into a synthesis doc. Recording the step finished in either
+        // case would short-circuit every later invocation and leave the hole permanent and unannounced.
         int standingFaults = clusterFaults.forRun(generation).size();
         if (unsendable > 0 || standingFaults > 0) {
             // The standing count, not this invocation's -- a repair invocation that turned nothing

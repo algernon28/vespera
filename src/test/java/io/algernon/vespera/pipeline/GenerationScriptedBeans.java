@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +87,7 @@ class GenerationScriptedBeans {
     static void forgetScriptedAnswers() {
         BY_LABEL.clear();
         callsMade = 0;
+        PROMPTS_SENT.clear();
     }
 
     /**
@@ -102,10 +104,28 @@ class GenerationScriptedBeans {
         return callsMade;
     }
 
+    /**
+     * Every question this fixture's model has been put, whole and in the order it was asked, since the
+     * scripts were last dropped.
+     *
+     * <p>Kept because one claim in this package is about the text of a question rather than about the
+     * answer to it: a second question put after a first answer was turned down has to be the first
+     * question over again, and nothing but the question itself can say whether it is. The routing above
+     * reads {@code prompt.getContents()} and throws it away, which is enough to choose an answer and
+     * not enough to claim anything about what was asked.
+     */
+    private static final List<String> PROMPTS_SENT = new ArrayList<>();
+
+    /** The questions put, oldest first. */
+    static List<String> promptsSent() {
+        return List.copyOf(PROMPTS_SENT);
+    }
+
     @Bean
     ChatModel chatModel() {
         return prompt -> {
             callsMade++;
+            PROMPTS_SENT.add(prompt.getContents());
             ScriptedAnswer answer = BY_LABEL.entrySet().stream()
                     .filter(scripted -> prompt.getContents().contains(scripted.getKey()))
                     .map(Map.Entry::getValue)
