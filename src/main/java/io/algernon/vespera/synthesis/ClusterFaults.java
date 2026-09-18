@@ -14,8 +14,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * what was said about a group's documents was rejected, not the documents. So this is a fact about
  * content, never a verdict (ADR-111).
  *
- * <p><b>Within one invocation, a group has a row here or in {@link SynthesisDocs}, never both.</b>
- * Across invocations it briefly can — closing that window is #185's, not this one's (ADR-111).
+ * <p><b>A group never carries a row here and in {@link SynthesisDocs} under the same run</b>, in any
+ * state anything can read. What keeps that true across invocations is {@link #delete} landing in the
+ * same step transaction as the write it follows (ADR-111, #185): a group turned down once is asked
+ * again under the same run id, and the write and the delete commit together or not at all.
  *
  * <p>Rows are keyed by the 6b run, so a second generation writes beside the first rather than over
  * it (ADR-077), the rule {@link SynthesisDocs} already follows.
@@ -56,6 +58,32 @@ public class ClusterFaults {
                 clusterOrdinal,
                 fault.kind().name(),
                 fault.detail());
+    }
+
+    /**
+     * Deletes the fault standing against one cluster, because a re-attempt under the same run
+     * succeeded (ADR-111, #185).
+     *
+     * <p><b>The one row in this schema removed on success.</b> Every other row this module writes — a
+     * {@code synthesis_doc}, a fault recorded above — stands until the table itself is gone. A fault
+     * is rewritten in place when a later attempt fails a different check, which is what {@link
+     * #record}'s replace is for; what happens nowhere else here is a row being taken away because
+     * something went right. This delete exists for exactly one reason and does not generalise: the
+     * ledger must never say a cluster both failed and succeeded under one run, so once a {@code
+     * synthesis_doc} row is written for a cluster that once faulted, the fault row saying otherwise has
+     * to go with it. Read this as the narrow carve-out ADR-111 names, not as licence to delete anything
+     * else in this module.
+     *
+     * <p>A no-op when no fault stands against the cluster — the ordinary case, since most clusters
+     * never fault at all.
+     */
+    public void delete(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+        jdbcTemplate.update(
+                "DELETE FROM cluster_fault WHERE run_id = ? AND winning_seed_occurrence_id = ? AND"
+                        + " cluster_ordinal = ?",
+                runId.value(),
+                winningSeed.value(),
+                clusterOrdinal);
     }
 
     /** Every cluster fault recorded under {@code runId}, in the order the groups were attempted. */

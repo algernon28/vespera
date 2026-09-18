@@ -622,11 +622,12 @@ CREATE TABLE IF NOT EXISTS synthesis_doc (
 
 -- synthesis's third table (ADR-108, ADR-109, ADR-110, ADR-111): why a call that came back was
 -- rejected, for a cluster the row above has none for. Keyed the same, under the same GENERATION run.
--- Within one invocation a cluster lands in exactly one of the two tables. Across invocations it can
--- briefly carry both: a cluster turned down once is asked again under the same run id, and its fault
--- row is deleted only when the later answer is believed -- the repair pass, not built yet. A
--- repeated turn-down replaces the row rather than inserting a second, so what stands is true of the
--- attempt that stands.
+-- A cluster lands in exactly one of the two tables, and never in both. A cluster turned down once is
+-- asked again under the same run id by the next invocation, and the moment that later answer is
+-- believed its fault row is deleted (ADR-111, #185) -- the one row in this schema removed on
+-- success, and what keeps the two tables exclusive across invocations, as the generation loop's own
+-- shape already does within one. A repeated turn-down replaces the row rather than inserting a
+-- second, so what stands is true of the attempt that stands.
 --
 -- Not a verdict, on the precedent of walk_anomaly (corpus) and unusable_seed (embedding): every
 -- VerdictKind exists to remove a document from publication, and nothing about a cluster's documents

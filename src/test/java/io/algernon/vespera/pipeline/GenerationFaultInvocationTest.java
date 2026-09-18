@@ -329,6 +329,12 @@ class GenerationFaultInvocationTest {
     /** What the other group of a two-group run leaves behind when its own answer was believed. */
     private static final int ONE_PIECE_OF_WRITING = 1;
 
+    /** Where the first of the two questions put about one group sits in the order they were asked. */
+    private static final int THE_QUESTION_ASKED_FIRST = 0;
+
+    /** Where the second sits: the one put after the first answer was turned down. */
+    private static final int THE_QUESTION_ASKED_AGAIN = 1;
+
     /** What a group nothing fits into is worth asking about: nothing, because there is nothing to ask. */
     private static final int NOTHING_WAS_ASKED = 0;
 
@@ -778,6 +784,92 @@ class GenerationFaultInvocationTest {
                 "and both invocations worked under the same record, which is what makes the second one a"
                         + " continuation of the first rather than a fresh attempt beside it",
                 () -> assertThat(generationRuns(root)).hasSize(ONE_RUN_FOR_BOTH_INVOCATIONS));
+    }
+
+    @Test
+    @Story("A group asked about again and answered well keeps writing and no reason")
+    @DisplayName("A group whose first answer was turned down keeps no reason once a later answer is believed")
+    @Issue("185")
+    void keepsNoReasonForAGroupARepairAnswered(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds);
+        GenerationScriptedBeans.answerFor(
+                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+
+        cli.run("run", root.toString());
+
+        GenerationScriptedBeans.answerFor(theOnlyGroup(), anOrdinaryAnswer());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the group was asked about again -- " + A_CALL_FOR_EACH_OF_TWO_INVOCATIONS + " calls over"
+                        + " the two invocations -- and the second answer was believed, so the group carries"
+                        + " the " + ONE_PIECE_OF_WRITING + " piece of writing the second answer became",
+                () -> {
+                    assertThat(GenerationScriptedBeans.callsMade())
+                            .isEqualTo(A_CALL_FOR_EACH_OF_TWO_INVOCATIONS);
+                    assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING);
+                });
+        claim(
+                "and no reason is kept against it any more: the reason the first answer was turned down is"
+                        + " gone, not kept beside the writing. A group holding both would have the record"
+                        + " saying the same group under the same run was both written over and left"
+                        + " unwritten, and somebody reading it would have no way to tell which is so",
+                () -> assertThat(reasonsKept(root)).isEmpty());
+        claim(
+                "both invocations worked under the same record, which is what makes the second one repair"
+                        + " the first rather than write a second group beside it",
+                () -> assertThat(generationRuns(root)).hasSize(ONE_RUN_FOR_BOTH_INVOCATIONS));
+        claim(
+                "and the work is recorded as done now, which is what stops a third invocation asking about"
+                        + " this group at all -- the point of asking again being to finish, not to keep"
+                        + " asking",
+                () -> assertThat(theWorkIsRecordedAsFinished(root)).isTrue());
+    }
+
+    @Test
+    @Story("A group asked about again is asked the same question")
+    @DisplayName("The second question put about a group is the first question over again, carrying nothing of the answer that was turned down")
+    @Issue("185")
+    void asksTheSameQuestionAgainCarryingNothingOfTheAnswerTurnedDown(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds);
+        GenerationScriptedBeans.answerFor(
+                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+
+        cli.run("run", root.toString());
+
+        RecordedClusterFault turnedDownFor =
+                reasonsKept(root).stream().findFirst().orElseThrow();
+        GenerationScriptedBeans.answerFor(theOnlyGroup(), anOrdinaryAnswer());
+
+        cli.run("run", root.toString());
+
+        List<String> questionsPut = GenerationScriptedBeans.promptsSent();
+        claim(
+                "the group was asked about twice, so there are " + A_CALL_FOR_EACH_OF_TWO_INVOCATIONS
+                        + " questions to compare",
+                () -> assertThat(questionsPut).hasSize(A_CALL_FOR_EACH_OF_TWO_INVOCATIONS));
+        claim(
+                "and the second question is the first one word for word. Asking again is the same question"
+                        + " put a second time, not a correction: a question that mentioned how the first"
+                        + " answer fell short would have the model marking the model's own work, and what"
+                        + " came back could no longer be read as an answer about the documents alone",
+                () -> assertThat(questionsPut.get(THE_QUESTION_ASKED_AGAIN))
+                        .isEqualTo(questionsPut.get(THE_QUESTION_ASKED_FIRST)));
+        claim(
+                "neither question carries what the first answer was turned down for -- neither the check it"
+                        + " failed nor the detail kept against it -- so there was nothing of the first"
+                        + " attempt for the second to be steered by in the first place",
+                () -> assertThat(questionsPut)
+                        .allSatisfy(question -> assertThat(question)
+                                .doesNotContain(turnedDownFor.fault().kind().name())
+                                .doesNotContain(turnedDownFor.fault().detail())));
+        claim(
+                "and neither carries the text of the answer that was turned down, which is the thing a"
+                        + " retry loop would have put back in front of the model",
+                () -> assertThat(questionsPut)
+                        .allSatisfy(question -> assertThat(question).doesNotContain(AN_ANSWER_NOTHING_CAN_READ)));
     }
 
     @Test
