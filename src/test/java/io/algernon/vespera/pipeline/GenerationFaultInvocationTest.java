@@ -70,8 +70,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Stage 6b when the answer is not believed (ADR-108, ADR-109, ADR-111, ADR-116, ADR-121, #183): four
- * checks run before a word of an answer is kept, and a group whose answer fails one of them costs
- * that group and nothing else.
+ * checks run before a word of an answer is kept, and a cluster whose answer fails one of them costs
+ * that cluster and nothing else.
  *
  * <p><b>Why this is an invocation test rather than a unit one.</b> What each check costs is spread
  * across a seam: the checking happens where the call is made, the reason is kept in a table, and
@@ -92,14 +92,22 @@ import org.springframework.transaction.annotation.Transactional;
  * the other's.
  *
  * <p><b>The consecutive-run breaker is deliberately not reached here.</b> No test in this class
- * leaves five groups turned down in a row, so nothing here depends on what happens when it fires;
+ * leaves five clusters turned down in a row, so nothing here depends on what happens when it fires;
  * {@link GenerationBreakerInvocationTest} is where that is claimed.
  *
  * <p><b>ADR-121's deferred question is settled here in the negative</b>, and the last test is the
- * pin: a group whose every document is larger than the reading room gets no reason recorded, because
+ * pin: a cluster whose every document is larger than the reading room gets no reason recorded, because
  * the four ways an answer can be turned down are four things a returned answer can do, and no answer
- * was ever returned for that group. The step stays unfinished either way, so a fifth kind would buy
+ * was ever returned for that cluster. The step stays unfinished either way, so a fifth kind would buy
  * the operator a row and no change of behaviour.
+ *
+ * <p><b>The report says <em>group</em> and the code says <em>cluster</em>, and that is settled rather
+ * than sloppy</b> (ADR-122). Everything a reader of the report sees -- the feature, the stories, the
+ * display names, every claim -- renders the term as <em>group</em>, because the everyday sense of
+ * "cluster" is a set of interchangeable things, which is what {@code CONTEXT.md} says a cluster is
+ * not, and that reader cannot open {@code CONTEXT.md} to find out. Everything this project names for
+ * itself -- the constants, the fixture methods, these comments -- says cluster. Do not reconcile the
+ * two by changing either side.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -268,7 +276,7 @@ class GenerationFaultInvocationTest {
      *
      * <p>It is the number this system cannot read as a number at all, and the reason it is here is that
      * the answer to that has to be the same as the answer to any other number past the end -- this
-     * group turned down, the rest of the archive carried on -- rather than the run falling over on the
+     * cluster turned down, the rest of the archive carried on -- rather than the run falling over on the
      * reading.
      */
     private static final String A_NUMBER_TOO_LONG_TO_BE_A_DOCUMENT = "20190412120000";
@@ -299,22 +307,22 @@ class GenerationFaultInvocationTest {
     /** What the reason reads when the writing pointed at the number below the first document. */
     private static final String THE_REASON_FOR_POINTING_BELOW_THE_FIRST_DOCUMENT = "citation 0";
 
-    /** What one group is worth: one call, and never a second one because the first was turned down. */
+    /** What one cluster is worth: one call, and never a second one because the first was turned down. */
     private static final int ONE_CALL = 1;
 
-    /** What two groups are worth, and what a run that carried on past the first of them cost. */
+    /** What two clusters are worth, and what a run that carried on past the first of them cost. */
     private static final int TWO_CALLS = 2;
 
     /**
-     * What one group left unwritten costs over two invocations: one call each time.
+     * What one cluster left unwritten costs over two invocations: one call each time.
      *
      * <p>The count is not dropped between the two invocations of a test, so this is both of them added
-     * together. Fewer would mean the second invocation walked past a group it had left unwritten, which
+     * together. Fewer would mean the second invocation walked past a cluster it had left unwritten, which
      * is the opposite of what running again is for; more would mean it asked twice in one invocation.
      */
     private static final int A_CALL_FOR_EACH_OF_TWO_INVOCATIONS = 2;
 
-    /** What one turned-down answer leaves behind: one reason, kept against the group it was about. */
+    /** What one turned-down answer leaves behind: one reason, kept against the cluster it was about. */
     private static final int ONE_REASON_KEPT = 1;
 
     /**
@@ -326,16 +334,16 @@ class GenerationFaultInvocationTest {
      */
     private static final int ONE_RUN_FOR_BOTH_INVOCATIONS = 1;
 
-    /** What the other group of a two-group run leaves behind when its own answer was believed. */
+    /** What the other cluster of a two-cluster run leaves behind when its own answer was believed. */
     private static final int ONE_PIECE_OF_WRITING = 1;
 
-    /** Where the first of the two questions put about one group sits in the order they were asked. */
+    /** Where the first of the two questions put about one cluster sits in the order they were asked. */
     private static final int THE_QUESTION_ASKED_FIRST = 0;
 
     /** Where the second sits: the one put after the first answer was turned down. */
     private static final int THE_QUESTION_ASKED_AGAIN = 1;
 
-    /** What a group nothing fits into is worth asking about: nothing, because there is nothing to ask. */
+    /** What a cluster nothing fits into is worth asking about: nothing, because there is nothing to ask. */
     private static final int NOTHING_WAS_ASKED = 0;
 
     /**
@@ -344,8 +352,8 @@ class GenerationFaultInvocationTest {
      */
     private static final String A_WINDOW_WITH_ROOM_FOR_A_SINGLE_WORD = "1282";
 
-    /** The name given to the group whose answer is scripted away from the ordinary one. */
-    private static final String THE_GROUP_ANSWERED_BADLY = "A group whose answer is not believed";
+    /** The name given to the cluster whose answer is scripted away from the ordinary one. */
+    private static final String THE_CLUSTER_ANSWERED_BADLY = "A group whose answer is not believed";
 
     @TempDir
     static Path workingDirectory;
@@ -377,7 +385,7 @@ class GenerationFaultInvocationTest {
             throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), anOrdinaryAnswer().havingRead(A_COUNT_PAST_THE_CEILING));
+                theOnlyCluster(), anOrdinaryAnswer().havingRead(A_COUNT_PAST_THE_CEILING));
 
         cli.run("run", root.toString());
 
@@ -411,7 +419,7 @@ class GenerationFaultInvocationTest {
             throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), anOrdinaryAnswer().havingRead(A_COUNT_AT_THE_CEILING));
+                theOnlyCluster(), anOrdinaryAnswer().havingRead(A_COUNT_AT_THE_CEILING));
 
         cli.run("run", root.toString());
 
@@ -433,7 +441,7 @@ class GenerationFaultInvocationTest {
             throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), anOrdinaryAnswer().havingRead(A_COUNT_UNDER_THE_CEILING));
+                theOnlyCluster(), anOrdinaryAnswer().havingRead(A_COUNT_UNDER_THE_CEILING));
 
         cli.run("run", root.toString());
 
@@ -454,7 +462,7 @@ class GenerationFaultInvocationTest {
     void turnsDownAnAnswerThatRanOutOfRoom(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), anOrdinaryAnswer().stoppedForRoomAfter(THE_WHOLE_ANSWER_ALLOWANCE));
+                theOnlyCluster(), anOrdinaryAnswer().stoppedForRoomAfter(THE_WHOLE_ANSWER_ALLOWANCE));
 
         cli.run("run", root.toString());
 
@@ -485,7 +493,7 @@ class GenerationFaultInvocationTest {
     void turnsDownAnAnswerNothingCanRead(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
@@ -519,7 +527,7 @@ class GenerationFaultInvocationTest {
     void turnsDownWritingThatPointsAtADocumentTheCallNeverSent(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(theOnlyGroup(), A_HEADING, PROSE_POINTING_AT_NOTHING);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_HEADING, PROSE_POINTING_AT_NOTHING);
 
         cli.run("run", root.toString());
 
@@ -552,7 +560,7 @@ class GenerationFaultInvocationTest {
     void turnsDownWritingThatPointsAtNothingAtAll(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(theOnlyGroup(), A_HEADING, PROSE_POINTING_AT_NOTHING_AT_ALL);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_HEADING, PROSE_POINTING_AT_NOTHING_AT_ALL);
 
         cli.run("run", root.toString());
 
@@ -588,7 +596,7 @@ class GenerationFaultInvocationTest {
             throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), A_HEADING, PROSE_POINTING_BELOW_THE_FIRST_DOCUMENT);
+                theOnlyCluster(), A_HEADING, PROSE_POINTING_BELOW_THE_FIRST_DOCUMENT);
 
         cli.run("run", root.toString());
 
@@ -620,7 +628,7 @@ class GenerationFaultInvocationTest {
     void turnsDownWritingThatPointsAtANumberTooLongToBeADocument(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(theOnlyGroup(), A_HEADING, PROSE_POINTING_AT_A_NUMBER_TOO_LONG);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_HEADING, PROSE_POINTING_AT_A_NUMBER_TOO_LONG);
 
         cli.run("run", root.toString());
 
@@ -653,13 +661,13 @@ class GenerationFaultInvocationTest {
     @Test
     @Story("One answer nobody believes costs one group and no more")
     @DisplayName("The groups after a turned-down answer are still written over")
-    void carriesOnPastAGroupWhoseAnswerWasTurnedDown(@TempDir Path root, @TempDir Path seeds)
+    void carriesOnPastAClusterWhoseAnswerWasTurnedDown(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
-        aSecondGroupAheadOfTheFirst(theApprovedArrangement(root));
-        thatGroupIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
+        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
         GenerationScriptedBeans.answerFor(
-                THE_GROUP_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
@@ -689,7 +697,7 @@ class GenerationFaultInvocationTest {
             throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
@@ -704,12 +712,12 @@ class GenerationFaultInvocationTest {
     @Test
     @Story("A group is written over, or left unwritten with a reason, and never both")
     @DisplayName("No group carries both a piece of writing and a reason it was left unwritten")
-    void neverKeepsWritingAndAReasonForOneGroup(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void neverKeepsWritingAndAReasonForOneCluster(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
-        aSecondGroupAheadOfTheFirst(theApprovedArrangement(root));
-        thatGroupIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
+        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
         GenerationScriptedBeans.answerFor(
-                THE_GROUP_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
@@ -735,7 +743,7 @@ class GenerationFaultInvocationTest {
             throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
@@ -757,7 +765,7 @@ class GenerationFaultInvocationTest {
     void asksAgainOnASecondRunAndKeepsOneReason(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
         cli.run("run", root.toString());
@@ -790,14 +798,14 @@ class GenerationFaultInvocationTest {
     @Story("A group asked about again and answered well keeps writing and no reason")
     @DisplayName("A group whose first answer was turned down keeps no reason once a later answer is believed")
     @Issue("185")
-    void keepsNoReasonForAGroupARepairAnswered(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void keepsNoReasonForAClusterARepairAnswered(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
-        GenerationScriptedBeans.answerFor(theOnlyGroup(), anOrdinaryAnswer());
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), anOrdinaryAnswer());
 
         cli.run("run", root.toString());
 
@@ -835,13 +843,13 @@ class GenerationFaultInvocationTest {
             @TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
         RecordedClusterFault turnedDownFor =
                 reasonsKept(root).stream().findFirst().orElseThrow();
-        GenerationScriptedBeans.answerFor(theOnlyGroup(), anOrdinaryAnswer());
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), anOrdinaryAnswer());
 
         cli.run("run", root.toString());
 
@@ -879,11 +887,11 @@ class GenerationFaultInvocationTest {
             throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyGroup(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
 
         cli.run("run", root.toString());
 
-        GenerationScriptedBeans.answerFor(theOnlyGroup(), A_HEADING, PROSE_POINTING_AT_NOTHING);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_HEADING, PROSE_POINTING_AT_NOTHING);
 
         cli.run("run", root.toString());
 
@@ -918,7 +926,7 @@ class GenerationFaultInvocationTest {
     @Story("A group nothing could be sent for is not a group whose answer was turned down")
     @DisplayName("A group with room for none of its documents is left unwritten with no reason recorded")
     @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
-    void keepsNoReasonForAGroupNothingWouldFitIn(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void keepsNoReasonForAClusterNothingWouldFitIn(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         setTheReadingWindowTo(A_WINDOW_WITH_ROOM_FOR_A_SINGLE_WORD);
 
@@ -967,11 +975,11 @@ class GenerationFaultInvocationTest {
     }
 
     /**
-     * The one group this fixture's corpus produces, named by the title every document it converts
-     * carries — which is what the naming rule derives a group's name from, and what a scripted answer
+     * The one cluster this fixture's corpus produces, named by the title every document it converts
+     * carries — which is what the naming rule derives a cluster's name from, and what a scripted answer
      * is keyed on.
      */
-    private static String theOnlyGroup() {
+    private static String theOnlyCluster() {
         return SeedScriptedExtractionBeans.STUBBED_TITLE;
     }
 
@@ -1016,39 +1024,39 @@ class GenerationFaultInvocationTest {
     }
 
     /**
-     * Puts a second group into the approved arrangement, ahead of the one that is there, under a name of
+     * Puts a second cluster into the approved arrangement, ahead of the one that is there, under a name of
      * its own.
      *
      * <p>Written straight into the table, for the reason the colliding arrangement in this package's
      * other invocation test is: a fixture whose documents all convert alike cannot be steered into
-     * producing two groups. It copies the arranged group's row one place earlier in the order, so what
-     * happens to it happens <em>before</em> the group that was already there — which is the whole point,
+     * producing two clusters. It copies the arranged cluster's row one place earlier in the order, so what
+     * happens to it happens <em>before</em> the cluster that was already there — which is the whole point,
      * since a run that stopped at a turned-down answer and a run that carried on past it are told apart
-     * only by what happened to the groups after it.
+     * only by what happened to the clusters after it.
      *
      * <p><b>It copies document_count unchanged</b>, so the injected row claims more documents than it
      * holds, which no arrangement run would write. Harmless here, because a call is sized from
      * membership and never from that column.
      */
-    private void aSecondGroupAheadOfTheFirst(RunId arrangement) {
+    private void aSecondClusterAheadOfTheFirst(RunId arrangement) {
         jdbcTemplate.update(
                 "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
                         + " document_count, partition_order, cluster_order)"
                         + " SELECT run_id, winning_seed_occurrence_id, cluster_ordinal + 1, ?,"
                         + " document_count, partition_order, cluster_order - 1"
                         + " FROM cluster WHERE run_id = ?",
-                THE_GROUP_ANSWERED_BADLY,
+                THE_CLUSTER_ANSWERED_BADLY,
                 arrangement.value());
     }
 
     /**
-     * Moves one of the corpus documents into that second group, so it has something to send and is
+     * Moves one of the corpus documents into that second cluster, so it has something to send and is
      * therefore asked about at all.
      *
-     * <p>Written straight into the table for the reason the group itself is. Which document moves does
+     * <p>Written straight into the table for the reason the cluster itself is. Which document moves does
      * not matter, so the query names one by taking the last.
      */
-    private void thatGroupIsGivenADocumentItCanSend(RunId arrangement) {
+    private void thatClusterIsGivenADocumentItCanSend(RunId arrangement) {
         jdbcTemplate.update(
                 "UPDATE document_cluster SET cluster_ordinal = cluster_ordinal + 1 WHERE rowid ="
                         + " (SELECT rowid FROM document_cluster WHERE run_id ="
@@ -1057,7 +1065,7 @@ class GenerationFaultInvocationTest {
                 arrangement.value());
     }
 
-    /** Everything stage 6b wrote over the groups of {@code root}, under whichever run it wrote them. */
+    /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
     private List<RecordedSynthesisDoc> writingKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
@@ -1065,7 +1073,7 @@ class GenerationFaultInvocationTest {
                 .toList();
     }
 
-    /** Every reason stage 6b kept for a group of {@code root} it left unwritten. */
+    /** Every reason stage 6b kept for a cluster of {@code root} it left unwritten. */
     private List<RecordedClusterFault> reasonsKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)

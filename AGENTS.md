@@ -24,9 +24,13 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 
 ## Read before working
 
-**`CONTEXT.md`** is binding vocabulary, not background. Name things as it names them — file occurrence, content identity, verdict, survivor, walk, walk anomaly, census, profile, gate, run, invocation. Each entry lists rejected synonyms under `_Avoid_`; keep those words out of identifiers, tests and commit messages.
+**`CONTEXT.md`** is binding vocabulary, not background. Name things as it names them — file occurrence, content identity, verdict, survivor, walk, walk anomaly, census, profile, gate, run, invocation. Each entry lists rejected synonyms under `_Avoid_`, and **the lists bind every name this project gives itself and nothing it renders for a reader outside it**. **ADR-122 states that rule once and enumerates both sides; read it there rather than a paraphrase here** — three paraphrases is how the memberships drifted apart in the first place. What it comes to in practice, so you know whether you need to open it:
 
-**`docs/adr/`** holds 121 decisions, ADR-001 to ADR-121, and two things about it are invisible from the files:
+- A name of ours uses the entry's own term, down to a test method name and a commit message, and a rejected synonym in one is a defect — unless the word names no such thing at all, as in `Collectors.groupingBy` or SQL's `GROUP BY`, which are untouched.
+- Prose written for a reader outside this project is free of the lists altogether; ADR-122 enumerates the audiences, and this is deliberately not a second copy of that list. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
+- **Cluster** renders as *group*.
+
+**`docs/adr/`** holds 122 decisions, ADR-001 to ADR-122, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.
@@ -63,7 +67,10 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 - **Report-visible text stands on its own.** `@DisplayName`, `@Story`, `@Epic`, `@Feature`, the
   claims, and the category names in `allurerc.mjs` are read by people with no access to this
   repository, so they carry no ADR id and no phrase that needs `CONTEXT.md` to parse. Cite the
-  decision in the javadoc instead, where the reader is looking at the code.
+  decision in the javadoc instead, where the reader is looking at the code. Where a term would be
+  read wrongly rather than merely be unfamiliar, use the plain word its `CONTEXT.md` entry states
+  under `_Renders as_` — *group* for a cluster (ADR-122). The identifiers beneath that text are not
+  report-visible and get no such licence.
 - **The decision and the ticket travel as links, not as text.** `@Link(type = "adr")` names the
   ADR a test exists because of, with the URL taken from `Adr` (the id-to-file map, since an ADR
   file is `NNNN-its-title.md` and the id alone does not give the path); `@Issue("6")` names the

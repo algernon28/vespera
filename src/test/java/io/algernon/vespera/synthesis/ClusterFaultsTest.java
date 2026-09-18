@@ -86,7 +86,7 @@ class ClusterFaultsTest {
     @Test
     @Story("A group left unwritten keeps the reason it was left unwritten")
     @DisplayName("The reason an answer was turned down is kept against the group it was about")
-    void keepsTheReasonAgainstTheGroupItWasAbout() {
+    void keepsTheReasonAgainstTheClusterItWasAbout() {
         ClusterFaults faults = new ClusterFaults(jdbcTemplate);
         OccurrenceId seed = anOccurrence("seeds/safety.docx");
         RunId run = aRun(seed);
@@ -170,7 +170,7 @@ class ClusterFaultsTest {
     @DisplayName("Dropping the reason kept for a group leaves the other group's reason and the same group's reason under another record standing")
     @Issue("185")
     @Link(name = "ADR-077", url = Adr.A_REGENERATED_MEASUREMENT_IS_KEYED_PER_RUN, type = "adr")
-    void dropsTheReasonForOneGroupUnderOneRecordAndNoOther() {
+    void dropsTheReasonForOneClusterUnderOneRecordAndNoOther() {
         ClusterFaults faults = new ClusterFaults(jdbcTemplate);
         OccurrenceId seed = anOccurrence("seeds/safety.docx");
         RunId run = aRun(seed);
