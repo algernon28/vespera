@@ -16,16 +16,16 @@ import org.springframework.stereotype.Component;
  * stored answer is also what lets an unchanged re-run rebuild the same tree without asking the model
  * again — whether it should is deliberately still open (ADR-108).
  *
- * <p><b>A group with a row here succeeded, and a group without one is the hole.</b> That is the whole
- * shape of a cluster fault: nothing is written to say a group failed, because the absence already says
- * it, and the deliverable heads the hole with the label 6a derived (ADR-106, ADR-111).
+ * <p><b>A cluster with a row here succeeded, and a cluster without one is the hole.</b> That is the
+ * whole shape of a cluster fault: nothing is written to say a cluster failed, because the absence
+ * already says it, and the deliverable heads the hole with the label 6a derived (ADR-106, ADR-111).
  *
  * <p>Rows are keyed by the 6b run, so a second generation writes its own row set beside the first
  * rather than over it (ADR-077) — the rule {@link Clusters} already follows one stage back.
  *
  * <p><b>Nothing here writes a verdict.</b> Writing connecting text over survivors removes no document
  * from anything, so no blocking kind applies, and generation's one way of failing is a fault against a
- * group rather than a judgement against a document (ADR-111).
+ * cluster rather than a judgement against a document (ADR-111).
  */
 @Component
 public class SynthesisDocs {
@@ -36,7 +36,7 @@ public class SynthesisDocs {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** Records what one call produced for one group, under {@code runId}, which is the 6b run. */
+    /** Records what one call produced for one cluster, under {@code runId}, which is the 6b run. */
     public void record(RunId runId, OccurrenceId winningSeed, int clusterOrdinal, SynthesisDoc doc) {
         jdbcTemplate.update(
                 "INSERT INTO synthesis_doc (run_id, winning_seed_occurrence_id, cluster_ordinal, title,"
@@ -49,7 +49,7 @@ public class SynthesisDocs {
                 doc.documentsSent());
     }
 
-    /** Every synthesis doc recorded under {@code runId}, in the order the groups were written. */
+    /** Every synthesis doc recorded under {@code runId}, in the order the clusters were written. */
     public List<RecordedSynthesisDoc> forRun(RunId runId) {
         return jdbcTemplate.query(
                 "SELECT winning_seed_occurrence_id, cluster_ordinal, title, prose, documents_sent"

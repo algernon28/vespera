@@ -32,25 +32,25 @@ final class ArrangementReport {
     private ArrangementReport() {}
 
     /**
-     * One group of documents as the page shows it.
+     * One cluster of documents as the page shows it.
      *
-     * @param label what the group is called, derived from its own highest-scoring document
+     * @param label what the cluster is called, derived from its own highest-scoring document
      * @param documentCount how many documents it holds
      * @param leadDocument the document the name was taken from, named as a reader would recognise it
      * @param leadDocumentLink where that document actually is, so a reviewer can open it and disagree
      */
-    record Group(String label, int documentCount, String leadDocument, String leadDocumentLink) {}
+    record Cluster(String label, int documentCount, String leadDocument, String leadDocumentLink) {}
 
     /**
      * One exemplar's documents.
      *
      * @param seedPath the exemplar whose documents these are, named as a reader would recognise it
-     * @param groups its groups, in the order the arrangement gives them
+     * @param clusters its clusters, in the order the arrangement gives them
      */
-    record Partition(String seedPath, List<Group> groups) {
+    record Partition(String seedPath, List<Cluster> clusters) {
 
         int documentCount() {
-            return groups.stream().mapToInt(Group::documentCount).sum();
+            return clusters.stream().mapToInt(Cluster::documentCount).sum();
         }
     }
 
@@ -103,18 +103,18 @@ final class ArrangementReport {
                     .append("</h2>\n<p>")
                     .append(partition.documentCount())
                     .append(" document(s) in ")
-                    .append(partition.groups().size())
+                    .append(partition.clusters().size())
                     .append(" group(s).</p>\n")
                     .append("<table>\n<tr><th>Group</th><th>Documents</th><th>Named after</th></tr>\n");
-            for (Group group : partition.groups()) {
+            for (Cluster cluster : partition.clusters()) {
                 page.append("<tr><td>")
-                        .append(escape(group.label()))
+                        .append(escape(cluster.label()))
                         .append("</td><td class=\"count\">")
-                        .append(group.documentCount())
+                        .append(cluster.documentCount())
                         .append("</td><td><a href=\"")
-                        .append(escape(group.leadDocumentLink()))
+                        .append(escape(cluster.leadDocumentLink()))
                         .append("\">")
-                        .append(escape(group.leadDocument()))
+                        .append(escape(cluster.leadDocument()))
                         .append("</a></td></tr>\n");
             }
             page.append("</table>\n");

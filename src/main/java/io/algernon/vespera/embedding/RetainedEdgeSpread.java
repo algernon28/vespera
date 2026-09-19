@@ -10,8 +10,8 @@ import java.util.Optional;
  * <p>It exists because the size report cannot see this. A partition of forty documents that resemble
  * each other and a partition of forty that share nothing produce the same rows and the same tidy
  * table of sizes: k retains a document's fifteen nearest however far away they are, and ADR-087 sets
- * no edge similarity floor on purpose, so both partitions come back grouped. Edges sitting at 0.95
- * say the documents were grouped by resemblance. Edges sitting at 0.02 say they were grouped by k.
+ * no edge similarity floor on purpose, so both partitions come back clustered. Edges sitting at 0.95
+ * say the documents were clustered by resemblance. Edges sitting at 0.02 say they were clustered by k.
  *
  * <p><b>An observation, not a threshold.</b> Nothing reads these numbers, nothing gates on them, and
  * no verdict or profile key follows from them. They are the measurement that would have to exist

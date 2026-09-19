@@ -52,7 +52,7 @@ final class NearestNeighbourGraph {
      *
      * <p><b>The similarities are carried out, not recomputed.</b> The top-k heaps hold them while
      * choosing what to keep and used to drop them on the way out, so a reader wanting to know whether
-     * a partition was grouped by resemblance or by k had nothing to read (ADR-096). Recovering them
+     * a partition was clustered by resemblance or by k had nothing to read (ADR-096). Recovering them
      * afterwards would mean the N²/2 pass a second time; this is one array per document instead.
      *
      * <p>The two lists are parallel in both length and order — {@code similarities.get(d)[n]} is the

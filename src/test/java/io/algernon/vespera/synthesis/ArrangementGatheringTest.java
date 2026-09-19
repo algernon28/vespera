@@ -54,7 +54,7 @@ class ArrangementGatheringTest {
     @Test
     @Story("The documents that were grouped are gathered into the two levels that get ordered")
     @DisplayName("Documents sharing a seed and a group are gathered into one group under one seed")
-    void gathersDocumentsSharingASeedAndAGroup() {
+    void gathersDocumentsSharingASeedAndACluster() {
         List<Partition> partitions = Arrangement.partitionsOf(List.of(
                 clustered(10L, ORDINAL, SCORE), clustered(11L, ORDINAL, SCORE)));
 
@@ -77,7 +77,7 @@ class ArrangementGatheringTest {
     @Test
     @Story("A document that was grouped but never scored stops the arrangement")
     @DisplayName("A grouped document carrying no score stops the arrangement and is named")
-    void stopsWhereAGroupedDocumentCarriesNoScore() {
+    void stopsWhereAClusteredDocumentCarriesNoScore() {
         List<ClusteredDocument> documents =
                 List.of(clustered(10L, ORDINAL, SCORE), clustered(UNSCORED_DOCUMENT, ORDINAL, null));
 

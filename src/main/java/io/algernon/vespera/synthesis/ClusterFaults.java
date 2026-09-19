@@ -6,17 +6,17 @@ import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Stage 6b's record of a group whose answer it turned down (ADR-108, ADR-109, ADR-111), behind this
+ * Stage 6b's record of a cluster whose answer it turned down (ADR-108, ADR-109, ADR-111), behind this
  * class and nothing else querying the table (ADR-041).
  *
  * <p><b>The precedent is {@code walk_anomaly} and {@code unusable_seed}, not the ledger.</b> A
  * verdict removes a file occurrence from what gets published; a cluster fault removes nothing — only
- * what was said about a group's documents was rejected, not the documents. So this is a fact about
+ * what was said about a cluster's documents was rejected, not the documents. So this is a fact about
  * content, never a verdict (ADR-111).
  *
- * <p><b>A group never carries a row here and in {@link SynthesisDocs} under the same run</b>, in any
+ * <p><b>A cluster never carries a row here and in {@link SynthesisDocs} under the same run</b>, in any
  * state anything can read. What keeps that true across invocations is {@link #delete} landing in the
- * same step transaction as the write it follows (ADR-111, #185): a group turned down once is asked
+ * same step transaction as the write it follows (ADR-111, #185): a cluster turned down once is asked
  * again under the same run id, and the write and the delete commit together or not at all.
  *
  * <p>Rows are keyed by the 6b run, so a second generation writes beside the first rather than over
@@ -37,7 +37,7 @@ public class ClusterFaults {
     }
 
     /**
-     * Records why one group's answer was turned down, under {@code runId}, which is the 6b run.
+     * Records why one cluster's answer was turned down, under {@code runId}, which is the 6b run.
      *
      * <p><b>Replaces rather than inserts, which is what makes a second invocation possible.</b> A run
      * that turned an answer down records no completion, so the next invocation re-derives the same
@@ -86,7 +86,7 @@ public class ClusterFaults {
                 clusterOrdinal);
     }
 
-    /** Every cluster fault recorded under {@code runId}, in the order the groups were attempted. */
+    /** Every cluster fault recorded under {@code runId}, in the order the clusters were attempted. */
     public List<RecordedClusterFault> forRun(RunId runId) {
         return jdbcTemplate.query(
                 "SELECT winning_seed_occurrence_id, cluster_ordinal, kind, detail FROM cluster_fault"

@@ -8,6 +8,6 @@ package io.algernon.vespera.synthesis;
  * @param detail the number that failed: the count against the ceiling, the length against the
  *     allowance, where reading the answer stopped, or the ordinal against the documents actually
  *     sent. A handled failure still has to keep its cause, which is what lets somebody account for
- *     the group without paying for the call a second time.
+ *     the cluster without paying for the call a second time.
  */
 public record ClusterFault(ClusterFaultKind kind, String detail) {}

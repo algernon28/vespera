@@ -67,7 +67,7 @@ class SynthesisDocsTest {
     @Test
     @Story("What was written over a group is kept, so the deliverable can be rebuilt without asking again")
     @DisplayName("The writing is kept against the group it was written over, and reads back whole")
-    void keepsTheWritingAgainstTheGroupItWasWrittenOver() {
+    void keepsTheWritingAgainstTheClusterItWasWrittenOver() {
         SynthesisDocs docs = new SynthesisDocs(jdbcTemplate);
         OccurrenceId seed = anOccurrence("seeds/safety.docx");
         RunId run = aRun(seed);

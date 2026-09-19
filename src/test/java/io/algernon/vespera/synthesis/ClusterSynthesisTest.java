@@ -192,7 +192,7 @@ class ClusterSynthesisTest {
     void returnsTheHeadingTheTextAndHowManyDocumentsItWasWrittenFrom() {
         ClusterSynthesis synthesis = new ClusterSynthesis(new ScriptedChatModel());
 
-        SynthesisDoc doc = synthesis.docFor(aGroupOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
+        SynthesisDoc doc = synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
 
         claim(
                 "the writing carries the heading the model gave it, rather than the name the group already"
@@ -213,10 +213,10 @@ class ClusterSynthesisTest {
     @Test
     @Story("A group of documents is read in one go, never one document at a time")
     @DisplayName("The whole group goes in one call, closest document first, each under the number to cite it by")
-    void sendsTheWholeGroupAtOnceInScoreOrderUnderTheNumbersToCiteThemBy() {
+    void sendsTheWholeClusterAtOnceInScoreOrderUnderTheNumbersToCiteThemBy() {
         ScriptedChatModel model = new ScriptedChatModel();
 
-        new ClusterSynthesis(model).docFor(aGroupOfThreeOfferedOutOfOrder(), MODEL_NAME, THE_SHIPPED_WINDOW);
+        new ClusterSynthesis(model).docFor(aClusterOfThreeOfferedOutOfOrder(), MODEL_NAME, THE_SHIPPED_WINDOW);
 
         claim(
                 "all " + THREE_DOCUMENTS + " documents went in " + ONE_CALL + " call: asking once per"
@@ -247,7 +247,7 @@ class ClusterSynthesisTest {
     void saysHowMuchItMayReadAndWhatShapeTheAnswerTakes() {
         ScriptedChatModel model = new ScriptedChatModel();
 
-        new ClusterSynthesis(model).docFor(aGroupOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
+        new ClusterSynthesis(model).docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
 
         claim(
                 "the call names the model it was told to use, rather than leaving the machine to pick one:"
@@ -270,11 +270,11 @@ class ClusterSynthesisTest {
     @Issue("182")
     @Story("A group too big to read in one go sends what fits, rather than being skipped")
     @DisplayName("When the group will not fit, the closest documents go and the rest are left out")
-    void sendsWhatFitsWhenTheGroupIsTooBigToReadInOneGo() {
+    void sendsWhatFitsWhenTheClusterIsTooBigToReadInOneGo() {
         ScriptedChatModel model = new ScriptedChatModel();
 
         SynthesisDoc doc = new ClusterSynthesis(model)
-                .docFor(aGroupOfThreeLongDocuments(), MODEL_NAME, A_SMALL_WINDOW);
+                .docFor(aClusterOfThreeLongDocuments(), MODEL_NAME, A_SMALL_WINDOW);
 
         claim(
                 "the two closest documents went and the third did not: reading room is finite, and what a"
@@ -296,7 +296,7 @@ class ClusterSynthesisTest {
     @Issue("182")
     @Story("A group too big to read in one go sends what fits, rather than being skipped")
     @DisplayName("A group that fills the room exactly is sent whole, with nothing left out")
-    void sendsAGroupThatFillsTheRoomExactly() {
+    void sendsAClusterThatFillsTheRoomExactly() {
         ScriptedChatModel model = new ScriptedChatModel();
 
         SynthesisDoc doc = new ClusterSynthesis(model)
@@ -406,7 +406,7 @@ class ClusterSynthesisTest {
     @Story("Writing that rests on no document at all is never produced")
     @DisplayName("Asked to write over a group none of whose documents fit, it refuses instead of asking")
     @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
-    void refusesToWriteOverAGroupNoneOfWhoseDocumentsFit() {
+    void refusesToWriteOverAClusterNoneOfWhoseDocumentsFit() {
         ScriptedChatModel model = new ScriptedChatModel();
         ClusterSynthesis synthesis = new ClusterSynthesis(model);
         ClusterCall nothingFits = new ClusterCall(
@@ -431,12 +431,12 @@ class ClusterSynthesisTest {
     }
 
     /** A group of two documents, each opening with its own first chunk, the closer one scoring higher. */
-    private static ClusterCall aGroupOfTwo() {
+    private static ClusterCall aClusterOfTwo() {
         return new ClusterCall(LABEL, SEED_PATH, List.of(closest(), furthest()));
     }
 
     /** The same group with a third document in it, offered in an order no rule would produce. */
-    private static ClusterCall aGroupOfThreeOfferedOutOfOrder() {
+    private static ClusterCall aClusterOfThreeOfferedOutOfOrder() {
         return new ClusterCall(LABEL, SEED_PATH, List.of(furthest(), closest(), middle()));
     }
 
@@ -456,7 +456,7 @@ class ClusterSynthesisTest {
     }
 
     /** Three documents of {@link #LONG_DOCUMENT_WORDS} words each, which is one more than fits. */
-    private static ClusterCall aGroupOfThreeLongDocuments() {
+    private static ClusterCall aClusterOfThreeLongDocuments() {
         return new ClusterCall(
                 LABEL,
                 SEED_PATH,

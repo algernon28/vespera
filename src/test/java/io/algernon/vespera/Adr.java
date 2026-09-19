@@ -503,6 +503,13 @@ public final class Adr {
     public static final String A_WINDOW_WITH_NO_ROOM_IS_REFUSED = FILE
             + "0121-a-window-with-no-room-for-documents-is-refused-and-no-call-is-ever-made-with-none.md";
 
+    /**
+     * ADR-122 — the vocabulary binds every name this project gives itself, and leaves the prose
+     * rendered for a reader outside it alone.
+     */
+    public static final String THE_VOCABULARY_BINDS_OUR_NAMES_NOT_RENDERED_PROSE = FILE
+            + "0122-the-vocabulary-binds-our-names-not-the-prose-rendered-for-an-outside-reader.md";
+
     private Adr() {
     }
 }

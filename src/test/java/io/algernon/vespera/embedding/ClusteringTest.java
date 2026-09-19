@@ -57,7 +57,7 @@ class ClusteringTest {
             "model=" + MODEL + ";digest=d34db33f;dtype=F16;dimension=" + DIMENSION + ";instruction=none";
 
     /** Larger than k, so which documents a document keeps says something about the vectors. */
-    private static final int GROUP_SIZE = 20;
+    private static final int CLUSTER_SIZE = 20;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -65,15 +65,15 @@ class ClusteringTest {
     @Test
     @Story("Every survivor lands in exactly one cluster")
     @DisplayName("Two groups of documents become two clusters, and every document is in one of them")
-    void groupsAPartitionWithoutBeingToldHowManyGroupsToFind() {
+    void clustersAPartitionWithoutBeingToldHowManyClustersToFind() {
         Clustering clustering = ClusteringBeans.real(jdbcTemplate);
         DocumentClusters clusters = new DocumentClusters(jdbcTemplate);
         long walkId = insertWalk("C:/two-groups");
         RunId run = insertRun(walkId, "clustering-test-two-groups");
         OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
         Map<OccurrenceId, String> partition = new LinkedHashMap<>();
-        partition.putAll(insertGroup(walkId, run, seed, "alike", 0));
-        partition.putAll(insertGroup(walkId, run, seed, "unalike", 1));
+        partition.putAll(insertCluster(walkId, run, seed, "alike", 0));
+        partition.putAll(insertCluster(walkId, run, seed, "unalike", 1));
 
         clustering.clusterAndRecord(
                 run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
@@ -92,11 +92,11 @@ class ClusteringTest {
                 "the two groups came out as two clusters, and nothing was told there were two: the count"
                         + " is a property of how the documents resemble each other, which is what lets a"
                         + " partition of eleven and one of eleven thousand share this code path",
-                () -> assertThat(clusters.sizesFor(run, seed)).containsExactly(GROUP_SIZE, GROUP_SIZE));
+                () -> assertThat(clusters.sizesFor(run, seed)).containsExactly(CLUSTER_SIZE, CLUSTER_SIZE));
         claim(
                 "and the documents of one group are together rather than split across the two clusters,"
                         + " so the grouping followed the vectors and not the order the rows arrived in",
-                () -> assertThat(ordinalsOfGroup(ordinals, "alike")).containsOnly(0));
+                () -> assertThat(ordinalsOfCluster(ordinals, "alike")).containsOnly(0));
         claim(
                 "no in-partition catch-all was invented: there are exactly as many clusters as the"
                         + " documents formed, and an extra bucket would be a page no document belongs to"
@@ -114,7 +114,7 @@ class ClusteringTest {
         long walkId = insertWalk("C:/one-document");
         RunId run = insertRun(walkId, "clustering-test-one-document");
         OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
-        Map<OccurrenceId, String> partition = insertGroup(walkId, run, seed, "solitary", 0, 1);
+        Map<OccurrenceId, String> partition = insertCluster(walkId, run, seed, "solitary", 0, 1);
 
         clustering.clusterAndRecord(
                 run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
@@ -135,12 +135,12 @@ class ClusteringTest {
         RunId alikeRun = insertRun(alikeWalk, "clustering-test-spread-alike");
         OccurrenceId alikeSeed = insertOccurrence(alikeWalk, "seeds/exemplar.pdf");
         Map<OccurrenceId, String> alike = new LinkedHashMap<>();
-        alike.putAll(insertGroup(alikeWalk, alikeRun, alikeSeed, "spread-alike", 0));
+        alike.putAll(insertCluster(alikeWalk, alikeRun, alikeSeed, "spread-alike", 0));
         long distantWalk = insertWalk("C:/spread-distant");
         RunId distantRun = insertRun(distantWalk, "clustering-test-spread-distant");
         OccurrenceId distantSeed = insertOccurrence(distantWalk, "seeds/exemplar.pdf");
         Map<OccurrenceId, String> distant =
-                insertMutuallyDistant(distantWalk, distantRun, distantSeed, GROUP_SIZE);
+                insertMutuallyDistant(distantWalk, distantRun, distantSeed, CLUSTER_SIZE);
 
         RetainedEdgeSpread alikeSpread = clustering
                 .clusterAndRecord(alikeRun, alikeSeed, alike, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL)
@@ -164,20 +164,20 @@ class ClusteringTest {
                         + " fifteen neighbours each is far more than twenty edges, and fewer than the"
                         + " three hundred entries their lists hold, because a mutual pair is one edge",
                 () -> assertThat(alikeSpread.edgeCount())
-                        .isGreaterThan(GROUP_SIZE)
-                        .isLessThan(GROUP_SIZE * Clustering.NEIGHBOURS));
+                        .isGreaterThan(CLUSTER_SIZE)
+                        .isLessThan(CLUSTER_SIZE * Clustering.NEIGHBOURS));
     }
 
     @Test
     @Story("All singletons is an answer, not a failure")
     @DisplayName("A partition of mutually distant documents is still grouped, because k has no distance floor")
-    void groupsEvenAPartitionOfMutuallyDistantDocuments() {
+    void clustersEvenAPartitionOfMutuallyDistantDocuments() {
         Clustering clustering = ClusteringBeans.real(jdbcTemplate);
         DocumentClusters clusters = new DocumentClusters(jdbcTemplate);
         long walkId = insertWalk("C:/mutually-distant");
         RunId run = insertRun(walkId, "clustering-test-mutually-distant");
         OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
-        Map<OccurrenceId, String> partition = insertMutuallyDistant(walkId, run, seed, GROUP_SIZE);
+        Map<OccurrenceId, String> partition = insertMutuallyDistant(walkId, run, seed, CLUSTER_SIZE);
 
         clustering.clusterAndRecord(
                 run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
@@ -185,7 +185,7 @@ class ClusteringTest {
         claim(
                 "every document is still recorded, so nothing was dropped for resembling nothing:"
                         + " membership is total whatever the vectors say",
-                () -> assertThat(clusters.forRun(run)).hasSize(GROUP_SIZE));
+                () -> assertThat(clusters.forRun(run)).hasSize(CLUSTER_SIZE));
         claim(
                 "and they come out grouped rather than as one cluster per document, because k retains a"
                         + " document's fifteen nearest neighbours however far away they are and ADR-087"
@@ -195,14 +195,14 @@ class ClusteringTest {
                         + " and ADR-096 corrects the illustration that said otherwise: what tells this case"
                         + " apart from a partition that really does resemble itself is the spread of the"
                         + " retained edges, which is reported rather than acted on",
-                () -> assertThat(clusters.sizesFor(run, seed)).hasSizeLessThan(GROUP_SIZE));
+                () -> assertThat(clusters.sizesFor(run, seed)).hasSizeLessThan(CLUSTER_SIZE));
         claim(
                 "and nothing merged them into a catch-all either: the clusters hold the whole partition"
                         + " between them, with no bucket beside them holding the leftovers",
                 () -> assertThat(clusters.sizesFor(run, seed).stream()
                                 .mapToInt(Integer::intValue)
                                 .sum())
-                        .isEqualTo(GROUP_SIZE));
+                        .isEqualTo(CLUSTER_SIZE));
     }
 
     @Test
@@ -216,8 +216,8 @@ class ClusteringTest {
         RunId second = insertRun(walkId, "clustering-test-second-run");
         OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
         Map<OccurrenceId, String> partition = new LinkedHashMap<>();
-        partition.putAll(insertGroup(walkId, first, seed, "alike", 0));
-        partition.putAll(insertGroup(walkId, first, seed, "unalike", 1));
+        partition.putAll(insertCluster(walkId, first, seed, "alike", 0));
+        partition.putAll(insertCluster(walkId, first, seed, "unalike", 1));
         partition.keySet().forEach(member -> insertScore(second, member, seed));
 
         clustering.clusterAndRecord(first, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
@@ -245,9 +245,9 @@ class ClusteringTest {
         OccurrenceId firstSeed = insertOccurrence(walkId, "seeds/one.pdf");
         OccurrenceId secondSeed = insertOccurrence(walkId, "seeds/two.pdf");
         List<OccurrenceId> firstMembers = List.copyOf(
-                insertGroup(walkId, run, firstSeed, "first-partition", 0, 3).keySet());
+                insertCluster(walkId, run, firstSeed, "first-partition", 0, 3).keySet());
         List<OccurrenceId> secondMembers = List.copyOf(
-                insertGroup(walkId, run, secondSeed, "second-partition", 1, 2).keySet());
+                insertCluster(walkId, run, secondSeed, "second-partition", 1, 2).keySet());
 
         claim(
                 "each seed that won a document is one partition, and a seed that won none is absent"
@@ -296,8 +296,8 @@ class ClusteringTest {
                         DocumentCluster::occurrenceId, DocumentCluster::clusterOrdinal, (a, b) -> a, LinkedHashMap::new));
     }
 
-    /** The ordinals the documents of one named group landed on, by the path they were inserted under. */
-    private List<Integer> ordinalsOfGroup(Map<OccurrenceId, Integer> ordinals, String group) {
+    /** The ordinals the documents of one named cluster landed on, by the path they were inserted under. */
+    private List<Integer> ordinalsOfCluster(Map<OccurrenceId, Integer> ordinals, String cluster) {
         Map<Long, String> paths = jdbcTemplate
                 .query(
                         "SELECT id, path FROM file_occurrence",
@@ -305,27 +305,27 @@ class ClusteringTest {
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         return ordinals.entrySet().stream()
-                .filter(member -> paths.get(member.getKey().value()).startsWith(group))
+                .filter(member -> paths.get(member.getKey().value()).startsWith(cluster))
                 .map(Map.Entry::getValue)
                 .toList();
     }
 
-    /** {@link #GROUP_SIZE} documents pointing the same way, each scored to {@code seed}. */
-    private Map<OccurrenceId, String> insertGroup(
-            long walkId, RunId run, OccurrenceId seed, String group, int axis) {
-        return insertGroup(walkId, run, seed, group, axis, GROUP_SIZE);
+    /** {@link #CLUSTER_SIZE} documents pointing the same way, each scored to {@code seed}. */
+    private Map<OccurrenceId, String> insertCluster(
+            long walkId, RunId run, OccurrenceId seed, String cluster, int axis) {
+        return insertCluster(walkId, run, seed, cluster, axis, CLUSTER_SIZE);
     }
 
     /**
-     * {@code size} documents whose vectors point along {@code axis}, so documents of one group
-     * resemble each other and barely resemble the other group's.
+     * {@code size} documents whose vectors point along {@code axis}, so documents of one cluster
+     * resemble each other and barely resemble the other cluster's.
      */
-    private Map<OccurrenceId, String> insertGroup(
-            long walkId, RunId run, OccurrenceId seed, String group, int axis, int size) {
+    private Map<OccurrenceId, String> insertCluster(
+            long walkId, RunId run, OccurrenceId seed, String cluster, int axis, int size) {
         Map<OccurrenceId, String> members = new LinkedHashMap<>();
         for (int i = 0; i < size; i++) {
-            String path = group + "-" + i + ".txt";
-            String contentHash = group + "-" + i;
+            String path = cluster + "-" + i + ".txt";
+            String contentHash = cluster + "-" + i;
             OccurrenceId occurrenceId = insertOccurrence(walkId, path);
             // One chunk per document, so the document's mean vector is that chunk: what is being tested
             // here is the grouping, and a document of several chunks would only test the mean.

@@ -30,7 +30,7 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>It runs before clustering, and that ordering is the whole of ADR-087's "costs nothing".</b>
  * A document removed here is not a survivor by the time the clustering step reads the partition, so
- * it is never grouped, never given an ordinal, and never occupies a page. Ordered the other way the
+ * it is never clustered, never given an ordinal, and never occupies a page. Ordered the other way the
  * run would cluster documents it was about to remove.
  *
  * <p><b>The number is never written back.</b> Nothing here touches the profile: a threshold the

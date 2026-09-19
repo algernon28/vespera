@@ -113,7 +113,7 @@ class GenerationRun {
      *
      * <p>The window is what an invocation resolved rather than what the code ships with, so an
      * operator who widens it re-generates the corpus under a run of its own. That is the point of it
-     * being in here: a larger window reads more of each group, so the same archive written under two
+     * being in here: a larger window reads more of each cluster, so the same archive written under two
      * windows is two different pieces of work and neither can be mistaken for the other.
      */
     static String configConsumed(

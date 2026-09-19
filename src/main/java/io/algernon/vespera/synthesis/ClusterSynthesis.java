@@ -14,9 +14,9 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * One call per group, and the writing it comes back with (ADR-108, ADR-110).
+ * One call per cluster, and the writing it comes back with (ADR-108, ADR-110).
  *
- * <p><b>Exemplar-first, never a rollup.</b> The call carries the group's own documents — highest
+ * <p><b>Exemplar-first, never a rollup.</b> The call carries the cluster's own documents — highest
  * scoring first, each contributing the chunk it opens with — rather than a summary of each; a
  * rollup would cost a call per document and build exactly the per-document summary a synthesis doc
  * exists to refuse (ADR-021).
@@ -43,14 +43,14 @@ public class ClusterSynthesis {
      * information.
      *
      * <p>8192, being the smallest window that comfortably holds several heading-led opening chunks
-     * and is served by every model family this could run under. A group too large for it sends what
+     * and is served by every model family this could run under. A cluster too large for it sends what
      * fits and says so, which ADR-108 already accepts.
      */
     public static final int CONTEXT_WINDOW = 8192;
 
     /**
      * The shape the answer has to arrive in, imposed rather than hoped for (ADR-106, ADR-108) — a
-     * heading for the group, and the writing itself.
+     * heading for the cluster, and the writing itself.
      *
      * <p>Ollama pushes this down as a decoding constraint rather than checking conformance, and no
      * primary source guarantees it — its own examples all validate client-side. Imposing it is what
@@ -78,7 +78,7 @@ public class ClusterSynthesis {
      *
      * <p>The cost of being wrong is not symmetrical. Too cautious wastes part of a window; too
      * confident overruns it silently — the prompt is truncated, the answer looks like any other, and
-     * a reader is handed writing about half a group with nothing saying so.
+     * a reader is handed writing about half a cluster with nothing saying so.
      */
     static final double TOKENS_PER_WORD = 2.0;
 
@@ -95,7 +95,7 @@ public class ClusterSynthesis {
 
     /**
      * How much of the window is kept back for everything in the call that is not a document: the
-     * instructions, the group's name, the seed path, the ordinals.
+     * instructions, the cluster's name, the seed path, the ordinals.
      *
      * <p>256 against instruction text of well under a hundred words, for the reason {@link
      * #TOKENS_PER_WORD} leans high: what it insures against is the two unfixed pieces — a long
@@ -125,7 +125,7 @@ public class ClusterSynthesis {
     }
 
     /**
-     * The writing for one group, from one call to {@code modelName}.
+     * The writing for one cluster, from one call to {@code modelName}.
      *
      * <p>The model is named per call rather than read here: which model generates is configuration,
      * and this module may not read it (ADR-110, ADR-114).
@@ -146,7 +146,7 @@ public class ClusterSynthesis {
     public SynthesisDoc docFor(ClusterCall call, String modelName, int contextWindow) {
         List<Exemplar> sent = whatFitsIn(contextWindow, call.exemplars());
         if (sent.isEmpty()) {
-            throw new IllegalStateException("the group \"" + call.label() + "\" has no document that fits"
+            throw new IllegalStateException("the cluster \"" + call.label() + "\" has no document that fits"
                     + " a call in a window of " + contextWindow + " tokens, so there is nothing to write"
                     + " over -- check nothingFitsIn before calling docFor rather than reaching this");
         }
@@ -161,7 +161,7 @@ public class ClusterSynthesis {
 
     /**
      * Fails the cluster where the prompt was shifted (ADR-108): {@code prompt_eval_count} at or above
-     * the window sent means part of the group's documents never reached the model at all, and the
+     * the window sent means part of the cluster's documents never reached the model at all, and the
      * answer covers less than it was asked about with nothing in it saying which part.
      */
     private static void checkPromptEvaluationCeiling(ChatResponse response, int contextWindow) {
@@ -241,10 +241,10 @@ public class ClusterSynthesis {
      *
      * <p>A bracketed number is not always a pointer at a document — {@code [20190412120000]} reads
      * as a plausible date — and nothing bounds what the model puts between brackets. Parsed as an
-     * {@code int} that overflows would end the run instead of turning the group down like any other
+     * {@code int} that overflows would end the run instead of turning the cluster down like any other
      * out-of-range number; {@link Integer#MAX_VALUE} gets the same outcome with no second branch.
      *
-     * <p><b>This number never reaches the operator.</b> What is kept against the group is the digits
+     * <p><b>This number never reaches the operator.</b> What is kept against the cluster is the digits
      * the model actually wrote — a reason built from an invented number is one nobody could search
      * the writing for and find.
      */
@@ -262,14 +262,14 @@ public class ClusterSynthesis {
      *
      * <p><b>No fixed number of them.</b> Eight short documents send all eight; four hundred sends what
      * fits, and the count returned is what lets the finished page disclose it was written from part
-     * of the group.
+     * of the cluster.
      *
-     * <p><b>A group too large is never skipped.</b> Refusing would leave the largest groups — the
+     * <p><b>A cluster too large is never skipped.</b> Refusing would leave the largest clusters — the
      * ones most worth connecting — with nothing written over them, and nothing is concealed by
      * sending part: the page lists every document regardless (ADR-104).
      *
      * <p><b>A document too large for an empty call is passed over, and the fill carries on</b> — it
-     * can never be sent, so stopping on it would cost the whole group its writing, and sending it
+     * can never be sent, so stopping on it would cost the whole cluster its writing, and sending it
      * anyway guarantees the silent overrun this budget exists to avoid. A document that merely does
      * not fit what is <em>left</em> stops the fill instead, since everything after it is further out.
      */
@@ -309,9 +309,9 @@ public class ClusterSynthesis {
      * Whether nothing among {@code exemplars} fits {@code contextWindow} at all (ADR-121): every one
      * is larger than the room, so the fill would be empty before a call is even made.
      *
-     * <p>Read by the tasklet before {@link #docFor} is reached, so a group of unusually large
+     * <p>Read by the tasklet before {@link #docFor} is reached, so a cluster of unusually large
      * documents never costs a call — the other route to an empty fill ADR-121 names, where the window
-     * itself is reasonable but one outsized group still gets nothing while its neighbours write fine.
+     * itself is reasonable but one outsized cluster still gets nothing while its neighbours write fine.
      */
     public static boolean nothingFitsIn(int contextWindow, List<Exemplar> exemplars) {
         return whatFitsIn(contextWindow, exemplars).isEmpty();
@@ -334,7 +334,7 @@ public class ClusterSynthesis {
                 .build();
     }
 
-    /** What the call says: what the group is, what it sits under, and the documents under their ordinals. */
+    /** What the call says: what the cluster is, what it sits under, and the documents under their ordinals. */
     private static String promptFor(ClusterCall call, List<Exemplar> inScoreOrder) {
         String exemplars = IntStream.range(0, inScoreOrder.size())
                 .mapToObj(index -> "[" + (index + 1) + "] " + inScoreOrder.get(index).leadingChunk())
@@ -355,6 +355,6 @@ public class ClusterSynthesis {
                 .formatted(inScoreOrder.size(), call.label(), call.seedPath(), exemplars);
     }
 
-    /** The shape the answer comes back in: a heading for the group, and the writing itself. */
+    /** The shape the answer comes back in: a heading for the cluster, and the writing itself. */
     private record Answer(String title, String prose) {}
 }
