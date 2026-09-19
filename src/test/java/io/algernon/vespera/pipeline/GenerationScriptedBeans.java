@@ -58,6 +58,12 @@ class GenerationScriptedBeans {
     /** How much an unremarkable answer reports having written, well inside what it is allowed. */
     private static final int AN_UNREMARKABLE_ANSWER_LENGTH = 120;
 
+    /** The text of a response that carries no answer at all: there is none, because there is no answer. */
+    private static final String NO_BODY = null;
+
+    /** How much a call that came back carrying no answer reports having written, which is nothing. */
+    private static final int NOTHING_WRITTEN = 0;
+
     /** Why an answer that said everything it had to say stopped. */
     static final String STOPPED_HAVING_FINISHED = "stop";
 
@@ -131,16 +137,31 @@ class GenerationScriptedBeans {
                     .map(Map.Entry::getValue)
                     .findFirst()
                     .orElseGet(() -> ScriptedAnswer.saying(GENERATED_TITLE, GENERATED_PROSE));
+            if (!answer.carriesAnAnswer()) {
+                return new ChatResponse(List.of(), metadataOf(answer));
+            }
             return new ChatResponse(
                     List.of(new Generation(
                             new AssistantMessage(answer.body()),
                             ChatGenerationMetadata.builder()
                                     .finishReason(answer.finishReason())
                                     .build())),
-                    ChatResponseMetadata.builder()
-                            .usage(new DefaultUsage(answer.promptTokens(), answer.answerLength()))
-                            .build());
+                    metadataOf(answer));
         };
+    }
+
+    /**
+     * What the call reports about itself, which a response carries whether or not it carries an answer.
+     *
+     * <p>Built for both shapes deliberately: a serving engine that came back with no generation still
+     * reports how much of the question it read, so a fixture that dropped the counts on that path would
+     * leave {@code carryingNoAnswerAtAll().havingRead(...)} compiling, reading as a scripted overrun and
+     * doing nothing — a script that looks set and is not.
+     */
+    private static ChatResponseMetadata metadataOf(ScriptedAnswer answer) {
+        return ChatResponseMetadata.builder()
+                .usage(new DefaultUsage(answer.promptTokens(), answer.answerLength()))
+                .build();
     }
 
     /**
@@ -152,12 +173,25 @@ class GenerationScriptedBeans {
      *     the question arrived whole
      * @param answerLength how much the model reports having written
      * @param finishReason why it stopped, which is what says whether the answer is all there
+     * @param carriesAnAnswer whether the response carries an answer at all. False is the response a
+     *     serving engine can hand back with no generation in it, which nothing about {@code body} can
+     *     express — that case is the absence of the thing {@code body} is the text of (ADR-123).
      */
-    record ScriptedAnswer(String body, int promptTokens, int answerLength, String finishReason) {
+    record ScriptedAnswer(
+            String body, int promptTokens, int answerLength, String finishReason, boolean carriesAnAnswer) {
 
         /** An answer that says what it was asked for, in the shape the call imposed, and passes. */
         static ScriptedAnswer saying(String title, String prose) {
             return arrivingAs("{\"title\":\"" + title + "\",\"prose\":\"" + prose + "\"}");
+        }
+
+        /**
+         * A call that came back carrying no answer at all: the response holds no generation, so there
+         * is no text, no finish reason and nothing to read (ADR-123).
+         */
+        static ScriptedAnswer carryingNoAnswerAtAll() {
+            return new ScriptedAnswer(
+                    NO_BODY, AN_UNREMARKABLE_PROMPT_COUNT, NOTHING_WRITTEN, STOPPED_HAVING_FINISHED, false);
         }
 
         /**
@@ -169,17 +203,18 @@ class GenerationScriptedBeans {
                     body,
                     AN_UNREMARKABLE_PROMPT_COUNT,
                     AN_UNREMARKABLE_ANSWER_LENGTH,
-                    STOPPED_HAVING_FINISHED);
+                    STOPPED_HAVING_FINISHED,
+                    true);
         }
 
         /** The same answer, reporting that it read {@code promptTokens} tokens of the question. */
         ScriptedAnswer havingRead(int promptTokens) {
-            return new ScriptedAnswer(body, promptTokens, answerLength, finishReason);
+            return new ScriptedAnswer(body, promptTokens, answerLength, finishReason, carriesAnAnswer);
         }
 
         /** The same answer, reporting that it stopped after {@code answerLength} because it ran out. */
         ScriptedAnswer stoppedForRoomAfter(int answerLength) {
-            return new ScriptedAnswer(body, promptTokens, answerLength, STOPPED_FOR_ROOM);
+            return new ScriptedAnswer(body, promptTokens, answerLength, STOPPED_FOR_ROOM, carriesAnAnswer);
         }
     }
 }

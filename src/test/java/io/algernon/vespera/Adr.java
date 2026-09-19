@@ -510,6 +510,13 @@ public final class Adr {
     public static final String THE_VOCABULARY_BINDS_OUR_NAMES_NOT_RENDERED_PROSE = FILE
             + "0122-the-vocabulary-binds-our-names-not-the-prose-rendered-for-an-outside-reader.md";
 
+    /**
+     * ADR-123 — an answer carrying nothing is a schema violation, and only guaranteed response fields
+     * are dereferenced.
+     */
+    public static final String AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION = FILE
+            + "0123-an-answer-carrying-nothing-is-a-schema-violation-and-only-guaranteed-response-fields-are-dereferenced.md";
+
     private Adr() {
     }
 }

@@ -15,6 +15,8 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.DefaultUsage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -185,6 +187,40 @@ class ClusterSynthesisTest {
      * would be nothing in the question.
      */
     private static final int NOTHING_WAS_ASKED = 0;
+
+    /** The reason kept for a call that came back with no answer in it at all (ADR-123). */
+    private static final String NO_ANSWER_AT_ALL = "the call came back carrying no answer at all";
+
+    /** The reason kept for an answer that came back with no text, or with nothing but blank (ADR-123). */
+    private static final String CAME_BACK_EMPTY = "the answer came back empty";
+
+    /** How the reason for an answer nothing could read opens, before it names where reading stopped. */
+    private static final String COULD_NOT_BE_READ_BACK = "the answer did not read back into";
+
+    /** An answer of nothing but blank space, which is the empty answer rather than an unreadable one. */
+    private static final String NOTHING_BUT_SPACES = "   ";
+
+    /** An answer with something in it that is not the shape the call imposed, so reading it fails. */
+    private static final String NOT_AN_ANSWER_AT_ALL = "I am afraid I cannot help with that.";
+
+    /**
+     * What a call reporting nothing about how much of the question it read arrives as: the serving
+     * engine's absent count is substituted before this code ever sees it, and {@code 0} is below every
+     * window, so such a call is never held against the ceiling (ADR-123).
+     */
+    private static final int NO_READING_REPORTED = 0;
+
+    /**
+     * A reading count at the window sent, which is already the ceiling failing: at or above it means
+     * the question was cut down to fit before the model ever read it.
+     *
+     * <p>Sitting on the boundary rather than over it is the stronger fixture, because a check written
+     * as {@code >} instead of {@code >=} passes a count above and fails this one.
+     */
+    private static final int A_COUNT_AT_THE_CEILING = THE_SHIPPED_WINDOW;
+
+    /** How much a call that came back carrying no answer wrote, which is nothing. */
+    private static final int NOTHING_WRITTEN = 0;
 
     @Test
     @Story("A group of documents becomes a piece of writing that connects them")
@@ -428,6 +464,183 @@ class ClusterSynthesisTest {
                         + " writing made from no documents could point at nothing a reader can open, and"
                         + " asking for one is the most expensive thing this system does",
                 () -> assertThat(model.callsMade()).isEqualTo(NOTHING_WAS_ASKED));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call that answered nothing costs its group and nothing else")
+    @DisplayName("A call that came back carrying no answer leaves its group unwritten instead of throwing")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void turnsDownACallThatCameBackCarryingNoAnswer() {
+        ClusterSynthesis synthesis = new ClusterSynthesis(alwaysAnswering(carryingNoAnswerAtAll()));
+
+        claim(
+                "a call that came back with nothing in it is turned down the way any other unusable"
+                        + " answer is, rather than escaping as some other failure: the reasons kept for"
+                        + " the groups already dealt with are written in the same piece of work as this"
+                        + " one, and a failure that is not a turned-down answer takes every one of them"
+                        + " with it",
+                () -> assertThatThrownBy(
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW))
+                        .isInstanceOf(ClusterFaultException.class));
+        claim(
+                "and the reason kept says what came back could not be read into the shape that was asked"
+                        + " for, in the words \"" + NO_ANSWER_AT_ALL + "\": nothing at all is the smallest"
+                        + " case of unreadable rather than a different case, so it takes no new kind",
+                () -> assertThat(faultFrom(carryingNoAnswerAtAll()))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_ANSWER_AT_ALL)));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call that answered nothing costs its group and nothing else")
+    @DisplayName("An answer with no text at all leaves its group unwritten instead of throwing")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void turnsDownAnAnswerWithNoTextAtAll() {
+        ClusterSynthesis synthesis = new ClusterSynthesis(alwaysAnswering(answeringWithNoText()));
+
+        claim(
+                "an answer arriving with no text is turned down rather than handed on to the reader that"
+                        + " would have to make sense of it: the reader asserts what it was given before"
+                        + " it reads a character of it, and what it raises for nothing is not the kind of"
+                        + " failure the catch around it is written for",
+                () -> assertThatThrownBy(
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW))
+                        .isInstanceOf(ClusterFaultException.class));
+        claim(
+                "and the reason kept is \"" + CAME_BACK_EMPTY + "\", which says the answer was empty"
+                        + " rather than describing where a reader of it gave up",
+                () -> assertThat(faultFrom(answeringWithNoText()))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, CAME_BACK_EMPTY)));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call that answered nothing costs its group and nothing else")
+    @DisplayName("An answer of nothing but spaces is the same empty answer, not a reading that failed")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void turnsDownAnAnswerOfNothingButSpaces() {
+        claim(
+                "an answer of nothing but blank space is kept as the empty answer it is, rather than as"
+                        + " a reader running out of input at line 1: both are the same thing to whoever"
+                        + " reads the reason, and only one of the two wordings says so",
+                () -> assertThat(faultFrom(answeringWith(NOTHING_BUT_SPACES)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, CAME_BACK_EMPTY)));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call that answered nothing costs its group and nothing else")
+    @DisplayName("The three answers nothing can be made of are told apart by the reason kept for each")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void tellsTheThreeUnusableAnswersApartByTheReasonKept() {
+        ClusterFault noAnswer = faultFrom(carryingNoAnswerAtAll());
+        ClusterFault empty = faultFrom(answeringWithNoText());
+        ClusterFault unreadable = faultFrom(answeringWith(NOT_AN_ANSWER_AT_ALL));
+
+        claim(
+                "all three are the same kind, because all three are an answer that could not be read"
+                        + " into the shape the call imposed",
+                () -> assertThat(List.of(noAnswer.kind(), empty.kind(), unreadable.kind()))
+                        .containsOnly(ClusterFaultKind.SCHEMA_VIOLATION));
+        claim(
+                "and each keeps a different reason, so somebody reading the reasons can tell a call that"
+                        + " answered nothing from an answer with nothing in it from an answer nothing"
+                        + " could be made of -- one kind covering three things is only honest while the"
+                        + " three stay distinguishable",
+                () -> assertThat(List.of(noAnswer.detail(), empty.detail(), unreadable.detail()))
+                        .doesNotHaveDuplicates());
+        claim(
+                "and the reason for the answer nothing could read still describes where reading it gave"
+                        + " up, which is the one of the three that has such a place to name",
+                () -> assertThat(unreadable.detail()).startsWith(COULD_NOT_BE_READ_BACK));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call that answered nothing costs its group and nothing else")
+    @DisplayName("A call that both overran the question and came back empty is kept as the overrun")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void keepsTheOverrunForACallThatBothOverranAndCameBackWithNothing() {
+        claim(
+                "a call reporting it read as much of the question as the window holds, and then coming"
+                        + " back with nothing, is kept as the question that did not arrive whole rather"
+                        + " than as the empty answer: reading the window's worth means the question was"
+                        + " already cut down to fit, and that explains everything after it, the empty"
+                        + " answer included -- so the check for it runs first and the reason kept is the"
+                        + " one that explains the rest",
+                () -> assertThat(faultFrom(carryingNoAnswerAtAllHavingRead(A_COUNT_AT_THE_CEILING))
+                                .kind())
+                        .isEqualTo(ClusterFaultKind.PROMPT_EVALUATION_CEILING));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call reporting nothing about how much it read is believed, not turned down")
+    @DisplayName("An answer reporting no reading count at all is believed rather than held against the ceiling")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void believesAnAnswerThatReportsNoReadingCountsAtAll() {
+        ClusterSynthesis synthesis = new ClusterSynthesis(new ScriptedChatModel());
+
+        SynthesisDoc doc = synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
+
+        claim(
+                "a call whose answer reports no counts of its own is believed rather than failing on the"
+                        + " way to being checked: the count is read as a plain number with nothing"
+                        + " guarding it, and where a call reports none it arrives as "
+                        + NO_READING_REPORTED + " -- which is below every window, so silence about how"
+                        + " much was read costs a group nothing",
+                () -> assertThat(doc.title()).isEqualTo(GENERATED_TITLE));
+    }
+
+    /** A model that hands back the same response to every call, whatever it was asked. */
+    private static ChatModel alwaysAnswering(ChatResponse response) {
+        return prompt -> response;
+    }
+
+    /** A response that came back carrying no answer at all, which is what {@code getResult} reads. */
+    private static ChatResponse carryingNoAnswerAtAll() {
+        return new ChatResponse(List.of());
+    }
+
+    /**
+     * The same response, reporting that it read {@code promptTokens} tokens of the question.
+     *
+     * <p>A response with nothing in it still reports what it read, which is what lets a call be both
+     * over the ceiling and empty — the one case that says which of the two checks runs first.
+     */
+    private static ChatResponse carryingNoAnswerAtAllHavingRead(int promptTokens) {
+        return new ChatResponse(
+                List.of(),
+                ChatResponseMetadata.builder()
+                        .usage(new DefaultUsage(promptTokens, NOTHING_WRITTEN))
+                        .build());
+    }
+
+    /** A response carrying an answer whose text is missing altogether. */
+    private static ChatResponse answeringWithNoText() {
+        return answeringWith(null);
+    }
+
+    /** A response carrying an answer whose text is exactly {@code text}. */
+    private static ChatResponse answeringWith(String text) {
+        return new ChatResponse(List.of(new Generation(new AssistantMessage(text))));
+    }
+
+    /**
+     * The reason kept for {@code response}, having put one group through a synthesis answering it.
+     *
+     * <p>Returns {@code null} where the answer was believed, so a claim expecting a reason says so by
+     * failing on the reason rather than on an exception escaping from a helper.
+     */
+    private static ClusterFault faultFrom(ChatResponse response) {
+        try {
+            new ClusterSynthesis(alwaysAnswering(response))
+                    .docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
+            return null;
+        } catch (ClusterFaultException turnedDown) {
+            return turnedDown.fault();
+        }
     }
 
     /** A group of two documents, each opening with its own first chunk, the closer one scoring higher. */
