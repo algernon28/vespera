@@ -15,7 +15,6 @@ import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -92,26 +91,14 @@ class EmbeddingScoringTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        Optional<String> modelName = embeddingModelGate.modelName();
-        if (modelName.isEmpty()) {
-            LOG.info(
-                    "stage 5's scoring step is gated: no embedding model is named. No scoring run was"
-                            + " minted, and no vector was computed.");
+        StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
+                "stage 5's scoring step", embeddingModelGate, seedGate, usableSeedGate);
+        if (!preamble.isOpen()) {
+            LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
-        Optional<SeedGate.SeedWalk> seedWalk = seedGate.seedWalk();
-        if (seedWalk.isEmpty()) {
-            LOG.info(
-                    "stage 5's scoring step is gated: no seed folder is named, or stage 4's gate is shut,"
-                            + " or the seed walk has not finished. No corpus survivor was re-chunked.");
-            return RepeatStatus.FINISHED;
-        }
-        if (!usableSeedGate.anySeedUsable()) {
-            LOG.info(
-                    "stage 5's scoring step is gated: no seed document produced any text, so seed"
-                            + " extraction minted no run to score under. Fix the seed folder and run again.");
-            return RepeatStatus.FINISHED;
-        }
+        String modelName = preamble.modelName().orElseThrow();
+        SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
         ScoringRun scoring = scoringRun.getObject();
@@ -127,7 +114,7 @@ class EmbeddingScoringTasklet implements Tasklet {
 
         Path canonicalRoot = Walk.canonicalRoot(root);
         Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun.extractionRunId()));
-        Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk.get(), measurementRun);
+        Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk, measurementRun);
         LOG.info(
                 "Stage 5c (embedding scoring) starting under scoring run {}: re-chunking and embedding {}"
                         + " corpus survivor(s) and {} usable seed(s)",
@@ -135,10 +122,10 @@ class EmbeddingScoringTasklet implements Tasklet {
                 survivors.size(),
                 usableSeeds.size());
         for (OccurrenceId occurrenceId : survivors) {
-            rechunkAndEmbed(canonicalRoot, occurrenceId, modelName.get());
+            rechunkAndEmbed(canonicalRoot, occurrenceId, modelName);
         }
         for (OccurrenceId occurrenceId : usableSeeds) {
-            rechunkAndEmbed(seedWalk.get().canonicalRoot(), occurrenceId, modelName.get());
+            rechunkAndEmbed(seedWalk.canonicalRoot(), occurrenceId, modelName);
         }
         ledger.finishStep(scoring.runId(), ScoringRun.STAGE);
         LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.runId().value());

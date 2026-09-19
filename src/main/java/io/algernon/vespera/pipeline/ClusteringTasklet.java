@@ -104,23 +104,13 @@ class ClusteringTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        Optional<String> modelName = embeddingModelGate.modelName();
-        if (modelName.isEmpty()) {
-            LOG.info("stage 5's clustering step is gated: no embedding model is named. Nothing was"
-                    + " clustered.");
+        StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
+                "stage 5's clustering step", embeddingModelGate, seedGate, usableSeedGate);
+        if (!preamble.isOpen()) {
+            LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
-        Optional<SeedGate.SeedWalk> seedWalk = seedGate.seedWalk();
-        if (seedWalk.isEmpty()) {
-            LOG.info("stage 5's clustering step is gated: no seed folder is named, or stage 4's gate is"
-                    + " shut, or the seed walk has not finished. Nothing was clustered.");
-            return RepeatStatus.FINISHED;
-        }
-        if (!usableSeedGate.anySeedUsable()) {
-            LOG.info("stage 5's clustering step is gated: no seed document produced any text, so no"
-                    + " survivor carries a winning seed to be partitioned by. Nothing was clustered.");
-            return RepeatStatus.FINISHED;
-        }
+        String modelName = preamble.modelName().orElseThrow();
 
         ScoringRun scoring = scoringRun.getObject();
 
@@ -180,7 +170,7 @@ class ClusteringTasklet implements Tasklet {
                     contentHashesOf(canonicalRoot, members),
                     chunkerIdentity,
                     chunkingRuleIdentity,
-                    modelName.get());
+                    modelName);
             // Read back rather than returned from the pass: a cluster exists as the set of rows carrying
             // its identity, so the sizes a reader is shown are the rows, not what the arithmetic meant to
             // write.
