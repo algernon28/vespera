@@ -16,12 +16,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Gathering the documents the previous stage grouped into the two levels the arrangement orders
+ * Gathering the documents the previous stage clustered into the two levels the arrangement orders
  * (ADR-105, ADR-110, #175) — and refusing to gather them at all where one of them carries no score.
  *
  * <p><b>The arrangement covers every document or it is not an arrangement.</b> A document that was
- * grouped without being scored cannot be placed: the order of the groups is computed from their
- * members' scores, so one member short of a score makes its group's place a guess. The alternative —
+ * clustered without being scored cannot be placed: the order of the clusters is computed from their
+ * members' scores, so one member short of a score makes its cluster's place a guess. The alternative —
  * a miscellaneous bucket for whatever could not be placed — would render that guess as a section of
  * the finished deliverable, where nobody reading it could tell it apart from a real one.
  *
@@ -42,7 +42,7 @@ class ArrangementGatheringTest {
     /** How that seed is named, which is the only handle anyone has on the order of the top level. */
     private static final String SEED_PATH = "safety.docx";
 
-    /** The group both documents below were put in. */
+    /** The cluster both documents below were put in. */
     private static final int ORDINAL = 3;
 
     /** A score, as close to its seed as any document in these fixtures gets. */

@@ -237,8 +237,8 @@ class GenerationBreakerInvocationTest {
     /** An answer nothing can read back into a heading and its writing: it stops partway through. */
     private static final String AN_ANSWER_NOTHING_CAN_READ = "{\"title\":\"Site Safety Audits\",\"prose\":";
 
-    /** The heading scripted alongside prose whose numbers are under test. */
-    private static final String A_HEADING = "What The Stubbed Document Says";
+    /** The title scripted alongside prose whose numbers are under test. */
+    private static final String A_TITLE = "What The Stubbed Document Says";
 
     /** A call here carries one document, under the number 1, so 7 is a number it never minted. */
     private static final int A_NUMBER_NO_DOCUMENT_WAS_SENT_UNDER = 7;
@@ -681,7 +681,7 @@ class GenerationBreakerInvocationTest {
             case 0 -> anOrdinaryAnswer().havingRead(A_COUNT_PAST_THE_CEILING);
             case 1 -> anOrdinaryAnswer().stoppedForRoomAfter(THE_WHOLE_ANSWER_ALLOWANCE);
             case 2 -> ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ);
-            default -> ScriptedAnswer.saying(A_HEADING, PROSE_POINTING_AT_NOTHING);
+            default -> ScriptedAnswer.saying(A_TITLE, PROSE_POINTING_AT_NOTHING);
         };
     }
 

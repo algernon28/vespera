@@ -31,10 +31,10 @@ import org.springframework.test.context.ActiveProfiles;
  * <p><b>Kept rather than written straight out to a file.</b> Generating is the most expensive thing
  * this system does, and the file a reader opens is a rendering of this row rather than a copy of it:
  * the markers become links and the list of documents is composed at write time. Holding the answer
- * is what lets the deliverable be rebuilt without asking again, and what gives a group that could
+ * is what lets the deliverable be rebuilt without asking again, and what gives a cluster that could
  * not be written an obvious shape — no row.
  *
- * <p><b>What must be shown not to happen.</b> Nothing here is a judgement: writing over a group of
+ * <p><b>What must be shown not to happen.</b> Nothing here is a judgement: writing over a cluster of
  * survivors takes no document out of anything, so a reader of the judgements must not be able to
  * tell this ran at all.
  */
@@ -48,7 +48,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-110", url = Adr.PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS, type = "adr")
 class SynthesisDocsTest {
 
-    /** The heading the model gave the group, which is what the deliverable heads the group with. */
+    /** The title the model gave the cluster, which is what the deliverable heads the cluster with. */
     private static final String TITLE = "Site Safety Audits, 2018 to 2021";
 
     /** The writing, with the markers left exactly as they came back rather than turned into anything. */
@@ -58,7 +58,7 @@ class SynthesisDocsTest {
     /** How many documents that call was written from, which the deliverable states in the document. */
     private static final int DOCUMENTS_SENT = 2;
 
-    /** Which group of its partition this is: its identity, which never moves. */
+    /** Which cluster of its partition this is: its identity, which never moves. */
     private static final int CLUSTER_ORDINAL = 3;
 
     @Autowired

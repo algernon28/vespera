@@ -241,7 +241,7 @@ class GenerationInvocationTest {
      */
     private static final String THE_CLUSTERS_NAME = SeedScriptedExtractionBeans.STUBBED_TITLE;
 
-    /** A heading scripted for that cluster alone, so a record holding any other answer is visible. */
+    /** A title scripted for that cluster alone, so a record holding any other answer is visible. */
     private static final String ITS_OWN_TITLE = "What The Two Stubbed Documents Have In Common";
 
     /** And the writing scripted with it. */

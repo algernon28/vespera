@@ -39,7 +39,7 @@ import org.springframework.context.annotation.Bean;
 @TestConfiguration
 class GenerationScriptedBeans {
 
-    /** The heading this fixture's model gives a cluster it has not been scripted for by name. */
+    /** The title this fixture's model gives a cluster it has not been scripted for by name. */
     static final String GENERATED_TITLE = "Site Safety Audits, 2018 to 2021";
 
     /** The writing it returns, with a marker in it so nothing downstream has to invent one. */

@@ -63,7 +63,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Stage 5's fifth step, end to end (ADR-087, #109): once every survivor carries a score and a winning
- * seed, each seed's partition is grouped into clusters under that same scoring run — rows, a size
+ * seed, each seed's partition is divided into clusters under that same scoring run — rows, a size
  * report, and nothing else.
  *
  * <p>A sibling of {@link RelevanceScoringInvocationTest} for the reason that class is a sibling of

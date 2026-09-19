@@ -29,13 +29,13 @@ import org.springframework.test.context.ActiveProfiles;
  * communities and the rows, composed the way stage 5's own step composes them.
  *
  * <p><b>The count is never supplied.</b> The fixtures below say how the documents resemble each
- * other and nothing says how many groups to find — which is the property that lets a partition of
+ * other and nothing says how many clusters to find — which is the property that lets a partition of
  * eleven documents and one of eleven thousand share this code path.
  *
- * <p><b>Groups of twenty, not of three.</b> k is fifteen and there is no edge similarity floor, so in
+ * <p><b>Clusters of twenty, not of three.</b> k is fifteen and there is no edge similarity floor, so in
  * a partition of a dozen documents every document keeps every other and the graph is complete
  * whatever the vectors say. A fixture small enough to check by hand would therefore check nothing:
- * the structure only becomes visible once each group is larger than k, which is what these partitions
+ * the structure only becomes visible once each cluster is larger than k, which is what these partitions
  * are sized for.
  */
 @JdbcTest

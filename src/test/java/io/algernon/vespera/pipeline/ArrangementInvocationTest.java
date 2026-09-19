@@ -65,13 +65,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Stage 6a, end to end (ADR-105, ADR-106, ADR-110, ADR-112, #175): once every survivor carries a
- * score, a winning seed and a group, the groups themselves are given a name, a size and a place.
+ * score, a winning seed and a cluster, the clusters themselves are given a name, a size and a place.
  *
  * <p>A sibling of {@link ClusteringInvocationTest} for the reason that class is a sibling of the
  * scoring one: this step reads what the step before it wrote rather than re-deriving it.
  *
  * <p><b>What this step must be shown not to do matters as much as what it does.</b> It restates no
- * membership — which documents are in a group stays exactly where the previous step put it — and it
+ * membership — which documents are in a cluster stays exactly where the previous step put it — and it
  * writes no judgement against any document, because it takes nothing out of the archive.
  */
 @JdbcTest

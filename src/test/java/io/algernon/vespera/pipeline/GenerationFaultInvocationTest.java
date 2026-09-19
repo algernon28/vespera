@@ -254,14 +254,14 @@ class GenerationFaultInvocationTest {
     /** An answer nothing can read back into a heading and its writing: it stops partway through. */
     private static final String AN_ANSWER_NOTHING_CAN_READ = "{\"title\":\"Site Safety Audits\",\"prose\":";
 
-    /** The heading scripted alongside prose whose numbers are under test. */
-    private static final String A_HEADING = "What The Two Stubbed Documents Have In Common";
+    /** The title scripted alongside prose whose numbers are under test. */
+    private static final String A_TITLE = "What The Two Stubbed Documents Have In Common";
 
     /**
-     * An answer that reads back perfectly well and carries no writing: a heading arrived, and the
+     * An answer that reads back perfectly well and carries no writing: a title arrived, and the
      * writing the call asked for is simply not there (ADR-124).
      */
-    private static final String AN_ANSWER_WITH_NO_WRITING_IN_IT = "{\"title\":\"" + A_HEADING + "\"}";
+    private static final String AN_ANSWER_WITH_NO_WRITING_IN_IT = "{\"title\":\"" + A_TITLE + "\"}";
 
     /**
      * Writing pointing at a document number the call never carried. The call sends two documents, under
@@ -331,7 +331,7 @@ class GenerationFaultInvocationTest {
     /** What one turned-down answer leaves behind: one reason, kept against the cluster it was about. */
     private static final int ONE_REASON_KEPT = 1;
 
-    /** Two groups turned down in one piece of work, which is what the second one must not undo. */
+    /** Two clusters turned down in one piece of work, which is what the second one must not undo. */
     private static final int TWO_REASONS_KEPT = 2;
 
     /** The reason kept for a call that came back with no answer in it at all (ADR-123). */
@@ -565,7 +565,7 @@ class GenerationFaultInvocationTest {
     void turnsDownWritingThatPointsAtADocumentTheCallNeverSent(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_HEADING, PROSE_POINTING_AT_NOTHING);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_TITLE, PROSE_POINTING_AT_NOTHING);
 
         cli.run("run", root.toString());
 
@@ -598,7 +598,7 @@ class GenerationFaultInvocationTest {
     void turnsDownWritingThatPointsAtNothingAtAll(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_HEADING, PROSE_POINTING_AT_NOTHING_AT_ALL);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_TITLE, PROSE_POINTING_AT_NOTHING_AT_ALL);
 
         cli.run("run", root.toString());
 
@@ -634,7 +634,7 @@ class GenerationFaultInvocationTest {
             throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
-                theOnlyCluster(), A_HEADING, PROSE_POINTING_BELOW_THE_FIRST_DOCUMENT);
+                theOnlyCluster(), A_TITLE, PROSE_POINTING_BELOW_THE_FIRST_DOCUMENT);
 
         cli.run("run", root.toString());
 
@@ -666,7 +666,7 @@ class GenerationFaultInvocationTest {
     void turnsDownWritingThatPointsAtANumberTooLongToBeADocument(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_HEADING, PROSE_POINTING_AT_A_NUMBER_TOO_LONG);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_TITLE, PROSE_POINTING_AT_A_NUMBER_TOO_LONG);
 
         cli.run("run", root.toString());
 
@@ -1178,7 +1178,7 @@ class GenerationFaultInvocationTest {
 
         cli.run("run", root.toString());
 
-        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_HEADING, PROSE_POINTING_AT_NOTHING);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_TITLE, PROSE_POINTING_AT_NOTHING);
 
         cli.run("run", root.toString());
 

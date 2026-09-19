@@ -1,7 +1,7 @@
 package io.algernon.vespera.synthesis;
 
 /**
- * What one call produced (ADR-106, ADR-108, ADR-110): the heading the model wrote, the prose it
+ * What one call produced (ADR-106, ADR-108, ADR-110): the title the model wrote, the prose it
  * wrote, and how many documents it was working from.
  *
  * <p><b>The prose is exactly what came back, markers intact.</b> The file a reader opens is a
@@ -9,7 +9,7 @@ package io.algernon.vespera.synthesis;
  * list is composed at write time (ADR-109) — so rewriting anything here would leave the record and
  * the deliverable disagreeing about what was said.
  *
- * @param title the heading the model gave the cluster, which the deliverable uses in place of the
+ * @param title what the model called the cluster, which the deliverable uses in place of the
  *     derived label
  * @param prose the text, with its citation markers exactly as they came back
  * @param documentsSent how many documents the call was written from, which is what lets the

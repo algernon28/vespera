@@ -19,8 +19,8 @@ import org.junit.jupiter.api.Test;
  * <p>It exists because sizes cannot see it. A partition of forty documents that resemble each other
  * and a partition of forty that share nothing produce the same rows, the same ordinals and the same
  * tidy table — k retains a document's fifteen nearest however far away they are, and ADR-087 sets no
- * edge similarity floor on purpose. Edges sitting at 0.95 mean the documents were grouped by
- * resemblance; edges sitting at 0.02 mean they were grouped by k.
+ * edge similarity floor on purpose. Edges sitting at 0.95 mean the documents were clustered by
+ * resemblance; edges sitting at 0.02 mean they were clustered by k.
  *
  * <p>An observation and not a threshold: nothing reads these numbers, nothing gates on them, and no
  * verdict or profile key follows.

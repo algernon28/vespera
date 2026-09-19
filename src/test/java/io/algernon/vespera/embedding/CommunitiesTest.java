@@ -16,7 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Grouping a partition's documents into clusters (ADR-087): communities in the neighbour graph,
+ * Dividing a partition's documents into clusters (ADR-087): communities in the neighbour graph,
  * found by optimising modularity.
  *
  * <p><b>The number of clusters is never supplied.</b> It falls out of the structure, which is the
@@ -154,7 +154,7 @@ class CommunitiesTest {
     /**
      * A graph whose neighbour lists are as given and whose similarities throw on being read.
      *
-     * <p>The similarities are a real part of the graph now (ADR-096), and the claim that the grouping
+     * <p>The similarities are a real part of the graph now (ADR-096), and the claim that the clustering
      * is unmoved by them is only worth making if reading one fails. So one does.
      */
     private static NearestNeighbourGraph.Graph graphRefusingItsSimilarities(int[]... neighbours) {
