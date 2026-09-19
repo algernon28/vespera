@@ -19,12 +19,11 @@ import tools.jackson.databind.json.JsonMapper;
  * what it mints ({@link #STAGE}) rather than for its place in the cascade: Spring Batch's own step
  * order already carries "stage 3."
  *
- * <p>Stage 2's run id is not read off any in-process state. It is recomputed instead, the same way
- * {@link ExtractionRun} recomputes stage 1's: a run's id is wholly determined by its four inputs
- * (ADR-048), stage 2's are every one of them fixed and known here (its owning modules'
- * implementation versions, {@link ExtractionRun#configConsumed}, this walk, stage 1's re-derived run as
- * upstream), so re-deriving the same {@link RunId#of} stage 2 minted its row under is exact, not a
- * guess.
+ * <p>Stage 2's run id is learned rather than worked out: {@link UpstreamRuns} looks up the run of
+ * stage 2 recorded against this walk (ADR-099). The stage must not depend on having run in the same
+ * invocation as its predecessor, and a query is not in-process state. It replaces re-deriving the id
+ * from stage 2's known-fixed inputs, which required stage 1's id in turn and would drift silently if
+ * either earlier stage's configuration shape changed here.
  *
  * <p>Because {@code vesperaJob} wires this step after {@code extractionStep} ({@link
  * CensusJobConfiguration}), and Spring Batch's default step transition only proceeds to the next step
@@ -73,13 +72,7 @@ class ContentCensusRun {
         WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 3"));
-        RunId byteLevelReductionRunId = RunId.of(
-                implementationVersions.of(ByteLevelReductionTasklet.OWNING_MODULE), ByteLevelReductionTasklet.CONFIG_CONSUMED, walkId, List.of());
-        this.extractionRunId = RunId.of(
-                implementationVersions.of(ExtractionRun.OWNING_MODULE, ExtractionRun.SIMILARITY_MODULE),
-                ExtractionRun.configConsumed(extractorIdentity, confidenceFloor),
-                walkId,
-                List.of(byteLevelReductionRunId));
+        this.extractionRunId = new UpstreamRuns(ledger).runOf(ExtractionRun.STAGE, walkId);
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, EXTRACTION_MODULE, PIPELINE_MODULE),
@@ -92,11 +85,11 @@ class ContentCensusRun {
      * {@code configConsumed} names the walk/root stage 3 ran against and the stage-2 run it read
      * (ADR-048) — never {@code "{}"}, since both are recoverable from the run row itself.
      *
-     * <p>Package-visible rather than private: {@link RedundancyRun} re-derives this exact run's identity
-     * from its known-fixed inputs the same way this class re-derives stage 2's, and an independently
-     * reimplemented copy of this JSON shape would risk drifting from what actually got hashed here.
+     * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
+     * later stages re-derived this run's identity by reproducing this JSON shape, and they now look the
+     * run up instead.
      */
-    static String configConsumed(Path canonicalRoot, RunId extractionRunId) {
+    private static String configConsumed(Path canonicalRoot, RunId extractionRunId) {
         return JSON_MAPPER.writeValueAsString(new ConfigConsumed(canonicalRoot.toString(), extractionRunId.value()));
     }
 

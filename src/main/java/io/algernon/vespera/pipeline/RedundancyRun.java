@@ -1,7 +1,6 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
@@ -40,10 +39,11 @@ import tools.jackson.databind.json.JsonMapper;
  * checks the gate and refuses to run otherwise, since a bean must not depend on every caller remembering
  * to check first.
  *
- * <p>Stage 3's run id is re-derived from its known-fixed inputs, the same way {@link ContentCensusRun}
- * re-derives stage 2's and {@link ContentCensusRun} in turn re-derives stage 1's — never read off
- * job-execution-context, which would also tie this run to having executed inside the same invocation
- * stage 3 did.
+ * <p>Stage 3's run id and stage 2's are learned rather than worked out: {@link UpstreamRuns} looks up
+ * the runs of those stages recorded against this walk (ADR-099). The stage must not depend on having
+ * run in the same invocation as its predecessors, and a query is not in-process state. It replaces
+ * re-deriving the ids from each earlier stage's known-fixed inputs — which required every stage before
+ * it in turn — and would drift silently if any earlier stage's configuration shape changed here.
  */
 @Component
 @JobScope
@@ -75,8 +75,6 @@ class RedundancyRun {
     RedundancyRun(
             Ledger ledger,
             ImplementationVersions implementationVersions,
-            ExtractorIdentity extractorIdentity,
-            DegenerateOutputConfidenceFloor confidenceFloor,
             RedundancyGate redundancyGate,
             @Value("#{jobParameters['root']}") Path root) {
         this.floor = redundancyGate
@@ -89,22 +87,9 @@ class RedundancyRun {
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 4"));
 
-        RunId byteLevelReductionRunId = RunId.of(
-                implementationVersions.of(ByteLevelReductionTasklet.OWNING_MODULE),
-                ByteLevelReductionTasklet.CONFIG_CONSUMED,
-                walkId,
-                List.of());
-        this.extractionRunId = RunId.of(
-                implementationVersions.of(ExtractionRun.OWNING_MODULE, ExtractionRun.SIMILARITY_MODULE),
-                ExtractionRun.configConsumed(extractorIdentity, confidenceFloor),
-                walkId,
-                List.of(byteLevelReductionRunId));
-        this.stage3RunId = RunId.of(
-                implementationVersions.of(
-                        ContentCensusRun.OWNING_MODULE, ContentCensusRun.EXTRACTION_MODULE, ContentCensusRun.PIPELINE_MODULE),
-                ContentCensusRun.configConsumed(canonicalRoot, this.extractionRunId),
-                walkId,
-                List.of(this.extractionRunId));
+        UpstreamRuns upstreamRuns = new UpstreamRuns(ledger);
+        this.extractionRunId = upstreamRuns.runOf(ExtractionRun.STAGE, walkId);
+        this.stage3RunId = upstreamRuns.runOf(ContentCensusRun.STAGE, walkId);
 
         this.runId = ledger.startRun(
                 STAGE,
@@ -119,12 +104,11 @@ class RedundancyRun {
      * value: a run under a different floor must be a different run, since the floor sits in every
      * signature's identity and changes what every signature this run writes actually means (ADR-080).
      *
-     * <p>Package-visible rather than private, for the reason {@link ExtractionRun#configConsumed} already
-     * is: {@link SeedMeasurementRun} re-derives this exact run's identity from its known-fixed inputs to
-     * name it upstream (ADR-089), and an independently reimplemented copy of this JSON shape would risk
-     * drifting from what actually got hashed here.
+     * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
+     * {@link SeedMeasurementRun} re-derived this run's identity by reproducing this JSON shape, and it
+     * now looks the run up instead.
      */
-    static String configConsumed(Path canonicalRoot, RunId stage3RunId, double floor) {
+    private static String configConsumed(Path canonicalRoot, RunId stage3RunId, double floor) {
         return JSON_MAPPER.writeValueAsString(
                 new ConfigConsumed(canonicalRoot.toString(), stage3RunId.value(), floor));
     }

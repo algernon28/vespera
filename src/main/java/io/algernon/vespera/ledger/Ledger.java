@@ -407,6 +407,37 @@ public class Ledger {
     }
 
     /**
+     * Every run of {@code stage} recorded against {@code walkId}, in the order they were written
+     * (ADR-099).
+     *
+     * <p>This is how a stage learns the id of a run that already exists rather than recomputing it: a
+     * caller names the stage and the walk it is reading, and the ledger answers what was actually
+     * recorded rather than what the caller believes it would be. Reading the ledger rather than
+     * re-deriving survives a start part-way down the cascade, where the earlier stages' configurations
+     * are no longer in hand.
+     *
+     * <p><b>Every match, not the latest.</b> A walk may hold more than one run of one stage — the
+     * glossary calls that ordinary, since a run is minted when the configuration changes and verdicts
+     * accumulate rather than being replaced — so returning one would silently choose on the caller's
+     * behalf. {@code pipeline}'s {@code UpstreamRuns} is the caller that has to refuse that choice, and
+     * it can only do so if it is handed all the candidates.
+     *
+     * <p>The rows carry the configuration consumed and the implementation version, not just the id, so
+     * that refusal can name both runs' configurations (ADR-099).
+     */
+    public List<RecordedRun> runsOf(String stage, WalkId walkId) {
+        return jdbcTemplate.query(
+                "SELECT id, implementation_version, config_consumed FROM run"
+                        + " WHERE stage = ? AND walk_id = ? ORDER BY rowid",
+                (resultSet, rowNumber) -> new RecordedRun(
+                        new RunId(resultSet.getString("id")),
+                        resultSet.getString("implementation_version"),
+                        resultSet.getString("config_consumed")),
+                stage,
+                walkId.value());
+    }
+
+    /**
      * Every run of {@code stage} against {@code walkId} whose id opens with {@code idPrefix}, in id
      * order.
      *

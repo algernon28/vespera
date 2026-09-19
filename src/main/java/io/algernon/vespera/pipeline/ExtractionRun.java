@@ -26,14 +26,11 @@ import tools.jackson.databind.json.JsonMapper;
  * here hard-codes the corpus walk), by resolving the same {@code root} job parameter stage 1 resolved
  * its own walk from.
  *
- * <p>Stage 1's run id is not read off any in-process state (no job-execution-context handoff, which
- * would also tie this to running inside the same job invocation stage 1 did rather than to whatever
- * "Run: minted when configuration changes, continued when work resumes" already promises). It is
- * recomputed instead: a run's id is wholly determined by its four inputs (ADR-048), stage 1's are
- * every one of them fixed and known here ({@link ByteLevelReductionTasklet#OWNING_MODULE},
- * {@link ByteLevelReductionTasklet#CONFIG_CONSUMED}, this walk, no upstream runs of its own), so re-deriving the
- * same {@link RunId#of} stage 1 minted its row under is exact, not a guess — and the foreign key
- * {@code run_upstream.upstream_run_id} enforces that a row actually exists under it.
+ * <p>Stage 1's run id is learned rather than worked out: {@link UpstreamRuns} looks up the run of
+ * stage 1 recorded against this walk (ADR-099). The stage must not depend on having run in the same
+ * invocation as its predecessor — no job-execution-context handoff — and a query is not in-process
+ * state. It replaces re-deriving the id from stage 1's known-fixed inputs, which would drift silently
+ * if the JSON shape stage 1 hashed ever changed here (ADR-099).
  */
 @Component
 @StepScope
@@ -69,8 +66,8 @@ class ExtractionRun {
         WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 2"));
-        this.byteLevelReductionRunId = RunId.of(
-                implementationVersions.of(ByteLevelReductionTasklet.OWNING_MODULE), ByteLevelReductionTasklet.CONFIG_CONSUMED, walkId, List.of());
+        this.byteLevelReductionRunId =
+                new UpstreamRuns(ledger).runOf(ByteLevelReductionTasklet.STAGE, walkId);
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, SIMILARITY_MODULE),
@@ -84,11 +81,11 @@ class ExtractionRun {
      * what shaped this run's output is recoverable from the run row itself (hand-off spec #45's own
      * requirement).
      *
-     * <p>Package-visible rather than private: {@link ContentCensusRun} re-derives this exact run's identity
-     * from its known-fixed inputs the same way this class re-derives stage 1's, and an independently
-     * reimplemented copy of this JSON shape would risk drifting from what actually got hashed here.
+     * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
+     * later stages re-derived this run's identity by reproducing this JSON shape, and they now look the
+     * run up instead.
      */
-    static String configConsumed(ExtractorIdentity extractorIdentity, DegenerateOutputConfidenceFloor confidenceFloor) {
+    private static String configConsumed(ExtractorIdentity extractorIdentity, DegenerateOutputConfidenceFloor confidenceFloor) {
         return JSON_MAPPER.writeValueAsString(
                 new ConfigConsumed(extractorIdentity.value(), confidenceFloor.value()));
     }
