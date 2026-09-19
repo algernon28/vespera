@@ -35,10 +35,10 @@ import org.junit.jupiter.api.Test;
 class NextActionTest {
 
     /** The short name of the arrangement this invocation wrote, as the gate page prints it. */
-    private static final java.util.Optional<String> AN_ARRANGEMENT = java.util.Optional.of("9f2c41ab77de");
+    private static final String AN_ARRANGEMENT = "9f2c41ab77de";
 
     /** No arrangement was written this invocation, so there is nothing to approve. */
-    private static final java.util.Optional<String> NOTHING_ARRANGED = java.util.Optional.empty();
+    private static final String NOTHING_ARRANGED = null;
 
     /** No answers have been written into the label file yet. */
     private static final int NOTHING_ANSWERED = 0;
@@ -364,7 +364,7 @@ class NextActionTest {
         claim(
                 "and the line hands over the short name itself, ready to paste: the operator must not"
                         + " have to go and look up which arrangement they just read about",
-                () -> assertThat(line).contains(AN_ARRANGEMENT.orElseThrow()));
+                () -> assertThat(line).contains(AN_ARRANGEMENT));
         claim(
                 "and it names the page that arrangement is described on, so the value is not copied"
                         + " out of a message into a file without anybody having looked at what it names",
@@ -462,7 +462,7 @@ class NextActionTest {
                 .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
                 .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
                 .relevanceScoreFloor(THE_RELEVANCE_FLOOR, RECORDED_BY_THE_OPERATOR)
-                .arrangementApproved(AN_ARRANGEMENT.orElseThrow(), RECORDED_BY_THE_OPERATOR)
+                .arrangementApproved(AN_ARRANGEMENT, RECORDED_BY_THE_OPERATOR)
                 .build();
     }
 

@@ -29,7 +29,7 @@ final class SeedConversions {
             DoclingExtractor extractor, Path file, String contentHash, ExtractorIdentity extractorIdentity) {
         BrokenCheck.Result detected = BrokenCheck.check(file);
         return extractor.convert(
-                file, contentHash, extractorIdentity, formatFor(detected), detected.subtype());
+                file, contentHash, extractorIdentity, formatFor(detected), detected.subtype().orElse(null));
     }
 
     /**

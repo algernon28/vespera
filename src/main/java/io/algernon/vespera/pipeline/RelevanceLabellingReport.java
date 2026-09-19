@@ -52,7 +52,7 @@ final class RelevanceLabellingReport {
             RelevanceDistribution.Distribution distribution,
             List<Preview> previews,
             LabelledSpread.Spread spread,
-            Optional<IgnoredFloor> ignoredFloor) {
+            IgnoredFloor ignoredFloor) {
         StringBuilder page = new StringBuilder();
         page.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n")
                 .append("<title>Choosing the relevance cut</title>\n<style>\n")
@@ -73,18 +73,20 @@ final class RelevanceLabellingReport {
                         + " separates what is kept from what is not is yours to choose, and the record of"
                         + " how you chose it belongs in the profile beside the value.</p>\n");
 
-        ignoredFloor.ifPresent(ignored -> page.append("<h2>Your threshold is not being applied</h2>\n")
+        if (ignoredFloor != null) {
+            page.append("<h2>Your threshold is not being applied</h2>\n")
                 .append("<p>The profile sets a relevance cut of <strong>")
-                .append(ignored.value())
+                .append(ignoredFloor.value())
                 .append("</strong>, and this run kept every document anyway. A cut is a number on a"
                         + " scale, and the scale is whichever model produced the scores. The answers"
                         + " this number was read off were given while <code>")
-                .append(escape(ignored.calibratedUnder()))
+                .append(escape(ignoredFloor.calibratedUnder()))
                 .append("</code> was in use, and the scores below were produced by <code>")
-                .append(escape(ignored.currentIdentity()))
+                .append(escape(ignoredFloor.currentIdentity()))
                 .append("</code>. Applying the old number to the new scores would remove documents"
                         + " against a spread it was never read off. Judge the documents below again and"
-                        + " the number will apply, or put the previous model back.</p>\n"));
+                        + " the number will apply, or put the previous model back.</p>\n");
+        }
 
         page.append("<h2>How the scores are spread</h2>\n")
                 .append("<p>The range above is divided into five equal bands. They are cut between the"

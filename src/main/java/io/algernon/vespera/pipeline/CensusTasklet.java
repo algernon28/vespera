@@ -67,7 +67,7 @@ public class CensusTasklet implements Tasklet {
         Walked corpus = walkOrCapture(root, "the corpus");
         Optional<Walked> seed = walkSeedFolderIfNamed(profile);
 
-        profileStore.save(profile.withSeedFolderMeasurement(seedFolderMeasurement(seed)));
+        profileStore.save(profile.withSeedFolderMeasurement(seedFolderMeasurement(seed.orElse(null))));
         log.info("Census merged the profile at {}", profileStore.file());
 
         if (corpus.failure() != null) {
@@ -168,12 +168,15 @@ public class CensusTasklet implements Tasklet {
         return Optional.of(walkOrCapture(seedFolder, "the seed folder"));
     }
 
-    /** What the profile's seed-folder key is set to say: the walk that ran, or why none did. */
-    private Measurement seedFolderMeasurement(Optional<Walked> seed) {
-        if (seed.isEmpty()) {
+    /**
+     * What the profile's seed-folder key is set to say: the walk that ran, or why none did.
+     *
+     * @param walked the walk of the seed folder, or {@code null} where the profile names no folder
+     */
+    private Measurement seedFolderMeasurement(Walked walked) {
+        if (walked == null) {
             return new Measurement("no seed folder is set in the profile", clock.instant());
         }
-        Walked walked = seed.get();
         if (walked.failure() != null) {
             return new Measurement(
                     "the seed folder could not be walked: " + causeChain(walked.failure()), clock.instant());

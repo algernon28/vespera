@@ -30,14 +30,19 @@ public class DetectedFormats {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** Records what {@code occurrenceId} was found to be under {@code runId}. */
-    public void record(OccurrenceId occurrenceId, RunId runId, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+    /**
+     * Records what {@code occurrenceId} was found to be under {@code runId}.
+     *
+     * @param subtype what the format turned out to be more precisely, or {@code null} where the bytes
+     *     name no subtype
+     */
+    public void record(OccurrenceId occurrenceId, RunId runId, DetectedFormat format, DetectedSubtype subtype) {
         jdbcTemplate.update(
                 "INSERT INTO detected_format (occurrence_id, run_id, format, subtype) VALUES (?, ?, ?, ?)",
                 occurrenceId.value(),
                 runId.value(),
                 format.name(),
-                subtype.map(Enum::name).orElse(null));
+                subtype == null ? null : subtype.name());
     }
 
     /**

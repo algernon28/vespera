@@ -54,7 +54,7 @@ class DetectedFormatsTest {
         RunId runId = aRun(occurrenceId);
         RunId anotherRun = aRun(occurrenceId);
 
-        formats.record(occurrenceId, runId, DetectedFormat.PDF, Optional.empty());
+        formats.record(occurrenceId, runId, DetectedFormat.PDF, null);
 
         claim(
                 "what was found for this file under this run is read back exactly as written",
@@ -74,8 +74,8 @@ class DetectedFormatsTest {
         OccurrenceId unnamed = anOccurrence();
         RunId runId = aRun(named);
 
-        formats.record(named, runId, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_WORD));
-        formats.record(unnamed, runId, DetectedFormat.OLE_COMPOUND, Optional.empty());
+        formats.record(named, runId, DetectedFormat.OLE_COMPOUND, DetectedSubtype.LEGACY_WORD);
+        formats.record(unnamed, runId, DetectedFormat.OLE_COMPOUND, null);
 
         claim(
                 "the finer label is read back beside the class it belongs to, since it means nothing on"

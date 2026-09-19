@@ -211,8 +211,8 @@ public class SeedCorpusComparison {
                 Locale.ROOT,
                 "%s: %s; %s.",
                 capitalize(label),
-                clause("the seed set", "no usable seed document", label, seedQuartiles),
-                clause("the corpus", "no surviving corpus document", label, corpusQuartiles));
+                clause("the seed set", "no usable seed document", label, seedQuartiles.orElse(null)),
+                clause("the corpus", "no surviving corpus document", label, corpusQuartiles.orElse(null)));
         return new Spread(signal, seedQuartiles.orElse(null), corpusQuartiles.orElse(null), statement);
     }
 
@@ -221,18 +221,21 @@ public class SeedCorpusComparison {
      * so rather than a middle figure of zero. ADR-086's page-count rule reaches the whole population
      * and not only one document in it: a born-digital seed folder reports no page count, and "the
      * typical page count is 0.0" would be a measurement of nothing presented as a measured zero.
+     *
+     * @param quartiles what this side measured, or {@code null} where it measured nothing at all
      */
-    private static String clause(String side, String noDocument, String label, Optional<Quartiles> quartiles) {
-        return quartiles
-                .map(present -> String.format(
-                        Locale.ROOT,
-                        "%s's typical %s is %s (%s to %s)",
-                        side,
-                        label,
-                        format(present.median()),
-                        format(present.lowerQuartile()),
-                        format(present.upperQuartile())))
-                .orElseGet(() -> String.format(Locale.ROOT, "%s reports a %s", noDocument, label));
+    private static String clause(String side, String noDocument, String label, Quartiles quartiles) {
+        if (quartiles == null) {
+            return String.format(Locale.ROOT, "%s reports a %s", noDocument, label);
+        }
+        return String.format(
+                Locale.ROOT,
+                "%s's typical %s is %s (%s to %s)",
+                side,
+                label,
+                format(quartiles.median()),
+                format(quartiles.lowerQuartile()),
+                format(quartiles.upperQuartile()));
     }
 
     private static List<Double> values(List<MetricRow> rows, Function<MetricRow, Double> valueOf) {

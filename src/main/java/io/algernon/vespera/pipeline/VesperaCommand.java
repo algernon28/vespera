@@ -117,7 +117,7 @@ public class VesperaCommand implements Callable<Integer> {
                         + " because it is read before this command is parsed.")
         private Path databaseDirectory;
 
-        public Run(
+        Run(
                 JobOperator jobOperator,
                 Job vesperaJob,
                 NextAction nextAction,
@@ -151,10 +151,9 @@ public class VesperaCommand implements Callable<Integer> {
             }
             Path corpusRoot = rootToWalk();
             if (corpusRoot == null) {
-                System.err.println(("vespera run named no root and %s is not set: give the root as the argument"
-                                + " -- vespera run <root> -- or configure it in application.yaml. A root is never"
-                                + " guessed, because a census of the wrong tree reports success.")
-                        .formatted(ROOT_PROPERTY));
+                System.err.println("vespera run named no root and " + ROOT_PROPERTY + " is not set: give the root"
+                        + " as the argument -- vespera run <root> -- or configure it in application.yaml. A root"
+                        + " is never guessed, because a census of the wrong tree reports success.");
                 return CommandLine.ExitCode.USAGE;
             }
             log.info(
@@ -249,7 +248,7 @@ public class VesperaCommand implements Callable<Integer> {
                         + " working directory.")
         private Path file;
 
-        public Label(LabelIngestion labelIngestion, NextAction nextAction) {
+        Label(LabelIngestion labelIngestion, NextAction nextAction) {
             this.labelIngestion = labelIngestion;
             this.nextAction = nextAction;
         }
@@ -261,7 +260,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            LabelIngestion.Outcome outcome = labelIngestion.ingest(java.util.Optional.ofNullable(file));
+            LabelIngestion.Outcome outcome = labelIngestion.ingest(file);
             if (outcome.refused()) {
                 System.err.println("vespera label recorded nothing: " + outcome.message());
                 return outcome.message().startsWith(LabelIngestion.NO_FILE)

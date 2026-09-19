@@ -1,6 +1,7 @@
 package io.algernon.vespera.corpus;
 
 import io.algernon.vespera.ledger.WalkId;
+import java.io.Serial;
 
 /**
  * A finished walk's counts do not account for every entry it met (ADR-056).
@@ -15,6 +16,7 @@ import io.algernon.vespera.ledger.WalkId;
  */
 public class ExcludesNothingViolationException extends IllegalStateException {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     ExcludesNothingViolationException(WalkId walkId, Walk.Progress asWritten) {

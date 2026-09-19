@@ -85,7 +85,7 @@ public class WalkRecorder {
     /** How this recorder reaches the filesystem. {@link Walk#walk} in production, always. */
     @FunctionalInterface
     interface Traversal {
-        Walk.Outcome traverse(Path root, Walk.Observer observer, Optional<Checkpoint> resumeFrom) throws IOException;
+        Walk.Outcome traverse(Path root, Walk.Observer observer, Checkpoint resumeFrom) throws IOException;
     }
 
     /**
@@ -109,7 +109,7 @@ public class WalkRecorder {
         }
 
         Session session = new Session(walkId, alreadyCounted);
-        Walk.Outcome outcome = traversal.traverse(canonical, session, resumeFrom);
+        Walk.Outcome outcome = traversal.traverse(canonical, session, resumeFrom.orElse(null));
 
         if (!outcome.finished()) {
             // Everything since the last checkpoint is dropped, which is what leaves the database at

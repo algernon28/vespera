@@ -65,13 +65,13 @@ public final class PathScriptedExtractor extends DoclingExtractor {
             String contentHash,
             ExtractorIdentity extractorIdentity,
             DetectedFormat format,
-            Optional<DetectedSubtype> subtype) {
+            DetectedSubtype subtype) {
         return cached(contentHash, extractorIdentity, answerFor(file));
     }
 
     @Override
     public DoclingResponse convert(
-            Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+            Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, DetectedSubtype subtype) {
         return cached(contentHashFor(file), extractorIdentity, answerFor(file));
     }
 

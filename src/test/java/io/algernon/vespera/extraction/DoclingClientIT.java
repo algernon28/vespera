@@ -84,7 +84,7 @@ class DoclingClientIT {
     @Story("One call converts one document")
     @DisplayName("A real PDF converted by the running document service comes back readable, content and all")
     void convertsARealPdf(@TempDir Path dir) throws IOException {
-        DoclingResponse response = client.convert(aRealPdf(dir.resolve("one-page.pdf")), DetectedFormat.PDF, Optional.empty());
+        DoclingResponse response = client.convert(aRealPdf(dir.resolve("one-page.pdf")), DetectedFormat.PDF, null);
 
         claim(
                 "the service reports the conversion succeeded, which is the only status a well-formed"
@@ -112,7 +112,7 @@ class DoclingClientIT {
     @Story("One call converts one document")
     @DisplayName("A real Word document converted by the running document service comes back readable too")
     void convertsARealDocx(@TempDir Path dir) throws IOException {
-        DoclingResponse response = client.convert(aRealDocx(dir.resolve("one-paragraph.docx")), DetectedFormat.WORDPROCESSING, Optional.empty());
+        DoclingResponse response = client.convert(aRealDocx(dir.resolve("one-paragraph.docx")), DetectedFormat.WORDPROCESSING, null);
 
         claim(
                 "the service reports the conversion succeeded, for the second of the two document"
@@ -166,7 +166,7 @@ class DoclingClientIT {
     @DisplayName("The running document service accepts the OCR engine this client names, rather than refusing it")
     @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
     void acceptsThePinnedOcrEngine(@TempDir Path dir) throws IOException {
-        DoclingResponse response = client.convert(aRealPdf(dir.resolve("pinned-engine.pdf")), DetectedFormat.PDF, Optional.empty());
+        DoclingResponse response = client.convert(aRealPdf(dir.resolve("pinned-engine.pdf")), DetectedFormat.PDF, null);
 
         claim(
                 "naming the OCR engine is a request the service actually honours, and this is the only"
@@ -188,7 +188,7 @@ class DoclingClientIT {
         Path noExtension = Files.writeString(
                 dir.resolve("notes"), "A paragraph of ordinary prose, mentioning " + PROSE_MARKER_WORD + ".\n");
 
-        DoclingResponse response = client.convert(noExtension, DetectedFormat.PLAIN_TEXT, Optional.empty());
+        DoclingResponse response = client.convert(noExtension, DetectedFormat.PLAIN_TEXT, null);
 
         claim(
                 "the whole design rests on this and only a real sidecar can contradict it: an upload"
