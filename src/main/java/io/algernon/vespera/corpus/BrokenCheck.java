@@ -361,8 +361,10 @@ public final class BrokenCheck {
         try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
             channel.position(size - actual);
             ByteBuffer buffer = ByteBuffer.allocate(actual);
-            while (buffer.hasRemaining() && channel.read(buffer) != -1) {
-                // drain the window
+            while (buffer.hasRemaining()) {
+                if (channel.read(buffer) == -1) {
+                    break;
+                }
             }
             return buffer.array();
         }

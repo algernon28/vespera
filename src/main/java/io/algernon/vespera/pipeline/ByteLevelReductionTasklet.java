@@ -148,7 +148,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 ledger.verdict(occurrenceId, runId, VerdictKind.BROKEN, result.reason());
             }
             log.info(
-                    "[byte-level-reduction] finished {} -> {}",
+                    "[byte-level-reduction] checked {} for damage -> {}",
                     occurrenceId.value(),
                     result.broken() ? "broken: " + result.reason() : "kept");
             progress.itemDone();
@@ -240,7 +240,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
             contentIdentity.recordHash(occurrenceId, runId, sha256);
             byHash.computeIfAbsent(sha256, ignored -> new ArrayList<>())
                     .add(new Candidate(occurrenceId, facts.path(), facts.creationTime()));
-            log.info("[byte-level-reduction] finished {} (content hash) -> {}", occurrenceId.value(), sha256);
+            log.info("[byte-level-reduction] hashed {} -> {}", occurrenceId.value(), sha256);
             progress.itemDone();
         }
 

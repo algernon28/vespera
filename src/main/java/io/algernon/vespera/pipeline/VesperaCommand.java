@@ -151,10 +151,9 @@ public class VesperaCommand implements Callable<Integer> {
             }
             Path corpusRoot = rootToWalk();
             if (corpusRoot == null) {
-                System.err.println(("vespera run named no root and %s is not set: give the root as the argument"
-                                + " -- vespera run <root> -- or configure it in application.yaml. A root is never"
-                                + " guessed, because a census of the wrong tree reports success.")
-                        .formatted(ROOT_PROPERTY));
+                System.err.println("vespera run named no root and " + ROOT_PROPERTY + " is not set: give the root"
+                        + " as the argument -- vespera run <root> -- or configure it in application.yaml. A root"
+                        + " is never guessed, because a census of the wrong tree reports success.");
                 return CommandLine.ExitCode.USAGE;
             }
             log.info(
