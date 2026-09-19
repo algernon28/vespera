@@ -531,6 +531,13 @@ public final class Adr {
     public static final String AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART = FILE
             + "0125-an-absent-title-and-a-blank-one-are-told-apart-by-what-each-left-on-disk.md";
 
+    /**
+     * ADR-126 — the generator identity's wiring is pinned at the invocation, and the serving engine's
+     * double can refuse.
+     */
+    public static final String THE_GENERATOR_IDENTITYS_WIRING_IS_PINNED_AT_THE_INVOCATION = FILE
+            + "0126-the-generator-identitys-wiring-is-pinned-at-the-invocation-and-the-serving-engines-double-can-refuse.md";
+
     private Adr() {
     }
 }
