@@ -8,8 +8,8 @@ import java.util.Optional;
 
 /**
  * The page a person reads before choosing a relevance threshold (ADR-088) — plain, hand-assembled
- * HTML, no templating library, the same shape {@link ConfidenceDistributionReport} and {@link
- * SeedCorpusComparisonReport} already established (ADR-046).
+ * HTML, no templating library, the shared {@link ReportPage} module the reports beside the database
+ * all supply their title, prose and rows to (ADR-046, ADR-130).
  *
  * <p><b>It never declines to proceed.</b> ADR-088 turns ADR-028's go/no-go from an engine refusal
  * into a human reading of this page, recorded as the provenance of whatever threshold is set. A
@@ -53,111 +53,96 @@ final class RelevanceLabellingReport {
             List<Preview> previews,
             LabelledSpread.Spread spread,
             IgnoredFloor ignoredFloor) {
-        StringBuilder page = new StringBuilder();
-        page.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n")
-                .append("<title>Choosing the relevance cut</title>\n<style>\n")
-                .append("body { font-family: sans-serif; margin: 2em; max-width: 900px; }\n")
-                .append("table { border-collapse: collapse; margin-bottom: 1.5em; }\n")
-                .append("td, th { border: 1px solid #ccc; padding: 0.3em 0.8em; text-align: left; }\n")
-                .append("td.count { text-align: right; }\n")
-                .append("blockquote { color: #444; font-style: italic; margin: 0.4em 0 0 1em; }\n")
-                .append("</style>\n</head>\n<body>\n")
-                .append("<h1>Choosing the relevance cut</h1>\n")
-                .append("<p>")
-                .append(distribution.scoredDocumentCount())
-                .append(" document(s) were scored, between ")
-                .append(format(distribution.lowestScore()))
-                .append(" and ")
-                .append(format(distribution.highestScore()))
-                .append(". This page reports what was found and decides nothing: the number that"
-                        + " separates what is kept from what is not is yours to choose, and the record of"
-                        + " how you chose it belongs in the profile beside the value.</p>\n");
+        StringBuilder body = new StringBuilder();
+        body.append(ReportPage.heading(1, "Choosing the relevance cut"))
+                .append(ReportPage.paragraph(distribution.scoredDocumentCount()
+                        + " document(s) were scored, between " + format(distribution.lowestScore())
+                        + " and " + format(distribution.highestScore())
+                        + ". This page reports what was found and decides nothing: the number that"
+                        + " separates what is kept from what is not is yours to choose, and the record"
+                        + " of how you chose it belongs in the profile beside the value."));
 
         if (ignoredFloor != null) {
-            page.append("<h2>Your threshold is not being applied</h2>\n")
-                .append("<p>The profile sets a relevance cut of <strong>")
-                .append(ignoredFloor.value())
-                .append("</strong>, and this run kept every document anyway. A cut is a number on a"
-                        + " scale, and the scale is whichever model produced the scores. The answers"
-                        + " this number was read off were given while <code>")
-                .append(escape(ignoredFloor.calibratedUnder()))
-                .append("</code> was in use, and the scores below were produced by <code>")
-                .append(escape(ignoredFloor.currentIdentity()))
-                .append("</code>. Applying the old number to the new scores would remove documents"
-                        + " against a spread it was never read off. Judge the documents below again and"
-                        + " the number will apply, or put the previous model back.</p>\n");
+            body.append(ReportPage.heading(2, "Your threshold is not being applied"))
+                    .append(ReportPage.paragraph("The profile sets a relevance cut of <strong>"
+                            + ignoredFloor.value()
+                            + "</strong>, and this run kept every document anyway. A cut is a number on"
+                            + " a scale, and the scale is whichever model produced the scores. The"
+                            + " answers this number was read off were given while <code>"
+                            + ReportPage.escape(ignoredFloor.calibratedUnder())
+                            + "</code> was in use, and the scores below were produced by <code>"
+                            + ReportPage.escape(ignoredFloor.currentIdentity())
+                            + "</code>. Applying the old number to the new scores would remove"
+                            + " documents against a spread it was never read off. Judge the documents"
+                            + " below again and the number will apply, or put the previous model"
+                            + " back."));
         }
 
-        page.append("<h2>How the scores are spread</h2>\n")
-                .append("<p>The range above is divided into five equal bands. They are cut between the"
-                        + " lowest and highest score anything actually got, not across every score that"
-                        + " was possible, because scores over one archive usually sit in a narrow part of"
-                        + " the range and bands cut over the whole of it would be mostly empty.</p>\n")
-                .append("<table>\n<tr><th>Band</th><th>From</th><th>To</th><th>Documents</th>")
-                .append("<th>Being asked about</th><th>Short by</th></tr>\n");
+        body.append(ReportPage.heading(2, "How the scores are spread"))
+                .append(ReportPage.paragraph("The range above is divided into five equal bands. They"
+                        + " are cut between the lowest and highest score anything actually got, not"
+                        + " across every score that was possible, because scores over one archive"
+                        + " usually sit in a narrow part of the range and bands cut over the whole of"
+                        + " it would be mostly empty."));
+        StringBuilder bandRows = new StringBuilder();
         for (RelevanceDistribution.Band band : distribution.bands()) {
-            page.append("<tr><td>Band ")
-                    .append(band.ordinal() + 1)
-                    .append("</td><td>")
-                    .append(format(band.lowerBound()))
-                    .append("</td><td>")
-                    .append(format(band.upperBound()))
-                    .append("</td><td class=\"count\">")
-                    .append(band.documentCount())
-                    .append("</td><td class=\"count\">")
-                    .append(band.sampledCount())
-                    .append("</td><td class=\"count\">")
-                    .append(band.shortfall())
-                    .append("</td></tr>\n");
+            bandRows.append(ReportPage.row(
+                    ReportPage.textCell("Band " + (band.ordinal() + 1)),
+                    ReportPage.textCell(format(band.lowerBound())),
+                    ReportPage.textCell(format(band.upperBound())),
+                    ReportPage.numberCell(band.documentCount()),
+                    ReportPage.numberCell(band.sampledCount()),
+                    ReportPage.numberCell(band.shortfall())));
         }
-        page.append("</table>\n");
+        body.append(ReportPage.table(
+                        ReportPage.headerRow(
+                                "Band", "From", "To", "Documents", "Being asked about", "Short by"),
+                        bandRows.toString()))
+                .append(ReportPage.paragraph("A band holding fewer documents than were asked for"
+                        + " supplies what it has, and the difference is shown above rather than made"
+                        + " up from a neighbouring band. A proportion read off four answers is not the"
+                        + " same evidence as one read off twelve, and topping it up from documents"
+                        + " that scored differently would hide that."))
+                .append(ReportPage.heading(2, "If the bands look alike"))
+                .append(ReportPage.paragraph("A spread where every band holds much the same documents,"
+                        + " and the ones you judge relevant are scattered evenly through all of them,"
+                        + " is telling you something about the <strong>seed set</strong> rather than"
+                        + " about the threshold. It means the seeds are not separating this archive:"
+                        + " everything resembles them about equally, so there is no boundary in these"
+                        + " scores to find. The answer is a different seed folder and another scoring"
+                        + " run, not a cut chosen from this page anyway."))
+                .append(answersSoFar(spread))
+                .append(ReportPage.heading(2, "The documents to judge"))
+                .append(ReportPage.paragraph("Each one below is drawn from a band, and the same run"
+                        + " always asks about the same documents, so you can stop and come back. Write"
+                        + " your answers in the label file beside this page."));
 
-        page.append("<p>A band holding fewer documents than were asked for supplies what it has, and the"
-                + " difference is shown above rather than made up from a neighbouring band. A"
-                + " proportion read off four answers is not the same evidence as one read off twelve,"
-                + " and topping it up from documents that scored differently would hide that.</p>\n");
-
-        page.append("<h2>If the bands look alike</h2>\n")
-                .append("<p>A spread where every band holds much the same documents, and the ones you"
-                        + " judge relevant are scattered evenly through all of them, is telling you"
-                        + " something about the <strong>seed set</strong> rather than about the"
-                        + " threshold. It means the seeds are not separating this archive: everything"
-                        + " resembles them about equally, so there is no boundary in these scores to"
-                        + " find. The answer is a different seed folder and another scoring run, not a"
-                        + " cut chosen from this page anyway.</p>\n");
-
-        page.append(answersSoFar(spread));
-
-        page.append("<h2>The documents to judge</h2>\n")
-                .append("<p>Each one below is drawn from a band, and the same run always asks about the"
-                        + " same documents, so you can stop and come back. Write your answers in the"
-                        + " label file beside this page.</p>\n");
         if (distribution.sample().isEmpty()) {
-            page.append("<p>No document was sampled, because nothing was scored.</p>\n");
+            body.append(ReportPage.paragraph("No document was sampled, because nothing was scored."));
         } else {
-            page.append("<table>\n<tr><th>Band</th><th>Document</th><th>Score</th><th>Closest seed</th>")
-                    .append("<th>How it begins</th></tr>\n");
+            StringBuilder sampleRows = new StringBuilder();
             for (RelevanceDistribution.Sampled sampled : distribution.sample()) {
                 Optional<Preview> preview = previews.stream()
                         .filter(candidate -> candidate.occurrenceId().equals(sampled.occurrenceId()))
                         .findFirst();
-                page.append("<tr><td>Band ")
-                        .append(sampled.bandOrdinal() + 1)
-                        .append("</td><td>")
-                        .append(escape(preview.map(Preview::path).orElse("(path not recorded)")))
-                        .append("</td><td class=\"count\">")
-                        .append(format(sampled.score()))
-                        .append("</td><td>")
-                        .append(escape(preview.map(Preview::winningSeedPath).orElse("(seed not recorded)")))
-                        .append("</td><td><blockquote>")
-                        .append(escape(preview.map(Preview::textOpening).orElse("(no text was extracted)")))
-                        .append("</blockquote></td></tr>\n");
+                sampleRows.append(ReportPage.row(
+                        ReportPage.textCell("Band " + (sampled.bandOrdinal() + 1)),
+                        ReportPage.textCell(preview.map(Preview::path).orElse("(path not recorded)")),
+                        ReportPage.numberCell(format(sampled.score())),
+                        ReportPage.textCell(
+                                preview.map(Preview::winningSeedPath).orElse("(seed not recorded)")),
+                        ReportPage.htmlCell("<blockquote>"
+                                + ReportPage.escape(preview.map(Preview::textOpening)
+                                        .orElse("(no text was extracted)"))
+                                + "</blockquote>")));
             }
-            page.append("</table>\n");
+            body.append(ReportPage.table(
+                    ReportPage.headerRow(
+                            "Band", "Document", "Score", "Closest seed", "How it begins"),
+                    sampleRows.toString()));
         }
 
-        page.append("</body>\n</html>\n");
-        return page.toString();
+        return ReportPage.render("Choosing the relevance cut", body.toString());
     }
 
     /** Scores are shown to two places: more digits than that is precision a reader cannot use. */
@@ -174,38 +159,34 @@ final class RelevanceLabellingReport {
      * 12" says so where "75%" does not.
      */
     private static String answersSoFar(LabelledSpread.Spread spread) {
-        StringBuilder page = new StringBuilder();
-        page.append("<h2>What the answers say so far</h2>\n");
+        StringBuilder body = new StringBuilder();
+        body.append(ReportPage.heading(2, "What the answers say so far"));
         if (spread.labelled() == 0) {
-            page.append("<p>Nobody has answered any of the questions yet. Fill in the label file beside"
-                    + " this page, run the tool again, and this section will say what the answers came to"
-                    + " and what each possible cut would cost.</p>\n");
-            return page.toString();
+            return body.append(ReportPage.paragraph("Nobody has answered any of the questions yet. Fill"
+                    + " in the label file beside this page, run the tool again, and this section will"
+                    + " say what the answers came to and what each possible cut would cost.")).toString();
         }
 
-        page.append("<p>")
-                .append(spread.labelled())
-                .append(" document(s) judged so far, spread across the bands like this.</p>\n")
-                .append("<table>\n<tr><th>Band</th><th>Judged</th><th>Judged relevant</th></tr>\n");
+        StringBuilder bandRows = new StringBuilder();
         for (LabelledSpread.BandLabels band : spread.bandLabels()) {
-            page.append("<tr><td>Band ")
-                    .append(band.bandOrdinal() + 1)
-                    .append("</td><td class=\"count\">")
-                    .append(band.labelled())
-                    .append("</td><td class=\"count\">")
-                    .append(band.labelledRelevant())
-                    .append(" in ")
-                    .append(band.labelled())
-                    .append("</td></tr>\n");
+            bandRows.append(ReportPage.row(
+                    ReportPage.textCell("Band " + (band.bandOrdinal() + 1)),
+                    ReportPage.numberCell(band.labelled()),
+                    ReportPage.numberCell(band.labelledRelevant() + " in " + band.labelled())));
         }
-        page.append("</table>\n");
+        body.append(ReportPage.paragraph(spread.labelled()
+                        + " document(s) judged so far, spread across the bands like this."))
+                .append(ReportPage.table(
+                        ReportPage.headerRow("Band", "Judged", "Judged relevant"),
+                        bandRows.toString()));
 
-        page.append("<h2>What each cut would cost</h2>\n")
-                .append("<p>One line per place the cut could go. Nothing here recommends one: the trade"
-                        + " between what is kept and what is lost is the judgement this whole page exists"
-                        + " to hand to you.</p>\n<ul>\n");
+        body.append(ReportPage.heading(2, "What each cut would cost"))
+                .append(ReportPage.paragraph("One line per place the cut could go. Nothing here"
+                        + " recommends one: the trade between what is kept and what is lost is the"
+                        + " judgement this whole page exists to hand to you."))
+                .append("<ul>\n");
         for (LabelledSpread.CandidateCut cut : spread.cuts()) {
-            page.append("<li>Cut at <strong>")
+            body.append("<li>Cut at <strong>")
                     .append(format(cut.score()))
                     .append("</strong> and ")
                     .append(cut.surviving())
@@ -221,15 +202,12 @@ final class RelevanceLabellingReport {
                     .append(cut.labelledRelevantBelow())
                     .append(" were relevant.</li>\n");
         }
-        page.append("</ul>\n")
-                .append("<p>Write the number you choose into <code>relevanceScoreFloor</code> in the"
-                        + " profile, and say in its <code>provenance</code> how you arrived at it. Nothing"
-                        + " writes that number for you, and nothing checks that you read this page first"
-                        + " — what stands between a guess and the archive is what you record there.</p>\n");
-        return page.toString();
-    }
-
-    private static String escape(String value) {
-        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        return body.append("</ul>\n")
+                .append(ReportPage.paragraph("Write the number you choose into"
+                        + " <code>relevanceScoreFloor</code> in the profile, and say in its"
+                        + " <code>provenance</code> how you arrived at it. Nothing writes that number"
+                        + " for you, and nothing checks that you read this page first — what stands"
+                        + " between a guess and the archive is what you record there."))
+                .toString();
     }
 }

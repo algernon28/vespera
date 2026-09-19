@@ -8,8 +8,8 @@ import java.util.Optional;
 
 /**
  * Renders how each seed partition broke into clusters as one self-contained HTML file (ADR-087) —
- * plain, hand-assembled HTML, no templating library, the shape {@link FormatMixReport} and {@link
- * SeedCorpusComparisonReport} already established (ADR-046).
+ * plain, hand-assembled HTML, no templating library, the shared {@link ReportPage} module the
+ * reports beside the database all supply their title, prose and rows to (ADR-046, ADR-130).
  *
  * <p>The page exists because the number of clusters is not chosen: it falls out of how the documents
  * link to each other, so the only way to know what shape a page tree will have is to look. A
@@ -68,92 +68,82 @@ final class ClusterSizeReport {
     }
 
     static String render(List<Partition> partitions) {
-        StringBuilder page = new StringBuilder();
-        page.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n")
-                .append("<title>How the documents grouped under each exemplar</title>\n<style>\n")
-                .append("body { font-family: sans-serif; margin: 2em; max-width: 900px; }\n")
-                .append("table { border-collapse: collapse; margin-bottom: 1.5em; }\n")
-                .append("td, th { border: 1px solid #ccc; padding: 0.3em 0.8em; text-align: left; }\n")
-                .append("td.count { text-align: right; }\n")
-                .append("</style>\n</head>\n<body>\n")
-                .append("<h1>How the documents grouped under each exemplar</h1>\n")
-                .append("<p>Each document was matched to one exemplar, and the documents matched to the"
-                        + " same exemplar were then grouped among themselves by how alike they are."
-                        + " Nobody said how many groups to look for: the groups are whatever the"
-                        + " documents turned out to form, and this page is what they turned out to"
-                        + " be. Nothing here was removed, merged or renamed.</p>\n");
+        StringBuilder body = new StringBuilder();
+        body.append(ReportPage.heading(1, "How the documents grouped under each exemplar"))
+                .append(ReportPage.paragraph("Each document was matched to one exemplar, and the"
+                        + " documents matched to the same exemplar were then grouped among themselves"
+                        + " by how alike they are. Nobody said how many groups to look for: the groups"
+                        + " are whatever the documents turned out to form, and this page is what they"
+                        + " turned out to be. Nothing here was removed, merged or renamed."));
 
         if (partitions.isEmpty()) {
-            page.append("<p>No document was matched to an exemplar, so there was nothing to group.</p>\n")
-                    .append("</body>\n</html>\n");
-            return page.toString();
+            return ReportPage.render(
+                    "How the documents grouped under each exemplar",
+                    body.append(ReportPage.paragraph(
+                                    "No document was matched to an exemplar, so there was nothing"
+                                            + " to group."))
+                            .toString());
         }
 
-        page.append("<table>\n<tr><th>Exemplar</th><th>Documents</th><th>Groups</th><th>Largest group</th>")
-                .append("<th>Middle group</th><th>Groups of one</th>")
-                .append("<th>Weakest link</th><th>Middle link</th><th>Strongest link</th></tr>\n");
+        String headers = ReportPage.headerRow(
+                "Exemplar", "Documents", "Groups", "Largest group", "Middle group", "Groups of one",
+                "Weakest link", "Middle link", "Strongest link");
+        StringBuilder rows = new StringBuilder();
         for (Partition partition : partitions) {
-            page.append("<tr><td>")
-                    .append(escape(partition.seedPath()))
-                    .append("</td><td class=\"count\">")
-                    .append(partition.documentCount())
-                    .append("</td><td class=\"count\">")
-                    .append(partition.clusterCount())
-                    .append("</td><td class=\"count\">")
-                    .append(partition.largest())
-                    .append("</td><td class=\"count\">")
-                    .append(partition.median())
-                    .append("</td><td class=\"count\">")
-                    .append(partition.singletons())
-                    .append("</td><td class=\"count\">")
-                    .append(resemblance(partition.spread().map(RetainedEdgeSpread::lowest).orElse(null)))
-                    .append("</td><td class=\"count\">")
-                    .append(resemblance(partition.spread().map(RetainedEdgeSpread::middle).orElse(null)))
-                    .append("</td><td class=\"count\">")
-                    .append(resemblance(partition.spread().map(RetainedEdgeSpread::highest).orElse(null)))
-                    .append("</td></tr>\n");
+            rows.append(ReportPage.row(
+                    ReportPage.textCell(partition.seedPath()),
+                    ReportPage.numberCell(partition.documentCount()),
+                    ReportPage.numberCell(partition.clusterCount()),
+                    ReportPage.numberCell(partition.largest()),
+                    ReportPage.numberCell(partition.median()),
+                    ReportPage.numberCell(partition.singletons()),
+                    ReportPage.numberCell(resemblance(
+                            partition.spread().map(RetainedEdgeSpread::lowest).orElse(null))),
+                    ReportPage.numberCell(resemblance(
+                            partition.spread().map(RetainedEdgeSpread::middle).orElse(null))),
+                    ReportPage.numberCell(resemblance(
+                            partition.spread().map(RetainedEdgeSpread::highest).orElse(null)))));
         }
-        page.append("</table>\n");
+        body.append(ReportPage.table(headers, rows.toString()));
 
-        page.append("<h2>How to read this</h2>\n")
-                .append("<p><em>Groups of one</em> is the number to look at first. A document alone in its"
-                        + " group is a real answer rather than a mistake: it means the exemplar collected"
-                        + " that document on its own merits and not because it belongs with the others."
-                        + " An exemplar whose documents are nearly all alone is telling you something"
-                        + " about the exemplar, and no amount of regrouping would change it.</p>\n")
-                .append("<p>The <em>middle group</em> sits halfway up the sizes, which says more than an"
-                        + " average would: one group holding most of an exemplar's documents pulls an"
-                        + " average upwards and leaves the impression of evenly-sized groups that are not"
-                        + " there.</p>\n")
-                .append("<p>The three <em>link</em> columns are how alike the documents actually were,"
-                        + " where 1 is a pair saying the same thing and 0 is a pair with nothing in"
-                        + " common. A link is one pair of documents the grouping treated as belonging"
-                        + " together, and every document is linked to its nearest few <em>whether or not"
-                        + " they are close</em> — nothing here requires a pair to be alike before"
-                        + " grouping them.</p>\n")
-                .append("<p><b>That is why the strongest link is worth reading first.</b> If even it is"
-                        + " low, the documents in that exemplar's groups were put together for want of"
-                        + " anything better and not because they resemble one another, and the groups"
-                        + " will read as lists of unrelated documents under one heading. Where the"
-                        + " weakest link is already high, the documents genuinely belong together and"
-                        + " the groups are describing the archive rather than the arithmetic. No number"
-                        + " here is a cut: nothing was removed or merged on account of a low link, and"
-                        + " what a low one is worth doing about is for whoever has read the"
-                        + " documents.</p>\n")
-                .append("<p>An exemplar with one document has no link at all, shown as"
-                        + " <code>&mdash;</code>: there is no pair for a number to describe.</p>\n");
+        body.append(ReportPage.heading(2, "How to read this"))
+                .append(ReportPage.paragraph("<em>Groups of one</em> is the number to look at first. A"
+                        + " document alone in its group is a real answer rather than a mistake: it"
+                        + " means the exemplar collected that document on its own merits and not"
+                        + " because it belongs with the others. An exemplar whose documents are nearly"
+                        + " all alone is telling you something about the exemplar, and no amount of"
+                        + " regrouping would change it."))
+                .append(ReportPage.paragraph("The <em>middle group</em> sits halfway up the sizes,"
+                        + " which says more than an average would: one group holding most of an"
+                        + " exemplar's documents pulls an average upwards and leaves the impression of"
+                        + " evenly-sized groups that are not there."))
+                .append(ReportPage.paragraph("The three <em>link</em> columns are how alike the"
+                        + " documents actually were, where 1 is a pair saying the same thing and 0 is a"
+                        + " pair with nothing in common. A link is one pair of documents the grouping"
+                        + " treated as belonging together, and every document is linked to its nearest"
+                        + " few <em>whether or not they are close</em> — nothing here requires a pair"
+                        + " to be alike before grouping them."))
+                .append(ReportPage.paragraph("<b>That is why the strongest link is worth reading"
+                        + " first.</b> If even it is low, the documents in that exemplar's groups were"
+                        + " put together for want of anything better and not because they resemble one"
+                        + " another, and the groups will read as lists of unrelated documents under one"
+                        + " heading. Where the weakest link is already high, the documents genuinely"
+                        + " belong together and the groups are describing the archive rather than the"
+                        + " arithmetic. No number here is a cut: nothing was removed or merged on"
+                        + " account of a low link, and what a low one is worth doing about is for"
+                        + " whoever has read the documents."))
+                .append(ReportPage.paragraph("An exemplar with one document has no link at all, shown"
+                        + " as <code>&mdash;</code>: there is no pair for a number to describe."))
+                .append(ReportPage.heading(2, "What this page cannot see"))
+                .append(ReportPage.paragraph("Whether a group reads as one coherent subject to a"
+                        + " person. The link columns narrow this: a group of forty documents that"
+                        + " resemble nothing no longer looks the same as a group of forty that resemble"
+                        + " each other, which is all the sizes alone could say. What resemblance cannot"
+                        + " say is what the documents are about — forty documents alike enough to be"
+                        + " linked can still be forty things nobody would file under one heading, and"
+                        + " only reading them settles that."));
 
-        page.append("<h2>What this page cannot see</h2>\n")
-                .append("<p>Whether a group reads as one coherent subject to a person. The link columns"
-                        + " narrow this: a group of forty documents that resemble nothing no longer looks"
-                        + " the same as a group of forty that resemble each other, which is all the sizes"
-                        + " alone could say. What resemblance cannot say is what the documents are"
-                        + " about — forty documents alike enough to be linked can still be forty things"
-                        + " nobody would file under one heading, and only reading them settles"
-                        + " that.</p>\n");
-
-        page.append("</body>\n</html>\n");
-        return page.toString();
+        return ReportPage.render("How the documents grouped under each exemplar", body.toString());
     }
 
     /**
@@ -167,9 +157,5 @@ final class ClusterSizeReport {
      */
     private static String resemblance(Double value) {
         return value == null ? "&mdash;" : String.format(Locale.ROOT, "%.2f", value);
-    }
-
-    private static String escape(String value) {
-        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }
