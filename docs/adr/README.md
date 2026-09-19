@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-127.
+One file per architecture decision, ADR-001 through ADR-128.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -146,3 +146,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-125](0125-an-absent-title-and-a-blank-one-are-told-apart-by-what-each-left-on-disk.md) | 2026-09-19 | An absent title and a blank one are told apart by what each left on disk, and ADR-124's owed guarantee is spent *(amends ADR-124)* |
 | [ADR-126](0126-the-generator-identitys-wiring-is-pinned-at-the-invocation-and-the-serving-engines-double-can-refuse.md) | 2026-09-19 | The generator identity's wiring is pinned at the invocation, and the serving engine's double can refuse |
 | [ADR-127](0127-a-database-lock-is-waited-out-by-sqlites-busy-timeout-not-by-hikaris-connection-timeout.md) | 2026-09-19 | A database lock is waited out by SQLite's busy timeout in the URL, not by Hikari's connection timeout |
+| [ADR-128](0128-okio-is-pinned-to-the-version-okhttp-declares-and-a-dependency-scan-belongs-in-ci.md) | 2026-09-19 | okio is pinned to the version okhttp declares, and a dependency scan belongs in CI |
