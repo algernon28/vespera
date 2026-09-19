@@ -187,7 +187,7 @@ class RelevanceReportTasklet implements Tasklet {
                         distribution,
                         previews,
                         relevanceDistribution.spreadOf(scoring.runId(), answers),
-                        ignoredFloor()));
+                        ignoredFloor().orElse(null)));
         write(
                 RelevanceLabelFile.FILE_NAME,
                 RelevanceLabelFile.render(

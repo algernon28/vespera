@@ -52,7 +52,7 @@ public class CountingDoclingBeans {
             }
 
             @Override
-            DoclingResponse convert(Path file, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+            DoclingResponse convert(Path file, DetectedFormat format, DetectedSubtype subtype) {
                 CONVERSIONS.incrementAndGet();
                 return new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 0d, null, WITH_TEXT);
             }

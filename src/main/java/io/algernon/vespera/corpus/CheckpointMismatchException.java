@@ -1,5 +1,7 @@
 package io.algernon.vespera.corpus;
 
+import java.io.Serial;
+
 /**
  * A resumed walk found something other than what its checkpoint pointed at (ADR-055).
  *
@@ -12,6 +14,7 @@ package io.algernon.vespera.corpus;
  */
 public class CheckpointMismatchException extends IllegalStateException {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     CheckpointMismatchException(String message) {

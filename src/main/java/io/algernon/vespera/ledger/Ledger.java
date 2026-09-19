@@ -322,7 +322,8 @@ public class Ledger {
 
     /** Whether a row already stands under this identity. */
     private boolean runExists(RunId runId) {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE id = ?", Integer.class, runId.value()) > 0;
+        Integer rows = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE id = ?", Integer.class, runId.value());
+        return rows != null && rows > 0;
     }
 
     /**

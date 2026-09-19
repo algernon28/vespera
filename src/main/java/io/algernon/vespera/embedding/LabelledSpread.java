@@ -71,7 +71,7 @@ public final class LabelledSpread {
      * scores, without a person being asked anything again. An answer about a document this run did not
      * score contributes nothing rather than being counted in a band it is not in.
      */
-    public static Spread of(
+    static Spread of(
             RelevanceDistribution.Distribution distribution,
             List<RelevanceDistribution.Scored> scored,
             Map<OccurrenceId, Boolean> answers) {

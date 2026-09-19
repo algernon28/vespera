@@ -1,5 +1,7 @@
 package io.algernon.vespera.ledger;
 
+import java.io.Serial;
+
 /**
  * The database holds a different version of a module's tables than that module's code expects
  * (ADR-059). Thrown before any read or write touches those tables: there is no partial-degradation
@@ -12,6 +14,7 @@ package io.algernon.vespera.ledger;
  */
 class SchemaVersionMismatchException extends IllegalStateException {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     SchemaVersionMismatchException(String module, int recordedVersion, int expectedVersion) {

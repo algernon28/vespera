@@ -107,17 +107,17 @@ public final class ScriptedExtractor extends DoclingExtractor {
             String contentHash,
             ExtractorIdentity extractorIdentity,
             DetectedFormat format,
-            Optional<DetectedSubtype> subtype) {
+            DetectedSubtype subtype) {
         formatsAsked.add(format);
-        subtypesAsked.add(subtype);
+        subtypesAsked.add(Optional.ofNullable(subtype));
         return nextAnswer();
     }
 
     @Override
     public DoclingResponse convert(
-            Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+            Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, DetectedSubtype subtype) {
         formatsAsked.add(format);
-        subtypesAsked.add(subtype);
+        subtypesAsked.add(Optional.ofNullable(subtype));
         return nextAnswer();
     }
 
