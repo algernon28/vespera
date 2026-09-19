@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.stereotype.Component;
@@ -142,6 +143,12 @@ public class ClusterSynthesis {
      * call itself minted. The first that fails throws {@link ClusterFaultException} carrying the
      * {@link ClusterFault} to record — a call that came back and was rejected, distinct from the
      * refusal above.
+     *
+     * <p><b>No check dereferences a response nothing has established is there</b> (ADR-123). The
+     * ceiling reads response-level metadata, every field of which is guaranteed; the answer itself is
+     * established once between that check and the next, and a response carrying none — or one whose
+     * text is null or blank — is a {@link ClusterFaultKind#SCHEMA_VIOLATION} like any other answer
+     * that could not be read into the shape the call imposed, not an exception out of the step.
      */
     public SynthesisDoc docFor(ClusterCall call, String modelName, int contextWindow) {
         List<Exemplar> sent = whatFitsIn(contextWindow, call.exemplars());
@@ -153,8 +160,9 @@ public class ClusterSynthesis {
         ChatResponse response =
                 chatModel.call(new Prompt(promptFor(call, sent), optionsFor(modelName, contextWindow)));
         checkPromptEvaluationCeiling(response, contextWindow);
-        checkAnswerDidNotRunOutOfRoom(response);
-        Answer parsed = parseAnswer(response);
+        Generation answer = answerIn(response);
+        checkAnswerDidNotRunOutOfRoom(answer, response);
+        Answer parsed = parseAnswer(answer);
         checkCitations(parsed.prose(), sent.size());
         return new SynthesisDoc(parsed.title(), parsed.prose(), sent.size());
     }
@@ -163,10 +171,17 @@ public class ClusterSynthesis {
      * Fails the cluster where the prompt was shifted (ADR-108): {@code prompt_eval_count} at or above
      * the window sent means part of the cluster's documents never reached the model at all, and the
      * answer covers less than it was asked about with nothing in it saying which part.
+     *
+     * <p><b>The count is read without a guard</b> (ADR-123). Spring AI declares it {@code Integer}
+     * with no {@code @Nullable} in a {@code @NullMarked} package, {@code DefaultUsage} substitutes
+     * {@code 0}, {@code EmptyUsage} returns {@code 0}, and {@code OllamaChatModel} builds it from
+     * {@code Optional.ofNullable(...).orElse(0)}. So an absent {@code prompt_eval_count} arrives as
+     * {@code 0}, {@code 0} is below every window, and a call whose token telemetry is missing is not
+     * faulted for the ceiling — the safe direction, chosen rather than inherited.
      */
     private static void checkPromptEvaluationCeiling(ChatResponse response, int contextWindow) {
-        Integer promptTokens = response.getMetadata().getUsage().getPromptTokens();
-        if (promptTokens != null && promptTokens >= contextWindow) {
+        int promptTokens = response.getMetadata().getUsage().getPromptTokens();
+        if (promptTokens >= contextWindow) {
             throw new ClusterFaultException(new ClusterFault(
                     ClusterFaultKind.PROMPT_EVALUATION_CEILING,
                     "prompt evaluation count " + promptTokens + " at or above the ceiling of "
@@ -175,12 +190,35 @@ public class ClusterSynthesis {
     }
 
     /**
+     * The one answer the call came back with, or fails the cluster where it came back with none
+     * (ADR-123).
+     *
+     * <p><b>This is the first point a generation is needed, and so the first place its absence can be
+     * told about.</b> {@code getResult()} hands back {@code null} for a response carrying none, so the
+     * two checks below it would each dereference nothing — and an {@link NullPointerException} is not
+     * a {@link ClusterFaultException}: it escapes {@code GenerationTasklet} as a step failure, rolling
+     * back the step and taking with it every fault row recorded in it before this one (ADR-111).
+     *
+     * <p>Recorded as a {@link ClusterFaultKind#SCHEMA_VIOLATION} rather than a fifth kind: that kind
+     * already names <em>what came back could not be read into the shape the call imposed</em>, and
+     * nothing at all is the limiting case of it rather than a different case.
+     */
+    private static Generation answerIn(ChatResponse response) {
+        Generation answer = response.getResult();
+        if (answer == null) {
+            throw new ClusterFaultException(new ClusterFault(
+                    ClusterFaultKind.SCHEMA_VIOLATION, "the call came back carrying no answer at all"));
+        }
+        return answer;
+    }
+
+    /**
      * Fails the cluster where the answer stopped because it ran out of room (ADR-108): {@code
      * done_reason: "length"} arrives looking exactly like a finished answer, ending mid-sentence with
      * nothing saying it was cut off.
      */
-    private static void checkAnswerDidNotRunOutOfRoom(ChatResponse response) {
-        String finishReason = response.getResult().getMetadata().getFinishReason();
+    private static void checkAnswerDidNotRunOutOfRoom(Generation answer, ChatResponse response) {
+        String finishReason = answer.getMetadata().getFinishReason();
         if (FINISH_REASON_LENGTH.equals(finishReason)) {
             Integer completionTokens = response.getMetadata().getUsage().getCompletionTokens();
             throw new ClusterFaultException(new ClusterFault(
@@ -194,11 +232,22 @@ public class ClusterSynthesis {
      * Fails the cluster where the answer cannot be read back into the shape the call imposed
      * (ADR-108): a schema is imposed on the call, but Ollama pushes it down as a decoding constraint
      * rather than checking conformance, so this is validated client-side.
+     *
+     * <p><b>A text that is null or blank is turned down before Jackson sees it</b> (ADR-123), kept
+     * apart from an unreadable one by its detail the way ADR-109 keeps its two citation failures
+     * apart. The guard cannot be left to the catch below: measured against Jackson 3, {@code
+     * readValue} asserts its argument first and throws {@link IllegalArgumentException}, which is no
+     * {@link JacksonException} and is not caught — so a null text would escape the step through a
+     * method that looks guarded.
      */
-    private static Answer parseAnswer(ChatResponse response) {
-        String answer = response.getResult().getOutput().getText();
+    private static Answer parseAnswer(Generation answer) {
+        String text = answer.getOutput().getText();
+        if (text == null || text.isBlank()) {
+            throw new ClusterFaultException(
+                    new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, "the answer came back empty"));
+        }
         try {
-            return JSON_MAPPER.readValue(answer, Answer.class);
+            return JSON_MAPPER.readValue(text, Answer.class);
         } catch (JacksonException e) {
             throw new ClusterFaultException(new ClusterFault(
                     ClusterFaultKind.SCHEMA_VIOLATION,

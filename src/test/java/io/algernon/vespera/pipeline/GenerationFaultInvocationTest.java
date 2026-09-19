@@ -325,6 +325,12 @@ class GenerationFaultInvocationTest {
     /** What one turned-down answer leaves behind: one reason, kept against the cluster it was about. */
     private static final int ONE_REASON_KEPT = 1;
 
+    /** Two groups turned down in one piece of work, which is what the second one must not undo. */
+    private static final int TWO_REASONS_KEPT = 2;
+
+    /** The reason kept for a call that came back with no answer in it at all (ADR-123). */
+    private static final String NO_ANSWER_AT_ALL = "the call came back carrying no answer at all";
+
     /**
      * How many records two invocations over an unchanged archive work under.
      *
@@ -687,6 +693,48 @@ class GenerationFaultInvocationTest {
                 () -> assertThat(reasonsKept(root)).hasSize(ONE_REASON_KEPT));
         claim(
                 "and the invocation reports success",
+                () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    @Test
+    @Issue("222")
+    @Story("One answer nobody believes costs one group and no more")
+    @DisplayName("A call that came back carrying no answer leaves the reasons kept before it standing")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void keepsTheReasonsFromEarlierInTheStepPastACallThatCameBackCarryingNoAnswer(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds);
+        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
+        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        GenerationScriptedBeans.answerFor(
+                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), ScriptedAnswer.carryingNoAnswerAtAll());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "both reasons are kept, all " + TWO_REASONS_KEPT + " of them: a call coming back with no"
+                        + " answer in it is turned down like any other unusable answer, where a failure"
+                        + " of another kind would have rolled the piece of work back and taken the reason"
+                        + " recorded before it with it -- leaving " + ONE_REASON_KEPT + " group looking"
+                        + " like one the run never reached",
+                () -> assertThat(reasonsKept(root)).hasSize(TWO_REASONS_KEPT));
+        claim(
+                "and the reason kept for the call that answered nothing says so in its own words, which"
+                        + " is what tells it apart from the group before it whose answer nobody could"
+                        + " read",
+                () -> assertThat(reasonsKept(root))
+                        .anySatisfy(kept -> assertThat(kept.fault().detail()).isEqualTo(NO_ANSWER_AT_ALL)));
+        claim(
+                "both are recorded as an answer that could not be read into the shape the call imposed,"
+                        + " because nothing at all is the smallest case of that rather than a fifth way"
+                        + " an answer is turned down",
+                () -> assertThat(reasonsKept(root))
+                        .allSatisfy(kept -> assertThat(kept.fault().kind())
+                                .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
+        claim(
+                "and the invocation reports success, because a group left unwritten is not a run that"
+                        + " failed",
                 () -> assertThat(cli.getExitCode()).isZero());
     }
 
