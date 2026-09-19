@@ -20,18 +20,23 @@ spring:
   datasource:
     # One SQLite file, holding everything (ADR-008, ADR-009). foreign_keys=on because SQLite ignores
     # foreign key constraints per connection unless told otherwise, and schema.sql's walk_id
-    # references would silently accept orphans without it.
-    url: "jdbc:sqlite:${vespera.working-dir}/vespera.db?foreign_keys=on"
+    # references would silently accept orphans without it. busy_timeout is a wait on a contended
+    # database lock, and it is the knob that actually buys one: Hikari's connection-timeout times the
+    # wait for a connection from the pool, which a contended write never engages (ADR-127).
+    url: "jdbc:sqlite:${vespera.working-dir}/vespera.db?foreign_keys=on&busy_timeout=300000"
     driver-class-name: org.sqlite.JDBC
     hikari:
       # SQLite locks the database file for a write, so a pooled connection that sits on one turns the
       # next writer's attempt into "The database file is locked (database is locked)" - the error these
       # settings exist for, and whose own advice is a shorter maxLifetime. A connection is therefore
-      # retired quickly rather than kept warm, and a stage that waits on a lock waits a long time
-      # rather than failing: the pipeline runs unattended for days (ADR-035), and a five-minute wait
-      # for a lock is cheaper than a failed run.
+      # retired quickly rather than kept warm. The lock wait is the URL's busy_timeout, and the five
+      # minutes it names are for the pipeline running unattended for days (ADR-035): a stage that
+      # waits a lock out is cheaper than a run that fails. What follows times the wait for a
+      # connection from the pool instead, which is a different wait (ADR-127).
       connection-timeout: 300000
-      validation-timeout: 300000
+      # A check on a local SQLite file answers in under a millisecond (measured, ADR-127), so this
+      # bounds a check that cannot hang rather than buying a wait; five minutes had nothing behind it.
+      validation-timeout: 5000
       connection-test-query: SELECT 1
       max-lifetime: 35000
       idle-timeout: 15000

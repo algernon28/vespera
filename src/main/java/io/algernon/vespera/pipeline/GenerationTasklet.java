@@ -326,11 +326,11 @@ class GenerationTasklet implements Tasklet {
      * rows that say why it stopped — the five reasons recorded on the way here, and any writing an
      * earlier cluster of this invocation had already earned. Writing them through a second transaction
      * instead is not open either: SQLite locks the database file for a write, so a second connection
-     * opening its own transaction while this one holds that lock fails on the lock after SQLite's own
-     * busy timeout of three seconds — the driver's default, which nothing here sets — and the journal
-     * mode is {@code delete} rather than WAL, so there is no writer concurrency to fall back on.
-     * Hikari's connection timeout plays no part: that times the wait for a connection from the pool,
-     * and the pool has one to hand over. Failing the step on its own execution leaves the transaction to
+     * opening its own transaction while this one holds that lock blocks until SQLite's own busy
+     * timeout — five minutes, set in the datasource URL (ADR-127) — and then fails; the journal mode
+     * is {@code delete} rather than WAL, so there is no writer concurrency to fall back on. Hikari's
+     * connection timeout plays no part: that times the wait for a connection from the pool, and the
+     * pool has one to hand over. Failing the step on its own execution leaves the transaction to
      * commit normally, and Spring Batch's status is only ever upgraded afterwards, never lowered, so
      * the failure stands and the job ends unsuccessfully.
      *
