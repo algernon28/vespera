@@ -24,14 +24,14 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
 
 /**
- * The first prose this system writes (ADR-108, ADR-110, #180): one call per group of documents, and
+ * The first prose this system writes (ADR-108, ADR-110, #180): one call per cluster of documents, and
  * what comes back.
  *
  * <p>Nothing here reaches a database or a serving engine. The seam this module was given is exactly
- * <em>given this group's documents, produce a piece of writing over them</em> — everything it works
+ * <em>given this cluster's documents, produce a piece of writing over them</em> — everything it works
  * from arrives as plain values, which is what leaves the call itself checkable without either.
  *
- * <p><b>One call for the whole group, never one per document.</b> A call per document costs a call
+ * <p><b>One call for the whole cluster, never one per document.</b> A call per document costs a call
  * per document, and what it produces is a summary of each — which is the pile this system exists to
  * refuse, rebuilt one layer up.
  */
@@ -42,7 +42,7 @@ import org.springframework.ai.ollama.api.OllamaChatOptions;
 @Link(name = "ADR-110", url = Adr.PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS, type = "adr")
 class ClusterSynthesisTest {
 
-    /** The heading the model wrote for the group below, which the answer has to come back carrying. */
+    /** The title the model wrote for the cluster below, which the answer has to come back carrying. */
     private static final String GENERATED_TITLE = "Site Safety Audits, 2018 to 2021";
 
     /** The text the model wrote, with the two markers pointing back at the two documents it was given. */
@@ -58,22 +58,22 @@ class ClusterSynthesisTest {
      */
     private static final String PROSE_POINTING_AT_THE_ONE_SENT = "The earliest audit [1] sets the pattern.";
 
-    /** What the group is called before anything is generated for it: the name stage 6a derived. */
+    /** What the cluster is called before anything is generated for it: the name stage 6a derived. */
     private static final String LABEL = "2019 Site Safety Audit";
 
-    /** The document the operator supplied that this group sits under. */
+    /** The document the operator supplied that this cluster sits under. */
     private static final String SEED_PATH = "seeds/site-safety.txt";
 
     /** Which model the call names, resolved from configuration and handed down as a plain string. */
     private static final String MODEL_NAME = "qwen3:8b";
 
-    /** How many documents the two-document group holds, and so how many that call was written from. */
+    /** How many documents the two-document cluster holds, and so how many that call was written from. */
     private static final int DOCUMENTS_SENT = 2;
 
-    /** How many the three-document group holds, which is what that call has to say it read. */
+    /** How many the three-document cluster holds, which is what that call has to say it read. */
     private static final int THREE_DOCUMENTS = 3;
 
-    /** What a group costs: one call, however many documents are in it. */
+    /** What a cluster costs: one call, however many documents are in it. */
     private static final int ONE_CALL = 1;
 
     /**
@@ -123,7 +123,7 @@ class ClusterSynthesisTest {
     private static final int THE_SHIPPED_WINDOW = ClusterSynthesis.CONTEXT_WINDOW;
 
     /**
-     * A window small enough that a group stops fitting in it.
+     * A window small enough that a cluster stops fitting in it.
      *
      * <p>What it leaves to read documents in is {@link #ROOM_FOR} words. Written out here rather than
      * worked out from the code that does the working out, so that a change to how the room is arrived
@@ -183,7 +183,7 @@ class ClusterSynthesisTest {
     private static final String FURTHEST_HEADING = "AUDIT-2021";
 
     /**
-     * How many times a group no document of which fits is worth asking about: not once, because there
+     * How many times a cluster no document of which fits is worth asking about: not once, because there
      * would be nothing in the question.
      */
     private static final int NOTHING_WAS_ASKED = 0;
@@ -223,7 +223,7 @@ class ClusterSynthesisTest {
     private static final int NOTHING_WRITTEN = 0;
 
     /**
-     * An answer carrying a heading and no writing at all: the key is simply absent, so reading it back
+     * An answer carrying a title and no writing at all: the key is simply absent, so reading it back
      * into the shape the call imposed succeeds and leaves the writing missing (ADR-124).
      */
     private static final String AN_ANSWER_WITH_NO_WRITING_IN_IT = "{\"title\":\"" + GENERATED_TITLE + "\"}";
@@ -276,7 +276,7 @@ class ClusterSynthesisTest {
     @Test
     @Story("A group of documents becomes a piece of writing that connects them")
     @DisplayName("The writing comes back with its own heading, its text, and the number of documents behind it")
-    void returnsTheHeadingTheTextAndHowManyDocumentsItWasWrittenFrom() {
+    void returnsTheTitleTheTextAndHowManyDocumentsItWasWrittenFrom() {
         ClusterSynthesis synthesis = new ClusterSynthesis(new ScriptedChatModel());
 
         SynthesisDoc doc = synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
@@ -885,7 +885,7 @@ class ClusterSynthesisTest {
     }
 
     /**
-     * The reason kept for {@code response}, having put one group through a synthesis answering it.
+     * The reason kept for {@code response}, having put one cluster through a synthesis answering it.
      *
      * <p>Returns {@code null} where the answer was believed, so a claim expecting a reason says so by
      * failing on the reason rather than on an exception escaping from a helper.
@@ -900,12 +900,12 @@ class ClusterSynthesisTest {
         }
     }
 
-    /** A group of two documents, each opening with its own first chunk, the closer one scoring higher. */
+    /** A cluster of two documents, each opening with its own first chunk, the closer one scoring higher. */
     private static ClusterCall aClusterOfTwo() {
         return new ClusterCall(LABEL, SEED_PATH, List.of(closest(), furthest()));
     }
 
-    /** The same group with a third document in it, offered in an order no rule would produce. */
+    /** The same cluster with a third document in it, offered in an order no rule would produce. */
     private static ClusterCall aClusterOfThreeOfferedOutOfOrder() {
         return new ClusterCall(LABEL, SEED_PATH, List.of(furthest(), closest(), middle()));
     }

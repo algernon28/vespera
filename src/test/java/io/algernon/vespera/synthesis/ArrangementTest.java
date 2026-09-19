@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
  * at the gate and is never re-derived by anything that renders it afterwards.
  *
  * <p>The two levels are ordered by different rules because they are not the same comparison. Within
- * one group of documents the scores share a seed and compare soundly; across groups they would rank
+ * one cluster of documents the scores share a seed and compare soundly; across clusters they would rank
  * the operator's own documents by how long they are, which is a property of the scoring function and
  * not a statement about the archive.
  */
@@ -29,10 +29,10 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 class ArrangementTest {
 
-    /** How many documents the larger of the two groups below holds. */
+    /** How many documents the larger of the two clusters below holds. */
     private static final int LARGER_PARTITION_DOCUMENTS = 3;
 
-    /** How many documents the smaller of the two groups below holds. */
+    /** How many documents the smaller of the two clusters below holds. */
     private static final int SMALLER_PARTITION_DOCUMENTS = 1;
 
     /** The closest any document below sits to its seed. */
@@ -41,7 +41,7 @@ class ArrangementTest {
     /** A score further from the seed than {@link #TOP_SCORE}, held by every document it is given to. */
     private static final double LOWER_SCORE = 0.4;
 
-    /** The lower of two numbers two indistinguishable groups were given when they were formed. */
+    /** The lower of two numbers two indistinguishable clusters were given when they were formed. */
     private static final int FIRST_ORDINAL = 2;
 
     /** The higher of that pair, offered to the arranger first so that insertion order cannot be what decides. */

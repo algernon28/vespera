@@ -26,11 +26,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * What is kept about a group whose answer was rejected (ADR-111, #183).
+ * What is kept about a cluster whose answer was rejected (ADR-111, #183).
  *
- * <p><b>A rejected answer leaves a row, not an absence.</b> A group with nothing written over it and
+ * <p><b>A rejected answer leaves a row, not an absence.</b> A cluster with nothing written over it and
  * nothing saying why is indistinguishable from one the run never reached, so the reason the answer
- * was turned down is kept beside the group it was about — which is what lets somebody find out what
+ * was turned down is kept beside the cluster it was about — which is what lets somebody find out what
  * went wrong without asking the model again. The precedents are the two tables this project already
  * has for a recorded fault that judges nobody: the walk anomaly and the unusable seed.
  *
@@ -53,20 +53,20 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
 class ClusterFaultsTest {
 
-    /** Which group of its partition this is: its identity, which never moves. */
+    /** Which cluster of its partition this is: its identity, which never moves. */
     private static final int CLUSTER_ORDINAL = 3;
 
-    /** A second group of the same seed's own groups, so dropping one reason has another to spare. */
+    /** A second cluster of the same seed's own clusters, so dropping one reason has another to spare. */
     private static final int ANOTHER_CLUSTER_ORDINAL = 4;
 
     /**
-     * How many reasons stand under one record before anything is dropped: one for the group repaired,
-     * one for the other group of the same seed, and one for a group under a different seed that sits at
+     * How many reasons stand under one record before anything is dropped: one for the cluster repaired,
+     * one for the other cluster of the same seed, and one for a cluster under a different seed that sits at
      * the same place in that seed's order.
      */
     private static final int THREE_REASONS_KEPT_UNDER_ONE_RECORD = 3;
 
-    /** What those three leave behind once the reason for one of the three groups is dropped. */
+    /** What those three leave behind once the reason for one of the three clusters is dropped. */
     private static final int TWO_REASONS_LEFT = 2;
 
     /** The number that failed, kept in the row so nobody has to ask the model again to learn it. */

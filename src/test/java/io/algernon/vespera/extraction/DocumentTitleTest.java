@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Read here rather than where it is used, because it lives inside the converter's response and
  * this module is the only one that parses those. It is handed out as a plain string, which is what
- * lets the terminal stages name a group after a document without naming this module.
+ * lets the terminal stages name a cluster after a document without naming this module.
  *
  * <p><b>Absent is the common case, not an error.</b> A plain text file and a scan that read as
  * undifferentiated body text carry no title item at all, and the caller has its own answer for that.

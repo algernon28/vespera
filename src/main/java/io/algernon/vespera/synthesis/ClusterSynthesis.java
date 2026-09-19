@@ -51,7 +51,7 @@ public class ClusterSynthesis {
 
     /**
      * The shape the answer has to arrive in, imposed rather than hoped for (ADR-106, ADR-108) — a
-     * heading for the cluster, and the writing itself.
+     * title for the cluster, and the writing itself.
      *
      * <p>Ollama pushes this down as a decoding constraint rather than checking conformance, and no
      * primary source guarantees it — its own examples all validate client-side. Imposing it is what
@@ -90,7 +90,7 @@ public class ClusterSynthesis {
      * <p>Reserved <em>and</em> sent — a reservation nothing enforces is arithmetic, not a limit, and
      * the answer would be free to run into the documents' room.
      *
-     * <p>1024 is comfortably more than the few hundred words of connecting prose and a heading this
+     * <p>1024 is comfortably more than the few hundred words of connecting prose and a title this
      * writes. An answer that hits it comes back marked as run out of room rather than finished.
      */
     public static final int REPLY_ALLOWANCE = 1024;
@@ -454,6 +454,6 @@ public class ClusterSynthesis {
                 .formatted(inScoreOrder.size(), call.label(), call.seedPath(), exemplars);
     }
 
-    /** The shape the answer comes back in: a heading for the cluster, and the writing itself. */
+    /** The shape the answer comes back in: a title for the cluster, and the writing itself. */
     private record Answer(String title, String prose) {}
 }

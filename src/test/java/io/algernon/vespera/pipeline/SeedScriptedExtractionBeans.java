@@ -30,7 +30,7 @@ class SeedScriptedExtractionBeans {
     static final String EMPTY_SEED = "empty-seed.pdf";
 
     /**
-     * The title every document this fixture converts carries, so that a caller naming a group after a
+     * The title every document this fixture converts carries, so that a caller naming a cluster after a
      * document's own title has one to find (ADR-106).
      */
     static final String STUBBED_TITLE = "A Stubbed Document";
