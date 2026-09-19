@@ -258,6 +258,12 @@ class GenerationFaultInvocationTest {
     private static final String A_HEADING = "What The Two Stubbed Documents Have In Common";
 
     /**
+     * An answer that reads back perfectly well and carries no writing: a heading arrived, and the
+     * writing the call asked for is simply not there (ADR-124).
+     */
+    private static final String AN_ANSWER_WITH_NO_WRITING_IN_IT = "{\"title\":\"" + A_HEADING + "\"}";
+
+    /**
      * Writing pointing at a document number the call never carried. The call sends two documents, under
      * the numbers 1 and 2, so 7 is a number this system never minted for it.
      */
@@ -330,6 +336,9 @@ class GenerationFaultInvocationTest {
 
     /** The reason kept for a call that came back with no answer in it at all (ADR-123). */
     private static final String NO_ANSWER_AT_ALL = "the call came back carrying no answer at all";
+
+    /** The reason kept for an answer whose writing was missing or blank (ADR-124). */
+    private static final String NO_WRITING_AT_ALL = "the answer came back with no writing in it";
 
     /**
      * How many records two invocations over an unchanged archive work under.
@@ -735,6 +744,88 @@ class GenerationFaultInvocationTest {
         claim(
                 "and the invocation reports success, because a group left unwritten is not a run that"
                         + " failed",
+                () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    @Test
+    @Issue("224")
+    @Story("One answer nobody believes costs one group and no more")
+    @DisplayName("An answer that came back with no writing in it leaves the reasons kept before it standing")
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    void keepsTheReasonsFromEarlierInTheStepPastAnAnswerWithNoWritingInIt(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds);
+        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
+        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        GenerationScriptedBeans.answerFor(
+                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+        GenerationScriptedBeans.answerFor(
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_WRITING_IN_IT));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "both reasons are kept, all " + TWO_REASONS_KEPT + " of them: an answer that came back"
+                        + " with no writing in it is turned down like any other unusable answer, where a"
+                        + " failure of another kind would have rolled the piece of work back and taken"
+                        + " the reason recorded before it with it -- leaving " + ONE_REASON_KEPT
+                        + " group looking like one the run never reached",
+                () -> assertThat(reasonsKept(root)).hasSize(TWO_REASONS_KEPT));
+        claim(
+                "and the reason kept for the answer with no writing says so in its own words, which is"
+                        + " what tells it apart from the group before it whose answer nobody could read",
+                () -> assertThat(reasonsKept(root))
+                        .anySatisfy(kept ->
+                                assertThat(kept.fault().detail()).isEqualTo(NO_WRITING_AT_ALL)));
+        claim(
+                "both are recorded as an answer that did not come back in the shape the call asked for,"
+                        + " rather than one of them being recorded as writing that pointed at no"
+                        + " document: nothing was written to point at anything with",
+                () -> assertThat(reasonsKept(root))
+                        .allSatisfy(kept -> assertThat(kept.fault().kind())
+                                .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
+        claim(
+                "nothing was written over either group",
+                () -> assertThat(writingKept(root)).isEmpty());
+        claim(
+                "and the invocation reports success, because a group left unwritten is not a run that"
+                        + " failed",
+                () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    @Test
+    @Issue("224")
+    @Story("One answer nobody believes costs one group and no more")
+    @DisplayName("The groups after an answer with no writing in it are still written over")
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    void carriesOnPastAnAnswerWithNoWritingInIt(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
+        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        GenerationScriptedBeans.answerFor(
+                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_WRITING_IN_IT));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "both groups were asked about, all " + TWO_CALLS + " of them: the answer with no writing"
+                        + " in it was turned down and the group after it was still asked, where a run"
+                        + " that fell over on it would have made only " + ONE_CALL,
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(TWO_CALLS));
+        claim(
+                "the group whose answer was believed carries its writing, " + ONE_PIECE_OF_WRITING
+                        + " piece of it, so one answer arriving without its writing cost its own group"
+                        + " and nothing further along",
+                () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
+        claim(
+                "and exactly " + ONE_REASON_KEPT + " reason is kept, for the one group whose answer"
+                        + " carried no writing",
+                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
+                                kept.fault().kind())
+                        .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
+        claim(
+                "and the invocation reports success",
                 () -> assertThat(cli.getExitCode()).isZero());
     }
 

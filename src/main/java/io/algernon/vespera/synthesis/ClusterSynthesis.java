@@ -149,6 +149,11 @@ public class ClusterSynthesis {
      * established once between that check and the next, and a response carrying none — or one whose
      * text is null or blank — is a {@link ClusterFaultKind#SCHEMA_VIOLATION} like any other answer
      * that could not be read into the shape the call imposed, not an exception out of the step.
+     *
+     * <p>The same holds one level down, at the parsed record (ADR-124): {@code prose} is required of
+     * an {@link Answer} the way it is required of {@code ANSWER_SCHEMA}, {@link #parseAnswer} is where
+     * that is established, and {@link #checkCitations} may dereference {@code prose} unguarded only
+     * because {@link #parseAnswer} already did.
      */
     public SynthesisDoc docFor(ClusterCall call, String modelName, int contextWindow) {
         List<Exemplar> sent = whatFitsIn(contextWindow, call.exemplars());
@@ -239,6 +244,14 @@ public class ClusterSynthesis {
      * readValue} asserts its argument first and throws {@link IllegalArgumentException}, which is no
      * {@link JacksonException} and is not caught — so a null text would escape the step through a
      * method that looks guarded.
+     *
+     * <p><b>Once the text reads back, {@code prose} is required of the record the same way it is
+     * required of {@code ANSWER_SCHEMA}</b> (ADR-124): an {@code Answer} whose {@code prose()} is
+     * {@code null} or blank is turned down here, before it is returned, rather than reaching {@link
+     * #checkCitations} and being dereferenced. Absent and blank are one event — the model returned no
+     * writing — and record one detail. This establishes the record-level half of ADR-123's rule: what
+     * {@link #parseAnswer} returns has a non-null, non-blank {@code prose}, which is what lets every
+     * reader of it downstream go unguarded.
      */
     private static Answer parseAnswer(Generation answer) {
         String text = answer.getOutput().getText();
@@ -246,8 +259,9 @@ public class ClusterSynthesis {
             throw new ClusterFaultException(
                     new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, "the answer came back empty"));
         }
+        Answer parsed;
         try {
-            return JSON_MAPPER.readValue(text, Answer.class);
+            parsed = JSON_MAPPER.readValue(text, Answer.class);
         } catch (JacksonException e) {
             throw new ClusterFaultException(new ClusterFault(
                     ClusterFaultKind.SCHEMA_VIOLATION,
@@ -255,6 +269,11 @@ public class ClusterSynthesis {
                             + " (line " + e.getLocation().getLineNr() + ", column "
                             + e.getLocation().getColumnNr() + ")"));
         }
+        if (parsed.prose() == null || parsed.prose().isBlank()) {
+            throw new ClusterFaultException(new ClusterFault(
+                    ClusterFaultKind.SCHEMA_VIOLATION, "the answer came back with no writing in it"));
+        }
+        return parsed;
     }
 
     /**
@@ -266,6 +285,9 @@ public class ClusterSynthesis {
      * <p><b>The two are kept as different failures.</b> ADR-109 states uncited prose as a clause of
      * its own beside the range check, so a shared detail of {@code citation 0} would leave an operator
      * unable to tell writing that rests on nothing from writing pointing below the first document.
+     *
+     * <p><b>{@code prose} is dereferenced with no guard of its own</b> (ADR-124), because {@link
+     * #parseAnswer} already established it is non-null and non-blank before this is ever reached.
      */
     private static void checkCitations(String prose, int documentsSent) {
         List<String> citations =
