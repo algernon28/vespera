@@ -517,6 +517,13 @@ public final class Adr {
     public static final String AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION = FILE
             + "0123-an-answer-carrying-nothing-is-a-schema-violation-and-only-guaranteed-response-fields-are-dereferenced.md";
 
+    /**
+     * ADR-124 — both fields of a parsed answer are required, and missing writing is a schema violation
+     * rather than an uncited one.
+     */
+    public static final String BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED = FILE
+            + "0124-both-fields-of-a-parsed-answer-are-required-and-missing-writing-is-a-schema-violation-rather-than-an-uncited-one.md";
+
     private Adr() {
     }
 }

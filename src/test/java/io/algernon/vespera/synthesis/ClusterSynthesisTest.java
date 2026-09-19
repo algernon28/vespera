@@ -222,6 +222,29 @@ class ClusterSynthesisTest {
     /** How much a call that came back carrying no answer wrote, which is nothing. */
     private static final int NOTHING_WRITTEN = 0;
 
+    /**
+     * An answer carrying a heading and no writing at all: the key is simply absent, so reading it back
+     * into the shape the call imposed succeeds and leaves the writing missing (ADR-124).
+     */
+    private static final String AN_ANSWER_WITH_NO_WRITING_IN_IT = "{\"title\":\"" + GENERATED_TITLE + "\"}";
+
+    /**
+     * The same answer with the writing present and blank, which is the other way a serving engine
+     * returns no writing — and the same event, so the same reason is kept for it (ADR-124).
+     */
+    private static final String AN_ANSWER_WHOSE_WRITING_IS_BLANK =
+            "{\"title\":\"" + GENERATED_TITLE + "\",\"prose\":\"" + NOTHING_BUT_SPACES + "\"}";
+
+    /** The reason kept for an answer that came back with its writing missing or blank (ADR-124). */
+    private static final String NO_WRITING_AT_ALL = "the answer came back with no writing in it";
+
+    /**
+     * An answer whose writing is there, is real prose, and points at no document at all — which is a
+     * different thing from an answer with no writing in it, and is kept as a different failure.
+     */
+    private static final String AN_ANSWER_POINTING_AT_NOTHING_AT_ALL = "{\"title\":\"" + GENERATED_TITLE
+            + "\",\"prose\":\"The audits agree on every finding, and on what should follow from them.\"}";
+
     @Test
     @Story("A group of documents becomes a piece of writing that connects them")
     @DisplayName("The writing comes back with its own heading, its text, and the number of documents behind it")
@@ -591,6 +614,99 @@ class ClusterSynthesisTest {
                         + NO_READING_REPORTED + " -- which is below every window, so silence about how"
                         + " much was read costs a group nothing",
                 () -> assertThat(doc.title()).isEqualTo(GENERATED_TITLE));
+    }
+
+    @Test
+    @Issue("224")
+    @Story("An answer with no writing in it costs its group and nothing else")
+    @DisplayName("An answer that came back with a heading and no writing leaves its group unwritten instead of throwing")
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    void turnsDownAnAnswerWithNoWritingInIt() {
+        ClusterSynthesis synthesis =
+                new ClusterSynthesis(alwaysAnswering(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT)));
+
+        claim(
+                "an answer whose writing is simply not there is turned down the way any other unusable"
+                        + " answer is, rather than escaping as some other failure: the reasons kept for"
+                        + " the groups already dealt with are written in the same piece of work as this"
+                        + " one, and a failure that is not a turned-down answer takes every one of them"
+                        + " with it -- so one answer missing its writing would cost not its own group but"
+                        + " the record of every group turned down before it",
+                () -> assertThatThrownBy(
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW))
+                        .isInstanceOf(ClusterFaultException.class));
+        claim(
+                "and the reason kept is \"" + NO_WRITING_AT_ALL + "\", recorded as an answer that could"
+                        + " not be read into the shape that was asked for: the shape asked for a heading"
+                        + " and writing both, and an answer delivering one of the two did not arrive in"
+                        + " it",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_WRITING_AT_ALL)));
+    }
+
+    @Test
+    @Issue("224")
+    @Story("An answer with no writing in it costs its group and nothing else")
+    @DisplayName("An answer whose writing is nothing but blank space is the same missing writing, not a different failure")
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    void turnsDownAnAnswerWhoseWritingIsNothingButBlankSpace() {
+        claim(
+                "an answer whose writing came back blank is kept as an answer that did not arrive in the"
+                        + " shape asked for, with the reason \"" + NO_WRITING_AT_ALL + "\" -- rather"
+                        + " than as writing that pointed at no document, which is what blank writing"
+                        + " would otherwise be turned down as. That reason would say the model wrote"
+                        + " something and attributed none of it, and the model wrote nothing",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_WRITING_IS_BLANK)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_WRITING_AT_ALL)));
+        claim(
+                "and it keeps exactly the reason an answer with no writing at all keeps: both say the"
+                        + " model returned no writing, and which of the two arrives is decided by the"
+                        + " machine that answered rather than by anything the archive's owner did or"
+                        + " could act on differently",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_WRITING_IS_BLANK)))
+                        .isEqualTo(faultFrom(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT))));
+    }
+
+    @Test
+    @Issue("224")
+    @Story("An answer with no writing in it costs its group and nothing else")
+    @DisplayName("An answer with no writing is told apart from one nothing could read and from writing that points at nothing")
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    void keepsAnAnswerWithNoWritingApartFromTheOtherReasonsForTurningOneDown() {
+        ClusterFault noWriting = faultFrom(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT));
+        ClusterFault noAnswerAtAll = faultFrom(carryingNoAnswerAtAll());
+        ClusterFault emptyAnswer = faultFrom(answeringWithNoText());
+        ClusterFault unreadable = faultFrom(answeringWith(NOT_AN_ANSWER_AT_ALL));
+        ClusterFault pointingAtNothing = faultFrom(answeringWith(AN_ANSWER_POINTING_AT_NOTHING_AT_ALL));
+
+        claim(
+                "an answer with no writing in it is kept as one that did not arrive in the shape asked"
+                        + " for, the same as an answer nothing could read: what came back was readable"
+                        + " and still was not the shape, which is the same thing to whoever has to do"
+                        + " something about it",
+                () -> assertThat(noWriting.kind()).isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION));
+        claim(
+                "and it is not kept as writing that pointed at no document, which is what an answer with"
+                        + " no writing would otherwise fall through to: that reason says the model wrote"
+                        + " something and gave the reader no thread back into the archive, and here the"
+                        + " model wrote nothing at all. The two want different things done about them",
+                () -> assertThat(pointingAtNothing.kind()).isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE));
+        claim(
+                "and all four answers that arrived in the wrong shape keep four different reasons, so"
+                        + " somebody reading them can tell a call that answered nothing from an answer"
+                        + " with no text from an answer nothing could be made of from an answer carrying"
+                        + " no writing -- one kind covering four things is only honest while the four"
+                        + " stay distinguishable",
+                () -> assertThat(List.of(
+                                noAnswerAtAll.detail(),
+                                emptyAnswer.detail(),
+                                unreadable.detail(),
+                                noWriting.detail()))
+                        .doesNotHaveDuplicates());
+        claim(
+                "and the reason for an answer with no writing says nothing about its heading, because"
+                        + " whether a heading arrived is not something this check established",
+                () -> assertThat(noWriting.detail()).isEqualTo(NO_WRITING_AT_ALL));
     }
 
     /** A model that hands back the same response to every call, whatever it was asked. */
