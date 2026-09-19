@@ -545,6 +545,14 @@ public final class Adr {
     public static final String A_DATABASE_LOCK_WAIT_IS_SQLITES_BUSY_TIMEOUT = FILE
             + "0127-a-database-lock-is-waited-out-by-sqlites-busy-timeout-not-by-hikaris-connection-timeout.md";
 
+    /**
+     * ADR-128 - okio is pinned to the version okhttp declares, and a dependency scan belongs in CI.
+     * The pin answers CVE-2023-3635, which the okio 2.10.0 that Maven's nearest-wins was selecting
+     * carried; the scan decision says a finding is surfaced in CI as an advisory rather than a gate.
+     */
+    public static final String OKIO_IS_PINNED_AND_A_DEPENDENCY_SCAN_BELONGS_IN_CI = FILE
+            + "0128-okio-is-pinned-to-the-version-okhttp-declares-and-a-dependency-scan-belongs-in-ci.md";
+
     private Adr() {
     }
 }

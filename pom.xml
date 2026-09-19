@@ -35,6 +35,16 @@
         <!-- ADR-073: pinned to Lingua's latest release, 1.2.2 (2022), the record's own note that this line is stable rather than actively developed. -->
         <lingua.version>1.2.2</lingua.version>
         <!--
+          ADR-128: okio is pinned forward to the version okhttp 4.12.0 itself declares. Two things
+          depend on okio here: lingua's moshi, which declared 2.10.0, and okhttp, which declared
+          3.6.0. Maven's nearest-wins selected 2.10.0, putting the GzipSource class CVE-2023-3635
+          lives in on the classpath, and running okhttp against a version it was not built for.
+          3.6.0 sits above the 3.4.0 fix floor and restores what okhttp asked for; the extraction
+          tests, which build the language detector and load every bundled model through moshi,
+          stay green under it.
+        -->
+        <okio.version>3.6.0</okio.version>
+        <!--
           Allure is two products on two version lines, which is the easy thing to get wrong.
 
           allure.version is the adapter: the allure-java libraries the tests are woven with, which
@@ -239,6 +249,12 @@
                 <version>${allure.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <!-- ADR-128: managed here so nothing can reintroduce 2.10.0; see okio.version above. -->
+                <groupId>com.squareup.okio</groupId>
+                <artifactId>okio</artifactId>
+                <version>${okio.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
