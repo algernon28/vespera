@@ -9,7 +9,7 @@ package io.algernon.vespera.synthesis;
  * list is composed at write time (ADR-109) — so rewriting anything here would leave the record and
  * the deliverable disagreeing about what was said.
  *
- * @param title the heading the model gave the group, which the deliverable uses in place of the
+ * @param title the heading the model gave the cluster, which the deliverable uses in place of the
  *     derived label
  * @param prose the text, with its citation markers exactly as they came back
  * @param documentsSent how many documents the call was written from, which is what lets the

@@ -40,7 +40,7 @@ class CommunitiesTest {
     @Test
     @Story("The number of clusters falls out rather than being chosen")
     @DisplayName("Two tightly-linked groups become two clusters, without the count being supplied")
-    void findsTwoGroupsWithoutBeingToldThereAreTwo() {
+    void findsTwoClustersWithoutBeingToldThereAreTwo() {
         // Two groups of three, each fully linked inside itself, joined by a single edge between them.
         NearestNeighbourGraph.Graph graph = graphOf(
                 new int[] {1, 2}, new int[] {0, 2}, new int[] {0, 1, 3},
@@ -133,7 +133,7 @@ class CommunitiesTest {
     @Test
     @Story("The similarity reaches the page and not the grouping")
     @DisplayName("The grouping never reads a similarity, so it cannot be moved by one")
-    void theGroupingNeverReadsASimilarity() {
+    void theClusteringNeverReadsASimilarity() {
         // A graph whose similarities cannot be read without failing the test. Asserting that two
         // differently-weighted graphs cluster alike would not do it: modularity is scale-invariant, so
         // weights that are uniform -- however high or low -- give the same answer as weight one, and

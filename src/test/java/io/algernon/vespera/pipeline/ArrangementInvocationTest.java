@@ -247,7 +247,7 @@ class ArrangementInvocationTest {
     @Test
     @Story("Every group of documents is given a name and a place")
     @DisplayName("A group is named after its leading document's own title, not its filename")
-    void namesAGroupAfterItsLeadingDocumentsTitle(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void namesAClusterAfterItsLeadingDocumentsTitle(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profile(seeds);
@@ -337,7 +337,7 @@ class ArrangementInvocationTest {
     @Test
     @Story("The person who has to approve it is shown what they are approving")
     @DisplayName("The document a group is named after is a link the reader can open")
-    void linksEachGroupToTheDocumentItWasNamedAfter(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void linksEachClusterToTheDocumentItWasNamedAfter(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profile(seeds);

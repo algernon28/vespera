@@ -80,7 +80,7 @@ package io.algernon.vespera.profile;
  *     most likely to be answered wrongly if it were a stop — the right value is a property of the
  *     machine doing the serving rather than of the archive, and most operators could not name one
  *     before their first run. What it buys when it <em>is</em> answered is real: a larger window reads
- *     more of each group in one call, and every group too large for the window is written from part of
+ *     more of each cluster in one call, and every cluster too large for the window is written from part of
  *     itself. Changing it changes what was read, so it joins the generation run's identity and a
  *     different window is a different run. No {@link Measurement} pointer: what informs it is the
  *     machine, not a pass over the corpus.

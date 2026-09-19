@@ -12,7 +12,7 @@ public enum ClusterFaultKind {
 
     /**
      * {@code prompt_eval_count} came back at or above the window sent: the prompt was shifted, and
-     * part of the group was silently dropped before the model ever read it (ADR-108).
+     * part of the cluster was silently dropped before the model ever read it (ADR-108).
      */
     PROMPT_EVALUATION_CEILING,
 

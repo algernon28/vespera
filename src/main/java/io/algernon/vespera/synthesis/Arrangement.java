@@ -54,12 +54,12 @@ public final class Arrangement {
     }
 
     /**
-     * The documents the previous stage grouped, gathered into the seeds and groups this class then
+     * The documents the previous stage clustered, gathered into the seeds and clusters this class then
      * orders — in the order they were offered, since nothing here decides an order.
      *
      * <p><b>The arrangement covers every document or it is not an arrangement.</b> A document that was
-     * grouped without being scored cannot be placed, because the order of the groups is computed from
-     * their members' scores; so it stops, naming the document, rather than gathering the rest. A
+     * clustered without being scored cannot be placed, because the order of the clusters is computed
+     * from their members' scores; so it stops, naming the document, rather than gathering the rest. A
      * miscellaneous bucket for whatever could not be placed would render that gap as a section of the
      * finished work, indistinguishable from a real one to whoever reads it.
      */
@@ -69,7 +69,7 @@ public final class Arrangement {
         for (ClusteredDocument document : documents) {
             if (document.score() == null) {
                 throw new IllegalStateException("occurrence " + document.occurrence().value()
-                        + " was grouped but carries no relevance score, so the arrangement is not total");
+                        + " was clustered but carries no relevance score, so the arrangement is not total");
             }
             seedPaths.putIfAbsent(document.winningSeed(), document.seedPath());
             bySeedThenOrdinal

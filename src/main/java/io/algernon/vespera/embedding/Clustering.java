@@ -89,7 +89,7 @@ public class Clustering {
      *
      * <p><b>What comes back is an observation about the graph, not about the recording.</b> The
      * spread of the similarities on the edges the graph kept is the one number that tells a partition
-     * grouped by resemblance from a partition grouped by k (ADR-096), and it is returned rather than
+     * clustered by resemblance from a partition clustered by k (ADR-096), and it is returned rather than
      * stored because nothing reads it but the page: no verdict, no profile key and no gate follows
      * from it. Empty where the graph kept no edge, which is a partition of one.
      *

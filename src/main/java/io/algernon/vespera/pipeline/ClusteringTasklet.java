@@ -33,7 +33,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Stage 5's fifth step (ADR-087, #109): each seed partition's survivors grouped into clusters, under
+ * Stage 5's fifth step (ADR-087, #109): each seed partition's survivors clustered, under
  * the same scoring run the scores were written beneath.
  *
  * <p><b>One partition at a time, never corpus-wide (ADR-045).</b> A partition is the set of survivors
@@ -158,7 +158,7 @@ class ClusteringTasklet implements Tasklet {
                 ItemStreamReaders.drain(ledger.survivors(scoring.runId()));
 
         LOG.info(
-                "Stage 5f (clustering) starting under scoring run {}: {} seed partition(s) to group",
+                "Stage 5f (clustering) starting under scoring run {}: {} seed partition(s) to cluster",
                 scoring.runId().value(),
                 partitions.size());
         List<ClusterSizeReport.Partition> reported = new ArrayList<>();

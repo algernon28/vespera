@@ -189,11 +189,11 @@ class ArrangementTasklet implements Tasklet {
      */
     private List<ArrangementReport.Partition> reportOf(
             List<ArrangedCluster> arranged, List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
-        Map<OccurrenceId, List<ArrangementReport.Group>> bySeed = new LinkedHashMap<>();
+        Map<OccurrenceId, List<ArrangementReport.Cluster>> bySeed = new LinkedHashMap<>();
         for (ArrangedCluster cluster : arranged) {
             OccurrenceId lead = leadDocumentOf(cluster, membership, scores);
             bySeed.computeIfAbsent(cluster.winningSeed(), seed -> new ArrayList<>())
-                    .add(new ArrangementReport.Group(
+                    .add(new ArrangementReport.Cluster(
                             ClusterLabel.derivedFrom(titleOf(lead).orElse(null), pathObjectOf(lead), cluster.ordinal())
                                     .value(),
                             cluster.documentCount(),
@@ -201,7 +201,7 @@ class ArrangementTasklet implements Tasklet {
                             linkTo(lead)));
         }
         List<ArrangementReport.Partition> partitions = new ArrayList<>();
-        bySeed.forEach((seed, groups) -> partitions.add(new ArrangementReport.Partition(pathOf(seed), groups)));
+        bySeed.forEach((seed, clusters) -> partitions.add(new ArrangementReport.Partition(pathOf(seed), clusters)));
         return partitions;
     }
 

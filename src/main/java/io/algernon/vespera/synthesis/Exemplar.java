@@ -2,7 +2,7 @@ package io.algernon.vespera.synthesis;
 
 /**
  * One document as a call carries it (ADR-108): the chunk it opens with, and how close it sits to the
- * seed its group belongs to.
+ * seed its cluster belongs to.
  *
  * <p>The opening chunk rather than the whole document, and rather than a summary of it. A document
  * cut by {@code HybridChunker} opens on a heading, so what arrives in the call is titled rather than

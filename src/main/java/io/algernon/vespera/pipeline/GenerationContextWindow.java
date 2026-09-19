@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * <p><b>The default is in code rather than in application configuration</b>, unlike the model name.
  * That name has to agree with the chat model bean's own configured name or the call and the bean would
  * name two different models; this number has no such twin, and what it is <em>for</em> — how much of a
- * group one call carries — is a decision {@code synthesis} owns and documents.
+ * cluster one call carries — is a decision {@code synthesis} owns and documents.
  *
  * <p><b>An answer that is not a positive whole number a machine can count to stops rather than being
  * read past.</b> Unset and wrong are different states: somebody who wrote something here meant to

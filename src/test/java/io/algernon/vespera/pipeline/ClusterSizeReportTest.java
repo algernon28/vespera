@@ -30,18 +30,18 @@ import org.junit.jupiter.api.Test;
 class ClusterSizeReportTest {
 
     /** One partition of 55 documents in five clusters: 40, 12, and three documents each alone. */
-    private static final ClusterSizeReport.Partition ONE_LARGE_GROUP_AND_THREE_ALONE =
+    private static final ClusterSizeReport.Partition ONE_LARGE_CLUSTER_AND_THREE_ALONE =
             new ClusterSizeReport.Partition("seeds/contracts.pdf", List.of(40, 12, 1, 1, 1), Optional.empty());
 
 
     /** A partition whose kept links run from 0.62 up to 0.95 — documents that genuinely resemble each other. */
-    private static final ClusterSizeReport.Partition GROUPED_BY_RESEMBLANCE = new ClusterSizeReport.Partition(
+    private static final ClusterSizeReport.Partition CLUSTERED_BY_RESEMBLANCE = new ClusterSizeReport.Partition(
             "seeds/contracts.pdf",
             List.of(18, 9),
             Optional.of(new RetainedEdgeSpread(0.62, 0.81, 0.95, 240)));
 
     /** A partition whose strongest link is 0.04 — forty documents k forced together. */
-    private static final ClusterSizeReport.Partition GROUPED_BY_K = new ClusterSizeReport.Partition(
+    private static final ClusterSizeReport.Partition CLUSTERED_BY_K = new ClusterSizeReport.Partition(
             "seeds/minutes.pdf", List.of(21, 19), Optional.of(new RetainedEdgeSpread(0.01, 0.02, 0.04, 240)));
 
     /** One document under its own exemplar: no pair, so no link and nothing to measure. */
@@ -52,7 +52,7 @@ class ClusterSizeReportTest {
     @Story("The spread of cluster sizes is reported per partition")
     @DisplayName("A partition reports its documents, its clusters and how their sizes are spread")
     void reportsOnePartitionsSpread() {
-        String html = ClusterSizeReport.render(List.of(ONE_LARGE_GROUP_AND_THREE_ALONE));
+        String html = ClusterSizeReport.render(List.of(ONE_LARGE_CLUSTER_AND_THREE_ALONE));
 
         claim(
                 "the partition names the exemplar whose documents it holds, so a reader can tell which"
@@ -80,7 +80,7 @@ class ClusterSizeReportTest {
     @Story("The retained-edge spread is reported beside the sizes")
     @DisplayName("A partition reports how alike the documents on its kept links actually were")
     void reportsTheRetainedEdgeSpread() {
-        String html = ClusterSizeReport.render(List.of(GROUPED_BY_RESEMBLANCE));
+        String html = ClusterSizeReport.render(List.of(CLUSTERED_BY_RESEMBLANCE));
 
         claim(
                 "the weakest link in the partition is shown, which is the number that says whether the"
@@ -100,7 +100,7 @@ class ClusterSizeReportTest {
     @Story("The retained-edge spread is reported beside the sizes")
     @DisplayName("The page says what a low spread means, in documents rather than in statistics")
     void saysWhatALowSpreadMeans() {
-        String html = ClusterSizeReport.render(List.of(GROUPED_BY_K));
+        String html = ClusterSizeReport.render(List.of(CLUSTERED_BY_K));
 
         claim(
                 "the page explains a low spread as what it is about the documents -- that they were put"
@@ -138,7 +138,7 @@ class ClusterSizeReportTest {
     @DisplayName("Each partition is reported on its own, never folded in with another exemplar's")
     void reportsEachPartitionSeparately() {
         String html = ClusterSizeReport.render(List.of(
-                ONE_LARGE_GROUP_AND_THREE_ALONE,
+                ONE_LARGE_CLUSTER_AND_THREE_ALONE,
                 new ClusterSizeReport.Partition("seeds/invoices.pdf", List.of(3, 2), Optional.empty())));
 
         claim(
@@ -174,24 +174,24 @@ class ClusterSizeReportTest {
     @Story("The spread of cluster sizes is reported per partition")
     @DisplayName("The middle cluster is reported rather than an average")
     void reportsTheMiddleClusterRatherThanAnAverage() {
-        ClusterSizeReport.Partition oneLargeGroupAndFourAlone =
+        ClusterSizeReport.Partition oneLargeClusterAndFourAlone =
                 new ClusterSizeReport.Partition("seeds/exemplar.pdf", List.of(100, 1, 1, 1, 1), Optional.empty());
 
         claim(
                 "the middle group is 1 rather than the mean of 20.8: one group holding most of a"
                         + " partition pulls an average upwards and leaves a reader with the impression of"
                         + " evenly-sized pages that are not there",
-                () -> assertThat(oneLargeGroupAndFourAlone.median()).isEqualTo(1));
+                () -> assertThat(oneLargeClusterAndFourAlone.median()).isEqualTo(1));
         claim(
                 "and the largest is reported beside it, so both ends of the spread are visible rather"
                         + " than one number standing in for the shape",
-                () -> assertThat(oneLargeGroupAndFourAlone.largest()).isEqualTo(100));
+                () -> assertThat(oneLargeClusterAndFourAlone.largest()).isEqualTo(100));
     }
 
     @Test
     @Story("The spread of cluster sizes is reported per partition")
     @DisplayName("A run that grouped nothing writes a page saying so")
-    void reportsThatNothingWasGrouped() {
+    void reportsThatNothingWasClustered() {
         String html = ClusterSizeReport.render(List.of());
 
         claim(

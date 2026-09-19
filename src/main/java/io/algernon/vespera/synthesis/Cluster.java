@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * One cluster offered to {@link Arrangement} for ordering: which cluster it is, and the relevance
- * scores of the survivors stage 5 grouped into it.
+ * scores of the survivors stage 5 clustered into it.
  *
  * <p>The scores arrive rather than being read here, because {@code synthesis} may depend on {@code
  * ledger} and nothing else horizontal (ADR-110) — they live in {@code embedding}, and {@code
