@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// Checks the claims this repository's two prose documents make about it, against it.
+// Checks the claims this repository's prose documents make about it, against it.
 //
-//   AGENTS.md  what state the project is in, read by an agent
-//   README.md  how the tool is operated, read by a person
+//   AGENTS.md           what state the project is in, read by an agent
+//   README.md           how the tool is operated, read by a person
+//   docs/adr/README.md  the decision record's own index — its range and its boundary
 //
-// ADR-098 keeps that division strict: two files describing the same thing is the
-// drift this file exists to catch, and it has already cost two pull requests.
+// ADR-098 keeps the first two apart: two files describing the same thing is the
+// drift this file exists to catch, and it has already cost two pull requests. The
+// third made two such claims outside every guard until ADR-129.
 //
 //   node docs/check-claims.mjs                 everything that needs no network
 //   node docs/check-claims.mjs --with-network  also: is the named wayfinder map still open
@@ -35,6 +37,7 @@ import { join } from "node:path";
 const AGENTS = "AGENTS.md";
 const README = "README.md";
 const ADR_DIR = "docs/adr";
+const ADR_INDEX = ADR_DIR + "/README.md";
 const MAIN = "src/main/java/io/algernon/vespera";
 const TEST = "src/test/java";
 const POM = "pom.xml";
@@ -49,6 +52,7 @@ const MAP_LABEL = "wayfinder:map";
 
 const text = readFileSync(AGENTS, "utf8");
 const readme = readFileSync(README, "utf8");
+const adrIndex = readFileSync(ADR_INDEX, "utf8");
 const withNetwork = process.argv.includes("--with-network");
 
 /* ---------- recording ---------- */
@@ -62,7 +66,7 @@ const skip = (name, detail) => results.push({ state: "NOT CHECKED", name, detail
 function claim(re, name, doc = text) {
   const m = re.exec(doc);
   if (m) return m;
-  const where = doc === readme ? README : AGENTS;
+  const where = doc === readme ? README : doc === adrIndex ? ADR_INDEX : AGENTS;
   fail(name, `no sentence in ${where} matches ${re}: restore the claim, or update this check`);
   return null;
 }
@@ -105,6 +109,36 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
     else if (!marked(last)) fail(NAME, `ADR-${a[1]} is named as reconstituted and carries no "${MARK}" marker`);
     else if (marked(first)) fail(NAME, `ADR-${b[1]} is named as full text and carries the "${MARK}" marker`);
     else pass(NAME, `reconstituted through ADR-${a[1]}, full text from ADR-${b[1]}`);
+  }
+}
+
+/* ---------- what docs/adr/README.md claims about the decision record ---------- */
+
+// A third document making state claims, and outside every guard until ADR-129. Its
+// range line had drifted behind the files and its boundary sentence named ADR-065
+// where AGENTS.md and the tree both say ADR-050. The two claims rot at different
+// rates and are checked for different things. The range changes on every ADR, so it
+// is checked for currency against the highest id on disk -- the same failure mode as
+// the count line above. The boundary changes never, so it is checked for agreement
+// with AGENTS.md's own sentence: the one check here that reads two documents against
+// each other rather than one against the tree.
+{
+  const NAME = "the ADR index range";
+  const m = claim(/One file per architecture decision, ADR-001 through ADR-(\d{3})\./, NAME, adrIndex);
+  if (m) {
+    const highest = Math.max(...adrById.keys());
+    if (Number(m[1]) === highest) pass(NAME, `ADR-001 through ADR-${m[1]}`);
+    else fail(NAME, `${ADR_INDEX} says through ADR-${m[1]}; the highest record is ADR-${String(highest).padStart(3, "0")}`);
+  }
+}
+
+{
+  const NAME = "the ADR index boundary";
+  const index = claim(/New decisions continue from ADR-(\d{3}) and carry their own full text/, NAME, adrIndex);
+  const agents = claim(/ADR-(\d{3}) onward carry their own full text/, NAME);
+  if (index && agents) {
+    if (index[1] === agents[1]) pass(NAME, `ADR-${index[1]}, agreeing with ${AGENTS}`);
+    else fail(NAME, `${ADR_INDEX} says ADR-${index[1]}; ${AGENTS} says ADR-${agents[1]}`);
   }
 }
 
@@ -354,6 +388,7 @@ const UNCHECKED = [
   '"Stages 0 to 4 are built, and stage 5 is part-built", and what stage 5 still owes',
   "the fifteen job steps and their order, and that a later stage is a step on that same job",
   "the ADR-052 test conventions, and whether the report a run produces actually reads that way",
+  "the ADR index table's rows — each ADR adds its own by hand, and only the range line above it and the boundary sentence are checked",
   "docs/architecture.md, which this never opens — its own status line has rotted the same way",
   "whether five invocations is still the right number — four gates imply it, and nothing counts gates",
   "whether the reports README points at actually inform the value it points them at for",

@@ -1,12 +1,12 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-128.
+One file per architecture decision, ADR-001 through ADR-129.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
 **The digest remains the fuller record.** For most of these decisions the architecture sections (§1, §2) say more than the ledger row does, and each file links to the sections that mention it.
 
-Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. New decisions continue from ADR-065 and carry their own full text — the reconstitution rule applies only to the records restored here.
+Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. New decisions continue from ADR-050 and carry their own full text — the reconstitution rule applies only to the records restored here.
 
 The vocabulary these decisions are written in is defined in [`CONTEXT.md`](../../CONTEXT.md) and is binding.
 
@@ -147,3 +147,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-126](0126-the-generator-identitys-wiring-is-pinned-at-the-invocation-and-the-serving-engines-double-can-refuse.md) | 2026-09-19 | The generator identity's wiring is pinned at the invocation, and the serving engine's double can refuse |
 | [ADR-127](0127-a-database-lock-is-waited-out-by-sqlites-busy-timeout-not-by-hikaris-connection-timeout.md) | 2026-09-19 | A database lock is waited out by SQLite's busy timeout in the URL, not by Hikari's connection timeout |
 | [ADR-128](0128-okio-is-pinned-to-the-version-okhttp-declares-and-a-dependency-scan-belongs-in-ci.md) | 2026-09-19 | okio is pinned to the version okhttp declares, and a dependency scan belongs in CI |
+| [ADR-129](0129-the-adr-index-range-and-boundary-are-checked-by-the-claims-guard.md) | 2026-09-19 | The decision record's index states its range and its boundary, and the claims guard checks both |
