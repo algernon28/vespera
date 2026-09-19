@@ -65,3 +65,12 @@ ajcore.*.txt
 /.claude/.headroom_wrap_*.json
 /.claude/.headroom_wrap_settings.lock
 /.serena/
+
+# Qodana's local run: the SARIF report it writes at the repository root (megabytes of it, one file
+# per run), its cache directory, and the profile the IDE generated to produce them. All three are
+# IDE-local today -- nothing in .github/workflows runs Qodana -- and `git add -A` sweeps them in
+# otherwise. If Qodana ever joins CI, qodana.yaml is the one of the three that belongs in the
+# repository, and this entry loses its last line.
+/qodana.sarif.json
+/.qodana/
+/qodana.yaml
