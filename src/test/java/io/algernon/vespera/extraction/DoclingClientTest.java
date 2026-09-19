@@ -125,7 +125,7 @@ class DoclingClientTest {
     private static final DetectedFormat AS_DETECTED = DetectedFormat.PLAIN_TEXT;
 
     /** No subtype alongside it, for the same reason. */
-    private static final Optional<DetectedSubtype> NO_SUBTYPE = Optional.empty();
+    private static final DetectedSubtype NO_SUBTYPE = null;
 
     /** Every pairing stage 1 can produce, in ADR-100's table order. */
     private static final List<Pairing> EVERY_PAIRING = List.of(
@@ -399,7 +399,7 @@ class DoclingClientTest {
         DoclingClient client = new DoclingClient(builder.build());
         Path onDisk = Files.writeString(dir.resolve("notes"), "prose that no extension describes");
 
-        client.convert(onDisk, DetectedFormat.PLAIN_TEXT, Optional.empty());
+        client.convert(onDisk, DetectedFormat.PLAIN_TEXT, null);
 
         claim(
                 "a file the bytes say is text travels under a name the sidecar can read it by, rather"
@@ -569,7 +569,7 @@ class DoclingClientTest {
                 .andExpect(request -> sent.append(request.getBody().toString()))
                 .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
 
-        new DoclingClient(builder.build()).convert(file, format, subtype);
+        new DoclingClient(builder.build()).convert(file, format, subtype.orElse(null));
 
         Matcher filename = Pattern.compile("filename=\"([^\"]+)\"").matcher(sent);
         return filename.find() ? filename.group(1) : "no filename was sent at all";

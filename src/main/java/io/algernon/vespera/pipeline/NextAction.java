@@ -99,7 +99,7 @@ class NextAction {
      */
     String line() {
         Profile profile = profileStore.load();
-        return line(profile, answersRecordedAgainst(profile), questionsWritten(), Optional.empty(), generationModelName());
+        return line(profile, answersRecordedAgainst(profile), questionsWritten(), null, generationModelName());
     }
 
     /**
@@ -115,7 +115,7 @@ class NextAction {
                 profile,
                 answersRecordedAgainst(profile),
                 questionsWritten(),
-                arrangementToApprove(corpusRoot),
+                arrangementToApprove(corpusRoot).orElse(null),
                 generationModelName());
     }
 
@@ -183,8 +183,8 @@ class NextAction {
      *
      * @param profile the profile as it stands after the invocation
      * @param answersRecorded how many relevance labels are recorded against the seed set
-     * @param arrangementToApprove the short name of the arrangement this invocation wrote, or empty
-     *     where none was. It is a parameter rather than a profile key because an approval can only be
+     * @param arrangementToApprove the short name of the arrangement this invocation wrote, or {@code
+     *     null} where none was. It is a parameter rather than a profile key because an approval can only be
      *     asked for once the thing it is about exists: naming it any earlier would ask the operator
      *     for a value they have no way to supply (ADR-107).
      */
@@ -192,7 +192,7 @@ class NextAction {
             Profile profile,
             int answersRecorded,
             boolean questionsWritten,
-            Optional<String> arrangementToApprove,
+            String arrangementToApprove,
             String generationModel) {
         List<String> stillWanted = runValuesStillWanted(profile);
         if (!stillWanted.isEmpty()) {
@@ -210,15 +210,16 @@ class NextAction {
             return otherUnreadable.get();
         }
         if (profile.relevanceScoreFloor().isSet() && !profile.arrangementApproved().isSet()) {
-            return arrangementToApprove
-                    .map(name -> "Every value the profile asks for is answered, and the documents are"
-                            + " arranged. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
-                            + ", and if that arrangement is the one you want, write " + quoted(name)
-                            + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
-                            + " provenance beside it -- and run again" + writtenWith(generationModel) + ".")
-                    .orElse("Every value the profile asks for is answered, including relevanceScoreFloor."
-                            + " Nothing was arranged this invocation, so there is nothing to approve yet."
-                            + " Next: fix what the gated line above names, and run again.");
+            if (arrangementToApprove == null) {
+                return "Every value the profile asks for is answered, including relevanceScoreFloor."
+                        + " Nothing was arranged this invocation, so there is nothing to approve yet."
+                        + " Next: fix what the gated line above names, and run again.";
+            }
+            return "Every value the profile asks for is answered, and the documents are"
+                    + " arranged. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
+                    + ", and if that arrangement is the one you want, write " + quoted(arrangementToApprove)
+                    + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
+                    + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
         }
         if (profile.relevanceScoreFloor().isSet()) {
             return "Every value the profile asks for is answered, including the arrangement you"

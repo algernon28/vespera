@@ -130,8 +130,8 @@ class RelevanceLabellingReportTest {
     }
 
     /** No threshold is being ignored, which is the ordinary case. */
-    private static Optional<RelevanceLabellingReport.IgnoredFloor> noIgnoredFloor() {
-        return Optional.empty();
+    private static RelevanceLabellingReport.IgnoredFloor noIgnoredFloor() {
+        return null;
     }
 
     private static List<RelevanceLabellingReport.Preview> noPreviews() {

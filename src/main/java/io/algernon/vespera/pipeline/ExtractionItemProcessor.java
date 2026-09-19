@@ -151,7 +151,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         Optional<DetectedSubtype> subtype =
                 detectedFormats.subtypeFor(occurrenceId, extractionRun.byteLevelReductionRunId());
         return new Conversion(
-                extractor.convert(file, contentHash, extractorIdentity, format, subtype), contentHash);
+                extractor.convert(file, contentHash, extractorIdentity, format, subtype.orElse(null)), contentHash);
     }
 
     /**

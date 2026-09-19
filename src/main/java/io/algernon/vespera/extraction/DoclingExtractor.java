@@ -3,7 +3,6 @@ package io.algernon.vespera.extraction;
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedSubtype;
 import java.nio.file.Path;
-import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
@@ -37,7 +36,7 @@ public class DoclingExtractor {
             String contentHash,
             ExtractorIdentity extractorIdentity,
             DetectedFormat format,
-            Optional<DetectedSubtype> subtype) {
+            DetectedSubtype subtype) {
         return cache.get(contentHash, extractorIdentity).orElseGet(() -> {
             DoclingResponse response = client.convert(file, format, subtype);
             cache.put(contentHash, extractorIdentity, response);
@@ -53,7 +52,7 @@ public class DoclingExtractor {
      * {@code content_hash} table, which {@code corpus} owns.
      */
     public DoclingResponse convert(
-            Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+            Path file, ExtractorIdentity extractorIdentity, DetectedFormat format, DetectedSubtype subtype) {
         return convert(file, ContentHashing.sha256(file), extractorIdentity, format, subtype);
     }
 

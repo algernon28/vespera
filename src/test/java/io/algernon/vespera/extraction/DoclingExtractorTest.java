@@ -59,7 +59,7 @@ class DoclingExtractorTest {
     private static final DetectedFormat AS_DETECTED = DetectedFormat.PLAIN_TEXT;
 
     /** No subtype, for the same reason: the cache is keyed on content and identity, never on either. */
-    private static final Optional<DetectedSubtype> NO_SUBTYPE = Optional.empty();
+    private static final DetectedSubtype NO_SUBTYPE = null;
 
     /** Where the stubbed service pretends to live; no socket is ever opened on it. */
     private static final String BASE_URL = "http://docling.example";

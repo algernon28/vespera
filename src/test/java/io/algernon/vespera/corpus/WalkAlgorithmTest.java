@@ -173,7 +173,7 @@ class WalkAlgorithmTest {
 
             for (Offer offer : uninterrupted.offers) {
                 Recorder resumed = new Recorder();
-                Walk.Outcome after = Walk.walk(corpus.root(), resumed, Optional.of(offer.at()));
+                Walk.Outcome after = Walk.walk(corpus.root(), resumed, offer.at());
 
                 List<String> notYetReported = uninterrupted.occurrences.subList(
                         (int) offer.progress().occurrences(), FILES_IN_THE_FIXTURE);
@@ -217,7 +217,7 @@ class WalkAlgorithmTest {
             Offer halfway = uninterrupted.offers.get(uninterrupted.offers.size() / 2);
 
             Recorder resumed = new Recorder();
-            Walk.Outcome after = Walk.walk(corpus.root(), resumed, Optional.of(halfway.at()));
+            Walk.Outcome after = Walk.walk(corpus.root(), resumed, halfway.at());
 
             claim(
                     files + " files across " + DIRECTORIES_AT_SCALE + " directories were all recorded by"
@@ -249,7 +249,7 @@ class WalkAlgorithmTest {
                     "a checkpoint naming a directory the tree does not hold at that position stops the"
                             + " walk, saying the tree changed",
                     () -> assertThatThrownBy(
-                                    () -> Walk.walk(corpus.root(), new Recorder(), Optional.of(pointingElsewhere)))
+                                    () -> Walk.walk(corpus.root(), new Recorder(), pointingElsewhere))
                             .isInstanceOf(CheckpointMismatchException.class)
                             .hasMessageContaining("changed"));
         }
@@ -269,7 +269,7 @@ class WalkAlgorithmTest {
                     "the walk stops rather than carrying on past a position it never found, so a tree that"
                             + " changed cannot quietly cost the corpus a subtree",
                     () -> assertThatThrownBy(() -> Walk.walk(
-                                    corpus.root(), new Recorder(), Optional.of(pointingAtWhatIsNowAFile)))
+                                    corpus.root(), new Recorder(), pointingAtWhatIsNowAFile))
                             .isInstanceOf(CheckpointMismatchException.class)
                             .hasMessageContaining("no longer holds"));
         }

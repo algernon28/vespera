@@ -260,7 +260,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            LabelIngestion.Outcome outcome = labelIngestion.ingest(java.util.Optional.ofNullable(file));
+            LabelIngestion.Outcome outcome = labelIngestion.ingest(file);
             if (outcome.refused()) {
                 System.err.println("vespera label recorded nothing: " + outcome.message());
                 return outcome.message().startsWith(LabelIngestion.NO_FILE)

@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
@@ -196,7 +195,7 @@ public class DoclingClient {
      *
      * @throws DoclingCallTimeoutException if 5 minutes pass with no response at all
      */
-    DoclingResponse convert(Path file, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+    DoclingResponse convert(Path file, DetectedFormat format, DetectedSubtype subtype) {
         return convert(file, partName(format, subtype));
     }
 
@@ -207,7 +206,7 @@ public class DoclingClient {
      * make the conversion a function of the detected format, and a stem read off disk would leave
      * one thread of the filename still steering it.
      */
-    private static String partName(DetectedFormat format, Optional<DetectedSubtype> subtype) {
+    private static String partName(DetectedFormat format, DetectedSubtype subtype) {
         return STEM + "." + extensionFor(format, subtype);
     }
 
@@ -221,13 +220,13 @@ public class DoclingClient {
      * lie, it says what stage 1 found. And for text, where Docling has no matcher at all and resolves
      * by extension alone, it is the whole of what the sidecar has to go on.
      */
-    private static String extensionFor(DetectedFormat format, Optional<DetectedSubtype> subtype) {
+    private static String extensionFor(DetectedFormat format, DetectedSubtype subtype) {
         return switch (format) {
             case PDF -> "pdf";
             case IMAGE, ZIP_CONTAINER, UNRECOGNISED -> NEUTRAL_EXTENSION;
             case WORDPROCESSING -> "docx";
-            case OLE_COMPOUND -> subtype.map(DoclingClient::legacyExtension).orElse(NEUTRAL_EXTENSION);
-            case PLAIN_TEXT -> subtype.map(DoclingClient::textExtension).orElse(MARKDOWN_EXTENSION);
+            case OLE_COMPOUND -> subtype == null ? NEUTRAL_EXTENSION : legacyExtension(subtype);
+            case PLAIN_TEXT -> subtype == null ? MARKDOWN_EXTENSION : textExtension(subtype);
             // Stage 1's floor blocked it, so stage 2 never sees it: reaching here is a wiring fault,
             // and a conversion of a file nothing read is worth stopping for rather than papering over.
             case FLOOR_STOPPED -> throw new IllegalArgumentException(

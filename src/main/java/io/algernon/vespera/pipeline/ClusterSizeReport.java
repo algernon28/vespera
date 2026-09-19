@@ -106,11 +106,11 @@ final class ClusterSizeReport {
                     .append("</td><td class=\"count\">")
                     .append(partition.singletons())
                     .append("</td><td class=\"count\">")
-                    .append(resemblance(partition.spread().map(RetainedEdgeSpread::lowest)))
+                    .append(resemblance(partition.spread().map(RetainedEdgeSpread::lowest).orElse(null)))
                     .append("</td><td class=\"count\">")
-                    .append(resemblance(partition.spread().map(RetainedEdgeSpread::middle)))
+                    .append(resemblance(partition.spread().map(RetainedEdgeSpread::middle).orElse(null)))
                     .append("</td><td class=\"count\">")
-                    .append(resemblance(partition.spread().map(RetainedEdgeSpread::highest)))
+                    .append(resemblance(partition.spread().map(RetainedEdgeSpread::highest).orElse(null)))
                     .append("</td></tr>\n");
         }
         page.append("</table>\n");
@@ -162,9 +162,11 @@ final class ClusterSizeReport {
      * <p>Two places because a third says nothing a reader would act on, and an em dash rather than
      * 0.00 because a partition of one has no pair to be alike: a zero there would read as a document
      * resembling nothing, which is a different statement about the archive.
+     *
+     * @param value the resemblance, or {@code null} where the partition had no pair to measure
      */
-    private static String resemblance(Optional<Double> value) {
-        return value.map(number -> String.format(Locale.ROOT, "%.2f", number)).orElse("&mdash;");
+    private static String resemblance(Double value) {
+        return value == null ? "&mdash;" : String.format(Locale.ROOT, "%.2f", value);
     }
 
     private static String escape(String value) {

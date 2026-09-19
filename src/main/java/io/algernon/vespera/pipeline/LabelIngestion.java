@@ -73,10 +73,12 @@ class LabelIngestion {
     /**
      * Records the answers in {@code namedFile}, or the label file the last run wrote when no file is
      * named — that is where this application put it, so pointing at it is not a guess.
+     *
+     * @param namedFile the file the invocation named, or {@code null} where it named none
      */
-    Outcome ingest(Optional<Path> namedFile) {
+    Outcome ingest(Path namedFile) {
         Path generated = workingDirectory.resolve(RelevanceLabelFile.FILE_NAME);
-        Path offered = namedFile.orElse(generated);
+        Path offered = namedFile == null ? generated : namedFile;
 
         if (!Files.isRegularFile(offered)) {
             return Outcome.refused(NO_FILE + " at " + offered

@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -142,7 +141,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
             // Recorded before the verdict, and for every occurrence rather than for the survivors: a
             // mix report that dropped the removed files would under-count exactly the formats that
             // fail most (ADR-095).
-            detectedFormats.record(occurrenceId, runId, result.format(), result.subtype());
+            detectedFormats.record(occurrenceId, runId, result.format(), result.subtype().orElse(null));
             countInTheMix(byFormat, bySubtype, unrecognisedLeadingBytes, result, canonicalRoot.resolve(facts.path().value()));
             if (result.broken()) {
                 ledger.verdict(occurrenceId, runId, VerdictKind.BROKEN, result.reason());

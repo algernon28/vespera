@@ -11,7 +11,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * One observation of a filesystem, producing file occurrences.
@@ -140,20 +139,21 @@ public final class Walk {
 
     /** Walks {@code root} from the beginning, reporting to {@code observer}. */
     static Outcome walk(Path root, Observer observer) throws IOException {
-        return walk(root, observer, Optional.empty());
+        return walk(root, observer, (Checkpoint) null);
     }
 
     /**
      * Walks {@code root}, reporting to {@code observer}, skipping whatever {@code resumeFrom} says
      * an earlier session already recorded.
      *
+     * @param resumeFrom what an earlier session already recorded, or {@code null} to walk the whole tree
      * @throws IllegalArgumentException if the root does not exist or is not a directory
      * @throws CheckpointMismatchException if the tree no longer matches the checkpoint
      */
-    static Outcome walk(Path root, Observer observer, Optional<Checkpoint> resumeFrom) throws IOException {
+    static Outcome walk(Path root, Observer observer, Checkpoint resumeFrom) throws IOException {
         Path canonical = canonicalRoot(root);
 
-        Visitor visitor = new Visitor(canonical, observer, resumeFrom.orElse(null));
+        Visitor visitor = new Visitor(canonical, observer, resumeFrom);
         try {
             Files.walkFileTree(canonical, visitor);
         } catch (IOException e) {
@@ -161,9 +161,9 @@ public final class Walk {
             // finished curates a fraction of the corpus and reports success.
             return new Outcome(canonical, visitor.progress(), false, "the walk did not finish: " + e);
         }
-        if (resumeFrom.isPresent() && !visitor.foundTheCheckpoint) {
+        if (resumeFrom != null && !visitor.foundTheCheckpoint) {
             throw new CheckpointMismatchException(
-                    "the tree no longer holds the directory this walk was checkpointed at: " + resumeFrom.get());
+                    "the tree no longer holds the directory this walk was checkpointed at: " + resumeFrom);
         }
         return new Outcome(canonical, visitor.progress(), true, null);
     }
