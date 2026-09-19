@@ -117,7 +117,7 @@ public class VesperaCommand implements Callable<Integer> {
                         + " because it is read before this command is parsed.")
         private Path databaseDirectory;
 
-        public Run(
+        Run(
                 JobOperator jobOperator,
                 Job vesperaJob,
                 NextAction nextAction,
@@ -249,7 +249,7 @@ public class VesperaCommand implements Callable<Integer> {
                         + " working directory.")
         private Path file;
 
-        public Label(LabelIngestion labelIngestion, NextAction nextAction) {
+        Label(LabelIngestion labelIngestion, NextAction nextAction) {
             this.labelIngestion = labelIngestion;
             this.nextAction = nextAction;
         }
