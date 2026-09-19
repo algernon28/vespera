@@ -10,10 +10,17 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 
@@ -66,6 +73,24 @@ class ShippedConfigurationTest {
     /** Where the generation model's shipped default lives, and where Spring AI itself reads it. */
     private static final String GENERATION_MODEL = "spring.ai.ollama.chat.options.model";
 
+    /** The datasource URL, and the only place the database lock wait is set (ADR-127). */
+    private static final String DATASOURCE_URL = "spring.datasource.url";
+
+    /**
+     * Five minutes, in milliseconds: the lock wait the shipped configuration names. Named here
+     * because the claim below states the number and a reader has to be told where it comes from.
+     */
+    private static final long LOCK_WAIT_MILLIS = 300_000L;
+
+    /** SQLite's own name for the lock wait, as the datasource URL must carry it. */
+    private static final String LOCK_WAIT_PARAMETER = "busy_timeout=" + LOCK_WAIT_MILLIS;
+
+    /** The other URL parameter the datasource must keep, so foreign key constraints are not ignored. */
+    private static final String FOREIGN_KEYS_PARAMETER = "foreign_keys=on";
+
+    /** Where the shipped URL points its database, resolved to a real directory by the driver test. */
+    private static final String WORKING_DIRECTORY_PLACEHOLDER = "${vespera.working-dir}";
+
     @Test
     @Story("An engine nobody asked for stays switched off")
     @DisplayName("Every engine the application does not use is still named as unused")
@@ -109,6 +134,68 @@ class ShippedConfigurationTest {
                 () -> assertThat(properties.get(GENERATION_MODEL))
                         .asString()
                         .isNotBlank());
+    }
+
+    /**
+     * ADR-127: the five-minute wait a stage needs on a contended database lock lives in the
+     * datasource URL as SQLite's own {@code busy_timeout}, not in Hikari's {@code connection-timeout},
+     * which waits for a connection from the pool and never sees the lock. Before this, the URL set
+     * no busy timeout, so a contended write failed on the driver's three-second default while the
+     * configuration promised five minutes.
+     */
+    @Test
+    @Story("A stage waiting on the database lock waits rather than failing")
+    @DisplayName("The shipped datasource URL names the wait SQLite applies to a contended lock")
+    @Issue("214")
+    @Link(name = "ADR-127", url = Adr.A_DATABASE_LOCK_WAIT_IS_SQLITES_BUSY_TIMEOUT, type = "adr")
+    void namesTheLockWaitInTheDatasourceUrl() throws IOException {
+        String url = String.valueOf(shippedProperties().get(DATASOURCE_URL));
+
+        claim(
+                "the datasource URL still turns foreign key constraints on: SQLite ignores them per"
+                        + " connection unless told otherwise, and the walk_id references in schema.sql"
+                        + " would silently accept orphans without it",
+                () -> assertThat(url).contains(FOREIGN_KEYS_PARAMETER));
+        claim(
+                "and it names SQLite's own busy timeout at five minutes — " + LOCK_WAIT_MILLIS
+                        + " ms — because that, and not Hikari's connection timeout, is the wait a"
+                        + " contended write observes: left at the driver's three-second default, a stage"
+                        + " gives up on a lock after three seconds where the configuration promises five"
+                        + " minutes, and a run that fails costs more than one that waits",
+                () -> assertThat(url).contains(LOCK_WAIT_PARAMETER));
+    }
+
+    /**
+     * ADR-127's behavioural half: the URL parameter is SQLite's own knob, so a connection opened with
+     * the shipped URL reports the value. The text claim above would pass on a parameter the driver
+     * did not read, and this is what fails instead.
+     */
+    @Test
+    @Story("A stage waiting on the database lock waits rather than failing")
+    @DisplayName("The wait the shipped URL names is the one the database driver reports")
+    @Issue("214")
+    @Link(name = "ADR-127", url = Adr.A_DATABASE_LOCK_WAIT_IS_SQLITES_BUSY_TIMEOUT, type = "adr")
+    void theDriverReportsTheLockWaitTheUrlNames(@TempDir Path workingDirectory) throws Exception {
+        String url = String.valueOf(shippedProperties().get(DATASOURCE_URL))
+                .replace(WORKING_DIRECTORY_PLACEHOLDER, workingDirectory.toString().replace('\\', '/'));
+
+        try (Connection connection = DriverManager.getConnection(url)) {
+            claim(
+                    "a connection opened with the shipped URL reports a " + LOCK_WAIT_MILLIS
+                            + " ms busy timeout, so the value is the one SQLite's driver reads rather"
+                            + " than a setting only Hikari understands; a claim on the URL text alone"
+                            + " would pass while the write still failed after three seconds",
+                    () -> assertThat(busyTimeoutMillis(connection)).isEqualTo(LOCK_WAIT_MILLIS));
+        }
+    }
+
+    /** What SQLite reports as this connection's lock wait, in milliseconds. */
+    private static long busyTimeoutMillis(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("PRAGMA busy_timeout")) {
+            result.next();
+            return result.getLong(1);
+        }
     }
 
     /** The shipped file flattened to properties, exactly as Spring reads it — nesting and all. */

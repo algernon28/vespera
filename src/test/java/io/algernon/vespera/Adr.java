@@ -538,6 +538,13 @@ public final class Adr {
     public static final String THE_GENERATOR_IDENTITYS_WIRING_IS_PINNED_AT_THE_INVOCATION = FILE
             + "0126-the-generator-identitys-wiring-is-pinned-at-the-invocation-and-the-serving-engines-double-can-refuse.md";
 
+    /**
+     * ADR-127 - a wait on a contended database lock is SQLite's busy timeout in the URL, not
+     * Hikari's connection timeout, which waits for a connection from the pool instead.
+     */
+    public static final String A_DATABASE_LOCK_WAIT_IS_SQLITES_BUSY_TIMEOUT = FILE
+            + "0127-a-database-lock-is-waited-out-by-sqlites-busy-timeout-not-by-hikaris-connection-timeout.md";
+
     private Adr() {
     }
 }
