@@ -524,6 +524,13 @@ public final class Adr {
     public static final String BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED = FILE
             + "0124-both-fields-of-a-parsed-answer-are-required-and-missing-writing-is-a-schema-violation-rather-than-an-uncited-one.md";
 
+    /**
+     * ADR-125 — an absent title and a blank one are told apart by what each left on disk, and
+     * ADR-124's owed guarantee is spent.
+     */
+    public static final String AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART = FILE
+            + "0125-an-absent-title-and-a-blank-one-are-told-apart-by-what-each-left-on-disk.md";
+
     private Adr() {
     }
 }

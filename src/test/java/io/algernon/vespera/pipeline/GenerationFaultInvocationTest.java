@@ -341,6 +341,29 @@ class GenerationFaultInvocationTest {
     private static final String NO_WRITING_AT_ALL = "the answer came back with no writing in it";
 
     /**
+     * An answer that reads back perfectly well and carries no title: the writing arrived, and the
+     * title the call asked for is simply not there (ADR-125).
+     *
+     * <p>Its writing points at the first document the call sent, so nothing but the missing title is
+     * wrong with it — an answer failing two checks would be pinning whichever runs first.
+     */
+    private static final String AN_ANSWER_WITH_NO_TITLE_ON_IT =
+            "{\"prose\":\"" + GenerationScriptedBeans.GENERATED_PROSE + "\"}";
+
+    /** A title of nothing but blank space, which is the other way one fails to arrive (ADR-125). */
+    private static final String NOTHING_BUT_SPACES = "   ";
+
+    /** The same answer with its title present and blank, which earlier versions of this tool kept. */
+    private static final String AN_ANSWER_WHOSE_TITLE_IS_BLANK = "{\"title\":\"" + NOTHING_BUT_SPACES
+            + "\",\"prose\":\"" + GenerationScriptedBeans.GENERATED_PROSE + "\"}";
+
+    /** The reason kept for an answer whose title never arrived (ADR-125). */
+    private static final String NO_TITLE_AT_ALL = "the answer came back with no heading on it";
+
+    /** The reason kept for an answer whose title arrived blank (ADR-125). */
+    private static final String A_BLANK_TITLE = "the answer came back with a blank heading";
+
+    /**
      * How many records two invocations over an unchanged archive work under.
      *
      * <p>One: a record's name is derived from what it reads, and nothing about the archive moved
@@ -826,6 +849,131 @@ class GenerationFaultInvocationTest {
                         .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
         claim(
                 "and the invocation reports success",
+                () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    @Test
+    @Issue("216")
+    @Story("One answer nobody believes costs one group and no more")
+    @DisplayName("An answer that came back with no heading on it leaves the reasons kept before it standing")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void keepsTheReasonsFromEarlierInTheStepPastAnAnswerWithNoTitleOnIt(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds);
+        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
+        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        GenerationScriptedBeans.answerFor(
+                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+        GenerationScriptedBeans.answerFor(
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_TITLE_ON_IT));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "both reasons are kept, all " + TWO_REASONS_KEPT + " of them: an answer that came back"
+                        + " with no heading on it is turned down like any other unusable answer, where"
+                        + " keeping it would have meant filing writing under a heading that does not"
+                        + " exist -- a failure of a kind that takes the whole piece of work back with it,"
+                        + " leaving " + ONE_REASON_KEPT + " group looking like one the run never reached",
+                () -> assertThat(reasonsKept(root)).hasSize(TWO_REASONS_KEPT));
+        claim(
+                "and the reason kept for the answer with no heading says so in its own words, which is"
+                        + " what tells it apart from the group before it whose answer nobody could read",
+                () -> assertThat(reasonsKept(root))
+                        .anySatisfy(kept -> assertThat(kept.fault().detail()).isEqualTo(NO_TITLE_AT_ALL)));
+        claim(
+                "both are recorded as an answer that did not come back in the shape the call asked for,"
+                        + " because a heading was part of that shape and one of the two things asked for",
+                () -> assertThat(reasonsKept(root))
+                        .allSatisfy(kept -> assertThat(kept.fault().kind())
+                                .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
+        claim(
+                "nothing was written over either group",
+                () -> assertThat(writingKept(root)).isEmpty());
+        claim(
+                "and the invocation reports success, because a group left unwritten is not a run that"
+                        + " failed",
+                () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    @Test
+    @Issue("216")
+    @Story("One answer nobody believes costs one group and no more")
+    @DisplayName("The groups after an answer with no heading on it are still written over")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void carriesOnPastAnAnswerWithNoTitleOnIt(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
+        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        GenerationScriptedBeans.answerFor(
+                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_TITLE_ON_IT));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "both groups were asked about, all " + TWO_CALLS + " of them: the answer with no heading"
+                        + " on it was turned down and the group after it was still asked, where a run"
+                        + " that fell over on it would have made only " + ONE_CALL,
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(TWO_CALLS));
+        claim(
+                "the group whose answer was believed carries its writing, " + ONE_PIECE_OF_WRITING
+                        + " piece of it, so one answer arriving without its heading cost its own group"
+                        + " and nothing further along",
+                () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
+        claim(
+                "and exactly " + ONE_REASON_KEPT + " reason is kept, for the one group whose answer"
+                        + " carried no heading",
+                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
+                                kept.fault().kind())
+                        .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
+        claim(
+                "and the invocation reports success",
+                () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    @Test
+    @Issue("216")
+    @Story("One answer nobody believes costs one group and no more")
+    @DisplayName("A blank heading is kept apart from a heading that never came, and neither leaves any writing behind")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void keepsABlankTitleApartFromATitleThatNeverCame(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
+        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        GenerationScriptedBeans.answerFor(
+                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_WHOSE_TITLE_IS_BLANK));
+        GenerationScriptedBeans.answerFor(
+                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_TITLE_ON_IT));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the two groups keep " + TWO_REASONS_KEPT + " reasons between them, and the reasons read"
+                        + " differently: a heading of blank space and a heading that never came are two"
+                        + " different things to act on, because a blank one was accepted and kept by"
+                        + " earlier versions of this tool and may still be sitting in work already handed"
+                        + " over, where a heading that never came could never be kept at all",
+                () -> assertThat(reasonsKept(root))
+                        .extracting(kept -> kept.fault().detail())
+                        .containsExactlyInAnyOrder(A_BLANK_TITLE, NO_TITLE_AT_ALL));
+        claim(
+                "both are recorded as an answer that did not come back in the shape the call asked for,"
+                        + " rather than one of them being kept as a heading at all: blank space is not a"
+                        + " heading, and writing filed under one would show as an entry with nothing to"
+                        + " click and be counted as a group that was written over",
+                () -> assertThat(reasonsKept(root))
+                        .allSatisfy(kept -> assertThat(kept.fault().kind())
+                                .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
+        claim(
+                "and nothing is kept as writing for either group -- which is the one thing both the"
+                        + " listing and the closing line read, so the two of them cannot disagree about"
+                        + " whether either group was written over",
+                () -> assertThat(writingKept(root)).isEmpty());
+        claim(
+                "and the invocation reports success, because a group left unwritten is not a run that"
+                        + " failed",
                 () -> assertThat(cli.getExitCode()).isZero());
     }
 

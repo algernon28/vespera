@@ -55,8 +55,9 @@ public class ClusterSynthesis {
      *
      * <p>Ollama pushes this down as a decoding constraint rather than checking conformance, and no
      * primary source guarantees it — its own examples all validate client-side. Imposing it is what
-     * makes the answer separable at all; what to do when it comes back unsatisfied is a later
-     * ticket's.
+     * makes the answer separable at all, and {@link #parseAnswer} is where the {@code required} list
+     * is read as the conformance check: both fields named there are required of the parsed record, and
+     * a missing one faults the cluster (ADR-124, ADR-125).
      */
     private static final String ANSWER_SCHEMA =
             """
@@ -150,10 +151,13 @@ public class ClusterSynthesis {
      * text is null or blank — is a {@link ClusterFaultKind#SCHEMA_VIOLATION} like any other answer
      * that could not be read into the shape the call imposed, not an exception out of the step.
      *
-     * <p>The same holds one level down, at the parsed record (ADR-124): {@code prose} is required of
-     * an {@link Answer} the way it is required of {@code ANSWER_SCHEMA}, {@link #parseAnswer} is where
-     * that is established, and {@link #checkCitations} may dereference {@code prose} unguarded only
-     * because {@link #parseAnswer} already did.
+     * <p>The same holds one level down, at the parsed record (ADR-124, ADR-125): {@code title} and
+     * {@code prose} are both required of an {@link Answer} the way they are required of {@code
+     * ANSWER_SCHEMA}, {@link #parseAnswer} is where that is established, and every reader below it
+     * goes unguarded only because of that — {@link #checkCitations} dereferencing {@code prose}, and
+     * the {@link SynthesisDoc} built here carrying a title into a column that will not take a null one.
+     * ADR-124 recorded that second half as owed while it was; with ADR-125 built it is spent, and the
+     * rule holds whole for both fields.
      */
     public SynthesisDoc docFor(ClusterCall call, String modelName, int contextWindow) {
         List<Exemplar> sent = whatFitsIn(contextWindow, call.exemplars());
@@ -245,13 +249,29 @@ public class ClusterSynthesis {
      * {@link JacksonException} and is not caught — so a null text would escape the step through a
      * method that looks guarded.
      *
-     * <p><b>Once the text reads back, {@code prose} is required of the record the same way it is
-     * required of {@code ANSWER_SCHEMA}</b> (ADR-124): an {@code Answer} whose {@code prose()} is
+     * <p><b>Once the text reads back, both fields {@code ANSWER_SCHEMA} requires are required of the
+     * record</b> (ADR-124, ADR-125): an {@code Answer} whose {@code title()} or {@code prose()} is
      * {@code null} or blank is turned down here, before it is returned, rather than reaching {@link
-     * #checkCitations} and being dereferenced. Absent and blank are one event — the model returned no
-     * writing — and record one detail. This establishes the record-level half of ADR-123's rule: what
-     * {@link #parseAnswer} returns has a non-null, non-blank {@code prose}, which is what lets every
-     * reader of it downstream go unguarded.
+     * #checkCitations} or {@link SynthesisDoc} and being dereferenced or stored. This establishes the
+     * record-level half of ADR-123's rule for both of them: what {@link #parseAnswer} returns has a
+     * non-null, non-blank title and writing, which is what lets every reader of it downstream go
+     * unguarded.
+     *
+     * <p><b>The title is read first, in the order {@code ANSWER_SCHEMA} names the fields</b>
+     * (ADR-125), so an answer carrying neither is reported on its title. Reading in the schema's own
+     * order needs no case thought about, and a third required field added later has one obvious place.
+     *
+     * <p><b>The two ways a title fails to arrive keep different details, where the two ways writing
+     * fails to arrive keep one</b> (ADR-124, ADR-125). ADR-124's test is what decides it, applied to
+     * different facts: a blank title is storable — {@code synthesis_doc.title} takes it, the row is
+     * written, and ADR-111's skip means no repair pass ever reaches it again — while an absent one met
+     * {@code TEXT NOT NULL} and could leave no row at all. Neither missing {@code prose} could leave
+     * anything behind, which is why that pair folds and this one does not.
+     *
+     * <p><b>The details themselves say <em>heading</em>, and that is not a slip</b> (ADR-125): a
+     * {@code detail} is prose an operator reads, {@code CONTEXT.md}'s cluster title entry imposes no
+     * rendering on it, and the reason beside these two already reads that way on {@code main}. What
+     * the vocabulary binds is the names above — those take the entry's own term.
      */
     private static Answer parseAnswer(Generation answer) {
         String text = answer.getOutput().getText();
@@ -268,6 +288,14 @@ public class ClusterSynthesis {
                     "the answer did not read back into a heading and its writing: " + e.getMessage()
                             + " (line " + e.getLocation().getLineNr() + ", column "
                             + e.getLocation().getColumnNr() + ")"));
+        }
+        if (parsed.title() == null) {
+            throw new ClusterFaultException(new ClusterFault(
+                    ClusterFaultKind.SCHEMA_VIOLATION, "the answer came back with no heading on it"));
+        }
+        if (parsed.title().isBlank()) {
+            throw new ClusterFaultException(new ClusterFault(
+                    ClusterFaultKind.SCHEMA_VIOLATION, "the answer came back with a blank heading"));
         }
         if (parsed.prose() == null || parsed.prose().isBlank()) {
             throw new ClusterFaultException(new ClusterFault(

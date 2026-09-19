@@ -245,6 +245,34 @@ class ClusterSynthesisTest {
     private static final String AN_ANSWER_POINTING_AT_NOTHING_AT_ALL = "{\"title\":\"" + GENERATED_TITLE
             + "\",\"prose\":\"The audits agree on every finding, and on what should follow from them.\"}";
 
+    /**
+     * An answer carrying its writing and no title at all: the key is simply absent, so reading it
+     * back into the shape the call imposed succeeds and leaves the title missing (ADR-125).
+     */
+    private static final String AN_ANSWER_WITH_NO_TITLE_ON_IT = "{\"prose\":\"" + GENERATED_PROSE + "\"}";
+
+    /**
+     * The same answer with the title present and blank, which is the other way a serving engine
+     * returns no title — and a different event, so a different reason is kept for it (ADR-125).
+     */
+    private static final String AN_ANSWER_WHOSE_TITLE_IS_BLANK = "{\"title\":\"" + NOTHING_BUT_SPACES
+            + "\",\"prose\":\"" + GENERATED_PROSE + "\"}";
+
+    /** An answer that read back perfectly well and carried neither of the two things asked for. */
+    private static final String AN_ANSWER_CARRYING_NEITHER = "{}";
+
+    /** The reason kept for an answer whose title never arrived (ADR-125). */
+    private static final String NO_TITLE_AT_ALL = "the answer came back with no heading on it";
+
+    /** The reason kept for an answer whose title arrived blank (ADR-125). */
+    private static final String A_BLANK_TITLE = "the answer came back with a blank heading";
+
+    /**
+     * How many ways one answer can be turned down: four, and the set is closed. Six different reasons
+     * now share one of the four, which is honest only while the six read differently from each other.
+     */
+    private static final int THE_WAYS_AN_ANSWER_IS_TURNED_DOWN = 4;
+
     @Test
     @Story("A group of documents becomes a piece of writing that connects them")
     @DisplayName("The writing comes back with its own heading, its text, and the number of documents behind it")
@@ -707,6 +735,119 @@ class ClusterSynthesisTest {
                 "and the reason for an answer with no writing says nothing about its heading, because"
                         + " whether a heading arrived is not something this check established",
                 () -> assertThat(noWriting.detail()).isEqualTo(NO_WRITING_AT_ALL));
+    }
+
+    @Test
+    @Issue("216")
+    @Story("An answer with no heading on it costs its group and nothing else")
+    @DisplayName("An answer that came back with its writing and no heading leaves its group unwritten instead of throwing")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void turnsDownAnAnswerWithNoTitleOnIt() {
+        ClusterSynthesis synthesis =
+                new ClusterSynthesis(alwaysAnswering(answeringWith(AN_ANSWER_WITH_NO_TITLE_ON_IT)));
+
+        claim(
+                "an answer whose heading is simply not there is turned down the way any other unusable"
+                        + " answer is, rather than escaping as some other failure: a group has to be"
+                        + " given a heading before anything can be kept for it, so an answer without one"
+                        + " used to take the whole piece of work down -- and with it the reasons kept"
+                        + " for every group turned down before this one",
+                () -> assertThatThrownBy(
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW))
+                        .isInstanceOf(ClusterFaultException.class));
+        claim(
+                "and the reason kept is \"" + NO_TITLE_AT_ALL + "\", recorded as an answer that could"
+                        + " not be read into the shape that was asked for: the shape asked for a heading"
+                        + " and writing both, and an answer delivering one of the two did not arrive in"
+                        + " it",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WITH_NO_TITLE_ON_IT)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_TITLE_AT_ALL)));
+    }
+
+    @Test
+    @Issue("216")
+    @Story("An answer with no heading on it costs its group and nothing else")
+    @DisplayName("An answer whose heading is nothing but blank space is kept apart from one whose heading never came")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void keepsABlankTitleApartFromATitleThatNeverCame() {
+        claim(
+                "an answer whose heading came back blank is turned down too, with the reason \""
+                        + A_BLANK_TITLE + "\" -- blank space is not a heading, and writing kept under"
+                        + " one would show in the finished work as an entry with nothing to click",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_TITLE_IS_BLANK)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, A_BLANK_TITLE)));
+        claim(
+                "and it does not keep the reason an answer with no heading at all keeps. The two are"
+                        + " different events to whoever has to act on them: a blank heading was accepted"
+                        + " and kept by earlier versions of this tool, so a finished work already handed"
+                        + " over may carry one and nothing will ever go back and mend it, while a heading"
+                        + " that never arrived could never be kept at all and so left nothing behind to"
+                        + " find",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_TITLE_IS_BLANK)))
+                        .isNotEqualTo(faultFrom(answeringWith(AN_ANSWER_WITH_NO_TITLE_ON_IT))));
+    }
+
+    @Test
+    @Issue("216")
+    @Story("An answer with no heading on it costs its group and nothing else")
+    @DisplayName("Every answer that arrived in the wrong shape keeps a reason of its own, under the one closed set of four")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void keepsEveryAnswerInTheWrongShapeApartFromTheOthers() {
+        ClusterFault noTitle = faultFrom(answeringWith(AN_ANSWER_WITH_NO_TITLE_ON_IT));
+        ClusterFault blankTitle = faultFrom(answeringWith(AN_ANSWER_WHOSE_TITLE_IS_BLANK));
+        ClusterFault noWriting = faultFrom(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT));
+        ClusterFault noAnswerAtAll = faultFrom(carryingNoAnswerAtAll());
+        ClusterFault emptyAnswer = faultFrom(answeringWithNoText());
+        ClusterFault unreadable = faultFrom(answeringWith(NOT_AN_ANSWER_AT_ALL));
+
+        claim(
+                "an answer missing its heading, and one whose heading is blank, are both kept as answers"
+                        + " that did not arrive in the shape asked for -- the same as an answer nothing"
+                        + " could read, because what came back was readable and still was not the shape",
+                () -> assertThat(List.of(noTitle.kind(), blankTitle.kind()))
+                        .containsOnly(ClusterFaultKind.SCHEMA_VIOLATION));
+        claim(
+                "and the six reasons now sharing that one way of being turned down all read differently"
+                        + " from one another, so somebody reading them can tell a call that answered"
+                        + " nothing from an answer with no text from an answer nothing could be made of"
+                        + " from an answer carrying no writing from one carrying no heading from one"
+                        + " whose heading was blank -- one way covering six things is only honest while"
+                        + " the six stay distinguishable",
+                () -> assertThat(List.of(
+                                noAnswerAtAll.detail(),
+                                emptyAnswer.detail(),
+                                unreadable.detail(),
+                                noWriting.detail(),
+                                noTitle.detail(),
+                                blankTitle.detail()))
+                        .doesNotHaveDuplicates());
+        claim(
+                "and there are still only " + THE_WAYS_AN_ANSWER_IS_TURNED_DOWN + " ways an answer is"
+                        + " turned down: a heading that did not arrive is one more thing an answer can"
+                        + " fail to be, not a new kind of failure, and it leaves the archive's owner the"
+                        + " same thing to do -- ask again, or accept the gap",
+                () -> assertThat(ClusterFaultKind.values()).hasSize(THE_WAYS_AN_ANSWER_IS_TURNED_DOWN));
+        claim(
+                "and neither reason about the heading says anything about the writing, because whether"
+                        + " the writing arrived is not something this check established",
+                () -> assertThat(List.of(noTitle.detail(), blankTitle.detail()))
+                        .noneMatch(reason -> reason.contains("writing")));
+    }
+
+    @Test
+    @Issue("216")
+    @Story("An answer with no heading on it costs its group and nothing else")
+    @DisplayName("An answer carrying neither a heading nor any writing is reported on its heading, the first thing asked for")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void namesTheTitleFirstWhenNeitherOfTheTwoCameBack() {
+        claim(
+                "an answer carrying neither of the two things asked for is reported on the heading, which"
+                        + " is the first of them the shape asks for: reading the answer in the order the"
+                        + " shape lists is a rule that needs no case to be thought about, and without one"
+                        + " which of the two an operator is told about would be decided by the order the"
+                        + " code happens to read in",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_CARRYING_NEITHER)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_TITLE_AT_ALL)));
     }
 
     /** A model that hands back the same response to every call, whatever it was asked. */
