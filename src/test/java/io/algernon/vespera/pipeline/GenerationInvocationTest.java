@@ -24,6 +24,7 @@ import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.extraction.LeadingChunks;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
@@ -464,6 +465,15 @@ class GenerationInvocationTest {
                     assertThat(doc.doc().prose()).isEqualTo(GenerationScriptedBeans.GENERATED_PROSE);
                     assertThat(doc.doc().documentsSent()).isEqualTo(TWO_DOCUMENTS);
                 }));
+        claim(
+                "and which documents those " + TWO_DOCUMENTS + " were, each under the number the model"
+                        + " was given it as, rather than a count of them: the page a reader opens numbers"
+                        + " its list from this, and which number meant which document is knowable only"
+                        + " while the call is being built",
+                () -> assertThat(generatedDocs(root))
+                        .singleElement()
+                        .satisfies(doc -> assertThat(doc.doc().sent())
+                                .containsExactlyInAnyOrderElementsOf(theDocumentsOfEveryCluster(root))));
     }
 
     @Test
@@ -822,6 +832,25 @@ class GenerationInvocationTest {
     private void aCorpusOfTwoDocuments(Path root, Path seeds) throws IOException {
         aCorpus(root, seeds);
         Files.writeString(root.resolve("another-corpus-document.txt"), "a second corpus document");
+    }
+
+    /**
+     * Every document the clustering behind the approved arrangement put into a cluster.
+     *
+     * <p>The fixtures that read this arrange one cluster holding the whole corpus, so this is also
+     * every document the one call could have carried — which is what lets a claim say the recorded
+     * exemplars are those documents rather than a count of them.
+     */
+    private List<OccurrenceId> theDocumentsOfEveryCluster(Path root) {
+        return jdbcTemplate
+                .queryForList(
+                        "SELECT occurrence_id FROM document_cluster WHERE run_id ="
+                                + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)",
+                        Long.class,
+                        theApprovedArrangement(root).value())
+                .stream()
+                .map(OccurrenceId::new)
+                .toList();
     }
 
     /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */

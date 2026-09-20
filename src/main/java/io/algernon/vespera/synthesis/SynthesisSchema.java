@@ -18,7 +18,11 @@ import org.springframework.stereotype.Component;
  * ADR-111, #183), the third table ADR-111 fills a deferral for: why a call that came back was
  * rejected, kept beside the cluster it was about on the same precedent as {@code walk_anomaly} and
  * {@code unusable_seed} — a fact about content that is not a verdict, because nothing about the
- * cluster's documents is wrong.
+ * cluster's documents is wrong. Version 4 adds {@code call_exemplar} and drops
+ * {@code synthesis_doc.documents_sent} (ADR-108, ADR-109, ADR-133, #236): which documents one call
+ * carried under which citation ordinal, recorded because it cannot be re-derived — the count that
+ * stood in its place let the deliverable number its membership a second way and disagree with the
+ * numbering the model was given.
  *
  * <p>Note what does <em>not</em> bump alongside it. {@code document_cluster} is untouched and stays
  * {@code embedding}'s (ADR-110): membership is stage 5's and is not restated here, so
@@ -30,7 +34,7 @@ import org.springframework.stereotype.Component;
 class SynthesisSchema {
 
     /** The version of synthesis's tables this code expects. */
-    static final int VERSION = 3;
+    static final int VERSION = 4;
 
     /** The module name the version is recorded under, matching the package name. */
     static final String MODULE = "synthesis";

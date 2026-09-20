@@ -557,6 +557,13 @@ public final class Adr {
     public static final String OKIO_IS_PINNED_AND_A_DEPENDENCY_SCAN_BELONGS_IN_CI = FILE
             + "0128-okio-is-pinned-to-the-version-okhttp-declares-and-a-dependency-scan-belongs-in-ci.md";
 
+    /**
+     * ADR-133 — the exemplars one call sent are recorded, and a cluster file numbers its membership
+     * from that record rather than deriving relevance-score order a second time.
+     */
+    public static final String THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED = FILE
+            + "0133-the-exemplars-one-call-sent-are-recorded-and-a-cluster-file-numbers-its-membership-from-that-record.md";
+
     private Adr() {
     }
 }

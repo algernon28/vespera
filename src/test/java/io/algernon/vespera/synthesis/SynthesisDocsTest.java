@@ -55,14 +55,25 @@ class SynthesisDocsTest {
     private static final String PROSE =
             "The earliest audit [1] sets the pattern the later one [2] is measured against.";
 
-    /** How many documents that call was written from, which the deliverable states in the document. */
-    private static final int DOCUMENTS_SENT = 2;
-
     /** Which cluster of its partition this is: its identity, which never moves. */
     private static final int CLUSTER_ORDINAL = 3;
 
+    /**
+     * The citation ordinal a stale row is written under, standing for what an invocation that died
+     * between the two statements would have left behind.
+     */
+    private static final int THE_FIRST_ORDINAL = 1;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    /**
+     * The walk every occurrence below is observed in, started once so one run can name all of them.
+     *
+     * <p>An instance field rather than a static one: JUnit builds a test instance per test, so this
+     * cannot carry a walk from one method into the next.
+     */
+    private WalkId walk;
 
     @Test
     @Story("What was written over a group is kept, so the deliverable can be rebuilt without asking again")
@@ -70,22 +81,69 @@ class SynthesisDocsTest {
     void keepsTheWritingAgainstTheClusterItWasWrittenOver() {
         SynthesisDocs docs = new SynthesisDocs(jdbcTemplate);
         OccurrenceId seed = anOccurrence("seeds/safety.docx");
+        OccurrenceId earliest = anOccurrence("audits/2019.pdf");
+        OccurrenceId later = anOccurrence("audits/2021.pdf");
         RunId run = aRun(seed);
 
-        docs.record(run, seed, CLUSTER_ORDINAL, new SynthesisDoc(TITLE, PROSE, DOCUMENTS_SENT));
+        docs.record(run, seed, CLUSTER_ORDINAL, new SynthesisDoc(TITLE, PROSE, List.of(earliest, later)));
 
         claim(
                 "what comes back is what the model said and what it said it about: the heading, the text"
-                        + " with every marker exactly where it was, the number of documents behind it, and"
-                        + " the group itself -- because the page a reader opens is built from this row, and"
-                        + " a row that had been tidied would describe writing nobody produced",
+                        + " with every marker exactly where it was, and the group itself -- because the"
+                        + " page a reader opens is built from this row, and a row that had been tidied"
+                        + " would describe writing nobody produced",
                 () -> assertThat(docs.forRun(run)).singleElement().satisfies(recorded -> {
                     assertThat(recorded.winningSeed()).isEqualTo(seed);
                     assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
                     assertThat(recorded.doc().title()).isEqualTo(TITLE);
                     assertThat(recorded.doc().prose()).isEqualTo(PROSE);
-                    assertThat(recorded.doc().documentsSent()).isEqualTo(DOCUMENTS_SENT);
                 }));
+        claim(
+                "and which documents the call carried, in the order their numbers were minted, so [1] in"
+                        + " the text above reads back as the earliest audit and [2] as the later one: a"
+                        + " count of them would say how much was read and nothing about which number"
+                        + " means which document, and nothing downstream can work that out again",
+                () -> assertThat(docs.forRun(run))
+                        .singleElement()
+                        .satisfies(recorded ->
+                                assertThat(recorded.doc().sent()).containsExactly(earliest, later)));
+    }
+
+    @Test
+    @Story("What was written over a group is kept, so the deliverable can be rebuilt without asking again")
+    @DisplayName("A group written again keeps the documents of the call that stands, not an abandoned one's")
+    @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
+    void clearsWhatAnAbandonedCallLeftUnderTheSameCluster() {
+        SynthesisDocs docs = new SynthesisDocs(jdbcTemplate);
+        OccurrenceId seed = anOccurrence("seeds/safety.docx");
+        OccurrenceId abandoned = anOccurrence("audits/2018.pdf");
+        OccurrenceId earliest = anOccurrence("audits/2019.pdf");
+        OccurrenceId later = anOccurrence("audits/2021.pdf");
+        RunId run = aRun(seed);
+        // What an invocation that died between the two statements leaves: documents recorded as sent
+        // for a group that ended up carrying no writing at all. The next invocation asks about that
+        // group again, because the row that would have said it was done was never written.
+        jdbcTemplate.update(
+                "INSERT INTO call_exemplar (run_id, winning_seed_occurrence_id, cluster_ordinal,"
+                        + " citation_ordinal, occurrence_id) VALUES (?, ?, ?, ?, ?)",
+                run.value(),
+                seed.value(),
+                CLUSTER_ORDINAL,
+                THE_FIRST_ORDINAL,
+                abandoned.value());
+
+        docs.record(run, seed, CLUSTER_ORDINAL, new SynthesisDoc(TITLE, PROSE, List.of(earliest, later)));
+
+        claim(
+                "the documents kept are the ones the call that stands carried, and the abandoned call's"
+                        + " are gone: a row left over from a call nothing was kept from would take a"
+                        + " number the writing uses, and every entry after it would move -- which is the"
+                        + " wrong link this record exists to make impossible",
+                () -> assertThat(docs.forRun(run))
+                        .singleElement()
+                        .satisfies(recorded -> assertThat(recorded.doc().sent())
+                                .containsExactly(earliest, later)
+                                .doesNotContain(abandoned)));
     }
 
     @Test
@@ -96,7 +154,11 @@ class SynthesisDocsTest {
         OccurrenceId seed = anOccurrence("seeds/safety.docx");
         RunId run = aRun(seed);
 
-        docs.record(run, seed, CLUSTER_ORDINAL, new SynthesisDoc(TITLE, PROSE, DOCUMENTS_SENT));
+        docs.record(
+                run,
+                seed,
+                CLUSTER_ORDINAL,
+                new SynthesisDoc(TITLE, PROSE, List.of(anOccurrence("audits/2019.pdf"))));
 
         claim(
                 "no judgement is recorded against any document because something was written over its"
@@ -109,14 +171,16 @@ class SynthesisDocsTest {
 
     private OccurrenceId anOccurrence(String path) {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        if (walk == null) {
+            walk = ledger.startWalk(Path.of("C:/corpus"));
+        }
         ledger.fileOccurrence(
-                walkId,
+                walk,
                 new OccurrencePath(path),
                 1,
                 Instant.parse("2026-09-15T10:15:30Z"),
                 Instant.parse("2026-09-01T08:00:00Z"));
-        return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+        return ledger.occurrenceId(walk, new OccurrencePath(path)).orElseThrow();
     }
 
     private RunId aRun(OccurrenceId anyOccurrenceInTheWalk) {
