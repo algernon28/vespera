@@ -297,7 +297,7 @@ public final class Deliverable {
             String corpusRoot)
             throws IOException {
         StringBuilder page = new StringBuilder();
-        page.append("# ").append(doc == null ? label : doc.title()).append("\n\n");
+        page.append("# ").append(onOneLine(doc == null ? label : doc.title())).append("\n\n");
         if (doc == null) {
             page.append(NOTHING_WAS_WRITTEN_OVER_IT).append('\n');
         } else {
@@ -537,9 +537,15 @@ public final class Deliverable {
      *
      * <p><b>Both are handled everywhere rather than where a value looks risky</b>, because a rule
      * applied per value is one more place for a page to silently become a different page.
+     *
+     * <p><b>The backslash goes first</b>, as it does in {@link #escapeLinkText}: a label ending in one
+     * would otherwise turn the escape added after it into a literal backslash and a live delimiter,
+     * which is this defect reintroduced by the thing meant to prevent it. NTFS forbids a backslash in
+     * a filename, so the stem fallback cannot carry one — but the primary source is the document's own
+     * Docling title, which is arbitrary text, and "no label has carried one yet" is not a rule.
      */
     private static String inACell(String text) {
-        return onOneLine(text).replace("|", "\\|");
+        return onOneLine(text).replace("\\", "\\\\").replace("|", "\\|");
     }
 
     /**
