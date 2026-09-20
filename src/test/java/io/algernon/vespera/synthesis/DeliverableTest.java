@@ -367,7 +367,7 @@ class DeliverableTest {
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(unwritten, written),
                 List.of(writingFor(A_LATER_ORDINAL)),
-                survivors(FIRST_ORDINAL));
+                membersOfBothClusters());
 
         String entry = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THE_LABEL);
         claim(
@@ -579,9 +579,14 @@ class DeliverableTest {
 
     /** The two survivors that cluster holds, both of them under the one seed. */
     private static List<ListedSurvivor> survivors(int ordinal) {
+        return survivors(ordinal, 10L);
+    }
+
+    /** Those same two survivors, numbered from {@code firstOccurrenceId} so two clusters do not collide. */
+    private static List<ListedSurvivor> survivors(int ordinal, long firstOccurrenceId) {
         return List.of(
                 new ListedSurvivor(
-                        new OccurrenceId(10),
+                        new OccurrenceId(firstOccurrenceId),
                         new OccurrencePath("reports/2019/retrofit.pdf"),
                         "3a7b",
                         THE_SEED,
@@ -589,13 +594,27 @@ class DeliverableTest {
                         ordinal,
                         A_SCORE),
                 new ListedSurvivor(
-                        new OccurrenceId(11),
+                        new OccurrenceId(firstOccurrenceId + 1),
                         new OccurrencePath("reports/2021/retrofit follow-up.pdf"),
                         "9c11",
                         THE_SEED,
                         SEED_PATH,
                         ordinal,
                         A_LOWER_SCORE));
+    }
+
+    /**
+     * The members of both clusters the hole-vs-link fixture arranges.
+     *
+     * <p>The cluster that was written over needs a membership of its own, because a citation in its
+     * writing resolves against that membership (ADR-109): a fixture that wrote over a cluster holding
+     * no documents would be asking the writer to resolve a citation against nothing, which is a state
+     * the pipeline never produces.
+     */
+    private static List<ListedSurvivor> membersOfBothClusters() {
+        List<ListedSurvivor> members = new ArrayList<>(survivors(FIRST_ORDINAL));
+        members.addAll(survivors(A_LATER_ORDINAL, 12L));
+        return List.copyOf(members);
     }
 
     /** The names of everything directly beneath {@code directory}, in no particular order. */
