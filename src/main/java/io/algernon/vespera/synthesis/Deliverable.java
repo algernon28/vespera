@@ -234,6 +234,7 @@ public final class Deliverable {
                     partitionDir.resolve(clusterFileName),
                     recorded.label().value(),
                     null,
+                    documentCount,
                     members,
                     corpusRoot);
             return;
@@ -252,6 +253,7 @@ public final class Deliverable {
                 partitionDir.resolve(clusterFileName),
                 recorded.label().value(),
                 doc.doc(),
+                documentCount,
                 members,
                 corpusRoot);
     }
@@ -276,12 +278,23 @@ public final class Deliverable {
      * (ADR-104). Nothing is copied and nothing is stat-ed: a link that has gone dead because the
      * archive moved is the operator's to re-point, not this writer's to hide.
      *
+     * <p><b>The disclosure counts what the arrangement recorded</b>, not what this writer was handed
+     * (ADR-112): 6a states a cluster's size once, and the index cell and this sentence read that one
+     * number. Re-deriving it from the membership list would be a second place the arrangement is
+     * stated, and the two would part company the moment a survivor failed to reach the list — in the
+     * one sentence that exists to tell a reader how much of the cluster the writing rests on.
+     *
      * <p><b>The index links to a page only where writing exists</b>, but the page itself is written
      * either way: a cluster keeps its slot in the directory listing so the order the operator approved
      * and the order on disk stay one order (ADR-112).
      */
     private static void writeClusterFile(
-            Path file, String label, SynthesisDoc doc, List<ListedSurvivor> members, String corpusRoot)
+            Path file,
+            String label,
+            SynthesisDoc doc,
+            int documentCount,
+            List<ListedSurvivor> members,
+            String corpusRoot)
             throws IOException {
         StringBuilder page = new StringBuilder();
         page.append("# ").append(doc == null ? label : doc.title()).append("\n\n");
@@ -289,9 +302,9 @@ public final class Deliverable {
             page.append(NOTHING_WAS_WRITTEN_OVER_IT).append('\n');
         } else {
             page.append(withCitationLinks(doc.prose())).append('\n');
-            if (doc.documentsSent() < members.size()) {
+            if (doc.documentsSent() < documentCount) {
                 page.append('\n')
-                        .append(SUBSET_DISCLOSURE.formatted(doc.documentsSent(), members.size()))
+                        .append(SUBSET_DISCLOSURE.formatted(doc.documentsSent(), documentCount))
                         .append('\n');
             }
         }
@@ -316,6 +329,12 @@ public final class Deliverable {
      * citation must resolve against this entry by construction, and an implicit anchor whose name a
      * viewer derives from the entry's text is that viewer's business — two viewers would be free to
      * disagree, and a citation would then resolve in one of them and not the other.
+     *
+     * <p><b>The anchor sits inside the list item, never on a line of its own.</b> An {@code <a>} tag
+     * alone on a line is a paragraph rather than an HTML block, and a list item can interrupt a
+     * paragraph only when it is numbered {@code 1}: entry 1 would open a list and every entry after it
+     * would be swallowed into the paragraph above as lazy continuation. The membership would still
+     * hold every survivor in score order as bytes, and would render as one item and a wall of text.
      */
     private static void appendMembership(StringBuilder page, List<ListedSurvivor> members, String corpusRoot) {
         List<ListedSurvivor> inScoreOrder = new ArrayList<>(members);
@@ -323,11 +342,10 @@ public final class Deliverable {
         for (int at = 0; at < inScoreOrder.size(); at++) {
             int ordinal = at + 1;
             ListedSurvivor member = inScoreOrder.get(at);
-            page.append("<a id=\"")
+            page.append(ordinal)
+                    .append(". <a id=\"")
                     .append(anchorFor(ordinal))
-                    .append("\"></a>\n")
-                    .append(ordinal)
-                    .append(". [")
+                    .append("\"></a>[")
                     .append(escapeLinkText(member.path().value()))
                     .append("](")
                     .append(fileUrl(corpusRoot, member.path().value()))
