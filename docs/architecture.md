@@ -3,7 +3,7 @@
 **Project:** Document Curation Pipeline → Knowledge Base
 **Source:** compiled 2026-08-21 from the ADRs and `CONTEXT.md`. Demoted from a hand-off note to this repo's standing architecture document on 2026-08-22, when the lost ADR text was reconstituted from the condensed ledger into [`docs/adr/`](./adr/README.md).
 **Reading order:** §1 and §2 describe the system and are the fuller record — most ADR files carry only a one-line summary and point back here. The condensed ledger now lives in [`docs/decision-ledger.md`](./decision-ledger.md), kept as the provenance witness for those files rather than as the place to read a decision.
-**Status:** design is ahead of code — stages 0 to 4 judge, stage 5 measures without judging, stage 6a names and orders what stage 5 grouped, and 6b is its gate, its run and its wiring, so nothing generates a word of connective material yet. `AGENTS.md` is where that state is kept current; this document describes the system as decided, not as built. Open questions are not tracked here — they live on the issue tracker, and `AGENTS.md` says which of them is takeable. The stage 6a/6b slice's wayfinder map was charted on 2026-09-12 and is open; the stage 5 slice's closed on 2026-09-09.
+**Status:** the cascade is built end to end — stages 0 to 4 judge, stage 5 measures without judging, stage 6a names and orders what stage 5 grouped, and 6b writes the deliverable the run ends at. `AGENTS.md` is where that state is kept current; this document describes the system as decided, not as built. Open questions are not tracked here — they live on the issue tracker, and `AGENTS.md` says which of them is takeable. The stage 6a/6b slice's wayfinder map was charted on 2026-09-12 and its route is walked; the stage 5 slice's closed on 2026-09-09.
 
 ---
 
@@ -26,7 +26,7 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |
 | 5  | Relevance (embeddings)       | `below-threshold`                         | Scoring against the seed set (ADR-020), clustering within each seed partition (ADR-027, ADR-045).     |
 | 6a | Arrangement                  | *(no verdicts)*                           | Seed-named taxonomy + within-seed clusters (ADR-022), each cluster given a row of its own carrying a derived label, a count and a place in the order (ADR-105, ADR-106, ADR-112). Writes `arrangement.html`, the human gate before 6b (ADR-107). |
-| 6b | Generation                   | —                                         | One overview per cluster, citations resolved to occurrence ids (ADR-022, ADR-026).                    |
+| 6b | Generation                   | *(no verdicts; a fault, not a verdict)*   | One exemplar-first call per cluster, every answer verified before it is believed and a turned-down one recorded as a cluster fault (ADR-108, ADR-111). Citations are exemplar ordinals checked for being in range (ADR-109). Writes the deliverable: a Markdown tree, one per run id (ADR-103, ADR-104, ADR-112). |
 
 Ordering principle: the cheapest filter runs first, so every occurrence removed early is extraction or embedding never paid for (ADR-017).
 
@@ -41,12 +41,11 @@ flowchart TD
     S4["<b>4 · Content redundancy</b><br/>redundant-with"]
     S5["<b>5 · Relevance</b><br/>below-threshold"]
     S6A["<b>6a · Arrangement</b><br/>cluster rows: label · count · order<br/><i>writes no verdicts</i>"]
-    S6B["<b>6b · Generation</b><br/>cited overviews per cluster"]
+    S6B["<b>6b · Generation</b><br/>cited overviews per cluster<br/><i>a turned-down answer faults its cluster</i>"]
     LEDGER[("<b>Ledger</b><br/>occurrences · verdicts · runs")]
     ART["The generated documents<br/><i>the run ends here</i>"]
 
     S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6A --> S6B --> ART
-    ART -. "a person starts it" .-> S7
 
     S0 <-.-> LEDGER
     S1 <-.-> LEDGER
@@ -239,7 +238,7 @@ flowchart TD
 - **No Spring Modulith event publication registry** — no application events exist in this design (stages never call each other); `spring-modulith-starter-core` is retained for boundary verification only.
 - **CLI surface** (ADR-047, narrowed by ADR-101) — `vespera run` takes the pipeline through 6b and `vespera label` runs the operator's labelling pass. The `publish` subcommand is gone, removed under ADR-101's own follow-up. Nothing more, because there's no interactive pause left to expose.
 
-**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — fifteen of them today, census through the generation gate, each later stage having been another step appended to the same job. Stage 6b is appended and is its gate, its run and its wiring: it opens over the arrangement the operator approved and mints the run everything it writes will be recorded under, and writes nothing yet. The run ends at stage 6b, and nothing follows it (ADR-101).
+**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — fifteen of them today, census through generation, each later stage having been another step appended to the same job. Stage 6b is the last: it opens over the arrangement the operator approved, mints the run everything it writes is recorded under, calls once per cluster, and writes the deliverable. The run ends at stage 6b, and nothing follows it (ADR-101).
 
 ```mermaid
 flowchart TD
@@ -249,7 +248,7 @@ flowchart TD
     JOB["<b>job 'vespera' started</b><br/>one job parameter: the root<br/><i>never started by the app coming up</i>"]
     S0["<b>step: census</b><br/>stage 0 — walk, record, merge the profile"]
     LATER["<b>steps: stages 1 to 6a</b><br/>thirteen more on the same job<br/><i>through the arrangement and its gate</i>"]
-    S6BSTEP["<b>step: stage 6b</b><br/><i>gate and run only</i>"]
+    S6BSTEP["<b>step: stage 6b</b><br/>one call per cluster, then the tree<br/><i>gate · run · generation</i>"]
     EXIT(["exit code<br/>0, or non-zero if the job failed"])
 
 
@@ -341,7 +340,7 @@ flowchart TD
 
 ### 1.7 Open items
 
-Tracked on the wayfinder map, [Stage 6a/6b slice: the way to a hand-off spec](https://github.com/algernon28/vespera/issues/151), rather than in this file. Its open children **are** the live list — today that is the hand-off spec [#175](https://github.com/algernon28/vespera/issues/175) — and the map stays open until 6a and 6b ship.
+Tracked on the issue tracker rather than in this file. The stage 6a/6b map, [Stage 6a/6b slice: the way to a hand-off spec](https://github.com/algernon28/vespera/issues/151), has walked its route: every decision ticket is closed, the hand-off spec [#175](https://github.com/algernon28/vespera/issues/175) delivered the build tickets, and 6a and 6b have shipped. With no slice being walked, the live list is whatever open issues the tracker holds — today that is [#236](https://github.com/algernon28/vespera/issues/236), a numbering defect in what shipped, described in `AGENTS.md`.
 
 Two items parked on measurement data have outlived the map that parked them. **Shingle granularity** (word vs. character n-grams) waits on an OCR error rate, which ADR-073 established Docling does not report — stage 2 stores the counters one could be computed from instead. **Target hardware** waits on the scanned-page count from a census over a real archive. Both were carried in the census map's **Out of scope**, [#1](https://github.com/algernon28/vespera/issues/1), which closed on 2026-08-29; no map since has picked them up, so that closed issue is the only place either is written down.
 

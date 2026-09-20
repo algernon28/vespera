@@ -28,7 +28,7 @@ Getting from a folder of documents to a curated archive takes **five invocations
 | **2** | `boilerplateDocumentFrequencyFloor`, `embeddingModel` | `vespera run` | deduplicates, reads your seed folder, scores every survivor against it, groups them, and writes you sixty documents to judge. **Removes nothing** |
 | **3** | sixty answers in `relevance-labels.yaml` | `vespera label` | records your answers. They belong to the documents, not to the run, so they survive everything afterwards |
 | **4** | `relevanceScoreFloor` | `vespera run` | applies your threshold. This is the first invocation that removes anything for being irrelevant |
-| **5** | `arrangementApproved` | `vespera run` | records that the arrangement you read is the one you want. Nothing is written from it yet — see **What is not built** |
+| **5** | `arrangementApproved` | `vespera run` | writes the connecting text over the arrangement you approved, and leaves the finished tree of Markdown in your working directory |
 
 **You will be told which value is missing, every time.** You do not need this table in front of you and you do not need to know which stage you are at — read the last line of the output and it names what to set next.
 
@@ -105,8 +105,10 @@ Java 26 and a Docker daemon. Vespera runs its document converter and its embeddi
 ./mvnw verify
 ```
 
-## What is not built
+## Where the run ends
 
-Generating the connecting text over the survivors — stage 6b — is recorded decisions with no code behind it yet. Everything above works up to and including the arrangement: the survivors are grouped, each group is named after its own leading document, the groups are put in order, and `arrangement.html` asks you to approve them. What that approval gates has not been built, so invocation 5 records your answer and produces nothing from it.
+Approving the arrangement is the last thing you are asked for. The fifth invocation writes the connecting text over each group and leaves you a tree of Markdown in your working directory: an index, one file per group, and a listing of every surviving document with its place in the order.
 
-The run ends at the documents stage 6b will generate. Those documents are real files — a directory of Markdown in your working directory, one file per group, with a listing of every document that went into it — and they are where Vespera stops. It does not turn them into a wiki, a site or a page anywhere, and it does not upload or send them (ADR-101). What you do with them is yours.
+A group's file opens with the heading written for it, carries the prose with every citation resolved into a link to the document it came from, and then lists the group entire — including the documents the writing never mentioned. Where a group was written from part of its documents, the page says so and names both numbers. Where an answer was turned down, the group keeps its place and its file says plainly that nothing was written over it, rather than leaving a gap you have to notice.
+
+Those files are where Vespera stops. It does not turn them into a wiki, a site or a page anywhere, and it does not upload or send them (ADR-101). Your archive is untouched throughout: the tree links to your documents where they already sit and copies none of them (ADR-104). What you do with any of it is yours.
