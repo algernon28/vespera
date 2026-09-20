@@ -14,7 +14,6 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -91,27 +90,14 @@ class RelevanceScoringTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        Optional<String> modelName = embeddingModelGate.modelName();
-        if (modelName.isEmpty()) {
-            LOG.info(
-                    "stage 5's relevance-scoring step is gated: no embedding model is named. No survivor"
-                            + " was scored.");
+        StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
+                "stage 5's relevance-scoring step", embeddingModelGate, seedGate, usableSeedGate);
+        if (!preamble.isOpen()) {
+            LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
-        Optional<SeedGate.SeedWalk> seedWalk = seedGate.seedWalk();
-        if (seedWalk.isEmpty()) {
-            LOG.info(
-                    "stage 5's relevance-scoring step is gated: no seed folder is named, or stage 4's"
-                            + " gate is shut, or the seed walk has not finished. No survivor was scored.");
-            return RepeatStatus.FINISHED;
-        }
-        if (!usableSeedGate.anySeedUsable()) {
-            LOG.info(
-                    "stage 5's relevance-scoring step is gated: no seed document produced any text, so"
-                            + " there is no seed to take ADR-020's maximum over. Fix the seed folder and run"
-                            + " again.");
-            return RepeatStatus.FINISHED;
-        }
+        String modelName = preamble.modelName().orElseThrow();
+        SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
         ScoringRun scoring = scoringRun.getObject();
@@ -134,16 +120,16 @@ class RelevanceScoringTasklet implements Tasklet {
         String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
 
         Map<OccurrenceId, String> seedContentHashes =
-                seedContentHashes(seedWalk.get(), measurementRun);
+                seedContentHashes(seedWalk, measurementRun);
         Map<OccurrenceId, List<float[]>> residentSeedVectors = relevanceScoring.residentSeedVectors(
-                seedContentHashes, chunkerIdentity, chunkingRuleIdentity, modelName.get());
+                seedContentHashes, chunkerIdentity, chunkingRuleIdentity, modelName);
         if (residentSeedVectors.isEmpty()) {
             LOG.info(
                     "stage 5's relevance-scoring step is gated: {} seed occurrence(s) produced text, but"
                             + " none has a stored vector under {} -- the step that embeds them may not have"
                             + " run, or embeddingModel was changed after it did. No survivor was scored.",
                     seedContentHashes.size(),
-                    modelName.get());
+                    modelName);
             return RepeatStatus.FINISHED;
         }
 
@@ -166,7 +152,7 @@ class RelevanceScoringTasklet implements Tasklet {
                     contentHash,
                     chunkerIdentity,
                     chunkingRuleIdentity,
-                    modelName.get(),
+                    modelName,
                     residentSeedVectors);
         }
         ledger.finishStep(scoring.runId(), STEP);

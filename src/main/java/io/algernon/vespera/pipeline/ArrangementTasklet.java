@@ -121,18 +121,10 @@ class ArrangementTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        if (embeddingModelGate.modelName().isEmpty()) {
-            LOG.info("the arrangement step is gated: no embedding model is named. Nothing was arranged.");
-            return RepeatStatus.FINISHED;
-        }
-        if (seedGate.seedWalk().isEmpty()) {
-            LOG.info("the arrangement step is gated: no seed folder is named, or stage 4's gate is shut,"
-                    + " or the seed walk has not finished. Nothing was arranged.");
-            return RepeatStatus.FINISHED;
-        }
-        if (!usableSeedGate.anySeedUsable()) {
-            LOG.info("the arrangement step is gated: no seed document produced any text, so no survivor"
-                    + " carries a winning seed to be partitioned by. Nothing was arranged.");
+        StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
+                "the arrangement step", embeddingModelGate, seedGate, usableSeedGate);
+        if (!preamble.isOpen()) {
+            LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
 

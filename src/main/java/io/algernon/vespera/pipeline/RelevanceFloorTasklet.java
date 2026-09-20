@@ -93,14 +93,13 @@ class RelevanceFloorTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        Optional<String> modelName = embeddingModelGate.modelName();
-        if (modelName.isEmpty()
-                || seedGate.seedWalk().isEmpty()
-                || !usableSeedGate.anySeedUsable()) {
-            LOG.info("stage 5's relevance-floor step has nothing to apply a threshold to: no model is"
-                    + " named, no seed folder is, or no seed produced text. Nothing was removed.");
+        StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
+                "stage 5's relevance-floor step", embeddingModelGate, seedGate, usableSeedGate);
+        if (!preamble.isOpen()) {
+            LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
+        String modelName = preamble.modelName().orElseThrow();
 
         ScoringRun scoring = scoringRun.getObject();
 
@@ -108,14 +107,14 @@ class RelevanceFloorTasklet implements Tasklet {
         // threshold against the wrong identity is what would let a number calibrated elsewhere remove
         // documents here. Not yet a decision this run can be finished on -- a later invocation, once
         // embedding-scoring has actually run, may answer differently under this very run id.
-        Optional<String> currentIdentity = relevanceDistribution.embedderIdentityFor(modelName.get());
+        Optional<String> currentIdentity = relevanceDistribution.embedderIdentityFor(modelName);
         if (currentIdentity.isEmpty()) {
             LOG.info(
                     "stage 5's relevance-floor step removed nothing: the vectors under {} carry no single"
                             + " embedder identity, so there is no one scale for a threshold to be on. A"
                             + " threshold is only applied where the scale it was read off is known to be"
                             + " this one.",
-                    modelName.get());
+                    modelName);
             return RepeatStatus.FINISHED;
         }
 

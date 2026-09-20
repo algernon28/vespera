@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-131.
+One file per architecture decision, ADR-001 through ADR-132.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -150,3 +150,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-129](0129-the-adr-index-range-and-boundary-are-checked-by-the-claims-guard.md) | 2026-09-19 | The decision record's index states its range and its boundary, and the claims guard checks both |
 | [ADR-130](0130-one-report-page-module-owns-the-skeleton-styling-escaping-and-tables.md) | 2026-09-19 | One report-page module owns the document skeleton, styling, escaping and table assembly |
 | [ADR-131](0131-one-module-builds-every-plain-tasklet-step.md) | 2026-09-19 | One module builds every plain tasklet step, and each stage's configuration names only its step |
+| [ADR-132](0132-stage-5s-gate-preamble-is-one-seam-that-answers-open-or-shut-with-the-one-sentence.md) | 2026-09-19 | Stage 5's gate preamble is one seam, and it answers open or shut with the one sentence that explains it |

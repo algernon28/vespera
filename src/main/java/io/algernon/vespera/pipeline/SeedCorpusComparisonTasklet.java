@@ -76,18 +76,13 @@ class SeedCorpusComparisonTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        if (seedGate.seedWalk().isEmpty()) {
-            LOG.info(
-                    "stage 5's seed/corpus comparison is gated: no seed folder is named, or stage 4's gate is"
-                            + " shut, or the seed walk has not finished. No comparison was measured or written.");
+        StageFiveGates.Preamble preamble = StageFiveGates.seedWalkAndUsable(
+                "stage 5's seed/corpus comparison", seedGate, usableSeedGate);
+        if (!preamble.isOpen()) {
+            LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
-        if (!usableSeedGate.anySeedUsable()) {
-            LOG.info(
-                    "stage 5's seed/corpus comparison is gated: no seed document produced any text, so seed"
-                            + " extraction minted no run to measure under. Fix the seed folder and run again.");
-            return RepeatStatus.FINISHED;
-        }
+        SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();
 
         SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
 
@@ -108,7 +103,7 @@ class SeedCorpusComparisonTasklet implements Tasklet {
 
         LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.runId().value());
         SeedCorpusComparison.Comparison comparison = seedCorpusComparison.measure(
-                measurementRun.runId(), measurementRun.extractionRunId(), seedGate.seedWalk().get().walkId());
+                measurementRun.runId(), measurementRun.extractionRunId(), seedWalk.walkId());
         Path reportFile = writeReport(comparison);
         ledger.finishStep(measurementRun.runId(), STEP);
         LOG.info(
