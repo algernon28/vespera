@@ -103,6 +103,35 @@ class DeliverableTest {
     /** Its counterpart, placed second while sorting first. */
     private static final String THE_NAME_THAT_SORTS_FIRST = "Access Platforms";
 
+    /**
+     * A label carrying what a Docling title can carry and a table cannot: a line break and a pipe.
+     *
+     * <p>Neither is exotic. A title is read off the document's own first heading, which wraps in the
+     * document it came from, and a pipe is an ordinary character in one.
+     */
+    private static final String A_NAME_WITH_A_BREAK_AND_A_PIPE = "Fire Suppression\nRetrofits | Phase 2";
+
+    /** That same name as a reader should meet it: on one line, with the pipe left as a pipe. */
+    private static final String THAT_NAME_MADE_SAFE = "Fire Suppression Retrofits \\| Phase 2";
+
+    /** How many clusters the hostile-name fixture arranges, which is how many rows its table must keep. */
+    private static final int TWO_CLUSTERS = 2;
+
+    /** A generated heading carrying a break of its own, which the model is under no obligation to avoid. */
+    private static final String A_HEADING_WITH_A_BREAK = "Suppression Retrofits,\n2018 to 2021";
+
+    /** That heading as a cell should carry it. */
+    private static final String THAT_HEADING_MADE_SAFE = "Suppression Retrofits, 2018 to 2021";
+
+    /** A label carrying the bracket that would close a link early, which a filename stem can hold. */
+    private static final String A_NAME_WITH_A_BRACKET = "Retrofits [2019] and after";
+
+    /** And that one as link text: the brackets escaped, so the whole name stays inside the link. */
+    private static final String THAT_NAME_AS_LINK_TEXT = "Retrofits \\[2019\\] and after";
+
+    /** Enough of that escaped name to find its row, rather than a bare word repeated elsewhere. */
+    private static final String A_NAME_WITH_A_BRACKET_ESCAPED_START = "Retrofits \\[2019\\]";
+
     /** The first place in an order, which both levels count from (ADR-112). */
     private static final int FIRST_PLACE = 1;
 
@@ -404,6 +433,74 @@ class DeliverableTest {
     }
 
     @Test
+    @Story("A name out of the archive cannot rewrite the page it is listed on")
+    @DisplayName("A group named across two lines is listed on one, and the table below it survives")
+    @Issue("246")
+    void keepsTheTableWholeWhenANameCarriesALineBreakOrAPipe(@TempDir Path workingDirectory) throws IOException {
+        RecordedCluster hostile = aCluster(FIRST_ORDINAL, A_NAME_WITH_A_BREAK_AND_A_PIPE, FIRST_PLACE, FIRST_PLACE);
+        RecordedCluster after = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
+
+        Path tree = Deliverable.writeTo(
+                workingDirectory,
+                provenance(THE_SEED_FOLDER_VALUE),
+                List.of(hostile, after),
+                List.of(writingOverTheHostileCluster()),
+                membersOfBothClusters());
+
+        String index = Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME));
+
+        claim(
+                "the name is listed on one line with its pipe escaped, because a line break ends the"
+                        + " table where it stands and a pipe ends the cell: a title is read off the"
+                        + " document's own heading, which wrapped in the document it came from, and"
+                        + " neither character says anything about the group it names",
+                () -> assertThat(index).contains(THAT_NAME_MADE_SAFE));
+        claim(
+                "and the heading the model wrote is folded the same way, in the cell beside it: it comes"
+                        + " from further away than the name does and is no more obliged to be one line",
+                () -> assertThat(index).contains(THAT_HEADING_MADE_SAFE));
+        claim(
+                "so every line of the table is a row of it -- which is the claim that separates a table"
+                        + " that survived from one that ended early. A break does not cost a row: it"
+                        + " splits one in two, leaving a remainder that no longer opens with a pipe and"
+                        + " that a renderer reads as the prose the rest of the table becomes",
+                () -> assertThat(linesOfTheTableIn(index)).allSatisfy(line -> assertThat(line)
+                        .startsWith("|")
+                        .endsWith("|")));
+        claim(
+                "and both of the " + TWO_CLUSTERS + " groups are still listed under it, so the table is"
+                        + " whole rather than merely well-formed: a table truncated to its header would"
+                        + " satisfy the claim above and list nothing at all",
+                () -> assertThat(index).contains(THAT_NAME_MADE_SAFE).contains(THE_NAME_THAT_SORTS_FIRST));
+    }
+
+    @Test
+    @Story("A name out of the archive cannot rewrite the page it is listed on")
+    @DisplayName("A group whose name holds a bracket is linked by the whole name, not a fragment of it")
+    @Issue("246")
+    void keepsTheLinkWholeWhenANameCarriesABracket(@TempDir Path workingDirectory) throws IOException {
+        Path tree = Deliverable.writeTo(
+                workingDirectory,
+                provenance(THE_SEED_FOLDER_VALUE),
+                List.of(aCluster(FIRST_ORDINAL, A_NAME_WITH_A_BRACKET, FIRST_PLACE, FIRST_PLACE)),
+                List.of(writingFor(FIRST_ORDINAL)),
+                survivors(FIRST_ORDINAL));
+
+        String row = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), A_NAME_WITH_A_BRACKET_ESCAPED_START);
+
+        claim(
+                "the brackets in the name are escaped, so the link carries the whole name: an unescaped"
+                        + " ] closes the link where it appears, leaving a reader clicking a fragment of"
+                        + " the name with the rest of it sitting beside a bare path",
+                () -> assertThat(row).contains("[" + THAT_NAME_AS_LINK_TEXT + "]("));
+        claim(
+                "and what it points at is a file that is really there: the link's text and its"
+                        + " destination are derived from the one name, so a rule that escaped the text"
+                        + " and left the path behind would send a reader to nothing at all",
+                () -> assertThat(tree.resolve(destinationOf(row))).isRegularFile());
+    }
+
+    @Test
     @Story("Everything the operator reads is in their words, and everything we name is in ours")
     @DisplayName("The index speaks of groups, and the constants behind it speak of clusters")
     @Link(name = "ADR-122", url = Adr.THE_VOCABULARY_BINDS_OUR_NAMES_NOT_RENDERED_PROSE, type = "adr")
@@ -570,6 +667,42 @@ class DeliverableTest {
         return new RecordedCluster(
                 new ArrangedCluster(THE_SEED, ordinal, DOCUMENTS_IN_THE_CLUSTER, partitionOrder, clusterOrder),
                 new ClusterLabel(label));
+    }
+
+    /** The writing kept against the hostile-name cluster, whose heading carries a break of its own. */
+    private static RecordedSynthesisDoc writingOverTheHostileCluster() {
+        return new RecordedSynthesisDoc(
+                THE_SEED, FIRST_ORDINAL, new SynthesisDoc(A_HEADING_WITH_A_BREAK, THE_PROSE, DOCUMENTS_SENT));
+    }
+
+    /** The destination of the one link in {@code row}, as a path relative to the tree's own root. */
+    private static String destinationOf(String row) {
+        int opens = row.indexOf("](");
+        return row.substring(opens + 2, row.indexOf(')', opens));
+    }
+
+    /**
+     * Every line of the index that belongs to a table: the header, its separator and its rows.
+     *
+     * <p>Found by where they sit rather than by what they start with, because what a broken table
+     * leaves behind is a line that does <em>not</em> start with a pipe, and a filter keyed on the pipe
+     * would drop exactly the evidence. A table runs from its separator to the next blank line.
+     */
+    private static List<String> linesOfTheTableIn(String index) {
+        List<String> lines = index.lines().toList();
+        List<String> inTables = new ArrayList<>();
+        boolean inTable = false;
+        for (String line : lines) {
+            if (line.startsWith("|---")) {
+                inTable = true;
+                inTables.add(line);
+            } else if (inTable && line.isBlank()) {
+                inTable = false;
+            } else if (inTable) {
+                inTables.add(line);
+            }
+        }
+        return inTables;
     }
 
     /** The writing stage 6b kept against the cluster identified by {@code ordinal}. */
