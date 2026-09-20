@@ -385,7 +385,7 @@ function readmeSection(heading, name) {
 // that misreading is saying so in the same breath.
 const UNCHECKED = [
   'the whole of "The shape of the system" — the ledger model, the two identities, the module rule',
-  '"Stages 0 to 4 are built, and stage 5 is part-built", and what stage 5 still owes',
+  '"The cascade is built end to end", and the per-stage sentences under it',
   "the fifteen job steps and their order, and that a later stage is a step on that same job",
   "the ADR-052 test conventions, and whether the report a run produces actually reads that way",
   "the ADR index table's rows — each ADR adds its own by hand, and only the range line above it and the boundary sentence are checked",
