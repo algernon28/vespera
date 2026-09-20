@@ -2,15 +2,13 @@ package io.algernon.vespera.pipeline;
 
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
-import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * Stage 5's third step's own Batch wiring (gate 3, ADR-084, #107), kept apart from {@link
- * SeedCorpusComparisonJobConfiguration} for the same reason every other stage's configuration is
- * already separate: each stage contributes its own step bean rather than growing one shared class.
+ * Stage 5's third step's own Batch wiring (gate 3, ADR-084, #107). The step names the stage; {@link
+ * TaskletSteps} builds it (ADR-131).
  */
 @Configuration
 public class EmbeddingModelJobConfiguration {
@@ -20,8 +18,6 @@ public class EmbeddingModelJobConfiguration {
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
             EmbeddingScoringTasklet embeddingScoringTasklet) {
-        return new StepBuilder(ScoringRun.STAGE, jobRepository)
-                .tasklet(embeddingScoringTasklet, transactionManager)
-                .build();
+        return TaskletSteps.taskletStep(ScoringRun.STAGE, jobRepository, transactionManager, embeddingScoringTasklet);
     }
 }

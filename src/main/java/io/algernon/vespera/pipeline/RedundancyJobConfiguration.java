@@ -20,9 +20,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * Stage 4's own Batch wiring (content redundancy), kept apart from {@link CensusJobConfiguration} and
- * the earlier stages' configuration classes for the same reason those are already separate: each stage
- * contributes its own step beans rather than growing one shared configuration class.
+ * Stage 4's own Batch wiring (content redundancy), the two steps under one run kept together here.
+ * Stage 4's resolution step is a plain tasklet and is built by {@link TaskletSteps} (ADR-131);
+ * {@code redundancySignatureStep} is chunk-oriented and keeps its own construction.
  *
  * <p>Two steps under one run (the #75 hand-off spec's settlement of the map's job-shape fog):
  * {@code redundancySignatureStep} is chunk-oriented, the natural fit for a per-document
@@ -75,9 +75,8 @@ public class RedundancyJobConfiguration {
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
             RedundancyResolutionTasklet redundancyResolutionTasklet) {
-        return new StepBuilder(RedundancyRun.STAGE, jobRepository)
-                .tasklet(redundancyResolutionTasklet, transactionManager)
-                .build();
+        return TaskletSteps.taskletStep(
+                RedundancyRun.STAGE, jobRepository, transactionManager, redundancyResolutionTasklet);
     }
 
     /**

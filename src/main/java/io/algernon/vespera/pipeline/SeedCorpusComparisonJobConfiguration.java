@@ -2,16 +2,13 @@ package io.algernon.vespera.pipeline;
 
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
-import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * Stage 5's second step's own Batch wiring (the seed/corpus mismatch comparison, ADR-086, ADR-092),
- * kept apart from {@link CensusJobConfiguration} and the earlier stages' configuration classes for the
- * same reason those are already separate: each stage contributes its own step bean rather than growing
- * one shared configuration class.
+ * Stage 5's second step's own Batch wiring (the seed/corpus mismatch comparison, ADR-086, ADR-092).
+ * The step names the stage; {@link TaskletSteps} builds it (ADR-131).
  *
  * <p>A single tasklet step, the same shape {@link RedundancyJobConfiguration}'s resolution step and
  * {@link ContentCensusJobConfiguration} use — this is one corpus-wide read over already-stored rows,
@@ -25,8 +22,7 @@ public class SeedCorpusComparisonJobConfiguration {
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
             SeedCorpusComparisonTasklet seedCorpusComparisonTasklet) {
-        return new StepBuilder(SeedCorpusComparisonTasklet.STEP, jobRepository)
-                .tasklet(seedCorpusComparisonTasklet, transactionManager)
-                .build();
+        return TaskletSteps.taskletStep(
+                SeedCorpusComparisonTasklet.STEP, jobRepository, transactionManager, seedCorpusComparisonTasklet);
     }
 }
