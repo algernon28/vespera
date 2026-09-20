@@ -67,9 +67,13 @@ ajcore.*.txt
 /.serena/
 
 # A second agent tool's copy of the same installed skills, written at the repository root rather than
-# beside the first's. It is an install of something published elsewhere, restored by re-running the
-# installer, and it is one machine's choice of tooling rather than this repository's.
+# beside the first's, and the lockfile the installer writes next to it. Both are an install of
+# something published elsewhere, restored by re-running the installer, and both describe one
+# machine's choice of tooling rather than this repository's work. The lockfile pins the skills that
+# machine installed, not a dependency this project builds against -- nothing in the pom, the build or
+# any workflow reads it -- so checking it in would state a version this repository does not hold.
 /.opencode/
+/skills-lock.json
 
 # Qodana's local run: the SARIF report it writes at the repository root (megabytes of it, one file
 # per run), its cache directory, and the profile the IDE generated to produce them. All three are
