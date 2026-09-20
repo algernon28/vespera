@@ -75,6 +75,14 @@ ajcore.*.txt
 /.opencode/
 /skills-lock.json
 
+# The symlinks that hand those same installed skills to Claude Code, one per skill, pointing into the
+# install above. They are per-machine for the same reason it is, and they break the moment the
+# install moves: 25 of them pointed at a `.agents/skills/` directory that no longer existed, which
+# git reported as 25 warnings on every `git status` rather than as anything it could act on. The rest
+# of `.claude/` is checked in deliberately — the agents, the settings and the workflows are this
+# repository's, and only this one directory beneath it is an install.
+/.claude/skills/
+
 # Qodana's local run: the SARIF report it writes at the repository root (megabytes of it, one file
 # per run), its cache directory, and the profile the IDE generated to produce them. All three are
 # IDE-local today -- nothing in .github/workflows runs Qodana -- and `git add -A` sweeps them in
