@@ -500,9 +500,15 @@ public final class Deliverable {
      *
      * <p><b>A membership entry, not a table cell</b>, which is why this is not {@link #asLinkText}
      * (#246). Here the text is a path, the surrounding structure is a numbered list, and a pipe is an
-     * ordinary character; the backslash is escaped because a path on this filesystem can carry one.
-     * In a cell the pipe is structural and the backslash is not a hazard a label has carried. Three
-     * rules exist in this class because there are three surroundings — a cell, a list, and the CSV in
+     * ordinary character. The backslash is escaped first here too, but not on {@link #inACell}'s
+     * ground: this method inserts {@code \[} and {@code \]} just as that one inserts {@code \|}, so
+     * the hazard has the same shape — what it lacks here is an input. It is applied to
+     * {@code member.path().value()}, an {@code OccurrencePath} that is separator-normalised
+     * to {@code /} and cannot hold a backslash on NTFS (ADR-051) — nothing here should be read as
+     * claiming a path on this filesystem can carry one. The rule is kept anyway as cheap defence
+     * against an input that source rules out: a rule that escapes brackets without escaping the escape
+     * character first is the wrong shape to leave lying about for the next reader to copy. Three rules
+     * exist in this class because there are three surroundings — a cell, a list, and the CSV in
      * {@link #quoted} — and a value is only ever dangerous with respect to the one it lands in.
      */
     private static String escapeLinkText(String text) {
@@ -633,11 +639,19 @@ public final class Deliverable {
      * <p><b>Both are handled everywhere rather than where a value looks risky</b>, because a rule
      * applied per value is one more place for a page to silently become a different page.
      *
-     * <p><b>The backslash goes first</b>, as it does in {@link #escapeLinkText}: a label ending in one
-     * would otherwise turn the escape added after it into a literal backslash and a live delimiter,
-     * which is this defect reintroduced by the thing meant to prevent it. NTFS forbids a backslash in
-     * a filename, so the stem fallback cannot carry one — but the primary source is the document's own
-     * Docling title, which is arbitrary text, and "no label has carried one yet" is not a rule.
+     * <p><b>The backslash goes first, on a ground that is not about the data (ADR-134).</b> This
+     * method inserts its own escape character, and {@link #asLinkText} inserts more on top of what it
+     * returns; a rule that adds an escape character without first escaping a literal one already
+     * present is not a function of its input in the way it claims to be, because the two can merge.
+     * A label reading {@code Retrofits \| Phase 2} would otherwise become {@code Retrofits \\| Phase
+     * 2} — an escaped backslash followed by a live pipe, which is #246's defect reintroduced by the
+     * rule written to prevent it. This holds whatever the label turns out to contain.
+     *
+     * <p>What the data can carry corroborates rather than carries the decision: NTFS forbids a
+     * backslash in a filename, so the stem fallback cannot carry one, but the primary source is the
+     * document's own Docling title — arbitrary text lifted out of a title block, where a backslash is
+     * an ordinary printable character — and a cluster's title is unbounded text the generation model
+     * wrote under no filesystem constraint at all.
      */
     private static String inACell(String text) {
         return onOneLine(text).replace("\\", "\\\\").replace("|", "\\|");
@@ -664,9 +678,12 @@ public final class Deliverable {
      *
      * <p><b>This differs from {@link #escapeLinkText} deliberately</b>, and the two are not merged.
      * That one guards a membership entry, which is a list item rather than a table cell: a pipe there
-     * is an ordinary character, and the backslash it escapes matters because a path on this filesystem
-     * can hold one. This one guards a cell, where the pipe is structural and the backslash is not a
-     * hazard a cluster label has ever carried. Merging them would give each context the other's rules.
+     * is an ordinary character. This one guards a cell by way of {@link #inACell}, which escapes the
+     * backslash first because it is about to insert its own escapes on top of whatever the value
+     * carries; this method inserts two more, over an already-escaped result, so the same composition
+     * hazard {@link #inACell} guards against would recur here if it had not — a literal backslash left
+     * unescaped could still merge with the {@code \[} or {@code \]} added after it (ADR-134). Merging
+     * the two rules would give each context the other's rules.
      */
     private static String asLinkText(String text) {
         return inACell(text).replace("[", "\\[").replace("]", "\\]");

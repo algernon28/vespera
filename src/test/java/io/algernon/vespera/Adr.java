@@ -564,6 +564,16 @@ public final class Adr {
     public static final String THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED = FILE
             + "0133-the-exemplars-one-call-sent-are-recorded-and-a-cluster-file-numbers-its-membership-from-that-record.md";
 
+    /**
+     * ADR-134 — a line break in a value written into the deliverable is folded to a space rather than
+     * escaped or emitted as {@code <br>}, and three escaping rules stand in {@code Deliverable}
+     * because there are three surroundings, which is not the duplication ADR-130 consolidated. Also
+     * records the ASCII-only whitespace class as a decision, and keeps the backslash in the cell rule
+     * on the ground that a rule inserting its own escape character must escape that character first.
+     */
+    public static final String A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND = FILE
+            + "0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md";
+
     private Adr() {
     }
 }
