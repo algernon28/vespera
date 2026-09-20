@@ -62,7 +62,7 @@ flowchart TD
     classDef store fill:#f3eaff,stroke:#7a4fb5,color:#241238
     class S0,S3 measure
     class S1,S2,S4,S5 judge
-    class S6A,S6B,S7,ART out
+    class S6A,S6B,ART out
     class LEDGER store
 ```
 
@@ -263,12 +263,10 @@ flowchart TD
 
     classDef human fill:#fff4e6,stroke:#b5762a,color:#3d2a12
     classDef step fill:#eef4ff,stroke:#4a6fa5,color:#12243d
-    classDef later fill:#f5f5f5,stroke:#9a9a9a,color:#3a3a3a
     classDef store fill:#f3eaff,stroke:#7a4fb5,color:#241238
     classDef out fill:#eafaf1,stroke:#2f8f5b,color:#0f2e1e
     class OP human
-    class PREP,BOOT,JOB,S0,LATER step
-    class S6BSTEP later
+    class PREP,BOOT,JOB,S0,LATER,S6BSTEP step
     class STORE store
     class EXIT out
 ```
