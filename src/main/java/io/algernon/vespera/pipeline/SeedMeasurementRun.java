@@ -1,7 +1,6 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
@@ -43,6 +42,13 @@ import tools.jackson.databind.json.JsonMapper;
  * configuration this run consumed, which is why it is named in {@code configConsumed} instead. That
  * also keeps the upstream chain intact: stage 4's run is against the corpus walk, and a run may only
  * name an upstream over the same corpus.
+ *
+ * <p>Stage 4's run and stage 2's are learned rather than worked out: {@link UpstreamRuns} looks up the
+ * runs of those stages recorded against this walk (ADR-099). Stage 4's is this run's upstream (ADR-089).
+ * Stage 2's is not — it is the run whose {@code extraction_metric} rows carry the corpus side of the
+ * mismatch comparison (ADR-086), which has to be named to be read, since the seed side's rows sit
+ * under this run instead (ADR-092). Both lookups replace re-deriving every earlier stage's id in turn,
+ * which would drift silently if any earlier stage's configuration shape changed here.
  */
 @Component
 @JobScope
@@ -73,8 +79,6 @@ class SeedMeasurementRun {
     SeedMeasurementRun(
             Ledger ledger,
             ImplementationVersions implementationVersions,
-            ExtractorIdentity extractorIdentity,
-            DegenerateOutputConfidenceFloor confidenceFloor,
             RedundancyGate redundancyGate,
             SeedGate seedGate,
             @Value("#{jobParameters['root']}") Path root) {
@@ -91,10 +95,9 @@ class SeedMeasurementRun {
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 5"));
 
-        UpstreamRuns upstreamRuns =
-                upstreamRuns(implementationVersions, extractorIdentity, confidenceFloor, canonicalRoot, walkId, floor);
-        this.extractionRunId = upstreamRuns.extractionRunId();
-        this.redundancyRunId = upstreamRuns.redundancyRunId();
+        UpstreamRuns upstreamRuns = new UpstreamRuns(ledger);
+        this.extractionRunId = upstreamRuns.runOf(ExtractionRun.STAGE, walkId);
+        this.redundancyRunId = upstreamRuns.runOf(RedundancyRun.STAGE, walkId);
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, EXTRACTION_MODULE, PIPELINE_MODULE),
@@ -104,56 +107,15 @@ class SeedMeasurementRun {
     }
 
     /**
-     * The two upstream run ids this stage needs, re-derived from their known-fixed inputs rather than
-     * read off any in-process state — the same re-derivation {@link RedundancyRun} performs for stages
-     * 3, 2 and 1, and for the same reason: a run's id is wholly determined by ADR-048's four inputs, so
-     * recomputing it is exact rather than a guess, and the {@code run_upstream} foreign key enforces
-     * that a row actually exists under it.
-     *
-     * <p>Stage 4's is this run's upstream (ADR-089). Stage 2's is not — it is the run whose {@code
-     * extraction_metric} rows carry the corpus side of the mismatch comparison (ADR-086), which has to
-     * be named to be read, since the seed side's rows sit under this run instead (ADR-092).
-     */
-    private static UpstreamRuns upstreamRuns(
-            ImplementationVersions implementationVersions,
-            ExtractorIdentity extractorIdentity,
-            DegenerateOutputConfidenceFloor confidenceFloor,
-            Path canonicalRoot,
-            WalkId walkId,
-            double floor) {
-        RunId byteLevelReductionRunId = RunId.of(
-                implementationVersions.of(ByteLevelReductionTasklet.OWNING_MODULE),
-                ByteLevelReductionTasklet.CONFIG_CONSUMED,
-                walkId,
-                List.of());
-        RunId extractionRunId = RunId.of(
-                implementationVersions.of(ExtractionRun.OWNING_MODULE, ExtractionRun.SIMILARITY_MODULE),
-                ExtractionRun.configConsumed(extractorIdentity, confidenceFloor),
-                walkId,
-                List.of(byteLevelReductionRunId));
-        RunId contentCensusRunId = RunId.of(
-                implementationVersions.of(
-                        ContentCensusRun.OWNING_MODULE,
-                        ContentCensusRun.EXTRACTION_MODULE,
-                        ContentCensusRun.PIPELINE_MODULE),
-                ContentCensusRun.configConsumed(canonicalRoot, extractionRunId),
-                walkId,
-                List.of(extractionRunId));
-        RunId redundancyRunId = RunId.of(
-                implementationVersions.of(
-                        RedundancyRun.OWNING_MODULE, RedundancyRun.EXTRACTION_MODULE, RedundancyRun.PIPELINE_MODULE),
-                RedundancyRun.configConsumed(canonicalRoot, contentCensusRunId, floor),
-                walkId,
-                List.of(contentCensusRunId));
-        return new UpstreamRuns(extractionRunId, redundancyRunId);
-    }
-
-    /**
      * {@code configConsumed} names the corpus root, the seed folder and the upstream run id — ADR-083
      * leans on the middle one: a corpus scored against a changed seed set is a different run, which is
      * what makes "scoring proceeds against the seeds that survived extraction" safe without a check.
+     *
+     * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
+     * a later stage could have re-derived this run's identity by reproducing this JSON shape, and
+     * stages now look a run up instead.
      */
-    static String configConsumed(Path canonicalRoot, Path canonicalSeedFolder, RunId redundancyRunId) {
+    private static String configConsumed(Path canonicalRoot, Path canonicalSeedFolder, RunId redundancyRunId) {
         return JSON_MAPPER.writeValueAsString(new ConfigConsumed(
                 canonicalRoot.toString(), canonicalSeedFolder.toString(), redundancyRunId.value()));
     }
@@ -176,7 +138,4 @@ class SeedMeasurementRun {
     }
 
     private record ConfigConsumed(String root, String seedFolder, String redundancyRunId) {}
-
-    /** The two re-derived upstream ids, returned together so the derivation runs once. */
-    private record UpstreamRuns(RunId extractionRunId, RunId redundancyRunId) {}
 }
