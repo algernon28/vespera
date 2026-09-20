@@ -6,7 +6,9 @@ import java.util.Locale;
 /**
  * Renders a {@link ConfidenceDistribution.Distribution} as one self-contained HTML file (ADR-075) —
  * plain, hand-assembled HTML, no templating library, no new dependency (ADR-046: the pom carries what
- * a recorded decision requires, not what current code happens to use).
+ * a recorded decision requires, not what current code happens to use) — through the shared {@link
+ * ReportPage} module the reports beside the database all supply their title, prose and rows to
+ * (ADR-130).
  *
  * <p>Lives in {@code pipeline} rather than {@code extraction} because rendering is composition over a
  * value {@code extraction} already computed and handed back — the same reason {@link
@@ -27,53 +29,33 @@ final class ConfidenceDistributionReport {
         StringBuilder rows = new StringBuilder();
         for (ConfidenceDistribution.Bucket bucket : distribution.buckets()) {
             double proportion = total == 0 ? 0.0 : (double) bucket.documentCount() / total;
-            rows.append("<tr>")
-                    .append("<td>")
-                    .append(escape(bucket.grade()))
-                    .append("</td>")
-                    .append("<td>")
-                    .append(formatRange(bucket.lowerBound(), bucket.upperBound()))
-                    .append("</td>")
-                    .append("<td>")
-                    .append(bucket.documentCount())
-                    .append("</td>")
-                    .append("<td><div class=\"bar\" style=\"width:")
-                    .append(String.format(Locale.ROOT, "%.1f", proportion * 100))
-                    .append("%\"></div></td>")
-                    .append("</tr>\n");
+            rows.append(ReportPage.row(
+                    ReportPage.textCell(bucket.grade()),
+                    ReportPage.textCell(formatRange(bucket.lowerBound(), bucket.upperBound())),
+                    ReportPage.htmlCell(Long.toString(bucket.documentCount())),
+                    ReportPage.htmlCell("<div class=\"bar\" style=\"width:"
+                            + String.format(Locale.ROOT, "%.1f", proportion * 100)
+                            + "%\"></div>")));
         }
 
-        return "<!DOCTYPE html>\n"
-                + "<html lang=\"en\">\n"
-                + "<head>\n"
-                + "<meta charset=\"UTF-8\">\n"
-                + "<title>Confidence-score distribution</title>\n"
-                + "<style>\n"
-                + "body { font-family: sans-serif; margin: 2em; }\n"
-                + "table { border-collapse: collapse; width: 100%; max-width: 800px; }\n"
-                + "th, td { border: 1px solid #ccc; padding: 0.4em 0.8em; text-align: left; }\n"
-                + ".bar { background: #4a90d9; height: 1em; }\n"
-                + "</style>\n"
-                + "</head>\n"
-                + "<body>\n"
-                + "<h1>Confidence-score distribution</h1>\n"
-                + "<p>Stage 2's <code>extraction_metric.mean_score</code> over every stage-2 survivor, "
-                + "excluding any occurrence whose score is not computed. Total documents counted: "
-                + total + ".</p>\n"
-                + "<table>\n"
-                + "<thead><tr><th>Grade</th><th>Score range</th><th>Documents</th><th>Proportion</th></tr></thead>\n"
-                + "<tbody>\n"
-                + rows
-                + "</tbody>\n"
-                + "</table>\n"
-                + "<p>Write the number you choose into <code>degenerateOutputConfidenceFloor</code> in "
-                + "the profile, and say in its <code>provenance</code> how you arrived at it. A document "
-                + "whose mean score falls below it is treated as degenerate output and removed. The key "
-                + "ships unset, and while it is unset no score is low enough to remove anything — "
-                + "this distribution is what a first run measures so that the number can be read off it "
-                + "rather than guessed.</p>\n"
-                + "</body>\n"
-                + "</html>\n";
+        String body = ReportPage.heading(1, "Confidence-score distribution")
+                + ReportPage.paragraph("Stage 2's <code>extraction_metric.mean_score</code> over every "
+                        + "stage-2 survivor, excluding any occurrence whose score is not computed. Total "
+                        + "documents counted: " + total + ".")
+                + ReportPage.table(
+                        "<thead>"
+                                + ReportPage.headerRow(
+                                        "Grade", "Score range", "Documents", "Proportion")
+                                + "</thead>\n<tbody>\n",
+                        rows + "</tbody>\n")
+                + ReportPage.paragraph("Write the number you choose into "
+                        + "<code>degenerateOutputConfidenceFloor</code> in the profile, and say in its "
+                        + "<code>provenance</code> how you arrived at it. A document whose mean score "
+                        + "falls below it is treated as degenerate output and removed. The key ships "
+                        + "unset, and while it is unset no score is low enough to remove anything — this "
+                        + "distribution is what a first run measures so that the number can be read off "
+                        + "it rather than guessed.");
+        return ReportPage.render("Confidence-score distribution", body);
     }
 
     private static String formatRange(double lowerBound, double upperBound) {
@@ -82,9 +64,5 @@ final class ConfidenceDistributionReport {
 
     private static String format(double value) {
         return String.format(Locale.ROOT, "%.2f", value);
-    }
-
-    private static String escape(String value) {
-        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }
