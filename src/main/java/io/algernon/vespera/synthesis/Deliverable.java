@@ -185,7 +185,7 @@ public final class Deliverable {
             Files.createDirectories(partitionDir);
 
             index.append("\n## ")
-                    .append(seedPath)
+                    .append(onOneLine(seedPath))
                     .append("\n\n")
                     .append(INDEX_TABLE_HEADER)
                     .append('\n')
@@ -217,7 +217,7 @@ public final class Deliverable {
             List<ListedSurvivor> members,
             String corpusRoot)
             throws IOException {
-        String label = escapeCell(recorded.label().value());
+        String label = inACell(recorded.label().value());
         int documentCount = recorded.cluster().documentCount();
         RecordedSynthesisDoc doc = writtenByCluster.get(ClusterKey.of(recorded));
         String clusterFileName =
@@ -241,13 +241,13 @@ public final class Deliverable {
         }
         String link = partitionDirName + "/" + clusterFileName;
         index.append("| [")
-                .append(label)
+                .append(asLinkText(recorded.label().value()))
                 .append("](")
                 .append(link)
                 .append(") | ")
                 .append(documentCount)
                 .append(" | ")
-                .append(escapeCell(doc.doc().title()))
+                .append(inACell(doc.doc().title()))
                 .append(" |\n");
         writeClusterFile(
                 partitionDir.resolve(clusterFileName),
@@ -400,7 +400,16 @@ public final class Deliverable {
         }
     }
 
-    /** {@code text} as Markdown link text: the two characters that would close or nest the link escaped. */
+    /**
+     * {@code text} as Markdown link text: the two characters that would close or nest the link escaped.
+     *
+     * <p><b>A membership entry, not a table cell</b>, which is why this is not {@link #asLinkText}
+     * (#246). Here the text is a path, the surrounding structure is a numbered list, and a pipe is an
+     * ordinary character; the backslash is escaped because a path on this filesystem can carry one.
+     * In a cell the pipe is structural and the backslash is not a hazard a label has carried. Three
+     * rules exist in this class because there are three surroundings — a cell, a list, and the CSV in
+     * {@link #quoted} — and a value is only ever dangerous with respect to the one it lands in.
+     */
     private static String escapeLinkText(String text) {
         return text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]");
     }
@@ -510,9 +519,56 @@ public final class Deliverable {
         return extension < 0 ? filename : filename.substring(0, extension);
     }
 
-    /** A table cell rendered for the operator (ADR-122): the pipe that would break the row, escaped. */
-    private static String escapeCell(String text) {
-        return text.replace("|", "\\|");
+    /**
+     * One cell of the index, made safe to sit in a Markdown table (ADR-122, #246).
+     *
+     * <p>Every value this guards is text this project did not write. A cluster's label is a document's
+     * own title as Docling read it, falling back to its filename stem (ADR-106); a cluster's title is
+     * what the model answered; a partition's heading is a path out of the archive. None of them was
+     * composed to sit in a table, and two characters end one:
+     *
+     * <ul>
+     *   <li>A {@code |} closes the cell where it stands and shifts every value after it one column
+     *       along, so a row says something different from what it was given.
+     *   <li>A line break ends the <em>table</em>. Markdown stops a table at the first line that is not
+     *       a row, so everything below it — every remaining cluster of every remaining partition —
+     *       renders as prose. Nothing fails; the page is simply missing most of what it lists.
+     * </ul>
+     *
+     * <p><b>Both are handled everywhere rather than where a value looks risky</b>, because a rule
+     * applied per value is one more place for a page to silently become a different page.
+     */
+    private static String inACell(String text) {
+        return onOneLine(text).replace("|", "\\|");
+    }
+
+    /**
+     * {@code text} as a single line, which is what every structure in the index needs of it (#246).
+     *
+     * <p>A table row ends at a line break and so does a heading, so a value carrying one does not
+     * merely look wrong — it ends the thing it was written into and turns what follows into prose.
+     * The break is folded into a space rather than escaped, because Markdown has no escape for it in
+     * either place, and a title that wrapped in the document it came from means one line here.
+     */
+    private static String onOneLine(String text) {
+        return text.replaceAll("\\s+", " ").strip();
+    }
+
+    /**
+     * The words a link in the index is made of, which cannot carry a bracket of their own (#246).
+     *
+     * <p>{@link #inACell} and then the two brackets: a {@code ]} in a cluster's label would close the
+     * link where it appears, so what a reader clicks is a fragment of the name and the rest of it sits
+     * beside a bare path.
+     *
+     * <p><b>This differs from {@link #escapeLinkText} deliberately</b>, and the two are not merged.
+     * That one guards a membership entry, which is a list item rather than a table cell: a pipe there
+     * is an ordinary character, and the backslash it escapes matters because a path on this filesystem
+     * can hold one. This one guards a cell, where the pipe is structural and the backslash is not a
+     * hazard a cluster label has ever carried. Merging them would give each context the other's rules.
+     */
+    private static String asLinkText(String text) {
+        return inACell(text).replace("[", "\\[").replace("]", "\\]");
     }
 
     /**

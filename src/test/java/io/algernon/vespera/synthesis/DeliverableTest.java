@@ -103,6 +103,26 @@ class DeliverableTest {
     /** Its counterpart, placed second while sorting first. */
     private static final String THE_NAME_THAT_SORTS_FIRST = "Access Platforms";
 
+    /**
+     * A label carrying what a Docling title can carry and a table cannot: a line break and a pipe.
+     *
+     * <p>Neither is exotic. A title is read off the document's own first heading, which wraps in the
+     * document it came from, and a pipe is an ordinary character in one.
+     */
+    private static final String A_NAME_WITH_A_BREAK_AND_A_PIPE = "Fire Suppression\nRetrofits | Phase 2";
+
+    /** That same name as a reader should meet it: on one line, with the pipe left as a pipe. */
+    private static final String THAT_NAME_MADE_SAFE = "Fire Suppression Retrofits \\| Phase 2";
+
+    /** How many groups the hostile-name fixture arranges, which is how many rows its table must keep. */
+    private static final int TWO_GROUPS = 2;
+
+    /** A label carrying the bracket that would close a link early, which a filename stem can hold. */
+    private static final String A_NAME_WITH_A_BRACKET = "Retrofits [2019] and after";
+
+    /** And that one as link text: the brackets escaped, so the whole name stays inside the link. */
+    private static final String THAT_NAME_AS_LINK_TEXT = "Retrofits \\[2019\\] and after";
+
     /** The first place in an order, which both levels count from (ADR-112). */
     private static final int FIRST_PLACE = 1;
 
@@ -401,6 +421,73 @@ class DeliverableTest {
                                 .indexOf(THE_LABEL))
                         .isLessThan(Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME))
                                 .indexOf(THE_NAME_THAT_SORTS_FIRST)));
+    }
+
+    @Test
+    @Story("A name out of the archive cannot rewrite the page it is listed on")
+    @DisplayName("A group named across two lines is listed on one, and the table below it survives")
+    @Issue("246")
+    void keepsTheTableWholeWhenANameCarriesALineBreakOrAPipe(@TempDir Path workingDirectory) throws IOException {
+        RecordedCluster hostile = aCluster(FIRST_ORDINAL, A_NAME_WITH_A_BREAK_AND_A_PIPE, FIRST_PLACE, FIRST_PLACE);
+        RecordedCluster after = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
+
+        Path tree = Deliverable.writeTo(
+                workingDirectory,
+                provenance(THE_SEED_FOLDER_VALUE),
+                List.of(hostile, after),
+                List.of(),
+                membersOfBothClusters());
+
+        String index = Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME));
+
+        claim(
+                "the name is listed on one line with its pipe escaped, because a line break ends the"
+                        + " table where it stands and a pipe ends the cell: a title is read off the"
+                        + " document's own heading, which wrapped in the document it came from, and"
+                        + " neither character says anything about the group it names",
+                () -> assertThat(index).contains(THAT_NAME_MADE_SAFE));
+        claim(
+                "and the group listed after it is still a row of that table rather than prose beneath a"
+                        + " table that ended early -- which is the whole of the damage, since nothing"
+                        + " fails and the page simply stops listing what it was written to list",
+                () -> assertThat(lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THE_NAME_THAT_SORTS_FIRST))
+                        .startsWith("| ")
+                        .endsWith(" |"));
+        claim(
+                "so both of the " + TWO_GROUPS + " groups are still rows, counted rather than eyeballed:"
+                        + " a claim that only read the second one would pass just as well on a table"
+                        + " holding nothing else. The header is not one of them -- it opens the table"
+                        + " rather than listing anything, and counting it would hide the loss of a row",
+                () -> assertThat(index.lines()
+                                .filter(line -> line.startsWith("| "))
+                                .filter(line -> !line.contains(INDEX_TABLE_HEADER))
+                                .count())
+                        .isEqualTo(TWO_GROUPS));
+    }
+
+    @Test
+    @Story("A name out of the archive cannot rewrite the page it is listed on")
+    @DisplayName("A group whose name holds a bracket is linked by the whole name, not a fragment of it")
+    @Issue("246")
+    void keepsTheLinkWholeWhenANameCarriesABracket(@TempDir Path workingDirectory) throws IOException {
+        Path tree = Deliverable.writeTo(
+                workingDirectory,
+                provenance(THE_SEED_FOLDER_VALUE),
+                List.of(aCluster(FIRST_ORDINAL, A_NAME_WITH_A_BRACKET, FIRST_PLACE, FIRST_PLACE)),
+                List.of(writingFor(FIRST_ORDINAL)),
+                survivors(FIRST_ORDINAL));
+
+        String row = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), "Retrofits");
+
+        claim(
+                "the brackets in the name are escaped, so the link carries the whole name: an unescaped"
+                        + " ] closes the link where it appears, leaving a reader clicking a fragment of"
+                        + " the name with the rest of it sitting beside a bare path",
+                () -> assertThat(row).contains("[" + THAT_NAME_AS_LINK_TEXT + "]("));
+        claim(
+                "and the file it points at is the one on disk, named from the same label -- the link's"
+                        + " text and its destination are derived from one name and must not part company",
+                () -> assertThat(row).contains("](" + THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED + "/"));
     }
 
     @Test
