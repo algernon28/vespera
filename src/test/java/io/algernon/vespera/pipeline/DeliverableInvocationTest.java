@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -231,6 +232,9 @@ class DeliverableInvocationTest {
     /** How many clusters the one seed of this fixture breaks into once a second is put beside it. */
     private static final int TWO_CLUSTERS = 2;
 
+    /** And how many this corpus arranges on its own, which is how many pages its tree holds. */
+    private static final int ONE_CLUSTER = 1;
+
     /** What a cluster left unwritten costs the tree: nothing but its own page. */
     private static final int ONE_CLUSTER_LEFT_UNWRITTEN = 1;
 
@@ -257,6 +261,12 @@ class DeliverableInvocationTest {
 
     /** And what the second holds. */
     private static final String WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS = "a second corpus document";
+
+    /**
+     * A bracketed ordinal not immediately followed by {@code (}, which is a citation the page failed to
+     * rewrite (ADR-109): a link's own {@code [n]} is followed by its destination and so is not one.
+     */
+    private static final Pattern A_RAW_CITATION = Pattern.compile("\\[\\d+\\](?!\\()");
 
     /** Every key the profile carries, each of which the index states beside the value it held. */
     private static final List<String> EVERY_PROFILE_KEY = List.of(
@@ -581,6 +591,40 @@ class DeliverableInvocationTest {
     }
 
     @Test
+    @Story("Whatever comes after the hand-off can be built without reading the prose")
+    @DisplayName("A group's own page carries the writing with its citation resolved and the whole group beneath it")
+    @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
+    void writesAPageWhoseCitationLeadsToADocumentOfTheArchive(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+
+        cli.run("run", root.toString());
+
+        String page = theClusterPageOf(root);
+
+        claim(
+                "the citation the model wrote is a link to an entry of the list below rather than the"
+                        + " notation it arrived as, on a page a whole invocation produced: every other"
+                        + " claim about this rewriting is made against the writer holding values by hand,"
+                        + " and none of them says a real run reaches it",
+                () -> assertThat(page).contains("[1](#document-1)"));
+        claim(
+                "and no raw marker is left anywhere on it, so what a reader meets is the link and never"
+                        + " the model's own numbering",
+                () -> assertThat(A_RAW_CITATION.matcher(page).find()).isFalse());
+        claim(
+                "the entry that citation points at is the first of the list, and both of this corpus's "
+                        + TWO_DOCUMENTS + " documents are on it -- the group entire, not the one document"
+                        + " the writing happened to cite",
+                () -> assertThat(page).contains("1. <a id=\"document-1\"></a>[", "2. <a id=\"document-2\"></a>["));
+        claim(
+                "and each entry leads on to the document where it already sits, as a link into the"
+                        + " archive: that is the second click of the chain, and it is the whole of what"
+                        + " this tool owes a reader who doubts a sentence",
+                () -> assertThat(page).contains("corpus.txt](file:", "another-corpus-document.txt](file:"));
+    }
+
+    @Test
     @Story("The archive is referenced and never copied")
     @DisplayName("Nothing in the tree is a copy of a document, and the archive is left exactly as it was")
     void copiesNoOriginalIntoTheTree(@TempDir Path root, @TempDir Path seeds) throws IOException {
@@ -713,6 +757,25 @@ class DeliverableInvocationTest {
                 .skip(1)
                 .filter(line -> !line.isBlank())
                 .toList();
+    }
+
+    /**
+     * The one cluster's page beneath the tree this corpus's work wrote.
+     *
+     * <p>Found as the one Markdown file that is not the index, rather than by composing the name from
+     * a label and an ordinal: a claim about what a page carries should not also depend on this test
+     * having predicted what the page would be called.
+     */
+    private String theClusterPageOf(Path root) throws IOException {
+        List<Path> pages = everyFileIn(theTreeOf(root)).stream()
+                .filter(file -> file.getFileName().toString().endsWith(".md"))
+                .filter(file -> !file.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME))
+                .toList();
+        if (pages.size() != ONE_CLUSTER) {
+            throw new IllegalStateException(
+                    "this corpus arranges one group and so writes one page, and the tree holds " + pages.size());
+        }
+        return Files.readString(pages.getFirst());
     }
 
     /** The index of the tree this corpus's work wrote, read at the moment a claim asks for it. */

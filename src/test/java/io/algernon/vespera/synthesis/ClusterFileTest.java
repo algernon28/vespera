@@ -25,11 +25,16 @@ import org.junit.jupiter.api.io.TempDir;
  * with, the writing with its citations resolved into links, the disclosure where the writing rests on
  * part of the cluster, and the complete membership below it.
  *
- * <p>Written against the writer rather than through an invocation, because the states these claims
- * are about are ones a fixture corpus cannot reach: a cluster written from a strict subset of its
- * documents, a cluster nothing was written over, and a document whose own name carries a character the
+ * <p>Written against the writer rather than through an invocation for the states a fixture corpus
+ * cannot reach: a cluster written from a strict subset of its documents, a cluster whose recorded size
+ * is larger than the list handed to the page, and a document whose own name carries a character the
  * JDK's path parser refuses. A local Markdown page is read at the moment it is written, so its own
  * bytes are the evidence — nothing here renders it.
+ *
+ * <p><b>That a real invocation reaches this page at all is claimed where the invocation is</b>:
+ * {@code DeliverableInvocationTest} drives the whole run and reads the page it produced, because every
+ * claim here is made over values handed in by hand, and a writer that is never called writes a page
+ * nobody ever sees.
  *
  * <p><b>The archive is referenced and never touched.</b> ADR-104 says a membership entry links to the
  * original as an absolute {@code file:} target and that nothing is stat-ed to build it, and every
@@ -138,10 +143,13 @@ class ClusterFileTest {
                 () -> assertThat(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE))
                         .isRegularFile());
         claim(
-                "and no file is named from the heading: a path that followed the model's title would move"
-                        + " the moment the model was asked again",
-                () -> assertThat(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_TITLE_SLUGGED + ".md"))
-                        .doesNotExist());
+                "and it is the only file the partition holds, so no path anywhere in it followed the"
+                        + " model's title -- \"" + THE_TITLE_SLUGGED + "\" under any ordinal included --"
+                        + " because a path that did would move the moment the model was asked again",
+                () -> assertThat(tree.resolve(THE_PARTITION_DIRECTORY))
+                        .isDirectoryContaining(file -> file.getFileName().toString().equals(THE_CLUSTER_PAGE))
+                        .isDirectoryNotContaining(
+                                file -> file.getFileName().toString().contains(THE_TITLE_SLUGGED)));
     }
 
     @Test
@@ -238,9 +246,16 @@ class ClusterFileTest {
                         + " numbering in the writing and the numbering on the page are one numbering and a"
                         + " citation resolves by construction rather than by looking a document up",
                 () -> assertThat(page)
-                        .contains("1. [reports/high.pdf]")
-                        .contains("2. [reports/middle.pdf]")
-                        .contains("3. [reports/low.pdf]"));
+                        .contains("1. <a id=\"document-1\"></a>[reports/high.pdf]")
+                        .contains("2. <a id=\"document-2\"></a>[reports/middle.pdf]")
+                        .contains("3. <a id=\"document-3\"></a>[reports/low.pdf]"));
+        claim(
+                "and no entry's anchor sits on a line of its own: an anchor tag alone on a line is a"
+                        + " paragraph, and a numbered entry can interrupt a paragraph only at 1 -- so entry "
+                        + THE_FIRST_ENTRY + " would open a list and every entry after it would be swallowed"
+                        + " into the text above it, leaving a page whose bytes hold the whole group and"
+                        + " whose rendering shows one document and a wall of prose",
+                () -> assertThat(page).doesNotContain("</a>\n"));
         claim(
                 "and the page says how many of them the writing rests on, naming both numbers, so a reader"
                         + " knows the prose was written from the " + ONE_DOCUMENT_SENT + " closest of "
@@ -269,6 +284,31 @@ class ClusterFileTest {
     }
 
     @Test
+    @Story("The list below is the whole group, not the part the writing happened to mention")
+    @DisplayName("The sentence about how much was read counts the group as it was arranged")
+    @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
+    void countsTheDisclosureFromTheArrangementRatherThanTheListItWasHanded(@TempDir Path workingDirectory)
+            throws IOException {
+        String page = pageOf(write(
+                workingDirectory,
+                new SynthesisDoc(THE_TITLE, "The closest one [1] is the retrofit.", ONE_DOCUMENT_SENT),
+                List.of(
+                        aMember(10, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
+                        aMember(11, "reports/middle.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL)),
+                THREE_DOCUMENTS));
+
+        claim(
+                "the sentence names " + THREE_DOCUMENTS + ", the size the group was arranged at, and not"
+                        + " the " + TWO_DOCUMENTS + " entries this page was handed: the size is stated once,"
+                        + " where the group was arranged, and a page that counted its own list instead would"
+                        + " be a second statement of it -- free to disagree with the index in the one"
+                        + " sentence a reader is invited to trust the number in",
+                () -> assertThat(page)
+                        .contains("Written from the " + ONE_DOCUMENT_SENT + " highest-scoring of "
+                                + THREE_DOCUMENTS + " documents."));
+    }
+
+    @Test
     @Story("A claim leads to the document behind it in two clicks")
     @DisplayName("A name carrying a space or a quote becomes a link a reader can still follow")
     void escapesCharactersThatWouldBreakTheLink(@TempDir Path workingDirectory) throws IOException {
@@ -291,11 +331,20 @@ class ClusterFileTest {
                 () -> assertThat(page).contains("phase%20%22two%22.pdf"));
     }
 
-    /** Writes one tree holding one cluster, and returns its root. */
+    /** Writes one tree holding one cluster arranged at the size of the list it holds, and returns its root. */
     private static Path write(Path workingDirectory, SynthesisDoc doc, List<ListedSurvivor> members) {
+        return write(workingDirectory, doc, members, members.size());
+    }
+
+    /**
+     * The same, with the size the cluster was arranged at stated separately from the list handed in, so
+     * a claim can tell apart the number 6a recorded and the number this page could count for itself.
+     */
+    private static Path write(
+            Path workingDirectory, SynthesisDoc doc, List<ListedSurvivor> members, int documentCount) {
         List<RecordedCluster> arrangement =
                 List.of(new RecordedCluster(
-                        new ArrangedCluster(THE_SEED, FIRST_ORDINAL, members.size(), FIRST_PLACE, FIRST_PLACE),
+                        new ArrangedCluster(THE_SEED, FIRST_ORDINAL, documentCount, FIRST_PLACE, FIRST_PLACE),
                         new ClusterLabel(THE_LABEL)));
         List<RecordedSynthesisDoc> written = doc == null
                 ? List.of()
