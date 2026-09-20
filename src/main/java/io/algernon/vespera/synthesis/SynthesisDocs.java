@@ -2,13 +2,21 @@ package io.algernon.vespera.synthesis;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Stage 6b's record of what each call produced (ADR-108, ADR-110), behind this class and nothing else
- * querying the table (ADR-041).
+ * Stage 6b's record of what each call produced (ADR-108, ADR-110, ADR-133), behind this class and
+ * nothing else querying either of its two tables (ADR-041).
+ *
+ * <p><b>Two tables, written and read as one fact.</b> {@code synthesis_doc} carries what came back
+ * and {@code call_exemplar} carries which documents went out under which number, because the
+ * correspondence between a citation and a document cannot be re-derived anywhere downstream
+ * (ADR-133). Nothing outside this class ever sees them apart: a {@link SynthesisDoc} carries both.
  *
  * <p><b>The answer is kept rather than written straight out.</b> Generating is the most expensive
  * call this system makes, and what a reader opens is a rendering of this row rather than a copy of it:
@@ -36,31 +44,91 @@ public class SynthesisDocs {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** Records what one call produced for one cluster, under {@code runId}, which is the 6b run. */
+    /**
+     * Records what one call produced for one cluster, under {@code runId}, which is the 6b run.
+     *
+     * <p><b>The documents it was written from land first, and anything standing under that key is
+     * cleared before they do</b> (ADR-133). The {@code synthesis_doc} row is what tells a later
+     * invocation the cluster is already written (ADR-111, ADR-115), so it has to be the last thing
+     * to appear: an invocation that died between the two statements would otherwise leave exemplar
+     * rows nothing points at, and the re-attempt that follows would collide with them. In this order
+     * a half-written cluster is one nothing was written over, which is the state the next invocation
+     * already knows how to finish.
+     */
     public void record(RunId runId, OccurrenceId winningSeed, int clusterOrdinal, SynthesisDoc doc) {
         jdbcTemplate.update(
+                "DELETE FROM call_exemplar WHERE run_id = ? AND winning_seed_occurrence_id = ? AND"
+                        + " cluster_ordinal = ?",
+                runId.value(),
+                winningSeed.value(),
+                clusterOrdinal);
+        int citationOrdinal = 0;
+        for (OccurrenceId sent : doc.sent()) {
+            citationOrdinal++;
+            jdbcTemplate.update(
+                    "INSERT INTO call_exemplar (run_id, winning_seed_occurrence_id, cluster_ordinal,"
+                            + " citation_ordinal, occurrence_id) VALUES (?, ?, ?, ?, ?)",
+                    runId.value(),
+                    winningSeed.value(),
+                    clusterOrdinal,
+                    citationOrdinal,
+                    sent.value());
+        }
+        jdbcTemplate.update(
                 "INSERT INTO synthesis_doc (run_id, winning_seed_occurrence_id, cluster_ordinal, title,"
-                        + " prose, documents_sent) VALUES (?, ?, ?, ?, ?, ?)",
+                        + " prose) VALUES (?, ?, ?, ?, ?)",
                 runId.value(),
                 winningSeed.value(),
                 clusterOrdinal,
                 doc.title(),
-                doc.prose(),
-                doc.documentsSent());
+                doc.prose());
     }
 
     /** Every synthesis doc recorded under {@code runId}, in the order the clusters were written. */
     public List<RecordedSynthesisDoc> forRun(RunId runId) {
+        Map<ClusterKey, List<OccurrenceId>> sent = whatEachCallSent(runId);
         return jdbcTemplate.query(
-                "SELECT winning_seed_occurrence_id, cluster_ordinal, title, prose, documents_sent"
+                "SELECT winning_seed_occurrence_id, cluster_ordinal, title, prose"
                         + " FROM synthesis_doc WHERE run_id = ? ORDER BY rowid",
-                (resultSet, rowNumber) -> new RecordedSynthesisDoc(
-                        new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
-                        resultSet.getInt("cluster_ordinal"),
-                        new SynthesisDoc(
-                                resultSet.getString("title"),
-                                resultSet.getString("prose"),
-                                resultSet.getInt("documents_sent"))),
+                (resultSet, rowNumber) -> {
+                    ClusterKey key = new ClusterKey(
+                            new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
+                            resultSet.getInt("cluster_ordinal"));
+                    return new RecordedSynthesisDoc(
+                            key.winningSeed(),
+                            key.clusterOrdinal(),
+                            new SynthesisDoc(
+                                    resultSet.getString("title"),
+                                    resultSet.getString("prose"),
+                                    sent.getOrDefault(key, List.of())));
+                },
                 runId.value());
     }
+
+    /**
+     * Which documents each call under {@code runId} carried, each in the order its own call was given
+     * them (ADR-133).
+     *
+     * <p>Read in one query rather than one per cluster: a run holds a call per cluster, and this is
+     * read where the terminal stage writes the whole tree in one pass.
+     */
+    private Map<ClusterKey, List<OccurrenceId>> whatEachCallSent(RunId runId) {
+        Map<ClusterKey, List<OccurrenceId>> sent = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT winning_seed_occurrence_id, cluster_ordinal, occurrence_id FROM call_exemplar"
+                        + " WHERE run_id = ? ORDER BY winning_seed_occurrence_id, cluster_ordinal,"
+                        + " citation_ordinal",
+                resultSet -> {
+                    ClusterKey key = new ClusterKey(
+                            new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
+                            resultSet.getInt("cluster_ordinal"));
+                    sent.computeIfAbsent(key, cluster -> new ArrayList<>())
+                            .add(new OccurrenceId(resultSet.getLong("occurrence_id")));
+                },
+                runId.value());
+        return sent;
+    }
+
+    /** One cluster of one run, as both tables here key it (ADR-110). */
+    private record ClusterKey(OccurrenceId winningSeed, int clusterOrdinal) {}
 }

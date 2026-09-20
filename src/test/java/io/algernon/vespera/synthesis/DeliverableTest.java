@@ -79,9 +79,6 @@ class DeliverableTest {
     /** The writing kept against it, whose text is not what this class is about. */
     private static final String THE_PROSE = "Both of them [1] describe the same retrofit.";
 
-    /** How many documents the call that produced that writing was able to send. */
-    private static final int DOCUMENTS_SENT = 2;
-
     /** How many documents the cluster holds, which is the number the index states. */
     private static final int DOCUMENTS_IN_THE_CLUSTER = 2;
 
@@ -395,7 +392,7 @@ class DeliverableTest {
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(unwritten, written),
-                List.of(writingFor(A_LATER_ORDINAL)),
+                List.of(writingFor(A_LATER_ORDINAL, 12L)),
                 membersOfBothClusters());
 
         String entry = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THE_LABEL);
@@ -618,7 +615,9 @@ class DeliverableTest {
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, THE_LABEL, SECOND_PLACE, SECOND_PLACE)),
-                List.of(writingFor(FIRST_ORDINAL)),
+                // Written over the one document this fixture holds, because the page numbers its
+                // membership from what the call carried (ADR-133) and this cluster holds one.
+                List.of(writingFor(FIRST_ORDINAL, new OccurrenceId(10))),
                 List.of(new ListedSurvivor(
                         new OccurrenceId(10),
                         new OccurrencePath(A_PATH_PUNCTUATED_LIKE_THE_FORMAT),
@@ -672,7 +671,12 @@ class DeliverableTest {
     /** The writing kept against the hostile-name cluster, whose heading carries a break of its own. */
     private static RecordedSynthesisDoc writingOverTheHostileCluster() {
         return new RecordedSynthesisDoc(
-                THE_SEED, FIRST_ORDINAL, new SynthesisDoc(A_HEADING_WITH_A_BREAK, THE_PROSE, DOCUMENTS_SENT));
+                THE_SEED,
+                FIRST_ORDINAL,
+                new SynthesisDoc(
+                        A_HEADING_WITH_A_BREAK,
+                        THE_PROSE,
+                        List.of(new OccurrenceId(10), new OccurrenceId(11))));
     }
 
     /** The destination of the one link in {@code row}, as a path relative to the tree's own root. */
@@ -705,9 +709,26 @@ class DeliverableTest {
         return inTables;
     }
 
-    /** The writing stage 6b kept against the cluster identified by {@code ordinal}. */
+    /** The writing stage 6b kept against the cluster identified by {@code ordinal}, over both its documents. */
     private static RecordedSynthesisDoc writingFor(int ordinal) {
-        return new RecordedSynthesisDoc(THE_SEED, ordinal, new SynthesisDoc(THE_TITLE, THE_PROSE, DOCUMENTS_SENT));
+        return writingFor(ordinal, 10L);
+    }
+
+    /**
+     * The same, over the two documents numbered from {@code firstOccurrenceId}.
+     *
+     * <p>Which documents the call carried is stated rather than counted, because the page numbers its
+     * membership from that list (ADR-133): a fixture naming documents the cluster does not hold is
+     * the integrity failure the writer refuses, so each of these names the survivors beside it.
+     */
+    private static RecordedSynthesisDoc writingFor(int ordinal, long firstOccurrenceId) {
+        return writingFor(ordinal, new OccurrenceId(firstOccurrenceId), new OccurrenceId(firstOccurrenceId + 1));
+    }
+
+    /** The same again, over exactly the documents named, in the order the call's ordinals were minted. */
+    private static RecordedSynthesisDoc writingFor(int ordinal, OccurrenceId... sent) {
+        return new RecordedSynthesisDoc(
+                THE_SEED, ordinal, new SynthesisDoc(THE_TITLE, THE_PROSE, List.of(sent)));
     }
 
     /** The two survivors that cluster holds, both of them under the one seed. */

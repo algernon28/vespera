@@ -14,6 +14,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
@@ -104,6 +105,12 @@ class ClusterFileTest {
     /** The first entry of the membership list, which is the document a call mints as its first ordinal. */
     private static final int THE_FIRST_ENTRY = 1;
 
+    /** The second, which is the document the call was given as [2] and not the second-highest scorer. */
+    private static final int THE_SECOND_ENTRY = 2;
+
+    /** The third, where a document the call never carried lands once the ones it did are numbered. */
+    private static final int THE_THIRD_ENTRY = 3;
+
     /** The relevance score of the document placed furthest from the seed, listed last. */
     private static final double A_LOW_SCORE = 0.1;
 
@@ -126,7 +133,7 @@ class ClusterFileTest {
     void leadsWithTheGeneratedTitleAndNamesTheFileFromTheLabel(@TempDir Path workingDirectory) throws IOException {
         Path tree = write(
                 workingDirectory,
-                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", ONE_DOCUMENT_SENT),
+                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
                 List.of(aMember(10, "reports/2019/retrofit.pdf", A_HIGH_SCORE, FIRST_ORDINAL)));
 
         String page = pageOf(tree);
@@ -182,7 +189,7 @@ class ClusterFileTest {
     void rewritesEveryCitationIntoALink(@TempDir Path workingDirectory) throws IOException {
         String page = pageOf(write(
                 workingDirectory,
-                new SynthesisDoc(THE_TITLE, "Both of them [1] describe it, and the third [2] too.", TWO_DOCUMENTS),
+                new SynthesisDoc(THE_TITLE, "Both of them [1] describe it, and the third [2] too.", sent(10, 11)),
                 List.of(
                         aMember(10, "reports/2019/retrofit.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
                         aMember(11, "reports/2021/follow-up.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL))));
@@ -207,7 +214,7 @@ class ClusterFileTest {
     void linksEveryMembershipEntryToTheOriginal(@TempDir Path workingDirectory) throws IOException {
         String page = pageOf(write(
                 workingDirectory,
-                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", ONE_DOCUMENT_SENT),
+                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
                 List.of(aMember(10, "reports/2019/retrofit.pdf", A_HIGH_SCORE, FIRST_ORDINAL))));
 
         claim(
@@ -225,7 +232,7 @@ class ClusterFileTest {
     void listsEveryMemberInScoreOrderIncludingThoseNeverSent(@TempDir Path workingDirectory) throws IOException {
         String page = pageOf(write(
                 workingDirectory,
-                new SynthesisDoc(THE_TITLE, "The closest one [1] is the retrofit.", ONE_DOCUMENT_SENT),
+                new SynthesisDoc(THE_TITLE, "The closest one [1] is the retrofit.", sent(11)),
                 List.of(
                         aMember(10, "reports/middle.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL),
                         aMember(11, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
@@ -241,10 +248,10 @@ class ClusterFileTest {
                         .contains("reports/middle.pdf")
                         .contains("reports/low.pdf"));
         claim(
-                "listed closest to the seed first, which is the order the call drew its documents in: entry"
-                        + " " + THE_FIRST_ENTRY + " is the document the model was given as [1], so the"
-                        + " numbering in the writing and the numbering on the page are one numbering and a"
-                        + " citation resolves by construction rather than by looking a document up",
+                "the one document the call carried is entry " + THE_FIRST_ENTRY + ", and the ones it never"
+                        + " carried follow it closest to the seed first: nothing was passed over here, so"
+                        + " numbering from what was sent comes out as closeness order -- which is the"
+                        + " ordinary case, and the case the two numberings always agreed in",
                 () -> assertThat(page)
                         .contains("1. <a id=\"document-1\"></a>[reports/high.pdf]")
                         .contains("2. <a id=\"document-2\"></a>[reports/middle.pdf]")
@@ -257,12 +264,81 @@ class ClusterFileTest {
                         + " whose rendering shows one document and a wall of prose",
                 () -> assertThat(page).doesNotContain("</a>\n"));
         claim(
-                "and the page says how many of them the writing rests on, naming both numbers, so a reader"
-                        + " knows the prose was written from the " + ONE_DOCUMENT_SENT + " closest of "
-                        + THREE_DOCUMENTS + " without going to look",
+                "and the page says how much of the group the writing rests on, naming both numbers, so a"
+                        + " reader knows the prose was written from " + ONE_DOCUMENT_SENT + " of "
+                        + THREE_DOCUMENTS + " without going to look -- and says it as the first of them"
+                        + " rather than the highest-scoring, because a document the call could not carry"
+                        + " is dropped wherever it scored and the ones it did carry are then the top of"
+                        + " nothing",
                 () -> assertThat(page)
-                        .contains("Written from the " + ONE_DOCUMENT_SENT + " highest-scoring of "
-                                + THREE_DOCUMENTS + " documents."));
+                        .contains("Written from the first " + ONE_DOCUMENT_SENT + " of the "
+                                + THREE_DOCUMENTS + " documents in this group."));
+    }
+
+    @Test
+    @Story("A claim leads to the document behind it in two clicks")
+    @DisplayName("Where a document was passed over, a citation still reaches the document it was written from")
+    @Issue("236")
+    @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
+    void numbersTheListFromWhatTheCallCarriedWhereAMemberWasPassedOver(@TempDir Path workingDirectory)
+            throws IOException {
+        String page = pageOf(write(
+                workingDirectory,
+                new SynthesisDoc(THE_TITLE, "The nearest [1] and the furthest [2] agree.", sent(10, 12)),
+                List.of(
+                        aMember(10, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
+                        aMember(11, "reports/middle.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL),
+                        aMember(12, "reports/low.pdf", A_LOW_SCORE, FIRST_ORDINAL))));
+
+        claim(
+                "entry " + THE_SECOND_ENTRY + " is the document the call was given as [2] -- the"
+                        + " furthest one -- and not the middle document, which scores higher than it and"
+                        + " was never sent: the call dropped that one, so numbering the group's own"
+                        + " documents by score would have pointed [2] at a document the writing was not"
+                        + " made from, and the link would have resolved, opened and been wrong",
+                () -> assertThat(page)
+                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>[reports/high.pdf]")
+                        .contains(THE_SECOND_ENTRY + ". <a id=\"document-2\"></a>[reports/low.pdf]"));
+        claim(
+                "and the document that was passed over is still listed, last of the " + THREE_DOCUMENTS
+                        + ": the page states the group as it was arranged, and a document nothing could"
+                        + " be written from is still one a reader can find and open",
+                () -> assertThat(page)
+                        .contains(THE_THIRD_ENTRY + ". <a id=\"document-3\"></a>[reports/middle.pdf]"));
+        claim(
+                "and the sentence about how much was read names the first " + TWO_DOCUMENTS + " of "
+                        + THREE_DOCUMENTS + ", which is true of this page and checkable on it: the two"
+                        + " that were sent are not the " + TWO_DOCUMENTS + " highest-scoring, and saying"
+                        + " so would have been the same wrong claim as the link, written in words",
+                () -> assertThat(page)
+                        .contains("Written from the first " + TWO_DOCUMENTS + " of the " + THREE_DOCUMENTS
+                                + " documents in this group."));
+    }
+
+    @Test
+    @Story("A claim leads to the document behind it in two clicks")
+    @DisplayName("A document the writing was made from and the group no longer holds keeps its number")
+    @Issue("236")
+    @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
+    void keepsTheNumberOfADocumentTheClusterNoLongerHolds(@TempDir Path workingDirectory) throws IOException {
+        String page = pageOf(write(
+                workingDirectory,
+                new SynthesisDoc(THE_TITLE, "The first [1] and the second [2] agree.", sent(10, 11)),
+                List.of(aMember(10, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL))));
+
+        claim(
+                "the document the group no longer holds keeps entry " + THE_SECOND_ENTRY + " and the"
+                        + " page says what it is, rather than the entry being dropped: [2] above points"
+                        + " at that number, and dropping the entry would move every document beneath it"
+                        + " up one and point live citations at other documents",
+                () -> assertThat(page)
+                        .contains(THE_SECOND_ENTRY + ". <a id=\"document-2\"></a>"
+                                + Deliverable.THE_CLUSTER_NO_LONGER_HOLDS_IT));
+        claim(
+                "and the page was still written rather than the run stopping over it: a throw from the"
+                        + " writer would roll back every fault this invocation had already recorded, and"
+                        + " an entry that says what happened costs nothing",
+                () -> assertThat(page).contains("[reports/high.pdf]"));
     }
 
     @Test
@@ -271,7 +347,7 @@ class ClusterFileTest {
     void disclosesNothingWhereTheWritingRestsOnTheWholeCluster(@TempDir Path workingDirectory) throws IOException {
         String page = pageOf(write(
                 workingDirectory,
-                new SynthesisDoc(THE_TITLE, "Both of them [1] describe it.", TWO_DOCUMENTS),
+                new SynthesisDoc(THE_TITLE, "Both of them [1] describe it.", sent(10, 11)),
                 List.of(
                         aMember(10, "reports/2019/retrofit.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
                         aMember(11, "reports/2021/follow-up.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL))));
@@ -291,7 +367,7 @@ class ClusterFileTest {
             throws IOException {
         String page = pageOf(write(
                 workingDirectory,
-                new SynthesisDoc(THE_TITLE, "The closest one [1] is the retrofit.", ONE_DOCUMENT_SENT),
+                new SynthesisDoc(THE_TITLE, "The closest one [1] is the retrofit.", sent(10)),
                 List.of(
                         aMember(10, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
                         aMember(11, "reports/middle.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL)),
@@ -304,8 +380,8 @@ class ClusterFileTest {
                         + " be a second statement of it -- free to disagree with the index in the one"
                         + " sentence a reader is invited to trust the number in",
                 () -> assertThat(page)
-                        .contains("Written from the " + ONE_DOCUMENT_SENT + " highest-scoring of "
-                                + THREE_DOCUMENTS + " documents."));
+                        .contains("Written from the first " + ONE_DOCUMENT_SENT + " of the "
+                                + THREE_DOCUMENTS + " documents in this group."));
     }
 
     @Test
@@ -314,7 +390,7 @@ class ClusterFileTest {
     void escapesCharactersThatWouldBreakTheLink(@TempDir Path workingDirectory) throws IOException {
         String page = pageOf(write(
                 workingDirectory,
-                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", ONE_DOCUMENT_SENT),
+                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
                 List.of(
                         aMember(10, "reports/follow-up report.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
                         aMember(11, "reports/2019/retrofit, phase \"two\".pdf", A_MIDDLE_SCORE, FIRST_ORDINAL))));
@@ -360,6 +436,19 @@ class ClusterFileTest {
     /** What produced the tree, with the archive root stated so the links compose against it. */
     private static DeliverableProvenance provenance() {
         return new DeliverableProvenance(RUN_ID, WALK, THE_ARCHIVE_ROOT, List.of());
+    }
+
+    /**
+     * The documents one call carried, named by their occurrences in the order its ordinals were
+     * minted (ADR-133) — so a fixture says which document {@code [n]} was given to the model as,
+     * rather than only how many documents went.
+     */
+    private static List<OccurrenceId> sent(long... occurrences) {
+        List<OccurrenceId> carried = new ArrayList<>();
+        for (long occurrence : occurrences) {
+            carried.add(new OccurrenceId(occurrence));
+        }
+        return List.copyOf(carried);
     }
 
     /** One survivor of the one cluster, at {@code path} with {@code score}. */

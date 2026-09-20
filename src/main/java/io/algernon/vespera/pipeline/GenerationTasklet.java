@@ -544,8 +544,10 @@ class GenerationTasklet implements Tasklet {
      *
      * <p>A document nothing was ever chunked from contributes nothing and is left out rather than sent
      * empty, and so does one the archive will no longer hand over. Either is a fact about that one
-     * document rather than a fault of the cluster or a reason to stop the run, and the count the call
-     * reports is what was actually sent — which is the number the finished document discloses.
+     * document rather than a fault of the cluster or a reason to stop the run — and a drop here is
+     * exactly why the documents the call carries are recorded one by one under the ordinals they were
+     * given (ADR-133): the sent set is not in general a prefix of this list, so nothing downstream
+     * could work out which document a citation meant.
      *
      * <p><b>A member carrying no score stops instead</b>, which is {@code Arrangement.partitionsOf}'s
      * rule one stage along and for its reason: the order these are sent in <em>is</em> the score, so a
@@ -566,7 +568,8 @@ class GenerationTasklet implements Tasklet {
             if (opening.isEmpty()) {
                 continue;
             }
-            exemplars.add(new Exemplar(opening.get().text(), opening.get().wordCount(), score));
+            exemplars.add(new Exemplar(
+                    member.occurrenceId(), opening.get().text(), opening.get().wordCount(), score));
         }
         return List.copyOf(exemplars);
     }

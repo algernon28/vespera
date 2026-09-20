@@ -32,13 +32,20 @@ import java.util.regex.Pattern;
  * a claim to an entry, and that entry to the original in the archive. Nothing the model wrote is
  * altered except the markers' rendering: the row still holds exactly what came back.
  *
+ * <p><b>The numbering that makes a citation land is read, not derived</b> (ADR-133). Which documents
+ * one call carried is recorded under the ordinals the model was given, and {@link #numbered} lays the
+ * membership out from that record: the documents the call carried first, in citation order, then
+ * every other survivor of the cluster highest-scoring first. Deriving score order a second time here
+ * agreed with the model only up to the first document the call had to drop.
+ *
  * <p><b>The archive is never touched.</b> No original is copied, and none is stat-ed (ADR-104): every
  * path here is written exactly as it was given, and nothing calls {@code Files.exists} against the
  * corpus root or anything beneath it.
  *
  * <p><b>Everything a reader of this tree sees says <em>group</em>; everything this class names says
- * <em>cluster</em></b> (ADR-122). {@link #NOTHING_WAS_WRITTEN_OVER_IT} is both halves on one line: a
- * bound name whose javadoc says cluster, holding a value that says group.
+ * <em>cluster</em></b> (ADR-122). {@link #NOTHING_WAS_WRITTEN_OVER_IT} and {@link
+ * #THE_CLUSTER_NO_LONGER_HOLDS_IT} are both halves on one line apiece: a bound name whose javadoc
+ * says cluster, holding a value that says group.
  *
  * <p><b>The order is rendered, never re-derived.</b> {@code arrangement} arrives already in the order
  * the operator approved (ADR-112), and neither level here is sorted again — a partition's position
@@ -64,6 +71,18 @@ public final class Deliverable {
      */
     static final String NOTHING_WAS_WRITTEN_OVER_IT = "*nothing was written over this group*";
 
+    /**
+     * What stands at the number of a document the writing was made from and the cluster no longer
+     * holds (ADR-133). Rendered prose, so it says <em>group</em> where the name holding it says
+     * cluster (ADR-122).
+     *
+     * <p>The entry is kept rather than dropped because a citation above points at its number:
+     * dropping it would move every document beneath it up one and leave those citations naming the
+     * wrong documents, which is the defect this numbering exists to close.
+     */
+    static final String THE_CLUSTER_NO_LONGER_HOLDS_IT =
+            "*a document the writing was made from, which this group no longer holds*";
+
     /** The header the index opens every partition's table with — rendered prose, not a column name. */
     private static final String INDEX_TABLE_HEADER = "| Group | Documents | Written up as |";
 
@@ -81,11 +100,18 @@ public final class Deliverable {
     private static final Pattern CITATION = Pattern.compile("\\[(\\d+)\\]");
 
     /**
-     * How the page says the writing rests on part of its cluster (ADR-108): the count the call sent
-     * and the count the cluster holds. Written only where those differ, so a page over the whole
-     * cluster carries no claim it cannot support.
+     * How the page says the writing rests on part of its cluster (ADR-108, ADR-133): the count the
+     * call sent and the count the cluster holds. Written only where those differ, so a page over the
+     * whole cluster carries no claim it cannot support.
+     *
+     * <p><b>The first, not the highest-scoring</b> (ADR-133). A document the call could not carry is
+     * dropped wherever it scored, so what was sent is in general not the top anything — where a drop
+     * happened the old sentence named a set including a document the prose was not written from,
+     * which is this ticket's defect stated in words instead of a link. What is true either way, and
+     * what a reader can check against the list on this very page, is that the writing was made from
+     * the entries this page numbers first.
      */
-    private static final String SUBSET_DISCLOSURE = "Written from the %d highest-scoring of %d documents.";
+    private static final String SUBSET_DISCLOSURE = "Written from the first %d of the %d documents in this group.";
 
     /**
      * What a citation link points at, and what each membership entry carries as its own anchor: the
@@ -268,10 +294,11 @@ public final class Deliverable {
      * over is still headed by something a reader can match against the index.
      *
      * <p><b>Each {@code [n]} becomes a link to membership entry {@code n}</b> (ADR-109), and the
-     * membership list is numbered in relevance-score order — the order the call drew its documents in
-     * — so entry {@code n} is the {@code n}th document the model was given and a citation resolves by
-     * construction. No raw marker survives, which also keeps a citation at the start of a line from
-     * parsing as a Markdown reference-link definition.
+     * membership list is numbered from the documents the call was recorded as carrying (ADR-133) —
+     * those first, in the order their ordinals were minted, then the rest highest-scoring first — so
+     * entry {@code n} is the {@code n}th document the model was given. No raw marker survives, which
+     * also keeps a citation at the start of a line from parsing as a Markdown reference-link
+     * definition.
      *
      * <p><b>The membership is complete, not the cited subset</b> (ADR-104), and every entry links to
      * the original in the archive as an absolute {@code file:} target composed from the recorded root
@@ -308,22 +335,85 @@ public final class Deliverable {
                         .append('\n');
             }
         }
-        if (!members.isEmpty()) {
+        List<MembershipEntry> numbered = numbered(doc, members);
+        if (!numbered.isEmpty()) {
             page.append('\n').append(MEMBERSHIP_HEADING).append("\n\n");
-            appendMembership(page, members, corpusRoot);
+            appendMembership(page, numbered, corpusRoot);
         }
         Files.writeString(file, page.toString(), StandardCharsets.UTF_8);
     }
 
     /**
-     * The cluster's whole membership, numbered in relevance-score order (ADR-104, ADR-109): every
-     * survivor sits at the place its score gives it, each entry carrying the anchor a citation in the
-     * prose above resolves to and a link to the original in the archive.
+     * The cluster's whole membership in the order this page numbers it (ADR-133): the documents the
+     * call carried first, in the order their citation ordinals give them, then every other survivor
+     * of the cluster highest-scoring first.
      *
-     * <p>Highest score first, because that is the order ADR-108 draws a call's exemplars in and the
-     * order the prompt numbers them: one numbering serves the prompt, the citation check and the
-     * reader. Ties keep the order the survivors arrived in, which is the order the exemplars arrive
-     * in, so an unstable sort can never put the page and the prose out of step.
+     * <p><b>This ordering is forced rather than preferred.</b> Entries are numbered {@code 1..M} down
+     * the page and a citation {@code [n]} has to reach the n-th of them, so if the documents the call
+     * carried were scattered through a globally score-ordered list, no sequential numbering of that
+     * list could agree with the ordinals the model was given. Sent-first is the only ordering under
+     * which one numbering serves the prompt, the check and the reader — which is ADR-109's own
+     * requirement, now met by a record instead of by an argument.
+     *
+     * <p><b>Where nothing was dropped this changes nothing.</b> The call fills in score order, so
+     * sent-first <em>is</em> score order whenever it carried the top {@code k} — which is the
+     * ordinary case. This differs from numbering in score order only on the clusters where numbering
+     * in score order was wrong.
+     *
+     * <p><b>A cluster nothing was written over keeps the list it had</b>: every document,
+     * highest-scoring first. There is no call, no record and no citation, so there is nothing for the
+     * numbering to serve.
+     *
+     * <p><b>A recorded exemplar this cluster no longer holds keeps its number and says so.</b> The
+     * entry is written as {@link #THE_CLUSTER_NO_LONGER_HOLDS_IT} rather than dropped, because a
+     * citation above points at that number and dropping it would move every document beneath it up
+     * one — which is this ticket's defect, reintroduced by the writer that was meant to close it. It
+     * is not thrown on: a throw from here escapes {@link #writeTo} and rolls back every fault row the
+     * invocation had already recorded (ADR-111), which is a heavy price for a state the ledger cannot
+     * reach — {@code document_cluster}'s rows are written once per scoring run and the approval fixes
+     * which run that is — and the honest entry costs nothing. The same entry catches one document
+     * recorded under two ordinals, which the record's own {@code UNIQUE} already refuses.
+     */
+    private static List<MembershipEntry> numbered(SynthesisDoc doc, List<ListedSurvivor> members) {
+        List<ListedSurvivor> inScoreOrder = new ArrayList<>(members);
+        // Ties keep the order the survivors arrived in, which is the order the exemplars were drawn
+        // in, so an unstable sort can never put two equally-scoring documents out of step with it.
+        inScoreOrder.sort(Comparator.comparingDouble(ListedSurvivor::score).reversed());
+        if (doc == null) {
+            return inScoreOrder.stream().map(MembershipEntry::new).toList();
+        }
+        Map<OccurrenceId, ListedSurvivor> unlisted = new LinkedHashMap<>();
+        for (ListedSurvivor member : inScoreOrder) {
+            unlisted.put(member.occurrence(), member);
+        }
+        List<MembershipEntry> numbered = new ArrayList<>();
+        for (OccurrenceId sent : doc.sent()) {
+            numbered.add(new MembershipEntry(unlisted.remove(sent)));
+        }
+        unlisted.values().forEach(member -> numbered.add(new MembershipEntry(member)));
+        return List.copyOf(numbered);
+    }
+
+    /**
+     * One line of a cluster file's membership list.
+     *
+     * <p>Its document is absent in one case only, and it is an entry rather than a broken record: a
+     * document the writing was made from that this cluster no longer holds. The line keeps its number
+     * because a citation above points at it.
+     *
+     * @param document the survivor at this number, or {@code null} where the cluster no longer holds
+     *     the document the call was written from
+     */
+    private record MembershipEntry(ListedSurvivor document) {}
+
+    /**
+     * The cluster's whole membership, numbered as {@link #numbered} ordered it (ADR-104, ADR-109,
+     * ADR-133): each entry carrying the anchor a citation in the prose above resolves to, and a link
+     * to the original in the archive.
+     *
+     * <p>The order is rendered rather than decided here — which documents the call carried is a
+     * recorded fact and score is only what orders the rest, so deriving either at this point would be
+     * the second derivation this record exists to remove.
      *
      * <p><b>The anchor is written explicitly rather than left to a renderer's heading slugs.</b> A
      * citation must resolve against this entry by construction, and an implicit anchor whose name a
@@ -336,16 +426,16 @@ public final class Deliverable {
      * would be swallowed into the paragraph above as lazy continuation. The membership would still
      * hold every survivor in score order as bytes, and would render as one item and a wall of text.
      */
-    private static void appendMembership(StringBuilder page, List<ListedSurvivor> members, String corpusRoot) {
-        List<ListedSurvivor> inScoreOrder = new ArrayList<>(members);
-        inScoreOrder.sort(Comparator.comparingDouble(ListedSurvivor::score).reversed());
-        for (int at = 0; at < inScoreOrder.size(); at++) {
+    private static void appendMembership(StringBuilder page, List<MembershipEntry> entries, String corpusRoot) {
+        for (int at = 0; at < entries.size(); at++) {
             int ordinal = at + 1;
-            ListedSurvivor member = inScoreOrder.get(at);
-            page.append(ordinal)
-                    .append(". <a id=\"")
-                    .append(anchorFor(ordinal))
-                    .append("\"></a>[")
+            ListedSurvivor member = entries.get(at).document();
+            page.append(ordinal).append(". <a id=\"").append(anchorFor(ordinal)).append("\"></a>");
+            if (member == null) {
+                page.append(THE_CLUSTER_NO_LONGER_HOLDS_IT).append("\n\n");
+                continue;
+            }
+            page.append('[')
                     .append(escapeLinkText(member.path().value()))
                     .append("](")
                     .append(fileUrl(corpusRoot, member.path().value()))
@@ -359,11 +449,16 @@ public final class Deliverable {
      *
      * <p><b>The range is not re-checked here.</b> ADR-109 puts the one check where the ordinals are
      * minted: every {@code [n]} a stored answer carries satisfied {@code 1 ≤ n ≤ k} before the row was
-     * written, and this cluster's membership is at least as large as the {@code k} that call sent, so
-     * each rewritten ordinal names an entry by construction. A second check at write time would measure
-     * the same fact against a different bound, and a throw from here would escape {@link #writeTo} and
-     * roll back every fault row the invocation had already recorded (ADR-111). What was checked is
-     * rendered, not checked again.
+     * written. What makes the rewritten ordinal name the right entry is not that check but the record
+     * beneath it — {@link #numbered} puts the {@code k} documents the call was recorded as carrying at
+     * entries {@code 1..k}, in the order their ordinals were minted (ADR-133), so entry {@code n} is
+     * the document the model wrote {@code [n]} about. Before that record the claim here was that the
+     * membership is at least as large as {@code k} and so each ordinal names an entry "by
+     * construction": the size half was true, and the mapping half was not, wherever a member was
+     * dropped between the membership and the call (#236). A second range check at write time would
+     * measure the same fact against a different bound, and a throw from here would escape {@link
+     * #writeTo} and roll back every fault row the invocation had already recorded (ADR-111). What was
+     * checked is rendered, not checked again.
      */
     private static String withCitationLinks(String prose) {
         return CITATION.matcher(prose)

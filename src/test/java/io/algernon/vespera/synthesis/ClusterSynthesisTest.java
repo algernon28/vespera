@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.ledger.OccurrenceId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -183,6 +184,18 @@ class ClusterSynthesisTest {
     private static final String FURTHEST_HEADING = "AUDIT-2021";
 
     /**
+     * Which document the closest one is. The three fixture documents are the same three throughout,
+     * so a claim can say which document an ordinal was minted against rather than only how many went.
+     */
+    private static final OccurrenceId THE_CLOSEST_DOCUMENT = new OccurrenceId(11);
+
+    /** Which document the one between them is. */
+    private static final OccurrenceId THE_MIDDLE_DOCUMENT = new OccurrenceId(12);
+
+    /** And which the furthest one is. */
+    private static final OccurrenceId THE_FURTHEST_DOCUMENT = new OccurrenceId(13);
+
+    /**
      * How many times a cluster no document of which fits is worth asking about: not once, because there
      * would be nothing in the question.
      */
@@ -295,6 +308,12 @@ class ClusterSynthesisTest {
                         + " here: a piece of writing that cannot say what it covers cannot be held against"
                         + " the group it claims to cover",
                 () -> assertThat(doc.documentsSent()).isEqualTo(DOCUMENTS_SENT));
+        claim(
+                "and which ones, in the order their numbers were minted -- the closest document first,"
+                        + " the furthest second: a count says how much of the group was read and nothing"
+                        + " at all about which number in the writing means which document, and nothing"
+                        + " downstream can work that out again",
+                () -> assertThat(doc.sent()).containsExactly(THE_CLOSEST_DOCUMENT, THE_FURTHEST_DOCUMENT));
     }
 
     @Test
@@ -411,6 +430,7 @@ class ClusterSynthesisTest {
     @Issue("182")
     @Story("A group too big to read in one go sends what fits, rather than being skipped")
     @DisplayName("A document too big for any call is passed over, and the rest of its group is still written about")
+    @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
     void passesOverADocumentTooBigForAnyCallAndWritesAboutTheRest() {
         ScriptedChatModel model = new ScriptedChatModel();
 
@@ -442,6 +462,12 @@ class ClusterSynthesisTest {
                 "and it says it was written from those " + DOCUMENTS_SENT + ", which is what the finished"
                         + " page discloses against a group of " + THREE_DOCUMENTS,
                 () -> assertThat(doc.documentsSent()).isEqualTo(DOCUMENTS_SENT));
+        claim(
+                "and it says which two, in the order their numbers were minted: the first number names"
+                        + " the document between the other two, not the closest one, because the closest"
+                        + " one was passed over -- the count alone would have left a reader of this"
+                        + " writing pointed at a document it was never made from",
+                () -> assertThat(doc.sent()).containsExactly(THE_MIDDLE_DOCUMENT, THE_FURTHEST_DOCUMENT));
     }
 
     @Test
@@ -912,17 +938,17 @@ class ClusterSynthesisTest {
 
     /** The document sitting closest to the seed, and therefore the one the call leads with. */
     private static Exemplar closest() {
-        return new Exemplar(CLOSEST_CHUNK, A_HANDFUL_OF_WORDS, CLOSEST_SCORE);
+        return new Exemplar(THE_CLOSEST_DOCUMENT, CLOSEST_CHUNK, A_HANDFUL_OF_WORDS, CLOSEST_SCORE);
     }
 
     /** The document sitting between the other two. */
     private static Exemplar middle() {
-        return new Exemplar(MIDDLE_CHUNK, A_HANDFUL_OF_WORDS, MIDDLE_SCORE);
+        return new Exemplar(THE_MIDDLE_DOCUMENT, MIDDLE_CHUNK, A_HANDFUL_OF_WORDS, MIDDLE_SCORE);
     }
 
     /** The document sitting furthest from the seed, and therefore the one the call sends last. */
     private static Exemplar furthest() {
-        return new Exemplar(FURTHEST_CHUNK, A_HANDFUL_OF_WORDS, FURTHEST_SCORE);
+        return new Exemplar(THE_FURTHEST_DOCUMENT, FURTHEST_CHUNK, A_HANDFUL_OF_WORDS, FURTHEST_SCORE);
     }
 
     /** Three documents of {@link #LONG_DOCUMENT_WORDS} words each, which is one more than fits. */
@@ -951,7 +977,27 @@ class ClusterSynthesisTest {
     /** One document that really is {@code words} words long, opening with {@code heading}. */
     private static Exemplar aDocumentOf(int words, String heading, double score) {
         return new Exemplar(
-                heading + " " + String.join(" ", Collections.nCopies(words - 1, "word")), words, score);
+                theDocumentHeaded(heading),
+                heading + " " + String.join(" ", Collections.nCopies(words - 1, "word")),
+                words,
+                score);
+    }
+
+    /**
+     * Which of the three fixture documents opens with {@code heading}.
+     *
+     * <p>Derived rather than passed in at every call site, because these fixtures have exactly three
+     * documents and a heading already names which one: a claim about which document an ordinal was
+     * minted against can then read the same three names every other claim here reads.
+     */
+    private static OccurrenceId theDocumentHeaded(String heading) {
+        return switch (heading) {
+            case CLOSEST_HEADING -> THE_CLOSEST_DOCUMENT;
+            case MIDDLE_HEADING -> THE_MIDDLE_DOCUMENT;
+            case FURTHEST_HEADING -> THE_FURTHEST_DOCUMENT;
+            default -> throw new IllegalArgumentException(
+                    "no fixture document opens with \"" + heading + "\"");
+        };
     }
 
     /**

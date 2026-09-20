@@ -597,10 +597,11 @@ CREATE TABLE IF NOT EXISTS cluster (
 -- the membership list is composed at write time -- so text tidied on the way in would leave the
 -- record and the deliverable disagreeing about what was actually said.
 --
--- documents_sent is how many of the cluster's documents that call was written from, which is what
--- lets the deliverable disclose "written from the 40 highest-scoring of 412" (ADR-108). It is a fact
--- about the call rather than about the cluster: the cluster's own size is document_count above, and
--- the two differing is the disclosure rather than an inconsistency.
+-- Which documents the call was written from is call_exemplar below, one row apiece, rather than a
+-- count in this row (ADR-133). A count standing beside the list it counts is what let the
+-- deliverable number its own list a second way and disagree with the model's, so the count is the
+-- recorded list's size and is nowhere stored. The cluster's own size is document_count above, and
+-- the two differing is the disclosure rather than an inconsistency (ADR-108).
 --
 -- A cluster with a row here was written; without one it is a cluster stage 6b did not write, and
 -- the deliverable keeps that hole headed by its 6a label (ADR-111). Absence alone does not say why:
@@ -616,13 +617,45 @@ CREATE TABLE IF NOT EXISTS synthesis_doc (
     cluster_ordinal INTEGER NOT NULL,
     title TEXT NOT NULL,
     prose TEXT NOT NULL,
-    documents_sent INTEGER NOT NULL,
     PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
 );
 
+-- synthesis's fourth table (ADR-108, ADR-109, ADR-133): which documents one call carried, and under
+-- which number the model was shown each of them. Keyed the same, under the same GENERATION run,
+-- with the citation ordinal beneath that key.
+--
+-- A citation is an ordinal into the documents that call sent, and the documents it sent are not the
+-- cluster's documents: one whose opening chunk this run cannot reach, and one larger than the whole
+-- reading window, are both dropped while the call is built (ADR-108, ADR-121). Both drops are
+-- ordinary rather than faults. Before this table the deliverable numbered every document of the
+-- cluster in score order and the two numberings agreed only up to the first drop, so a citation
+-- after one reached a document the writing was not made from -- a plausible source for a sentence
+-- about something else, which is the failure ADR-026 exists to prevent, reached the other way round.
+--
+-- Recorded rather than re-derived, because it cannot be re-derived: working out what the call could
+-- reach would mean reading the archive again at write time, which ADR-104 refuses, and a cluster
+-- written by an earlier invocation of this run had its call built in another process entirely
+-- (ADR-111, ADR-115).
+--
+-- citation_ordinal is the number the model was given, counted from one within its own call, and the
+-- UNIQUE below is load-bearing: one document under two ordinals would list that document twice in
+-- the deliverable and shift every entry beneath it, which is this defect from the other end.
+--
+-- Rows are written before the synthesis_doc row above and any standing under the same key are
+-- cleared first (ADR-133), because that row is what tells a later invocation the cluster is done.
+CREATE TABLE IF NOT EXISTS call_exemplar (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    cluster_ordinal INTEGER NOT NULL,
+    citation_ordinal INTEGER NOT NULL,
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal, citation_ordinal),
+    UNIQUE (run_id, winning_seed_occurrence_id, cluster_ordinal, occurrence_id)
+);
+
 -- synthesis's third table (ADR-108, ADR-109, ADR-110, ADR-111): why a call that came back was
--- rejected, for a cluster the row above has none for. Keyed the same, under the same GENERATION run.
--- A cluster lands in exactly one of the two tables, and never in both. A cluster turned down once is
+-- rejected, for a cluster synthesis_doc has no row for. Keyed the same, under the same GENERATION
+-- run. A cluster lands in exactly one of those two tables, and never in both. A cluster turned down once is
 -- asked again under the same run id by the next invocation, and the moment that later answer is
 -- believed its fault row is deleted (ADR-111, #185) -- the one row in this schema removed on
 -- success, and what keeps the two tables exclusive across invocations, as the generation loop's own

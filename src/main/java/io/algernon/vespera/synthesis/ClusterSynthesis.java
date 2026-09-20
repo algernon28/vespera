@@ -138,6 +138,13 @@ public class ClusterSynthesis {
      * an archive can be in. Throws {@link IllegalStateException}, never {@link ClusterFaultException}:
      * no call was made, so there is nothing for a fault to be about.
      *
+     * <p><b>What comes back carries the documents it was written from, in the order their ordinals
+     * were minted</b> (ADR-133). The fill below drops a document too large for the whole window, so
+     * the documents sent are not in general the highest-scoring ones the caller handed over, and this
+     * is the last point at which which-under-which-number is known at all. A {@link SynthesisDoc}
+     * therefore carries the list rather than its length, and the deliverable numbers its membership
+     * from it instead of deriving score order a second time.
+     *
      * <p><b>Once a call comes back, every one of ADR-108's and ADR-109's four checks runs before its
      * text is believed</b> (ADR-111), in the order those records state them: the prompt-evaluation
      * ceiling, the answer running out of room, a schema failure, and a citation outside the range the
@@ -173,7 +180,11 @@ public class ClusterSynthesis {
         checkAnswerDidNotRunOutOfRoom(answer, response);
         Answer parsed = parseAnswer(answer);
         checkCitations(parsed.prose(), sent.size());
-        return new SynthesisDoc(parsed.title(), parsed.prose(), sent.size());
+        // Which documents were sent, in the order the ordinals were minted over -- not how many
+        // (ADR-133). This is the one place both are known, and the correspondence is unrecoverable
+        // anywhere after it.
+        return new SynthesisDoc(
+                parsed.title(), parsed.prose(), sent.stream().map(Exemplar::occurrence).toList());
     }
 
     /**
