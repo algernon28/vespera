@@ -3,24 +3,34 @@ package io.algernon.vespera.synthesis;
 import io.algernon.vespera.ledger.OccurrenceId;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
- * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-111, ADR-112, #186): a
- * directory of Markdown named for the run that produced it, opened by an index that is mechanical
- * rather than generated, and a manifest beside it.
+ * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-109, ADR-111, ADR-112,
+ * #186, #187): a directory of Markdown named for the run that produced it, opened by an index that is
+ * mechanical rather than generated, a file per cluster, and a manifest beside them.
  *
  * <p><b>Plain values only.</b> This class learns no step, no stage and no {@code Profile} (ADR-110):
  * everything it needs arrives as {@link DeliverableProvenance}, {@link RecordedCluster}, {@link
  * RecordedSynthesisDoc} and {@link ListedSurvivor}, which is why {@code pipeline} is the only module
  * that gathers them.
+ *
+ * <p><b>The cluster files are a rendering of what 6b kept.</b> A stored answer's raw {@code [n]}
+ * markers are rewritten into links to that cluster's numbered membership, and the membership is
+ * composed here from the survivors rather than read out of the answer (ADR-109) — so a reader follows
+ * a claim to an entry, and that entry to the original in the archive. Nothing the model wrote is
+ * altered except the markers' rendering: the row still holds exactly what came back.
  *
  * <p><b>The archive is never touched.</b> No original is copied, and none is stat-ed (ADR-104): every
  * path here is written exactly as it was given, and nothing calls {@code Files.exists} against the
@@ -56,6 +66,33 @@ public final class Deliverable {
 
     /** The header the index opens every partition's table with — rendered prose, not a column name. */
     private static final String INDEX_TABLE_HEADER = "| Group | Documents | Written up as |";
+
+    /**
+     * The heading a cluster file opens its membership list with — rendered prose, so it says
+     * <em>group</em> (ADR-122).
+     */
+    private static final String MEMBERSHIP_HEADING = "## The documents in this group";
+
+    /**
+     * A citation as the model wrote it: a bracketed ordinal into the exemplars that call sent
+     * (ADR-109). Rewritten at write time into a link to the membership entry carrying the same
+     * ordinal, so no raw marker survives into the file.
+     */
+    private static final Pattern CITATION = Pattern.compile("\\[(\\d+)\\]");
+
+    /**
+     * How the page says the writing rests on part of its cluster (ADR-108): the count the call sent
+     * and the count the cluster holds. Written only where those differ, so a page over the whole
+     * cluster carries no claim it cannot support.
+     */
+    private static final String SUBSET_DISCLOSURE = "Written from the %d highest-scoring of %d documents.";
+
+    /**
+     * What a citation link points at, and what each membership entry carries as its own anchor: the
+     * cluster file's inside-the-page naming for membership entry {@code n} (ADR-109). A bound name of
+     * ours, naming an entry of a cluster's membership list.
+     */
+    private static final String ANCHOR_PREFIX = "document-";
 
     /**
      * Every column the manifest carries, in order (ADR-104, ADR-112). A machine-read header, not
@@ -113,6 +150,15 @@ public final class Deliverable {
             seedPathByPartition.putIfAbsent(survivor.winningSeed(), survivor.seedPath());
         }
 
+        Map<ClusterKey, List<ListedSurvivor>> membersByCluster = new LinkedHashMap<>();
+        for (ListedSurvivor survivor : survivors) {
+            membersByCluster
+                    .computeIfAbsent(
+                            new ClusterKey(survivor.winningSeed(), survivor.clusterOrdinal()),
+                            key -> new ArrayList<>())
+                    .add(survivor);
+        }
+
         Map<OccurrenceId, List<RecordedCluster>> byPartition = new LinkedHashMap<>();
         for (RecordedCluster recorded : arrangement) {
             byPartition
@@ -146,7 +192,15 @@ public final class Deliverable {
                     .append("|---|---|---|\n");
 
             for (RecordedCluster recorded : clusters) {
-                writeClusterEntry(index, partitionDir, partitionDirName, clusterWidth, recorded, writtenByCluster);
+                writeClusterEntry(
+                        index,
+                        partitionDir,
+                        partitionDirName,
+                        clusterWidth,
+                        recorded,
+                        writtenByCluster,
+                        membersByCluster.getOrDefault(ClusterKey.of(recorded), List.of()),
+                        provenance.corpusRoot());
             }
         }
 
@@ -159,7 +213,9 @@ public final class Deliverable {
             String partitionDirName,
             int clusterWidth,
             RecordedCluster recorded,
-            Map<ClusterKey, RecordedSynthesisDoc> writtenByCluster)
+            Map<ClusterKey, RecordedSynthesisDoc> writtenByCluster,
+            List<ListedSurvivor> members,
+            String corpusRoot)
             throws IOException {
         String label = escapeCell(recorded.label().value());
         int documentCount = recorded.cluster().documentCount();
@@ -174,7 +230,12 @@ public final class Deliverable {
                     .append(" | ")
                     .append(NOTHING_WAS_WRITTEN_OVER_IT)
                     .append(" |\n");
-            writeClusterFile(partitionDir.resolve(clusterFileName), recorded.label().value(), null);
+            writeClusterFile(
+                    partitionDir.resolve(clusterFileName),
+                    recorded.label().value(),
+                    null,
+                    members,
+                    corpusRoot);
             return;
         }
         String link = partitionDirName + "/" + clusterFileName;
@@ -187,25 +248,143 @@ public final class Deliverable {
                 .append(" | ")
                 .append(escapeCell(doc.doc().title()))
                 .append(" |\n");
-        writeClusterFile(partitionDir.resolve(clusterFileName), recorded.label().value(), doc.doc());
+        writeClusterFile(
+                partitionDir.resolve(clusterFileName),
+                recorded.label().value(),
+                doc.doc(),
+                members,
+                corpusRoot);
     }
 
     /**
-     * The one file every cluster's slot gets, kept from the index's own hole-vs-link split.
+     * The one file every cluster's slot gets (ADR-103, ADR-104, ADR-109, #187): the heading, the
+     * writing with its citations resolved, the disclosure where the writing rests on part of the
+     * cluster, and then the cluster's complete membership.
      *
-     * <p>Every cluster keeps a slot in the directory structure regardless of whether a call ever
-     * produced writing over it (ADR-112: a faulted cluster keeps its place, so a repair pass never
-     * renames what stands beside it), but the index links to it only where {@code doc} is not null —
-     * a page nobody wrote anything for is not worth sending a reader to.
+     * <p><b>The heading is the generated title where there is one, and the derived label where there
+     * is not</b> (ADR-106): the label is the name that always exists, so a cluster nothing was written
+     * over is still headed by something a reader can match against the index.
      *
-     * <p>Its body is #187's — this writes only enough for the file to exist, never touching the
-     * archive to do it.
+     * <p><b>Each {@code [n]} becomes a link to membership entry {@code n}</b> (ADR-109), and the
+     * membership list is numbered in relevance-score order — the order the call drew its documents in
+     * — so entry {@code n} is the {@code n}th document the model was given and a citation resolves by
+     * construction. No raw marker survives, which also keeps a citation at the start of a line from
+     * parsing as a Markdown reference-link definition.
+     *
+     * <p><b>The membership is complete, not the cited subset</b> (ADR-104), and every entry links to
+     * the original in the archive as an absolute {@code file:} target composed from the recorded root
+     * (ADR-104). Nothing is copied and nothing is stat-ed: a link that has gone dead because the
+     * archive moved is the operator's to re-point, not this writer's to hide.
+     *
+     * <p><b>The index links to a page only where writing exists</b>, but the page itself is written
+     * either way: a cluster keeps its slot in the directory listing so the order the operator approved
+     * and the order on disk stay one order (ADR-112).
      */
-    private static void writeClusterFile(Path file, String label, SynthesisDoc doc) throws IOException {
-        String content = doc == null
-                ? "# " + label + "\n\n" + NOTHING_WAS_WRITTEN_OVER_IT + "\n"
-                : "# " + doc.title() + "\n\n" + doc.prose() + "\n";
-        Files.writeString(file, content, StandardCharsets.UTF_8);
+    private static void writeClusterFile(
+            Path file, String label, SynthesisDoc doc, List<ListedSurvivor> members, String corpusRoot)
+            throws IOException {
+        StringBuilder page = new StringBuilder();
+        page.append("# ").append(doc == null ? label : doc.title()).append("\n\n");
+        if (doc == null) {
+            page.append(NOTHING_WAS_WRITTEN_OVER_IT).append('\n');
+        } else {
+            page.append(withCitationLinks(doc.prose())).append('\n');
+            if (doc.documentsSent() < members.size()) {
+                page.append('\n')
+                        .append(SUBSET_DISCLOSURE.formatted(doc.documentsSent(), members.size()))
+                        .append('\n');
+            }
+        }
+        if (!members.isEmpty()) {
+            page.append('\n').append(MEMBERSHIP_HEADING).append("\n\n");
+            appendMembership(page, members, corpusRoot);
+        }
+        Files.writeString(file, page.toString(), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * The cluster's whole membership, numbered in relevance-score order (ADR-104, ADR-109): every
+     * survivor sits at the place its score gives it, each entry carrying the anchor a citation in the
+     * prose above resolves to and a link to the original in the archive.
+     *
+     * <p>Highest score first, because that is the order ADR-108 draws a call's exemplars in and the
+     * order the prompt numbers them: one numbering serves the prompt, the citation check and the
+     * reader. Ties keep the order the survivors arrived in, which is the order the exemplars arrive
+     * in, so an unstable sort can never put the page and the prose out of step.
+     *
+     * <p><b>The anchor is written explicitly rather than left to a renderer's heading slugs.</b> A
+     * citation must resolve against this entry by construction, and an implicit anchor whose name a
+     * viewer derives from the entry's text is that viewer's business — two viewers would be free to
+     * disagree, and a citation would then resolve in one of them and not the other.
+     */
+    private static void appendMembership(StringBuilder page, List<ListedSurvivor> members, String corpusRoot) {
+        List<ListedSurvivor> inScoreOrder = new ArrayList<>(members);
+        inScoreOrder.sort(Comparator.comparingDouble(ListedSurvivor::score).reversed());
+        for (int at = 0; at < inScoreOrder.size(); at++) {
+            int ordinal = at + 1;
+            ListedSurvivor member = inScoreOrder.get(at);
+            page.append("<a id=\"")
+                    .append(anchorFor(ordinal))
+                    .append("\"></a>\n")
+                    .append(ordinal)
+                    .append(". [")
+                    .append(escapeLinkText(member.path().value()))
+                    .append("](")
+                    .append(fileUrl(corpusRoot, member.path().value()))
+                    .append(")\n\n");
+        }
+    }
+
+    /**
+     * {@code prose} with each {@code [n]} rewritten into a link to membership entry {@code n}
+     * (ADR-109).
+     *
+     * <p><b>The range is not re-checked here.</b> ADR-109 puts the one check where the ordinals are
+     * minted: every {@code [n]} a stored answer carries satisfied {@code 1 ≤ n ≤ k} before the row was
+     * written, and this cluster's membership is at least as large as the {@code k} that call sent, so
+     * each rewritten ordinal names an entry by construction. A second check at write time would measure
+     * the same fact against a different bound, and a throw from here would escape {@link #writeTo} and
+     * roll back every fault row the invocation had already recorded (ADR-111). What was checked is
+     * rendered, not checked again.
+     */
+    private static String withCitationLinks(String prose) {
+        return CITATION.matcher(prose)
+                .replaceAll(match -> "[" + match.group(1) + "](#" + ANCHOR_PREFIX + match.group(1) + ")");
+    }
+
+    /** The inside-the-page name a citation and the membership entry it points at share (ADR-109). */
+    private static String anchorFor(int ordinal) {
+        return ANCHOR_PREFIX + ordinal;
+    }
+
+    /**
+     * {@code relativePath} as it sits beneath {@code corpusRoot}, as an absolute {@code file:} target
+     * (ADR-104): the recorded root joined to the root-relative path the ledger holds.
+     *
+     * <p><b>Composed by escaping rather than by resolving a {@link Path}</b>, because the JDK's
+     * Windows path parser refuses characters NTFS allows — a quote in a filename is legal on this
+     * filesystem and a {@code Path.resolve} of one throws before any URI is built. Every character the
+     * URI grammar reserves is escaped, spaces included, so a name never opens the link at its first
+     * whitespace. Nothing is stat-ed to build it. Parentheses are escaped on top of the URI's own
+     * quoting because a Markdown destination ends at the first unescaped {@code )}.
+     */
+    private static String fileUrl(String corpusRoot, String relativePath) {
+        String root = corpusRoot.replace('\\', '/').replaceAll("^/+", "");
+        String path = "/" + root + "/" + relativePath;
+        try {
+            return new URI("file", "", path, null)
+                    .toASCIIString()
+                    .replace("(", "%28")
+                    .replace(")", "%29");
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(
+                    "could not compose a file: link for " + relativePath + " beneath " + corpusRoot, e);
+        }
+    }
+
+    /** {@code text} as Markdown link text: the two characters that would close or nest the link escaped. */
+    private static String escapeLinkText(String text) {
+        return text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]");
     }
 
     private static void openIndexWith(StringBuilder index, DeliverableProvenance provenance) {
