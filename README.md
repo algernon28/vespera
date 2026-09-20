@@ -82,6 +82,8 @@ relevance-labelling.html         the report you read to choose the threshold
 relevance-labels.yaml            the sixty questions you answer
 cluster-sizes.html               how the survivors grouped under each exemplar
 arrangement.html                 the groups, named and in order, for you to approve
+deliverable/<run>/index.md       what was written, group by group, and what produced it
+deliverable/<run>/documents.csv  every surviving document, with its place in the order
 ```
 
 Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration.

@@ -3,10 +3,14 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
+import io.algernon.vespera.synthesis.Clusters;
+import io.algernon.vespera.synthesis.Deliverable;
+import io.algernon.vespera.synthesis.SynthesisDocs;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -14,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -45,6 +50,8 @@ class NextAction {
     private final RelevanceLabels relevanceLabels;
     private final Ledger ledger;
     private final GenerationModel generationModel;
+    private final ObjectProvider<Clusters> clusters;
+    private final ObjectProvider<SynthesisDocs> synthesisDocs;
     private final Path workingDirectory;
 
     NextAction(
@@ -52,11 +59,15 @@ class NextAction {
             RelevanceLabels relevanceLabels,
             Ledger ledger,
             GenerationModel generationModel,
+            ObjectProvider<Clusters> clusters,
+            ObjectProvider<SynthesisDocs> synthesisDocs,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
         this.profileStore = profileStore;
         this.relevanceLabels = relevanceLabels;
         this.ledger = ledger;
         this.generationModel = generationModel;
+        this.clusters = clusters;
+        this.synthesisDocs = synthesisDocs;
         this.workingDirectory = workingDirectory;
     }
 
@@ -116,7 +127,8 @@ class NextAction {
                 answersRecordedAgainst(profile),
                 questionsWritten(),
                 arrangementToApprove(corpusRoot).orElse(null),
-                generationModelName());
+                generationModelName(),
+                deliverableFor(corpusRoot).orElse(null));
     }
 
     /**
@@ -136,6 +148,59 @@ class NextAction {
                 .flatMap(walk -> ledger.latestRunFor(ArrangementRun.STAGE, walk))
                 .map(ArrangementGate::shortNameOf);
     }
+
+    /**
+     * The deliverable this invocation's corpus already has, if a generation run has ever been minted
+     * for it — read off the ledger rather than handed down from the step (the same reason {@link
+     * #arrangementToApprove} is), so this is still right on an invocation whose step was already
+     * recorded finished and wrote nothing this time (ADR-103, ADR-111, #186).
+     *
+     * <p>The generation run written last, for {@link #arrangementToApprove}'s own reason: a run id
+     * carries no order of its own, and insert order is the one record of sequence the table keeps.
+     */
+    private Optional<DeliverableSummary> deliverableFor(Path corpusRoot) {
+        return ledger.finishedWalkFor(Walk.canonicalRoot(corpusRoot))
+                .flatMap(walk -> ledger.latestRunFor(GenerationRun.STAGE, walk))
+                .flatMap(this::summarize);
+    }
+
+    /**
+     * The tree a generation run left, and how many of its clusters carry no writing: every cluster the
+     * arrangement it read gave, less every one a call actually produced (ADR-111) — faulted and
+     * unsendable both, since neither carries a {@code synthesis_doc} row.
+     */
+    private Optional<DeliverableSummary> summarize(RunId generation) {
+        Clusters clustersBean = clusters.getIfAvailable();
+        SynthesisDocs synthesisDocsBean = synthesisDocs.getIfAvailable();
+        if (clustersBean == null || synthesisDocsBean == null) {
+            // Neither is wired into every context that carries this class -- a handful of narrower
+            // invocation tests wire only what their own claim is about (ClosingLineWithoutAGenerationModelTest
+            // names its own four beans in as many words). None of them reach a state where a
+            // generation run stands, so this branch is never asked to count against one for real. A
+            // fabricated zero here would print a real path beside a false claim that nothing is
+            // unwritten, so the whole summary is withheld instead: the caller's fall-through already
+            // renders a correct, shorter line.
+            return Optional.empty();
+        }
+        Path tree = workingDirectory.resolve(Deliverable.DIRECTORY_NAME).resolve(generation.value());
+        List<RunId> upstream = ledger.upstreamRuns(generation);
+        if (upstream.size() != 1) {
+            throw new IllegalStateException("generation run " + generation.value() + " records "
+                    + upstream.size() + " upstream runs; exactly one arrangement is expected");
+        }
+        int arranged = clustersBean.forRun(upstream.getFirst()).size();
+        int written = synthesisDocsBean.forRun(generation).size();
+        return Optional.of(new DeliverableSummary(tree, Math.max(0, arranged - written)));
+    }
+
+    /**
+     * What the closing line says about the deliverable: where it is, and how many of its clusters carry
+     * no writing.
+     *
+     * @param tree the tree's own path
+     * @param clustersLeftUnwritten how many clusters of the arrangement carry no writing
+     */
+    record DeliverableSummary(Path tree, int clustersLeftUnwritten) {}
 
     /**
      * Whether a label file exists to be answered.
@@ -194,6 +259,22 @@ class NextAction {
             boolean questionsWritten,
             String arrangementToApprove,
             String generationModel) {
+        return line(profile, answersRecorded, questionsWritten, arrangementToApprove, generationModel, null);
+    }
+
+    /**
+     * {@link #line(Profile, int, boolean, String, String)}, with the deliverable this invocation's
+     * corpus already has, where there is one (ADR-103, ADR-111, #186) — empty for {@code vespera
+     * label}, which arranges nothing, and for every state before the arrangement is approved, where
+     * naming a tree would be naming one that cannot exist yet.
+     */
+    static String line(
+            Profile profile,
+            int answersRecorded,
+            boolean questionsWritten,
+            String arrangementToApprove,
+            String generationModel,
+            DeliverableSummary deliverable) {
         List<String> stillWanted = runValuesStillWanted(profile);
         if (!stillWanted.isEmpty()) {
             return whatIsSet(profile, answersRecorded) + " Next: write "
@@ -222,8 +303,14 @@ class NextAction {
                     + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
         }
         if (profile.relevanceScoreFloor().isSet()) {
+            if (deliverable == null) {
+                return "Every value the profile asks for is answered, including the arrangement you"
+                        + " approved. Nothing is left to set.";
+            }
             return "Every value the profile asks for is answered, including the arrangement you"
-                    + " approved. Nothing is left to set.";
+                    + " approved. Nothing is left to set. The deliverable is at " + deliverable.tree()
+                    + ", with " + deliverable.clustersLeftUnwritten() + " "
+                    + (deliverable.clustersLeftUnwritten() == 1 ? "group" : "groups") + " left unwritten.";
         }
         if (!questionsWritten) {
             return whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"

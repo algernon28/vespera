@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
@@ -7,18 +8,27 @@ import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.LeadingChunks;
+import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.synthesis.ClusterCall;
 import io.algernon.vespera.synthesis.ClusterFault;
 import io.algernon.vespera.synthesis.ClusterFaultException;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import io.algernon.vespera.synthesis.Clusters;
+import io.algernon.vespera.synthesis.Deliverable;
+import io.algernon.vespera.synthesis.DeliverableProvenance;
 import io.algernon.vespera.synthesis.Exemplar;
+import io.algernon.vespera.synthesis.ListedSurvivor;
+import io.algernon.vespera.synthesis.NamedValue;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
@@ -112,7 +122,11 @@ class GenerationTasklet implements Tasklet {
     private final SynthesisDocs synthesisDocs;
     private final ClusterFaults clusterFaults;
     private final Ledger ledger;
+    private final ContentIdentity contentIdentity;
+    private final ImplementationVersions implementationVersions;
+    private final ProfileStore profileStore;
     private final Path root;
+    private final Path workingDirectory;
 
     GenerationTasklet(
             ArrangementGate arrangementGate,
@@ -128,7 +142,11 @@ class GenerationTasklet implements Tasklet {
             SynthesisDocs synthesisDocs,
             JdbcTemplate jdbcTemplate,
             Ledger ledger,
-            @Value("#{jobParameters['root']}") Path root) {
+            ContentIdentity contentIdentity,
+            ImplementationVersions implementationVersions,
+            ProfileStore profileStore,
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
         this.arrangementGate = arrangementGate;
         this.generationRun = generationRun;
         this.generationModel = generationModel;
@@ -146,7 +164,11 @@ class GenerationTasklet implements Tasklet {
         // it is built from is already ambient wherever Ledger and SynthesisDocs are.
         this.clusterFaults = new ClusterFaults(jdbcTemplate);
         this.ledger = ledger;
+        this.contentIdentity = contentIdentity;
+        this.implementationVersions = implementationVersions;
+        this.profileStore = profileStore;
         this.root = root;
+        this.workingDirectory = workingDirectory;
     }
 
     @Override
@@ -204,7 +226,8 @@ class GenerationTasklet implements Tasklet {
         // themselves are kept rather than a count, because what the operator has to act on is which
         // checks the run of answers failed.
         List<ClusterFault> turnedDownInARow = new ArrayList<>();
-        for (RecordedCluster recorded : clusters.forRun(arrangement)) {
+        List<RecordedCluster> recordedClusters = clusters.forRun(arrangement);
+        for (RecordedCluster recorded : recordedClusters) {
             ClusterKey key = ClusterKey.of(recorded);
             if (alreadyWritten.contains(key)) {
                 skipped++;
@@ -260,6 +283,7 @@ class GenerationTasklet implements Tasklet {
                 turnedDownInARow.add(e.fault());
                 if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
                     stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
+                    writeDeliverable(generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
                     return RepeatStatus.FINISHED;
                 }
                 continue;
@@ -301,21 +325,135 @@ class GenerationTasklet implements Tasklet {
                     standingFaults,
                     faulted,
                     generation.value());
+            writeDeliverable(generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
             return RepeatStatus.FINISHED;
         }
 
         ledger.finishStep(generation, GenerationRun.STAGE);
+        Path tree = writeDeliverable(generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
         LOG.info(
                 "The generation step finished under {}, over the arrangement approved as {}: {} synthesis"
                         + " doc(s) written under model {} in a window of {}, {} already recorded by an"
-                        + " earlier invocation of this run and left as they were",
+                        + " earlier invocation of this run and left as they were -- the deliverable tree is"
+                        + " at {}",
                 generation.value(),
                 ArrangementGate.shortNameOf(arrangement),
                 written,
                 modelName,
                 contextWindow,
-                skipped);
+                skipped,
+                tree);
         return RepeatStatus.FINISHED;
+    }
+
+    /**
+     * Writes the tree the operator is handed, over the whole arrangement as it stands now — every
+     * invocation that reached this point writes one, faulted and unsendable clusters included, because
+     * the deliverable is the report (ADR-111, ADR-103, #186).
+     *
+     * <p>{@code synthesis} may not read {@code Profile}, a stage, or {@code ledger}'s own tables
+     * (ADR-110), so everything {@link Deliverable#writeTo} needs is gathered here as plain values: the
+     * eight profile keys the run consumed, every survivor's path, content hash and score, and the
+     * arrangement and the writing produced under this run.
+     *
+     * <p>The content hash is read from {@code corpus}'s own record rather than recomputed from the
+     * file, which is what keeps this from touching the archive at all (ADR-104): stage 1's run id is
+     * re-derived from its known-fixed inputs, the way {@link ExtractionRun} already re-derives it.
+     */
+    private Path writeDeliverable(
+            RunId generation,
+            WalkId walkId,
+            Path canonicalRoot,
+            List<RecordedCluster> recordedClusters,
+            List<DocumentCluster> membership,
+            Map<OccurrenceId, Double> scores) {
+        RunId byteLevelReductionRun = RunId.of(
+                implementationVersions.of(ByteLevelReductionTasklet.OWNING_MODULE),
+                ByteLevelReductionTasklet.CONFIG_CONSUMED,
+                walkId,
+                List.of());
+        DeliverableProvenance provenance = new DeliverableProvenance(
+                generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
+        return Deliverable.writeTo(
+                workingDirectory,
+                provenance,
+                recordedClusters,
+                synthesisDocs.forRun(generation),
+                survivorsFor(membership, scores, byteLevelReductionRun));
+    }
+
+    /** Every {@link Profile} key the run consumed, named as the operator names them (ADR-103). */
+    private static List<NamedValue> profileValues(Profile profile) {
+        return List.of(
+                new NamedValue("seedFolder", textOf(profile.seedFolder())),
+                new NamedValue("degenerateOutputConfidenceFloor", textOf(profile.degenerateOutputConfidenceFloor())),
+                new NamedValue(
+                        "boilerplateDocumentFrequencyFloor", textOf(profile.boilerplateDocumentFrequencyFloor())),
+                new NamedValue("embeddingModel", textOf(profile.embeddingModel())),
+                new NamedValue("relevanceScoreFloor", textOf(profile.relevanceScoreFloor())),
+                new NamedValue("arrangementApproved", textOf(profile.arrangementApproved())),
+                new NamedValue("generationModel", textOf(profile.generationModel())),
+                new NamedValue("generationContextWindow", textOf(profile.generationContextWindow())));
+    }
+
+    /** What the operator wrote, or nothing where the key is unset -- never {@code null} on the page. */
+    private static String textOf(ProfileValue value) {
+        return value.value() == null ? "" : value.value();
+    }
+
+    /**
+     * Every survivor of the arrangement, as {@code documents.csv} carries it (ADR-104, ADR-112):
+     * gathered from {@code document_cluster}, the ledger's own facts, {@code corpus}'s content hash
+     * and the scores already read for this pass.
+     */
+    private List<ListedSurvivor> survivorsFor(
+            List<DocumentCluster> membership, Map<OccurrenceId, Double> scores, RunId byteLevelReductionRun) {
+        List<ListedSurvivor> survivors = new ArrayList<>();
+        for (DocumentCluster member : membership) {
+            OccurrencePath path = ledger.factsFor(member.occurrenceId())
+                    .map(OccurrenceFacts::path)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "no facts recorded for occurrence " + member.occurrenceId().value()));
+            OccurrencePath seedPath = ledger.factsFor(member.winningSeedOccurrenceId())
+                    .map(OccurrenceFacts::path)
+                    .orElseThrow(() -> new IllegalStateException("no facts recorded for seed occurrence "
+                            + member.winningSeedOccurrenceId().value()));
+            String contentHash = contentHashFor(member.occurrenceId(), byteLevelReductionRun);
+            double score = scores.getOrDefault(member.occurrenceId(), 0.0);
+            survivors.add(new ListedSurvivor(
+                    member.occurrenceId(),
+                    path,
+                    contentHash,
+                    member.winningSeedOccurrenceId(),
+                    seedPath.value(),
+                    member.clusterOrdinal(),
+                    score));
+        }
+        return survivors;
+    }
+
+    /**
+     * The content hash {@code corpus} recorded for {@code occurrenceId} under the re-derived stage 1
+     * run, or a blank cell with a named reason rather than a silent one.
+     *
+     * <p>{@code byteLevelReductionRun} is re-derived rather than looked up (this class's own {@link
+     * #writeDeliverable}, mirroring {@code ExtractionRun}), so unlike that class's {@code
+     * run_upstream} foreign key, nothing here proves the row exists before asking for it. A miss is
+     * therefore named rather than swallowed: a manifest with a blank {@code content_hash} cell and
+     * nothing said would leave an operator unable to tell "not recorded" from "recorded as empty".
+     */
+    private String contentHashFor(OccurrenceId occurrenceId, RunId byteLevelReductionRun) {
+        Optional<String> hash = contentIdentity.hashFor(occurrenceId, byteLevelReductionRun);
+        if (hash.isEmpty()) {
+            LOG.warn(
+                    "occurrence {} carries no content hash recorded under the re-derived"
+                            + " byte-level-reduction run {}, so its row in the manifest carries a blank"
+                            + " content_hash cell",
+                    occurrenceId.value(),
+                    byteLevelReductionRun.value());
+            return "";
+        }
+        return hash.get();
     }
 
     /**

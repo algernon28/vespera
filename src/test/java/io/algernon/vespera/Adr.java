@@ -402,6 +402,10 @@ public final class Adr {
     public static final String PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS = FILE
             + "0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md";
 
+    /** ADR-103 — the deliverable is a Markdown tree in the working directory, one tree per run id. */
+    public static final String THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN = FILE
+            + "0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md";
+
     /** ADR-104 — the surviving originals stay where they are and the deliverable references them. */
     public static final String THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED =
             FILE + "0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md";
