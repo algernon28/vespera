@@ -129,6 +129,24 @@ class DeliverableTest {
     /** Enough of that escaped name to find its row, rather than a bare word repeated elsewhere. */
     private static final String A_NAME_WITH_A_BRACKET_ESCAPED_START = "Retrofits \\[2019\\]";
 
+    /**
+     * A label carrying a backslash immediately before a pipe, which is the one arrangement of
+     * characters that defeats a cell rule escaping the pipe alone (ADR-134).
+     *
+     * <p>Not exotic: the two values a cell carries are a document's own title and what the model
+     * wrote, and neither is under any obligation to avoid a character a Windows path is full of.
+     */
+    private static final String A_NAME_WITH_A_BACKSLASH_BEFORE_A_PIPE = "Retrofits \\| Phase 2";
+
+    /**
+     * That name made safe: the backslash doubled first, then the pipe escaped against the doubled
+     * pair rather than against the original.
+     */
+    private static final String THAT_NAME_MADE_SAFE_BACKSLASH_FIRST = "Retrofits \\\\\\| Phase 2";
+
+    /** How many columns the index table has, which is how many a row must still have afterwards. */
+    private static final int THREE_COLUMNS = 3;
+
     /** The first place in an order, which both levels count from (ADR-112). */
     private static final int FIRST_PLACE = 1;
 
@@ -433,6 +451,7 @@ class DeliverableTest {
     @Story("A name out of the archive cannot rewrite the page it is listed on")
     @DisplayName("A group named across two lines is listed on one, and the table below it survives")
     @Issue("246")
+    @Link(name = "ADR-134", url = Adr.A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND, type = "adr")
     void keepsTheTableWholeWhenANameCarriesALineBreakOrAPipe(@TempDir Path workingDirectory) throws IOException {
         RecordedCluster hostile = aCluster(FIRST_ORDINAL, A_NAME_WITH_A_BREAK_AND_A_PIPE, FIRST_PLACE, FIRST_PLACE);
         RecordedCluster after = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
@@ -475,6 +494,7 @@ class DeliverableTest {
     @Story("A name out of the archive cannot rewrite the page it is listed on")
     @DisplayName("A group whose name holds a bracket is linked by the whole name, not a fragment of it")
     @Issue("246")
+    @Link(name = "ADR-134", url = Adr.A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND, type = "adr")
     void keepsTheLinkWholeWhenANameCarriesABracket(@TempDir Path workingDirectory) throws IOException {
         Path tree = Deliverable.writeTo(
                 workingDirectory,
@@ -495,6 +515,40 @@ class DeliverableTest {
                         + " destination are derived from the one name, so a rule that escaped the text"
                         + " and left the path behind would send a reader to nothing at all",
                 () -> assertThat(tree.resolve(destinationOf(row))).isRegularFile());
+    }
+
+    @Test
+    @Story("A name out of the archive cannot rewrite the page it is listed on")
+    @DisplayName("A group whose name holds a backslash beside a pipe still occupies one cell")
+    @Issue("249")
+    @Link(name = "ADR-134", url = Adr.A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND, type = "adr")
+    void keepsTheCellWholeWhenANameCarriesABackslashBeforeAPipe(@TempDir Path workingDirectory) throws IOException {
+        Path tree = Deliverable.writeTo(
+                workingDirectory,
+                provenance(THE_SEED_FOLDER_VALUE),
+                List.of(aCluster(FIRST_ORDINAL, A_NAME_WITH_A_BACKSLASH_BEFORE_A_PIPE, FIRST_PLACE, FIRST_PLACE)),
+                List.of(),
+                survivors(FIRST_ORDINAL));
+
+        String row = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THAT_NAME_MADE_SAFE_BACKSLASH_FIRST);
+
+        claim(
+                "the backslash is doubled before the pipe is escaped, so the escape lands on the pipe"
+                        + " rather than on the backslash in front of it: escaping the pipe alone would"
+                        + " leave a doubled backslash -- which reads as one literal backslash -- followed"
+                        + " by a delimiter that is still live",
+                () -> assertThat(row).contains(THAT_NAME_MADE_SAFE_BACKSLASH_FIRST));
+        claim(
+                "so the row still has the " + THREE_COLUMNS + " columns the table is headed with, read"
+                        + " the way a renderer reads it -- a pipe preceded by an even number of"
+                        + " backslashes divides, an odd number escapes. The count is "
+                        + (THREE_COLUMNS + 2) + " because the leading and trailing pipes each leave an"
+                        + " empty piece outside the table",
+                () -> assertThat(cellsOf(row)).hasSize(THREE_COLUMNS + 2));
+        claim(
+                "and the name is the whole of the first column rather than the head of it, so nothing"
+                        + " the name carries has been read as the start of the next column",
+                () -> assertThat(cellsOf(row).get(1)).isEqualTo(THAT_NAME_MADE_SAFE_BACKSLASH_FIRST));
     }
 
     @Test
@@ -707,6 +761,36 @@ class DeliverableTest {
             }
         }
         return inTables;
+    }
+
+    /**
+     * {@code row} divided into cells the way a Markdown renderer divides it (ADR-134): at a pipe
+     * preceded by an even number of backslashes, since an odd run leaves the last backslash escaping
+     * the pipe rather than itself.
+     *
+     * <p>Written out here rather than split on a regular expression, because the whole question this
+     * helper serves is what happens to a backslash standing immediately before a delimiter, and a
+     * split that looked only at the one character in front of the pipe would answer it by assuming it.
+     *
+     * <p>The leading and trailing pipes of a row each leave an empty piece outside the table, so a
+     * three-column row yields five.
+     */
+    private static List<String> cellsOf(String row) {
+        List<String> cells = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        int backslashes = 0;
+        for (int i = 0; i < row.length(); i++) {
+            char character = row.charAt(i);
+            if (character == '|' && backslashes % 2 == 0) {
+                cells.add(cell.toString().strip());
+                cell.setLength(0);
+            } else {
+                cell.append(character);
+            }
+            backslashes = character == '\\' ? backslashes + 1 : 0;
+        }
+        cells.add(cell.toString().strip());
+        return cells;
     }
 
     /** The writing stage 6b kept against the cluster identified by {@code ordinal}, over both its documents. */
