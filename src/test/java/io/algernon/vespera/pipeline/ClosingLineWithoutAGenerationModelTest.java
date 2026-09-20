@@ -33,8 +33,10 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p>Its own class rather than a case inside the closing line's other tests, for {@link
  * ConfiguredRootTest}'s reason — the condition is a property, and a property that differs needs a
- * context that differs. It wires only what {@link NextAction} takes, which is four beans, not the
- * whole cascade.
+ * context that differs. It wires only the four beans {@link NextAction} requires, not the whole
+ * cascade, and deliberately leaves its two optional providers -- the arranged clusters and the
+ * writing kept against them -- unsatisfied, which is the state that class documents this test by
+ * name for.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

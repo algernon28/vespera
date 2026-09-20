@@ -358,7 +358,7 @@ function readmeSection(heading, name) {
   const NAME = "the files README says it writes";
   const section = readmeSection("## Where things live", NAME);
   if (section) {
-    const named = [...section.matchAll(/^([a-z][\w.-]*\.(?:yaml|html|db))\s/gm)].map((f) => f[1]).sort();
+    const named = [...section.matchAll(/^(?:deliverable\/<run>\/)?([a-z][\w.-]*\.(?:yaml|html|db|md|csv))\s/gm)].map((f) => f[1]).sort();
     const real = [];
     (function walk(dir) {
       for (const e of readdirSync(dir, { withFileTypes: true })) {
