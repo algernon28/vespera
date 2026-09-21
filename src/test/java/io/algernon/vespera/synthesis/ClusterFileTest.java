@@ -165,6 +165,21 @@ class ClusterFileTest {
     /** And how many of them make a link of a destination carrying a scheme, which is where this began. */
     private static final int WHERE_A_SCHEME_SURVIVES = 2;
 
+    /** How many renderers the ampersand was measured in, counting each library once. */
+    private static final int FOUR_RENDERERS = 4;
+
+    /** And how many of those resolve an entity-shaped run of text into the character it spells. */
+    private static final int WHERE_AN_ENTITY_IS_RESOLVED = 3;
+
+    /**
+     * A document whose own name holds an ampersand and so spells an entity by accident, which this
+     * filesystem allows and a walk can really record.
+     */
+    private static final String A_NAME_SPELLING_AN_ENTITY = "reports/&copy; notes.pdf";
+
+    /** That name as the entry has to carry it: the ampersand behind a backslash, nothing else touched. */
+    private static final String THAT_NAME_WITH_ITS_AMPERSAND_ESCAPED = "reports/\\&copy; notes.pdf";
+
     /**
      * A bracketed ordinal that is not immediately followed by {@code (}, which is a citation the page
      * failed to rewrite (ADR-109): a link's own {@code [n]} is followed by its destination and so is
@@ -576,6 +591,70 @@ class ClusterFileTest {
                         + " it -- a link composed by handing such a name to a Path would throw before any"
                         + " URI was built, leaving the document unreachable",
                 () -> assertThat(page).contains("phase%20%22two%22.pdf"));
+    }
+
+    /**
+     * The one position ADR-136 binds that is not in the index, and the only half of its rule an archive
+     * can actually reach.
+     *
+     * <p><b>Only the ampersand is claimed.</b> {@code escapeLinkText} is applied to an {@link
+     * OccurrencePath}, and this filesystem permits an ampersand in a filename, so the fixture below is a
+     * path a walk can really record -- and an entity-shaped run left bare is the one ampersand case that
+     * loses text, the spelling of a copyright sign being resolved into the sign by three of the four
+     * renderers measured. The angle-bracket half of the same rule has no such input: NTFS forbids
+     * {@code <} in a filename, so that half is defence against something this source rules out, kept for
+     * the reason the method's own javadoc keeps its backslash rule -- a rule of the wrong shape is the
+     * one the next reader copies. Driving it from here would pin a fixture no walk can produce.
+     *
+     * <p><b>Where the destination leads is deliberately not claimed</b> (#259). ADR-135 composes it
+     * through {@link URI}, which does not quote an ampersand, and a renderer decodes an entity
+     * reference in a link destination -- so this same entry routes to a document the archive does not
+     * hold in every renderer configuration measured, while the Java parse a claim below performs
+     * follows it to the right file. The claim is therefore about the one thing ADR-136 decided here:
+     * the escape reaches the text a reader sees and not the route. The gap is known, not missed.
+     *
+     * <p>Both directions are claimed, because the escape and the entity are different operations and
+     * only one of them is right: writing {@code &amp;} would show a plain-text reader the six characters
+     * of its own spelling, where the backslash is consumed by the renderer and costs one character in
+     * the source alone.
+     */
+    @Test
+    @Story("A claim leads to the document behind it in two clicks")
+    @DisplayName("A document whose own name spells an entity is listed under the name the archive holds")
+    @Issue("251")
+    @Link(name = "ADR-136", url = Adr.THE_ANGLE_BRACKET_AND_THE_AMPERSAND_ARE_ESCAPED, type = "adr")
+    void keepsAnAmpersandInAnEntryReadableAsItself(@TempDir Path workingDirectory) throws IOException {
+        Path archive = anArchiveBeside(workingDirectory);
+        Path page = thePageOf(write(
+                workingDirectory,
+                archive,
+                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
+                List.of(aMember(10, A_NAME_SPELLING_AN_ENTITY, A_HIGH_SCORE, FIRST_ORDINAL))));
+        String text = Files.readString(page);
+
+        claim(
+                "the entry names the document with a backslash in front of its ampersand, so the reader is"
+                        + " shown the characters the filename really holds: written through, a run that"
+                        + " spells a character is resolved into that character by "
+                        + WHERE_AN_ENTITY_IS_RESOLVED + " of the " + FOUR_RENDERERS + " renderers"
+                        + " measured, and the entry would then name a document the archive does not hold",
+                () -> assertThat(text)
+                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>["
+                                + THAT_NAME_WITH_ITS_AMPERSAND_ESCAPED + "]("));
+        claim(
+                "and it is escaped with a backslash rather than written as an entity, which is the other"
+                        + " way to neutralise the character and the wrong one: the entity spells itself out"
+                        + " at a reader opening the file in a plain text editor, where the backslash is one"
+                        + " character of a kind the same name already carries around a bracket",
+                () -> assertThat(text).doesNotContain("&amp;"));
+        claim(
+                "and the backslash is in the text a reader sees rather than in the route: the destination"
+                        + " names the document exactly as the archive spells it and carries no backslash at"
+                        + " all, where a rule applied to the whole entry instead of to its text would have"
+                        + " put one there and left the reader a link to nothing",
+                () -> assertThat(theDestinationOn(page).getPath())
+                        .doesNotContain("\\")
+                        .endsWith(A_NAME_SPELLING_AN_ENTITY));
     }
 
     /** Writes one tree holding one cluster arranged at the size of the list it holds, and returns its root. */

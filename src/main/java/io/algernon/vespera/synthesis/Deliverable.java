@@ -549,7 +549,9 @@ public final class Deliverable {
     }
 
     /**
-     * {@code text} as Markdown link text: the two characters that would close or nest the link escaped.
+     * {@code text} as Markdown link text: the backslash, the angle bracket and the ampersand
+     * shared with every Markdown surrounding (ADR-136), and the two characters that would close or nest
+     * the link, all escaped.
      *
      * <p><b>A membership entry, not a table cell</b>, which is why this is not {@link #asLinkText}
      * (#246). Here the text is a path, the surrounding structure is a numbered list, and a pipe is an
@@ -677,8 +679,8 @@ public final class Deliverable {
     }
 
     /**
-     * {@code text} as an ATX heading carries it: folded to one line, then the two characters a
-     * renderer would read as markup escaped, and nothing else (ADR-136).
+     * {@code text} as an ATX heading carries it: folded to one line, then the backslash and the
+     * two characters a renderer would read as markup escaped (ADR-136).
      *
      * <p><b>A fourth surrounding, and so a fourth rule</b>, which is ADR-134's own rule applied where
      * its premise holds rather than an exception to it. A heading has no pipe and no brackets to
@@ -718,6 +720,16 @@ public final class Deliverable {
      * <p><b>Both are handled everywhere rather than where a value looks risky</b>, because a rule
      * applied per value is one more place for a page to silently become a different page.
      *
+     * <p><b>A {@code <} or a {@code &} is the hazard every Markdown surrounding shares (ADR-136)</b>, and a
+     * cell is no exception. Written through, a tag goes live where a renderer honours HTML, is
+     * deleted outright by GitHub's sanitiser with nothing left to say a word was removed, and is
+     * invisible but present in {@code marked} and {@code commonmark}. A bare {@code &} is worse
+     * than harmless in one direction only -- a run such as {@code &copy;} is decoded to
+     * {@code ©}, so the page says something other than what the archive holds. The escape
+     * inserted here is the backslash escape {@code \<} and {@code \&}, not the HTML entities
+     * {@code &lt;} and {@code &amp;}: those are a different operation, and writing them would
+     * damage the rendered page and the plain-text reader alike.
+     *
      * <p><b>The backslash goes first, on a ground that is not about the data (ADR-134).</b> This
      * method inserts its own escape character, and {@link #asLinkText} inserts more on top of what it
      * returns; a rule that adds an escape character without first escaping a literal one already
@@ -737,7 +749,7 @@ public final class Deliverable {
     }
 
     /**
-     * {@code text} as a single line, which is what every structure in the index needs of it (#246).
+     * {@code text} as a single line, which is what a table row and a heading need of it (#246).
      *
      * <p>A table row ends at a line break and so does a heading, so a value carrying one does not
      * merely look wrong — it ends the thing it was written into and turns what follows into prose.
