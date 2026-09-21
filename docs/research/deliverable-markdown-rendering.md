@@ -1,8 +1,11 @@
-# What renderers do with `<` and `&` in the deliverable
+# What renderers do with the deliverable
 
-Research record for [issue #251](https://github.com/algernon28/vespera/issues/251). Facts only — no decisions.
-Feeds the decision that ticket asks for, and [ADR-134](../adr/0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md),
-which declined to settle this and said what it wanted first was a measurement rather than an argument.
+Research record for two issues, measured in two passes on one day. §1 to §3 are
+[#251](https://github.com/algernon28/vespera/issues/251) — `<` and `&` in a value taken out of the archive.
+§4 and §6 are [#253](https://github.com/algernon28/vespera/issues/253) — the link and the anchor the tool
+composes itself. Facts only — no decisions.
+Feeds the decisions those tickets ask for, and [ADR-134](../adr/0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md),
+which declined to settle the first of them and said what it wanted was a measurement rather than an argument.
 
 ## Scope and method
 
@@ -165,4 +168,120 @@ Facts, restated compactly, for whoever writes the record:
 4. The heading position applies **no escaping whatsoever** today — §3, and the method table above.
 5. GitHub's sanitiser deletes unknown tags rather than neutralising them — §3.
 6. `file:` links, the deliverable's route back into the archive, do not resolve in two of the four — §4a,
-   which is a separate question from this ticket's and is not answered by it.
+   which is a separate question from this ticket's and is not answered by it. §6 goes on to measure what
+   else a membership entry could be written as, over seven configurations rather than four: of those
+   seven a `file:` destination is a link in two and is not a link in five.
+
+---
+
+## 6. A relative destination, an unlinked entry, and the anchor across every renderer
+
+`MEASURED` on 2026-09-21, second pass, same machine and the same four renderers and versions as the method
+table above. This section exists for [#253](https://github.com/algernon28/vespera/issues/253), whose question
+§4 raised and did not answer: what a membership entry could be written as instead. The probe was throwaway and
+lived outside the repository. Nothing here is inferred.
+
+Seven configurations are reported rather than four, because two of the libraries have a second documented mode
+that changes the answer: `markdown-it` `html:true`, and `commonmark` `safe:true`. §4's counts were over four.
+
+### 6a. A relative destination resolves in every renderer and every configuration
+
+Source, the membership entry as `Deliverable` composes it but with the destination relative to the cluster
+file's own directory: `1. <a id="document-1"></a>[archive/plain.pdf](../../corpus/archive/plain.pdf)`.
+
+| Renderer and configuration | The destination |
+|---|---|
+| `markdown-it` `html:false` (default) | `<a href="../../corpus/archive/plain.pdf">` |
+| `markdown-it` `html:true` | `<a href="../../corpus/archive/plain.pdf">` |
+| `marked` | `<a href="../../corpus/archive/plain.pdf">` |
+| `commonmark` default | `<a href="../../corpus/archive/plain.pdf">` |
+| `commonmark` `safe:true` | `<a href="../../corpus/archive/plain.pdf">` |
+| GitHub `mode=gfm` | `<a href="../../corpus/archive/plain.pdf">` |
+| GitHub `mode=markdown` | `<a href="../../corpus/archive/plain.pdf">` |
+
+**Seven of seven.** The same fixture with a `file:` destination is a link in two of the seven (§6c) — the
+count §6c's own table gives, and `commonmark safe:true`'s hrefless `<a>` is not one of them. No
+configuration measured refuses a relative destination, and none rewrites it: the `..` segments and the `/`
+separators arrive at the reader exactly as written.
+
+### 6b. The encoding is load-bearing, and it is the encoding the tool already applies
+
+`MEASURED`. `[archive/R&D report.pdf](../../corpus/archive/R&D report.pdf)`, with the space left raw, is **not
+a link in any of the seven**: every one of them prints the whole construct as literal text, the brackets and
+parentheses included. A destination with an unencoded space does not truncate, it fails.
+
+With the escaping `Deliverable.fileUrl` already applies — `java.net.URI` quoting plus its own `%28`/`%29` —
+`[archive/R&D report \[draft\].pdf](../../corpus/archive/R%26D%20report%20%5Bdraft%5D%20%281%29.pdf)` is a link
+in all seven, carrying the whole name.
+
+Three further encoding facts, each measured on a relative destination:
+
+- **A bare `&` needs no encoding.** `../../corpus/R&D.pdf` renders as `href="../../corpus/R&amp;D.pdf"` in
+  `markdown-it`, `marked` and `commonmark`, which is `&` to the browser. This matches §1: the hazard for `&`
+  is never the character itself.
+- **A literal `%` must be `%25`**, or the two characters after it are read as a hex escape.
+  `../../corpus/100%25%20done.pdf` renders with the `%25` intact.
+- **`#` must be percent-encoded**, or the destination ends there and the remainder becomes a fragment.
+  `java.net.URI`'s own quoting does it: `new URI(null, null, "../../corpus/a#b.pdf", null).toASCIIString()`
+  returns `../../corpus/a%23b.pdf` (JDK 26, measured in `jshell`).
+
+An angle-bracket destination — `[text](<../../corpus/archive/R&D report.pdf>)` — is a second form that all
+seven accept with a raw space inside it, recorded because it was measured and not because it is needed.
+
+### 6c. An unlinked entry has no failure mode, and `file:` has one more than §4 counted
+
+`MEASURED`. `1. <a id="document-1"></a>archive/plain.pdf`, with no link at all, renders the path exactly as
+written in all seven configurations. There is nothing a renderer can refuse.
+
+And one row §4 did not have, because `commonmark safe:true` was not run against a `file:` destination there:
+
+| Renderer and configuration | `[archive/plain.pdf](file:///D:/corpus/archive/plain.pdf)` |
+|---|---|
+| `markdown-it` `html:false` and `html:true` | not a link — the literal markdown printed at the reader |
+| `commonmark` `safe:true` | `<a>archive/plain.pdf</a>` — **an anchor with no `href` at all** |
+| GitHub, both modes | not a link — `href` stripped, text kept |
+| `marked`, `commonmark` default | resolves |
+
+So a `file:` destination reaches the filesystem in **two of seven** configurations, and in two of the failing
+ones the reader is shown Markdown source rather than a page.
+
+### 6d. The `<a id>` anchor, and the citation that lands on it
+
+`MEASURED`, over the pair a citation actually uses: the prose `Claim [1](#document-1).` above, and the
+membership entry `1. <a id="document-1"></a>[archive/plain.pdf](../../corpus/archive/plain.pdf)` below.
+
+| Renderer and configuration | The anchor in the entry | The citation above it |
+|---|---|---|
+| `markdown-it` `html:false` (default) | escaped to `&lt;a id=&quot;document-1&quot;&gt;&lt;/a&gt;` — **printed at the reader** | `<a href="#document-1">` — a link with nothing on the page to land on |
+| `markdown-it` `html:true` | `<a id="document-1"></a>` | lands |
+| `marked` | `<a id="document-1"></a>` | lands |
+| `commonmark` default | `<a id="document-1"></a>` | lands |
+| `commonmark` `safe:true` | replaced by `<!-- raw HTML omitted -->` | a link with nothing to land on |
+| GitHub `mode=gfm` and `mode=markdown` | `<a id="user-content-document-1"></a>` — **the `id` is rewritten** | `<a href="#document-1">`, left alone |
+
+Two findings, and they are different in kind:
+
+- **There is no configuration-independent anchor.** The mechanism works where raw inline HTML is allowed and
+  fails where it is not, and no Markdown construct exists to replace it. `markdown-it`'s default prints the
+  tag; `commonmark safe:true` omits it.
+- **On GitHub the anchor survives and the pair stops matching.** The API's own output carries
+  `id="user-content-document-1"` against an `href="#document-1"`. Whether github.com's page scripts reconcile
+  the two in a browser was **not established** — this measurement is over the `POST /markdown` API and no
+  browser was involved. GitHub's cause for the rewrite was not established either, beyond observing it.
+
+### 6e. What the JDK does at the boundary a relative destination needs
+
+`MEASURED` in `jshell` on JDK 26, because these are the cases a writer composing a relative destination has to
+tell apart, and they throw rather than return anything:
+
+| Expression | Result |
+|---|---|
+| `Path.of("D:/work/deliverable/abc/01-seed").relativize(Path.of("D:/corpus"))` | `..\..\..\..\corpus` |
+| the same against `Path.of("C:/corpus")` | `IllegalArgumentException: 'other' has different root` |
+| the same against `Path.of("//server/share/corpus")` | `IllegalArgumentException: 'other' is different type of Path` |
+| the same against a relative `Path.of("corpus")` | `IllegalArgumentException: 'other' is different type of Path` |
+| `Path.of("D:/corpus/a\"b.pdf")` | `InvalidPathException: Illegal char <"> at index 11` |
+
+The last row is the one §4 never had to state: a **directory** out of the recorded root can go through `Path`,
+and a **document's own name** cannot, because NTFS allows characters the JDK's path parser refuses. It is the
+same fact `ClusterFileTest` already pins for `file:` composition.

@@ -46,9 +46,12 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -267,6 +270,15 @@ class DeliverableInvocationTest {
      * rewrite (ADR-109): a link's own {@code [n]} is followed by its destination and so is not one.
      */
     private static final Pattern A_RAW_CITATION = Pattern.compile("\\[\\d+\\](?!\\()");
+
+    /**
+     * The destination of one membership entry, captured the way a renderer reads one: everything
+     * between the parenthesis that opens the destination and the one that closes it. The link text is
+     * skipped over rather than matched loosely, because a document's own name may carry an escaped
+     * bracket and a pattern stopping at the first {@code ]} would read half a name as a destination.
+     */
+    private static final Pattern A_MEMBERSHIP_DESTINATION =
+            Pattern.compile("\\d+\\. <a id=\"document-\\d+\"></a>\\[(?:\\\\.|[^\\]])*\\]\\(([^)]*)\\)");
 
     /** Every key the profile carries, each of which the index states beside the value it held. */
     private static final List<String> EVERY_PROFILE_KEY = List.of(
@@ -594,13 +606,15 @@ class DeliverableInvocationTest {
     @Story("Whatever comes after the hand-off can be built without reading the prose")
     @DisplayName("A group's own page carries the writing with its citation resolved and the whole group beneath it")
     @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
+    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
     void writesAPageWhoseCitationLeadsToADocumentOfTheArchive(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
 
         cli.run("run", root.toString());
 
-        String page = theClusterPageOf(root);
+        Path pageFile = theClusterPageFileOf(root);
+        String page = Files.readString(pageFile);
 
         claim(
                 "the citation the model wrote is a link to an entry of the list below rather than the"
@@ -618,10 +632,21 @@ class DeliverableInvocationTest {
                         + " the writing happened to cite",
                 () -> assertThat(page).contains("1. <a id=\"document-1\"></a>[", "2. <a id=\"document-2\"></a>["));
         claim(
-                "and each entry leads on to the document where it already sits, as a link into the"
-                        + " archive: that is the second click of the chain, and it is the whole of what"
-                        + " this tool owes a reader who doubts a sentence",
-                () -> assertThat(page).contains("corpus.txt](file:", "another-corpus-document.txt](file:"));
+                "no destination on the page names a scheme: the reader's renderer decides what a link is,"
+                        + " and the two that were measured as a person's way into this tree make no link at"
+                        + " all of one that begins \"file:\" -- one printing the entry's source at the"
+                        + " reader, the other keeping the text and dropping the destination",
+                () -> assertThat(page).doesNotContain("file:"));
+        claim(
+                "and each entry leads on to the document where it already sits: both destinations are"
+                        + " followed from the directory the page is in, and both land on a file that is"
+                        + " really there -- the second click of the chain, and the whole of what this tool"
+                        + " owes a reader who doubts a sentence. This is the one claim in the project that"
+                        + " exercises a link rather than reading its text, because only a whole invocation"
+                        + " leaves an archive on disk for one to land in",
+                () -> assertThat(whereTheEntriesLeadFrom(pageFile))
+                        .hasSize(TWO_DOCUMENTS)
+                        .allSatisfy(document -> assertThat(document).exists()));
     }
 
     @Test
@@ -767,6 +792,14 @@ class DeliverableInvocationTest {
      * having predicted what the page would be called.
      */
     private String theClusterPageOf(Path root) throws IOException {
+        return Files.readString(theClusterPageFileOf(root));
+    }
+
+    /**
+     * Where that page sits, which a claim about a destination relative to it has to follow it from
+     * (ADR-135).
+     */
+    private Path theClusterPageFileOf(Path root) throws IOException {
         List<Path> pages = everyFileIn(theTreeOf(root)).stream()
                 .filter(file -> file.getFileName().toString().endsWith(".md"))
                 .filter(file -> !file.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME))
@@ -775,7 +808,26 @@ class DeliverableInvocationTest {
             throw new IllegalStateException(
                     "this corpus arranges one group and so writes one page, and the tree holds " + pages.size());
         }
-        return Files.readString(pages.getFirst());
+        return pages.getFirst();
+    }
+
+    /**
+     * Where every membership entry on {@code page} leads, each destination decoded as a renderer
+     * decodes it and followed from the directory the page is in.
+     *
+     * <p>Decoded rather than read as characters of a filename: the percent-escapes are the renderer's
+     * to undo, and a claim that treated them as part of the name would be checking the encoding against
+     * itself instead of following the link.
+     */
+    private static List<Path> whereTheEntriesLeadFrom(Path page) throws IOException {
+        List<Path> documents = new ArrayList<>();
+        Matcher entry = A_MEMBERSHIP_DESTINATION.matcher(Files.readString(page));
+        while (entry.find()) {
+            documents.add(page.getParent()
+                    .resolve(URI.create(entry.group(1)).getPath())
+                    .normalize());
+        }
+        return List.copyOf(documents);
     }
 
     /** The index of the tree this corpus's work wrote, read at the moment a claim asks for it. */

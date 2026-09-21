@@ -2,6 +2,8 @@ package io.algernon.vespera.synthesis;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -12,10 +14,13 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,9 +42,19 @@ import org.junit.jupiter.api.io.TempDir;
  * claim here is made over values handed in by hand, and a writer that is never called writes a page
  * nobody ever sees.
  *
- * <p><b>The archive is referenced and never touched.</b> ADR-104 says a membership entry links to the
- * original as an absolute {@code file:} target and that nothing is stat-ed to build it, and every
- * fixture below names an archive this machine does not have.
+ * <p><b>The archive is referenced and never touched.</b> ADR-104 says nothing is stat-ed to build a
+ * membership entry, and every fixture below names an archive this machine does not have. What the
+ * entry links by is ADR-135's: a path relative to the page it is written on, or no link at all where
+ * there is no relative path to compose — so the fixtures place that archive beside the working
+ * directory, on its volume, and the one fixture that wants the second case puts it on another volume
+ * and is guarded to Windows, which is the only platform that has two.
+ *
+ * <p><b>One claim here follows a link rather than reading it.</b> ADR-103's test is that a link
+ * resolves, and ADR-135 reads that through the renderer: the destination is decoded as a renderer
+ * decodes it and followed from the directory the page sits in, and what it lands on is compared to
+ * the original's own place beneath the archive root. Nothing is stat-ed to make that claim either --
+ * the archive is not there, and the claim is about where the link points rather than what is at the
+ * other end, which {@code DeliverableInvocationTest} claims over an archive that really exists.
  *
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122). The page is
  * one of that record's outside-facing surfaces, so every word a reader meets in it uses the plain
@@ -78,8 +93,29 @@ class ClusterFileTest {
     /** What the title would slug to, which must never name the file: a faulted cluster has no title. */
     private static final String THE_TITLE_SLUGGED = "retrofitting-suppression-2018-to-2021";
 
-    /** A corpus root that is not on this machine, so anything reaching the archive fails or shows. */
-    private static final String THE_ARCHIVE_ROOT = Path.of("D:", "archive").toString();
+    /** Whether this is the platform that has more than one volume, and so the only one that can have two. */
+    private static final boolean WINDOWS = System.getProperty("os.name", "").startsWith("Windows");
+
+    /** The document most fixtures below place in the archive, by the path the ledger holds for it. */
+    private static final String THE_DOCUMENT = "reports/2019/retrofit.pdf";
+
+    /**
+     * An archive root recorded as a relative path, which every platform has and which no destination
+     * can be composed against: it names a different directory for every reader, depending on where they
+     * happen to be standing.
+     */
+    private static final String A_RELATIVE_ARCHIVE_ROOT = "archive";
+
+    /**
+     * An archive root no path parser accepts, on either platform: a NUL is refused by the Windows
+     * parser as an illegal character and by the POSIX one as a name it cannot hold.
+     *
+     * <p>Recorded roots are canonicalised on the machine that walked, and this one could not have been
+     * -- which is the point. A tree is read on machines other than the one that wrote it, and a root
+     * written for another platform, or a row edited by hand, arrives at this writer as a string it can
+     * make no path of.
+     */
+    private static final String AN_ARCHIVE_ROOT_NO_PARSER_ACCEPTS = "D:/cor\u0000pus";
 
     /** The one partition directory these fixtures write, named from the seed's stem, slugged. */
     private static final String THE_PARTITION_DIRECTORY = "1-industrial-safety-standards";
@@ -121,11 +157,32 @@ class ClusterFileTest {
     private static final double A_HIGH_SCORE = 0.9;
 
     /**
+     * How many renderer settings the entry was measured in: four renderers, two of which have a second
+     * documented mode that changes the answer.
+     */
+    private static final int SEVEN_CONFIGURATIONS = 7;
+
+    /** And how many of them make a link of a destination carrying a scheme, which is where this began. */
+    private static final int WHERE_A_SCHEME_SURVIVES = 2;
+
+    /**
      * A bracketed ordinal that is not immediately followed by {@code (}, which is a citation the page
      * failed to rewrite (ADR-109): a link's own {@code [n]} is followed by its destination and so is
      * not a survivor.
      */
     private static final Pattern A_RAW_CITATION = Pattern.compile("\\[\\d+\\](?!\\()");
+
+    /**
+     * The destination of the first membership entry, captured the way a renderer reads one: everything
+     * between the parenthesis that opens the destination and the one that closes it.
+     *
+     * <p>The link text is skipped over rather than matched loosely, because it may carry an escaped
+     * bracket of its own -- {@code \\[} and {@code \\]} are what {@code escapeLinkText} inserts, and a
+     * pattern stopping at the first {@code ]} would cut a name in half and read the rest as a
+     * destination.
+     */
+    private static final Pattern THE_FIRST_ENTRYS_DESTINATION =
+            Pattern.compile("1\\. <a id=\"document-1\"></a>\\[(?:\\\\.|[^\\]])*\\]\\(([^)]*)\\)");
 
     @Test
     @Story("The heading names the group the way the writing did, and the label where it did not")
@@ -209,20 +266,134 @@ class ClusterFileTest {
 
     @Test
     @Story("A claim leads to the document behind it in two clicks")
-    @DisplayName("Every entry in the list below is a link to the original in the archive")
+    @DisplayName("Every entry in the list below leads to the original, by a route the page itself supplies")
+    @Issue("253")
     @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
-    void linksEveryMembershipEntryToTheOriginal(@TempDir Path workingDirectory) throws IOException {
-        String page = pageOf(write(
+    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
+    void linksEveryMembershipEntryToTheOriginalByAPathRelativeToThePage(@TempDir Path workingDirectory)
+            throws IOException {
+        Path archive = anArchiveBeside(workingDirectory);
+        Path page = thePageOf(write(
                 workingDirectory,
+                archive,
                 new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
-                List.of(aMember(10, "reports/2019/retrofit.pdf", A_HIGH_SCORE, FIRST_ORDINAL))));
+                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
 
         claim(
-                "the entry is a link to the document where it already sits, composed from the recorded"
-                        + " root and the document's own root-relative path rather than copied: the second"
-                        + " click of the chain ends at the file the operator owns",
-                () -> assertThat(page)
-                        .contains("[reports/2019/retrofit.pdf](file:///D:/archive/reports/2019/retrofit.pdf)"));
+                "the entry's destination names no scheme at all: of the " + SEVEN_CONFIGURATIONS
+                        + " renderer settings this was measured in, a destination beginning \"file:\" is a"
+                        + " link in " + WHERE_A_SCHEME_SURVIVES + " -- the rest either strip it or print the"
+                        + " whole entry at the reader as the source it was written in -- while a destination"
+                        + " that is a plain relative path is a link in all " + SEVEN_CONFIGURATIONS,
+                () -> assertThat(theDestinationOn(page).isAbsolute()).isFalse());
+        claim(
+                "and following that destination from the directory the page sits in arrives exactly at the"
+                        + " document beneath the archive's own root: the chain's second click ends at the"
+                        + " file the operator owns, with no database, no listing and no network between the"
+                        + " reader and it -- which is the test this tree is written against, read as a"
+                        + " reader exercises it rather than as the filesystem alone would",
+                () -> assertThat(whereTheFirstEntryLeadsFrom(page)).isEqualTo(archive.resolve(THE_DOCUMENT)));
+    }
+
+    @Test
+    @Story("A claim leads to the document behind it in two clicks")
+    @DisplayName("Where no route to the archive exists, the entry states the document and offers no link")
+    @Issue("253")
+    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
+    void statesTheDocumentWithoutALinkWhereTheArchiveIsOnAnotherVolume(@TempDir Path workingDirectory)
+            throws IOException {
+        assumeTrue(WINDOWS, "only Windows has two volumes, and so two places with no path between them");
+        Path archive = Path.of(theVolumeThatIsNot(workingDirectory), "archive");
+        Path page = thePageOf(write(
+                workingDirectory,
+                archive,
+                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
+                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
+        String text = Files.readString(page);
+
+        claim(
+                "the entry names the document and stops there, keeping its number and its anchor: there is"
+                        + " no relative route from a tree on one volume to an archive on another, and the"
+                        + " reader is given the document's place beneath the root the index states rather"
+                        + " than a link",
+                () -> assertThat(text).contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>" + THE_DOCUMENT));
+        claim(
+                "and no link is written in its place: the absolute form this stood in for is a link in "
+                        + WHERE_A_SCHEME_SURVIVES + " of the " + SEVEN_CONFIGURATIONS + " measured, and in"
+                        + " two of the others the reader is shown the source of an entry instead of an"
+                        + " entry -- a page saying something other than what it means to say, which is the"
+                        + " one failure this writer can decline to author",
+                () -> assertThat(text).doesNotContain("file:").doesNotContain(THE_DOCUMENT + "]("));
+    }
+
+    @Test
+    @Story("A claim leads to the document behind it in two clicks")
+    @DisplayName("An archive named by a relative path is stated in the entry and never linked to")
+    @Issue("253")
+    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
+    void statesTheDocumentWithoutALinkWhereTheArchiveRootIsItselfRelative(@TempDir Path workingDirectory)
+            throws IOException {
+        Path page = thePageOf(write(
+                workingDirectory,
+                A_RELATIVE_ARCHIVE_ROOT,
+                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
+                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
+        String text = Files.readString(page);
+
+        claim(
+                "precondition: the archive is named by a path that is relative on this machine, which is"
+                        + " the state being claimed about and not an incidental of the fixture",
+                () -> assertThat(Path.of(A_RELATIVE_ARCHIVE_ROOT).isAbsolute()).isFalse());
+        claim(
+                "the entry names the document and offers no link: a route composed from an archive that is"
+                        + " itself named relatively would be a route from wherever the reader happens to be"
+                        + " standing, so it would lead somewhere different for every reader and nowhere for"
+                        + " most -- and an entry that states the document leads nowhere wrong",
+                () -> assertThat(text)
+                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>" + THE_DOCUMENT)
+                        .doesNotContain(THE_DOCUMENT + "]("));
+        claim(
+                "and the tree this fixture could not link through was written whole all the same: a writer"
+                        + " that refused a page over a root it could not compose against would lose the"
+                        + " faults the same invocation had already recorded, which is a heavy price for an"
+                        + " entry that can simply say less",
+                () -> assertThat(text).startsWith("# " + THE_TITLE));
+    }
+
+    @Test
+    @Story("A claim leads to the document behind it in two clicks")
+    @DisplayName("An archive root this machine cannot even parse costs the link and nothing else")
+    @Issue("253")
+    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
+    @Link(name = "ADR-111", url = Adr.A_CLUSTER_FAULT_IS_A_ROW_IN_SYNTHESIS, type = "adr")
+    void statesTheDocumentWithoutALinkWhereNoPathCanBeMadeOfTheArchiveRoot(@TempDir Path workingDirectory)
+            throws IOException {
+        Path page = thePageOf(write(
+                workingDirectory,
+                AN_ARCHIVE_ROOT_NO_PARSER_ACCEPTS,
+                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
+                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
+        String text = Files.readString(page);
+
+        claim(
+                "precondition: this machine's own path parser refuses the recorded root outright, which is"
+                        + " the state being claimed about -- and it refuses it on both platforms this is"
+                        + " built on, so the claim below is not one platform's",
+                () -> assertThatThrownBy(() -> Path.of(AN_ARCHIVE_ROOT_NO_PARSER_ACCEPTS))
+                        .isInstanceOf(InvalidPathException.class));
+        claim(
+                "the page was still written, and written whole: a root this machine cannot parse is not a"
+                        + " reason to abandon a page, and a throw from this writer would escape the step and"
+                        + " roll back every fault the invocation had already recorded against other groups",
+                () -> assertThat(text).startsWith("# " + THE_TITLE));
+        claim(
+                "and the entry states the document with no link and no scheme: there is no route to compose"
+                        + " without a path to compose it from, and the reader is given the document's place"
+                        + " beneath the root the index states, which is a string and needs no parser",
+                () -> assertThat(text)
+                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>" + THE_DOCUMENT)
+                        .doesNotContain("file:")
+                        .doesNotContain(THE_DOCUMENT + "]("));
     }
 
     @Test
@@ -418,6 +589,42 @@ class ClusterFileTest {
      */
     private static Path write(
             Path workingDirectory, SynthesisDoc doc, List<ListedSurvivor> members, int documentCount) {
+        return write(workingDirectory, anArchiveBeside(workingDirectory), doc, members, documentCount);
+    }
+
+    /** The same again, over a stated archive, for the claims that are about where the archive sits. */
+    private static Path write(
+            Path workingDirectory, Path archive, SynthesisDoc doc, List<ListedSurvivor> members) {
+        return write(workingDirectory, archive.toString(), doc, members, members.size());
+    }
+
+    /**
+     * And over an archive root stated as the string the ledger recorded, which is what {@code
+     * DeliverableProvenance} actually carries.
+     *
+     * <p>Needed for the one fixture whose root this machine's path parser refuses outright: such a root
+     * has no {@link Path} to hand in, and that is the whole of what it claims.
+     */
+    private static Path write(
+            Path workingDirectory, String corpusRoot, SynthesisDoc doc, List<ListedSurvivor> members) {
+        return write(workingDirectory, corpusRoot, doc, members, members.size());
+    }
+
+    private static Path write(
+            Path workingDirectory,
+            Path archive,
+            SynthesisDoc doc,
+            List<ListedSurvivor> members,
+            int documentCount) {
+        return write(workingDirectory, archive.toString(), doc, members, documentCount);
+    }
+
+    private static Path write(
+            Path workingDirectory,
+            String corpusRoot,
+            SynthesisDoc doc,
+            List<ListedSurvivor> members,
+            int documentCount) {
         List<RecordedCluster> arrangement =
                 List.of(new RecordedCluster(
                         new ArrangedCluster(THE_SEED, FIRST_ORDINAL, documentCount, FIRST_PLACE, FIRST_PLACE),
@@ -425,17 +632,63 @@ class ClusterFileTest {
         List<RecordedSynthesisDoc> written = doc == null
                 ? List.of()
                 : List.of(new RecordedSynthesisDoc(THE_SEED, FIRST_ORDINAL, doc));
-        return Deliverable.writeTo(workingDirectory, provenance(), arrangement, written, members);
+        return Deliverable.writeTo(workingDirectory, provenance(corpusRoot), arrangement, written, members);
     }
 
     /** The bytes of the one cluster's page, read at the moment a claim asks for them. */
     private static String pageOf(Path tree) throws IOException {
-        return Files.readString(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE));
+        return Files.readString(thePageOf(tree));
+    }
+
+    /** Where that page sits, which a claim about a relative destination has to follow it from. */
+    private static Path thePageOf(Path tree) {
+        return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE);
+    }
+
+    /**
+     * An archive beside the working directory, on its volume, and not on this machine at all.
+     *
+     * <p>Beside rather than at a name of its own, because ADR-135 composes the entry from the two
+     * directories rather than from a name: a fixture naming a fixed drive letter would be in the
+     * relative case on a machine whose temporary directory is on that drive and in the unlinked case
+     * on one whose is not, so which decision it pinned would be a property of the machine.
+     */
+    private static Path anArchiveBeside(Path workingDirectory) {
+        return workingDirectory.resolveSibling("archive-that-is-not-there");
+    }
+
+    /** A volume this working directory is not on, which is what makes a relative route impossible. */
+    private static String theVolumeThatIsNot(Path workingDirectory) {
+        return String.valueOf(workingDirectory.getRoot()).startsWith("C") ? "D:\\" : "C:\\";
+    }
+
+    /**
+     * The destination of the page's first membership entry, read as a {@link URI} because that is what
+     * decides the claim: a destination carrying a scheme is one a renderer may refuse, and a relative
+     * one has none.
+     */
+    private static URI theDestinationOn(Path page) throws IOException {
+        Matcher entry = THE_FIRST_ENTRYS_DESTINATION.matcher(Files.readString(page));
+        if (!entry.find()) {
+            throw new IllegalStateException("no membership entry on " + page + " carries a link at all");
+        }
+        return URI.create(entry.group(1));
+    }
+
+    /**
+     * Where that destination leads, followed from the directory the page sits in and decoded first --
+     * the percent-escapes are the renderer's to undo, and a claim that read them as characters of a
+     * filename would be checking the encoding against itself rather than following the link.
+     */
+    private static Path whereTheFirstEntryLeadsFrom(Path page) throws IOException {
+        return page.getParent()
+                .resolve(theDestinationOn(page).getPath())
+                .normalize();
     }
 
     /** What produced the tree, with the archive root stated so the links compose against it. */
-    private static DeliverableProvenance provenance() {
-        return new DeliverableProvenance(RUN_ID, WALK, THE_ARCHIVE_ROOT, List.of());
+    private static DeliverableProvenance provenance(String corpusRoot) {
+        return new DeliverableProvenance(RUN_ID, WALK, corpusRoot, List.of());
     }
 
     /**
