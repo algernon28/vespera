@@ -156,6 +156,21 @@ class DeliverableTest {
     /** That name made safe: each of the two escaped with a backslash, and nothing else touched. */
     private static final String THAT_NAME_WITH_BOTH_ESCAPED = "Retrofits \\<b>Phase 2 R\\&D";
 
+    /**
+     * A cluster title carrying the same two characters, which the model is under no more obligation to
+     * avoid than a document is: it lands in a cell of its own, reached by no link.
+     */
+    private static final String A_TITLE_WITH_A_TAG_AND_AN_AMPERSAND = "Retrofits <draft> R&D, 2018";
+
+    /** That title as the cell has to carry it: each of the two behind a backslash, nothing else touched. */
+    private static final String THAT_TITLE_WITH_BOTH_ESCAPED = "Retrofits \\<draft> R\\&D, 2018";
+
+    /**
+     * Which piece of a split row states what the cluster was written up as: the third, because the leading
+     * pipe leaves an empty piece in front of the first column.
+     */
+    private static final int THE_WRITTEN_UP_COLUMN = 3;
+
     /** A seed path carrying a tag, which lands in the one position that escaped nothing (ADR-136). */
     private static final String A_SEED_PATH_WITH_A_TAG = "seeds/<draft> Safety & Standards.docx";
 
@@ -605,6 +620,62 @@ class DeliverableTest {
                         + " nothing at all before: a heading is one line, so folding was its whole"
                         + " treatment, and a tag in it reached a renderer exactly as the archive spelled it",
                 () -> assertThat(index).contains("## " + THAT_SEED_PATH_ESCAPED));
+    }
+
+    /**
+     * The one cell whose value passes through link text on no row at all (ADR-136).
+     *
+     * <p><b>This pins the wiring rather than the rule.</b> The cell rule's two new escapes are already
+     * driven by the test above, because {@code asLinkText} is {@code inACell} and then the brackets --
+     * strike either escape out of the cell rule and that test fails. What nothing drove is the third
+     * column: the title the model wrote is the one value written straight into a cell, and a column
+     * folded but never escaped would satisfy every other claim in this class while carrying a live tag
+     * into the table. The value is the model's own rather than the archive's, which changes nothing
+     * about the hazard -- ADR-134 already treats what comes back from a call as untrusted.
+     *
+     * <p><b>Not the only untrusted value written into a plain cell.</b> {@code Deliverable.java:249}
+     * folds and escapes the cluster's own label into column one, and where nothing was written over a
+     * cluster that cell is the whole row's text with no link anywhere on it; {@code
+     * keepsTheCellWholeWhenANameCarriesABackslashBeforeAPipe} is what holds that one, and turning
+     * {@code inACell} there into {@code onOneLine} fails that test alone. What is singular about the
+     * title is not that it reaches a cell unlinked but that it passes through link text <em>nowhere</em>
+     * -- the label does, on every row the index gives a link. A cluster file is written for every cluster,
+     * the unwritten one included ({@code Deliverable.java:262-268}); what varies is whether the index links
+     * to that file, and on the row where it does not the label is the cell's whole text.
+     */
+    @Test
+    @Story("A name out of the archive cannot rewrite the page it is listed on")
+    @DisplayName("The name the writing gave a group keeps its tag in the column that states it")
+    @Issue("251")
+    @Link(name = "ADR-136", url = Adr.THE_ANGLE_BRACKET_AND_THE_AMPERSAND_ARE_ESCAPED, type = "adr")
+    void keepsATagVisibleInTheColumnTheWritingNamesTheClusterIn(@TempDir Path workingDirectory) throws IOException {
+        Path tree = Deliverable.writeTo(
+                workingDirectory,
+                provenance(THE_SEED_FOLDER_VALUE),
+                List.of(aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE)),
+                List.of(new RecordedSynthesisDoc(
+                        THE_SEED,
+                        FIRST_ORDINAL,
+                        new SynthesisDoc(
+                                A_TITLE_WITH_A_TAG_AND_AN_AMPERSAND,
+                                THE_PROSE,
+                                List.of(new OccurrenceId(10), new OccurrenceId(11))))),
+                survivors(FIRST_ORDINAL));
+
+        String row = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THE_LABEL);
+
+        claim(
+                "the column stating what the group was written up as carries the whole of that name"
+                        + " with its tag escaped, and is that name rather than merely containing it: this value"
+                        + " passes through link text nowhere on the page, so it is the one cell a rule"
+                        + " applied where a link is formed would leave unguarded",
+                () -> assertThat(cellsOf(row).get(THE_WRITTEN_UP_COLUMN)).isEqualTo(THAT_TITLE_WITH_BOTH_ESCAPED));
+        claim(
+                "and the ampersand in it is escaped with a backslash rather than written as an entity: an"
+                        + " entity spells itself out at a reader opening the file as text, and a bare"
+                        + " ampersand is how a run such as the spelling of a copyright sign comes to be"
+                        + " read as that sign instead of as itself",
+                () -> assertThat(row).doesNotContain("R&amp;D").contains("R\\&D"));
     }
 
     @Test
