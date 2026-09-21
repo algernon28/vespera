@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-136.
+One file per architecture decision, ADR-001 through ADR-137.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -155,3 +155,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-134](0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md) | 2026-09-20 | A line break in a value is folded, and three escaping rules stand because there are three surroundings *(reconciles with ADR-130)* |
 | [ADR-135](0135-a-membership-entry-links-relatively-or-does-not-link-at-all-and-the-citation-anchor-stands.md) | 2026-09-21 | A membership entry links relatively or does not link at all, and the citation anchor stands *(amends ADR-104)* |
 | [ADR-136](0136-the-angle-bracket-and-the-ampersand-are-backslash-escaped-and-the-heading-becomes-a-fourth-surrounding.md) | 2026-09-21 | The angle bracket and the ampersand are backslash-escaped, and the heading becomes a fourth surrounding *(extends ADR-134)* |
+| [ADR-137](0137-a-destinations-ampersand-is-percent-encoded-and-the-destination-is-a-fifth-surrounding.md) | 2026-09-21 | A destination's ampersand is percent-encoded, and the destination is a fifth surrounding *(amends ADR-135, ADR-136)* |

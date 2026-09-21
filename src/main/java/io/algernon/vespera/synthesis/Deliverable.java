@@ -531,7 +531,12 @@ public final class Deliverable {
      * document's own name is appended as text. Every character the URI grammar makes illegal in a
      * path is escaped, spaces included, so a name never opens the link at its first whitespace.
      * Nothing is stat-ed to build it. Parentheses are escaped on top of the URI's own quoting
-     * because a Markdown destination ends at the first unescaped {@code )}.
+     * because a Markdown destination ends at the first unescaped {@code )}. The ampersand joins
+     * them on the same ground: the URI grammar permits it in a path, so it survives the URI's own
+     * quoting untouched, but a Markdown destination decodes a named entity reference inside it, so
+     * a name such as {@code &copy;} would resolve to a document the archive does not hold
+     * (ADR-137). Only the named form needs it — the numeric form, {@code &#169;}, is already
+     * defused because {@code #} becomes {@code %23} for an unrelated reason.
      */
     private static String relativeDestination(Path pageDirectory, Path corpusRootDirectory, String relativePath) {
         String relativeDirectory =
@@ -541,7 +546,8 @@ public final class Deliverable {
             return new URI(null, null, rawPath, null)
                     .toASCIIString()
                     .replace("(", "%28")
-                    .replace(")", "%29");
+                    .replace(")", "%29")
+                    .replace("&", "%26");
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(
                     "could not compose a relative link for " + relativePath + " beneath " + corpusRootDirectory, e);
@@ -562,12 +568,16 @@ public final class Deliverable {
      * to {@code /} and cannot hold a backslash on NTFS (ADR-051) — nothing here should be read as
      * claiming a path on this filesystem can carry one. The rule is kept anyway as cheap defence
      * against an input that source rules out: a rule that escapes brackets without escaping the escape
-     * character first is the wrong shape to leave lying about for the next reader to copy. Four rules
-     * exist in this class because there are four surroundings — a cell, a list, a heading in
-     * {@link #inAHeading} and the CSV in {@link #quoted} — and a value is only ever dangerous with
-     * respect to the one it lands in. The angle bracket and the ampersand are the one class that
-     * belongs to every Markdown surrounding alike, so they join each rule rather than forming a
-     * fifth (ADR-136); the CSV takes neither, answering to a parser rather than to a reader.
+     * character first is the wrong shape to leave lying about for the next reader to copy. Five
+     * rules exist in this class because there are five surroundings — a cell, a list, a heading in
+     * {@link #inAHeading}, the CSV in {@link #quoted}, and a link destination in
+     * {@link #relativeDestination} — and a value is only ever dangerous with respect to the one it
+     * lands in. What a surrounding answers to decides the form its rule takes, never whether it is
+     * one (ADR-137): the three Markdown text positions answer to a reader and escape with a
+     * backslash, the destination answers to a resolver and escapes by percent-encoding, and the CSV
+     * answers to a parser and escapes by doubling a quote. ADR-136's character class lands in all
+     * five even so — {@code \<} and {@code \&} in the cell, the list and the heading; {@code %3C}
+     * and {@code %26} in the destination; neither in the CSV.
      */
     private static String escapeLinkText(String text) {
         return text.replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&").replace("[", "\\[").replace("]", "\\]");
@@ -682,8 +692,9 @@ public final class Deliverable {
      * {@code text} as an ATX heading carries it: folded to one line, then the backslash and the
      * two characters a renderer would read as markup escaped (ADR-136).
      *
-     * <p><b>A fourth surrounding, and so a fourth rule</b>, which is ADR-134's own rule applied where
-     * its premise holds rather than an exception to it. A heading has no pipe and no brackets to
+     * <p><b>A surrounding of its own, and so a rule of its own</b> -- the fourth to be counted, of the
+     * five {@link #escapeLinkText} lists (ADR-136, ADR-137) -- which is ADR-134's own rule applied
+     * where its premise holds rather than an exception to it. A heading has no pipe and no brackets to
      * guard -- neither is structural on a line that begins with {@code #} -- so {@link #inACell} is
      * not borrowed here: it would write a backslash before a pipe a reader is looking at, against a
      * hazard that surrounding does not have. A value is only ever dangerous with respect to the

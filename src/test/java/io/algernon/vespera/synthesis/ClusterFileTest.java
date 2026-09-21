@@ -181,6 +181,13 @@ class ClusterFileTest {
     private static final String THAT_NAME_WITH_ITS_AMPERSAND_ESCAPED = "reports/\\&copy; notes.pdf";
 
     /**
+     * And that name as the route to it has to carry it: the ampersand percent-encoded, the space encoded
+     * as every space in a destination already is, and nothing left in it that begins a run a renderer
+     * would resolve into some other character.
+     */
+    private static final String THAT_NAME_AS_A_DESTINATION = "reports/%26copy;%20notes.pdf";
+
+    /**
      * A bracketed ordinal that is not immediately followed by {@code (}, which is a citation the page
      * failed to rewrite (ADR-109): a link's own {@code [n]} is followed by its destination and so is
      * not a survivor.
@@ -606,12 +613,11 @@ class ClusterFileTest {
      * the reason the method's own javadoc keeps its backslash rule -- a rule of the wrong shape is the
      * one the next reader copies. Driving it from here would pin a fixture no walk can produce.
      *
-     * <p><b>Where the destination leads is deliberately not claimed</b> (#259). ADR-135 composes it
-     * through {@link URI}, which does not quote an ampersand, and a renderer decodes an entity
-     * reference in a link destination -- so this same entry routes to a document the archive does not
-     * hold in every renderer configuration measured, while the Java parse a claim below performs
-     * follows it to the right file. The claim is therefore about the one thing ADR-136 decided here:
-     * the escape reaches the text a reader sees and not the route. The gap is known, not missed.
+     * <p><b>Where the destination leads is claimed by the test below</b>, and deliberately not here.
+     * This one is about the text a reader is shown, where the escape is a backslash; that one is about
+     * the route, where the same character is percent-encoded instead, because the route answers to a
+     * resolver rather than to a reader (ADR-137). One entry carrying the same character escaped two
+     * different ways is the reason these are two tests rather than two claims of one.
      *
      * <p>Both directions are claimed, because the escape and the entity are different operations and
      * only one of them is right: writing {@code &amp;} would show a plain-text reader the six characters
@@ -648,13 +654,69 @@ class ClusterFileTest {
                         + " character of a kind the same name already carries around a bracket",
                 () -> assertThat(text).doesNotContain("&amp;"));
         claim(
-                "and the backslash is in the text a reader sees rather than in the route: the destination"
-                        + " names the document exactly as the archive spells it and carries no backslash at"
-                        + " all, where a rule applied to the whole entry instead of to its text would have"
-                        + " put one there and left the reader a link to nothing",
+                "and the backslash is in the text a reader sees rather than in the route: the destination,"
+                        + " read back as a parser reads one, names the document exactly as the archive spells"
+                        + " it and carries no backslash at all, where a rule applied to the whole entry"
+                        + " instead of to its text would have put one there and left the reader a link to"
+                        + " nothing",
                 () -> assertThat(theDestinationOn(page).getPath())
                         .doesNotContain("\\")
                         .endsWith(A_NAME_SPELLING_AN_ENTITY));
+    }
+
+    /**
+     * Where that same entry leads, which is a different question from what it says, and the one the test
+     * above leaves alone.
+     *
+     * <p><b>The claim is over the characters the page carries</b> rather than over a parsed destination.
+     * A {@link URI} percent-decodes as it parses, so a destination read through one names the right
+     * document whether or not a renderer would first have resolved a run inside it into some other
+     * character -- which is exactly how the escape above came to be pinned while the route was wrong.
+     *
+     * <p><b>The second claim is the absence of the character, not the presence of the one escape.</b>
+     * A route carrying no ampersand at all cannot begin an entity-shaped run, so the claim holds for
+     * every name of that shape rather than for the one this fixture spells; a claim naming {@code
+     * %26copy;} alone would pass a rule that encoded this entity and no other.
+     *
+     * <p>The name is the one the test above uses, and for the same reason: it is legal on this
+     * filesystem, so a walk can really record it, and it is the one shape of ampersand a destination
+     * loses a document to.
+     */
+    @Test
+    @Story("A claim leads to the document behind it in two clicks")
+    @DisplayName("A document whose own name spells an entity is reached at the name the archive holds")
+    @Issue("259")
+    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
+    @Link(name = "ADR-137", url = Adr.A_DESTINATIONS_AMPERSAND_IS_PERCENT_ENCODED, type = "adr")
+    void encodesTheAmpersandInTheRouteToADocumentWhoseNameSpellsAnEntity(@TempDir Path workingDirectory)
+            throws IOException {
+        Path archive = anArchiveBeside(workingDirectory);
+        Path page = thePageOf(write(
+                workingDirectory,
+                archive,
+                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
+                List.of(aMember(10, A_NAME_SPELLING_AN_ENTITY, A_HIGH_SCORE, FIRST_ORDINAL))));
+        String destination = theDestinationTextOn(page);
+
+        claim(
+                "the route the entry offers spells the ampersand as a percent escape, so the reader is sent"
+                        + " to the document the archive really holds: written through, a run that spells a"
+                        + " character is resolved into that character before anything resolves the path, in"
+                        + " all " + SEVEN_CONFIGURATIONS + " renderer settings this was measured in, and the"
+                        + " link then names a document that is not there",
+                () -> assertThat(destination).endsWith(THAT_NAME_AS_A_DESTINATION));
+        claim(
+                "and no ampersand survives anywhere in the route, which is the claim rather than the one"
+                        + " spelling this fixture happens to carry: a route holding none cannot begin such a"
+                        + " run at all, so there is nothing left in it for a renderer to resolve, whatever"
+                        + " the document is called",
+                () -> assertThat(destination).doesNotContain("&"));
+        claim(
+                "and following it still arrives at the document beneath the archive's own root, because"
+                        + " whatever opens the file undoes a percent escape: the encoding is paid in the"
+                        + " characters a reader of the raw page sees, and not in where the link goes",
+                () -> assertThat(whereTheFirstEntryLeadsFrom(page))
+                        .isEqualTo(archive.resolve(A_NAME_SPELLING_AN_ENTITY)));
     }
 
     /** Writes one tree holding one cluster arranged at the size of the list it holds, and returns its root. */
@@ -747,11 +809,23 @@ class ClusterFileTest {
      * one has none.
      */
     private static URI theDestinationOn(Path page) throws IOException {
+        return URI.create(theDestinationTextOn(page));
+    }
+
+    /**
+     * The same destination as the characters the page carries, read without a parser between them and
+     * the claim.
+     *
+     * <p>A {@link URI} is the right lens for a claim about where a destination leads and the wrong one
+     * for a claim about what a renderer is handed: parsing percent-decodes, and a run that a renderer
+     * resolves before anything resolves the path is invisible once it has.
+     */
+    private static String theDestinationTextOn(Path page) throws IOException {
         Matcher entry = THE_FIRST_ENTRYS_DESTINATION.matcher(Files.readString(page));
         if (!entry.find()) {
             throw new IllegalStateException("no membership entry on " + page + " carries a link at all");
         }
-        return URI.create(entry.group(1));
+        return entry.group(1);
     }
 
     /**
