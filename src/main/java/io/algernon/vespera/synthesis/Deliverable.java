@@ -214,7 +214,7 @@ public final class Deliverable {
             Files.createDirectories(partitionDir);
 
             index.append("\n## ")
-                    .append(onOneLine(seedPath))
+                    .append(inAHeading(seedPath))
                     .append("\n\n")
                     .append(INDEX_TABLE_HEADER)
                     .append('\n')
@@ -333,7 +333,7 @@ public final class Deliverable {
             String corpusRoot)
             throws IOException {
         StringBuilder page = new StringBuilder();
-        page.append("# ").append(onOneLine(doc == null ? label : doc.title())).append("\n\n");
+        page.append("# ").append(inAHeading(doc == null ? label : doc.title())).append("\n\n");
         if (doc == null) {
             page.append(NOTHING_WAS_WRITTEN_OVER_IT).append('\n');
         } else {
@@ -560,12 +560,15 @@ public final class Deliverable {
      * to {@code /} and cannot hold a backslash on NTFS (ADR-051) — nothing here should be read as
      * claiming a path on this filesystem can carry one. The rule is kept anyway as cheap defence
      * against an input that source rules out: a rule that escapes brackets without escaping the escape
-     * character first is the wrong shape to leave lying about for the next reader to copy. Three rules
-     * exist in this class because there are three surroundings — a cell, a list, and the CSV in
-     * {@link #quoted} — and a value is only ever dangerous with respect to the one it lands in.
+     * character first is the wrong shape to leave lying about for the next reader to copy. Four rules
+     * exist in this class because there are four surroundings — a cell, a list, a heading in
+     * {@link #inAHeading} and the CSV in {@link #quoted} — and a value is only ever dangerous with
+     * respect to the one it lands in. The angle bracket and the ampersand are the one class that
+     * belongs to every Markdown surrounding alike, so they join each rule rather than forming a
+     * fifth (ADR-136); the CSV takes neither, answering to a parser rather than to a reader.
      */
     private static String escapeLinkText(String text) {
-        return text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]");
+        return text.replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&").replace("[", "\\[").replace("]", "\\]");
     }
 
     private static void openIndexWith(StringBuilder index, DeliverableProvenance provenance) {
@@ -674,6 +677,29 @@ public final class Deliverable {
     }
 
     /**
+     * {@code text} as an ATX heading carries it: folded to one line, then the two characters a
+     * renderer would read as markup escaped, and nothing else (ADR-136).
+     *
+     * <p><b>A fourth surrounding, and so a fourth rule</b>, which is ADR-134's own rule applied where
+     * its premise holds rather than an exception to it. A heading has no pipe and no brackets to
+     * guard -- neither is structural on a line that begins with {@code #} -- so {@link #inACell} is
+     * not borrowed here: it would write a backslash before a pipe a reader is looking at, against a
+     * hazard that surrounding does not have. A value is only ever dangerous with respect to the
+     * structure it lands in, and that is the whole reason these rules are separate.
+     *
+     * <p><b>This is the position that had no escaping at all</b>: folding was its entire treatment,
+     * so a title reading {@code <draft>} reached the renderer untouched and was deleted outright by
+     * GitHub's sanitiser, leaving the word gone with nothing to say it had been (ADR-136).
+     *
+     * <p><b>The backslash goes first</b>, for {@link #inACell}'s reason: this rule inserts its own
+     * escape character, so a literal one already present must be escaped before it can merge with
+     * what is added after it (ADR-134).
+     */
+    private static String inAHeading(String text) {
+        return onOneLine(text).replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&");
+    }
+
+    /**
      * One cell of the index, made safe to sit in a Markdown table (ADR-122, #246).
      *
      * <p>Every value this guards is text this project did not write. A cluster's label is a document's
@@ -707,7 +733,7 @@ public final class Deliverable {
      * wrote under no filesystem constraint at all.
      */
     private static String inACell(String text) {
-        return onOneLine(text).replace("\\", "\\\\").replace("|", "\\|");
+        return onOneLine(text).replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&").replace("|", "\\|");
     }
 
     /**

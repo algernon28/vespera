@@ -583,6 +583,15 @@ public final class Adr {
     public static final String A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL = FILE
             + "0135-a-membership-entry-links-relatively-or-does-not-link-at-all-and-the-citation-anchor-stands.md";
 
+    /**
+     * ADR-136 -- the angle bracket and the ampersand are backslash-escaped rather than written as HTML
+     * entities, in the cell rule, the membership rule and a new heading rule; the heading becomes a
+     * fourth surrounding under ADR-134's own rule, and the CSV manifest is left alone because it
+     * answers to a parser rather than to a reader.
+     */
+    public static final String THE_ANGLE_BRACKET_AND_THE_AMPERSAND_ARE_ESCAPED = FILE
+            + "0136-the-angle-bracket-and-the-ampersand-are-backslash-escaped-and-the-heading-becomes-a-fourth-surrounding.md";
+
     private Adr() {
     }
 }
