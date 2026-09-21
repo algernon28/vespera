@@ -592,6 +592,16 @@ public final class Adr {
     public static final String THE_ANGLE_BRACKET_AND_THE_AMPERSAND_ARE_ESCAPED = FILE
             + "0136-the-angle-bracket-and-the-ampersand-are-backslash-escaped-and-the-heading-becomes-a-fourth-surrounding.md";
 
+    /**
+     * ADR-137 -- a membership entry's destination percent-encodes the ampersand as {@code %26}, joining
+     * the {@code %28} and {@code %29} already written there, because a renderer decodes an entity
+     * reference in a link destination as much as anywhere else; and the destination is counted as a
+     * fifth surrounding, its rule escaping by percent-encoding because it answers to a resolver where
+     * the three Markdown positions answer to a reader and the CSV to a parser.
+     */
+    public static final String A_DESTINATIONS_AMPERSAND_IS_PERCENT_ENCODED = FILE
+            + "0137-a-destinations-ampersand-is-percent-encoded-and-the-destination-is-a-fifth-surrounding.md";
+
     private Adr() {
     }
 }
