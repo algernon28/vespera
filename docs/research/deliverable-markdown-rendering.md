@@ -285,3 +285,40 @@ tell apart, and they throw rather than return anything:
 The last row is the one §4 never had to state: a **directory** out of the recorded root can go through `Path`,
 and a **document's own name** cannot, because NTFS allows characters the JDK's path parser refuses. It is the
 same fact `ClusterFileTest` already pins for `file:` composition.
+
+---
+
+## 7. A backslash escape is not an HTML entity, and it fixes both characters at no cost
+
+`MEASURED` on 2026-09-21, same environment as §6, extended to GitHub — **six configurations**, and the result is the same in every one.
+
+§1 and §2 above answer the question "should the value be written as `&amp;`", and the answer there stands: it should not. **That is not the only way to neutralise a character in Markdown, and this section measures the other one.** CommonMark allows any ASCII punctuation character to be backslash-escaped, and `<` and `&` are both ASCII punctuation. `\<` and `\&` are a different operation from `&lt;` and `&amp;`, and they behave differently.
+
+Fixtures were written to disk and their bytes confirmed with `cat -A` before rendering. This is not incidental: an earlier attempt embedded the same fixtures in a JavaScript string literal, where `'\<'` is simply `<` — the backslash never reached the renderer, and the run produced a confident, entirely false result claiming the escape does not work. Any re-measurement should read from a file for the same reason.
+
+| Source written | `markdown-it` (both) | `marked` | `commonmark` (both) | GitHub |
+|---|---|---|---|---|
+| `Roofing \<draft\> surveys` in a paragraph | `&lt;draft&gt;` | `&lt;draft&gt;` | `&lt;draft&gt;` | `&lt;draft&gt;` |
+| `## Roofing \<draft\> surveys` | `&lt;draft&gt;` | `&lt;draft&gt;` | `&lt;draft&gt;` | `&lt;draft&gt;` |
+| `\<draft\>` in a table cell | `&lt;draft&gt;` | `&lt;draft&gt;` | `&lt;draft&gt;` | `&lt;draft&gt;` |
+| `[Retrofits \<b\>Phase 2](0001.md)` | `&lt;b&gt;` inside the link | same | same | same |
+| `Title R\&D Retrofits` | `R&amp;D` → displays `R&D` | same | same | same |
+| `Title \&copy; 2019` | `&amp;copy;` → displays `&copy;` | same | same | same |
+
+Every `&lt;` above **displays to the reader as a literal `<`**. Nothing goes live, nothing is deleted, nothing is invisible.
+
+### What this changes
+
+- **`<` is fixable in all four positions, in every renderer measured.** §3's three failure modes — the live tag, the silent deletion, the invisible tag — are all consequences of the character reaching the renderer unescaped, and none of them survives `\<`.
+- **`\&` costs nothing, where `&amp;` costs everything.** `R\&D` displays as `R&D`: the plain-text damage §1 records for `&amp;` does not occur, because the renderer consumes the backslash rather than printing it. §1's conclusion — that writing `&amp;` would be wrong — is unchanged and remains true of that operation.
+- **The entity hole of §2 closes as a side effect.** `\&copy;` displays as `&copy;`, the text the archive actually holds, in all six.
+
+### The one cost, stated plainly
+
+A reader opening the `.md` in a plain text editor sees the backslashes. [ADR-103](../adr/0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md) makes that a supported way to read the tree, so the cost is real rather than theoretical.
+
+It is also **not a new cost**: the deliverable already writes `\|`, `\[`, `\]` and `\\` into the same values under ADR-134's three rules, and a plain-text reader already sees those. What this adds is two more characters to a list a reader of the raw file is already looking at, not a new kind of damage.
+
+### What was not measured
+
+Whether a **doubled** backslash before one of these characters composes correctly — that is, a title genuinely containing `\<`. ADR-134's `inACell` escapes `\` to `\\` before inserting its own escapes, so the ordering that governs it is already recorded and already tested; this section did not re-measure it.

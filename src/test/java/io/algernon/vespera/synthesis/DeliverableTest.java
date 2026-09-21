@@ -147,6 +147,21 @@ class DeliverableTest {
     /** How many columns the index table has, which is how many a row must still have afterwards. */
     private static final int THREE_COLUMNS = 3;
 
+    /**
+     * A name carrying the two characters a renderer reads as markup: an opening tag and an ampersand
+     * (ADR-136). Both are ordinary in a title a document gave itself.
+     */
+    private static final String A_NAME_WITH_A_TAG_AND_AN_AMPERSAND = "Retrofits <b>Phase 2 R&D";
+
+    /** That name made safe: each of the two escaped with a backslash, and nothing else touched. */
+    private static final String THAT_NAME_WITH_BOTH_ESCAPED = "Retrofits \\<b>Phase 2 R\\&D";
+
+    /** A seed path carrying a tag, which lands in the one position that escaped nothing (ADR-136). */
+    private static final String A_SEED_PATH_WITH_A_TAG = "seeds/<draft> Safety & Standards.docx";
+
+    /** That seed path as its heading must read, folded and with both characters escaped. */
+    private static final String THAT_SEED_PATH_ESCAPED = "seeds/\\<draft> Safety \\& Standards.docx";
+
     /** The first place in an order, which both levels count from (ADR-112). */
     private static final int FIRST_PLACE = 1;
 
@@ -549,6 +564,47 @@ class DeliverableTest {
                 "and the name is the whole of the first column rather than the head of it, so nothing"
                         + " the name carries has been read as the start of the next column",
                 () -> assertThat(cellsOf(row).get(1)).isEqualTo(THAT_NAME_MADE_SAFE_BACKSLASH_FIRST));
+    }
+
+    @Test
+    @Story("A name out of the archive cannot rewrite the page it is listed on")
+    @DisplayName("A group named with a tag keeps the tag on the page, in the table and in the heading above it")
+    @Issue("251")
+    @Link(name = "ADR-136", url = Adr.THE_ANGLE_BRACKET_AND_THE_AMPERSAND_ARE_ESCAPED, type = "adr")
+    void keepsATagVisibleWhereverTheIndexCarriesAName(@TempDir Path workingDirectory) throws IOException {
+        Path tree = Deliverable.writeTo(
+                workingDirectory,
+                provenance(THE_SEED_FOLDER_VALUE),
+                List.of(aCluster(FIRST_ORDINAL, A_NAME_WITH_A_TAG_AND_AN_AMPERSAND, FIRST_PLACE, FIRST_PLACE)),
+                List.of(writingFor(FIRST_ORDINAL, new OccurrenceId(10))),
+                List.of(new ListedSurvivor(
+                        new OccurrenceId(10),
+                        new OccurrencePath("reports/2019/retrofit.pdf"),
+                        "3a7b",
+                        THE_SEED,
+                        A_SEED_PATH_WITH_A_TAG,
+                        FIRST_ORDINAL,
+                        A_SCORE)));
+
+        String index = Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME));
+
+        claim(
+                "the name carries its tag into the page with a backslash in front of it, so a reader sees"
+                        + " the characters the document gave itself: written through, the opening tag is"
+                        + " markup -- it turns the rest of the page bold where a renderer honours it, and"
+                        + " is deleted outright, word and all, where a renderer sanitises instead",
+                () -> assertThat(index).contains(THAT_NAME_WITH_BOTH_ESCAPED));
+        claim(
+                "and the ampersand beside it is escaped the same way rather than written as an entity:"
+                        + " an entity would show the reader the six characters of its own spelling, and"
+                        + " a bare ampersand is the one way a run such as the spelling of a copyright"
+                        + " sign is read as that sign instead of as itself",
+                () -> assertThat(index).doesNotContain("R&amp;D").contains("R\\&D"));
+        claim(
+                "and the heading naming the seed carries its tag too, which is the position that escaped"
+                        + " nothing at all before: a heading is one line, so folding was its whole"
+                        + " treatment, and a tag in it reached a renderer exactly as the archive spelled it",
+                () -> assertThat(index).contains("## " + THAT_SEED_PATH_ESCAPED));
     }
 
     @Test
