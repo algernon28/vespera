@@ -1,5 +1,7 @@
 # ADR-104 — The surviving originals stay where they are, and the deliverable references them
 
+> **Partly amended — see [ADR-135](0135-a-membership-entry-links-relatively-or-does-not-link-at-all-and-the-citation-anchor-stands.md).** What a membership link physically is has changed: it is a path relative to the cluster file, or no link at all, and never an absolute `file:` target. The two passages that say otherwise are marked below. Everything else in this record stands.
+
 - **Date**: 2026-09-12
 - **Status**: accepted
 - **Answers**: [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) — the last of the questions it handed forward to the 6a/6b slice. With [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md), that record's obligations are discharged.
@@ -47,7 +49,7 @@ It is what lets an operator build whatever comes after the hand-off — ADR-101 
 
 A file occurrence's path is root-relative already ([ADR-051](0051-a-file-occurrence-is-identified-by-its-path-relative-to-the-corpus-root.md)): the path beneath the corpus root, separators rewritten to `/`, with the canonicalised root held once on the walk. An entry whose name has no storable form never becomes an occurrence, so every survivor has a well-formed relative path to render.
 
-- **In the prose**, a link is an absolute `file:` target, composed at write time from the recorded root and the occurrence's relative path.
+- **In the prose**, a link is an absolute `file:` target, composed at write time from the recorded root and the occurrence's relative path. *(Amended by [ADR-135](0135-a-membership-entry-links-relatively-or-does-not-link-at-all-and-the-citation-anchor-stands.md): it is the path from the cluster file's own directory to the original, and where no relative path exists — a deliverable and an archive on two Windows volumes — the entry carries the root-relative path as text and no link. No `file:` target is written.)*
 - **In `index.md`**, the root is recorded once.
 - **In `documents.csv`**, the paths stay root-relative.
 
@@ -59,7 +61,7 @@ No stat, and no existence check at write time. A missing original at 6b has no v
 
 **The links are not durable, and this record says so rather than implying otherwise.** They resolve on the machine that produced them, and every one of them dies if the archive moves. What the recorded root and the root-relative manifest buy is that re-pointing the whole tree is mechanical — one known root, one column of relative paths — instead of a deliverable that has quietly become a list of dead ends with nothing left to reconstruct it from.
 
-**"Self-contained" means without the ledger, not without the archive.** A `file:` link satisfies ADR-103's test: the filesystem resolves it, and no part of this tool is needed to follow it. What it does not promise, and what ADR-103 never asked for, is that it resolves on somebody else's machine.
+**"Self-contained" means without the ledger, not without the archive.** ~~A `file:` link satisfies ADR-103's test: the filesystem resolves it, and no part of this tool is needed to follow it.~~ *(Amended by [ADR-135](0135-a-membership-entry-links-relatively-or-does-not-link-at-all-and-the-citation-anchor-stands.md), which is the sentence [#253](https://github.com/algernon28/vespera/issues/253) contradicted: it is true of the filesystem and false of the reader, because a renderer sits between them and most of them never emit an anchor for a `file:` destination at all — measured, two of seven configurations. ADR-103's test binds through the renderer, and the link form changed to satisfy it.)* What this record does not promise, and what ADR-103 never asked for, is that a link resolves on somebody else's machine.
 
 **No junction or symlink `originals/` inside the tree.** Refused for the reason ADR-103 refused a `latest` link: census is Windows-first, and this repository's symlink fixtures already abort by assumption where the privilege to create one is missing.
 

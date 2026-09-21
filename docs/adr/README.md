@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-134.
+One file per architecture decision, ADR-001 through ADR-135.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -153,3 +153,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-132](0132-stage-5s-gate-preamble-is-one-seam-that-answers-open-or-shut-with-the-one-sentence.md) | 2026-09-19 | Stage 5's gate preamble is one seam, and it answers open or shut with the one sentence that explains it |
 | [ADR-133](0133-the-exemplars-one-call-sent-are-recorded-and-a-cluster-file-numbers-its-membership-from-that-record.md) | 2026-09-20 | The exemplars one call sent are recorded, and a cluster file numbers its membership from that record *(amends ADR-108, ADR-109, ADR-110)* |
 | [ADR-134](0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md) | 2026-09-20 | A line break in a value is folded, and three escaping rules stand because there are three surroundings *(reconciles with ADR-130)* |
+| [ADR-135](0135-a-membership-entry-links-relatively-or-does-not-link-at-all-and-the-citation-anchor-stands.md) | 2026-09-21 | A membership entry links relatively or does not link at all, and the citation anchor stands *(amends ADR-104)* |

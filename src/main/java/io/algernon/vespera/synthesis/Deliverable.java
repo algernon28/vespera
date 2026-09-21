@@ -7,6 +7,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -14,6 +15,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -301,9 +304,15 @@ public final class Deliverable {
      * definition.
      *
      * <p><b>The membership is complete, not the cited subset</b> (ADR-104), and every entry links to
-     * the original in the archive as an absolute {@code file:} target composed from the recorded root
-     * (ADR-104). Nothing is copied and nothing is stat-ed: a link that has gone dead because the
-     * archive moved is the operator's to re-point, not this writer's to hide.
+     * the original in the archive by a path relative to this very file (ADR-135): the two directories
+     * — this file's own and the recorded corpus root — are relativized, and the occurrence's
+     * root-relative path is appended to the result as text. Where no relative path exists between them
+     * — the archive on another Windows volume — the entry states the document's root-relative path
+     * and links nowhere, because a {@code file:} destination is measured to be a link in only two of
+     * seven renderer configurations, and in two of the five failures the reader is shown the literal
+     * Markdown source rather than a page (ADR-135), and that failure is this writer's own to avoid.
+     * Nothing is copied and nothing is stat-ed: a link that has
+     * gone dead because the archive moved is the operator's to re-point, not this writer's to hide.
      *
      * <p><b>The disclosure counts what the arrangement recorded</b>, not what this writer was handed
      * (ADR-112): 6a states a cluster's size once, and the index cell and this sentence read that one
@@ -338,7 +347,7 @@ public final class Deliverable {
         List<MembershipEntry> numbered = numbered(doc, members);
         if (!numbered.isEmpty()) {
             page.append('\n').append(MEMBERSHIP_HEADING).append("\n\n");
-            appendMembership(page, numbered, corpusRoot);
+            appendMembership(page, numbered, file.getParent(), corpusRoot);
         }
         Files.writeString(file, page.toString(), StandardCharsets.UTF_8);
     }
@@ -408,8 +417,9 @@ public final class Deliverable {
 
     /**
      * The cluster's whole membership, numbered as {@link #numbered} ordered it (ADR-104, ADR-109,
-     * ADR-133): each entry carrying the anchor a citation in the prose above resolves to, and a link
-     * to the original in the archive.
+     * ADR-133): each entry carrying the anchor a citation in the prose above resolves to, and either a
+     * link to the original in the archive or, where no relative route to it exists, the document's own
+     * root-relative path stated with no link at all (ADR-135).
      *
      * <p>The order is rendered rather than decided here — which documents the call carried is a
      * recorded fact and score is only what orders the rest, so deriving either at this point would be
@@ -425,8 +435,13 @@ public final class Deliverable {
      * paragraph only when it is numbered {@code 1}: entry 1 would open a list and every entry after it
      * would be swallowed into the paragraph above as lazy continuation. The membership would still
      * hold every survivor in score order as bytes, and would render as one item and a wall of text.
+     *
+     * @param pageDirectory the directory this very cluster file sits in, which a relative destination is
+     *     composed against (ADR-135)
      */
-    private static void appendMembership(StringBuilder page, List<MembershipEntry> entries, String corpusRoot) {
+    private static void appendMembership(
+            StringBuilder page, List<MembershipEntry> entries, Path pageDirectory, String corpusRoot) {
+        Optional<Path> corpusRootDirectory = asDirectory(corpusRoot);
         for (int at = 0; at < entries.size(); at++) {
             int ordinal = at + 1;
             ListedSurvivor member = entries.get(at).document();
@@ -435,11 +450,15 @@ public final class Deliverable {
                 page.append(THE_CLUSTER_NO_LONGER_HOLDS_IT).append("\n\n");
                 continue;
             }
-            page.append('[')
-                    .append(escapeLinkText(member.path().value()))
-                    .append("](")
-                    .append(fileUrl(corpusRoot, member.path().value()))
-                    .append(")\n\n");
+            String escapedPath = escapeLinkText(member.path().value());
+            Optional<String> destination = corpusRootDirectory
+                    .filter(root -> hasARelativeRoute(pageDirectory, root))
+                    .map(root -> relativeDestination(pageDirectory, root, member.path().value()));
+            if (destination.isPresent()) {
+                page.append('[').append(escapedPath).append("](").append(destination.get()).append(")\n\n");
+            } else {
+                page.append(escapedPath).append("\n\n");
+            }
         }
     }
 
@@ -471,27 +490,61 @@ public final class Deliverable {
     }
 
     /**
-     * {@code relativePath} as it sits beneath {@code corpusRoot}, as an absolute {@code file:} target
-     * (ADR-104): the recorded root joined to the root-relative path the ledger holds.
-     *
-     * <p><b>Composed by escaping rather than by resolving a {@link Path}</b>, because the JDK's
-     * Windows path parser refuses characters NTFS allows — a quote in a filename is legal on this
-     * filesystem and a {@code Path.resolve} of one throws before any URI is built. Every character the
-     * URI grammar reserves is escaped, spaces included, so a name never opens the link at its first
-     * whitespace. Nothing is stat-ed to build it. Parentheses are escaped on top of the URI's own
-     * quoting because a Markdown destination ends at the first unescaped {@code )}.
+     * {@code corpusRoot} as a {@link Path}, or empty where this machine's parser refuses it (ADR-135):
+     * a recorded root is a directory this tool composed or canonicalised on some machine, but not
+     * necessarily this one, and a root carrying a character this machine's path parser refuses — a
+     * quote or a NUL, for instance — is one this writer declines to link through rather than fail the
+     * whole invocation over (ADR-111). A UNC share or a root written for a different platform parses
+     * fine here and is refused earlier, by {@link #hasARelativeRoute}.
      */
-    private static String fileUrl(String corpusRoot, String relativePath) {
-        String root = corpusRoot.replace('\\', '/').replaceAll("^/+", "");
-        String path = "/" + root + "/" + relativePath;
+    private static Optional<Path> asDirectory(String corpusRoot) {
         try {
-            return new URI("file", "", path, null)
+            return Optional.of(Path.of(corpusRoot));
+        } catch (InvalidPathException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Whether a path from {@code pageDirectory} to {@code corpusRootDirectory} can be composed at all
+     * (ADR-135): both absolute, and rooted the same — a Windows drive letter or a UNC prefix a relative
+     * path can never cross. A predicate over the two directories rather than a caught exception, because
+     * {@link Path#relativize} throws {@link IllegalArgumentException} for the cases this refuses, and a
+     * throw escaping {@link #writeTo} would roll back every fault row the invocation had already
+     * recorded (ADR-111).
+     */
+    private static boolean hasARelativeRoute(Path pageDirectory, Path corpusRootDirectory) {
+        return pageDirectory.isAbsolute()
+                && corpusRootDirectory.isAbsolute()
+                && Objects.equals(pageDirectory.getRoot(), corpusRootDirectory.getRoot());
+    }
+
+    /**
+     * {@code relativePath} as it sits beneath {@code corpusRootDirectory}, as a destination relative to
+     * {@code pageDirectory} (ADR-135): the two directories relativized, and the occurrence's
+     * root-relative path appended to the result as text.
+     *
+     * <p><b>Never composed by resolving {@code relativePath} itself against a {@link Path}</b>, because
+     * the JDK's Windows path parser refuses characters NTFS allows — a quote in a filename is legal on
+     * this filesystem and a {@code Path.resolve} of one throws before any URI is built. Only the two
+     * directories, which this tool composed or canonicalised, ever go through {@link Path}; the
+     * document's own name is appended as text. Every character the URI grammar makes illegal in a
+     * path is escaped, spaces included, so a name never opens the link at its first whitespace.
+     * Nothing is stat-ed to build it. Parentheses are escaped on top of the URI's own quoting
+     * because a Markdown destination ends at the first unescaped {@code )}.
+     */
+    private static String relativeDestination(Path pageDirectory, Path corpusRootDirectory, String relativePath) {
+        String relativeDirectory =
+                pageDirectory.relativize(corpusRootDirectory).toString().replace('\\', '/');
+        String rawPath = relativeDirectory.isEmpty() ? relativePath : relativeDirectory + "/" + relativePath;
+        try {
+            return new URI(null, null, rawPath, null)
                     .toASCIIString()
                     .replace("(", "%28")
                     .replace(")", "%29");
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(
-                    "could not compose a file: link for " + relativePath + " beneath " + corpusRoot, e);
+                    "could not compose a relative link for " + relativePath + " beneath " + corpusRootDirectory, e);
         }
     }
 

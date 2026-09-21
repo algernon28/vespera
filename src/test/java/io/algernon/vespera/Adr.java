@@ -574,6 +574,15 @@ public final class Adr {
     public static final String A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND = FILE
             + "0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md";
 
+    /**
+     * ADR-135 — a membership entry links by a path relative to its own cluster file, or carries no
+     * link at all where no relative path exists, and never an absolute {@code file:} target; ADR-103's
+     * test binds through the renderer; the {@code <a id>} citation anchor stands because its failure
+     * has no replacement and the link's does.
+     */
+    public static final String A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL = FILE
+            + "0135-a-membership-entry-links-relatively-or-does-not-link-at-all-and-the-citation-anchor-stands.md";
+
     private Adr() {
     }
 }

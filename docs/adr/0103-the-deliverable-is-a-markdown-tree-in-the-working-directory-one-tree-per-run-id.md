@@ -62,6 +62,8 @@ A run id is content-derived ([ADR-048](0048-walk-and-run-identity.md)): the SHA-
 
 **Every link inside the deliverable resolves with no database, no ledger and no network.**
 
+*What "resolves" means was left open here and is settled by [ADR-135](0135-a-membership-entry-links-relatively-or-does-not-link-at-all-and-the-citation-anchor-stands.md): the test binds through the renderer the tree is opened with, not through the filesystem alone. A destination a renderer prints as source rather than emitting as a link has failed it.*
+
 What sits inside that boundary — the surviving originals above all — is the slice's next question and is deliberately not pre-empted here. It is, however, constrained: any answer that leaves a link in the deliverable pointing at something only the ledger can resolve fails this test.
 
 ## Consequences
