@@ -43,8 +43,15 @@ public class ExtractionJobConfiguration {
      * and streak counts ADR-071 pins). Kept small because each item is up to a 5-minute HTTP call:
      * a small chunk bounds how much already-cached-and-therefore-cheap work a rolled-back chunk would
      * redo, and keeps verdict commits frequent.
+     *
+     * <p>Sixteen rather than ten because a chunk is now the read-ahead (ADR-140): {@link
+     * ConversionDispatch} dispatches every occurrence of a chunk before the first is processed, and a
+     * chunk pays one 2-second tick per <em>wave</em> of {@link #CONVERSION_CONCURRENCY}. A chunk of ten
+     * at a width of eight paid a second tick for two documents — fivefold, not eightfold. Two whole
+     * waves deliver the width the record claims, and {@code ExtractionStepTest} pins that this stays a
+     * multiple of the width.
      */
-    static final int CHUNK_SIZE = 10;
+    static final int CHUNK_SIZE = 16;
 
     /**
      * Spring Batch's own cumulative skip limit — a generous backstop against a slowly-degrading

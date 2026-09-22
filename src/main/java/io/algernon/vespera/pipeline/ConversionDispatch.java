@@ -46,8 +46,13 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
  * that stops answering fails its in-flight wave as a block that the processor then observes
  * consecutively -- which is the order ADR-140 section 2 defines both streaks over.
  *
- * <p>The worker threads are named and daemon: a non-daemon pool thread is what keeps this CLI alive
- * after its command has finished, and {@link #close} is not on every path a failed step takes.
+ * <p>The worker threads are named and daemon. {@link #close} does run on every path a step takes, failed
+ * or not ({@code AbstractStep.execute} reaches it in a {@code finally}); what it cannot reach is a JVM
+ * that exits without unwinding the step -- a hard kill, or {@code System.exit} from elsewhere -- and
+ * {@code shutdownNow()}'s interrupt is not guaranteed to unblock a JDK {@code HttpClient} read, so a
+ * non-daemon worker could hold this CLI open for the rest of a five-minute call budget. A worker's only
+ * effect is the response it hands back, written only by {@link PendingConversions#take} on the step
+ * thread, so a daemon worker killed mid-call loses nothing half-written.
  *
  * <p>An occurrence stage 1 recorded no format for is not dispatched at all; the processor's own check
  * finds the same absence and reports it exactly as it always has (ADR-100's case is not this class's

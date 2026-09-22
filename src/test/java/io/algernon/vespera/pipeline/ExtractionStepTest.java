@@ -52,8 +52,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -97,9 +100,15 @@ import org.springframework.transaction.annotation.Transactional;
  * on. {@link ExtractionConcurrencyTest} pins the rule those conversions' outcomes are read by and the
  * width the code fixes; neither says anything about how the step is wired, and the wiring is where the
  * width is either honoured or quietly absent. The second half of that claim — that the converting
- * threads are not the invoking one — is also what a step-level task executor would fail, since under
- * one the whole chunk loop and both streak listeners move onto those threads too, which is the data
- * race ADR-140 section 3 refuses.
+ * threads are not the invoking one — is what catches the width being wired out, not a step-level task
+ * executor: under one, Spring Batch still reads on the step thread and hands only the processing to
+ * the executor, so the reader still dispatches to its own workers and both halves pass unchanged. The
+ * data race ADR-140 section 3 refuses is caught by the other claim here, made through {@link
+ * DrainThreadProbe}: every metric stage 2 writes is written from the one thread the command was
+ * invoked on. A step-level executor moves the processor, the streak counters and the fault recorder's
+ * list onto its threads; wired in on this profile, measured, the step never finishes at all, which is
+ * why that test carries a timeout on a thread of its own — a pin that fails by hanging is a build that
+ * never reports. Where the step does finish, the one-thread claim is what fails.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -108,6 +117,7 @@ import org.springframework.transaction.annotation.Transactional;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @ImportAutoConfiguration(BatchAutoConfiguration.class)
 @Import({
+    DrainThreadProbe.class,
     CensusJobConfiguration.class,
     GenerationJobConfiguration.class,
     GenerationTasklet.class,
@@ -229,6 +239,11 @@ class ExtractionStepTest {
      */
     private static final Duration UNTIL_A_WHOLE_WAVE_IS_CONVERTING = Duration.ofSeconds(5);
 
+    @BeforeEach
+    void forgetWhatTheProbeSaw() {
+        DrainThreadProbe.forget();
+    }
+
     @TempDir
     static Path workingDirectory;
 
@@ -323,11 +338,41 @@ class ExtractionStepTest {
                 () -> assertThat(scripted().mostEverConvertingAtOnce())
                         .isEqualTo(ExtractionJobConfiguration.CONVERSION_CONCURRENCY));
         claim(
+                "and the chunk is a whole number of those waves -- the chunk loop is the read-ahead, so a chunk pays"
+                        + " one tick per wave, and a chunk of ten at a width of eight paid a second tick for two"
+                        + " documents",
+                () -> assertThat(ExtractionJobConfiguration.CHUNK_SIZE % ExtractionJobConfiguration.CONVERSION_CONCURRENCY)
+                        .isZero());
+        claim(
                 "none of those conversions ran on the thread the command itself was invoked on -- that thread is"
                         + " where the step reads, writes and counts, and a conversion sharing it would mean the"
                         + " counting had been spread across threads too, which is how a run that should stop"
                         + " quietly carries on",
                 () -> assertThat(scripted().convertingThreads()).isNotEmpty().doesNotContain(invokedOn));
+    }
+
+    @Test
+    @Story("How many conversions run at once")
+    @Issue("264")
+    @Link(name = "ADR-140", url = Adr.STAGE_2_CONVERTS_EIGHT_AT_A_TIME, type = "adr")
+    @DisplayName("Everything the step writes is written from the one thread it was invoked on")
+    @Timeout(value = 2, unit = TimeUnit.MINUTES, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    void theDrainIsOneThreadAndItIsTheInvokingOne(@TempDir Path root) throws IOException {
+        for (int i = 0; i < DOCUMENTS_FOR_MORE_THAN_ONE_WAVE; i++) {
+            Files.writeString(root.resolve("document-" + i + ".txt"), "content " + i);
+        }
+        String invokedOn = Thread.currentThread().getName();
+
+        cli.run("run", root.toString());
+
+        claim("the command reported success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "every metric row stage 2 wrote was written from exactly one thread, and that thread is the one the"
+                        + " command was invoked on -- the drain. Conversions run on other threads; reading, writing and"
+                        + " counting do not, and that is what keeps five failures in a row meaning five in a row. A"
+                        + " step that processed on a pool of threads would write from several here, which is the"
+                        + " data race that lets a run which should stop carry on",
+                () -> assertThat(DrainThreadProbe.THREADS_THAT_WROTE_A_METRIC).containsExactly(invokedOn));
     }
 
     private ScriptedExtractor scripted() {

@@ -185,19 +185,23 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     }
 
     private Conversion convert(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
-        String contentHash = contentIdentity
-                .hashFor(occurrenceId, extractionRun.byteLevelReductionRunId())
-                .orElseGet(() -> extractor.contentHashFor(file));
-        Optional<DetectedSubtype> subtype =
-                detectedFormats.subtypeFor(occurrenceId, extractionRun.byteLevelReductionRunId());
         // ADR-140: ConversionDispatch may already have placed this call, ahead of this occurrence's
-        // turn, on a worker thread of its own -- pending is where that answer waits. Nothing dispatches
-        // ahead of a processor built by ExtractionItemProcessorTest's own constructor, so pending is
-        // always empty there and this falls back to placing the call itself, exactly as it always has.
-        DoclingResponse response = pending.take(occurrenceId)
-                .orElseGet(() ->
-                        extractor.convert(file, contentHash, extractorIdentity, format, subtype.orElse(null)));
-        return new Conversion(response, contentHash);
+        // turn, on a worker thread of its own -- pending is where that answer waits, and the hash and
+        // subtype that call needed were resolved there, so on that path nothing is looked up or hashed
+        // here (a full-file SHA-256 per occurrence, where stage 1 left it unhashed, is not a cost to pay
+        // for a value nothing reads). Nothing dispatches ahead of a processor built by
+        // ExtractionItemProcessorTest's own constructor, so pending is always empty there and this falls
+        // back to placing the call itself, exactly as it always has.
+        DoclingResponse response = pending.take(occurrenceId).orElseGet(() -> {
+            String contentHash = contentIdentity
+                    .hashFor(occurrenceId, extractionRun.byteLevelReductionRunId())
+                    .orElseGet(() -> extractor.contentHashFor(file));
+            DetectedSubtype subtype = detectedFormats
+                    .subtypeFor(occurrenceId, extractionRun.byteLevelReductionRunId())
+                    .orElse(null);
+            return extractor.convert(file, contentHash, extractorIdentity, format, subtype);
+        });
+        return new Conversion(response);
     }
 
     /**
@@ -220,8 +224,8 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
     }
 
-    /** One occurrence's response, alongside the content hash it was converted and cached under. */
-    private record Conversion(DoclingResponse response, String contentHash) {}
+    /** One occurrence's response, however it was obtained. */
+    private record Conversion(DoclingResponse response) {}
 
     /**
      * ADR-070: reachable only from {@code success}/{@code partial_success}. Writes the metrics row and
