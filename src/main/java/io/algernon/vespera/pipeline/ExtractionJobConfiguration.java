@@ -39,8 +39,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 public class ExtractionJobConfiguration {
 
     /**
-     * The step's chunk size — an implementer's default, not a spec-fixed number (unlike the timeout
-     * and streak counts ADR-071 pins). Kept small because each item is up to a 5-minute HTTP call:
+     * The step's chunk size. That it is a whole number of {@link #CONVERSION_CONCURRENCY} waves is
+     * ADR-140's constraint; that it is two waves rather than one or three is the implementer's choice
+     * (unlike the timeout and streak counts ADR-071 pins). Kept small because each item is up to a
+     * 5-minute HTTP call:
      * a small chunk bounds how much already-cached-and-therefore-cheap work a rolled-back chunk would
      * redo, and keeps verdict commits frequent.
      *

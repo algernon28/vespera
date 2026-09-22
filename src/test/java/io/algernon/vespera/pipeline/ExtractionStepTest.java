@@ -106,9 +106,10 @@ import org.springframework.transaction.annotation.Transactional;
  * data race ADR-140 section 3 refuses is caught by the other claim here, made through {@link
  * DrainThreadProbe}: every metric stage 2 writes is written from the one thread the command was
  * invoked on. A step-level executor moves the processor, the streak counters and the fault recorder's
- * list onto its threads; wired in on this profile, measured, the step never finishes at all, which is
- * why that test carries a timeout on a thread of its own — a pin that fails by hanging is a build that
- * never reports. Where the step does finish, the one-thread claim is what fails.
+ * list onto its threads; wired in on this profile, measured, the step did not finish within 400
+ * seconds, which is why that test carries a timeout on a thread of its own — a pin that fails by
+ * hanging is a build that never reports, and with the timeout it failed at two minutes. Where the step
+ * does finish, the one-thread claim is what fails.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -355,7 +356,7 @@ class ExtractionStepTest {
     @Story("How many conversions run at once")
     @Issue("264")
     @Link(name = "ADR-140", url = Adr.STAGE_2_CONVERTS_EIGHT_AT_A_TIME, type = "adr")
-    @DisplayName("Everything the step writes is written from the one thread it was invoked on")
+    @DisplayName("Every metric row the step writes is written from the one thread it was invoked on")
     @Timeout(value = 2, unit = TimeUnit.MINUTES, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void theDrainIsOneThreadAndItIsTheInvokingOne(@TempDir Path root) throws IOException {
         for (int i = 0; i < DOCUMENTS_FOR_MORE_THAN_ONE_WAVE; i++) {
