@@ -631,6 +631,13 @@ public final class Adr {
     public static final String STAGE_2_CONVERTS_EIGHT_AT_A_TIME = FILE
             + "0140-stage-2-converts-eight-file-occurrences-at-a-time-and-consecutive-means-consecutive-on-the-drain.md";
 
+    /**
+     * ADR-141 -- the CLI exits with the command's exit code, and the scheduler no feature uses is
+     * removed at its source.
+     */
+    public static final String THE_CLI_EXITS_WITH_THE_COMMANDS_EXIT_CODE = FILE
+            + "0141-the-cli-exits-with-the-commands-exit-code-and-the-scheduler-no-feature-uses-is-removed-at-its-source.md";
+
     private Adr() {
     }
 }

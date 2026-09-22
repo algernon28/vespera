@@ -13,6 +13,9 @@ public class VesperaApplication {
         // prepared, which is before any bean exists and before the datasource opens a file inside
         // the directory it creates (ADR-054).
         application.addListeners(new WorkingDirectoryPreparer());
-        application.run(args);
+        // The command's exit code is the process's (ADR-141): SpringApplication.exit closes the
+        // context and reads every ExitCodeGenerator, and System.exit ends the JVM whatever
+        // non-daemon thread a dependency has started and left parked.
+        System.exit(SpringApplication.exit(application.run(args)));
     }
 }

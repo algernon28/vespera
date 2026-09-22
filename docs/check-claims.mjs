@@ -180,7 +180,7 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
 // it covered a class that failsafe alone reaches.
 {
   const NAME = "the integration tests";
-  const m = claim(/There are (\w+) — (.+?) — and each needs a Docker daemon/, NAME);
+  const m = claim(/There are (\w+) — (.+?) — /, NAME);
   if (m) {
     const named = backticked(m[2]).sort();
     const found = [];
