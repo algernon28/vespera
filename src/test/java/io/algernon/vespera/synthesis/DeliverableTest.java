@@ -177,6 +177,48 @@ class DeliverableTest {
     /** That seed path as its heading must read, folded and with both characters escaped. */
     private static final String THAT_SEED_PATH_ESCAPED = "seeds/\\<draft> Safety \\& Standards.docx";
 
+    /**
+     * A cluster label that is itself a whole inline link. Not exotic: NTFS permits every character in
+     * it, so a document can really be named this, and a Docling title is arbitrary text off a title
+     * block.
+     */
+    private static final String A_NAME_THAT_IS_ITSELF_A_LINK = "[click me](evil.md) report";
+
+    /** That name as a cell has to carry it, with both brackets behind a backslash and nothing else moved. */
+    private static final String THAT_NAME_WITH_ITS_BRACKETS_ESCAPED = "\\[click me\\](evil.md) report";
+
+    /**
+     * That escaped name standing as a whole cell, which is what tells its row apart from the heading
+     * above it: a partition heading naming the seed carries the same name inside a longer one, and a
+     * lookup by the name alone would find the heading and read its columns.
+     */
+    private static final String THAT_NAME_AS_A_WHOLE_CELL = "| " + THAT_NAME_WITH_ITS_BRACKETS_ESCAPED + " |";
+
+    /** A seed path of the same shape, which is the value the index's own partition heading is given. */
+    private static final String A_SEED_PATH_THAT_IS_ITSELF_A_LINK = "seeds/[click me](evil.md) report.docx";
+
+    /** That seed path as its heading has to read. */
+    private static final String THAT_SEED_PATH_WITH_ITS_BRACKETS_ESCAPED =
+            "seeds/\\[click me\\](evil.md) report.docx";
+
+    /**
+     * A cluster title that is itself an image, which is the same two brackets with a bang in front of
+     * them. What the model answers is under no filesystem constraint at all, so this is the freest of
+     * the three values the index carries.
+     */
+    private static final String A_TITLE_THAT_IS_ITSELF_AN_IMAGE = "Survey ![shot](https://example.com/x.png) 2019";
+
+    /** That title as a cell has to carry it: the bang is harmless once the bracket after it is not live. */
+    private static final String THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED =
+            "Survey !\\[shot\\](https://example.com/x.png) 2019";
+
+    /**
+     * A doubled backslash in front of a bracket, which is what a link-text rule would write if it
+     * escaped the bracket the cell rule had already escaped. It reads as one literal backslash followed
+     * by a live bracket, and the link does not survive it.
+     */
+    private static final String A_BRACKET_ESCAPED_TWICE = "\\\\[";
+
     /** The first place in an order, which both levels count from (ADR-112). */
     private static final int FIRST_PLACE = 1;
 
@@ -678,6 +720,98 @@ class DeliverableTest {
                 () -> assertThat(row).doesNotContain("R&amp;D").contains("R\\&D"));
     }
 
+    /**
+     * The three positions a bracket reaches in the index, driven from one tree (ADR-138).
+     *
+     * <p><b>Two of the three escaped nothing at all before.</b> The partition heading goes through
+     * {@code inAHeading} and a cell through {@code inACell}, and neither touched a bracket: a value
+     * reading {@code [text](url)} was a live link in both, and one reading {@code ![alt](url)} an
+     * image, in every renderer configuration measured. The third is the linked first column, which has
+     * escaped the bracket since ADR-134 and is here for the opposite reason -- to hold the escape at
+     * one backslash. {@code asLinkText} is {@code inACell} and nothing more once the cell rule carries
+     * the brackets, and a version that escaped them a second time would write a literal backslash in
+     * front of a live bracket and destroy the only link the index gives a reader.
+     *
+     * <p><b>Which value sits in which position, since the three do not come from one place.</b> The
+     * seed path in the partition heading is a filesystem name, and NTFS permits every character in it.
+     * The linked first column is the <em>label</em> and never the title: a cluster's derived label is a
+     * document's own Docling title (ADR-106), arbitrary text off a title block rather than a filename,
+     * so a label can carry a destination no NTFS name could hold. The third column is the generated
+     * title, which is what the model answered, under no constraint whatever. The image-shaped value is
+     * given as this cluster's label as well as its title deliberately: pinning the linked column takes
+     * a label, because the label is what that column carries.
+     *
+     * <p><b>The cluster page's own heading is claimed in {@code ClusterFileTest}</b>, where the page is.
+     * This class is the index, and the same rule reaches four positions across the two.
+     */
+    @Test
+    @Story("A name out of the archive cannot rewrite the page it is listed on")
+    @DisplayName("A group named with a link or an image is listed under that name rather than rendered as one")
+    @Issue("258")
+    @Link(name = "ADR-138", url = Adr.A_BRACKET_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN, type = "adr")
+    void keepsABracketedNameFromComposingALinkOfItsOwn(@TempDir Path workingDirectory) throws IOException {
+        Path tree = Deliverable.writeTo(
+                workingDirectory,
+                provenance(THE_SEED_FOLDER_VALUE),
+                List.of(
+                        aCluster(FIRST_ORDINAL, A_TITLE_THAT_IS_ITSELF_AN_IMAGE, FIRST_PLACE, FIRST_PLACE),
+                        aCluster(A_LATER_ORDINAL, A_NAME_THAT_IS_ITSELF_A_LINK, FIRST_PLACE, SECOND_PLACE)),
+                List.of(new RecordedSynthesisDoc(
+                        THE_SEED,
+                        FIRST_ORDINAL,
+                        new SynthesisDoc(
+                                A_TITLE_THAT_IS_ITSELF_AN_IMAGE,
+                                THE_PROSE,
+                                List.of(new OccurrenceId(10), new OccurrenceId(11))))),
+                membersUnder(A_SEED_PATH_THAT_IS_ITSELF_A_LINK));
+
+        String index = Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME));
+        String linkedRow = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED);
+        String plainRow =
+                lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THAT_NAME_AS_A_WHOLE_CELL);
+
+        claim(
+                "the heading naming the seed carries its brackets behind a backslash, so a name that"
+                        + " spells a link is read as a name: written through, the middle of it becomes a"
+                        + " link to wherever that name pointed, and the rest of the heading's own text"
+                        + " goes with it",
+                () -> assertThat(index).contains("## " + THAT_SEED_PATH_WITH_ITS_BRACKETS_ESCAPED));
+        claim(
+                "and the group's own name in the column that has no link on it does the same, and is"
+                        + " that name rather than merely containing it -- this is the one cell whose"
+                        + " whole text is a name nobody linked, so a rule applied where a link is being"
+                        + " formed never reaches it",
+                () -> assertThat(cellsOf(plainRow).get(1)).isEqualTo(THAT_NAME_WITH_ITS_BRACKETS_ESCAPED));
+        claim(
+                "and the name the writing gave a group keeps every word, bang and all: a bang in front"
+                        + " of a live bracket is an image, and an image's words are an attribute rather"
+                        + " than text, so the word between the brackets leaves the page altogether and"
+                        + " the page fetches a picture from whatever host the name gave",
+                () -> assertThat(cellsOf(linkedRow).get(THE_WRITTEN_UP_COLUMN))
+                        .isEqualTo(THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED));
+        claim(
+                "and neither name reaches the page as it was given, anywhere on it, which is what says"
+                        + " the escape is applied to every value rather than to the ones that carry a"
+                        + " link on the row",
+                () -> assertThat(index)
+                        .doesNotContain(A_TITLE_THAT_IS_ITSELF_AN_IMAGE)
+                        .doesNotContain(A_SEED_PATH_THAT_IS_ITSELF_A_LINK));
+        claim(
+                "while the column that does carry a link escapes each bracket once and not twice, and"
+                        + " still opens the page it names: two backslashes read as one literal backslash"
+                        + " followed by a bracket that is live again, which ends the link where the name"
+                        + " has a bracket and leaves a reader clicking nothing at all",
+                () -> assertThat(linkedRow)
+                        .contains("[" + THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED + "](")
+                        .doesNotContain(A_BRACKET_ESCAPED_TWICE));
+        claim(
+                "and the page that link names is really there, which is what says the name and the"
+                        + " route are still derived from the one value: the route is read out of the"
+                        + " cell rather than out of the name, because a name spelling a link of its own"
+                        + " puts a second one of these in front of the real one",
+                () -> assertThat(tree.resolve(theRouteOutOf(cellsOf(linkedRow).get(1)))).isRegularFile());
+    }
+
     @Test
     @Story("Everything the operator reads is in their words, and everything we name is in ours")
     @DisplayName("The index speaks of groups, and the constants behind it speak of clusters")
@@ -860,6 +994,21 @@ class DeliverableTest {
                         List.of(new OccurrenceId(10), new OccurrenceId(11))));
     }
 
+    /**
+     * Where the link wrapping the whole of {@code cell} leads, as a path relative to the tree's own
+     * root.
+     *
+     * <p>Read from the <em>last</em> {@code ](} in the cell rather than the first, and from one cell
+     * rather than from the whole row, because the name inside the link may spell a bracket and a
+     * parenthesis of its own: a cluster named after a link or an image carries an escaped {@code ](}
+     * in the middle of the text, and a reader taking the first one would follow the name rather than
+     * the route. A renderer resolves the same way, the escaped brackets being text to it.
+     */
+    private static String theRouteOutOf(String cell) {
+        int opens = cell.lastIndexOf("](");
+        return cell.substring(opens + 2, cell.indexOf(')', opens));
+    }
+
     /** The destination of the one link in {@code row}, as a path relative to the tree's own root. */
     private static String destinationOf(String row) {
         int opens = row.indexOf("](");
@@ -940,6 +1089,38 @@ class DeliverableTest {
     private static RecordedSynthesisDoc writingFor(int ordinal, OccurrenceId... sent) {
         return new RecordedSynthesisDoc(
                 THE_SEED, ordinal, new SynthesisDoc(THE_TITLE, THE_PROSE, List.of(sent)));
+    }
+
+    /**
+     * The three survivors the two-cluster bracket fixture holds, all in one partition whose seed has
+     * the path given, so the index's own heading can be driven from the same call.
+     */
+    private static List<ListedSurvivor> membersUnder(String seedPath) {
+        return List.of(
+                new ListedSurvivor(
+                        new OccurrenceId(10),
+                        new OccurrencePath("reports/2019/retrofit.pdf"),
+                        "3a7b",
+                        THE_SEED,
+                        seedPath,
+                        FIRST_ORDINAL,
+                        A_SCORE),
+                new ListedSurvivor(
+                        new OccurrenceId(11),
+                        new OccurrencePath("reports/2021/retrofit follow-up.pdf"),
+                        "9c11",
+                        THE_SEED,
+                        seedPath,
+                        FIRST_ORDINAL,
+                        A_LOWER_SCORE),
+                new ListedSurvivor(
+                        new OccurrenceId(12),
+                        new OccurrencePath("reports/2020/retrofit review.pdf"),
+                        "5e40",
+                        THE_SEED,
+                        seedPath,
+                        A_LATER_ORDINAL,
+                        A_LOWER_SCORE));
     }
 
     /** The two survivors that cluster holds, both of them under the one seed. */
@@ -1046,11 +1227,25 @@ class DeliverableTest {
         return columns.toArray(new String[0]);
     }
 
-    /** The one line of {@code file} mentioning {@code text}, so a claim is about an entry and not a page. */
+    /**
+     * The one line of {@code file} mentioning {@code text}, so a claim is about an entry and not a page.
+     *
+     * <p><b>A miss fails here, in words.</b> Returning an empty line let a caller that splits the result
+     * into cells die of an {@link IndexOutOfBoundsException} instead, which is the outcome ADR-052's
+     * claim discipline exists to prevent: the report showed an error where it owed a sentence, and the
+     * sentence it owed was about the page, not about an index into a list. Failing here names the file
+     * that was read and the text that was looked for in it.
+     */
     private static String lineOf(Path file, String text) throws IOException {
-        return Files.readAllLines(file).stream()
+        List<String> carrying = Files.readAllLines(file).stream()
                 .filter(line -> line.contains(text))
-                .findFirst()
-                .orElse("");
+                .toList();
+        assertThat(carrying)
+                .withFailMessage(
+                        "a line of %s was expected to carry %s, and no line of it does, so there is no"
+                                + " entry for the claims below to be about",
+                        file.getFileName(), text)
+                .isNotEmpty();
+        return carrying.getFirst();
     }
 }

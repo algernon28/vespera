@@ -602,6 +602,17 @@ public final class Adr {
     public static final String A_DESTINATIONS_AMPERSAND_IS_PERCENT_ENCODED = FILE
             + "0137-a-destinations-ampersand-is-percent-encoded-and-the-destination-is-a-fifth-surrounding.md";
 
+    /**
+     * ADR-138 -- the two brackets are backslash-escaped in the heading rule and the cell rule as well,
+     * unconditionally rather than only where what follows would close a link, because a link and an
+     * image both form in an ATX heading and in a table cell; and the link-text rule stops escaping them
+     * a second time, becoming a call to the cell rule, since a rule that escapes what another has just
+     * inserted destroys the link it was written to keep whole. Amends the two false sentences ADR-136
+     * carries about the heading's brackets and about {@code onOneLine}'s callers.
+     */
+    public static final String A_BRACKET_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN = FILE
+            + "0138-a-bracket-is-escaped-in-every-surrounding-a-value-is-read-in-and-the-link-text-stops-being-a-rule-of-its-own.md";
+
     private Adr() {
     }
 }

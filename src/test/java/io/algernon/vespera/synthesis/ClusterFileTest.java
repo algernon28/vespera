@@ -157,6 +157,17 @@ class ClusterFileTest {
     private static final double A_HIGH_SCORE = 0.9;
 
     /**
+     * A cluster title that is itself an image: the two brackets a link is made of, with a bang in
+     * front of them. What the model answers is under no filesystem constraint at all, so nothing bounds
+     * what it can spell, and this is the value the page's own heading is given.
+     */
+    private static final String A_TITLE_THAT_IS_ITSELF_AN_IMAGE = "Survey ![shot](https://example.com/x.png) 2019";
+
+    /** That title as the heading has to read: each bracket behind a backslash, and nothing else moved. */
+    private static final String THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED =
+            "Survey !\\[shot\\](https://example.com/x.png) 2019";
+
+    /**
      * How many renderer settings the entry was measured in: four renderers, two of which have a second
      * documented mode that changes the answer.
      */
@@ -598,6 +609,47 @@ class ClusterFileTest {
                         + " it -- a link composed by handing such a name to a Path would throw before any"
                         + " URI was built, leaving the document unreachable",
                 () -> assertThat(page).contains("phase%20%22two%22.pdf"));
+    }
+
+    /**
+     * The one heading in the tree a generated name reaches on its own (ADR-138).
+     *
+     * <p><b>This is the position that escaped least of all.</b> {@code inAHeading} folds and escapes
+     * the backslash, the angle bracket and the ampersand, and until ADR-138 it left both brackets
+     * alone -- so a title spelling a link opened the page as a link, and one spelling an image opened
+     * it as an image, in every renderer configuration measured. The index's own heading and its two
+     * cells are claimed in {@code DeliverableTest}; this is the page, and the value here is the
+     * model's own answer rather than a name out of the archive.
+     *
+     * <p><b>The image is the worse of the two and the quieter.</b> A link goes somewhere wrong and a
+     * reader can see it; an image is fetched from the host the name gave when the page is opened, in a
+     * tree whose whole claim is that it resolves without a network -- and the words between the
+     * brackets become an attribute rather than text, so a reader looking at the heading as text is
+     * looking at a name one word short with nothing to say a word was taken out.
+     */
+    @Test
+    @Story("A claim leads to the document behind it in two clicks")
+    @DisplayName("A group whose written-up name spells an image opens its page with the name, not the image")
+    @Issue("258")
+    @Link(name = "ADR-138", url = Adr.A_BRACKET_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN, type = "adr")
+    void keepsATitleThatIsItselfAnImageReadableAsAName(@TempDir Path workingDirectory) throws IOException {
+        String page = pageOf(write(
+                workingDirectory,
+                new SynthesisDoc(A_TITLE_THAT_IS_ITSELF_AN_IMAGE, "The nearest one [1] is the retrofit.", sent(10)),
+                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
+
+        claim(
+                "the page opens with the name the writing gave the group, both of its brackets behind a"
+                        + " backslash, so what a reader meets is the name: a bang in front of a live"
+                        + " bracket is a picture, and the page then fetches it from whatever host the"
+                        + " name happened to spell",
+                () -> assertThat(page).startsWith("# " + THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED + "\n"));
+        claim(
+                "and every word of it survives into the heading, the one between the brackets included:"
+                        + " a picture's words are an attribute rather than text, so written through, that"
+                        + " word leaves the heading altogether -- and nothing on the page says a word was"
+                        + " ever there",
+                () -> assertThat(page).doesNotContain(A_TITLE_THAT_IS_ITSELF_AN_IMAGE));
     }
 
     /**
