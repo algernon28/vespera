@@ -623,6 +623,14 @@ public final class Adr {
     public static final String A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW = FILE
             + "0139-a-refused-conversion-leaves-a-fault-row-and-a-step-that-completed-resolves-it-into-a-verdict.md";
 
+    /**
+     * ADR-140 -- stage 2 converts eight file occurrences at a time, and "consecutive" means consecutive on the
+     * drain. Also states deliberately that ADR-071's synchronous call shape stands under concurrency, on
+     * a reason its own record predates.
+     */
+    public static final String STAGE_2_CONVERTS_EIGHT_AT_A_TIME = FILE
+            + "0140-stage-2-converts-eight-file-occurrences-at-a-time-and-consecutive-means-consecutive-on-the-drain.md";
+
     private Adr() {
     }
 }
