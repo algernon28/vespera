@@ -93,10 +93,14 @@ public class ConfidenceDistribution {
             countsByGrade.merge(QualityGrade.of(score), 1L, Long::sum);
         }
 
-        Distribution distribution = new Distribution(QualityGrade.SCORED.stream()
-                .map(grade -> new Bucket(
-                        grade.toWire(), grade.lowerBound(), grade.upperBound(), countsByGrade.get(grade)))
-                .toList());
+        long refusedConversionCount = new ExtractionFaults(jdbcTemplate).countForRun(extractionRunId);
+
+        Distribution distribution = new Distribution(
+                QualityGrade.SCORED.stream()
+                        .map(grade -> new Bucket(
+                                grade.toWire(), grade.lowerBound(), grade.upperBound(), countsByGrade.get(grade)))
+                        .toList(),
+                refusedConversionCount);
 
         write(stage3RunId, distribution);
         return distribution;
@@ -154,8 +158,13 @@ public class ConfidenceDistribution {
      * ({@code "poor"}/{@code "fair"}/{@code "good"}/{@code "excellent"}) rather than the enum itself,
      * since {@link QualityGrade} is package-private and this value crosses into {@code pipeline} to be
      * rendered (ADR-040, ADR-075).
+     *
+     * @param refusedConversionCount how many occurrences the converter refused to open under the same
+     *     extraction run (ADR-139, section 7) -- a fact about occurrences this distribution never saw
+     *     at all, carried beside the buckets rather than folded into one of them, since a refusal is
+     *     not a measured score of any grade.
      */
-    public record Distribution(List<Bucket> buckets) {
+    public record Distribution(List<Bucket> buckets, long refusedConversionCount) {
 
         /** How many survivors carried a non-null {@code mean_score}, across every bucket. */
         public long totalCounted() {

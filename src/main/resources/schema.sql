@@ -237,6 +237,30 @@ CREATE TABLE IF NOT EXISTS confidence_distribution (
     PRIMARY KEY (run_id, grade)
 );
 
+-- extraction's own table (ADR-070, ADR-139), on the precedent of unusable_seed and cluster_fault: one
+-- row per occurrence per run that the converter refused to open -- a status of failure/skipped whose
+-- errors[] never earned a document-scope reading, so ADR-070 read it as service scope and nothing was
+-- ever measured for it. Not a verdict and removes nothing on its own: what it records is that stage 2
+-- got no answer about this occurrence, made into a row rather than left as an absence. category and
+-- detail are the response's own reported category and message, so a capacity removal is
+-- distinguishable from an unknown one by a query rather than by re-converting.
+--
+-- Written from memory in afterStep, never inside the chunk transaction the response's own skip rolled
+-- back (ADR-139 section 2): a second connection writing there while the chunk transaction holds
+-- SQLite's one write lock is exactly the contention ADR-127's busy timeout exists to survive, bought
+-- here for nothing -- and under the test profile's pool of one it is not contention, it is a deadlock,
+-- the nested write waiting on a connection its own caller holds. An invocation killed mid-step
+-- therefore records no faults and no completion for the step either, so a re-run discards this run's
+-- rows (the primary key would otherwise collide on the second write) and does the work again
+-- (ADR-115, ADR-116) -- deterministically refused again, since the refusal is a property of the file.
+CREATE TABLE IF NOT EXISTS extraction_fault (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    category TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id)
+);
+
 -- extraction's own table (ADR-029, ADR-044, ADR-091): one row per chunk, keyed by content hash plus
 -- chunker identity plus chunking-rule identity. ADR-044 required the key carry "tokenizer identity";
 -- ADR-091 kept the slot and changed its occupant, because there is no tokenizer here -- the only

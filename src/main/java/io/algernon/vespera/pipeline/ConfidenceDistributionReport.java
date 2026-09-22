@@ -19,6 +19,10 @@ import java.util.Locale;
  * ConfidenceDistribution#measure} both writes to its own table and returns here — the same value
  * drives both outputs, so the HTML's numbers and the table's numbers can never silently drift apart
  * (ADR-075's acceptance criterion 5).
+ *
+ * <p>The refused-conversion line rendered below (ADR-139, section 7) is the one fact on this page
+ * {@code measure} did not itself bucket — how many occurrences the converter never got to score at
+ * all, under the same extraction run.
  */
 final class ConfidenceDistributionReport {
 
@@ -42,6 +46,10 @@ final class ConfidenceDistributionReport {
                 + ReportPage.paragraph("Stage 2's <code>extraction_metric.mean_score</code> over every "
                         + "stage-2 survivor, excluding any occurrence whose score is not computed. Total "
                         + "documents counted: " + total + ".")
+                + ReportPage.paragraph("The converter refused to open "
+                        + distribution.refusedConversionCount() + " occurrence(s) under this run -- examined "
+                        + "by no stage, and recorded as an extraction-failed verdict rather than left "
+                        + "unjudged.")
                 + ReportPage.table(
                         "<thead>"
                                 + ReportPage.headerRow(

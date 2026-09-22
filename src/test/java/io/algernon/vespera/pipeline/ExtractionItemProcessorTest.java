@@ -50,8 +50,12 @@ import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * What one Docling response earns an occurrence (ADR-070, ADR-071): whether it is a fact about the
- * document, and so a verdict, or a fact about the sidecar, and so no row at all.
+ * What one Docling response earns an occurrence (ADR-070, ADR-071, ADR-139): whether it is a fact
+ * about the document, and so a verdict decided here, or a fact about the sidecar, and so no judgement
+ * here at all -- the occurrence is set aside instead, and what becomes of it is settled after this
+ * class has finished with it. It is faulted by the step's own listener and judged only where that step
+ * went on to complete; nothing about that is decided in a processor, which is why every claim below
+ * about a service-scope response is a claim that this class threw rather than a claim about a row.
  *
  * <p>The responses are scripted rather than served, because most of what is claimed here is a
  * sequence — three timeouts in a row read differently from three timeouts apart — and no single
@@ -370,6 +374,13 @@ class ExtractionItemProcessorTest {
                 "a converter that ran out of time on one document says that document was too much for the"
                         + " time it is given, and the document is recorded as one extraction could not read",
                 () -> assertThat(first.kind()).isEqualTo(VerdictKind.EXTRACTION_FAILED));
+        claim(
+                "and its reason names the category once and then the message the converter reported --"
+                        + " not the category twice. Every reason this class writes is composed the same way,"
+                        + " here and where a refusal is turned into a judgement later, so a category written"
+                        + " into the message and then prefixed again is the shape that tells an operator the"
+                        + " two were composed by different hands",
+                () -> assertThat(first.reason()).isEqualTo("timeout: " + ERROR_MESSAGE));
         claim(
                 "so does a call that came back with nothing at all, which is the same reading of the same"
                         + " situation and counts against the same run",

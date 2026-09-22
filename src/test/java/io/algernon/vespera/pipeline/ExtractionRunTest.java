@@ -145,21 +145,22 @@ class ExtractionRunTest {
         ExtractionRun overTheFirst = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstArchive);
         ExtractionRun overTheSecond = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondArchive);
         // The reader discards this step's own rows where its work is not recorded as finished, so it is
-        // handed the two tables holding them. Neither archive here has ever been read, so both discards
-        // delete nothing; what this test is about is which archive gets read.
+        // handed what holds them: the two collaborators below, and the template the fault rows are
+        // cleared through (ADR-139). Neither archive here has ever been read, so every discard deletes
+        // nothing; what this test is about is which archive gets read.
         ExtractionMetrics extractionMetrics = new ExtractionMetrics(jdbcTemplate, new LanguageDetection());
         Shingler shingler = new Shingler(jdbcTemplate);
 
         claim(
                 "handed the first archive, extraction reads exactly the " + FILES_IN_THE_FIRST_ARCHIVE
                         + " documents that archive holds",
-                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheFirst, extractionMetrics, shingler)))
+                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheFirst, extractionMetrics, shingler, jdbcTemplate)))
                         .containsExactlyElementsOf(inTheFirst));
         claim(
                 "handed the second, it reads exactly the " + FILES_IN_THE_SECOND_ARCHIVE + " that one holds"
                         + " -- so which archive gets examined is the one an operator named, never one the"
                         + " engine was built around",
-                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheSecond, extractionMetrics, shingler)))
+                () -> assertThat(everythingRead(configuration.extractionReader(ledger, overTheSecond, extractionMetrics, shingler, jdbcTemplate)))
                         .containsExactlyElementsOf(inTheSecond));
     }
 

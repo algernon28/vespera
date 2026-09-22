@@ -26,6 +26,11 @@ import org.junit.jupiter.api.Test;
  * <p>Naming it adds no gate, and nothing here claims otherwise. {@code DegeneracyFloorTest} already
  * pins that an unset floor blocks nothing however low a score is, which is what "the number is yours
  * to write" depends on being true.
+ *
+ * <p>The second thing this page carries is not a measurement at all: how many occurrences the
+ * converter refused to open under the same run (ADR-139, #265). Those are the occurrences this
+ * distribution never saw, so a page reporting only its own buckets is silent about exactly the part
+ * of the corpus stage 2 got no answer about -- which is the shape the ticket was filed over.
  */
 @Epic("Extraction")
 @Feature("Confidence distribution")
@@ -37,11 +42,18 @@ class ConfidenceDistributionReportTest {
     /** The key this page measures what informs, and never used to say. */
     private static final String THE_KEY = "degenerateOutputConfidenceFloor";
 
+    /**
+     * How many occurrences the converter refused to open. Deliberately none of this page's other
+     * numbers -- not a bucket's count and not their total -- so finding it on the page is finding this
+     * line rather than any of them.
+     */
+    private static final long REFUSED_CONVERSIONS = 7;
+
     @Test
     @Story("A report that measures what informs a threshold names that threshold")
     @DisplayName("The page names the key it informs and says the number is the operator's to write")
     void thePageNamesTheKeyItInforms() {
-        String page = ConfidenceDistributionReport.render(aDistribution());
+        String page = ConfidenceDistributionReport.render(aDistribution(REFUSED_CONVERSIONS));
 
         claim(
                 "the page names the key it measures the data for, so an operator can reach it from the"
@@ -58,10 +70,38 @@ class ConfidenceDistributionReportTest {
                 () -> assertThat(page).contains("unset"));
     }
 
-    /** Two grades over three documents — enough to render, and this page's numbers are not the claim. */
-    private static ConfidenceDistribution.Distribution aDistribution() {
-        return new ConfidenceDistribution.Distribution(List.of(
-                new ConfidenceDistribution.Bucket("poor", 0.0, 0.5, 1L),
-                new ConfidenceDistribution.Bucket("good", 0.5, 1.0, 2L)));
+    @Test
+    @Story("A page over stage 2's measurements also reports what stage 2 never measured")
+    @DisplayName("The number of occurrences the converter refused to open reaches the page")
+    @Issue("265")
+    @Link(name = "ADR-139", url = Adr.A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW, type = "adr")
+    void theRefusedConversionCountReachesThePage() {
+        String page = ConfidenceDistributionReport.render(aDistribution(REFUSED_CONVERSIONS));
+
+        claim(
+                "the count of occurrences the converter would not open is on the page, and not only in"
+                        + " the database. It is the one number here about documents this distribution never"
+                        + " measured at all, so a page carrying only its own buckets would leave an operator"
+                        + " setting a threshold off a corpus they believe was wholly examined",
+                () -> assertThat(page).contains("refused to open " + REFUSED_CONVERSIONS));
+        claim(
+                "and the page says which run it counted them under, because these rows are per run: a"
+                        + " number with no run behind it reads as a property of the archive rather than of"
+                        + " the pass that produced the distribution beside it",
+                () -> assertThat(page).contains("under this run"));
+    }
+
+    /**
+     * Two grades over three documents — enough to render, and this page's numbers are not the claim,
+     * except for {@code refusedConversions}, which one test above is entirely about. Both are named
+     * here: a distribution that defaulted its refusal count would let the page's line read zero for a
+     * run that had refusals, and nothing would fail.
+     */
+    private static ConfidenceDistribution.Distribution aDistribution(long refusedConversions) {
+        return new ConfidenceDistribution.Distribution(
+                List.of(
+                        new ConfidenceDistribution.Bucket("poor", 0.0, 0.5, 1L),
+                        new ConfidenceDistribution.Bucket("good", 0.5, 1.0, 2L)),
+                refusedConversions);
     }
 }
