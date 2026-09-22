@@ -25,8 +25,8 @@ import picocli.CommandLine;
  * packaged jar as a subprocess and asserting it exits within a bound for two commands — a rejected
  * one (picocli's usage code) and {@code --version} (success) — so both outcomes of the command
  * reach the shell. It needs no Docker daemon — the compose lifecycle is switched off so the jar
- * starts nothing — but it is an integration test all the same, because the packaged jar exists
- * only after {@code package}.
+ * starts nothing, and the vector store is switched off so it reaches for no Chroma either — but it
+ * is an integration test all the same, because the packaged jar exists only after {@code package}.
  */
 @Epic("Architecture")
 @Feature("Process exit")
@@ -86,6 +86,11 @@ class CliExitIT {
                                         Stream.of(
                                                 javaExecutable(),
                                                 "-Dspring.docker.compose.enabled=false",
+                                                // Spring AI's Chroma store fetches its collection while
+                                                // the context starts, so with no sidecar on
+                                                // localhost:8000 the context fails and the JVM exits 1
+                                                // before picocli parses anything. No bean here uses it.
+                                                "-Dspring.ai.vectorstore.type=none",
                                                 "-Dvespera.working-dir=" + workingDirectory,
                                                 "-jar", EXECUTABLE_JAR.toString()),
                                         Stream.of(args))
