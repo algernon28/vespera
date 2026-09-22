@@ -100,7 +100,8 @@ public class ConfidenceDistribution {
                         .map(grade -> new Bucket(
                                 grade.toWire(), grade.lowerBound(), grade.upperBound(), countsByGrade.get(grade)))
                         .toList(),
-                refusedConversionCount);
+                refusedConversionCount,
+                extractionRunId);
 
         write(stage3RunId, distribution);
         return distribution;
@@ -163,8 +164,11 @@ public class ConfidenceDistribution {
      *     extraction run (ADR-139, section 7) -- a fact about occurrences this distribution never saw
      *     at all, carried beside the buckets rather than folded into one of them, since a refusal is
      *     not a measured score of any grade.
+     * @param extractionRunId stage 2's own run -- the run the fault rows {@code refusedConversionCount}
+     *     is counted under, not the stage-3 run this value's bucket rows are written under. Carried so
+     *     a page rendered from this value can name the run its refusal count actually describes.
      */
-    public record Distribution(List<Bucket> buckets, long refusedConversionCount) {
+    public record Distribution(List<Bucket> buckets, long refusedConversionCount, RunId extractionRunId) {
 
         /** How many survivors carried a non-null {@code mean_score}, across every bucket. */
         public long totalCounted() {

@@ -22,7 +22,11 @@ import java.util.Locale;
  *
  * <p>The refused-conversion line rendered below (ADR-139, section 7) is the one fact on this page
  * {@code measure} did not itself bucket — how many occurrences the converter never got to score at
- * all, under the same extraction run.
+ * all, under the same extraction run. That line names the extraction run the refusal count came
+ * from — {@link ConfidenceDistribution.Distribution#extractionRunId}, stage 2's own run — rather than the
+ * stage-3 run this page itself is written under: {@code measure} counts under the former and writes
+ * under the latter, so naming "this run" would name whichever one happened to be in reach rather
+ * than the one the count is actually about.
  */
 final class ConfidenceDistributionReport {
 
@@ -47,8 +51,9 @@ final class ConfidenceDistributionReport {
                         + "stage-2 survivor, excluding any occurrence whose score is not computed. Total "
                         + "documents counted: " + total + ".")
                 + ReportPage.paragraph("The converter refused to open "
-                        + distribution.refusedConversionCount() + " occurrence(s) under this run -- examined "
-                        + "by no stage, and recorded as an extraction-failed verdict rather than left "
+                        + distribution.refusedConversionCount() + " occurrence(s) under extraction run "
+                        + ReportPage.escape(distribution.extractionRunId().value()) + " -- examined by no "
+                        + "stage, and recorded as an extraction-failed verdict rather than left "
                         + "unjudged.")
                 + ReportPage.table(
                         "<thead>"
