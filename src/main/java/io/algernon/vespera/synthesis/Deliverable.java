@@ -562,8 +562,8 @@ public final class Deliverable {
      * <p><b>A membership entry, not a table cell</b>, which is why this is not {@link #asLinkText}
      * (#246). Here the text is a path, the surrounding structure is a numbered list, and a pipe is an
      * ordinary character. The backslash is escaped first here too, but not on {@link #inACell}'s
-     * ground: this method inserts {@code \[} and {@code \]} just as that one inserts {@code \|}, so
-     * the hazard has the same shape — what it lacks here is an input. It is applied to
+     * ground: this method inserts {@code \[} and {@code \]}, which that one now inserts as well, so
+     * the hazard has the same shape -- what it lacks here is an input. It is applied to
      * {@code member.path().value()}, an {@code OccurrencePath} that is separator-normalised
      * to {@code /} and cannot hold a backslash on NTFS (ADR-051) — nothing here should be read as
      * claiming a path on this filesystem can carry one. The rule is kept anyway as cheap defence
@@ -690,14 +690,15 @@ public final class Deliverable {
 
     /**
      * {@code text} as an ATX heading carries it: folded to one line, then the backslash and the
-     * two characters a renderer would read as markup escaped (ADR-136).
+     * four characters a renderer would read as markup escaped (ADR-136, ADR-138).
      *
      * <p><b>A surrounding of its own, and so a rule of its own</b> -- the fourth to be counted, of the
      * five {@link #escapeLinkText} lists (ADR-136, ADR-137) -- which is ADR-134's own rule applied
-     * where its premise holds rather than an exception to it. A heading has no pipe and no brackets to
-     * guard -- neither is structural on a line that begins with {@code #} -- so {@link #inACell} is
-     * not borrowed here: it would write a backslash before a pipe a reader is looking at, against a
-     * hazard that surrounding does not have. A value is only ever dangerous with respect to the
+     * where its premise holds rather than an exception to it. A heading has no pipe to guard --
+     * not structural on a line that begins with {@code #} -- but its two brackets are guarded here,
+     * because a link and an image both form in an ATX heading in every renderer measured (ADR-138).
+     * {@link #inACell} is still not borrowed for the pipe: it would write a backslash before a
+     * character a heading has no hazard from. A value is only ever dangerous with respect to the
      * structure it lands in, and that is the whole reason these rules are separate.
      *
      * <p><b>This is the position that had no escaping at all</b>: folding was its entire treatment,
@@ -709,16 +710,18 @@ public final class Deliverable {
      * what is added after it (ADR-134).
      */
     private static String inAHeading(String text) {
-        return onOneLine(text).replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&");
+        return onOneLine(text).replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&")
+                .replace("[", "\\[").replace("]", "\\]");
     }
 
     /**
-     * One cell of the index, made safe to sit in a Markdown table (ADR-122, #246).
+     * One cell of the index, made safe to sit in a Markdown table (ADR-122, ADR-138, #246).
      *
      * <p>Every value this guards is text this project did not write. A cluster's label is a document's
-     * own title as Docling read it, falling back to its filename stem (ADR-106); a cluster's title is
-     * what the model answered; a partition's heading is a path out of the archive. None of them was
-     * composed to sit in a table, and two characters end one:
+     * own title as Docling read it, falling back to its filename stem (ADR-106), and a cluster's title
+     * is what the model answered. A partition's heading is a path out of the archive and is guarded by
+     * {@link #inAHeading} rather than here. Neither of the two was composed to sit in a table, and two
+     * characters end one:
      *
      * <ul>
      *   <li>A {@code |} closes the cell where it stands and shifts every value after it one column
@@ -741,13 +744,21 @@ public final class Deliverable {
      * {@code &lt;} and {@code &amp;}: those are a different operation, and writing them would
      * damage the rendered page and the plain-text reader alike.
      *
+     * <p><b>A {@code [} or a {@code ]} composes a link or an image the value never asked this tool
+     * to build (ADR-138)</b>, because a GFM table cell parses its content as inlines exactly as an
+     * ATX heading does: unescaped, {@code [click me](evil.md) report} is a live link in the cell and
+     * {@code ![shot](https://host/x.png)} fetches an image through the reader's browser, in a tree
+     * ADR-103 says resolves every link with no network. The escape inserted is the same backslash
+     * escape as the rest of this method's set, {@code \[} and {@code \]}.
+     *
      * <p><b>The backslash goes first, on a ground that is not about the data (ADR-134).</b> This
-     * method inserts its own escape character, and {@link #asLinkText} inserts more on top of what it
-     * returns; a rule that adds an escape character without first escaping a literal one already
-     * present is not a function of its input in the way it claims to be, because the two can merge.
-     * A label reading {@code Retrofits \| Phase 2} would otherwise become {@code Retrofits \\| Phase
-     * 2} — an escaped backslash followed by a live pipe, which is #246's defect reintroduced by the
-     * rule written to prevent it. This holds whatever the label turns out to contain.
+     * method inserts escape characters of its own -- {@code \<}, {@code \&}, {@code \[}, {@code \]}
+     * and {@code \|} -- so a literal backslash already present must be escaped before it can merge
+     * with what is added after it; a rule that adds an escape character without first escaping one
+     * already present is not a function of its input in the way it claims to be. A label reading
+     * {@code Retrofits \| Phase 2} would otherwise become {@code Retrofits \\| Phase 2} — an escaped
+     * backslash followed by a live pipe, which is #246's defect reintroduced by the rule written to
+     * prevent it. This holds whatever the label turns out to contain.
      *
      * <p>What the data can carry corroborates rather than carries the decision: NTFS forbids a
      * backslash in a filename, so the stem fallback cannot carry one, but the primary source is the
@@ -756,7 +767,8 @@ public final class Deliverable {
      * wrote under no filesystem constraint at all.
      */
     private static String inACell(String text) {
-        return onOneLine(text).replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&").replace("|", "\\|");
+        return onOneLine(text).replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&")
+                .replace("[", "\\[").replace("]", "\\]").replace("|", "\\|");
     }
 
     /**
@@ -772,23 +784,24 @@ public final class Deliverable {
     }
 
     /**
-     * The words a link in the index is made of, which cannot carry a bracket of their own (#246).
+     * The words a link in the index is made of (#246) -- a call site rather than a rule of its
+     * own (ADR-138).
      *
-     * <p>{@link #inACell} and then the two brackets: a {@code ]} in a cluster's label would close the
-     * link where it appears, so what a reader clicks is a fragment of the name and the rest of it sits
-     * beside a bare path.
+     * <p>A link in a cell was never a sixth surrounding in ADR-137's enumeration: it is a table
+     * cell that happens to carry a link, and everything it needs beyond what a cell needs is now
+     * what {@link #inACell} needs. That method escapes the {@code [} and {@code ]} that would
+     * otherwise close the link the index composes out of a cluster's label, so this method adds
+     * nothing on top of what {@link #inACell} already returns.
      *
-     * <p><b>This differs from {@link #escapeLinkText} deliberately</b>, and the two are not merged.
-     * That one guards a membership entry, which is a list item rather than a table cell: a pipe there
-     * is an ordinary character. This one guards a cell by way of {@link #inACell}, which escapes the
-     * backslash first because it is about to insert its own escapes on top of whatever the value
-     * carries; this method inserts two more, over an already-escaped result, so the same composition
-     * hazard {@link #inACell} guards against would recur here if it had not — a literal backslash left
-     * unescaped could still merge with the {@code \[} or {@code \]} added after it (ADR-134). Merging
-     * the two rules would give each context the other's rules.
+     * <p><b>Escaping the bracket a second time here was tried and measured wrong (ADR-138).</b>
+     * With {@link #inACell} escaping a bracket and this method escaping it again, a literal
+     * {@code [} already turned into {@code \[} was turned into {@code \\[} -- an escaped
+     * backslash followed by a live bracket, the composition hazard ADR-134 exists to prevent,
+     * reintroduced by the rule written to close it. Six of seven renderer configurations then
+     * failed to form the index's only link at all.
      */
     private static String asLinkText(String text) {
-        return inACell(text).replace("[", "\\[").replace("]", "\\]");
+        return inACell(text);
     }
 
     /**
