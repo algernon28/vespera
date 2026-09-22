@@ -1,6 +1,9 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.extraction.DoclingClient;
+import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.ExtractionFaults;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.Ledger;
@@ -52,11 +55,36 @@ public class ExtractionJobConfiguration {
      */
     static final long SKIP_LIMIT = 10_000;
 
+    /**
+     * How many Docling calls stage 2 keeps in flight at once (ADR-140): not the chunk size above, and
+     * not a Profile gate either, on ADR-071's own reasoning for the call timeout and the two streak
+     * counts it fixes. A concurrency width is the same species of number as those -- it says how much
+     * work the *machine* stage 2 runs on can carry at once, not what an operator has judged about the
+     * corpus being read, so it ships as a code default exactly as they do, read back by
+     * {@code ExtractionConcurrencyTest}.
+     *
+     * <p>Eight, and not sixteen or thirty-two, because the win from raising it is close to linear in the
+     * width while the cost of raising it too far is not. Measured against the pinned sidecar
+     * (docling-serve-cpu:v1.32.0 / docling 2.124.0), throughput rises roughly 0.5 documents per second
+     * per unit of concurrency with no sign of a ceiling through 16 -- so the number is not chosen because
+     * higher stops helping. It is chosen because a real corpus's conversion times are lumpy: a measured
+     * live run's mean sits near 1.5 seconds with a tail as long as 58 seconds, and {@link
+     * io.algernon.vespera.extraction.DoclingClient#CALL_TIMEOUT} fixes that call's whole budget, queue
+     * included, at five minutes (ADR-071). Widen this past eight and a slow document waits behind more
+     * and more of the documents dispatched ahead of it inside that same five-minute clock, so a document
+     * that was never itself slow starts reading as a timeout. Eight keeps a 58-second document plus the
+     * seven calls that could be queued ahead of it comfortably inside that budget while still buying
+     * roughly an eightfold reduction in the 2-second-per-call serial wait ADR-140 measured -- the width
+     * where the linear win is largest and the queue behind the slowest document is not yet what trips
+     * the timeout it is measured against.
+     */
+    static final int CONVERSION_CONCURRENCY = 8;
+
     @Bean
     Step extractionStep(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            OccurrenceReader extractionReader,
+            ConversionDispatch extractionConversionDispatch,
             ExtractionItemProcessor extractionItemProcessor,
             ExtractionItemWriter extractionItemWriter,
             ExtractionCircuitBreaker extractionCircuitBreaker,
@@ -66,7 +94,7 @@ public class ExtractionJobConfiguration {
         return new StepBuilder(ExtractionRun.STAGE, jobRepository)
                 .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
-                .reader(extractionReader)
+                .reader(extractionConversionDispatch)
                 .processor(extractionItemProcessor)
                 .writer(extractionItemWriter)
                 .faultTolerant()
@@ -77,6 +105,57 @@ public class ExtractionJobConfiguration {
                 .listener(extractionRunCompletion)
                 .listener(extractionFaultRecorder)
                 .build();
+    }
+
+    /**
+     * The step's own reader, widened to keep {@link #CONVERSION_CONCURRENCY} Docling calls in flight
+     * (ADR-140) without ever setting {@code StepBuilder.taskExecutor(...)} on {@link #extractionStep}:
+     * {@link ConversionDispatch} still runs on the thread the step began on, and only the Docling calls
+     * it dispatches run on worker threads of their own.
+     *
+     * <p>Dispatch happens from {@code read()}, and a worker runs only the Docling call: the cache
+     * lookup before it and the write after it both stay on this thread (ADR-140 section 3), so no
+     * worker ever needs a connection. Spring Batch reads a whole chunk before it processes any of it,
+     * which is what puts up to the width in flight at once without anything holding more than one
+     * chunk ahead -- see {@link ConversionDispatch}'s own javadoc.
+     *
+     * <p>Wraps {@link #extractionReader} rather than folding into it, because {@code
+     * ExtractionRunTest} calls that method directly, by its current five-argument signature, and reads
+     * the result as a plain {@code ItemStreamReader<OccurrenceId>} -- widening it here, once it already
+     * exists, changes nothing that call sees.
+     */
+    @Bean
+    @StepScope
+    ConversionDispatch extractionConversionDispatch(
+            OccurrenceReader extractionReader,
+            Ledger ledger,
+            ContentIdentity contentIdentity,
+            DetectedFormats detectedFormats,
+            DoclingExtractor doclingExtractor,
+            ExtractorIdentity extractorIdentity,
+            ExtractionRun extractionRun,
+            PendingConversions extractionPendingConversions) {
+        return new ConversionDispatch(
+                extractionReader,
+                ledger,
+                contentIdentity,
+                detectedFormats,
+                doclingExtractor,
+                extractorIdentity,
+                extractionRun,
+                extractionPendingConversions,
+                CONVERSION_CONCURRENCY);
+    }
+
+    /**
+     * The one instance {@link #extractionConversionDispatch} files an occurrence's dispatched answer
+     * into and {@link ExtractionItemProcessor} collects it from (ADR-140) -- step-scoped so both beans
+     * of the one step execution share it.
+     */
+    @Bean
+    @StepScope
+    PendingConversions extractionPendingConversions() {
+        return new PendingConversions();
     }
 
     /**

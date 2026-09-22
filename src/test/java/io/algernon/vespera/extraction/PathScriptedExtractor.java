@@ -75,6 +75,12 @@ public final class PathScriptedExtractor extends DoclingExtractor {
         return cached(contentHashFor(file), extractorIdentity, answerFor(file));
     }
 
+    /** The seam a worker thread reaches (ADR-140 section 3): the answer scripted for this path. */
+    @Override
+    public DoclingResponse convertUncached(Path file, DetectedFormat format, DetectedSubtype subtype) {
+        return answerFor(file);
+    }
+
     private DoclingResponse cached(String contentHash, ExtractorIdentity extractorIdentity, DoclingResponse response) {
         if (cache != null && cache.get(contentHash, extractorIdentity).isEmpty()) {
             cache.put(contentHash, extractorIdentity, response);

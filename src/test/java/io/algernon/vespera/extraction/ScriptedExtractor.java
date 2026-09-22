@@ -176,6 +176,12 @@ public final class ScriptedExtractor extends DoclingExtractor {
         return convertOne(format, subtype);
     }
 
+    /** The seam a worker thread reaches (ADR-140 section 3): the same scripted answer, on that thread. */
+    @Override
+    public DoclingResponse convertUncached(Path file, DetectedFormat format, DetectedSubtype subtype) {
+        return convertOne(format, subtype);
+    }
+
     private DoclingResponse convertOne(DetectedFormat format, DetectedSubtype subtype) {
         formatsAsked.add(format);
         subtypesAsked.add(Optional.ofNullable(subtype));
