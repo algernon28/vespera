@@ -34,6 +34,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Issue("59")
 @Link(name = "ADR-059", url = Adr.SCHEMA_VERSION_IS_ONE_ROW_PER_MODULE, type = "adr")
 @Link(name = "ADR-075", url = Adr.STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT, type = "adr")
+@Link(name = "ADR-139", url = Adr.A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW, type = "adr")
 class ExtractionSchemaTest {
 
     @Autowired
@@ -66,7 +67,7 @@ class ExtractionSchemaTest {
         new ExtractionSchema(new SchemaVersionGuard(jdbcTemplate));
 
         claim(
-                "the version recorded is exactly VERSION 4, the chunk_cache rename -- not a value"
+                "the version recorded is exactly VERSION 5, the extraction_fault bump -- not a value"
                         + " borrowed from ledger, corpus or similarity's own rows",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT version FROM schema_version WHERE module = ?",
@@ -77,20 +78,30 @@ class ExtractionSchemaTest {
 
     @Test
     @Story("A module states the schema it was built against")
-    @DisplayName("VERSION is the literal 4, and chunk_cache carries the renamed column that came with it")
-    void versionIsTheChunkCacheRenameLiterally() {
+    @DisplayName("VERSION is the literal 5, and extraction_fault is the table that came with it")
+    void versionIsTheExtractionFaultTableLiterally() {
         claim(
                 "the version and the change it names arrived together, so a later table or column"
                         + " changed without a bump would leave this constant already committed to the"
                         + " wrong value",
-                () -> assertThat(ExtractionSchema.VERSION).isEqualTo(4));
+                () -> assertThat(ExtractionSchema.VERSION).isEqualTo(5));
         claim(
-                "chunk_cache carries chunking_rule_identity rather than the tokenizer_identity ADR-044"
-                        + " named, which is the rename this VERSION claims to describe: a database"
-                        + " written under the old name holds boundaries no rule here would cut",
+                "extraction_fault is present in the schema this VERSION claims to describe, which is"
+                        + " what a database written before it does not have: a refused conversion left no"
+                        + " row there at all, so the occurrence read as one no stage had removed",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+                                String.class,
+                                "extraction_fault"))
+                        .isEqualTo("extraction_fault"));
+        claim(
+                "and it is keyed by the occurrence and the run together, which is what lets a stopped"
+                        + " invocation's rows be discarded and written again rather than have the second"
+                        + " attempt collide with the first",
                 () -> assertThat(jdbcTemplate.queryForList(
-                                "SELECT name FROM pragma_table_info('chunk_cache')", String.class))
-                        .contains("chunking_rule_identity")
-                        .doesNotContain("tokenizer_identity"));
+                                "SELECT name FROM pragma_table_info('extraction_fault') WHERE pk > 0"
+                                        + " ORDER BY pk",
+                                String.class))
+                        .containsExactly("occurrence_id", "run_id"));
     }
 }

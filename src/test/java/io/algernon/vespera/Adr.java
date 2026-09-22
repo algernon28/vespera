@@ -613,6 +613,16 @@ public final class Adr {
     public static final String A_BRACKET_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN = FILE
             + "0138-a-bracket-is-escaped-in-every-surrounding-a-value-is-read-in-and-the-link-text-stops-being-a-rule-of-its-own.md";
 
+    /**
+     * ADR-139 -- a conversion the converter refused leaves a row of its own, written from memory at the
+     * end of the step rather than inside the chunk transaction a skip rolls back; and a step that went
+     * on to complete resolves every such row into {@code extraction-failed}, because the sidecar having
+     * answered for the neighbouring occurrences is the evidence that the refusal was about this file.
+     * The failure stays a Spring Batch skip, so ADR-071's streak counts what it always counted.
+     */
+    public static final String A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW = FILE
+            + "0139-a-refused-conversion-leaves-a-fault-row-and-a-step-that-completed-resolves-it-into-a-verdict.md";
+
     private Adr() {
     }
 }

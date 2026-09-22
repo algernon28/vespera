@@ -42,6 +42,10 @@ _Avoid_: status, state, flag
 A file occurrence carrying no blocking verdict. A question the ledger answers, not a place documents are moved to.
 _Avoid_: shortlist, whitelist, the keep pile
 
+**Extraction fault**:
+A file occurrence stage 2 got no answer about: the converter refused the call rather than judging the file, so nothing was measured and nothing was decided at the time. Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the sidecar answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
+_Avoid_: skip, error, failed document. Also "unreadable" **for this state**: that word names a profile value nobody can act on, under Operation below.
+
 **Redundancy set**:
 File occurrences whose text says the same thing, of which exactly one survives and the rest are redundant with it. Distinct from a content identity, whose members are byte-identical; these differ, and which one survives is a judgement rather than a tie-break.
 _Avoid_: duplicate group, cluster (a cluster is an arrangement of relevant documents, not a set of interchangeable ones), near-dupe set

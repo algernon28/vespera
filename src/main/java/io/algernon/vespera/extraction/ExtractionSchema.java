@@ -17,14 +17,17 @@ import org.springframework.stereotype.Component;
  * confidence_distribution} (ADR-075). {@code VERSION} 4 renames {@code chunk_cache}'s
  * {@code tokenizer_identity} to {@code chunking_rule_identity} and its {@code token_count} to
  * {@code word_count} (ADR-091): a database written under the old names holds boundaries cut by a
- * stand-in tokenizer that no longer exists, so it is refused rather than read.
+ * stand-in tokenizer that no longer exists, so it is refused rather than read. {@code VERSION} 5 is
+ * {@code extraction_fault} (ADR-139): a database written before it holds no record of a refused
+ * conversion, which is a fact absent rather than a fact wrongly shaped, so nothing here forces a
+ * re-extraction on its own -- the version still moves, on the same rule every prior bump followed.
  */
 @Component
 @DependsOnDatabaseInitialization
 class ExtractionSchema {
 
     /** The version of extraction's tables this code expects. */
-    static final int VERSION = 4;
+    static final int VERSION = 5;
 
     /** The module name the version is recorded under, matching the package name. */
     static final String MODULE = "extraction";

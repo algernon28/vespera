@@ -102,7 +102,9 @@ public class RelevanceScoring {
      * <p>Throws rather than scoring zero if {@code occurrenceId} has no stored vectors: a corpus
      * survivor reaching stage 5 with no chunks is a case #108 confirmed cannot happen by construction
      * (stage 2 removes documents with no text before a survivor is ever chunked), so a row here would
-     * misreport an assumption as a measurement (ADR-020, "Confirm, do not assume").
+     * misreport an assumption as a measurement (ADR-020, "Confirm, do not assume"). The message names
+     * what is actually possible rather than tier 1's no-text floor, which ADR-139 measured innocent of
+     * this: an occurrence no stage ever examined, or vectors a changed embedding model never wrote.
      */
     public void scoreAndRecord(
             OccurrenceId occurrenceId,
@@ -118,7 +120,8 @@ public class RelevanceScoring {
             throw new IllegalStateException(
                     "occurrence " + occurrenceId.value() + " has no stored chunk vectors to score; a"
                             + " corpus survivor with no chunks was confirmed impossible by construction"
-                            + " (#108) -- if this is reached, stage 2's no-text floor let one through");
+                            + " (#108) -- if this is reached, either no stage ever examined this occurrence,"
+                            + " or a changed embedding model never wrote vectors for it");
         }
         RelevanceScore score = scorer.score(survivorChunkVectors, residentSeedVectors);
         scoreCache.record(occurrenceId, runId, score);

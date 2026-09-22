@@ -38,8 +38,10 @@ class ExtractionCircuitBreaker implements SkipListener<OccurrenceId, ExtractionO
     public void onSkipInProcess(OccurrenceId item, Throwable t) {
         consecutiveServiceScopeFailures++;
         // ADR-093: this is the case that motivated logging at all -- a service-scope failure writes no
-        // Ledger row (ADR-071), so this WARN is the only record it happened, until/unless the streak
-        // below trips the breaker.
+        // row at the moment it is thrown (ADR-071), so this WARN is the only record it happened at this
+        // instant. ExtractionFaultRecorder turns it into a fault row afterward and, where the step goes
+        // on to complete, an extraction-failed verdict (ADR-139); the streak below may still trip the
+        // breaker first.
         log.warn(
                 "[extraction] service-scope failure on {} (consecutive streak: {}/{}): {}",
                 item.value(),

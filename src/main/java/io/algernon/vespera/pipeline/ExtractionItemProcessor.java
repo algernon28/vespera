@@ -137,7 +137,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                 .filter(error -> error.category() == FailureCategory.TIMEOUT)
                 .findFirst();
         if (reportedTimeout.isPresent()) {
-            return resolveTimeout(occurrenceId, reasonFor(reportedTimeout.get()), response);
+            return resolveTimeout(occurrenceId, reportedTimeout.get().errorMessage(), response);
         }
         timeoutStreak.reset();
 
@@ -212,17 +212,19 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     /**
      * ADR-070's {@code status} of {@code failure}/{@code skipped}, with any reported {@code timeout}
      * already handled above: a document/page-scope category writes {@code extraction-failed} and earns
-     * a metrics row (#48); anything else is service scope and skips the occurrence with no row at all.
+     * a metrics row (#48); anything else is service scope and skips the occurrence, faulted rather than
+     * judged here (ADR-139) -- the fault becomes {@code extraction-failed} only later, and only if the
+     * step it happened under goes on to complete.
      *
      * <p>{@code policy} and {@code source_unavailable} read document scope only conditionally: ADR-070
      * resolves them "per occurrence", and a genuine task/service-scope category ({@code capacity},
      * {@code target_unavailable}, {@code internal}) sitting anywhere else in the same response's
      * {@code errors[]} is evidence the whole response is about the sidecar's own state, not about this
-     * document, so it overrides the otherwise-document-scope reading and the occurrence is left
-     * unjudged instead. {@code unknown} co-occurring does not trigger this override — an uncategorised
-     * error is not itself evidence of anything, the same reasoning that already keeps a bare
-     * {@code unknown} from earning a verdict on its own. {@code backend_failure} and
-     * {@code inference_failure} carry no such conditional: they are document scope unconditionally.
+     * document, so it overrides the otherwise-document-scope reading and the occurrence is skipped as
+     * service scope instead, exactly as above. {@code unknown} co-occurring does not trigger this
+     * override — an uncategorised error is not itself evidence of anything, the same reasoning that
+     * already keeps a bare {@code unknown} from earning a verdict on its own. {@code backend_failure}
+     * and {@code inference_failure} carry no such conditional: they are document scope unconditionally.
      */
     private ExtractionOutcome categorizeFailure(OccurrenceId occurrenceId, DoclingResponse response) {
         List<DoclingError> errors = response.errors();
@@ -254,7 +256,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                 .findFirst()
                 .orElseGet(() -> errors.get(0));
         throw new ServiceScopeFailureException(
-                occurrenceId, serviceScoped.category().name().toLowerCase(Locale.ROOT), reasonFor(serviceScoped));
+                occurrenceId, serviceScoped.category().name().toLowerCase(Locale.ROOT), serviceScoped.errorMessage());
     }
 
     /**
