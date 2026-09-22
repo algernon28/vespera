@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
+import io.algernon.vespera.ledger.RunId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -31,6 +32,11 @@ import org.junit.jupiter.api.Test;
  * converter refused to open under the same run (ADR-139, #265). Those are the occurrences this
  * distribution never saw, so a page reporting only its own buckets is silent about exactly the part
  * of the corpus stage 2 got no answer about -- which is the shape the ticket was filed over.
+ *
+ * <p>That line names the run it counted under, and the run it names is the extraction run rather than
+ * the stage-3 run this page is written under. The two are different runs in every invocation: the
+ * fault rows are filed per extraction run, and a page written under one run that reports another
+ * run's count without saying so attributes stage 2's refusals to the pass that merely counted them.
  */
 @Epic("Extraction")
 @Feature("Confidence distribution")
@@ -48,6 +54,12 @@ class ConfidenceDistributionReportTest {
      * line rather than any of them.
      */
     private static final long REFUSED_CONVERSIONS = 7;
+
+    /**
+     * The extraction run those refusals were counted under. Spelled as nothing else on this page is,
+     * so finding it is finding the run named rather than a number the page already carried.
+     */
+    private static final RunId THE_EXTRACTION_RUN = new RunId("7c1d4a90e3b5");
 
     @Test
     @Story("A report that measures what informs a threshold names that threshold")
@@ -85,10 +97,13 @@ class ConfidenceDistributionReportTest {
                         + " setting a threshold off a corpus they believe was wholly examined",
                 () -> assertThat(page).contains("refused to open " + REFUSED_CONVERSIONS));
         claim(
-                "and the page says which run it counted them under, because these rows are per run: a"
+                "and the page names the run it counted them under, because these rows are per run: a"
                         + " number with no run behind it reads as a property of the archive rather than of"
-                        + " the pass that produced the distribution beside it",
-                () -> assertThat(page).contains("under this run"));
+                        + " the pass that produced the distribution beside it. The run named is the"
+                        + " extraction run the fault rows are filed under, which is not the stage-3 run this"
+                        + " page itself is written under -- so a page saying only 'this run' names, if it"
+                        + " names anything, the wrong one",
+                () -> assertThat(page).contains("under extraction run " + THE_EXTRACTION_RUN.value()));
     }
 
     /**
@@ -102,6 +117,7 @@ class ConfidenceDistributionReportTest {
                 List.of(
                         new ConfidenceDistribution.Bucket("poor", 0.0, 0.5, 1L),
                         new ConfidenceDistribution.Bucket("good", 0.5, 1.0, 2L)),
-                refusedConversions);
+                refusedConversions,
+                THE_EXTRACTION_RUN);
     }
 }

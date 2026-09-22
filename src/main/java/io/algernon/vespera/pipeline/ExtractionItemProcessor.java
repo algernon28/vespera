@@ -196,12 +196,21 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      * is isolated, and flips to service scope once three land in a row. {@code response} is
      * {@code null} for the client's-own-silence case (nothing came back to measure); non-null for a
      * Docling-reported timeout, which earns a metrics row like any other document-scoped failure.
+     *
+     * <p>The exception thrown once the streak trips carries {@code detail} unchanged — the converter's
+     * own message and nothing else (ADR-139 sections 1 and 3). The streak itself is a fact about this
+     * pass, not about the document, so it is not spliced into that message — and it is not recorded
+     * elsewhere either. Nothing logs the timeout count ({@link ExtractionCircuitBreaker}'s WARN counts a
+     * different streak, its own service-scope skips, and reads {@code 1/5} at this moment), so once
+     * the reading flips, the exact number of consecutive timeouts is gone. ADR-071 fixes the flip at a
+     * constant, so "at least {@link ExtractionTimeoutStreak#CONSECUTIVE_TIMEOUT_COUNT} in a row" follows
+     * from the category by itself, and every timeout before the flip left an {@code extraction-failed}
+     * row of its own; what is lost is the difference between a third consecutive timeout and a fifth.
      */
     private ExtractionOutcome resolveTimeout(OccurrenceId occurrenceId, String detail, DoclingResponse response) {
         int streak = timeoutStreak.recordTimeout();
         if (streak >= ExtractionTimeoutStreak.CONSECUTIVE_TIMEOUT_COUNT) {
-            throw new ServiceScopeFailureException(
-                    occurrenceId, "timeout", detail + " (streak of " + streak + " consecutive timeouts)");
+            throw new ServiceScopeFailureException(occurrenceId, "timeout", detail);
         }
         if (response != null) {
             extractionMetrics.write(occurrenceId, extractionRun.runId(), response);

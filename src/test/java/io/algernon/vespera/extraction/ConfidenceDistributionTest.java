@@ -175,6 +175,38 @@ class ConfidenceDistributionTest {
                 () -> assertThat(distribution.totalCounted()).isEqualTo(1));
     }
 
+    /**
+     * The one number this value carries that no bucket could hold, and the one run ambiguity it has.
+     * The refusals are counted under stage 2's run; every bucket row this class writes is filed under
+     * stage 3's. The page rendered from this value states which run the refusals were counted under
+     * (ADR-139 section 7), so the value carries that run rather than leaving the page to name
+     * whichever run happens to be within its reach.
+     */
+    @Test
+    @Story("A page over stage 2's measurements also reports what stage 2 never measured")
+    @DisplayName("The refusals are counted under the extraction run, and the value names that run")
+    @Issue("265")
+    @Link(name = "ADR-139", url = Adr.A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW, type = "adr")
+    void theRefusalCountNamesTheExtractionRunItWasCountedUnder() {
+        Fixture fixture = fixture();
+        fixture.survivorWithScore("readable.pdf", 0.95);
+        fixture.refusedConversion("legacy-container.xls");
+
+        ConfidenceDistribution.Distribution distribution = fixture.measure();
+
+        claim(
+                "the one occurrence the converter refused is counted, and counted off its fault row rather"
+                        + " than off a bucket -- nothing was ever measured for it, so no bucket could have"
+                        + " held it",
+                () -> assertThat(distribution.refusedConversionCount()).isEqualTo(1));
+        claim(
+                "and the value names the extraction run those refusals were counted under, not the"
+                        + " stage-3 run its own bucket rows are written under. The two are different runs in"
+                        + " every invocation, and naming the wrong one on the page would attribute stage 2's"
+                        + " refusals to the pass that merely counted them",
+                () -> assertThat(distribution.extractionRunId()).isEqualTo(fixture.stage2RunId));
+    }
+
     @Test
     @Story("The new table agrees with the value the report renders")
     @DisplayName("The confidence_distribution table gets exactly the rows the computed distribution carries")
@@ -273,6 +305,15 @@ class ConfidenceDistributionTest {
                     "poor",
                     occurrenceId.value(),
                     stage2RunId.value());
+        }
+
+        /**
+         * An occurrence the converter refused: a fault row under stage 2's run and no measurement at
+         * all, which is what a refusal leaves behind (ADR-139 section 1).
+         */
+        void refusedConversion(String path) {
+            new ExtractionFaults(jdbcTemplate)
+                    .write(occurrence(path), stage2RunId, "unknown", "no categorized error was reported");
         }
 
         void survivorWithNullScore(String path) {

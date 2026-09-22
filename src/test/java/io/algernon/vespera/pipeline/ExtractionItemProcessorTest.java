@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
@@ -354,9 +355,24 @@ class ExtractionItemProcessorTest {
                 () -> assertThat(outcome.kind()).isEqualTo(VerdictKind.DEGENERATE_OUTPUT));
     }
 
+    /**
+     * Two consecutive counts run through this step and only one of them is this test's: the
+     * consecutive-timeout count ADR-071 fixes at 3, which is what flips the reading here. The
+     * circuit breaker keeps a separate count, of service-scope skips, and the skip this flip produces
+     * is that breaker's first one.
+     *
+     * <p>What the flip throws carries the converter's message alone (ADR-139 sections 1 and 3), and
+     * the timeout count is carried nowhere else either: nothing logs it, so once the streak trips its
+     * exact length is gone. That is accepted rather than overlooked. ADR-071 fixes the flip point at a
+     * constant, so "at least the third consecutive timeout" follows from the category by itself, and
+     * every timeout before the flip left an extraction-failed row of its own; what is lost is the
+     * difference between a third consecutive timeout and a fifth, which is a measurement of our own
+     * pass rather than of any document, and ADR-093 keeps those out of rows.
+     */
     @Test
     @Story("A converter that stops answering")
     @DisplayName("Silence about one document is a fact about that document; silence about several in a row is a fact about the converter")
+    @Link(name = "ADR-139", url = Adr.A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW, type = "adr")
     void flipsAConsecutiveRunOfUnansweredCallsToTheConverter(@TempDir Path root) throws Exception {
         Corpus corpus = corpusOf(root, TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR);
         // The two readings ADR-071 folds together: a response reporting its own timeout, and a call
@@ -369,6 +385,11 @@ class ExtractionItemProcessorTest {
 
         ExtractionOutcome first = processor.process(corpus.occurrence(0));
         ExtractionOutcome second = processor.process(corpus.occurrence(1));
+        // Caught once rather than thrown again inside a second claim: the counter this test is about
+        // advances on every call, so a repeat call would be a fourth timeout rather than this one.
+        ServiceScopeFailureException setAside = catchThrowableOfType(
+                ServiceScopeFailureException.class,
+                () -> processor.process(corpus.occurrence(TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR - 1)));
 
         claim(
                 "a converter that ran out of time on one document says that document was too much for the"
@@ -389,9 +410,15 @@ class ExtractionItemProcessorTest {
                 "but once " + TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR + " land in a row, that is a statement"
                         + " about the converter rather than about any one document, so this document is set"
                         + " aside unjudged instead",
-                () -> assertThatThrownBy(() -> processor.process(
-                                corpus.occurrence(TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR - 1)))
-                        .isInstanceOf(ServiceScopeFailureException.class));
+                () -> assertThat(setAside).isNotNull());
+        claim(
+                "and what it sets aside carries the converter's own message and nothing else -- not that"
+                        + " message with this pass's own count of consecutive timeouts spliced onto it. The"
+                        + " count is a measurement of how this pass was going, not anything the converter"
+                        + " said about the file, and this message is what the end of the step stores against"
+                        + " the occurrence and composes its reason from, so whatever is added here reaches"
+                        + " an operator as the converter's own words about their document",
+                () -> assertThat(setAside.detail()).isEqualTo(ERROR_MESSAGE));
     }
 
     @Test
