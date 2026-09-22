@@ -3,6 +3,7 @@ package io.algernon.vespera.extraction;
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedSubtype;
 import java.nio.file.Path;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
@@ -37,9 +38,9 @@ public class DoclingExtractor {
             ExtractorIdentity extractorIdentity,
             DetectedFormat format,
             DetectedSubtype subtype) {
-        return cache.get(contentHash, extractorIdentity).orElseGet(() -> {
-            DoclingResponse response = client.convert(file, format, subtype);
-            cache.put(contentHash, extractorIdentity, response);
+        return cached(contentHash, extractorIdentity).orElseGet(() -> {
+            DoclingResponse response = convertUncached(file, format, subtype);
+            remember(contentHash, extractorIdentity, response);
             return response;
         });
     }
@@ -63,5 +64,36 @@ public class DoclingExtractor {
      */
     public String contentHashFor(Path file) {
         return ContentHashing.sha256(file);
+    }
+
+    /**
+     * The response already recorded for {@code contentHash} under {@code extractorIdentity}, without
+     * placing a call (ADR-140): the seam a caller uses to check for a hit on its own thread, before
+     * ever dispatching {@link #convertUncached} anywhere. {@code cache} is only ever null for a
+     * scripted subclass built through the package-private constructor with no real collaborators, and
+     * empty is the correct answer for one of those -- it has no cache of its own to consult here.
+     */
+    public Optional<DoclingResponse> cached(String contentHash, ExtractorIdentity extractorIdentity) {
+        return cache == null ? Optional.empty() : cache.get(contentHash, extractorIdentity);
+    }
+
+    /**
+     * Records {@code response} under {@code contentHash} and {@code extractorIdentity} (ADR-140): the
+     * write half of {@link #cached}, placed by the same caller on the same thread once a dispatched
+     * call has answered. A no-op where there is no real cache to write into.
+     */
+    public void remember(String contentHash, ExtractorIdentity extractorIdentity, DoclingResponse response) {
+        if (cache != null) {
+            cache.put(contentHash, extractorIdentity, response);
+        }
+    }
+
+    /**
+     * The Docling call alone, with no cache read or write around it (ADR-140 section 3): what a worker
+     * thread may safely place, since it touches nothing but {@link DoclingClient}. Never called where
+     * {@link #cached} already answered.
+     */
+    public DoclingResponse convertUncached(Path file, DetectedFormat format, DetectedSubtype subtype) {
+        return client.convert(file, format, subtype);
     }
 }
