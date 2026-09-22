@@ -50,6 +50,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -90,6 +91,15 @@ import org.springframework.transaction.annotation.Transactional;
  * streak. What nothing now catches is a future {@code .skip(ExtractorStoppedAnsweringException.class)}
  * on this step, which would make a dead sidecar produce a successful run — worth remembering when
  * editing {@link ExtractionJobConfiguration}'s fault tolerance.
+ *
+ * <p><b>One claim here exists because no unit can make it</b> (ADR-140): that the assembled step really
+ * converts several documents at once, and really does so on threads other than the one it was invoked
+ * on. {@link ExtractionConcurrencyTest} pins the rule those conversions' outcomes are read by and the
+ * width the code fixes; neither says anything about how the step is wired, and the wiring is where the
+ * width is either honoured or quietly absent. The second half of that claim — that the converting
+ * threads are not the invoking one — is also what a step-level task executor would fail, since under
+ * one the whole chunk loop and both streak listeners move onto those threads too, which is the data
+ * race ADR-140 section 3 refuses.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -204,6 +214,21 @@ class ExtractionStepTest {
      */
     private static final int GENEROUS_ANSWER_COUNT = 20;
 
+    /**
+     * Enough documents that a wave of the full width assembles inside one chunk and more work follows
+     * it, so the peak measured below is a width the step sustained rather than one it happened to reach
+     * on its way to running out of documents.
+     */
+    private static final int DOCUMENTS_FOR_MORE_THAN_ONE_WAVE = 24;
+
+    /**
+     * How long one scripted conversion waits for the rest of its wave before answering anyway. It
+     * bounds a dispatch delay and nothing else -- a scripted conversion computes nothing -- so it is
+     * generous, and a step that converts one document at a time pays it once for the whole run rather
+     * than once per document.
+     */
+    private static final Duration UNTIL_A_WHOLE_WAVE_IS_CONVERTING = Duration.ofSeconds(5);
+
     @TempDir
     static Path workingDirectory;
 
@@ -271,6 +296,38 @@ class ExtractionStepTest {
         claim(
                 "the document earned an extraction-failed verdict in the ledger, under the run that judged it",
                 () -> assertThat(verdictKindsFor(occurrenceOf(root, "broken.txt"))).containsExactly("EXTRACTION_FAILED"));
+    }
+
+    @Test
+    @Story("How many conversions run at once")
+    @Issue("264")
+    @Link(name = "ADR-140", url = Adr.STAGE_2_CONVERTS_EIGHT_AT_A_TIME, type = "adr")
+    @DisplayName("The step converts several documents at once, on threads other than the one it runs on")
+    void convertsAtTheWidthTheCodeFixesAndOffTheInvokingThread(@TempDir Path root) throws IOException {
+        for (int i = 0; i < DOCUMENTS_FOR_MORE_THAN_ONE_WAVE; i++) {
+            Files.writeString(root.resolve("document-" + i + ".txt"), "content " + i);
+        }
+        scripted()
+                .holdingEachConversionUntil(
+                        ExtractionJobConfiguration.CONVERSION_CONCURRENCY, UNTIL_A_WHOLE_WAVE_IS_CONVERTING);
+        String invokedOn = Thread.currentThread().getName();
+
+        cli.run("run", root.toString());
+
+        claim("the command reported success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "as many documents were being converted at the same moment as the code says a machine converts"
+                        + " at once -- measured by holding each conversion until that many were under way, so a"
+                        + " step converting one document at a time reports one here however many documents it"
+                        + " was handed",
+                () -> assertThat(scripted().mostEverConvertingAtOnce())
+                        .isEqualTo(ExtractionJobConfiguration.CONVERSION_CONCURRENCY));
+        claim(
+                "none of those conversions ran on the thread the command itself was invoked on -- that thread is"
+                        + " where the step reads, writes and counts, and a conversion sharing it would mean the"
+                        + " counting had been spread across threads too, which is how a run that should stop"
+                        + " quietly carries on",
+                () -> assertThat(scripted().convertingThreads()).isNotEmpty().doesNotContain(invokedOn));
     }
 
     private ScriptedExtractor scripted() {
