@@ -31,6 +31,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * the context start, and it would fail the second claim with no such bean rather than with a refused
  * connection. That refusal is the evidence the store is still configured and was only deferred.
  *
+ * <p>A third claim rules out the other wrong twin, global lazy initialisation, which passes both of
+ * the above: the datasource stands for every other bean, and it still has to be built at start-up.
+ *
  * <p>It needs no Docker daemon: the compose lifecycle is off, and nothing else in the context
  * reaches a sidecar while it starts.
  */
@@ -65,6 +68,15 @@ class VectorStoreIsReachedOnFirstUseTest {
         claim("the vector store is still configured, so asking for it tries to connect and is refused",
                 () -> assertThatThrownBy(() -> context.getBean(VectorStore.class))
                         .hasRootCauseInstanceOf(ConnectException.class));
+    }
+
+    @Test
+    @Story("The vector store connects when it is first used")
+    @DisplayName("Only the vector store waits for first use")
+    void onlyTheVectorStoreWaitsForFirstUse() {
+        claim("the database connection pool is still built while the application starts, so a fault in it"
+                        + " still surfaces there rather than at first use",
+                () -> assertThat(context.getBeanFactory().getBeanDefinition("dataSource").isLazyInit()).isFalse());
     }
 
     /** A port nothing listens on: bound once to learn a free number, then released. */
