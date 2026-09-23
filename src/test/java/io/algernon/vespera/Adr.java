@@ -638,6 +638,10 @@ public final class Adr {
     public static final String THE_CLI_EXITS_WITH_THE_COMMANDS_EXIT_CODE = FILE
             + "0141-the-cli-exits-with-the-commands-exit-code-and-the-scheduler-no-feature-uses-is-removed-at-its-source.md";
 
+    /** ADR-142 -- the vector store connects to Chroma when it is first used, not at startup. */
+    public static final String THE_VECTOR_STORE_CONNECTS_WHEN_FIRST_USED = FILE
+            + "0142-the-vector-store-connects-to-chroma-when-it-is-first-used.md";
+
     private Adr() {
     }
 }
