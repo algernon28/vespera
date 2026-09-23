@@ -8,6 +8,8 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
@@ -25,13 +27,18 @@ import picocli.CommandLine;
  * packaged jar as a subprocess and asserting it exits within a bound for two commands — a rejected
  * one (picocli's usage code) and {@code --version} (success) — so both outcomes of the command
  * reach the shell. It needs no Docker daemon — the compose lifecycle is switched off so the jar
- * starts nothing, and the vector store is switched off so it reaches for no Chroma either — but it
- * is an integration test all the same, because the packaged jar exists only after {@code package}.
+ * starts nothing — but it is an integration test all the same, because the packaged jar exists only
+ * after {@code package}.
+ *
+ * <p>The jar is pointed at a Chroma on a port nothing listens on, rather than at the default one, so
+ * the test holds on a machine whose own Chroma sidecar is up: neither command uses the vector store,
+ * so neither may need one reachable to exit with its own code (ADR-142).
  */
 @Epic("Architecture")
 @Feature("Process exit")
 @Issue("269")
 @Link(name = "ADR-141", url = Adr.THE_CLI_EXITS_WITH_THE_COMMANDS_EXIT_CODE, type = "adr")
+@Link(name = "ADR-142", url = Adr.THE_VECTOR_STORE_CONNECTS_WHEN_FIRST_USED, type = "adr")
 class CliExitIT {
 
     /**
@@ -86,11 +93,8 @@ class CliExitIT {
                                         Stream.of(
                                                 javaExecutable(),
                                                 "-Dspring.docker.compose.enabled=false",
-                                                // Spring AI's Chroma store fetches its collection while
-                                                // the context starts, so with no sidecar on
-                                                // localhost:8000 the context fails and the JVM exits 1
-                                                // before picocli parses anything. No bean here uses it.
-                                                "-Dspring.ai.vectorstore.type=none",
+                                                "-Dspring.ai.vectorstore.chroma.client.port="
+                                                        + closedPort(),
                                                 "-Dvespera.working-dir=" + workingDirectory,
                                                 "-jar", EXECUTABLE_JAR.toString()),
                                         Stream.of(args))
@@ -105,6 +109,13 @@ class CliExitIT {
             process.waitFor();
         }
         return new Launched(finished, finished ? process.exitValue() : -1);
+    }
+
+    /** A port nothing listens on: bound once to learn a free number, then released. */
+    private static int closedPort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
     }
 
     /** The Java binary running this test, so the launched jar runs on the Java the build did. */
