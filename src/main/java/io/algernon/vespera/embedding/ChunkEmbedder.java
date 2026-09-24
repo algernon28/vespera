@@ -23,9 +23,10 @@ import org.springframework.stereotype.Component;
  * A refusal is not this call failing — {@link #embed} splits the rejected text in half and embeds each
  * half the same way, recursively, then averages the resulting vectors component-wise into the one
  * vector this chunk's ordinal is stored under, since ADR-084 stores a vector row per chunk and never
- * more than one. In practice this path is close to dead: the candidate model's 32k-token context
- * leaves a 64x margin over the 512-word chunking budget, so a refusal here would mean the budget or
- * the model changed without the other instrument catching up, not routine overflow.
+ * more than one. The path is live (ADR-144, #272): Ollama refuses an input past its batch size, 2,048
+ * tokens by default, whatever the model's own context length, and 512 words of machine identifiers
+ * can cost more than that. A single word too long to fit is split by code points, so the split always
+ * ends in pieces the runtime takes. Only that refusal is split; any other reaches the caller at once.
  *
  * <p>No {@code dimensions} option is sent: nothing in this ticket asks for a truncated embedding, so
  * the identity's {@code outputDimension} is always the returned vector's own length, by construction
@@ -37,6 +38,9 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ChunkEmbedder {
+
+    /** The part of Ollama's length refusal that names the reason: {@code the input length exceeds the context length}. */
+    private static final String INPUT_TOO_LONG = "input length exceeds";
 
     private final EmbeddingModel embeddingModel;
     private final OllamaClient ollamaClient;
@@ -74,6 +78,11 @@ public class ChunkEmbedder {
         try {
             return callOnce(text, modelName);
         } catch (NonTransientAiException rejected) {
+            // ADR-144: only a refusal on length is the input's fault. Any other refusal would come back
+            // for every piece too, so splitting it only multiplies the calls before the same failure.
+            if (!isTooLong(rejected)) {
+                throw rejected;
+            }
             List<String> halves = splitInHalf(text);
             if (halves.size() < 2) {
                 throw rejected;
@@ -90,16 +99,33 @@ public class ChunkEmbedder {
         return embeddingModel.call(request).getResult().getOutput();
     }
 
-    /** Splits {@code text} into two roughly equal halves by word count; a single word cannot split further. */
+    /** Ollama's refusal of an input past its limit under {@code truncate: false}, as #272 recorded it. */
+    private static boolean isTooLong(NonTransientAiException rejected) {
+        return rejected.getMessage() != null && rejected.getMessage().contains(INPUT_TOO_LONG);
+    }
+
+    /**
+     * Splits {@code text} into two roughly equal halves by word count, or, where it is a single word, by
+     * code points (ADR-144). Only a single code point cannot split further, and no runtime refuses one
+     * on length.
+     */
     private static List<String> splitInHalf(String text) {
         String[] words = text.trim().split("\\s+");
-        if (words.length < 2) {
+        if (words.length >= 2) {
+            int mid = words.length / 2;
+            return List.of(
+                    String.join(" ", List.of(words).subList(0, mid)),
+                    String.join(" ", List.of(words).subList(mid, words.length)));
+        }
+        String word = words[0];
+        int codePoints = word.codePointCount(0, word.length());
+        if (codePoints < 2) {
             return List.of(text);
         }
-        int mid = words.length / 2;
-        return List.of(
-                String.join(" ", List.of(words).subList(0, mid)),
-                String.join(" ", List.of(words).subList(mid, words.length)));
+        // By code point rather than by char, so a character outside the Basic Multilingual Plane is never
+        // cut into two unpaired surrogates the runtime would read as neither.
+        int mid = word.offsetByCodePoints(0, codePoints / 2);
+        return List.of(word.substring(0, mid), word.substring(mid));
     }
 
     private static float[] averaged(float[] first, float[] second) {
