@@ -16,6 +16,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -58,6 +59,9 @@ class RedundancyResolutionTest {
 
     /** What the container holds on top of them — enough that the pair's Jaccard is nowhere near the cut. */
     private static final int CONTAINER_EXTRA_SHINGLES = 1_200;
+
+    /** How many documents sit wholly inside one container, each sharing nothing with the others. */
+    private static final int CHAPTERS_INSIDE_ONE_VOLUME = 3;
 
     /** The fuller rendering, in alphanumeric characters of extracted text (ADR-079's survivor rule). */
     private static final long FULLER_TEXT = 50_000L;
@@ -160,6 +164,45 @@ class RedundancyResolutionTest {
                 "and the score is the containment itself -- every one of the chapter's shingles is in the"
                         + " volume, so 1.0 -- rather than the Jaccard the near-duplicate path would store",
                 () -> assertThat(scoreOf(chapter)).isCloseTo(1.0, org.assertj.core.data.Offset.offset(1e-9)));
+    }
+
+    /**
+     * Found on the legacy corpus once tables were read (ADR-145): a spreadsheet with hundreds of
+     * thousands of shingles, named as a candidate container by one document after another, was counted
+     * again for every one of them, and stage 4b was still running after twenty minutes.
+     */
+    @Test
+    @Story("A document wholly inside another is redundant with it")
+    @DisplayName("A container several documents fall inside is measured once, however many of them name it")
+    void measuresAContainerOnceForEveryDocumentInsideIt() {
+        Fixture fixture = fixture();
+        Set<Long> container = new LinkedHashSet<>(shingles(20_000, CONTAINER_EXTRA_SHINGLES));
+        List<OccurrenceId> chapters = new ArrayList<>();
+        for (int i = 0; i < CHAPTERS_INSIDE_ONE_VOLUME; i++) {
+            Set<Long> chapter = shingles(i * 1_000L, CONTAINED_SHINGLES);
+            container.addAll(chapter);
+            chapters.add(fixture.document(
+                    "chapter-" + i + ".pdf", chapter, THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z")));
+        }
+        OccurrenceId volume =
+                fixture.document("volume.pdf", container, FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+        CountingJdbcTemplate counting = new CountingJdbcTemplate(jdbcTemplate);
+
+        fixture.resolveWith(counting);
+
+        claim(
+                "each of the " + CHAPTERS_INSIDE_ONE_VOLUME + " chapters is redundant with the volume that holds"
+                        + " all of them",
+                () -> assertThat(chapters).allSatisfy(chapter -> assertThat(redundantWith(chapter))
+                        .isEqualTo(volume.value())));
+        claim(
+                "and the volume's shingles were counted once for the whole pass, not once for each of the "
+                        + CHAPTERS_INSIDE_ONE_VOLUME + " chapters that named it -- the count is a fact about the"
+                        + " volume, and a volume of a spreadsheet's size costs seconds to count",
+                () -> assertThat(counting.countedOccurrences()).containsOnlyOnce(volume.value()));
+        claim(
+                "and no other document was counted twice either",
+                () -> assertThat(counting.countedOccurrences()).doesNotHaveDuplicates());
     }
 
     @Test
@@ -296,6 +339,45 @@ class RedundancyResolutionTest {
                         new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
             }
             new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4RunId, stage3RunId, stage2RunId, Set.of());
+        }
+
+        /** The same pass, with resolution reading the store through {@code resolutionTemplate}. */
+        void resolveWith(JdbcTemplate resolutionTemplate) {
+            new DocumentFrequency(jdbcTemplate, ledger).measure(stage3RunId, stage2RunId);
+            RedundancySignatures signatures = new RedundancySignatures(jdbcTemplate);
+            for (Long occurrenceId : jdbcTemplate.queryForList(
+                    "SELECT DISTINCT occurrence_id FROM shingle WHERE run_id = ?", Long.class, stage2RunId.value())) {
+                signatures.write(
+                        new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
+            }
+            new RedundancyResolution(resolutionTemplate, ledger).resolve(stage4RunId, stage3RunId, stage2RunId, Set.of());
+        }
+    }
+
+    /**
+     * The test's own store, recording which document each {@code COUNT(DISTINCT shingle_hash)} measured
+     * -- the one query resolution uses to size a candidate container, whose first argument is the
+     * document. Over the same data source, so it reads inside the test's transaction like everything
+     * else here.
+     */
+    private static final class CountingJdbcTemplate extends JdbcTemplate {
+
+        private final List<Long> countedOccurrences = new ArrayList<>();
+
+        CountingJdbcTemplate(JdbcTemplate delegate) {
+            super(delegate.getDataSource());
+        }
+
+        @Override
+        public <T> T queryForObject(String sql, Class<T> requiredType, Object... args) {
+            if (sql.startsWith("SELECT COUNT(DISTINCT shingle_hash)")) {
+                countedOccurrences.add(((Number) args[0]).longValue());
+            }
+            return super.queryForObject(sql, requiredType, args);
+        }
+
+        List<Long> countedOccurrences() {
+            return countedOccurrences;
         }
     }
 }
