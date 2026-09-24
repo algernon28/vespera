@@ -13,6 +13,11 @@ vespera:
     # default is correct for `vespera run` against the sidecar compose.yaml declares; a test
     # overrides it from the Testcontainers-mapped port instead (see TestcontainersConfiguration).
     base-url: http://localhost:5001
+    # The image compose.yaml runs the sidecar from, which the extractor identity carries (ADR-147):
+    # two images reporting the same versions were measured to convert the same PDF differently, and
+    # the sidecar does not say which image it is. Keep in step with compose.yaml and
+    # TestcontainersConfiguration.
+    image: vespera/docling-serve-cpu-libreoffice:v1.32.0
 
 spring:
   application:

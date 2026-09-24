@@ -30,6 +30,21 @@ services:
     # for docling-serve to be read back from at all (ADR-071's own consequence -- "the exact
     # endpoint/health path... are the hand-off spec's"), so application.yaml's
     # vespera.docling.base-url default has to name a port the operator can rely on.
-    image: 'quay.io/docling-project/docling-serve-cpu:v1.32.0'
+    #
+    # Built here rather than pulled, because it adds LibreOffice to the pinned image so that .doc and
+    # .ppt convert (ADR-147). The tag is ours and is the image vespera.docling.image names, which the
+    # extractor identity carries: this image and the stock one report the same versions and convert
+    # some PDFs differently.
+    image: 'vespera/docling-serve-cpu-libreoffice:v1.32.0'
+    build:
+      context: docker/docling-serve
+      dockerfile: Containerfile
+    # An init process reaps the soffice each conversion starts; without one they stay behind as
+    # zombies, one per file. Converting a file needs no capability and no privilege.
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - 'no-new-privileges:true'
     ports:
       - '5001:5001'

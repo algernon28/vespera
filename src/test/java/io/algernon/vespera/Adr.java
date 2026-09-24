@@ -671,6 +671,14 @@ public final class Adr {
     public static final String SPREADSHEETS_ARE_OUT_OF_SCOPE = FILE
             + "0146-spreadsheets-are-out-of-scope-and-stage-1-removes-them-with-a-verdict-of-their-own.md";
 
+    /**
+     * ADR-147 -- the Docling sidecar is a derived image with LibreOffice Writer and Impress, and the
+     * image joins the extractor identity, because two images reporting the same versions were measured
+     * to convert the same PDF differently.
+     */
+    public static final String THE_DOCLING_SIDECAR_IS_A_DERIVED_IMAGE = FILE
+            + "0147-the-docling-sidecar-is-a-derived-image-with-libreoffice-writer-and-impress-and-the-image-joins-the-extractor-identity.md";
+
     private Adr() {
     }
 }
