@@ -238,6 +238,85 @@ class ByteLevelReductionTaskletTest {
                 () -> assertThat(html).containsIgnoringCase("cannot tell"));
     }
 
+    /**
+     * ADR-146: spreadsheets are out of scope, and stage 1 applies that, before anything reads them
+     * further. Both kinds are here: a workbook archive, and an older compound file named as a
+     * spreadsheet.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("A spreadsheet is removed as out of scope, never hashed, and counted on the page; everything else is kept")
+    @Issue("278")
+    @Link(name = "ADR-146", url = Adr.SPREADSHEETS_ARE_OUT_OF_SCOPE, type = "adr")
+    void removesSpreadsheetsAsOutOfScope(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        zipHolding(root.resolve("figures.xlsx"), "xl/workbook.xml");
+        zipHolding(root.resolve("figures copy.xlsx"), "xl/workbook.xml");
+        Files.write(root.resolve("budget.xls"), OLE_COMPOUND_FILE);
+        Files.write(root.resolve("minutes.doc"), OLE_COMPOUND_FILE_OF_ANOTHER_SIZE);
+        Files.writeString(root.resolve("terminals.csv"), "terminal;merchant\nTID-1;ACME\n");
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                .execute(null, null);
+
+        claim(
+                "the workbook, its byte-identical copy, and the older spreadsheet are each removed as out of"
+                        + " scope -- the copy on its own account, not as a duplicate of the other",
+                () -> assertThat(List.of(
+                                verdictKindsFor(ledger, walkId, "figures.xlsx"),
+                                verdictKindsFor(ledger, walkId, "figures copy.xlsx"),
+                                verdictKindsFor(ledger, walkId, "budget.xls")))
+                        .containsOnly(List.of("OUT_OF_SCOPE")));
+        claim(
+                "and the reason says which kind of file it was and that it is out of scope, so a removal an"
+                        + " operator did not expect explains itself",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, "figures.xlsx"))
+                        .singleElement(org.assertj.core.api.InstanceOfAssertFactories.STRING)
+                        .contains("spreadsheet")
+                        .contains("out of scope"));
+        claim(
+                "the older Word document and the comma-separated file are kept: a spreadsheet is what is out"
+                        + " of scope, not every older Office file, and not every table of data",
+                () -> assertThat(List.of(
+                                verdictKindsFor(ledger, walkId, "minutes.doc"),
+                                verdictKindsFor(ledger, walkId, "terminals.csv")))
+                        .containsOnly(List.of()));
+        claim(
+                "the two identical workbooks were never hashed, because nothing out of scope reaches the"
+                        + " duplicate pass",
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM content_hash", Integer.class))
+                        .isZero());
+        String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
+        claim(
+                "and the page stage 1 writes counts the spreadsheets it left out, all three of them",
+                () -> assertThat(countIn(html, "left out as out of scope")).isEqualTo(3));
+    }
+
+    /** The eight bytes every OLE compound file begins with, then padding, so it reads as one. */
+    private static final byte[] OLE_COMPOUND_FILE = oleCompoundFile(64);
+
+    /** The same, of another length, so the two never share a size and nothing hashes them. */
+    private static final byte[] OLE_COMPOUND_FILE_OF_ANOTHER_SIZE = oleCompoundFile(96);
+
+    /** A well-formed archive whose single entry is named {@code entryName}. */
+    private static Path zipHolding(Path path, String entryName) throws java.io.IOException {
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(Files.newOutputStream(path))) {
+            zip.putNextEntry(new java.util.zip.ZipEntry(entryName));
+            zip.write("<part/>".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+            zip.closeEntry();
+        }
+        return path;
+    }
+
+    private static byte[] oleCompoundFile(int length) {
+        byte[] bytes = new byte[length];
+        byte[] signature = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1};
+        System.arraycopy(signature, 0, bytes, 0, signature.length);
+        return bytes;
+    }
+
     /** The count the report prints on the line for {@code label}. */
     private static int countIn(String html, String label) {
         java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(

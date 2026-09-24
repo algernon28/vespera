@@ -20,11 +20,15 @@ final class FormatMixReport {
 
     private FormatMixReport() {}
 
-    /** What stage 1 found, accumulated over the occurrences it examined. */
+    /**
+     * What stage 1 found, accumulated over the occurrences it examined, and how many of them it left
+     * out as out of scope (ADR-146).
+     */
     record Mix(
             Map<DetectedFormat, Integer> byFormat,
             Map<DetectedFormat, Map<DetectedSubtype, Integer>> bySubtype,
-            Map<String, Integer> unrecognisedLeadingBytes) {}
+            Map<String, Integer> unrecognisedLeadingBytes,
+            int outOfScope) {}
 
     /**
      * How each class is named for a reader who has never seen this project (ADR-052): report-visible
@@ -36,6 +40,7 @@ final class FormatMixReport {
         LABELS.put(DetectedFormat.PDF, "PDF documents");
         LABELS.put(DetectedFormat.IMAGE, "Images");
         LABELS.put(DetectedFormat.WORDPROCESSING, "Word processing documents");
+        LABELS.put(DetectedFormat.SPREADSHEET, "Spreadsheets");
         LABELS.put(DetectedFormat.ZIP_CONTAINER, "Archives of another kind");
         LABELS.put(DetectedFormat.OLE_COMPOUND, "Older Office containers");
         LABELS.put(DetectedFormat.PLAIN_TEXT, "Text");
@@ -59,9 +64,12 @@ final class FormatMixReport {
         StringBuilder body = new StringBuilder();
         body.append(ReportPage.heading(1, "What the files turned out to be"))
                 .append(ReportPage.paragraph("Every file was read far enough to recognise what it is."
-                        + " What follows is what was found, and it removes nothing: it exists so that a"
-                        + " later decision about what to leave out has a measurement behind it rather"
-                        + " than a guess."));
+                        + " What follows is what was found. Counting removes nothing: it exists so that a"
+                        + " decision about what to leave out has a measurement behind it rather than a"
+                        + " guess."))
+                .append(ReportPage.paragraph("Spreadsheets are out of scope, whatever they hold. Files"
+                        + " left out as out of scope, and not read any further: " + mix.outOfScope()
+                        + ". They are still counted in the table below, with everything else."));
 
         StringBuilder formatRows = new StringBuilder();
         for (Map.Entry<DetectedFormat, String> label : LABELS.entrySet()) {

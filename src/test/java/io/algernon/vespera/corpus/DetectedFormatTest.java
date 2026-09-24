@@ -81,6 +81,12 @@ class DetectedFormatTest {
     /** The equivalent entry in a spreadsheet, which is a zip but is not a Word document. */
     private static final String SPREADSHEET_MAIN_PART = "xl/workbook.xml";
 
+    /** The same entry in a binary workbook, which Excel writes as {@code .xlsb}. */
+    private static final String BINARY_SPREADSHEET_MAIN_PART = "xl/workbook.bin";
+
+    /** The equivalent entry in a presentation, which is neither a Word document nor a spreadsheet. */
+    private static final String PRESENTATION_MAIN_PART = "ppt/presentation.xml";
+
     @Test
     @Story("The content decides, not the name")
     @DisplayName("A PDF saved under a .png name is recognised as a PDF and checked as one")
@@ -154,23 +160,45 @@ class DetectedFormatTest {
                 () -> assertThat(BrokenCheck.check(misnamed).broken()).isFalse());
     }
 
+    /**
+     * ADR-146 moved spreadsheets out of scope, and stage 1 is where that is applied, so it has to know
+     * one when it sees one. Before that a spreadsheet read as an archive of another kind.
+     */
     @Test
     @Story("Archives are told apart by looking inside them")
-    @DisplayName("A spreadsheet is an archive but not a word processing document, and is still kept")
-    void aSpreadsheetIsAnArchiveThatIsNotAWordDocument(@TempDir Path dir) throws IOException {
-        Path spreadsheet = zipHolding(dir.resolve("figures.xlsx"), SPREADSHEET_MAIN_PART);
+    @DisplayName("A spreadsheet is recognised by the workbook inside it, whatever it is named")
+    @Issue("278")
+    @Link(name = "ADR-146", url = Adr.SPREADSHEETS_ARE_OUT_OF_SCOPE, type = "adr")
+    void aSpreadsheetIsRecognisedByItsWorkbook(@TempDir Path dir) throws IOException {
+        Path spreadsheet = zipHolding(dir.resolve("figures.zip"), SPREADSHEET_MAIN_PART);
+        Path binaryWorkbook = zipHolding(dir.resolve("figures.xlsb"), BINARY_SPREADSHEET_MAIN_PART);
 
         claim(
-                "an archive without " + WORD_MAIN_PART + " is not a word processing document",
-                () -> assertThat(BrokenCheck.check(spreadsheet).format()).isEqualTo(DetectedFormat.ZIP_CONTAINER));
+                "an archive holding " + SPREADSHEET_MAIN_PART + " is a spreadsheet, read from the entry"
+                        + " inside it and not from a name that here says only zip",
+                () -> assertThat(BrokenCheck.check(spreadsheet).format()).isEqualTo(DetectedFormat.SPREADSHEET));
         claim(
-                "spreadsheets, presentations and open-document files are all archives that the conversion"
-                        + " step reads perfectly well, so being an archive of another kind removes nothing",
+                "and so is one holding the binary workbook, " + BINARY_SPREADSHEET_MAIN_PART + ", which Excel"
+                        + " writes as .xlsb",
+                () -> assertThat(BrokenCheck.check(binaryWorkbook).format()).isEqualTo(DetectedFormat.SPREADSHEET));
+        claim(
+                "recognising it removes nothing by itself: an intact spreadsheet is not broken",
                 () -> assertThat(BrokenCheck.check(spreadsheet).broken()).isFalse());
         claim(
-                "every archive can be told apart by an entry inside it, so the filename is never consulted"
-                        + " on this branch and no finer label is taken from it",
+                "and the filename is never consulted on this branch, so no finer label is taken from it",
                 () -> assertThat(BrokenCheck.check(spreadsheet).subtype()).isEmpty());
+    }
+
+    @Test
+    @Story("Archives are told apart by looking inside them")
+    @DisplayName("An archive that is neither a word processing document nor a spreadsheet is an archive of another kind")
+    void aPresentationIsAnArchiveOfAnotherKind(@TempDir Path dir) throws IOException {
+        Path presentation = zipHolding(dir.resolve("slides.pptx"), PRESENTATION_MAIN_PART);
+
+        claim(
+                "an archive holding neither " + WORD_MAIN_PART + " nor a workbook -- a presentation here --"
+                        + " is an archive of another kind, and kept",
+                () -> assertThat(BrokenCheck.check(presentation).format()).isEqualTo(DetectedFormat.ZIP_CONTAINER));
     }
 
     @Test

@@ -223,7 +223,10 @@ public class DoclingClient {
     private static String extensionFor(DetectedFormat format, DetectedSubtype subtype) {
         return switch (format) {
             case PDF -> "pdf";
-            case IMAGE, ZIP_CONTAINER, UNRECOGNISED -> NEUTRAL_EXTENSION;
+            // A spreadsheet is sent as it was before stage 1 told it apart from other archives: under the
+            // neutral name, so Docling's own probe decides and no cached conversion of one goes stale.
+            // Stage 1 leaves the corpus's out of scope (ADR-146); a seed's still arrives here.
+            case IMAGE, SPREADSHEET, ZIP_CONTAINER, UNRECOGNISED -> NEUTRAL_EXTENSION;
             case WORDPROCESSING -> "docx";
             case OLE_COMPOUND -> subtype == null ? NEUTRAL_EXTENSION : legacyExtension(subtype);
             case PLAIN_TEXT -> subtype == null ? MARKDOWN_EXTENSION : textExtension(subtype);
