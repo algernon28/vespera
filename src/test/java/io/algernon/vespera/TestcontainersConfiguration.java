@@ -1,5 +1,8 @@
 package io.algernon.vespera;
 
+import com.github.dockerjava.api.model.Capability;
+import java.nio.file.Path;
+import java.util.List;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -8,6 +11,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.springframework.test.context.DynamicPropertyRegistrar;
 import org.testcontainers.ollama.OllamaContainer;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -58,8 +62,16 @@ public class TestcontainersConfiguration {
     /** Ollama 0.33.2, which is {@code sha256:020e4134}. Keep in step with {@code compose.yaml}. */
     private static final String OLLAMA_IMAGE = "ollama/ollama:0.33.2";
 
-    /** docling-serve v1.32.0 (CPU image). Keep in step with {@code compose.yaml}. */
-    private static final String DOCLING_SERVE_IMAGE = "quay.io/docling-project/docling-serve-cpu:v1.32.0";
+    /**
+     * docling-serve v1.32.0 (CPU image) with LibreOffice, built from the repository's own
+     * {@code Containerfile} rather than pulled (ADR-147). Keep in step with {@code compose.yaml}, which
+     * builds and tags the same image, and with {@code vespera.docling.image}, which the extractor
+     * identity carries.
+     */
+    static final String DOCLING_SERVE_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0";
+
+    /** Where that image is built from, relative to the repository root Maven runs the tests in. */
+    private static final Path DOCLING_SERVE_CONTAINERFILE = Path.of("docker/docling-serve/Containerfile");
 
     /** The port docling-serve listens on inside its container (confirmed against the image's own metadata). */
     private static final int DOCLING_SERVE_PORT = 5001;
@@ -84,8 +96,16 @@ public class TestcontainersConfiguration {
      */
     @Bean
     GenericContainer<?> doclingServeContainer() {
-        return new GenericContainer<>(DockerImageName.parse(DOCLING_SERVE_IMAGE))
+        // Built under the very tag compose.yaml gives it, and kept, so a machine that already built it
+        // for compose -- or for an earlier test run -- reuses the image instead of building it again.
+        ImageFromDockerfile image = new ImageFromDockerfile(DOCLING_SERVE_IMAGE, false)
+                .withDockerfile(DOCLING_SERVE_CONTAINERFILE);
+        return new GenericContainer<>(image)
                 .withExposedPorts(DOCLING_SERVE_PORT)
+                .withCreateContainerCmdModifier(command -> command.getHostConfig()
+                        .withInit(true)
+                        .withCapDrop(Capability.ALL)
+                        .withSecurityOpts(List.of("no-new-privileges:true")))
                 .waitingFor(Wait.forHttp("/health").forStatusCode(200));
     }
 

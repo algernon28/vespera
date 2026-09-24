@@ -20,6 +20,7 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -276,15 +277,23 @@ public class ExtractionJobConfiguration {
      * <p>Not {@code @StepScope}: a scoped bean is injected as a CGLIB proxy, and {@link
      * ExtractorIdentity} is a record and therefore final. That is a fair constraint rather than an
      * obstacle — the identity does not vary between steps, so nothing wanted it scoped per step.
+     *
+     * <p><b>The image is in it too</b> (ADR-147). The stock image and the one with LibreOffice report
+     * the same versions, and 5 of 14 PDFs were measured to convert differently between them; keyed by
+     * the versions alone, a cache would serve one image's conversions as the other's. The image is the
+     * one {@code compose.yaml} runs, named in {@code vespera.docling.image}; the sidecar does not report
+     * it, so it is taken as configured, the one fact here not read back from the sidecar.
      */
     @Bean
     @Lazy
-    ExtractorIdentity extractorIdentity(DoclingClient doclingClient) {
+    ExtractorIdentity extractorIdentity(
+            DoclingClient doclingClient, @Value("${vespera.docling.image}") String image) {
         String versions = doclingClient.version().entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(component -> component.getKey() + "=" + component.getValue())
                 .collect(Collectors.joining(";"));
-        return new ExtractorIdentity("docling-serve;" + versions + ";" + DoclingClient.sentOptions());
+        return new ExtractorIdentity(
+                "docling-serve;image=" + image + ";" + versions + ";" + DoclingClient.sentOptions());
     }
 
     /**

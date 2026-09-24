@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.TestcontainersConfiguration;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -19,12 +20,16 @@ import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.testcontainers.containers.Container;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.MountableFile;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -77,8 +82,61 @@ class DoclingClientIT {
     /** The one distinctive word the extension-less prose fixture is written with. */
     private static final String PROSE_MARKER_WORD = "Recrudescence";
 
+    /** The distinctive word the older Word fixture carries, saved from a {@code .docx} as a {@code .doc}. */
+    private static final String DOC_MARKER_WORD = "Sesquipedalian";
+
+    /** The distinctive word the older PowerPoint fixture carries, on its one slide. */
+    private static final String PPT_MARKER_WORD = "Quiddity";
+
     @Autowired
     private DoclingClient client;
+
+    @Autowired
+    private GenericContainer<?> doclingServeContainer;
+
+    /**
+     * ADR-147: the sidecar carries LibreOffice, which docling-serve calls to turn a {@code .doc} into a
+     * {@code .docx} before converting it. On the stock image this very file came back {@code failure}
+     * with an uncategorised error, and every older Word document in the archive with it.
+     *
+     * <p>The fixture is made in the test, as ADR-063 asks, by the one thing on hand that writes the
+     * format: the sidecar's own LibreOffice, saving a generated {@code .docx} as a {@code .doc}.
+     */
+    @Test
+    @Story("One call converts one document")
+    @DisplayName("An older Word document converts, and carries its own text")
+    @Link(name = "ADR-147", url = Adr.THE_DOCLING_SIDECAR_IS_A_DERIVED_IMAGE, type = "adr")
+    void convertsAnOlderWordDocument(@TempDir Path dir) throws Exception {
+        Path doc = savedByLibreOfficeAs(aDocx(dir.resolve("older.docx"), DOC_MARKER_WORD), "doc", dir);
+
+        DoclingResponse response = client.convert(doc, DetectedFormat.OLE_COMPOUND, DetectedSubtype.LEGACY_WORD);
+
+        claim(
+                "the service reports the conversion succeeded, where the image without LibreOffice refused it",
+                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
+        claim(
+                "and the body carries the document's own word, so its text came through the conversion",
+                () -> assertThat(response.rawResponse()).contains(DOC_MARKER_WORD));
+    }
+
+    /** The same for an older PowerPoint file, which docling-serve turns into a {@code .pptx} first. */
+    @Test
+    @Story("One call converts one document")
+    @DisplayName("An older PowerPoint presentation converts, and carries its own text")
+    @Link(name = "ADR-147", url = Adr.THE_DOCLING_SIDECAR_IS_A_DERIVED_IMAGE, type = "adr")
+    void convertsAnOlderPowerPointPresentation(@TempDir Path dir) throws Exception {
+        Path ppt = savedByLibreOfficeAs(anOdp(dir.resolve("older.odp"), PPT_MARKER_WORD), "ppt", dir);
+
+        DoclingResponse response =
+                client.convert(ppt, DetectedFormat.OLE_COMPOUND, DetectedSubtype.LEGACY_PRESENTATION);
+
+        claim(
+                "the service reports the conversion succeeded",
+                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
+        claim(
+                "and the body carries the slide's own word",
+                () -> assertThat(response.rawResponse()).contains(PPT_MARKER_WORD));
+    }
 
     @Test
     @Story("One call converts one document")
@@ -256,6 +314,11 @@ class DoclingClientIT {
      * valid container, since a {@code .docx} is a zip and the JDK already writes those.
      */
     private static Path aRealDocx(Path file) throws IOException {
+        return aDocx(file, DOCX_MARKER_WORD);
+    }
+
+    /** {@link #aRealDocx}'s package, its one paragraph reading {@code word}. */
+    private static Path aDocx(Path file, String word) throws IOException {
         try (ZipOutputStream docx = new ZipOutputStream(Files.newOutputStream(file))) {
             write(
                     docx,
@@ -300,9 +363,85 @@ class DoclingClientIT {
                       </w:body>
                     </w:document>
                     """
-                            .formatted(DOCX_MARKER_WORD));
+                            .formatted(word));
         }
         return file;
+    }
+
+    /**
+     * A real OpenDocument presentation with one slide reading {@code word}: the three parts LibreOffice
+     * needs, the uncompressed {@code mimetype} entry first as the format requires.
+     */
+    private static Path anOdp(Path file, String word) throws IOException {
+        try (ZipOutputStream odp = new ZipOutputStream(Files.newOutputStream(file))) {
+            byte[] mimetype = "application/vnd.oasis.opendocument.presentation".getBytes(StandardCharsets.US_ASCII);
+            CRC32 checksum = new CRC32();
+            checksum.update(mimetype);
+            ZipEntry stored = new ZipEntry("mimetype");
+            stored.setMethod(ZipEntry.STORED);
+            stored.setSize(mimetype.length);
+            stored.setCrc(checksum.getValue());
+            odp.putNextEntry(stored);
+            odp.write(mimetype);
+            odp.closeEntry();
+            write(
+                    odp,
+                    "META-INF/manifest.xml",
+                    """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">
+                      <manifest:file-entry manifest:full-path="/"\
+                     manifest:media-type="application/vnd.oasis.opendocument.presentation"/>
+                      <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+                    </manifest:manifest>
+                    """);
+            write(
+                    odp,
+                    "content.xml",
+                    """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <office:document-content\
+                     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"\
+                     xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"\
+                     xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"\
+                     xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"\
+                     office:version="1.2">
+                      <office:body><office:presentation><draw:page draw:name="page1">
+                        <draw:frame svg:x="2cm" svg:y="2cm" svg:width="20cm" svg:height="3cm">
+                          <draw:text-box><text:p>%s</text:p></draw:text-box>
+                        </draw:frame>
+                      </draw:page></office:presentation></office:body>
+                    </office:document-content>
+                    """
+                            .formatted(word));
+        }
+        return file;
+    }
+
+    /**
+     * {@code source} saved as {@code extension} by the sidecar's own LibreOffice, and copied back into
+     * {@code dir}: the one writer of the older Office formats this suite has, and the reason these two
+     * fixtures can be generated rather than committed (ADR-063).
+     */
+    private Path savedByLibreOfficeAs(Path source, String extension, Path dir) throws Exception {
+        String inside = "/tmp/fixture-" + source.getFileName();
+        doclingServeContainer.copyFileToContainer(MountableFile.forHostPath(source), inside);
+        Container.ExecResult saved = doclingServeContainer.execInContainer(
+                "soffice",
+                "-env:UserInstallation=file:///tmp/fixture-profile",
+                "--headless",
+                "--convert-to",
+                extension,
+                "--outdir",
+                "/tmp/fixture-out",
+                inside);
+        if (saved.getExitCode() != 0) {
+            throw new IllegalStateException("LibreOffice could not save the fixture as ." + extension + ": " + saved);
+        }
+        String stem = "fixture-" + source.getFileName().toString().replaceFirst("\\.[^.]+$", "");
+        Path copied = dir.resolve(stem + "." + extension);
+        doclingServeContainer.copyFileFromContainer("/tmp/fixture-out/" + copied.getFileName(), copied.toString());
+        return copied;
     }
 
     private static void write(ZipOutputStream docx, String part, String content) throws IOException {

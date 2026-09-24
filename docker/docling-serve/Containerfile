@@ -1,0 +1,13 @@
+# The Docling sidecar with LibreOffice, which docling-serve calls to turn .doc and .ppt into
+# .docx and .pptx before converting them (ADR-147). No published docling-serve image carries it
+# (docs/research/docling-legacy-office.md, section 2), so this repository builds its own.
+#
+# Writer and Impress, and not Calc: spreadsheets are out of scope (ADR-146), and Calc would be
+# installed only to be attacked. On the pinned v1.32.0; the v1.35.0 bump that hardens the
+# LibreOffice call is a decision of its own. Keep the base in step with compose.yaml's tag.
+FROM quay.io/docling-project/docling-serve-cpu:v1.32.0
+USER 0
+RUN dnf -y install --nodocs --setopt=install_weak_deps=False \
+      libreoffice-core libreoffice-writer libreoffice-impress \
+ && dnf -y clean all && rm -rf /var/cache/dnf
+USER 1001
