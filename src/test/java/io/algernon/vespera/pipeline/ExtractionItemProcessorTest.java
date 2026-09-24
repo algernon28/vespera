@@ -75,6 +75,10 @@ import org.springframework.test.context.ActiveProfiles;
  * {@code target_unavailable}, {@code internal} — not {@code unknown}) sits anywhere else in the same
  * response's {@code errors[]}, in which case the whole response is read as being about the sidecar.
  * The four cases that reading produces are claimed below.
+ *
+ * <p><b>{@code unknown}, and a failure reporting no category at all, join that conditional
+ * (ADR-143).</b> Docling answered about this file and could not convert it, which is a verdict unless
+ * the same response blames the sidecar in so many words.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -113,6 +117,12 @@ class ExtractionItemProcessorTest {
      * and a service-scoped one leaves none.
      */
     private static final int METRIC_ROWS_PER_JUDGED_RESPONSE = 1;
+
+    /**
+     * One more file the converter cannot open than the set-aside documents in a row that stop the step,
+     * so a run of them would trip the breaker if any one of them were set aside.
+     */
+    private static final int UNOPENABLE_FILES_IN_A_ROW = ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + 1;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -172,11 +182,8 @@ class ExtractionItemProcessorTest {
     @Story("A failure that is a fact about the service")
     @DisplayName("A failure the converter blames on itself leaves the document unjudged rather than condemned")
     void skipsEveryServiceScopedCategory(@TempDir Path root) throws Exception {
-        List<FailureCategory> blamedOnTheService = List.of(
-                FailureCategory.CAPACITY,
-                FailureCategory.TARGET_UNAVAILABLE,
-                FailureCategory.INTERNAL,
-                FailureCategory.UNKNOWN);
+        List<FailureCategory> blamedOnTheService =
+                List.of(FailureCategory.CAPACITY, FailureCategory.TARGET_UNAVAILABLE, FailureCategory.INTERNAL);
         Corpus corpus = corpusOf(root, blamedOnTheService.size());
         ScriptedExtractor docling = new ScriptedExtractor();
         blamedOnTheService.forEach(category -> docling.answering(failing(category)));
@@ -195,19 +202,93 @@ class ExtractionItemProcessorTest {
     }
 
     @Test
-    @Story("A failure that is a fact about the service")
-    @DisplayName("A failure with no kind reported at all is treated as saying nothing, not as saying the worst")
-    void skipsAFailureThatReportedNoCategoryAtAll(@TempDir Path root) throws Exception {
+    @Story("A failure the converter gave no kind for")
+    @DisplayName("A file the converter could not open, and gave no kind of failure for, is recorded against that file")
+    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
+    void verdictsAnUncategorisedFailure(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, 1);
+        ScriptedExtractor docling = new ScriptedExtractor().answering(failing(FailureCategory.UNKNOWN));
+
+        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+
+        claim(
+                "the converter answered about this file and could not convert it, so the file is recorded as"
+                        + " one extraction could not read -- the same result a file the converter calls broken"
+                        + " gets",
+                () -> assertThat(outcome.kind()).isEqualTo(VerdictKind.EXTRACTION_FAILED));
+        claim(
+                "and the reason is the reported kind followed by the converter's own message, composed the"
+                        + " way every other reason this step writes is",
+                () -> assertThat(outcome.reason()).isEqualTo("unknown: " + ERROR_MESSAGE));
+        claim(
+                "and the measurement is filed against it, because a response really came back for this file"
+                        + " -- " + METRIC_ROWS_PER_JUDGED_RESPONSE + " row recorded for it",
+                () -> assertThat(metricRowsFor(corpus.occurrence(0))).isEqualTo(METRIC_ROWS_PER_JUDGED_RESPONSE));
+    }
+
+    @Test
+    @Story("A failure the converter gave no kind for")
+    @DisplayName("A failure reported with no error at all is recorded against the file too")
+    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
+    void verdictsAFailureThatReportedNoCategoryAtAll(@TempDir Path root) throws Exception {
         Corpus corpus = corpusOf(root, 1);
         ScriptedExtractor docling = new ScriptedExtractor()
                 .answering(new DoclingResponse(ConversionStatus.FAILURE, List.of(), 0d, null, "{}"));
+
+        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+
+        claim(
+                "a response that says the conversion failed and names no error is still the converter's"
+                        + " answer about this file, so the file is recorded as one extraction could not read",
+                () -> assertThat(outcome.kind()).isEqualTo(VerdictKind.EXTRACTION_FAILED));
+        claim(
+                "and its reason says that nothing was categorised, so a removal with no converter message"
+                        + " behind it still explains itself",
+                () -> assertThat(outcome.reason()).isEqualTo("unknown: no categorized error was reported"));
+    }
+
+    @Test
+    @Story("A failure the converter gave no kind for")
+    @DisplayName("An unexplained error reported alongside a failure the converter blames on itself is read as being about the converter")
+    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
+    void skipsAnUncategorisedFailureReportedAlongsideAConverterProblem(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, 1);
+        ScriptedExtractor docling =
+                new ScriptedExtractor().answering(failing(FailureCategory.UNKNOWN, FailureCategory.INTERNAL));
         ExtractionItemProcessor processor = processorOver(corpus, docling);
 
         claim(
-                "a failure carrying no reported kind is no evidence about the document either, and the safe"
-                        + " reading of no evidence is that nobody has judged it yet",
+                "a response that also says the converter itself is at fault is about the converter, so the"
+                        + " file is set aside unjudged, exactly as a refusal reported beside the same fault is",
                 () -> assertThatThrownBy(() -> processor.process(corpus.occurrence(0)))
                         .isInstanceOf(ServiceScopeFailureException.class));
+    }
+
+    /**
+     * The case measured on 2026-09-24: five legacy spreadsheets in one folder, each refused by a
+     * converter with no LibreOffice, stopped the whole step. The breaker counts only what this class
+     * throws, so a run of verdicts can never trip it.
+     */
+    @Test
+    @Story("A failure the converter gave no kind for")
+    @DisplayName("Files the converter cannot open, one after another, are each recorded and nothing is set aside")
+    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
+    void verdictsEveryUncategorisedFailureInARow(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, UNOPENABLE_FILES_IN_A_ROW);
+        ScriptedExtractor docling = new ScriptedExtractor().thenAlwaysAnswering(failing(FailureCategory.UNKNOWN));
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
+
+        List<VerdictKind> kinds = new ArrayList<>();
+        for (int i = 0; i < corpus.size(); i++) {
+            kinds.add(processor.process(corpus.occurrence(i)).kind());
+        }
+
+        claim(
+                "each of the " + UNOPENABLE_FILES_IN_A_ROW + " files -- more in a row than the "
+                        + ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + " set-aside"
+                        + " documents that stop the step -- is recorded against itself, so a folder of files"
+                        + " the converter cannot open costs those files and nothing else",
+                () -> assertThat(kinds).hasSize(UNOPENABLE_FILES_IN_A_ROW).containsOnly(VerdictKind.EXTRACTION_FAILED));
     }
 
     @Test

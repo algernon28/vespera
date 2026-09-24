@@ -642,6 +642,14 @@ public final class Adr {
     public static final String THE_VECTOR_STORE_CONNECTS_WHEN_FIRST_USED = FILE
             + "0142-the-vector-store-connects-to-chroma-when-it-is-first-used.md";
 
+    /**
+     * ADR-143 -- a conversion Docling failed and gave no category for is a verdict against the file,
+     * like any other failure it reports about the file, and never counts toward the streak that stops
+     * the step.
+     */
+    public static final String AN_UNCATEGORISED_FAILURE_IS_A_VERDICT = FILE
+            + "0143-an-uncategorised-conversion-failure-is-a-verdict-against-the-file.md";
+
     private Adr() {
     }
 }

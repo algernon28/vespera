@@ -53,6 +53,12 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
 
     private static final Logger log = LoggerFactory.getLogger(ExtractionItemProcessor.class);
 
+    /** Docling's own category for an error it did not classify, and the reason's for a failure naming none. */
+    private static final String UNCATEGORISED = FailureCategory.UNKNOWN.name().toLowerCase(Locale.ROOT);
+
+    /** What a reason says when the failed response carried no error at all. */
+    private static final String NO_CATEGORIZED_ERROR = "no categorized error was reported";
+
     private final Ledger ledger;
     private final ContentIdentity contentIdentity;
     private final DetectedFormats detectedFormats;
@@ -281,9 +287,13 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      * {@code errors[]} is evidence the whole response is about the sidecar's own state, not about this
      * document, so it overrides the otherwise-document-scope reading and the occurrence is skipped as
      * service scope instead, exactly as above. {@code unknown} co-occurring does not trigger this
-     * override — an uncategorised error is not itself evidence of anything, the same reasoning that
-     * already keeps a bare {@code unknown} from earning a verdict on its own. {@code backend_failure}
+     * override — an uncategorised error is not itself evidence of anything. {@code backend_failure}
      * and {@code inference_failure} carry no such conditional: they are document scope unconditionally.
+     *
+     * <p>{@code unknown}, and a failure reporting no error at all, are document scope on the same
+     * conditional (ADR-143): Docling answered about this file and could not convert it, which is a
+     * verdict unless the same response blames the sidecar. A refusal of the same file repeats on every
+     * run, so setting it aside only fed ADR-071's breaker, and five in a row stopped the step.
      */
     private ExtractionOutcome categorizeFailure(OccurrenceId occurrenceId, DoclingResponse response) {
         List<DoclingError> errors = response.errors();
@@ -295,25 +305,26 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(unconditional.get()));
         }
 
-        Optional<DoclingError> conditional =
-                errors.stream().filter(error -> isConditionalDocumentScope(error.category())).findFirst();
-        if (conditional.isPresent() && errors.stream().noneMatch(error -> isServiceScope(error.category()))) {
+        if (errors.stream().noneMatch(error -> isServiceScope(error.category()))) {
+            // Every category left is conditional, and nothing overrides it. A named refusal is the
+            // better reason than an unexplained error beside it, so it is preferred.
+            String reason = errors.stream()
+                    .filter(error -> isConditionalDocumentScope(error.category()))
+                    .findFirst()
+                    .or(() -> errors.stream().findFirst())
+                    .map(ExtractionItemProcessor::reasonFor)
+                    .orElse(UNCATEGORISED + ": " + NO_CATEGORIZED_ERROR);
             extractionMetrics.write(occurrenceId, extractionRun.runId(), response);
-            return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(conditional.get()));
+            return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
         }
 
-        if (errors.isEmpty()) {
-            // ADR-070: an uncategorised failure is not evidence about the document either -- the safe
-            // reading of no evidence is "not judged yet," the same reading UNKNOWN itself gets.
-            throw new ServiceScopeFailureException(occurrenceId, "unknown", "no categorized error was reported");
-        }
         // Prefer the error that is actually evidence of service scope -- when a conditional category
-        // (policy/source_unavailable) is overridden by a co-occurring genuine service-scope category,
-        // errors.get(0) may be the overridden entry rather than the one that caused this reading.
+        // is overridden by a co-occurring genuine service-scope category, errors.get(0) may be the
+        // overridden entry rather than the one that caused this reading.
         DoclingError serviceScoped = errors.stream()
                 .filter(error -> isServiceScope(error.category()))
                 .findFirst()
-                .orElseGet(() -> errors.get(0));
+                .orElseThrow();
         throw new ServiceScopeFailureException(
                 occurrenceId, serviceScoped.category().name().toLowerCase(Locale.ROOT), serviceScoped.errorMessage());
     }
