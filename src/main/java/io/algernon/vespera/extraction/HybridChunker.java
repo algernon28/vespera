@@ -32,8 +32,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class HybridChunker {
 
-    /** This chunker's own identity, half of the chunk cache's key alongside the rule's. */
-    static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
+    /**
+     * This chunker's own identity, half of the chunk cache's key alongside the rule's. {@code v2} since
+     * ADR-145, when table rows joined the text it chunks, so no chunk cut from text items alone is reused.
+     */
+    static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v2";
 
     /** Docling's own heading labels: each one starts a fresh chunk and becomes its leading context. */
     private static final Set<String> HEADING_LABELS = Set.of("title", "section_header");

@@ -419,6 +419,47 @@ class ExtractionItemProcessorTest {
                         .isPositive());
     }
 
+    /**
+     * #275: every spreadsheet in the GesPOS corpus earned degenerate-output, 2.4 million characters of
+     * cells among them, because only {@code texts[]} was read.
+     */
+    @Test
+    @Story("Tier 1 — the hard zero-content floor")
+    @DisplayName("A spreadsheet, which converts to a table and no text items, clears the floor and is shingled")
+    @Issue("275")
+    @Link(name = "ADR-145", url = Adr.TABLE_CELLS_ARE_EXTRACTED_TEXT, type = "adr")
+    void aSpreadsheetClearsTheFloor(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, 1);
+        ScriptedExtractor docling = new ScriptedExtractor()
+                .answering(new DoclingResponse(
+                        ConversionStatus.SUCCESS,
+                        List.of(),
+                        0d,
+                        null,
+                        "{\"document\":{\"json_content\":{\"body\":{\"children\":[{\"$ref\":\"#/tables/0\"}]},"
+                                + "\"texts\":[],\"tables\":[{\"children\":[],\"data\":{\"table_cells\":["
+                                + "{\"text\":\"Merchant\",\"start_row_offset_idx\":0,\"start_col_offset_idx\":0},"
+                                + "{\"text\":\"Terminal\",\"start_row_offset_idx\":0,\"start_col_offset_idx\":1},"
+                                + "{\"text\":\"ACME Srl\",\"start_row_offset_idx\":1,\"start_col_offset_idx\":0},"
+                                + "{\"text\":\"TID-273273\",\"start_row_offset_idx\":1,\"start_col_offset_idx\":1}"
+                                + "]}}]}}}"));
+
+        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+
+        claim(
+                "a document whose whole content is a table is judged on its cells, and they are text, so it"
+                        + " earns no verdict here and goes on as a survivor",
+                () -> assertThat(outcome).isNull());
+        claim(
+                "and its cells reached the shingle table, so the stages after this one compare it by the"
+                        + " same text the floor measured",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM shingle WHERE occurrence_id = ?",
+                                Integer.class,
+                                corpus.occurrence(0).value()))
+                        .isPositive());
+    }
+
     @Test
     @Story("Tier 1 — the hard zero-content floor")
     @DisplayName("A document that converts to no usable text earns a degenerate-output verdict")

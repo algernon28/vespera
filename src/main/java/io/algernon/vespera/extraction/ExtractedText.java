@@ -6,9 +6,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The text and page count read out of a Docling response's own {@code rawResponse} (ADR-070): the
- * JSON/{@code DoclingDocument} export the client requested, carrying {@code document.json_content}
- * with a flat {@code texts[]} list of text items and, for a paginated document, a {@code pages}
- * object keyed by page number.
+ * JSON/{@code DoclingDocument} export the client requested. The text is {@link DoclingDocumentTexts}'
+ * reading of it, text items and table rows alike (ADR-145); the page count is the size of its
+ * {@code pages} object, present for a paginated document only.
  *
  * <p>Read directly off {@code rawResponse} rather than off a narrower Java shape (ADR-070's own
  * reason for keeping the whole response verbatim): this module models only what a verdict or metric
@@ -30,8 +30,10 @@ final class ExtractedText {
     static ExtractedText from(String rawResponse) {
         JsonNode root = JSON_MAPPER.readTree(rawResponse);
         JsonNode content = root.path("document").path("json_content");
-        String joinedText = content.path("texts").valueStream()
-                .map(item -> item.path("text").asString(""))
+        // ADR-145: the one reading of extracted text, tables included, so the floor measures what the
+        // shingler and the chunker read.
+        String joinedText = DoclingDocumentTexts.parse(rawResponse).stream()
+                .map(DocumentText::text)
                 .collect(Collectors.joining(" "))
                 .strip();
         JsonNode pages = content.path("pages");

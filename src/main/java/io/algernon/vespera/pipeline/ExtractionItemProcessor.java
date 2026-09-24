@@ -7,6 +7,7 @@ import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DegeneracyVerdict;
 import io.algernon.vespera.extraction.DoclingCallTimeoutException;
+import io.algernon.vespera.extraction.DoclingDocumentTexts;
 import io.algernon.vespera.extraction.DoclingError;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
@@ -175,7 +176,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             // carries — degenerate-output is the only verdict reachable from here.
             timeoutStreak.reset();
             ExtractionOutcome outcome = judgeConverted(occurrenceId, response);
-            shingler.write(occurrenceId, extractionRun.runId(), ExtractionOutputText.of(response.rawResponse()));
+            shingler.write(occurrenceId, extractionRun.runId(), DoclingDocumentTexts.lines(response.rawResponse()));
             return outcome;
         }
 

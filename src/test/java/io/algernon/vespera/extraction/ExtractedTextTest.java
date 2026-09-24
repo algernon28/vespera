@@ -40,6 +40,28 @@ class ExtractedTextTest {
 
     @Test
     @Story("Reading extracted text")
+    @DisplayName("A table's cells are measured as text, so a spreadsheet is not measured as empty")
+    @Issue("275")
+    @Link(name = "ADR-145", url = Adr.TABLE_CELLS_ARE_EXTRACTED_TEXT, type = "adr")
+    void aTablesCellsAreMeasuredAsText() {
+        String spreadsheet =
+                """
+                {"document":{"json_content":{
+                  "body":{"children":[{"$ref":"#/tables/0"}]},
+                  "texts":[],
+                  "tables":[{"children":[],"data":{"table_cells":[
+                    {"text":"Merchant","start_row_offset_idx":0,"start_col_offset_idx":0},
+                    {"text":"ACME Srl","start_row_offset_idx":1,"start_col_offset_idx":0}]}}]}}}
+                """;
+
+        claim(
+                "a response carrying no text items and one table measures as that table's text, which is the"
+                        + " text the no-text floor reads -- so the floor judges a spreadsheet by its cells",
+                () -> assertThat(ExtractedText.from(spreadsheet).text()).isEqualTo("Merchant ACME Srl"));
+    }
+
+    @Test
+    @Story("Reading extracted text")
     @DisplayName("A response with no document content at all reads as empty text and no page count")
     void aResponseCarryingNoDocumentReadsAsEmpty() {
         ExtractedText extracted = ExtractedText.from("{}");

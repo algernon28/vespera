@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.extraction.DoclingDocumentTexts;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ExtractionMetrics;
@@ -95,7 +96,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
         // (ADR-092), and a seed folder's worth of extracted text is not a thing to hold until then.
         ExtractionMetrics.Measurement measurement = extractionMetrics.measure(response);
 
-        String text = ExtractionOutputText.of(response.rawResponse());
+        String text = DoclingDocumentTexts.lines(response.rawResponse());
         if (!UsableText.hasAlphanumericContent(text)) {
             // Recorded, never judged, and it does not stop the run: scoring proceeds against whatever
             // survived extraction, and a corrected seed folder is a different run because the seed
