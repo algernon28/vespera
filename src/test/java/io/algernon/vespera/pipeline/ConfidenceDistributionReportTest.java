@@ -49,7 +49,7 @@ class ConfidenceDistributionReportTest {
     private static final String THE_KEY = "degenerateOutputConfidenceFloor";
 
     /**
-     * How many occurrences the converter refused to open. Deliberately none of this page's other
+     * How many occurrences the converter could not answer for. Deliberately none of this page's other
      * numbers -- not a bucket's count and not their total -- so finding it on the page is finding this
      * line rather than any of them.
      */
@@ -84,18 +84,24 @@ class ConfidenceDistributionReportTest {
 
     @Test
     @Story("A page over stage 2's measurements also reports what stage 2 never measured")
-    @DisplayName("The number of occurrences the converter refused to open reaches the page")
+    @DisplayName("The number of occurrences the converter could not answer for reaches the page")
     @Issue("265")
     @Link(name = "ADR-139", url = Adr.A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW, type = "adr")
+    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
     void theRefusedConversionCountReachesThePage() {
         String page = ConfidenceDistributionReport.render(aDistribution(REFUSED_CONVERSIONS));
 
         claim(
-                "the count of occurrences the converter would not open is on the page, and not only in"
-                        + " the database. It is the one number here about documents this distribution never"
+                "the count of occurrences the converter could not answer for is on the page, and not only"
+                        + " in the database. It is the one number here about documents this distribution never"
                         + " measured at all, so a page carrying only its own buckets would leave an operator"
                         + " setting a threshold off a corpus they believe was wholly examined",
-                () -> assertThat(page).contains("refused to open " + REFUSED_CONVERSIONS));
+                () -> assertThat(page).contains("could not answer for " + REFUSED_CONVERSIONS));
+        claim(
+                "and it says why the converter could not answer, because a file the converter opened and"
+                        + " failed on is judged with the rest and is not in this count -- a line reading"
+                        + " 'refused to open' would send an operator looking for those files here",
+                () -> assertThat(page).contains("a fault of its own").doesNotContain("refused to open"));
         claim(
                 "and the page names the run it counted them under, because these rows are per run: a"
                         + " number with no run behind it reads as a property of the archive rather than of"

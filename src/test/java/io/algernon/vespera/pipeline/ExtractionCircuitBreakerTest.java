@@ -56,12 +56,16 @@ class ExtractionCircuitBreakerTest {
      * <p>A different reason each time, deliberately: ADR-071 counts them summed together, because a
      * converter alternating between two ways of failing is exactly as broken as one repeating a single
      * way, and a counter kept per reason would let it evade every one of them.
+     *
+     * <p>{@code unknown} is not among them: an uncategorised failure is a verdict against its file and
+     * never reaches this listener as a skip (ADR-143). A timeout is, once ADR-071's own streak has
+     * flipped it.
      */
     private static final List<FailureCategory> REASONS_A_DOCUMENT_IS_SET_ASIDE = List.of(
             FailureCategory.CAPACITY,
             FailureCategory.INTERNAL,
             FailureCategory.TARGET_UNAVAILABLE,
-            FailureCategory.UNKNOWN);
+            FailureCategory.TIMEOUT);
 
     /** Stands in for the occurrence a listener is told about; the counter never reads it. */
     private static final OccurrenceId AN_OCCURRENCE = new OccurrenceId(1L);

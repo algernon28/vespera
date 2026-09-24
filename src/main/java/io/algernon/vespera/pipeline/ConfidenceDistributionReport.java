@@ -22,7 +22,8 @@ import java.util.Locale;
  *
  * <p>The refused-conversion line rendered below (ADR-139, section 7) is the one fact on this page
  * {@code measure} did not itself bucket — how many occurrences the converter never got to score at
- * all, under the same extraction run. That line names the extraction run the refusal count came
+ * all, under the same extraction run. Since ADR-143 those are the ones it blamed on itself or stopped
+ * answering for; a file it could not open is a verdict with a metric row, and is not counted here. That line names the extraction run the refusal count came
  * from — {@link ConfidenceDistribution.Distribution#extractionRunId}, stage 2's own run — rather than the
  * stage-3 run this page itself is written under: {@code measure} counts under the former and writes
  * under the latter, so naming "this run" would name whichever one happened to be in reach rather
@@ -50,11 +51,11 @@ final class ConfidenceDistributionReport {
                 + ReportPage.paragraph("Stage 2's <code>extraction_metric.mean_score</code> over every "
                         + "stage-2 survivor, excluding any occurrence whose score is not computed. Total "
                         + "documents counted: " + total + ".")
-                + ReportPage.paragraph("The converter refused to open "
+                + ReportPage.paragraph("The converter could not answer for "
                         + distribution.refusedConversionCount() + " occurrence(s) under extraction run "
-                        + ReportPage.escape(distribution.extractionRunId().value()) + " -- examined by no "
-                        + "stage, and recorded as an extraction-failed verdict rather than left "
-                        + "unjudged.")
+                        + ReportPage.escape(distribution.extractionRunId().value()) + ", reporting a fault "
+                        + "of its own or running out of time on several in a row -- examined by no stage, "
+                        + "and recorded as an extraction-failed verdict rather than left unjudged.")
                 + ReportPage.table(
                         "<thead>"
                                 + ReportPage.headerRow(

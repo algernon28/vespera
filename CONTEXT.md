@@ -43,7 +43,7 @@ A file occurrence carrying no blocking verdict. A question the ledger answers, n
 _Avoid_: shortlist, whitelist, the keep pile
 
 **Extraction fault**:
-A file occurrence stage 2 got no answer about: the converter refused the call rather than judging the file, so nothing was measured and nothing was decided at the time. Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the sidecar answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
+A file occurrence stage 2 got no answer about: the converter blamed the failure on itself, or ran out of time on several files in a row, so nothing was measured and nothing was decided at the time. A file the converter answered about and could not convert is not one — that is `extraction-failed` at once (ADR-143). Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the sidecar answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
 _Avoid_: skip, error, failed document. Also "unreadable" **for this state**: that word names a profile value nobody can act on, under Operation below.
 
 **Redundancy set**:
