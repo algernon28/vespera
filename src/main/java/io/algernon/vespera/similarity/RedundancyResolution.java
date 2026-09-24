@@ -231,6 +231,10 @@ public class RedundancyResolution {
             Set<Long> removed) {
         RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
         Map<Long, Integer> documentFrequency = loadDocumentFrequency(stage3RunId);
+        // One count per document for the whole pass, not one per pair: counting a spreadsheet's hundred
+        // thousand shingles again for every document that names it as a candidate is what made this
+        // pass run for hours once tables were read (ADR-145).
+        Map<Long, Integer> rawSizes = new HashMap<>();
 
         for (long a : signedOccurrenceIds) {
             if (removed.contains(a)) {
@@ -255,7 +259,7 @@ public class RedundancyResolution {
                 // it can only ever admit an extra candidate for exact scoring to reject, never wrongly
                 // exclude a true one. The same "retrieval overshoots, scoring corrects" shape ADR-081
                 // already accepts for LSH banding, applied here to the |B| > |A| guard.
-                if (rawShingleSetSize(stage2RunId, b) <= setA.size()) {
+                if (rawSizes.computeIfAbsent(b, id -> rawShingleSetSize(stage2RunId, id)) <= setA.size()) {
                     continue;
                 }
                 Set<Long> setB = shingleSets.get(b);
