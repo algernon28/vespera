@@ -657,6 +657,13 @@ public final class Adr {
     public static final String A_REFUSED_CHUNK_SPLITS_UNTIL_IT_FITS = FILE
             + "0144-a-chunk-the-runtime-refuses-as-too-long-is-split-until-every-piece-fits.md";
 
+    /**
+     * ADR-145 -- a table's cells are extracted text: every reader of a Docling response reads its text
+     * items and its tables' rows, once each, in Docling's own reading order.
+     */
+    public static final String TABLE_CELLS_ARE_EXTRACTED_TEXT = FILE
+            + "0145-a-tables-cells-are-extracted-text-read-once-in-docling-reading-order.md";
+
     private Adr() {
     }
 }
