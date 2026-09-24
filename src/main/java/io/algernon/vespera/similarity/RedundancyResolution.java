@@ -7,9 +7,11 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +35,9 @@ import org.springframework.stereotype.Component;
  * corpus as a {@code Map<Long, List<Long>>} for the run of a single tasklet, which is exactly the "whole
  * corpus in memory" ADR-082's own "no scale or throughput test" note does not excuse, and it would leave
  * {@code shingle_by_hash} unread — an index nothing queries is worse than no index, since the next reader
- * assumes something does. This class instead loads at most one document's shingle set at a time (see
- * {@link ShingleSetCache}), and asks the database for candidate occurrence ids and set sizes directly.
+ * assumes something does. This class instead loads documents' shingle sets on demand, within a fixed
+ * budget (see {@link ShingleSetCache}), and asks the database for candidate occurrence ids and set
+ * sizes directly.
  *
  * <p>Near-duplication resolves first, over connected components of pairs at or above {@link
  * RedundancyThresholds#nearDuplicateJaccard()}; containment resolves second, only over what survives
@@ -45,13 +48,13 @@ import org.springframework.stereotype.Component;
 public class RedundancyResolution {
 
     /**
-     * How many boilerplate-stripped shingle sets {@link ShingleSetCache} keeps at once. Bounded
-     * deliberately: a near-duplicate component or a containment scan only ever revisits a handful of
-     * documents repeatedly (a survivor, scored against every other member of its component; a document
-     * A, scored against a short candidate list), never the whole corpus, so a small bound is enough to
-     * avoid re-reading the same set twice without drifting back toward holding everything.
+     * How many shingle hashes {@link ShingleSetCache} holds at once, across every set it keeps: 16 Mi,
+     * which is 128 MiB of {@code long}. Bounded deliberately, so the pass never drifts back toward
+     * holding a corpus of any size. Bounded by hashes rather than by documents (#277): a count of 64
+     * documents was sized on prose, and once tables were read (ADR-145) it evicted a legacy corpus's
+     * whole 468 thousand distinct hashes over and over, when the budget below holds them all at once.
      */
-    private static final int SHINGLE_SET_CACHE_CAPACITY = 64;
+    static final long SHINGLE_SET_CACHE_BUDGET_HASHES = 16L * 1024 * 1024;
 
     private final JdbcTemplate jdbcTemplate;
     private final Ledger ledger;
@@ -106,8 +109,8 @@ public class RedundancyResolution {
 
         UnionFind unionFind = new UnionFind(signedOccurrenceIds);
         for (PairKey pair : nearDuplicateCandidates(stage4RunId)) {
-            Set<Long> a = shingleSets.get(pair.a());
-            Set<Long> b = shingleSets.get(pair.b());
+            long[] a = shingleSets.get(pair.a());
+            long[] b = shingleSets.get(pair.b());
             if (jaccard(a, b) >= thresholds.nearDuplicateJaccard()) {
                 unionFind.union(pair.a(), pair.b());
             }
@@ -134,7 +137,7 @@ public class RedundancyResolution {
             // exact similarity to the occurrence this row points at" rather than an edge that happened to
             // exist (ADR-082: no verdict may rest on anything other than an exact value).
             long survivor = survivorOf(component, profiles);
-            Set<Long> survivorSet = shingleSets.get(survivor);
+            long[] survivorSet = shingleSets.get(survivor);
             for (long member : component) {
                 if (member == survivor) {
                     continue;
@@ -240,7 +243,7 @@ public class RedundancyResolution {
             if (removed.contains(a)) {
                 continue;
             }
-            Set<Long> setA = shingleSets.get(a);
+            long[] setA = shingleSets.get(a);
             List<Long> rareHashes = rarestHashes(setA, documentFrequency, thresholds.rareShingleSampleSize());
             if (rareHashes.isEmpty()) {
                 continue;
@@ -255,15 +258,15 @@ public class RedundancyResolution {
                     continue;
                 }
                 // A cheap, deliberately approximate pre-filter (a COUNT, not a fetched set): it compares
-                // against b's raw shingle count, which is always >= its true boilerplate-stripped size, so
+                // against b's raw shingle row count, which is always >= its true boilerplate-stripped size, so
                 // it can only ever admit an extra candidate for exact scoring to reject, never wrongly
                 // exclude a true one. The same "retrieval overshoots, scoring corrects" shape ADR-081
                 // already accepts for LSH banding, applied here to the |B| > |A| guard.
-                if (rawSizes.computeIfAbsent(b, id -> rawShingleSetSize(stage2RunId, id)) <= setA.size()) {
+                if (rawSizes.computeIfAbsent(b, id -> rawShingleSetSize(stage2RunId, id)) <= setA.length) {
                     continue;
                 }
-                Set<Long> setB = shingleSets.get(b);
-                if (setB.size() <= setA.size()) {
+                long[] setB = shingleSets.get(b);
+                if (setB.length <= setA.length) {
                     continue;
                 }
                 double containmentScore = containment(setA, setB);
@@ -291,8 +294,9 @@ public class RedundancyResolution {
         }
     }
 
-    private static List<Long> rarestHashes(Set<Long> setA, Map<Long, Integer> documentFrequency, int sampleSize) {
-        return setA.stream()
+    private static List<Long> rarestHashes(long[] setA, Map<Long, Integer> documentFrequency, int sampleSize) {
+        return Arrays.stream(setA)
+                .boxed()
                 .filter(documentFrequency::containsKey)
                 .sorted(Comparator.<Long>comparingInt(documentFrequency::get).thenComparingLong(Long::longValue))
                 .limit(sampleSize)
@@ -328,13 +332,18 @@ public class RedundancyResolution {
     }
 
     /**
-     * {@code b}'s raw (not boilerplate-stripped) distinct shingle count — a {@code COUNT(DISTINCT ...)}
-     * query, never a materialised set, used only as the cheap upper-bound pre-filter {@link
-     * #resolveContainment} documents at its call site.
+     * {@code b}'s raw shingle row count, repeats and boilerplate included — a {@code COUNT(*)}, never a
+     * materialised set, used only as the cheap upper-bound pre-filter {@link #resolveContainment}
+     * documents at its call site. A row count is never below the distinct, boilerplate-stripped size
+     * that pre-filter stands in for, so it can only admit a candidate, never wrongly exclude one.
+     *
+     * <p>{@code COUNT(*)} rather than {@code COUNT(DISTINCT shingle_hash)}: the distinct count makes
+     * SQLite read the whole run through {@code shingle_by_hash}, five seconds a call on a 2.2-million-row
+     * table, where this one is answered from {@code shingle_by_occurrence} alone (#277).
      */
     private int rawShingleSetSize(RunId stage2RunId, long occurrenceId) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT shingle_hash) FROM shingle"
+                "SELECT COUNT(*) FROM shingle"
                         + " WHERE occurrence_id = ? AND run_id = ? AND shingle_parameter_identity = ?",
                 Integer.class,
                 occurrenceId,
@@ -381,64 +390,84 @@ public class RedundancyResolution {
                 score);
     }
 
-    private static double jaccard(Set<Long> a, Set<Long> b) {
+    private static double jaccard(long[] a, long[] b) {
         int intersection = intersectionSize(a, b);
-        int union = a.size() + b.size() - intersection;
+        int union = a.length + b.length - intersection;
         return union == 0 ? 0.0 : (double) intersection / union;
     }
 
-    private static double containment(Set<Long> a, Set<Long> b) {
-        if (a.isEmpty()) {
+    private static double containment(long[] a, long[] b) {
+        if (a.length == 0) {
             return 0.0;
         }
-        return (double) intersectionSize(a, b) / a.size();
+        return (double) intersectionSize(a, b) / a.length;
     }
 
-    private static int intersectionSize(Set<Long> a, Set<Long> b) {
-        Set<Long> smaller = a.size() <= b.size() ? a : b;
-        Set<Long> larger = a.size() <= b.size() ? b : a;
+    /** Two sorted, duplicate-free sets' shared hashes, counted in one merge pass over both. */
+    private static int intersectionSize(long[] a, long[] b) {
         int count = 0;
-        for (long hash : smaller) {
-            if (larger.contains(hash)) {
+        int i = 0;
+        int j = 0;
+        while (i < a.length && j < b.length) {
+            int order = Long.compare(a[i], b[j]);
+            if (order == 0) {
                 count++;
+                i++;
+                j++;
+            } else if (order < 0) {
+                i++;
+            } else {
+                j++;
             }
         }
         return count;
     }
 
     /**
-     * A small bounded cache of one document's boilerplate-stripped shingle set at a time, loaded from
-     * {@code shingle} on demand rather than for the whole corpus up front (see the class-level note on
-     * why). Exact scoring only ever needs the pair currently being judged, or a survivor scored
-     * repeatedly against every other member of its own component — never the corpus at large — so a
-     * small least-recently-used bound is enough to avoid re-issuing the same query inside one
-     * component or one containment scan, without drifting back toward holding everything.
+     * The boilerplate-stripped shingle sets exact scoring reads, loaded from {@code shingle} on demand
+     * rather than for the whole corpus up front (see the class-level note on why), and kept while they
+     * fit {@link #SHINGLE_SET_CACHE_BUDGET_HASHES}, least recently used evicted first.
+     *
+     * <p>A set is a sorted, duplicate-free {@code long[]}: 8 bytes a hash, where a {@code HashSet<Long>}
+     * costs several times that, and two of them intersect in one merge pass. The budget counts hashes
+     * rather than documents because a document's set can be anything from a few dozen hashes to a
+     * spreadsheet's hundreds of thousands (#277). The set just asked for is always kept, even alone over
+     * the budget, since scoring is about to read it.
      */
     private final class ShingleSetCache {
 
         private final RunId stage2RunId;
         private final Set<Long> boilerplateHashes;
-        private final Map<Long, Set<Long>> cache;
+        private final LinkedHashMap<Long, long[]> cache = new LinkedHashMap<>(16, 0.75f, true);
+        private long hashesHeld;
 
         ShingleSetCache(RunId stage2RunId, Set<Long> boilerplateHashes) {
             this.stage2RunId = stage2RunId;
             this.boilerplateHashes = boilerplateHashes;
-            this.cache = new LinkedHashMap<>(16, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<Long, Set<Long>> eldest) {
-                    return size() > SHINGLE_SET_CACHE_CAPACITY;
-                }
-            };
         }
 
-        Set<Long> get(long occurrenceId) {
-            return cache.computeIfAbsent(occurrenceId, this::load);
+        long[] get(long occurrenceId) {
+            long[] held = cache.get(occurrenceId);
+            if (held != null) {
+                return held;
+            }
+            long[] loaded = load(occurrenceId);
+            cache.put(occurrenceId, loaded);
+            hashesHeld += loaded.length;
+            Iterator<Map.Entry<Long, long[]>> eldestFirst = cache.entrySet().iterator();
+            while (hashesHeld > SHINGLE_SET_CACHE_BUDGET_HASHES && cache.size() > 1) {
+                hashesHeld -= eldestFirst.next().getValue().length;
+                eldestFirst.remove();
+            }
+            return loaded;
         }
 
-        private Set<Long> load(long occurrenceId) {
-            Set<Long> distinctive = new HashSet<>();
+        private long[] load(long occurrenceId) {
+            LongArray distinctive = new LongArray();
+            // Not DISTINCT: asked for it, SQLite reads the whole run through shingle_by_hash instead of this
+            // document's rows through shingle_by_occurrence (#277). The sort below makes them distinct.
             jdbcTemplate.query(
-                    "SELECT DISTINCT shingle_hash FROM shingle"
+                    "SELECT shingle_hash FROM shingle"
                             + " WHERE occurrence_id = ? AND run_id = ? AND shingle_parameter_identity = ?",
                     resultSet -> {
                         long hash = resultSet.getLong("shingle_hash");
@@ -449,7 +478,38 @@ public class RedundancyResolution {
                     occurrenceId,
                     stage2RunId.value(),
                     ShingleParameters.DEFAULT.identity());
-            return distinctive;
+            long[] sorted = distinctive.toArray();
+            Arrays.sort(sorted);
+            return withoutRepeats(sorted);
+        }
+    }
+
+    /** {@code sorted} with each run of equal values kept once. */
+    private static long[] withoutRepeats(long[] sorted) {
+        int kept = 0;
+        for (int i = 0; i < sorted.length; i++) {
+            if (i == 0 || sorted[i] != sorted[i - 1]) {
+                sorted[kept++] = sorted[i];
+            }
+        }
+        return Arrays.copyOf(sorted, kept);
+    }
+
+    /** A growable array of primitive longs, so a set of hundreds of thousands of hashes is never boxed. */
+    private static final class LongArray {
+
+        private long[] values = new long[256];
+        private int size;
+
+        void add(long value) {
+            if (size == values.length) {
+                values = Arrays.copyOf(values, size * 2);
+            }
+            values[size++] = value;
+        }
+
+        long[] toArray() {
+            return Arrays.copyOf(values, size);
         }
     }
 

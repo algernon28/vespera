@@ -90,11 +90,17 @@ public class RedundancySignatures {
     /**
      * {@code occurrenceId}'s boilerplate-stripped shingle set as distinct hashes — MinHash and Jaccard
      * both operate on a set, not on {@code shingle}'s own multiset of repeated phrases.
+     *
+     * <p>The set is what makes the hashes distinct, not the query (#277). Asked for {@code DISTINCT},
+     * SQLite answers from {@code shingle_by_hash}, which is already ordered by hash, and so reads every
+     * row of the run for each document: about five seconds a document on a 2.2-million-row table,
+     * whatever the document's own size. Without it, the planner uses {@code shingle_by_occurrence} and
+     * reads this document's rows alone.
      */
     private Set<Long> distinctiveShingleSet(OccurrenceId occurrenceId, RunId stage2RunId, Set<Long> boilerplateHashes) {
         Set<Long> distinctive = new HashSet<>();
         jdbcTemplate.query(
-                "SELECT DISTINCT shingle_hash FROM shingle"
+                "SELECT shingle_hash FROM shingle"
                         + " WHERE occurrence_id = ? AND run_id = ? AND shingle_parameter_identity = ?",
                 resultSet -> {
                     long hash = resultSet.getLong("shingle_hash");

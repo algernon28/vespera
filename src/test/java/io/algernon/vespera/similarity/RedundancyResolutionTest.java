@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -59,6 +60,15 @@ class RedundancyResolutionTest {
 
     /** What the container holds on top of them — enough that the pair's Jaccard is nowhere near the cut. */
     private static final int CONTAINER_EXTRA_SHINGLES = 1_200;
+
+    /**
+     * Near-duplicate pairs enough to make 80 documents, more than the 64 the shingle-set cache used to
+     * hold, so the survivors phase 1 read would have been evicted by the time phase 2 asked for them.
+     */
+    private static final int NEAR_DUPLICATE_PAIRS = 40;
+
+    /** A document's set, which signatures and exact scoring read alike, and a candidate container's size. */
+    private static final int PER_DOCUMENT_QUERY_SHAPES = 2;
 
     /** How many documents sit wholly inside one container, each sharing nothing with the others. */
     private static final int CHAPTERS_INSIDE_ONE_VOLUME = 3;
@@ -205,6 +215,89 @@ class RedundancyResolutionTest {
                 () -> assertThat(counting.countedOccurrences()).doesNotHaveDuplicates());
     }
 
+    /**
+     * #277: the cache held 64 documents, so on a corpus with more than that, phase 2 reloaded from the
+     * database every set phase 1 had already read. On the legacy corpus, with a spreadsheet's 357,496
+     * hashes among them, stage 4b was still running after twenty minutes.
+     */
+    @Test
+    @Story("A redundancy set resolves as a whole, not pair by pair")
+    @DisplayName("Every document's shingles are read from the store once per pass, however many documents the pass holds")
+    @Issue("277")
+    void readsEveryShingleSetOncePerPass() {
+        Fixture fixture = fixture();
+        for (int pair = 0; pair < NEAR_DUPLICATE_PAIRS; pair++) {
+            long base = pair * 1_000L;
+            fixture.document(
+                    "pair-" + pair + "-scan.pdf", shingles(base, 100), THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+            fixture.document(
+                    "pair-" + pair + "-digital.pdf", shingles(base + 1, 100), FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+        }
+        CountingJdbcTemplate counting = new CountingJdbcTemplate(jdbcTemplate);
+
+        fixture.resolveWith(counting);
+
+        claim(
+                "each of the " + NEAR_DUPLICATE_PAIRS + " pairs lost its thinner copy, so the pass did its whole"
+                        + " work",
+                () -> assertThat(redundantWithVerdictCount()).isEqualTo(NEAR_DUPLICATE_PAIRS));
+        claim(
+                "and no document's shingles were read from the store twice: the " + NEAR_DUPLICATE_PAIRS
+                        + " survivors phase 1 read are still held when containment asks for them again, because"
+                        + " what bounds the cache is how many hashes it holds, and "
+                        + 2 * NEAR_DUPLICATE_PAIRS * 100 + " is far inside that",
+                () -> assertThat(counting.loadedOccurrences()).doesNotHaveDuplicates());
+    }
+
+    /**
+     * #277's real cost. Asked for {@code DISTINCT} over one document's shingles, SQLite answered from
+     * {@code shingle_by_hash}, which is ordered by hash, and so read every row of the run: 5.2 seconds for
+     * a 133-row document on the legacy corpus's 2.2-million-row table, and once per document per step,
+     * which was twelve minutes of stage 4a and most of stage 4b. The plan is read on this database because
+     * nothing here runs {@code ANALYZE}, so the planner decides from the schema alone, the same way here
+     * as on a corpus.
+     */
+    @Test
+    @Story("A redundancy set resolves as a whole, not pair by pair")
+    @DisplayName("Every read of one document's shingles is answered from that document's own rows")
+    @Issue("277")
+    void readsOneDocumentsShinglesThroughItsOwnIndex() {
+        Fixture fixture = fixture();
+        fixture.document("scan.pdf", shingles(0, 100), THINNER_TEXT, Instant.parse("2020-01-01T00:00:00Z"));
+        fixture.document("digital.pdf", shingles(1, 100), FULLER_TEXT, Instant.parse("2026-01-01T00:00:00Z"));
+        Set<Long> contained = shingles(5_000, CONTAINED_SHINGLES);
+        Set<Long> container = new LinkedHashSet<>(contained);
+        container.addAll(shingles(10_000, CONTAINER_EXTRA_SHINGLES));
+        fixture.document("chapter.pdf", contained, THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        fixture.document("volume.pdf", container, FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+        CountingJdbcTemplate counting = new CountingJdbcTemplate(jdbcTemplate);
+
+        fixture.resolveWith(counting, counting);
+
+        claim(
+                "stage 4 read one document's shingles in two ways -- its set, which a signature and exact"
+                        + " scoring both read, and a candidate container's size -- and each was issued",
+                () -> assertThat(counting.perDocumentQueries()).hasSize(PER_DOCUMENT_QUERY_SHAPES));
+        for (String query : counting.perDocumentQueries()) {
+            claim(
+                    "and SQLite answers \"" + query + "\" from the index on the document's own rows, not by"
+                            + " reading every row of the run in hash order",
+                    () -> assertThat(planOf(query)).contains("shingle_by_occurrence").doesNotContain("shingle_by_hash"));
+        }
+    }
+
+    /** SQLite's plan for {@code query}, its placeholders bound to values of the right type. */
+    private String planOf(String query) {
+        return String.join(
+                " ",
+                jdbcTemplate.query(
+                        "EXPLAIN QUERY PLAN " + query,
+                        (resultSet, rowNumber) -> resultSet.getString("detail"),
+                        1L,
+                        "a-run",
+                        ShingleParameters.DEFAULT.identity()));
+    }
+
     @Test
     @Story("Documents that share nothing are left alone")
     @DisplayName("Two unrelated documents earn no verdict and no pointer between them")
@@ -343,8 +436,13 @@ class RedundancyResolutionTest {
 
         /** The same pass, with resolution reading the store through {@code resolutionTemplate}. */
         void resolveWith(JdbcTemplate resolutionTemplate) {
+            resolveWith(jdbcTemplate, resolutionTemplate);
+        }
+
+        /** The same pass, with signatures and resolution each reading the store through its own template. */
+        void resolveWith(JdbcTemplate signatureTemplate, JdbcTemplate resolutionTemplate) {
             new DocumentFrequency(jdbcTemplate, ledger).measure(stage3RunId, stage2RunId);
-            RedundancySignatures signatures = new RedundancySignatures(jdbcTemplate);
+            RedundancySignatures signatures = new RedundancySignatures(signatureTemplate);
             for (Long occurrenceId : jdbcTemplate.queryForList(
                     "SELECT DISTINCT occurrence_id FROM shingle WHERE run_id = ?", Long.class, stage2RunId.value())) {
                 signatures.write(
@@ -355,7 +453,7 @@ class RedundancyResolutionTest {
     }
 
     /**
-     * The test's own store, recording which document each {@code COUNT(DISTINCT shingle_hash)} measured
+     * The test's own store, recording which document each {@code COUNT(*)} over its shingles measured
      * -- the one query resolution uses to size a candidate container, whose first argument is the
      * document. Over the same data source, so it reads inside the test's transaction like everything
      * else here.
@@ -363,21 +461,47 @@ class RedundancyResolutionTest {
     private static final class CountingJdbcTemplate extends JdbcTemplate {
 
         private final List<Long> countedOccurrences = new ArrayList<>();
+        private final List<Long> loadedOccurrences = new ArrayList<>();
+        private final Set<String> perDocumentQueries = new LinkedHashSet<>();
 
         CountingJdbcTemplate(JdbcTemplate delegate) {
             super(delegate.getDataSource());
         }
 
         @Override
+        public void query(String sql, RowCallbackHandler handler, Object... args) {
+            if (sql.startsWith("SELECT shingle_hash FROM shingle")) {
+                loadedOccurrences.add(((Number) args[0]).longValue());
+            }
+            if (sql.contains("FROM shingle") && sql.contains("WHERE occurrence_id = ?")) {
+                perDocumentQueries.add(sql);
+            }
+            super.query(sql, handler, args);
+        }
+
+        /** Which document each read of one document's whole shingle set was for, in order. */
+        List<Long> loadedOccurrences() {
+            return loadedOccurrences;
+        }
+
+        @Override
         public <T> T queryForObject(String sql, Class<T> requiredType, Object... args) {
-            if (sql.startsWith("SELECT COUNT(DISTINCT shingle_hash)")) {
+            if (sql.startsWith("SELECT COUNT(*) FROM shingle")) {
                 countedOccurrences.add(((Number) args[0]).longValue());
+            }
+            if (sql.contains("FROM shingle") && sql.contains("WHERE occurrence_id = ?")) {
+                perDocumentQueries.add(sql);
             }
             return super.queryForObject(sql, requiredType, args);
         }
 
         List<Long> countedOccurrences() {
             return countedOccurrences;
+        }
+
+        /** Every distinct query stage 4 issued over one document's shingle rows. */
+        Set<String> perDocumentQueries() {
+            return perDocumentQueries;
         }
     }
 }
