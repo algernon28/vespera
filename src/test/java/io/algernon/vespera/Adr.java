@@ -650,6 +650,13 @@ public final class Adr {
     public static final String AN_UNCATEGORISED_FAILURE_IS_A_VERDICT = FILE
             + "0143-an-uncategorised-conversion-failure-is-a-verdict-against-the-file.md";
 
+    /**
+     * ADR-144 -- a chunk the runtime refuses as too long is split until every piece fits, by characters
+     * once no whitespace is left, and only that refusal is split.
+     */
+    public static final String A_REFUSED_CHUNK_SPLITS_UNTIL_IT_FITS = FILE
+            + "0144-a-chunk-the-runtime-refuses-as-too-long-is-split-until-every-piece-fits.md";
+
     private Adr() {
     }
 }

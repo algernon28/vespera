@@ -2,6 +2,7 @@ package io.algernon.vespera.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.ExpectedCount.manyTimes;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -65,6 +66,18 @@ class ChunkEmbedderTest {
     private static final String MODEL = "qwen3-embedding:0.6b";
     private static final String DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d";
     private static final String DTYPE = "Q4_K_M";
+
+    /** The longest input the fake runtime below accepts, in characters. */
+    private static final int LONGEST_INPUT_THE_RUNTIME_TAKES = 10;
+
+    /**
+     * One word with no whitespace in it, longer than the runtime takes: 26 characters, so it has to be
+     * split twice before every piece fits.
+     */
+    private static final String ONE_LONG_WORD = "a;b;c;d;e;f;g;h;i;j;k;l;m;";
+
+    /** What a runtime says when the model named is not there. */
+    private static final String MODEL_NOT_FOUND = "HTTP 404 - {\"error\":\"model not found\"}";
 
     private static final String TAGS_RESPONSE =
             """
@@ -133,6 +146,59 @@ class ChunkEmbedderTest {
                 () -> assertThat(storedVector()).containsExactly(2.0f));
     }
 
+    /**
+     * The shape #272 was found on: a machine dump whose longest "word" was 3,537 characters of
+     * semicolon-joined identifiers, past the 2,048 tokens Ollama accepts per input. Halving by words
+     * cannot touch it, so the chunk used to fail the whole invocation.
+     */
+    @Test
+    @Story("An input the runtime rejects is split and retried, never silently truncated")
+    @DisplayName("A chunk the runtime refuses that has no whitespace left to split on is split by characters and still embeds")
+    @Issue("272")
+    @Link(name = "ADR-144", url = Adr.A_REFUSED_CHUNK_SPLITS_UNTIL_IT_FITS, type = "adr")
+    void splitsAWordTooLongForTheRuntimeByCharacters() {
+        WordCountEmbeddingModel model = WordCountEmbeddingModel.refusingMoreCharactersThan(LONGEST_INPUT_THE_RUNTIME_TAKES);
+
+        ChunkEmbedderBeans.real(jdbcTemplate, model, ollamaClient())
+                .embed(CONTENT_HASH, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, ONE_LONG_WORD, MODEL);
+
+        claim(
+                "a word of " + ONE_LONG_WORD.length() + " characters, over the " + LONGEST_INPUT_THE_RUNTIME_TAKES
+                        + " the runtime takes, still lands exactly one vector for this chunk's ordinal rather"
+                        + " than failing the run",
+                () -> assertThat(rowCount()).isEqualTo(1));
+        claim(
+                "and every piece the runtime was finally handed fitted, so the vector is built only from"
+                        + " inputs it accepted, never from a truncated opening",
+                () -> assertThat(model.accepted()).allSatisfy(text -> assertThat(text.length())
+                        .isLessThanOrEqualTo(LONGEST_INPUT_THE_RUNTIME_TAKES)));
+        claim(
+                "and together those pieces are the whole word, in order, with nothing dropped or repeated",
+                () -> assertThat(String.join("", model.accepted())).isEqualTo(ONE_LONG_WORD));
+    }
+
+    @Test
+    @Story("An input the runtime rejects is split and retried, never silently truncated")
+    @DisplayName("A refusal that is not about the input's length is not split and retried, and reaches the caller")
+    @Issue("272")
+    @Link(name = "ADR-144", url = Adr.A_REFUSED_CHUNK_SPLITS_UNTIL_IT_FITS, type = "adr")
+    void doesNotSplitARefusalThatIsNotAboutLength() {
+        WordCountEmbeddingModel model = WordCountEmbeddingModel.refusingEverythingWith(MODEL_NOT_FOUND);
+        ChunkEmbedder embedder = ChunkEmbedderBeans.real(jdbcTemplate, model, ollamaClient());
+
+        claim(
+                "a runtime that refuses the call for any other reason -- here, a model it does not have --"
+                        + " refuses every piece of every chunk the same way, so the refusal reaches the caller",
+                () -> assertThatThrownBy(() -> embedder.embed(
+                                CONTENT_HASH, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, "one two three four", MODEL))
+                        .isInstanceOf(NonTransientAiException.class)
+                        .hasMessageContaining(MODEL_NOT_FOUND));
+        claim(
+                "after the one call that was refused, not after splitting the chunk into pieces the runtime"
+                        + " was never going to accept either",
+                () -> assertThat(model.requests()).hasSize(1));
+    }
+
     private OllamaClient ollamaClient() {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://ollama.example");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -164,27 +230,58 @@ class ChunkEmbedderTest {
     /**
      * Embeds any text to a single-component vector holding its word count, so the test can tell which
      * half a stored value came from without a real embedding model — and refuses (as the runtime does
-     * under {@code truncate: false}) any input wider than {@code maxWords}.
+     * under {@code truncate: false}) any input wider than {@code maxWords} words or {@code maxCharacters}
+     * characters, with the message Ollama itself returns. Or it refuses everything with {@code
+     * refusal}, standing in for a runtime refusing for a reason other than length.
      */
     private static final class WordCountEmbeddingModel implements EmbeddingModel {
 
+        /** Ollama's own words, as #272 recorded them. */
+        private static final String TOO_LONG = "HTTP 400 - {\"error\":\"the input length exceeds the context length\"}";
+
         private final int maxWords;
+        private final int maxCharacters;
+        private final String refusal;
         private final List<EmbeddingRequest> requests = new ArrayList<>();
+        private final List<String> accepted = new ArrayList<>();
 
         WordCountEmbeddingModel(int maxWords) {
+            this(maxWords, Integer.MAX_VALUE, null);
+        }
+
+        private WordCountEmbeddingModel(int maxWords, int maxCharacters, String refusal) {
             this.maxWords = maxWords;
+            this.maxCharacters = maxCharacters;
+            this.refusal = refusal;
+        }
+
+        static WordCountEmbeddingModel refusingMoreCharactersThan(int maxCharacters) {
+            return new WordCountEmbeddingModel(Integer.MAX_VALUE, maxCharacters, null);
+        }
+
+        static WordCountEmbeddingModel refusingEverythingWith(String refusal) {
+            return new WordCountEmbeddingModel(Integer.MAX_VALUE, Integer.MAX_VALUE, refusal);
         }
 
         @Override
         public EmbeddingResponse call(EmbeddingRequest request) {
             requests.add(request);
+            if (refusal != null) {
+                throw new NonTransientAiException(refusal);
+            }
             String text = request.getInstructions().get(0);
             int words = text.isBlank() ? 0 : text.trim().split("\\s+").length;
-            if (words > maxWords) {
-                throw new NonTransientAiException("400 - input length exceeds the model's context length");
+            if (words > maxWords || text.length() > maxCharacters) {
+                throw new NonTransientAiException(TOO_LONG);
             }
+            accepted.add(text);
             return new EmbeddingResponse(
                     List.of(new Embedding(new float[] {words}, 0)), new EmbeddingResponseMetadata());
+        }
+
+        /** Every input the runtime took, in the order it took them. */
+        List<String> accepted() {
+            return accepted;
         }
 
         @Override

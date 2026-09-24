@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-143.
+One file per architecture decision, ADR-001 through ADR-144.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -162,3 +162,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-141](0141-the-cli-exits-with-the-commands-exit-code-and-the-scheduler-no-feature-uses-is-removed-at-its-source.md) | 2026-09-22 | The CLI exits with the command's exit code, and the scheduler no feature uses is removed at its source *(amends ADR-037)* |
 | [ADR-142](0142-the-vector-store-connects-to-chroma-when-it-is-first-used.md) | 2026-09-23 | The vector store connects to Chroma when it is first used |
 | [ADR-143](0143-an-uncategorised-conversion-failure-is-a-verdict-against-the-file.md) | 2026-09-24 | An uncategorised conversion failure is a verdict against the file *(amends ADR-070, ADR-071, ADR-139, ADR-140)* |
+| [ADR-144](0144-a-chunk-the-runtime-refuses-as-too-long-is-split-until-every-piece-fits.md) | 2026-09-24 | A chunk the runtime refuses as too long is split until every piece fits *(amends ADR-091)* |
