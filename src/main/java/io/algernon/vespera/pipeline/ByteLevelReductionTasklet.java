@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -43,7 +44,8 @@ import org.springframework.stereotype.Component;
  * <ol>
  *   <li>Every survivor of census is checked against {@link BrokenCheck}; a mechanically-corrupt
  *       occurrence is verdicted {@code broken} (ADR-068) — the cheapest filter in the cascade, so
- *       nothing broken ever reaches extraction.
+ *       nothing broken ever reaches extraction. An intact one of a kind {@link OutOfScope} names is
+ *       verdicted {@code out-of-scope} in the same pass (ADR-146), so it is never hashed either.
  *   <li>Every occurrence still surviving (re-read from the ledger, so {@code broken} occurrences are
  *       excluded automatically) is grouped by size, hashed within any group of two or more, and
  *       every content-identity group resolves to one representative — the rest verdicted
@@ -116,7 +118,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
 
         // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
         // this step's own rows before working is ADR-115's other half (ADR-116).
-        ledger.discardVerdicts(runId, VerdictKind.BROKEN, VerdictKind.SUPERSEDED_BY);
+        ledger.discardVerdicts(runId, VerdictKind.BROKEN, VerdictKind.OUT_OF_SCOPE, VerdictKind.SUPERSEDED_BY);
         detectedFormats.discardForRun(runId);
         contentIdentity.discardForRun(runId);
 
@@ -135,6 +137,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
         Map<DetectedFormat, Integer> byFormat = new LinkedHashMap<>();
         Map<DetectedFormat, Map<DetectedSubtype, Integer>> bySubtype = new LinkedHashMap<>();
         Map<String, Integer> unrecognisedLeadingBytes = new LinkedHashMap<>();
+        int outOfScope = 0;
         for (OccurrenceId occurrenceId : drain(ledger.survivors(runId))) {
             OccurrenceFacts facts = factsFor(occurrenceId);
             BrokenCheck.Result result = BrokenCheck.check(canonicalRoot.resolve(facts.path().value()));
@@ -143,16 +146,22 @@ public class ByteLevelReductionTasklet implements Tasklet {
             // fail most (ADR-095).
             detectedFormats.record(occurrenceId, runId, result.format(), result.subtype().orElse(null));
             countInTheMix(byFormat, bySubtype, unrecognisedLeadingBytes, result, canonicalRoot.resolve(facts.path().value()));
+            Optional<String> leftOut = result.broken()
+                    ? Optional.empty()
+                    : OutOfScope.reasonFor(result.format(), result.subtype());
             if (result.broken()) {
                 ledger.verdict(occurrenceId, runId, VerdictKind.BROKEN, result.reason());
+            } else if (leftOut.isPresent()) {
+                ledger.verdict(occurrenceId, runId, VerdictKind.OUT_OF_SCOPE, leftOut.get());
+                outOfScope++;
             }
             log.info(
                     "[byte-level-reduction] checked {} for damage -> {}",
                     occurrenceId.value(),
-                    result.broken() ? "broken: " + result.reason() : "kept");
+                    result.broken() ? "broken: " + result.reason() : leftOut.map(reason -> "out of scope: " + reason).orElse("kept"));
             progress.itemDone();
         }
-        writeFormatMix(new FormatMixReport.Mix(byFormat, bySubtype, unrecognisedLeadingBytes));
+        writeFormatMix(new FormatMixReport.Mix(byFormat, bySubtype, unrecognisedLeadingBytes, outOfScope));
     }
 
     /**

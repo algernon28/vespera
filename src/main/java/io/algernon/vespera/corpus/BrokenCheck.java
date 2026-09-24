@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.zip.ZipException;
@@ -54,6 +55,9 @@ public final class BrokenCheck {
 
     /** The part ECMA-376 fixes for a WordprocessingML package, and the only thing separating one from any other zip. */
     private static final String WORDPROCESSING_MAIN_PART = "word/document.xml";
+
+    /** The parts ECMA-376 fixes for an Excel workbook, as XML and in its binary {@code .xlsb} form. */
+    private static final List<String> SPREADSHEET_MAIN_PARTS = List.of("xl/workbook.xml", "xl/workbook.bin");
 
     private static final byte[] UTF_16_BE_BOM = {(byte) 0xFE, (byte) 0xFF};
     private static final byte[] UTF_16_LE_BOM = {(byte) 0xFF, (byte) 0xFE};
@@ -280,7 +284,7 @@ public final class BrokenCheck {
      * keeps this cheaper than extraction (ADR-068). The container then splits on one lookup in the
      * directory already read: {@code PK 03 04} is shared by {@code .docx}, {@code .xlsx},
      * {@code .pptx}, {@code .odt}, {@code .jar} and a plain zip, so the part a package carries is
-     * the only thing that tells a wordprocessing document from the rest.
+     * the only thing that tells a wordprocessing document, or a spreadsheet (ADR-146), from the rest.
      *
      * <p>Reading {@code [Content_Types].xml} instead would be more general and is rejected: it means
      * inflating an entry and parsing XML, the exact parse work ADR-068 refused when it turned down
@@ -289,9 +293,13 @@ public final class BrokenCheck {
      */
     private static Result checkZipContainer(Path file) {
         try (ZipFile zip = new ZipFile(file.toFile())) {
-            return zip.getEntry(WORDPROCESSING_MAIN_PART) != null
-                    ? Result.ok(DetectedFormat.WORDPROCESSING)
-                    : Result.ok(DetectedFormat.ZIP_CONTAINER);
+            if (zip.getEntry(WORDPROCESSING_MAIN_PART) != null) {
+                return Result.ok(DetectedFormat.WORDPROCESSING);
+            }
+            if (SPREADSHEET_MAIN_PARTS.stream().anyMatch(part -> zip.getEntry(part) != null)) {
+                return Result.ok(DetectedFormat.SPREADSHEET);
+            }
+            return Result.ok(DetectedFormat.ZIP_CONTAINER);
         } catch (ZipException e) {
             return Result.broken("zip central directory unreadable: " + e.getMessage(), DetectedFormat.ZIP_CONTAINER);
         } catch (IOException e) {

@@ -664,6 +664,13 @@ public final class Adr {
     public static final String TABLE_CELLS_ARE_EXTRACTED_TEXT = FILE
             + "0145-a-tables-cells-are-extracted-text-read-once-in-docling-reading-order.md";
 
+    /**
+     * ADR-146 -- spreadsheets are out of scope: stage 1 recognises one from its bytes and removes it
+     * with a ninth verdict, out-of-scope, before anything converts it.
+     */
+    public static final String SPREADSHEETS_ARE_OUT_OF_SCOPE = FILE
+            + "0146-spreadsheets-are-out-of-scope-and-stage-1-removes-them-with-a-verdict-of-their-own.md";
+
     private Adr() {
     }
 }

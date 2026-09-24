@@ -1,7 +1,7 @@
 package io.algernon.vespera.ledger;
 
 /**
- * The closed verdict vocabulary: eight values, seven of them blocking (ADR-057). Owned by
+ * The closed verdict vocabulary: nine values, eight of them blocking (ADR-057, ADR-146). Owned by
  * {@code ledger} rather than by the cascade, so that one place decides what a verdict may say and
  * what it means for survival (ADR-042).
  *
@@ -20,6 +20,12 @@ public enum VerdictKind {
 
     /** An older copy of content another occurrence carries a newer version of. Stage 1. */
     SUPERSEDED_BY(true),
+
+    /**
+     * A kind of file this tool leaves out, whatever it holds: a spreadsheet (ADR-146). Stage 1, which
+     * is the first stage that knows what a file is.
+     */
+    OUT_OF_SCOPE(true),
 
     /** Extraction did not produce text. Stage 2. */
     EXTRACTION_FAILED(true),

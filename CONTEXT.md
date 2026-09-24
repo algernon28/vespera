@@ -38,6 +38,10 @@ _Avoid_: the database, the store, the index
 A recorded judgement against one file occurrence by one stage, carrying its reason. Verdicts accumulate; they never replace one another.
 _Avoid_: status, state, flag
 
+**Out of scope**:
+Of a kind of file this tool leaves out whatever it holds, which since ADR-146 means a spreadsheet. A verdict of its own, written by stage 1, because it is a judgement about the kind of file and not about anything in it: an out-of-scope file is not broken, not empty and not irrelevant, and saying any of those would be false.
+_Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this tool chooses not to read them)
+
 **Survivor**:
 A file occurrence carrying no blocking verdict. A question the ledger answers, not a place documents are moved to.
 _Avoid_: shortlist, whitelist, the keep pile

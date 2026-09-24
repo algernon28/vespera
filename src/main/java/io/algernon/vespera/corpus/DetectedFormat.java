@@ -19,7 +19,14 @@ public enum DetectedFormat {
     /** A zip container holding {@code word/document.xml}, the part ECMA-376 fixes for WordprocessingML. */
     WORDPROCESSING,
 
-    /** A zip container that is not a wordprocessing document — a spreadsheet, a presentation, an ODF package. */
+    /**
+     * A zip container holding {@code xl/workbook.xml} or {@code xl/workbook.bin}, the parts ECMA-376
+     * fixes for an Excel workbook and its binary form. Recognised so that stage 1 can leave it out of
+     * scope (ADR-146).
+     */
+    SPREADSHEET,
+
+    /** A zip container that is neither of those — a presentation, an ODF package, a plain archive. */
     ZIP_CONTAINER,
 
     /**

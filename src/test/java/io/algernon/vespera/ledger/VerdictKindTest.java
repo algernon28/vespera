@@ -29,12 +29,16 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-057", url = Adr.VERDICT_VOCABULARY_IS_EIGHT_VALUES, type = "adr")
 class VerdictKindTest {
 
-    /** The size of the closed vocabulary: seven ways to be ruled out, one way to be let through. */
-    private static final int RECORDED_VERDICT_KINDS = 8;
+    /**
+     * The size of the closed vocabulary: eight ways to be ruled out, one way to be let through. Nine
+     * since ADR-146 added out-of-scope, and eight before it (ADR-057).
+     */
+    private static final int RECORDED_VERDICT_KINDS = 9;
 
     @Test
     @Story("The vocabulary is closed")
-    @DisplayName("There are exactly eight verdicts, and adding one is a decision rather than an edit")
+    @DisplayName("There are exactly nine verdicts, and adding one is a decision rather than an edit")
+    @Link(name = "ADR-146", url = Adr.SPREADSHEETS_ARE_OUT_OF_SCOPE, type = "adr")
     void isExactlyTheRecordedVocabulary() {
         claim(
                 "there are " + RECORDED_VERDICT_KINDS + " verdict kinds; a value here without a decision"

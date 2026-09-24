@@ -20,7 +20,7 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 | #  | Stage                        | Writes                                    | Notes                                                                                                 |
 |----|------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------------------|
 | 0  | Census                       | *(no verdicts)*                           | Filesystem walk → file occurrence rows. Pure measurement (ADR-006).                                   |
-| 1  | Byte-level reduction         | `broken`, `duplicate-of`, `superseded-by` | Cheapest discriminating filter, runs first.                                                           |
+| 1  | Byte-level reduction         | `broken`, `duplicate-of`, `superseded-by`, `out-of-scope` | Cheapest discriminating filter, runs first. Leaves spreadsheets out of scope (ADR-146). |
 | 2  | Extraction                   | `extraction-failed`, `degenerate-output`  | Docling, out-of-process, cached; silent about text fidelity, never about failure (ADR-010, ADR-070).  |
 | 3  | Content census               | *(no verdicts)*                           | The corpus-wide pass over what stage 2 stored — document frequency for boilerplate (ADR-038), report distributions. Per-document metrics and shingles are written in stage 2's own pass, under stage 2's run (ADR-019, ADR-073). |
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |
@@ -35,7 +35,7 @@ Ordering principle: the cheapest filter runs first, so every occurrence removed 
 ```mermaid
 flowchart TD
     S0["<b>0 · Census</b><br/>filesystem walk<br/><i>writes no verdicts</i>"]
-    S1["<b>1 · Byte-level reduction</b><br/>broken · duplicate-of · superseded-by"]
+    S1["<b>1 · Byte-level reduction</b><br/>broken · duplicate-of · superseded-by · out-of-scope"]
     S2["<b>2 · Extraction</b><br/>extraction-failed · degenerate-output"]
     S3["<b>3 · Content census</b><br/>corpus-wide pass over stage 2's columns<br/><i>writes no verdicts</i>"]
     S4["<b>4 · Content redundancy</b><br/>redundant-with"]
