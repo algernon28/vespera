@@ -715,6 +715,14 @@ public final class Adr {
     public static final String A_SURVIVOR_WHOSE_FILE_WILL_NOT_OPEN_IS_STILL_ASKED_ABOUT = FILE
             + "0152-a-survivor-whose-file-will-not-open-is-still-asked-about-without-its-opening-and-a-step-that-records-completion-stops-instead.md";
 
+    /**
+     * ADR-153 -- the whole-job tests share one slice annotation carrying the import list they all
+     * named, so a stage's configuration class stops being the seam they import (amends ADR-131); and
+     * what each kind of run records it was derived from is pinned as literal text.
+     */
+    public static final String THE_WHOLE_JOB_TESTS_SHARE_ONE_SLICE = FILE
+            + "0153-the-whole-job-tests-share-one-slice-and-a-stages-configuration-class-stops-being-their-seam.md";
+
     private Adr() {
     }
 }

@@ -4,38 +4,11 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.AnomalyLog;
-import io.algernon.vespera.corpus.ContentIdentity;
-import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.corpus.WalkRecorder;
-import io.algernon.vespera.embedding.ChunkEmbedderBeans;
-import io.algernon.vespera.embedding.ClusteringBeans;
-import io.algernon.vespera.embedding.DocumentClusters;
-import io.algernon.vespera.embedding.RelevanceDistribution;
-import io.algernon.vespera.embedding.RelevanceLabels;
-import io.algernon.vespera.embedding.RelevanceScoringBeans;
-import io.algernon.vespera.embedding.SeedCorpusComparison;
-import io.algernon.vespera.embedding.UnusableSeeds;
-import io.algernon.vespera.extraction.ConfidenceDistribution;
-import io.algernon.vespera.extraction.ExtractionMetrics;
-import io.algernon.vespera.extraction.HybridChunkerBeans;
-import io.algernon.vespera.extraction.LanguageDetection;
-import io.algernon.vespera.extraction.LeadingChunks;
-import io.algernon.vespera.ledger.ImplementationVersions;
-import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
-import io.algernon.vespera.similarity.BoilerplateShingles;
-import io.algernon.vespera.similarity.DocumentFrequency;
-import io.algernon.vespera.similarity.RedundancyResolution;
-import io.algernon.vespera.similarity.RedundancySignatures;
-import io.algernon.vespera.similarity.Shingler;
-import io.algernon.vespera.synthesis.ClusterSynthesis;
-import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -49,17 +22,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
-import org.springframework.boot.batch.autoconfigure.BatchAutoConfiguration;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Stage 5's fourth step, end to end (ADR-020, #108): once gate 3 has embedded every vector, a corpus
@@ -70,101 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
  * of {@link SeedCorpusComparisonInvocationTest}: this ticket's own step reads what #107's already
  * wrote rather than re-deriving it.
  */
-@JdbcTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@ActiveProfiles("test")
-@Transactional(propagation = Propagation.NOT_SUPPORTED)
-@ImportAutoConfiguration(BatchAutoConfiguration.class)
-@Import({
-    CensusJobConfiguration.class,
-    GenerationJobConfiguration.class,
-    GenerationTasklet.class,
-    ClusterSynthesis.class,
-    SynthesisDocs.class,
-    LeadingChunks.class,
-    GenerationScriptedBeans.class,
-    GenerationRun.class,
-    GenerationModel.class,
-    GenerationContextWindow.class,
-    CensusTasklet.class,
-    ByteLevelReductionJobConfiguration.class,
-    ByteLevelReductionTasklet.class,
-    ExtractionJobConfiguration.class,
-    ExtractionItemProcessor.class,
-    ExtractionItemWriter.class,
-    ExtractionRun.class,
-    ExtractionTimeoutStreak.class,
-    ExtractionCircuitBreaker.class,
-    ExtractionHealthCheckListener.class,
-    ContentCensusJobConfiguration.class,
-    ContentCensusTasklet.class,
-    ContentCensusRun.class,
-    RedundancyJobConfiguration.class,
-    RedundancyRun.class,
-    RedundancyGate.class,
-    RedundancyBoilerplate.class,
-    RedundancySignatureItemWriter.class,
-    RedundancyResolutionTasklet.class,
-    SeedExtractionJobConfiguration.class,
-    SeedExtractionItemProcessor.class,
-    SeedExtractionItemWriter.class,
-    SeedCorpusComparisonJobConfiguration.class,
-    SeedCorpusComparisonTasklet.class,
-    EmbeddingModelJobConfiguration.class,
-    EmbeddingScoringTasklet.class,
-    RelevanceScoringJobConfiguration.class,
-    RelevanceScoringTasklet.class,
-    RelevanceFloorJobConfiguration.class,
-    RelevanceFloorTasklet.class,
-    RelevanceFloor.class,
-    ClusteringJobConfiguration.class,
-    ClusteringTasklet.class,
-    ArrangementJobConfiguration.class,
-    ArrangementTasklet.class,
-    io.algernon.vespera.extraction.DocumentTitles.class,
-    ArrangementRun.class,
-    ArrangementGate.class,
-    Clusters.class,
-    ClusteringBeans.class,
-    DocumentClusters.class,
-    RelevanceReportJobConfiguration.class,
-    RelevanceReportTasklet.class,
-    RelevanceDistribution.class,
-    EmbeddingModelGate.class,
-    SeedMeasurementRun.class,
-    ScoringRun.class,
-    SeedGate.class,
-    UsableSeedGate.class,
-    ChunkEmbedderBeans.class,
-    RelevanceScoringBeans.class,
-    EmbeddingScriptedBeans.class,
-    RedundancySignatures.class,
-    RedundancyResolution.class,
-    BoilerplateShingles.class,
-    DocumentFrequency.class,
-    ConfidenceDistribution.class,
-    SeedCorpusComparison.class,
-    UnusableSeeds.class,
-    Shingler.class,
-    HybridChunkerBeans.class,
-    SeedScriptedExtractionBeans.class,
-    ExtractionMetrics.class,
-    LanguageDetection.class,
-    ContentIdentity.class,
-    DetectedFormats.class,
-    WalkRecorder.class,
-    AnomalyLog.class,
-    Ledger.class,
-    ImplementationVersions.class,
-    ProfileStore.class,
-    NextAction.class,
-    VesperaCommand.class,
-    VesperaCommand.Run.class,
-    VesperaCommand.Label.class,
-    LabelIngestion.class,
-    RelevanceLabels.class,
-    VesperaCli.class
-})
+@CascadeSliceTest
+@Import(SeedScriptedExtractionBeans.class)
 @Epic("Relevance")
 @Feature("Relevance scoring")
 @Issue("108")
