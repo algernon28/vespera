@@ -499,7 +499,7 @@ class GenerationInvocationTest {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
-        aClusterNothingCanBeSentFor(theApprovedArrangement(root));
+        aClusterNothingCanBeSentFor(theApprovedArrangement(root), root);
         GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
         cli.run("run", root.toString());
 
@@ -544,10 +544,11 @@ class GenerationInvocationTest {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
-        aClusterNothingCanBeSentFor(theApprovedArrangement(root), A_CLUSTER_NO_DOCUMENT_HAS_REACHED_YET);
+        byte[] whatItHeld =
+                aClusterNothingCanBeSentFor(theApprovedArrangement(root), root, A_CLUSTER_NO_DOCUMENT_HAS_REACHED_YET);
         GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
         cli.run("run", root.toString());
-        theSecondClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
+        theSecondClustersDocumentCanBeSentAgain(theApprovedArrangement(root), root, whatItHeld);
 
         GenerationScriptedBeans.forgetScriptedAnswers();
         cli.run("run", root.toString());
@@ -593,70 +594,92 @@ class GenerationInvocationTest {
     }
 
     /**
-     * Puts a second cluster into the approved arrangement holding no document this run can send, so the
-     * invocation writes over one cluster and leaves the other with nothing.
+     * Splits the approved arrangement's one cluster into two of one document each, and leaves the
+     * second holding a document nothing of can be sent, so the invocation writes over one cluster and
+     * leaves the other with nothing (ADR-121).
      *
-     * <p>Written straight into the table, for the reason the colliding arrangement below is: what is
-     * under test is what the next invocation does when it meets a half-finished piece of work, and a
-     * fixture whose documents all convert alike cannot be steered into producing two clusters. It copies
-     * the arranged cluster's own row one place further along in the order, and no document anywhere
-     * belongs to it, so it reaches the same "nothing here can be sent" branch as a cluster whose every
-     * document has become unreadable. That branch is what is under test; the two states are not the
-     * same one, and this is not the shape the archive going away actually takes -- there the
-     * membership rows survive and the files do not.
+     * <p>The two clusters are written straight into the tables, because every document this fixture
+     * converts carries the same text and embeds alike, so nothing put in the corpus arranges itself into
+     * two clusters. <b>They are rows an arrangement could have recorded</b>: each cluster holds exactly
+     * the one document its count says it does, in the membership the scoring run records, so the
+     * arrangement stays total and its page can be drawn from it (ADR-112, ADR-154 §2).
      *
-     * <p><b>It copies document_count unchanged</b>, so the injected row claims more documents than it
-     * holds, which no arrangement run would write. Harmless here, because a call is sized from
-     * membership and never from that column -- but it means this fixture cannot defend that property,
-     * and a change that started reading document_count would pass it.
+     * <p>What leaves the second cluster with nothing to send is an ordinary cause rather than a row no
+     * run would write: its one document is rewritten in place between the invocations, with its length
+     * and timestamps unchanged, so the walk still sees the same archive and the approval still stands,
+     * and stage 6b finds nothing cached under the text it now reads ({@link UnseenEditFixture}).
+     *
+     * @return the bytes that document held before, so a test can put them back
      */
-    private void aClusterNothingCanBeSentFor(RunId arrangement) {
-        aClusterNothingCanBeSentFor(arrangement, A_CLUSTER_WITH_NOTHING_TO_SEND);
+    private byte[] aClusterNothingCanBeSentFor(RunId arrangement, Path root) throws IOException {
+        return aClusterNothingCanBeSentFor(arrangement, root, A_CLUSTER_WITH_NOTHING_TO_SEND);
     }
 
     /** The same, under a name of the caller's choosing, so two tests can tell their clusters apart. */
-    private void aClusterNothingCanBeSentFor(RunId arrangement, String label) {
+    private byte[] aClusterNothingCanBeSentFor(RunId arrangement, Path root, String label) throws IOException {
         jdbcTemplate.update(
                 "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
                         + " document_count, partition_order, cluster_order)"
                         + " SELECT run_id, winning_seed_occurrence_id, cluster_ordinal + 1, ?,"
-                        + " document_count, partition_order, cluster_order + 1"
+                        + " 1, partition_order, cluster_order + 1"
                         + " FROM cluster WHERE run_id = ?",
                 label,
                 arrangement.value());
+        jdbcTemplate.update(
+                "UPDATE cluster SET document_count = 1 WHERE run_id = ? AND label <> ?", arrangement.value(), label);
+        long moved = theLastDocumentOf(arrangement);
+        jdbcTemplate.update(
+                "UPDATE document_cluster SET cluster_ordinal = cluster_ordinal + 1 WHERE occurrence_id = ?"
+                        + " AND run_id = (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)",
+                moved,
+                arrangement.value());
+        return UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve(pathOf(moved)));
     }
 
     /**
-     * Moves one of the corpus documents into the second cluster, so a cluster nothing could be sent for now
-     * has something to send.
+     * Puts back the bytes the second cluster's document held when it was arranged, so a cluster nothing
+     * could be sent for now has something to send.
      *
-     * <p>This is the obstruction being lifted. What left that cluster unwritten was that no document this
-     * run could open belonged to it; a document belonging to it is the state in which the very same
+     * <p>This is the obstruction being lifted. What left that cluster unwritten was that nothing its
+     * document then held had ever been read into the cache; with its own text back, the very same
      * invocation, asking the very same question again, finishes the job.
-     *
-     * <p>Written straight into the table, for the reason the cluster itself is: a fixture whose documents
-     * all convert alike cannot be steered into producing two clusters, let alone into moving a document
-     * between them. Which document moves does not matter, so the query names one by taking the last.
      */
-    private void theSecondClusterIsGivenADocumentItCanSend(RunId arrangement) {
-        jdbcTemplate.update(
-                "UPDATE document_cluster SET cluster_ordinal = cluster_ordinal + 1 WHERE rowid ="
-                        + " (SELECT rowid FROM document_cluster WHERE run_id ="
+    private void theSecondClustersDocumentCanBeSentAgain(RunId arrangement, Path root, byte[] whatItHeld)
+            throws IOException {
+        UnseenEditFixture.restored(root.resolve(pathOf(theLastDocumentOf(arrangement))), whatItHeld);
+    }
+
+    /**
+     * The document of the arrangement's membership with the highest occurrence id -- the one moved into
+     * the second cluster. Which document moves does not matter, so the query names one by taking the last.
+     */
+    private long theLastDocumentOf(RunId arrangement) {
+        return jdbcTemplate.queryForObject(
+                "SELECT occurrence_id FROM document_cluster WHERE run_id ="
                         + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)"
-                        + " ORDER BY occurrence_id DESC LIMIT 1)",
+                        + " ORDER BY occurrence_id DESC LIMIT 1",
+                Long.class,
                 arrangement.value());
     }
 
+    private String pathOf(long occurrence) {
+        return jdbcTemplate.queryForObject(
+                "SELECT path FROM file_occurrence WHERE id = ?", String.class, occurrence);
+    }
+
     /**
-     * Takes both corpus documents away, so nothing in the cluster can be opened when the call is built.
+     * Rewrites both corpus documents in place, so nothing in the cluster can be sent when the call is
+     * built.
      *
-     * <p>An archive is a live filesystem and this is the ordinary version of that: a document moved,
-     * renamed or locked between being walked and being written about. Every earlier step has already
-     * recorded its work, so this reaches the run at exactly the point the cluster is gathered.
+     * <p>An archive is a live filesystem and this is an ordinary version of that: a document rewritten
+     * between being walked and being written about, by something that put its timestamp back. The walk
+     * sees the same archive, so the approval still names the arrangement and the step really runs; it is
+     * the text 6b now reads that nothing was ever cached under ({@link UnseenEditFixture}). Deleting the
+     * documents instead would be a different archive, whose gate is shut before the step is reached.
      */
     private void theArchiveNoLongerHandsOverItsDocuments(Path root) throws IOException {
-        Files.delete(root.resolve("corpus.txt"));
-        Files.delete(root.resolve("another-corpus-document.txt"));
+        UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("corpus.txt"));
+        UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("another-corpus-document.txt"));
     }
 
     /** Whether this step's own work is recorded as complete under the run it wrote. */

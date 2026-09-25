@@ -587,16 +587,15 @@ class GenerationBreakerInvocationTest {
     }
 
     /**
-     * The same, with the cluster at {@code theClusterHoldingNothing} left holding no document at all — the
-     * state a cluster is in when nothing it holds can be sent, which costs no call and returns no answer.
+     * The same, with the cluster at {@code theClusterHoldingNothing} holding a document nothing of can be
+     * sent — which costs no call and returns no answer (ADR-121).
      *
      * @param theClusterHoldingNothing where that cluster sits in the order, or {@link
      *     #EVERY_CLUSTER_HOLDS_A_DOCUMENT} when there is no such cluster
      */
     private void anApprovedArrangementOf(int clusters, int theClusterHoldingNothing, Path root, Path seeds)
             throws IOException {
-        int documentsNeeded = theClusterHoldingNothing == EVERY_CLUSTER_HOLDS_A_DOCUMENT ? clusters : clusters - 1;
-        for (int document = 1; document <= documentsNeeded; document++) {
+        for (int document = 1; document <= clusters; document++) {
             Files.writeString(root.resolve("corpus-" + document + ".txt"), "corpus document " + document);
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
@@ -642,11 +641,15 @@ class GenerationBreakerInvocationTest {
      * <p><b>Every placed document is given the cluster rows' winning seed</b>, so membership and
      * arrangement agree on the key the step reads them by, and the order is the cluster order alone.
      *
-     * <p>The cluster at {@code theClusterHoldingNothing} is given no document and a count of none, which is
-     * how a cluster nothing can be sent for is arranged here: no document of the corpus is moved into it,
-     * so the step meets it, finds nothing to send, and makes no call.
+     * <p>The cluster at {@code theClusterHoldingNothing} is given its document like every other, so the
+     * arrangement stays total and its page can be drawn from it (ADR-112, ADR-154 §2). What leaves it
+     * with nothing to send is that its document is then rewritten in place, its length and timestamps
+     * unchanged, so the walk still sees the same archive and the approval still stands, while the step
+     * finds nothing cached under the text it now reads ({@link UnseenEditFixture}). It meets the
+     * cluster, finds nothing to send, and makes no call.
      */
-    private void oneClusterPerDocument(RunId arrangement, int clusters, int theClusterHoldingNothing, Path root) {
+    private void oneClusterPerDocument(RunId arrangement, int clusters, int theClusterHoldingNothing, Path root)
+            throws IOException {
         String scoring = jdbcTemplate.queryForObject(
                 "SELECT upstream_run_id FROM run_upstream WHERE run_id = ?", String.class, arrangement.value());
         // Scoped to this method's own walk, for the reason the javadoc above gives: the run may carry
@@ -659,9 +662,8 @@ class GenerationBreakerInvocationTest {
                 Long.class,
                 scoring,
                 Walk.canonicalRoot(root).toString());
-        int documentsNeeded = theClusterHoldingNothing == EVERY_CLUSTER_HOLDS_A_DOCUMENT ? clusters : clusters - 1;
-        if (documents.size() < documentsNeeded) {
-            throw new IllegalStateException("this fixture needs " + documentsNeeded + " documents in the"
+        if (documents.size() < clusters) {
+            throw new IllegalStateException("this fixture needs " + clusters + " documents in the"
                     + " arrangement to make " + clusters + " groups, and this walk produced " + documents.size());
         }
         Long winningSeed = jdbcTemplate.queryForObject(
@@ -679,18 +681,14 @@ class GenerationBreakerInvocationTest {
         // it arranges these documents and no others -- which is the thing that was not true before.
         jdbcTemplate.update(
                 "UPDATE document_cluster SET cluster_ordinal = ? WHERE run_id = ?", clusters, scoring);
-        int document = 0;
         for (int cluster = 0; cluster < clusters; cluster++) {
-            if (cluster == theClusterHoldingNothing) {
-                continue;
-            }
             jdbcTemplate.update(
                     "UPDATE document_cluster SET cluster_ordinal = ?, winning_seed_occurrence_id = ?"
                             + " WHERE run_id = ? AND occurrence_id = ?",
                     cluster,
                     winningSeed,
                     scoring,
-                    documents.get(document++));
+                    documents.get(cluster));
         }
         jdbcTemplate.update("DELETE FROM cluster WHERE run_id = ?", arrangement.value());
         for (int cluster = 0; cluster < clusters; cluster++) {
@@ -701,8 +699,14 @@ class GenerationBreakerInvocationTest {
                     winningSeed,
                     cluster,
                     CLUSTER_NAMES.get(cluster),
-                    cluster == theClusterHoldingNothing ? 0 : 1,
+                    1,
                     cluster);
+        }
+        if (theClusterHoldingNothing != EVERY_CLUSTER_HOLDS_A_DOCUMENT) {
+            UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve(jdbcTemplate.queryForObject(
+                    "SELECT path FROM file_occurrence WHERE id = ?",
+                    String.class,
+                    documents.get(theClusterHoldingNothing))));
         }
     }
 
