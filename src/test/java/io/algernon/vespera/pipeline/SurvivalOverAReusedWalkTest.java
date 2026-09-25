@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.corpus.ContentHash;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceLabels;
@@ -196,6 +197,8 @@ class SurvivalOverAReusedWalkTest {
         // and stage 4 removes nothing by itself. The verdict is written under the stage 4 run the next
         // invocation continues, standing in for a document stage 4 did find redundant.
         OccurrenceId removedByStageFour = anOccurrenceIn(root);
+        String removedContentHash = ContentHash.sha256(root.resolve(aDocumentIn(root)));
+        String keptContentHash = ContentHash.sha256(root.resolve(theOtherDocumentIn(root)));
         ledger.verdict(
                 removedByStageFour,
                 new RunId(theOnlyRunOf(root, RedundancyRun.STAGE)),
@@ -217,11 +220,22 @@ class SurvivalOverAReusedWalkTest {
                 "and scoring scored one document, for the same reason: embedding and scoring read what"
                         + " stage 4 left standing, never what stage 2 did",
                 () -> assertThat(relevanceScoreCountUnder(scoringRun)).isEqualTo(CORPUS_DOCUMENTS - 1));
+        claim(
+                "and the redundant document was never embedded: no vector is recorded for its content,"
+                        + " while the document stage 4 left standing has its vectors. Scoring's count alone"
+                        + " would not show this -- embedding the redundant document under stage 2's"
+                        + " survivors would still leave scoring one document to score",
+                () -> {
+                    assertThat(vectorCountFor(keptContentHash)).isPositive();
+                    assertThat(vectorCountFor(removedContentHash)).isZero();
+                });
     }
 
     private void aCorpus(Path root, Path seeds) throws IOException {
         for (int i = 0; i < CORPUS_DOCUMENTS; i++) {
-            Files.writeString(root.resolve("corpus-" + i + ".txt"), "a corpus document " + i);
+            // The root is in the content so no other test's corpus shares these content hashes: a vector
+            // is keyed by content, not by run (ADR-085), and this context's database outlives a method.
+            Files.writeString(root.resolve("corpus-" + i + ".txt"), "a corpus document " + i + " under " + root);
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
     }
@@ -260,6 +274,14 @@ class SurvivalOverAReusedWalkTest {
         return jdbcTemplate.queryForObject(
                 "SELECT f.path FROM file_occurrence f JOIN walk w ON w.id = f.walk_id"
                         + " WHERE w.root = ? ORDER BY f.path LIMIT 1",
+                String.class,
+                walkRoot(root));
+    }
+
+    private String theOtherDocumentIn(Path root) {
+        return jdbcTemplate.queryForObject(
+                "SELECT f.path FROM file_occurrence f JOIN walk w ON w.id = f.walk_id"
+                        + " WHERE w.root = ? ORDER BY f.path LIMIT 1 OFFSET 1",
                 String.class,
                 walkRoot(root));
     }
@@ -339,6 +361,10 @@ class SurvivalOverAReusedWalkTest {
     private long corpusDocumentCountUnder(String runId) {
         return count(
                 "SELECT MAX(corpus_document_count) FROM seed_corpus_comparison WHERE run_id = ?", runId);
+    }
+
+    private long vectorCountFor(String contentHash) {
+        return count("SELECT COUNT(*) FROM vector WHERE content_hash = ?", contentHash);
     }
 
     private long count(String sql, Object... arguments) {

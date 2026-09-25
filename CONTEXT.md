@@ -35,7 +35,7 @@ The single record of file occurrence identity, verdicts and run identity — the
 _Avoid_: the database, the store, the index
 
 **Verdict**:
-A recorded judgement against one file occurrence by one stage, carrying its reason, under the run that made it. Verdicts accumulate down the cascade: a run's survivors answer to its own verdicts and to those of every run upstream of it. They never replace one another, and none is ever deleted. A verdict under a run the present profile and build no longer arrive at stays recorded and removes nothing, until putting a value back arrives at that run again (ADR-156).
+A recorded judgement against one file occurrence by one stage, carrying its reason, under the run that made it. Verdicts accumulate down the cascade: a run's survivors answer to its own verdicts and to those of every run upstream of it. They never replace one another, and none is deleted except by the step that wrote it, redoing its own unfinished work under the same run (ADR-116). A verdict under a run the present profile and build no longer arrive at stays recorded and removes nothing, until putting a value back arrives at that run again (ADR-156).
 _Avoid_: status, state, flag
 
 **Out of scope**:

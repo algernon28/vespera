@@ -57,7 +57,7 @@ ADR-060 put three things behind `survivors(runId)`: "the join logic, the blockin
 
 ### §2. A verdict under a run the invocation did not arrive at stays recorded and removes nothing
 
-**Stays recorded.** Nothing deletes it. The ledger stays append-only (ADR-014), and every verdict ever written can still be read for an audit.
+**Stays recorded.** Nothing deletes it. The only delete the ledger has is a step discarding its own verdicts under its own run before redoing unfinished work there (ADR-116), and that never reaches another run's verdicts. So every verdict a finished step wrote can still be read for an audit (ADR-014).
 
 **Removes nothing** from the survivors of any run that does not reach its run upstream. Because the upstream a run names is fixed when the run is minted, a verdict's reach is fixed too. A verdict under the 1.5 scoring run removes documents from that run's survivors, from the arrangement over it and from the generation run over that. It removes nothing from the 0.1 scoring run, a sibling that names the same seed-measurement run.
 
@@ -95,7 +95,7 @@ The seed-measurement run, and not the scoring run, is named by 5c and 5d for two
 
 In `CONTEXT.md`:
 
-> **Verdict**: A recorded judgement against one file occurrence by one stage, carrying its reason, under the run that made it. Verdicts accumulate down the cascade: a run's survivors answer to its own verdicts and to those of every run upstream of it. They never replace one another, and none is ever deleted. A verdict under a run the present profile and build no longer arrive at stays recorded and removes nothing, until putting a value back arrives at that run again.
+> **Verdict**: A recorded judgement against one file occurrence by one stage, carrying its reason, under the run that made it. Verdicts accumulate down the cascade: a run's survivors answer to its own verdicts and to those of every run upstream of it. They never replace one another, and none is deleted except by the step that wrote it, redoing its own unfinished work under the same run (ADR-116). A verdict under a run the present profile and build no longer arrive at stays recorded and removes nothing, until putting a value back arrives at that run again.
 
 > **Survivor**: A file occurrence carrying no blocking verdict under a given run or any run upstream of it. A question the ledger answers of one run, not a place documents are moved to.
 
@@ -112,22 +112,22 @@ Three callers change the run they pass, as §3 says: `SeedCorpusComparison.measu
 - **Loosening a value brings documents back on the next invocation.** Lower `relevanceScoreFloor` from 1.5 to 0.1 and the next `vespera run` scores, clusters and arranges the documents the stricter floor removed. `arrangement.html` shows them, and since this is a new arrangement, the approval no longer opens 6b (ADR-154 §2) and the operator re-approves. The same goes for a lowered `degenerateOutputConfidenceFloor` and a retuned `boilerplateDocumentFrequencyFloor`, each from its own stage onward.
 - **Tightening again removes them again, and costs nothing.** Put 1.5 back and the next invocation continues the 1.5 scoring run, whose verdicts were never deleted.
 - **The counts on each page are the arrived-at run's.** "Scoring *N* corpus survivor(s)" in stage 5d's log, and the corpus side of the seed/corpus comparison, count what this invocation's runs left standing. They do not count what some earlier configuration left standing.
-- **A re-minted stage 2 asks the converter again about files it could not answer for before.** Under any-run survival a new extraction run never saw a file an earlier one had failed, so a Docling image that could now open it (ADR-147) never got the chance. Now it does. A conversion that came back as a failure response is an extraction-cache hit (ADR-070) and costs no call. Only files that earlier left an extraction fault are asked again, which is the point of a new image.
+- **A re-minted stage 2 asks about files an earlier run failed.** Under any-run survival a new extraction run never saw a file an earlier one had removed as `extraction-failed` or `degenerate-output`, so a Docling image that could now open it (ADR-147) never got the chance. What this record adds is that those files are now among the files asked. What each costs depends on why the run was re-minted. A new image or version changes the extractor identity (ADR-147), so every survivor misses the extraction cache and is converted again, failed or not. A lowered `degenerateOutputConfidenceFloor` leaves the extractor identity unchanged: there a conversion that came back as a failure response is an extraction-cache hit (ADR-070) and costs no call, and only files that earlier left an extraction fault are asked again.
 - **Nothing new to set, and no new message.** No key, gate or closing line is added. The operator already chooses which run applies by writing the profile and installing the build (ADR-154 §1).
 
 ## Alternatives rejected
 
-**Discard a superseded run's verdicts when a new run of the same stage is minted.** This was #297's other option, and AGENTS.md's old "a `DELETE` of one stage's rows plus a re-run". Rejected for three reasons:
+**Discard a superseded run's verdicts when a new run of the same stage is minted.** This was #297's other option, and `docs/architecture.md`'s old "a `DELETE` of one stage's rows plus a re-run". Rejected for three reasons:
 
 - It destroys what putting a value back re-uses. The continued run would find its work recorded and its verdicts gone, and would either remove nothing, which is wrong, or have to redo the work, which ADR-115 exists to avoid.
 - It needs a rule for which run is superseded. That is recency, which ADR-099 and ADR-154 both rejected.
-- It breaks the append-only ledger (ADR-014) and the audit it gives.
+- It deletes another run's finished verdicts, which nothing in the ledger does today. The one delete there is a step discarding its own unfinished work under its own run (ADR-116). It would break the audit ADR-014 gives.
 
 **Pass `InvocationRuns`, or a set of run ids, into `survivors`.** Reads the same set as §1 for any run this invocation minted, but:
 
 - It puts a `pipeline` type into `ledger`'s signature, or makes every caller assemble a set that the upstream rows already hold.
 - A run's survivors would then depend on who asked, not on the run. That reopens ADR-089's "two readers of one run see two corpora".
-- It changes eleven call sites to fix three.
+- It changes thirteen call sites to fix three.
 
 **Filter by the run passed only, not the runs upstream of it.** Stage 4's survivors would then include what stage 1 removed. That is not a cascade.
 
@@ -139,7 +139,7 @@ Three callers change the run they pass, as §3 says: `SeedCorpusComparison.measu
 
 **ADR-089's rule becomes load-bearing twice.** Before, naming the immediate predecessor made the run id fold in every verdict that shaped a read. Now it also decides which verdicts are read. A stage that named the wrong upstream would read the wrong survivors, not just carry a wrong id. `RunUpstreamChainTest` already checks, after one full invocation, that no run's upstream skips a stage.
 
-**A wrong run passed to `survivors` now changes behaviour, not just a log line.** Under any-run survival every caller could pass any run of the walk. After this record the run passed is the scope. The three stage-5 call sites in §3 are the ones that were only right by accident, and the test in *Tests* guards them.
+**A wrong run passed to `survivors` now changes behaviour, not just a log line.** Under any-run survival every caller could pass any run of the walk. After this record the run passed is the scope. The three stage-5 call sites in §3 are the ones that were only right by accident, and the third test under `SurvivalOverAReusedWalkTest` in *Tests* guards each of them with a claim of its own.
 
 **The first invocation after this ships re-mints what its own module list says** (ADR-154 §3). The change edits `ledger` and `pipeline`, and `embedding` for `SeedCorpusComparison`. `ledger` is in no stage's implementation version. `pipeline` re-mints stages 3 to 6b, and `embedding` re-mints seed measurement to 6b. Stage 1 and 2's runs are continued. An operator part-way through an archive should take the build at a corpus boundary.
 
@@ -167,4 +167,4 @@ Three callers change the run they pass, as §3 says: `SeedCorpusComparison.measu
 - **`SurvivalOverAReusedWalkTest`** (pipeline, `@CascadeSliceTest`, #297's fixture) invokes over one database and one unchanged archive:
   - floor 1.5, then 0.1: the 0.1 run scores, clusters and arranges both documents. Both `below-threshold` verdicts under the 1.5 run are still recorded, and still remove both documents from the 1.5 run's survivors. This fails on `25eab18`: the 0.1 run scores and clusters zero.
   - floor 1.5, then 0.1, then 1.5 again: the third invocation mints no scoring run, and the documents stand removed under the run it arrived at. This passes on `25eab18` and pins §2's put-back.
-  - a `redundant-with` verdict written under stage 4's run between invocations is kept out of the seed/corpus comparison and out of scoring when the next invocation opens stage 5. This passes on `25eab18`, where any run removes. It fails if any of §5's three call sites is left naming stage 2's run after item 1 is built, and that is what it guards.
+  - a `redundant-with` verdict written under stage 4's run between invocations is kept out of the seed/corpus comparison, out of embedding and out of scoring when the next invocation opens stage 5. Each has its own claim: the comparison's corpus document count, the absence of any `vector` row for the redundant document's content hash, and the count of relevance scores. Scoring's count alone would not guard embedding, because a redundant document embedded under stage 2's survivors still leaves scoring one document to score. This passes on `25eab18`, where any run removes. It fails if any of §5's three call sites is left naming stage 2's run after item 1 is built, and that is what it guards.
