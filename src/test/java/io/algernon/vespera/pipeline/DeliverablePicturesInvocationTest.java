@@ -16,6 +16,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -89,6 +91,14 @@ class DeliverablePicturesInvocationTest {
 
     /** The two corpus documents, both of which survive into the one group this corpus arranges. */
     private static final int TWO_DOCUMENTS = 2;
+
+    /** The two documents and a third, a standalone image file or a report, where a test adds one. */
+    private static final int THREE_DOCUMENTS = 3;
+
+    /** The standalone image file's size in pixels: any real PNG, which stage 1 detects as an image. */
+    private static final int SCREENSHOT_WIDTH = 16;
+
+    private static final int SCREENSHOT_HEIGHT = 16;
 
     /** How many pages the tree holds: this corpus arranges one group. */
     private static final int ONE_PAGE = 1;
@@ -189,6 +199,105 @@ class DeliverablePicturesInvocationTest {
                 });
     }
 
+    /**
+     * ADR-150 §4: a standalone image file that survives shows its entry and nothing else, although its
+     * conversion carries a picture that recurs nowhere. That picture is a re-encoded crop of the
+     * original, and writing it would be the copy of an original ADR-104 refuses. The picture's bytes
+     * are no image, so no rule that decodes a picture can be what leaves it out: only the file's
+     * detected format can.
+     */
+    @Test
+    @Story("A standalone image file shows its entry and nothing else")
+    @DisplayName("An image file that survived shows its entry, and none of the pictures its conversion carried")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
+    void showsAnImageFileAsItsEntryAndNothingElse(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpusWithAScreenshot(root, seeds);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success",
+                () -> assertThat(cli.getExitCode()).isZero());
+        Path page = theOnePageOf(root);
+        String text = Files.readString(page);
+        String cropName = nameOf(PictureScriptedExtractionBeans.THE_SCREENSHOTS_CROP);
+
+        claim(
+                "the image file reached the group's page as a membership entry of its own",
+                () -> assertThat(text).contains(PictureScriptedExtractionBeans.THE_SCREENSHOT));
+        claim(
+                "but the picture its conversion carried is written nowhere in the tree, although no other"
+                        + " document carries it: it is a copy of the original, which stays in the archive",
+                () -> assertThat(everyFileIn(theTreeOf(root)))
+                        .noneMatch(file -> file.getFileName().toString().equals(cropName)));
+        claim(
+                "and the image file's entry shows no image at all",
+                () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_SCREENSHOT))
+                        .doesNotContain("!["));
+        claim(
+                "while the diagram of the other document is still shown, so the image file costs its"
+                        + " neighbours nothing",
+                () -> assertThat(text).contains(nameOf(PictureScriptedExtractionBeans.THE_DIAGRAM)));
+    }
+
+    /**
+     * ADR-150 §3(d) and §5, through a whole invocation: a report converted as Docling converts a PDF
+     * carries a header picture cropped from pages one and two at the same box, and one chart. The two
+     * crops are different bytes, and their hashes are too far apart for a near-copy, so only where they
+     * sat can make them furniture: that is read from each picture's first position in the cached
+     * response, carried into the picture records, and compared by the writer. The boxes' edges share
+     * their whole-number parts and none equals a page number, so a reading that took an edge for the
+     * page would put both crops on one page, and they would be written.
+     */
+    @Test
+    @Story("A picture repeated at one place in its document is furniture and is left out")
+    @DisplayName("A report converted as a PDF shows its chart, and leaves out the header picture it repeats at one place on two pages")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void showsAPdfsChartAndLeavesOutTheHeaderItRepeatsAtOnePlace(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpusWithAReport(root, seeds);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success",
+                () -> assertThat(cli.getExitCode()).isZero());
+        Path page = theOnePageOf(root);
+        String text = Files.readString(page);
+        String stem = page.getFileName().toString().replaceFirst("\\.md$", "");
+        String chartName = nameOf(PictureScriptedExtractionBeans.THE_CHART);
+        Path chartFile = page.resolveSibling(stem).resolve(chartName);
+        List<String> headerNames = List.of(
+                nameOf(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_ONE),
+                nameOf(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_TWO));
+
+        claim(
+                "the header's two crops are different bytes, so the rule for a picture whose bytes recur"
+                        + " cannot be what leaves them out",
+                () -> assertThat(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_ONE)
+                        .isNotEqualTo(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_TWO));
+        claim(
+                "the chart is written into the tree beside the group's page, holding exactly the pixels the"
+                        + " converter returned",
+                () -> assertThat(chartFile).isRegularFile().hasBinaryContent(PictureScriptedExtractionBeans.THE_CHART));
+        claim(
+                "and it is shown inside the report's own entry",
+                () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_REPORT))
+                        .contains("](" + stem + "/" + chartName + ")"));
+        claim(
+                "while neither crop of the header is written anywhere in the tree or linked from the page:"
+                        + " each sits on another page within a point of the other's box, and a picture that"
+                        + " repeats at one place from page to page is page furniture",
+                () -> {
+                    assertThat(everyFileIn(theTreeOf(root)))
+                            .noneMatch(file -> headerNames.contains(file.getFileName().toString()));
+                    assertThat(text).doesNotContain(headerNames.get(0)).doesNotContain(headerNames.get(1));
+                });
+    }
+
     /** The one membership entry of {@code page} naming {@code document}, from its number to the next. */
     private static String theEntryNaming(String page, String document) {
         Matcher entry = AN_ENTRY.matcher(page);
@@ -259,13 +368,48 @@ class DeliverablePicturesInvocationTest {
 
     /**
      * The two corpus documents, a seed, every gate before 6b open, walked once, and the arrangement it
-     * produced approved: the state the one test here starts from.
+     * produced approved: the state the first test here starts from.
      */
     private void anApprovedCorpus(Path root, Path seeds) throws IOException {
+        theTwoDocumentsIn(root);
+        approveTheCorpus(root, seeds, TWO_DOCUMENTS);
+    }
+
+    /**
+     * {@link #anApprovedCorpus(Path, Path)}, with a standalone image file beside the two documents
+     * (ADR-150 §4): a real PNG, which stage 1 detects as an image.
+     */
+    private void anApprovedCorpusWithAScreenshot(Path root, Path seeds) throws IOException {
+        theTwoDocumentsIn(root);
+        ImageIO.write(
+                new BufferedImage(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT, BufferedImage.TYPE_INT_RGB),
+                "png",
+                root.resolve(PictureScriptedExtractionBeans.THE_SCREENSHOT).toFile());
+        approveTheCorpus(root, seeds, THREE_DOCUMENTS);
+    }
+
+    /**
+     * {@link #anApprovedCorpus(Path, Path)}, with a report beside the two documents whose conversion
+     * answers as Docling answers for a PDF, pictures, pages and boxes included.
+     */
+    private void anApprovedCorpusWithAReport(Path root, Path seeds) throws IOException {
+        theTwoDocumentsIn(root);
+        Files.writeString(root.resolve(PictureScriptedExtractionBeans.THE_REPORT), "a report with a chart");
+        approveTheCorpus(root, seeds, THREE_DOCUMENTS);
+    }
+
+    private static void theTwoDocumentsIn(Path root) throws IOException {
         Files.writeString(root.resolve(PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_A_DIAGRAM), "a document with a diagram");
         Files.writeString(
                 root.resolve(PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_ONLY_THE_LETTERHEAD),
                 "a document with only the letterhead");
+    }
+
+    /**
+     * A seed, every gate before 6b open, the corpus in {@code root} walked once, and the arrangement it
+     * produced approved, once it is shown to hold all {@code arranged} corpus documents.
+     */
+    private void approveTheCorpus(Path root, Path seeds, int arranged) throws IOException {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         Profile profile = profileStore.load();
         profileStore.save(ProfileFixture.profile()
@@ -282,14 +426,14 @@ class DeliverablePicturesInvocationTest {
                 .arrangementApproved(approval, "read by this test")
                 .build());
         claim(
-                "the first invocation arranged both of the " + TWO_DOCUMENTS + " corpus documents, so the"
-                        + " approved arrangement holds a document with a picture of its own and one without",
+                "the first invocation arranged every one of the " + arranged + " corpus documents, so the"
+                        + " approved arrangement holds every document whose pictures the claims below read",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM document_cluster WHERE run_id ="
                                         + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)",
                                 Integer.class,
                                 theLatestArrangement(root).value()))
-                        .isEqualTo(TWO_DOCUMENTS));
+                        .isEqualTo(arranged));
     }
 
     /** The arrangement the most recent invocation over {@code root} recorded. */

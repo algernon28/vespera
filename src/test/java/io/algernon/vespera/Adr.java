@@ -706,6 +706,15 @@ public final class Adr {
             + "0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md";
 
     /**
+     * ADR-150 -- every conversion asks Docling for each picture's pixels embedded in the answer, so a
+     * PDF's pictures reach the cache; the extractor identity changes with it; a picture cropped from a
+     * page recurs at the same place or as a near-copy rather than byte for byte, and either is furniture;
+     * a standalone image file still shows nothing but its entry.
+     */
+    public static final String A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS = FILE
+            + "0150-a-pdfs-pictures-are-asked-for-as-embedded-pixels-and-a-picture-repeated-at-one-place-or-as-a-near-copy-is-furniture.md";
+
+    /**
      * ADR-152 -- a sampled survivor whose file will not open when stage 5's labelling page is written
      * is still asked about, with a stated fallback in place of its opening and a warning naming the
      * file; the page reads the extraction cache and never converts; and a step that records its

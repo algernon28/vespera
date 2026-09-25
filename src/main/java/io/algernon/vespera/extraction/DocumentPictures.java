@@ -5,13 +5,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * A document's pictures, read back out of the conversion this module already cached for it (ADR-149,
- * ADR-106's precedent for {@link DocumentTitles}) -- so a survivor's pictures reach the tree for the
- * cost of a query rather than a conversion.
+ * ADR-150 §5, ADR-106's precedent for {@link DocumentTitles}) -- so a survivor's pictures reach the
+ * tree for the cost of a query rather than a conversion.
  *
- * <p>Keyed by content hash alone, not by content hash and extractor identity, for {@link
- * DocumentTitles}' reason: a caller asking about a document's own pictures has no business
- * re-deriving which converter and which options produced the cached row. Ordered so that repeated
- * reads of one archive answer the same way.
+ * <p><b>Keyed by content hash and extractor identity</b> (ADR-150 §5, amending ADR-149's "the identity
+ * that sorts first"): pictures are exactly where two identities can disagree, since a working
+ * directory converted before ADR-150 holds a row without a PDF's pixels and, after its next run, a row
+ * with them, both for the same content hash. Ordering by identity would pick between them by the
+ * spelling of the option names; the current identity's row is the one stage 2 has just made or
+ * confirmed for every survivor that converts, so it is always there to read.
  *
  * <p>Behind this class and nothing else querying the table for pictures (ADR-041), like every other
  * reader here.
@@ -31,14 +33,17 @@ public class DocumentPictures {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** The pictures the document with this content carries pixels for, or empty where nothing is cached. */
-    public List<DocumentPicture> forContentHash(String contentHash) {
+    /**
+     * The pictures the document with this content carries pixels for, under exactly this extractor
+     * identity's own conversion, or empty where nothing is cached under it (ADR-150 §5).
+     */
+    public List<DocumentPicture> forContentHash(String contentHash, ExtractorIdentity identity) {
         return jdbcTemplate
                 .query(
-                        "SELECT response_json FROM extraction_cache WHERE content_hash = ?"
-                                + " ORDER BY extractor_identity LIMIT 1",
+                        "SELECT response_json FROM extraction_cache WHERE content_hash = ? AND extractor_identity = ?",
                         (resultSet, rowNumber) -> resultSet.getString("response_json"),
-                        contentHash)
+                        contentHash,
+                        identity.value())
                 .stream()
                 .findFirst()
                 .map(DocumentPicture::allOf)

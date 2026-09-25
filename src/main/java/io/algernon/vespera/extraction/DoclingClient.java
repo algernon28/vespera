@@ -117,6 +117,16 @@ public class DoclingClient {
     /** The export {@code /v1/convert/file} is asked for — see the class javadoc for why JSON. */
     private static final String REQUESTED_EXPORT_FORMAT = "json";
 
+    /**
+     * The picture mode every conversion asks for (ADR-150): each picture's pixels as a base64
+     * {@code data:} URI inside the JSON answer. The sidecar's own default, {@code placeholder},
+     * returns a PDF's pictures located on the page with no pixels at all; {@code referenced}
+     * returns a file name the single synchronous call gives no way to read back. Sent for every
+     * format, not only PDFs and images, because the identity is one value per run and an option
+     * sent to some formats only would misstate the request for the rest.
+     */
+    private static final String PICTURE_EXPORT_MODE = "embedded";
+
     private final RestClient restClient;
     private final JsonMapper jsonMapper;
 
@@ -180,8 +190,8 @@ public class DoclingClient {
      * key that claims something untrue about the rows under it.
      */
     public static String sentOptions() {
-        return "to_formats=" + REQUESTED_EXPORT_FORMAT + ";ocr_preset=" + PINNED_OCR_PRESET + ";naming="
-                + NAMING_SCHEME_VERSION;
+        return "to_formats=" + REQUESTED_EXPORT_FORMAT + ";ocr_preset=" + PINNED_OCR_PRESET
+                + ";image_export_mode=" + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION;
     }
 
     /**
@@ -276,6 +286,7 @@ public class DoclingClient {
         body.part("files", new FileSystemResource(file)).filename(partName);
         body.part("to_formats", REQUESTED_EXPORT_FORMAT);
         body.part("ocr_preset", PINNED_OCR_PRESET);
+        body.part("image_export_mode", PICTURE_EXPORT_MODE);
 
         String rawResponse;
         try {
