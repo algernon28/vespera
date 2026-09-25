@@ -1,6 +1,5 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
@@ -9,7 +8,6 @@ import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DocumentPictures;
 import io.algernon.vespera.extraction.LeadingChunks;
-import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -127,8 +125,6 @@ class GenerationTasklet implements Tasklet {
     private final SynthesisDocs synthesisDocs;
     private final ClusterFaults clusterFaults;
     private final Ledger ledger;
-    private final ContentIdentity contentIdentity;
-    private final ImplementationVersions implementationVersions;
     private final ProfileStore profileStore;
     private final Path root;
     private final Path workingDirectory;
@@ -147,8 +143,6 @@ class GenerationTasklet implements Tasklet {
             SynthesisDocs synthesisDocs,
             JdbcTemplate jdbcTemplate,
             Ledger ledger,
-            ContentIdentity contentIdentity,
-            ImplementationVersions implementationVersions,
             ProfileStore profileStore,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
@@ -173,8 +167,6 @@ class GenerationTasklet implements Tasklet {
         // class to name it too; the JdbcTemplate it is built from is already ambient here.
         this.documentPictures = new DocumentPictures(jdbcTemplate);
         this.ledger = ledger;
-        this.contentIdentity = contentIdentity;
-        this.implementationVersions = implementationVersions;
         this.profileStore = profileStore;
         this.root = root;
         this.workingDirectory = workingDirectory;
@@ -365,11 +357,11 @@ class GenerationTasklet implements Tasklet {
      * eight profile keys the run consumed, every survivor's path, content hash and score, and the
      * arrangement and the writing produced under this run.
      *
-     * <p>The content hash on the survivor row is read from {@code corpus}'s own record rather than
-     * recomputed from the file (ADR-104): stage 1's run id is re-derived from its known-fixed inputs,
-     * the way {@link ExtractionRun} already re-derives it. The picture chain (ADR-149 §9) is not exempt
-     * from touching the archive: it reads each listed survivor's file once to hash it, because {@code
-     * extraction} keys its picture cache on its own content hash rather than {@code corpus}'s.
+     * <p>The content hash is taken from each survivor's file through {@code extraction}'s own hash, the
+     * key its conversion is cached under (ADR-151). Stage 1 hashes only within size-matched groups, so
+     * its record covers only some survivors. The same read serves the picture chain (ADR-149 §9): the
+     * manifest and the pictures share the one hash computed per survivor, kept in {@code hashes} for the
+     * length of this write, so a listed survivor's file is read at most once.
      */
     private Path writeDeliverable(
             RunId generation,
@@ -378,11 +370,7 @@ class GenerationTasklet implements Tasklet {
             List<RecordedCluster> recordedClusters,
             List<DocumentCluster> membership,
             Map<OccurrenceId, Double> scores) {
-        RunId byteLevelReductionRun = RunId.of(
-                implementationVersions.of(ByteLevelReductionTasklet.OWNING_MODULE),
-                ByteLevelReductionTasklet.CONFIG_CONSUMED,
-                walkId,
-                List.of());
+        Map<OccurrenceId, Optional<String>> hashes = new HashMap<>();
         DeliverableProvenance provenance = new DeliverableProvenance(
                 generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
         return Deliverable.writeTo(
@@ -390,8 +378,8 @@ class GenerationTasklet implements Tasklet {
                 provenance,
                 recordedClusters,
                 synthesisDocs.forRun(generation),
-                survivorsFor(membership, scores, byteLevelReductionRun),
-                survivorPictures(canonicalRoot));
+                survivorsFor(membership, scores, canonicalRoot, hashes),
+                survivorPictures(canonicalRoot, hashes));
     }
 
     /**
@@ -399,32 +387,30 @@ class GenerationTasklet implements Tasklet {
      * #openingChunkOf} follows to reach a document's cached conversion, joined to {@link
      * DocumentPictures} instead of {@link LeadingChunks}.
      *
-     * <p><b>Never {@link ListedSurvivor#contentHash()}.</b> That column is {@code corpus}'s stage-1
-     * hash, recorded only for a survivor that once shared a size with another file, and is blank for
-     * most of them (ADR-149's own finding). {@code extraction} keys its cache on its own hash of every
-     * file, so this hashes the file itself, exactly as {@link #openingChunkOf} does.
+     * <p><b>The same value as {@link ListedSurvivor#contentHash()}, not a second hash of the file.</b>
+     * Both the manifest's column and this lookup are keyed on {@code extraction}'s own hash of the
+     * survivor's file (ADR-151), and {@code hashes} is the one cache {@link #writeDeliverable} builds
+     * and hands to both {@link #survivorsFor} and this method, so the same survivor is hashed once no
+     * matter how many of the manifest, the recurring-bytes count and the picture lookup ask about it.
      *
-     * <p><b>Cached per occurrence</b>, but only the hash: {@link Deliverable#writeTo} asks about a
-     * listed survivor twice, once to count recurring bytes and again to write its pictures (ADR-149 §9),
-     * and hashing the archive's own file a second time would cost a second read and, on a file that has
-     * gone away between the two passes, a second warning about the same fact. The hash is cached so the
-     * file is read once and warned about once; the pixels themselves are not cached, so a document's
-     * decoded pictures live only for the one call that decodes them, and ADR-149 §9's one-document bound
-     * on memory holds regardless of how many times a survivor is asked about.
+     * <p>The pixels themselves are not cached: {@link #picturesFor}'s query and decode run on every
+     * call, so a document's decoded pictures live only for the one call that decodes them, and ADR-149
+     * §9's one-document bound on memory holds regardless of how many times a survivor is asked about.
      */
-    private SurvivorPictures survivorPictures(Path canonicalRoot) {
-        Map<OccurrenceId, Optional<String>> hashes = new HashMap<>();
+    private SurvivorPictures survivorPictures(Path canonicalRoot, Map<OccurrenceId, Optional<String>> hashes) {
         return occurrenceId ->
                 hashOf(occurrenceId, canonicalRoot, hashes).map(this::picturesFor).orElseGet(List::of);
     }
 
     /**
-     * The content hash of a survivor's file, read once per occurrence and cached, or empty where the
-     * file cannot be read (ADR-149 §9).
+     * The content hash of a survivor's file (ADR-151), read once per occurrence and cached, or empty
+     * where the file cannot be read. The manifest's {@code content_hash} cell and the picture lookup of
+     * ADR-149 §9 both read through this cache, so a survivor's file is read and warned about at most once
+     * per tree write regardless of which of them asks first.
      *
-     * <p>A file the archive will no longer open contributes no pictures rather than failing the tree,
-     * for {@link #openingChunkOf}'s reason: an archive is a live filesystem, and a document gone since
-     * the walk is a fact about that document, not about this run.
+     * <p>A file the archive will no longer open earns a blank {@code content_hash} cell and no pictures,
+     * rather than failing the tree, for {@link #openingChunkOf}'s reason: an archive is a live
+     * filesystem, and a document gone since the walk is a fact about that document, not about this run.
      */
     private Optional<String> hashOf(
             OccurrenceId occurrenceId, Path canonicalRoot, Map<OccurrenceId, Optional<String>> cache) {
@@ -435,7 +421,8 @@ class GenerationTasklet implements Tasklet {
             } catch (UncheckedIOException e) {
                 LOG.warn(
                         "occurrence {} is a survivor listed in the deliverable but {} could not be read, so"
-                                + " none of its pictures reach the tree",
+                                + " its content_hash cell is left blank and none of its pictures reach the"
+                                + " tree",
                         id.value(),
                         file,
                         e);
@@ -477,11 +464,14 @@ class GenerationTasklet implements Tasklet {
 
     /**
      * Every survivor of the arrangement, as {@code documents.csv} carries it (ADR-104, ADR-112):
-     * gathered from {@code document_cluster}, the ledger's own facts, {@code corpus}'s content hash
+     * gathered from {@code document_cluster}, the ledger's own facts, {@code extraction}'s content hash
      * and the scores already read for this pass.
      */
     private List<ListedSurvivor> survivorsFor(
-            List<DocumentCluster> membership, Map<OccurrenceId, Double> scores, RunId byteLevelReductionRun) {
+            List<DocumentCluster> membership,
+            Map<OccurrenceId, Double> scores,
+            Path canonicalRoot,
+            Map<OccurrenceId, Optional<String>> hashes) {
         List<ListedSurvivor> survivors = new ArrayList<>();
         for (DocumentCluster member : membership) {
             OccurrencePath path = ledger.factsFor(member.occurrenceId())
@@ -492,7 +482,7 @@ class GenerationTasklet implements Tasklet {
                     .map(OccurrenceFacts::path)
                     .orElseThrow(() -> new IllegalStateException("no facts recorded for seed occurrence "
                             + member.winningSeedOccurrenceId().value()));
-            String contentHash = contentHashFor(member.occurrenceId(), byteLevelReductionRun);
+            String contentHash = hashOf(member.occurrenceId(), canonicalRoot, hashes).orElse("");
             double score = scores.getOrDefault(member.occurrenceId(), 0.0);
             survivors.add(new ListedSurvivor(
                     member.occurrenceId(),
@@ -504,30 +494,6 @@ class GenerationTasklet implements Tasklet {
                     score));
         }
         return survivors;
-    }
-
-    /**
-     * The content hash {@code corpus} recorded for {@code occurrenceId} under the re-derived stage 1
-     * run, or a blank cell with a named reason rather than a silent one.
-     *
-     * <p>{@code byteLevelReductionRun} is re-derived rather than looked up (this class's own {@link
-     * #writeDeliverable}, mirroring {@code ExtractionRun}), so unlike that class's {@code
-     * run_upstream} foreign key, nothing here proves the row exists before asking for it. A miss is
-     * therefore named rather than swallowed: a manifest with a blank {@code content_hash} cell and
-     * nothing said would leave an operator unable to tell "not recorded" from "recorded as empty".
-     */
-    private String contentHashFor(OccurrenceId occurrenceId, RunId byteLevelReductionRun) {
-        Optional<String> hash = contentIdentity.hashFor(occurrenceId, byteLevelReductionRun);
-        if (hash.isEmpty()) {
-            LOG.warn(
-                    "occurrence {} carries no content hash recorded under the re-derived"
-                            + " byte-level-reduction run {}, so its row in the manifest carries a blank"
-                            + " content_hash cell",
-                    occurrenceId.value(),
-                    byteLevelReductionRun.value());
-            return "";
-        }
-        return hash.get();
     }
 
     /**

@@ -89,11 +89,28 @@ class GenerationScriptedBeans {
         BY_LABEL.put(label, answer);
     }
 
+    /**
+     * Something a test wants to happen while the model is being asked, run inside every call before
+     * the answer is chosen.
+     *
+     * <p>Kept for the one claim that needs the archive to change between reading a cluster's documents
+     * and writing the tree: stage 6b reads its exemplars before the call and writes {@code documents.csv}
+     * after it, so a file deleted here is one the call was written from and the tree cannot hash
+     * (ADR-151 §3). Static for the reason the scripted answers are, and dropped with them.
+     */
+    private static Runnable duringEachCall = () -> {};
+
+    /** Runs {@code action} inside every call the model is put, until the scripts are next dropped. */
+    static void duringEachCall(Runnable action) {
+        duringEachCall = action;
+    }
+
     /** Drops every scripted answer, so nothing a test wrote outlives it. */
     static void forgetScriptedAnswers() {
         BY_LABEL.clear();
         callsMade = 0;
         PROMPTS_SENT.clear();
+        duringEachCall = () -> {};
     }
 
     /**
@@ -132,6 +149,7 @@ class GenerationScriptedBeans {
         return prompt -> {
             callsMade++;
             PROMPTS_SENT.add(prompt.getContents());
+            duringEachCall.run();
             ScriptedAnswer answer = BY_LABEL.entrySet().stream()
                     .filter(scripted -> prompt.getContents().contains(scripted.getKey()))
                     .map(Map.Entry::getValue)
