@@ -2,7 +2,6 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.Ledger;
@@ -21,6 +20,7 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -41,19 +41,22 @@ import org.springframework.test.context.DynamicPropertySource;
  * arrangement, and an approval that were merely true would never expire — an operator who looked at
  * one shape of their archive would go on shipping every later shape having looked at nothing.
  *
- * <p>The two failure directions are deliberately different. A name matching nothing leaves the gate
- * shut and says so, because a typo must not be indistinguishable from an approval. A name matching
- * two arrangements stops the run, which is what this system already does anywhere it would otherwise
- * have to guess which of two runs was meant.
+ * <p>The name is matched against one arrangement only: the one this invocation made or continued
+ * (ADR-154, amending ADR-107). A name matching nothing leaves the gate shut, because a typo must not be
+ * indistinguishable from an approval, and so does a name matching an older arrangement of the same
+ * archive, because that is an approval of a shape the documents are no longer in. ADR-107's test that a
+ * name matching two arrangements stops the run is retired: matched against one arrangement, a name can
+ * never match two.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
-@Import({ArrangementGate.class, ProfileStore.class, Ledger.class})
+@Import({ArrangementGate.class, ProfileStore.class})
 @Epic("Arrangement")
 @Feature("Approving the arrangement")
 @Issue("175")
 @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
+@Link(name = "ADR-154", url = Adr.A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT, type = "adr")
 class ArrangementGateTest {
 
     /** How much of an arrangement's id the operator is asked to copy (ADR-107). */
@@ -80,63 +83,62 @@ class ArrangementGateTest {
     @Story("A gate closes rather than failing")
     @DisplayName("Nothing approved closes the gate")
     void closesWhenNothingIsApproved() {
-        WalkId walk = aWalk();
-        anArrangement(walk);
+        RunId arrangement = anArrangement(aWalk());
         approve(null);
 
         claim(
                 "with nothing approved there is nothing to write over: the documents have been arranged"
                         + " and the person who has to look at that arrangement has not said so yet",
-                () -> assertThat(arrangementGate.approvedArrangement(walk)).isEmpty());
+                () -> assertThat(arrangementGate.approvedArrangement(Optional.of(arrangement))).isEmpty());
     }
 
     @Test
     @Story("A gate closes rather than failing")
     @DisplayName("A name matching no arrangement closes the gate rather than proceeding")
     void closesWhenTheNameMatchesNothing() {
-        WalkId walk = aWalk();
-        anArrangement(walk);
+        RunId arrangement = anArrangement(aWalk());
         approve("0123456789ab");
 
         claim(
                 "a name matching nothing leaves the gate shut instead of carrying on: a mistyped name"
                         + " that quietly behaved like an approval would be the one failure this gate exists"
                         + " to prevent",
-                () -> assertThat(arrangementGate.approvedArrangement(walk)).isEmpty());
+                () -> assertThat(arrangementGate.approvedArrangement(Optional.of(arrangement))).isEmpty());
     }
 
     @Test
     @Story("The gate opens only when everything it needs is there")
     @DisplayName("A name matching one arrangement opens the gate on that arrangement")
     void opensOnTheArrangementTheNameMatches() {
-        WalkId walk = aWalk();
-        RunId arrangement = anArrangement(walk);
+        RunId arrangement = anArrangement(aWalk());
         approve(arrangement.value().substring(0, APPROVAL_LENGTH));
 
         claim(
-                "the gate opens on the very arrangement the name picked out, not merely on the fact that"
+                "the gate opens on the very arrangement this invocation made, which the name picks out, not merely on the fact that"
                         + " some approval was written -- what is generated has to be generated over what"
                         + " was read",
-                () -> assertThat(arrangementGate.approvedArrangement(walk)).contains(arrangement));
+                () -> assertThat(arrangementGate.approvedArrangement(Optional.of(arrangement))).contains(arrangement));
     }
 
     @Test
-    @Story("The gate opens only when everything it needs is there")
-    @DisplayName("A name matching two arrangements stops the run instead of choosing one")
-    void stopsWhenTheNameMatchesTwo() {
+    @Story("A gate closes rather than failing")
+    @DisplayName("A name matching an earlier arrangement of the same archive closes the gate")
+    void closesWhenTheNameMatchesAnEarlierArrangementOnly() {
         WalkId walk = aWalk();
-        RunId first = anArrangement(walk);
-        RunId second = anotherArrangementSharingThePrefixOf(first, walk);
-        approve(first.value().substring(0, APPROVAL_LENGTH));
+        RunId earlier = anArrangement(walk);
+        RunId thisInvocations = anArrangement(walk);
+        approve(earlier.value().substring(0, APPROVAL_LENGTH));
 
         claim(
-                "with two arrangements answering to one name the run stops rather than picking either:"
-                        + " guessing which one a person meant would mean generating over an arrangement"
-                        + " nobody approved, and doing it invisibly",
-                () -> assertThatThrownBy(() -> arrangementGate.approvedArrangement(walk))
-                        .isInstanceOf(AmbiguousArrangementException.class)
-                        .hasMessageContaining(first.value())
-                        .hasMessageContaining(second.value()));
+                "a name that picks out an earlier arrangement of this same archive leaves the gate shut when"
+                        + " the documents have since been arranged differently: that approval was of a shape"
+                        + " they are no longer in, and writing over the old shape would be writing over"
+                        + " something nobody approved now",
+                () -> assertThat(arrangementGate.approvedArrangement(Optional.of(thisInvocations))).isEmpty());
+        claim(
+                "and a name is no approval at all where this invocation arranged nothing, however well it"
+                        + " matches an arrangement made before",
+                () -> assertThat(arrangementGate.approvedArrangement(Optional.empty())).isEmpty());
     }
 
     private void approve(String approval) {
@@ -161,23 +163,5 @@ class ArrangementGateTest {
     private RunId anArrangement(WalkId walkId) {
         return new Ledger(jdbcTemplate)
                 .startRun(ArrangementRun.STAGE, "v" + System.nanoTime(), "{}", walkId, List.of());
-    }
-
-    /**
-     * A second arrangement under the same walk whose id opens with the first's twelve characters.
-     * Written straight into the table because a content-derived id cannot be steered into a collision,
-     * and what is under test is what the gate does when it meets one — not how likely that is.
-     */
-    private RunId anotherArrangementSharingThePrefixOf(RunId first, WalkId walkId) {
-        String colliding = first.value().substring(0, APPROVAL_LENGTH) + "f".repeat(8);
-        jdbcTemplate.update(
-                "INSERT INTO run (id, stage, implementation_version, config_consumed, walk_id)"
-                        + " VALUES (?, ?, ?, ?, ?)",
-                colliding,
-                ArrangementRun.STAGE,
-                "v-collision",
-                "{}",
-                walkId.value());
-        return new RunId(colliding);
     }
 }

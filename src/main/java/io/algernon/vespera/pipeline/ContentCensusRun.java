@@ -9,6 +9,7 @@ import io.algernon.vespera.ledger.WalkId;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -19,11 +20,10 @@ import tools.jackson.databind.json.JsonMapper;
  * what it mints ({@link #STAGE}) rather than for its place in the cascade: Spring Batch's own step
  * order already carries "stage 3."
  *
- * <p>Stage 2's run id is learned rather than worked out: {@link UpstreamRuns} looks up the run of
- * stage 2 recorded against this walk (ADR-099). The stage must not depend on having run in the same
- * invocation as its predecessor, and a query is not in-process state. It replaces re-deriving the id
- * from stage 2's known-fixed inputs, which required stage 1's id in turn and would drift silently if
- * either earlier stage's configuration shape changed here.
+ * <p>Stage 2's run id is learned rather than worked out: {@link UpstreamRuns} reads the run of stage 2
+ * this invocation minted or continued, from {@link InvocationRuns} (ADR-154 §1, amending ADR-099). It
+ * replaces re-deriving the id from stage 2's known-fixed inputs, which required stage 1's id in turn
+ * and would drift silently if either earlier stage's configuration shape changed here.
  *
  * <p>Because {@code vesperaJob} wires this step after {@code extractionStep} ({@link
  * CensusJobConfiguration}), and Spring Batch's default step transition only proceeds to the next step
@@ -67,18 +67,21 @@ class ContentCensusRun {
             ImplementationVersions implementationVersions,
             ExtractorIdentity extractorIdentity,
             DegenerateOutputConfidenceFloor confidenceFloor,
-            @Value("#{jobParameters['root']}") Path root) {
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("#{stepExecution.jobExecution.executionContext}") ExecutionContext executionContext) {
         Path canonicalRoot = Walk.canonicalRoot(root);
         WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 3"));
-        this.extractionRunId = new UpstreamRuns(ledger).runOf(ExtractionRun.STAGE, walkId);
+        InvocationRuns invocationRuns = new InvocationRuns(executionContext);
+        this.extractionRunId = new UpstreamRuns(invocationRuns).runOf(ExtractionRun.STAGE);
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, EXTRACTION_MODULE, PIPELINE_MODULE),
                 configConsumed(canonicalRoot, this.extractionRunId),
                 walkId,
                 List.of(this.extractionRunId));
+        invocationRuns.record(STAGE, this.runId);
     }
 
     /**
@@ -86,8 +89,8 @@ class ContentCensusRun {
      * (ADR-048) — never {@code "{}"}, since both are recoverable from the run row itself.
      *
      * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
-     * later stages re-derived this run's identity by reproducing this JSON shape, and they now look the
-     * run up instead.
+     * later stages re-derived this run's identity by reproducing this JSON shape, and they now
+     * read the run this invocation recorded instead (ADR-154).
      */
     private static String configConsumed(Path canonicalRoot, RunId extractionRunId) {
         return JSON_MAPPER.writeValueAsString(new ConfigConsumed(canonicalRoot.toString(), extractionRunId.value()));

@@ -107,6 +107,11 @@ public class ByteLevelReductionTasklet implements Tasklet {
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 1"));
         RunId runId =
                 ledger.startRun(STAGE, implementationVersions.of(OWNING_MODULE), CONFIG_CONSUMED, walkId, List.of());
+        // Recorded the moment startRun returns (ADR-154 §1): stage 1 has no upstream of its own to
+        // read, but everything after it reads this invocation's own byte-level-reduction run from here
+        // rather than looking it up over the walk.
+        new InvocationRuns(chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext())
+                .record(STAGE, runId);
 
         // This step's own work under this run is already written, so there is nothing here to do
         // (ADR-115, ADR-116). This is what a content-derived identity was always for: the same inputs

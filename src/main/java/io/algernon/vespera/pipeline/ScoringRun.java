@@ -9,6 +9,7 @@ import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.batch.core.configuration.annotation.JobScope;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -62,7 +63,8 @@ class ScoringRun {
             EmbeddingModelGate embeddingModelGate,
             ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
             ProfileStore profileStore,
-            @Value("#{jobParameters['root']}") Path root) {
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("#{jobExecution.executionContext}") ExecutionContext executionContext) {
         String modelName = embeddingModelGate
                 .modelName()
                 .orElseThrow(() -> new IllegalStateException(
@@ -84,6 +86,9 @@ class ScoringRun {
                 configConsumed(canonicalRoot, modelName, measurementRun.runId(), relevanceScoreFloor),
                 walkId,
                 List.of(measurementRun.runId()));
+        // Recorded the moment startRun returns (ADR-154 §1): the measurement run above was recorded by
+        // its own constructor when it minted or continued.
+        new InvocationRuns(executionContext).record(STAGE, this.runId);
     }
 
     /**

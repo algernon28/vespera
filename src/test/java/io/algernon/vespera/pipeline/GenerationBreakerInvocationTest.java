@@ -6,40 +6,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.AnomalyLog;
-import io.algernon.vespera.corpus.ContentIdentity;
-import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.corpus.WalkRecorder;
-import io.algernon.vespera.embedding.ChunkEmbedderBeans;
-import io.algernon.vespera.embedding.ClusteringBeans;
-import io.algernon.vespera.embedding.DocumentClusters;
-import io.algernon.vespera.embedding.RelevanceDistribution;
-import io.algernon.vespera.embedding.RelevanceLabels;
-import io.algernon.vespera.embedding.RelevanceScoringBeans;
-import io.algernon.vespera.embedding.SeedCorpusComparison;
-import io.algernon.vespera.embedding.UnusableSeeds;
-import io.algernon.vespera.extraction.ConfidenceDistribution;
-import io.algernon.vespera.extraction.ExtractionMetrics;
-import io.algernon.vespera.extraction.HybridChunkerBeans;
-import io.algernon.vespera.extraction.LanguageDetection;
-import io.algernon.vespera.extraction.LeadingChunks;
-import io.algernon.vespera.ledger.ImplementationVersions;
-import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.pipeline.GenerationScriptedBeans.ScriptedAnswer;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.similarity.BoilerplateShingles;
-import io.algernon.vespera.similarity.DocumentFrequency;
-import io.algernon.vespera.similarity.RedundancyResolution;
-import io.algernon.vespera.similarity.RedundancySignatures;
-import io.algernon.vespera.similarity.Shingler;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
 import io.algernon.vespera.synthesis.ClusterFaults;
-import io.algernon.vespera.synthesis.ClusterSynthesis;
-import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.RecordedClusterFault;
 import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
@@ -59,17 +33,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
-import org.springframework.boot.batch.autoconfigure.BatchAutoConfiguration;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Stage 6b when answer after answer is turned down (ADR-111, #184): a cluster whose answer nobody
@@ -107,102 +74,8 @@ import org.springframework.transaction.annotation.Transactional;
  * itself -- the constants, the fixture methods, these comments -- says cluster. Do not reconcile the
  * two by changing either side.
  */
-@JdbcTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@ActiveProfiles("test")
-@Transactional(propagation = Propagation.NOT_SUPPORTED)
-@ImportAutoConfiguration(BatchAutoConfiguration.class)
-@Import({
-    CensusJobConfiguration.class,
-    GenerationJobConfiguration.class,
-    GenerationTasklet.class,
-    GenerationRun.class,
-    GenerationModel.class,
-    GenerationContextWindow.class,
-    CensusTasklet.class,
-    ByteLevelReductionJobConfiguration.class,
-    ByteLevelReductionTasklet.class,
-    ExtractionJobConfiguration.class,
-    ExtractionItemProcessor.class,
-    ExtractionItemWriter.class,
-    ExtractionRun.class,
-    ExtractionTimeoutStreak.class,
-    ExtractionCircuitBreaker.class,
-    ExtractionHealthCheckListener.class,
-    ContentCensusJobConfiguration.class,
-    ContentCensusTasklet.class,
-    ContentCensusRun.class,
-    RedundancyJobConfiguration.class,
-    RedundancyRun.class,
-    RedundancyGate.class,
-    RedundancyBoilerplate.class,
-    RedundancySignatureItemWriter.class,
-    RedundancyResolutionTasklet.class,
-    SeedExtractionJobConfiguration.class,
-    SeedExtractionItemProcessor.class,
-    SeedExtractionItemWriter.class,
-    SeedCorpusComparisonJobConfiguration.class,
-    SeedCorpusComparisonTasklet.class,
-    EmbeddingModelJobConfiguration.class,
-    EmbeddingScoringTasklet.class,
-    RelevanceScoringJobConfiguration.class,
-    RelevanceScoringTasklet.class,
-    RelevanceFloorJobConfiguration.class,
-    RelevanceFloorTasklet.class,
-    RelevanceFloor.class,
-    ClusteringJobConfiguration.class,
-    ClusteringTasklet.class,
-    RelevanceReportJobConfiguration.class,
-    RelevanceReportTasklet.class,
-    ArrangementJobConfiguration.class,
-    ArrangementTasklet.class,
-    io.algernon.vespera.extraction.DocumentTitles.class,
-    ArrangementRun.class,
-    ArrangementGate.class,
-    Clusters.class,
-    SynthesisDocs.class,
-    ClusterFaults.class,
-    ClusterSynthesis.class,
-    LeadingChunks.class,
-    GenerationScriptedBeans.class,
-    RelevanceDistribution.class,
-    EmbeddingModelGate.class,
-    SeedMeasurementRun.class,
-    ScoringRun.class,
-    SeedGate.class,
-    UsableSeedGate.class,
-    ChunkEmbedderBeans.class,
-    RelevanceScoringBeans.class,
-    ClusteringBeans.class,
-    DocumentClusters.class,
-    EmbeddingScriptedBeans.class,
-    RedundancySignatures.class,
-    RedundancyResolution.class,
-    BoilerplateShingles.class,
-    DocumentFrequency.class,
-    ConfidenceDistribution.class,
-    SeedCorpusComparison.class,
-    UnusableSeeds.class,
-    Shingler.class,
-    HybridChunkerBeans.class,
-    SeedScriptedExtractionBeans.class,
-    ExtractionMetrics.class,
-    LanguageDetection.class,
-    ContentIdentity.class,
-    DetectedFormats.class,
-    WalkRecorder.class,
-    AnomalyLog.class,
-    Ledger.class,
-    ImplementationVersions.class,
-    ProfileStore.class,
-    NextAction.class,
-    VesperaCommand.class,
-    VesperaCommand.Run.class,
-    VesperaCommand.Label.class,
-    LabelIngestion.class,
-    RelevanceLabels.class,
-    VesperaCli.class
-})
+@CascadeSliceTest
+@Import({ClusterFaults.class, SeedScriptedExtractionBeans.class})
 @Epic("Synthesis")
 @Feature("Writing over the groups")
 @Issue("184")
@@ -714,16 +587,15 @@ class GenerationBreakerInvocationTest {
     }
 
     /**
-     * The same, with the cluster at {@code theClusterHoldingNothing} left holding no document at all — the
-     * state a cluster is in when nothing it holds can be sent, which costs no call and returns no answer.
+     * The same, with the cluster at {@code theClusterHoldingNothing} holding a document nothing of can be
+     * sent — which costs no call and returns no answer (ADR-121).
      *
      * @param theClusterHoldingNothing where that cluster sits in the order, or {@link
      *     #EVERY_CLUSTER_HOLDS_A_DOCUMENT} when there is no such cluster
      */
     private void anApprovedArrangementOf(int clusters, int theClusterHoldingNothing, Path root, Path seeds)
             throws IOException {
-        int documentsNeeded = theClusterHoldingNothing == EVERY_CLUSTER_HOLDS_A_DOCUMENT ? clusters : clusters - 1;
-        for (int document = 1; document <= documentsNeeded; document++) {
+        for (int document = 1; document <= clusters; document++) {
             Files.writeString(root.resolve("corpus-" + document + ".txt"), "corpus document " + document);
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
@@ -769,11 +641,15 @@ class GenerationBreakerInvocationTest {
      * <p><b>Every placed document is given the cluster rows' winning seed</b>, so membership and
      * arrangement agree on the key the step reads them by, and the order is the cluster order alone.
      *
-     * <p>The cluster at {@code theClusterHoldingNothing} is given no document and a count of none, which is
-     * how a cluster nothing can be sent for is arranged here: no document of the corpus is moved into it,
-     * so the step meets it, finds nothing to send, and makes no call.
+     * <p>The cluster at {@code theClusterHoldingNothing} is given its document like every other, so the
+     * arrangement stays total and its page can be drawn from it (ADR-112, ADR-154 §2). What leaves it
+     * with nothing to send is that its document is then rewritten in place, its length and timestamps
+     * unchanged, so the walk still sees the same archive and the approval still stands, while the step
+     * finds nothing cached under the text it now reads ({@link UnseenEditFixture}). It meets the
+     * cluster, finds nothing to send, and makes no call.
      */
-    private void oneClusterPerDocument(RunId arrangement, int clusters, int theClusterHoldingNothing, Path root) {
+    private void oneClusterPerDocument(RunId arrangement, int clusters, int theClusterHoldingNothing, Path root)
+            throws IOException {
         String scoring = jdbcTemplate.queryForObject(
                 "SELECT upstream_run_id FROM run_upstream WHERE run_id = ?", String.class, arrangement.value());
         // Scoped to this method's own walk, for the reason the javadoc above gives: the run may carry
@@ -786,9 +662,8 @@ class GenerationBreakerInvocationTest {
                 Long.class,
                 scoring,
                 Walk.canonicalRoot(root).toString());
-        int documentsNeeded = theClusterHoldingNothing == EVERY_CLUSTER_HOLDS_A_DOCUMENT ? clusters : clusters - 1;
-        if (documents.size() < documentsNeeded) {
-            throw new IllegalStateException("this fixture needs " + documentsNeeded + " documents in the"
+        if (documents.size() < clusters) {
+            throw new IllegalStateException("this fixture needs " + clusters + " documents in the"
                     + " arrangement to make " + clusters + " groups, and this walk produced " + documents.size());
         }
         Long winningSeed = jdbcTemplate.queryForObject(
@@ -806,18 +681,14 @@ class GenerationBreakerInvocationTest {
         // it arranges these documents and no others -- which is the thing that was not true before.
         jdbcTemplate.update(
                 "UPDATE document_cluster SET cluster_ordinal = ? WHERE run_id = ?", clusters, scoring);
-        int document = 0;
         for (int cluster = 0; cluster < clusters; cluster++) {
-            if (cluster == theClusterHoldingNothing) {
-                continue;
-            }
             jdbcTemplate.update(
                     "UPDATE document_cluster SET cluster_ordinal = ?, winning_seed_occurrence_id = ?"
                             + " WHERE run_id = ? AND occurrence_id = ?",
                     cluster,
                     winningSeed,
                     scoring,
-                    documents.get(document++));
+                    documents.get(cluster));
         }
         jdbcTemplate.update("DELETE FROM cluster WHERE run_id = ?", arrangement.value());
         for (int cluster = 0; cluster < clusters; cluster++) {
@@ -828,8 +699,14 @@ class GenerationBreakerInvocationTest {
                     winningSeed,
                     cluster,
                     CLUSTER_NAMES.get(cluster),
-                    cluster == theClusterHoldingNothing ? 0 : 1,
+                    1,
                     cluster);
+        }
+        if (theClusterHoldingNothing != EVERY_CLUSTER_HOLDS_A_DOCUMENT) {
+            UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve(jdbcTemplate.queryForObject(
+                    "SELECT path FROM file_occurrence WHERE id = ?",
+                    String.class,
+                    documents.get(theClusterHoldingNothing))));
         }
     }
 

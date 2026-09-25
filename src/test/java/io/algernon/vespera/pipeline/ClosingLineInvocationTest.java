@@ -3,26 +3,7 @@ package io.algernon.vespera.pipeline;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.AnomalyLog;
-import io.algernon.vespera.corpus.ContentIdentity;
-import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.corpus.WalkRecorder;
-import io.algernon.vespera.embedding.ChunkEmbedderBeans;
-import io.algernon.vespera.embedding.ClusteringBeans;
-import io.algernon.vespera.embedding.DocumentClusters;
-import io.algernon.vespera.embedding.RelevanceDistribution;
-import io.algernon.vespera.embedding.RelevanceLabels;
-import io.algernon.vespera.embedding.RelevanceScoringBeans;
-import io.algernon.vespera.embedding.SeedCorpusComparison;
-import io.algernon.vespera.embedding.UnusableSeeds;
-import io.algernon.vespera.extraction.ConfidenceDistribution;
-import io.algernon.vespera.extraction.ExtractionMetrics;
-import io.algernon.vespera.extraction.HybridChunkerBeans;
-import io.algernon.vespera.extraction.LanguageDetection;
-import io.algernon.vespera.extraction.LeadingChunks;
-import io.algernon.vespera.ledger.ImplementationVersions;
-import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.Profile;
@@ -30,14 +11,6 @@ import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.profile.ProfileValue;
-import io.algernon.vespera.similarity.BoilerplateShingles;
-import io.algernon.vespera.similarity.DocumentFrequency;
-import io.algernon.vespera.similarity.RedundancyResolution;
-import io.algernon.vespera.similarity.RedundancySignatures;
-import io.algernon.vespera.similarity.Shingler;
-import io.algernon.vespera.synthesis.ClusterSynthesis;
-import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -55,117 +28,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
-import org.springframework.boot.batch.autoconfigure.BatchAutoConfiguration;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@JdbcTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@ActiveProfiles("test")
-@Transactional(propagation = Propagation.NOT_SUPPORTED)
-@ImportAutoConfiguration(BatchAutoConfiguration.class)
-@Import({
-    CensusJobConfiguration.class,
-    GenerationJobConfiguration.class,
-    GenerationTasklet.class,
-    ClusterSynthesis.class,
-    SynthesisDocs.class,
-    LeadingChunks.class,
-    GenerationScriptedBeans.class,
-    GenerationRun.class,
-    GenerationModel.class,
-    GenerationContextWindow.class,
-    CensusTasklet.class,
-    ByteLevelReductionJobConfiguration.class,
-    ByteLevelReductionTasklet.class,
-    ExtractionJobConfiguration.class,
-    ExtractionItemProcessor.class,
-    ExtractionItemWriter.class,
-    ExtractionRun.class,
-    ExtractionTimeoutStreak.class,
-    ExtractionCircuitBreaker.class,
-    ExtractionHealthCheckListener.class,
-    ContentCensusJobConfiguration.class,
-    ContentCensusTasklet.class,
-    ContentCensusRun.class,
-    RedundancyJobConfiguration.class,
-    RedundancyRun.class,
-    RedundancyGate.class,
-    RedundancyBoilerplate.class,
-    RedundancySignatureItemWriter.class,
-    RedundancyResolutionTasklet.class,
-    SeedExtractionJobConfiguration.class,
-    SeedExtractionItemProcessor.class,
-    SeedExtractionItemWriter.class,
-    SeedCorpusComparisonJobConfiguration.class,
-    SeedCorpusComparisonTasklet.class,
-    EmbeddingModelJobConfiguration.class,
-    EmbeddingScoringTasklet.class,
-    RelevanceScoringJobConfiguration.class,
-    RelevanceScoringTasklet.class,
-    RelevanceFloorJobConfiguration.class,
-    RelevanceFloorTasklet.class,
-    RelevanceFloor.class,
-    ClusteringJobConfiguration.class,
-    ClusteringTasklet.class,
-    ArrangementJobConfiguration.class,
-    ArrangementTasklet.class,
-    io.algernon.vespera.extraction.DocumentTitles.class,
-    ArrangementRun.class,
-    ArrangementGate.class,
-    Clusters.class,
-    ClusteringBeans.class,
-    DocumentClusters.class,
-    RelevanceReportJobConfiguration.class,
-    RelevanceReportTasklet.class,
-    RelevanceDistribution.class,
-    EmbeddingModelGate.class,
-    SeedMeasurementRun.class,
-    ScoringRun.class,
-    SeedGate.class,
-    UsableSeedGate.class,
-    ChunkEmbedderBeans.class,
-    RelevanceScoringBeans.class,
-    EmbeddingScriptedBeans.class,
-    RedundancySignatures.class,
-    RedundancyResolution.class,
-    BoilerplateShingles.class,
-    DocumentFrequency.class,
-    ConfidenceDistribution.class,
-    SeedCorpusComparison.class,
-    UnusableSeeds.class,
-    Shingler.class,
-    HybridChunkerBeans.class,
-    SeedScriptedExtractionBeans.class,
-    ExtractionMetrics.class,
-    LanguageDetection.class,
-    ContentIdentity.class,
-    DetectedFormats.class,
-    WalkRecorder.class,
-    AnomalyLog.class,
-    Ledger.class,
-    ImplementationVersions.class,
-    ProfileStore.class,
-    NextAction.class,
-    VesperaCommand.class,
-    VesperaCommand.Run.class,
-    VesperaCommand.Label.class,
-    LabelIngestion.class,
-    RelevanceLabels.class,
-    VesperaCli.class
-})
+@CascadeSliceTest
+@Import(SeedScriptedExtractionBeans.class)
 
 /**
  * The closing line, reached through a real invocation (ADR-098, #136).
@@ -197,6 +70,12 @@ class ClosingLineInvocationTest {
 
     /** Above every measured document frequency here, so stage 4's gate is open. */
     private static final String BOILERPLATE_FLOOR = "1.0";
+
+    /** A threshold, set so the closing line is past asking for one. */
+    private static final String A_THRESHOLD = "0.0";
+
+    /** An approval as an operator writes it, twelve characters of an arrangement's name. */
+    private static final String AN_APPROVAL = "0123456789ab";
 
     /** The model the scripted embedder answers for. */
     private static final String MODEL_NAME = "qwen3-embedding:0.6b";
@@ -315,6 +194,54 @@ class ClosingLineInvocationTest {
     }
 
     @Test
+    @Issue("299")
+    @Link(name = "ADR-154", url = Adr.A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT, type = "adr")
+    @Story("Recording answers says what the next run will do, and nothing it did not check")
+    @DisplayName("vespera label with the threshold set and nothing approved sends the operator to run, to be shown an arrangement")
+    void labelWithTheThresholdSetSendsTheOperatorToRun(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerEveryQuestion();
+        theThresholdAndApprovalSetTo(A_THRESHOLD, null);
+
+        cli.run("label");
+
+        claim(
+                "the line says the next run arranges the documents and asks for them to be approved. It"
+                        + " points at no line above it, because recording answers prints none, and it says"
+                        + " nothing about an arrangement, because recording answers arranges nothing",
+                () -> assertThat(stdoutAfterWhatWasRecorded(output).strip())
+                        .isEqualTo("Every value the profile asks for is answered, including relevanceScoreFloor."
+                                + " Next: run vespera run, which arranges the documents and writes"
+                                + " arrangement.html for you to approve."));
+    }
+
+    @Test
+    @Issue("299")
+    @Link(name = "ADR-154", url = Adr.A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT, type = "adr")
+    @Story("Recording answers says what the next run will do, and nothing it did not check")
+    @DisplayName("vespera label with an approval written says the next run checks it, and claims no match")
+    void labelWithAnApprovalWrittenSaysTheNextRunChecksIt(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerEveryQuestion();
+        theThresholdAndApprovalSetTo(A_THRESHOLD, AN_APPROVAL);
+
+        cli.run("label");
+
+        claim(
+                "the line repeats the approval as written and says the next run checks it against the"
+                        + " arrangement the documents are in then. It does not say the approval matches or"
+                        + " that nothing is left to set, since recording answers checked no arrangement,"
+                        + " and it points at no line above it, since recording answers prints none",
+                () -> assertThat(stdoutAfterWhatWasRecorded(output).strip())
+                        .isEqualTo("Every value the profile asks for is answered, and arrangementApproved holds \""
+                                + AN_APPROVAL + "\". Next: run vespera run, which checks that value against the"
+                                + " arrangement the documents are in then and asks for a new approval if they"
+                                + " differ."));
+    }
+
+    @Test
     @Story("A seed folder naming nothing ends the invocation it is read in, not the invocation itself")
     @DisplayName("A seed folder that is not there leaves the run successful and still closing on a line")
     void aSeedFolderThatIsNotThereIsNotFatal(@TempDir Path root, @TempDir Path seeds) throws IOException {
@@ -422,6 +349,14 @@ class ClosingLineInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .build());
+    }
+
+    /** Writes the threshold and the approval, leaving every other key as it was. */
+    private void theThresholdAndApprovalSetTo(String threshold, String approval) {
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .relevanceScoreFloor(threshold, "set by this test")
+                .arrangementApproved(approval, approval == null ? null : "set by this test")
                 .build());
     }
 

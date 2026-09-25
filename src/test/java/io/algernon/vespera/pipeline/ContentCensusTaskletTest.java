@@ -37,6 +37,9 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
+import java.util.HashMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -67,6 +70,12 @@ class ContentCensusTaskletTest {
 
     private static final ExtractorIdentity IDENTITY = new ExtractorIdentity("docling-serve;base-url=http://example");
 
+    /**
+     * The invocation each corpus root was taken through extraction in, so stage 3 is handed the record
+     * that invocation's stages 1 and 2 actually wrote (ADR-154).
+     */
+    private final Map<Path, ExecutionContext> invocations = new HashMap<>();
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -89,7 +98,8 @@ class ContentCensusTaskletTest {
         Clock clock = Clock.fixed(Instant.parse("2026-09-05T12:00:00Z"), ZoneOffset.UTC);
 
         ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
+                invocations.get(root));
         ContentCensusTasklet tasklet = new ContentCensusTasklet(
                 new DocumentFrequency(jdbcTemplate, ledger),
                 new ConfidenceDistribution(jdbcTemplate, ledger),
@@ -164,7 +174,8 @@ class ContentCensusTaskletTest {
         Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
 
         ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
+                invocations.get(root));
         new ContentCensusTasklet(
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
@@ -207,7 +218,8 @@ class ContentCensusTaskletTest {
         Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
 
         ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
+                invocations.get(root));
         new ContentCensusTasklet(
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
@@ -252,7 +264,8 @@ class ContentCensusTaskletTest {
         RunId firstExtractionRun =
                 walkedThroughExtractionWithScores(ledger, versions, firstRoot, new double[] {0.10});
         ContentCensusRun firstContentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstRoot);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstRoot,
+                invocations.get(firstRoot));
         new ContentCensusTasklet(
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
@@ -266,7 +279,8 @@ class ContentCensusTaskletTest {
         RunId secondExtractionRun =
                 walkedThroughExtractionWithScores(ledger, versions, secondRoot, new double[] {0.95, 0.95});
         ContentCensusRun secondContentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondRoot);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondRoot,
+                invocations.get(secondRoot));
         Instant secondRanAt = Instant.parse("2026-09-05T11:00:00Z");
         new ContentCensusTasklet(
                         new DocumentFrequency(jdbcTemplate, ledger),
@@ -315,9 +329,11 @@ class ContentCensusTaskletTest {
         }
         WalkId walkId = new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource))
                 .walk(root);
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, null);
-        ExtractionRun extractionRun =
-                new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+        ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, step);
+        invocations.put(root, InvocationRecordFixture.recordOf(step));
+        ExtractionRun extractionRun = new ExtractionRun(
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocations.get(root));
         RunId extractionRunId = extractionRun.runId();
 
         for (int i = 0; i < meanScores.length; i++) {

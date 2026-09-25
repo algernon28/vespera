@@ -714,6 +714,33 @@ public final class Adr {
     public static final String A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS = FILE
             + "0150-a-pdfs-pictures-are-asked-for-as-embedded-pixels-and-a-picture-repeated-at-one-place-or-as-a-near-copy-is-furniture.md";
 
+    /**
+     * ADR-152 -- a sampled survivor whose file will not open when stage 5's labelling page is written
+     * is still asked about, with a stated fallback in place of its opening and a warning naming the
+     * file; the page reads the extraction cache and never converts; and a step that records its
+     * completion stops the run on such a file instead, because tolerating it would seal the gap under
+     * a finished run.
+     */
+    public static final String A_SURVIVOR_WHOSE_FILE_WILL_NOT_OPEN_IS_STILL_ASKED_ABOUT = FILE
+            + "0152-a-survivor-whose-file-will-not-open-is-still-asked-about-without-its-opening-and-a-step-that-records-completion-stops-instead.md";
+
+    /**
+     * ADR-153 -- the whole-job tests share one slice annotation carrying the import list they all
+     * named, so a stage's configuration class stops being the seam they import (amends ADR-131); and
+     * what each kind of run records it was derived from is pinned as literal text.
+     */
+    public static final String THE_WHOLE_JOB_TESTS_SHARE_ONE_SLICE = FILE
+            + "0153-the-whole-job-tests-share-one-slice-and-a-stages-configuration-class-stops-being-their-seam.md";
+
+    /**
+     * ADR-154 -- a stage names as its upstream the run of the stage before it that this invocation
+     * minted or continued, not whichever the walk holds (amends ADR-099); an arrangement approval opens
+     * generation only on the arrangement this invocation made or continued (amends ADR-107); and what a
+     * new build costs an operator part-way through an archive (amends ADR-058).
+     */
+    public static final String A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT = FILE
+            + "0154-a-stage-reads-the-upstream-run-this-invocation-arrived-at-and-an-approval-opens-only-this-invocations-arrangement.md";
+
     private Adr() {
     }
 }

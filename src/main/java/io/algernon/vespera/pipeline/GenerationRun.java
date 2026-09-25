@@ -9,7 +9,9 @@ import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.batch.core.configuration.annotation.JobScope;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -18,10 +20,14 @@ import tools.jackson.databind.json.JsonMapper;
  * Mints stage 6b's run, once per job execution (ADR-108, ADR-110, ADR-114, #179): {@link
  * ArrangementRun}'s sibling one stage along, and the last run the cascade mints.
  *
- * <p><b>Its upstream is the arrangement the operator approved</b>, never the latest one. Naming the
- * approved arrangement is what makes the approval mean something downstream: a re-arrangement mints a
- * new 6a run, closes the gate, and — once re-approved — changes this run's id and therefore the tree
- * it writes (ADR-103), by construction rather than by a rule someone has to remember.
+ * <p><b>Its upstream is the arrangement the operator approved</b>, never the latest one, and always
+ * the one this invocation made or continued (ADR-154 §2) — never reached by looking {@link
+ * ArrangementRun} up itself, which would mint an arrangement behind that step's own gate. {@link
+ * ArrangementGate} is handed this invocation's arrangement, read from {@link InvocationRuns}, and
+ * answers whether the approval names it. Naming the approved arrangement is what makes the approval
+ * mean something downstream: a re-arrangement mints a new 6a run, closes the gate, and — once
+ * re-approved — changes this run's id and therefore the tree it writes (ADR-103), by construction
+ * rather than by a rule someone has to remember.
  *
  * <p><b>The generator identity is what was asked and what answered, never where it was served</b>
  * (ADR-090, ADR-091): the model's name, the digest of the weights actually serving under that name,
@@ -75,12 +81,16 @@ class GenerationRun {
             GenerationModel generationModel,
             GenerationContextWindow generationContextWindow,
             OllamaClient ollamaClient,
-            @Value("#{jobParameters['root']}") Path root) {
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("#{jobExecution.executionContext}") ExecutionContext executionContext) {
         Path canonicalRoot = Walk.canonicalRoot(root);
         WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
                 .orElseThrow(() -> new IllegalStateException("no finished walk is recorded for " + canonicalRoot
                         + "; census must run before anything can be generated"));
-        RunId arrangement = arrangementGate.approvedArrangement(walkId)
+        InvocationRuns invocationRuns = new InvocationRuns(executionContext);
+        Optional<RunId> thisInvocationsArrangement = invocationRuns.runOf(ArrangementRun.STAGE);
+        RunId arrangement = arrangementGate
+                .approvedArrangement(thisInvocationsArrangement)
                 .orElseThrow(() -> new IllegalStateException("no approved arrangement stands for " + canonicalRoot
                         + "; the gate must be open before a generation run is minted"));
         String modelName = generationModel.name();
@@ -96,6 +106,7 @@ class GenerationRun {
                         generationContextWindow.size()),
                 walkId,
                 List.of(arrangement));
+        invocationRuns.record(STAGE, this.runId);
     }
 
     /**
