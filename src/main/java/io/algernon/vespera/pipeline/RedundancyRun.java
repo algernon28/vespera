@@ -110,7 +110,7 @@ class RedundancyRun {
      *
      * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
      * {@link SeedMeasurementRun} re-derived this run's identity by reproducing this JSON shape, and it
-     * now looks the run up instead.
+     * now reads the run this invocation recorded instead (ADR-154).
      */
     private static String configConsumed(Path canonicalRoot, RunId stage3RunId, double floor) {
         return JSON_MAPPER.writeValueAsString(

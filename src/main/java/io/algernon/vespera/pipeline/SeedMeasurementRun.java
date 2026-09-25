@@ -118,7 +118,7 @@ class SeedMeasurementRun {
      *
      * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
      * a later stage could have re-derived this run's identity by reproducing this JSON shape, and
-     * stages now look a run up instead.
+     * stages now read the run this invocation recorded instead (ADR-154).
      */
     private static String configConsumed(Path canonicalRoot, Path canonicalSeedFolder, RunId redundancyRunId) {
         return JSON_MAPPER.writeValueAsString(new ConfigConsumed(

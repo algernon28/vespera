@@ -86,8 +86,8 @@ class ExtractionRun {
      * requirement).
      *
      * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
-     * later stages re-derived this run's identity by reproducing this JSON shape, and they now look the
-     * run up instead.
+     * later stages re-derived this run's identity by reproducing this JSON shape, and they now
+     * read the run this invocation recorded instead (ADR-154).
      */
     private static String configConsumed(ExtractorIdentity extractorIdentity, DegenerateOutputConfidenceFloor confidenceFloor) {
         return JSON_MAPPER.writeValueAsString(

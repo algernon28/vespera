@@ -89,8 +89,8 @@ class ContentCensusRun {
      * (ADR-048) — never {@code "{}"}, since both are recoverable from the run row itself.
      *
      * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
-     * later stages re-derived this run's identity by reproducing this JSON shape, and they now look the
-     * run up instead.
+     * later stages re-derived this run's identity by reproducing this JSON shape, and they now
+     * read the run this invocation recorded instead (ADR-154).
      */
     private static String configConsumed(Path canonicalRoot, RunId extractionRunId) {
         return JSON_MAPPER.writeValueAsString(new ConfigConsumed(canonicalRoot.toString(), extractionRunId.value()));
