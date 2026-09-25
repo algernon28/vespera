@@ -70,6 +70,11 @@ class CascadeSliceImportsTest {
                 "the whole-job tests were found at all, so the claim below is about something",
                 () -> assertThat(wholeJobTests).isNotEmpty());
         claim(
+                "the search found tests known to use the shared slice, the first and the last written among them,"
+                        + " so a search that quietly finds only some of them fails here rather than passing",
+                () -> assertThat(wholeJobTests)
+                        .contains(CensusInvocationTest.class, UnconfiguredRootTest.class, RunIdentityGoldenTest.class));
+        claim(
                 "no whole-job test names, in its own list, a class the shared slice already brings in -- a"
                         + " test listed here carries a second copy of wiring that lives in one place, which"
                         + " Spring merges without a word and the next change to the job leaves stale",

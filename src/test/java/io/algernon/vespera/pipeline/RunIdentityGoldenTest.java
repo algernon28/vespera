@@ -32,8 +32,8 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * What each kind of run records it was derived from, pinned as text (ADR-153, ADR-058, ADR-048).
  *
- * <p>A run's id is derived from its stage, its {@code implementation_version}, its {@code
- * config_consumed}, its walk and its upstream runs, and a re-invocation recognises finished work only
+ * <p>A run's id is derived from its {@code implementation_version}, its {@code config_consumed}, its
+ * walk and its upstream runs (its stage is recorded beside it, not hashed into it), and a re-invocation recognises finished work only
  * because the same inputs derive the same id (ADR-115). So a refactor that changes one character of
  * what a stage writes into {@code config_consumed} — a field renamed, two fields reordered, a record
  * swapped for a map, a value formatted differently — or the order it names its modules in, re-mints
@@ -76,7 +76,7 @@ class RunIdentityGoldenTest {
     /** The embedding model this fixture names, so the embedding-model gate and everything behind it open. */
     private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
-    /** The model this test names for writing, so the generation text rests on a name this test chose. */
+    /** The generation model this test names, so the generation text rests on a name this test chose. */
     private static final String GENERATION_MODEL = "a-named-writing-model:8b";
 
     @TempDir

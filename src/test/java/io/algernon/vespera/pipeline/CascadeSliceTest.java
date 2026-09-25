@@ -81,9 +81,9 @@ import org.springframework.transaction.annotation.Transactional;
  * suspended and then hold the only connection the test datasource has.
  *
  * <p>Lives in {@code pipeline}'s test package on purpose, beside the tests that use it: most of the
- * classes it imports are package-private to {@code pipeline}, and a test-support package of its own
- * would read as a ninth module to {@code ApplicationModules}, which {@code ModuleBoundariesTest}
- * would then fail on — the reason {@code TestSteps} and {@code Adr} sit in the root package.
+ * classes it imports are package-private to {@code pipeline}. ADR-052 also records that a test-support
+ * package of its own would read as a further module to {@code ApplicationModules}, the reason {@code
+ * TestSteps} and {@code Adr} sit in the root package.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
