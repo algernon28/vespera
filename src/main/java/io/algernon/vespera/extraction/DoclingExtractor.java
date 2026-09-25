@@ -59,8 +59,9 @@ public class DoclingExtractor {
 
     /**
      * The content hash {@link #convert(Path, ExtractorIdentity)} would compute and key its cache row
-     * under for {@code file} — exposed so a caller needing the same hash for another cache (#49's
-     * chunk cache) never re-implements or diverges from this class's own hashing.
+     * under for {@code file} — exposed so a caller needing the same hash, #49's chunk cache or the
+     * manifest's {@code content_hash} column (ADR-151), never re-implements or diverges from this
+     * class's own hashing.
      */
     public String contentHashFor(Path file) {
         return ContentHashing.sha256(file);
