@@ -697,6 +697,14 @@ public final class Adr {
     public static final String A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE = FILE
             + "0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md";
 
+    /**
+     * ADR-153 -- the whole-job tests share one slice annotation carrying the import list they all
+     * named, so a stage's configuration class stops being the seam they import (amends ADR-131); and
+     * what each kind of run records it was derived from is pinned as literal text.
+     */
+    public static final String THE_WHOLE_JOB_TESTS_SHARE_ONE_SLICE = FILE
+            + "0153-the-whole-job-tests-share-one-slice-and-a-stages-configuration-class-stops-being-their-seam.md";
+
     private Adr() {
     }
 }
