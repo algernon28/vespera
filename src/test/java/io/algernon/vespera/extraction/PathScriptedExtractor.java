@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * A {@link DoclingExtractor} that answers by file name rather than in sequence, for a test whose
@@ -39,6 +40,8 @@ public final class PathScriptedExtractor extends DoclingExtractor {
 
     private final Map<String, DoclingResponse> answersByFileName = new HashMap<>();
 
+    private final Map<String, Consumer<Path>> beforeHashingByFileName = new HashMap<>();
+
     private DoclingResponse defaultAnswer;
 
     private ExtractionCache cache;
@@ -59,6 +62,19 @@ public final class PathScriptedExtractor extends DoclingExtractor {
     /** What Docling returns for the file with this name, whenever it is converted. */
     public PathScriptedExtractor answering(String fileName, DoclingResponse response) {
         answersByFileName.put(fileName, response);
+        return this;
+    }
+
+    /**
+     * Runs {@code action} on the file with this name just before {@link #contentHashFor} reads it, so
+     * that a fixture can change what the real hash then finds on disk (ADR-155).
+     *
+     * <p>The hash itself is never scripted: it is the inherited one, reading the real file. A fixture
+     * that moves the file away gets the real {@code UncheckedIOException} from the real read, which is
+     * the failure the step under test has to meet.
+     */
+    public PathScriptedExtractor beforeHashing(String fileName, Consumer<Path> action) {
+        beforeHashingByFileName.put(fileName, action);
         return this;
     }
 
@@ -100,6 +116,16 @@ public final class PathScriptedExtractor extends DoclingExtractor {
     @Override
     public Optional<DoclingResponse> cached(String contentHash, ExtractorIdentity extractorIdentity) {
         return cache == null ? Optional.empty() : cache.get(contentHash, extractorIdentity);
+    }
+
+    /** The real hash of the real file, after whatever {@link #beforeHashing} asked to be done to it. */
+    @Override
+    public String contentHashFor(Path file) {
+        Consumer<Path> action = beforeHashingByFileName.get(file.getFileName().toString());
+        if (action != null) {
+            action.accept(file);
+        }
+        return super.contentHashFor(file);
     }
 
     /** The seam a worker thread reaches (ADR-140 section 3): the answer scripted for this path. */

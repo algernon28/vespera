@@ -9,6 +9,7 @@ import io.algernon.vespera.extraction.UsableText;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,14 @@ import org.springframework.stereotype.Component;
  * <p>The usability bar is {@link UsableText}, which <em>is</em> stage 2's tier 1 rather than a copy of
  * it — ADR-083 fixes the bar as tier 1 "exactly" and no stricter, and two implementations of one
  * sentence is how that instruction would drift.
+ *
+ * <p><b>A file that will not open is a different fact from an unusable seed (ADR-155).</b> Hashing the
+ * file is the one archive access {@link #doProcess} makes before any conversion is attempted, and only
+ * the {@link UncheckedIOException} it can throw there is caught. Anything else the step meets — a
+ * conversion the converter refuses, a fault the converter reports — still fails it, exactly as before.
+ * A file that hashes but vanishes before the converter reads it is not this case, and is not decided
+ * here. No conversion is attempted and no measurement is taken for a seed whose file would not open:
+ * without the file's bytes there is nothing to key a cache lookup with and nothing to measure.
  */
 @Component
 @StepScope
@@ -89,7 +98,21 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
 
     private SeedExtractionOutcome doProcess(OccurrenceId occurrenceId) {
         Path file = resolvePath(occurrenceId);
-        String contentHash = extractor.contentHashFor(file);
+        String contentHash;
+        try {
+            contentHash = extractor.contentHashFor(file);
+        } catch (UncheckedIOException fileCouldNotBeOpened) {
+            // A fact about the archive at this moment, not about the document (ADR-155). Logged here,
+            // in the one place that runs on every invocation whether or not the step ends up recording
+            // completion, so the operator learns of it either way.
+            log.warn(
+                    "occurrence {} is a seed but its file {} could not be opened when seed extraction"
+                            + " read it: {}",
+                    occurrenceId.value(),
+                    file,
+                    fileCouldNotBeOpened.getMessage());
+            return SeedExtractionOutcome.couldNotOpen(occurrenceId);
+        }
         DoclingResponse response = SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
         // Measured here, while the document is open, and carried out as columns rather than as the
         // document itself: the row cannot be written until the whole folder has been converted

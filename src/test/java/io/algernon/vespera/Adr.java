@@ -732,6 +732,15 @@ public final class Adr {
     public static final String A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT = FILE
             + "0154-a-stage-reads-the-upstream-run-this-invocation-arrived-at-and-an-approval-opens-only-this-invocations-arrangement.md";
 
+    /**
+     * ADR-155 -- a seed file that will not open when seed extraction reads it is recorded as an
+     * unusable seed under a reason of its own, and while any is, the step records no completion and
+     * stage 5 goes no further in that invocation; the next invocation reads it again. A seed file that
+     * stops opening after the step finished costs only a warning.
+     */
+    public static final String A_SEED_FILE_THAT_WILL_NOT_OPEN_IS_RECORDED_UNDER_A_REASON_OF_ITS_OWN = FILE
+            + "0155-a-seed-file-that-will-not-open-is-recorded-under-a-reason-of-its-own-and-seed-extraction-records-no-completion-until-it-opens.md";
+
     private Adr() {
     }
 }

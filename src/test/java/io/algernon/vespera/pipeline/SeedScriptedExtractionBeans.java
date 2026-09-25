@@ -7,8 +7,13 @@ import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.FailureCategory;
 import io.algernon.vespera.extraction.PathScriptedExtractor;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -72,6 +77,54 @@ class SeedScriptedExtractionBeans {
     static final String CONVERTER_FAULT_MESSAGE = "the converter reported a fault of its own";
 
     /**
+     * A seed that is moved out of the seed folder at the moment seed extraction reads it, once a test
+     * has armed {@link #moveAwayWhenReadInto} (ADR-155). Unarmed, it is an ordinary seed with text in it.
+     *
+     * <p>Moved, not locked and not stripped of its permissions: the read then really finds no file, on
+     * every platform and as any user, so the test needs no guard for a superuser who reads anything. The
+     * move is an atomic rename, so the file keeps its size and times, and moving it back leaves the walk
+     * observing exactly what it observed before.
+     */
+    static final String MOVED_AWAY_WHEN_READ = "seed-moved-away-when-read.txt";
+
+    /**
+     * Where the next read of {@link #MOVED_AWAY_WHEN_READ} moves it to, or {@code null} while unarmed.
+     *
+     * <p>Static because the extractor is a bean built once per Spring context, and every test class
+     * importing this configuration shares it. A test that arms it resets it in both {@code @BeforeEach}
+     * and {@code @AfterEach}, since class order differs from one machine to the next. It is one-shot as
+     * well: the move disarms it, so a later invocation in the same test reads the file normally.
+     */
+    private static final AtomicReference<Path> MOVE_AWAY_INTO = new AtomicReference<>();
+
+    /** Arms the move: the next read of {@link #MOVED_AWAY_WHEN_READ} moves it into {@code directory}. */
+    static void moveAwayWhenReadInto(Path directory) {
+        MOVE_AWAY_INTO.set(directory);
+    }
+
+    /** Disarms the move, whether or not it happened. */
+    static void stopMovingAway() {
+        MOVE_AWAY_INTO.set(null);
+    }
+
+    /**
+     * The move itself. It fails with {@code IllegalStateException} and never with {@code
+     * UncheckedIOException}, so a fixture that could not move the file is not mistaken for a file that
+     * would not open.
+     */
+    private static void moveAwayIfArmed(Path file) {
+        Path directory = MOVE_AWAY_INTO.getAndSet(null);
+        if (directory == null) {
+            return;
+        }
+        try {
+            Files.move(file, directory.resolve(file.getFileName()), StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            throw new IllegalStateException("the fixture could not move " + file + " out of the seed folder", e);
+        }
+    }
+
+    /**
      * The title every document this fixture converts carries, so that a caller naming a cluster after a
      * document's own title has one to find (ADR-106).
      */
@@ -95,7 +148,8 @@ class SeedScriptedExtractionBeans {
                 .cachingInto(jdbcTemplate)
                 .answering(EMPTY_SEED, response(WITHOUT_TEXT))
                 .answering(REFUSED_CONVERSION, refused())
-                .answering(CONVERTER_FAULT, failing(FailureCategory.INTERNAL, CONVERTER_FAULT_MESSAGE));
+                .answering(CONVERTER_FAULT, failing(FailureCategory.INTERNAL, CONVERTER_FAULT_MESSAGE))
+                .beforeHashing(MOVED_AWAY_WHEN_READ, SeedScriptedExtractionBeans::moveAwayIfArmed);
         REFUSED_ONE_AFTER_ANOTHER.forEach(name -> extractor.answering(name, refused()));
         return extractor.otherwiseAnswering(response(WITH_TEXT));
     }

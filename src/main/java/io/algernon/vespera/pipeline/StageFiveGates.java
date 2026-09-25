@@ -27,6 +27,11 @@ import java.util.Optional;
  * the seed/corpus comparison runs before the model gate by design (ADR-086, ADR-092) and consults the
  * seed walk and the usable seed. Each entry point asks its gates in the same order and shares the one
  * reason vocabulary, so the shapes differ in which gates they name and in nothing else.
+ *
+ * <p><b>A fourth reason, asked right after the usable-seed question (ADR-155 section 3).</b> A seed
+ * file that would not open while seed extraction's step was unfinished this invocation is a different
+ * fact from no seed having produced text, and it shuts the same steps the usable-seed gate does, in
+ * the same vocabulary.
  */
 final class StageFiveGates {
 
@@ -34,7 +39,8 @@ final class StageFiveGates {
 
     /**
      * The three gates a scoring-half step consults: a model named (ADR-084), a finished seed walk
-     * (ADR-064), and a seed that produced text (ADR-083), in that order.
+     * (ADR-064), and a seed that produced text (ADR-083), in that order — and, ADR-155's addition, a
+     * seed file that would not open.
      */
     static Preamble modelSeedWalkUsable(
             String subject, EmbeddingModelGate model, SeedGate seeds, UsableSeedGate usable) {
@@ -42,7 +48,13 @@ final class StageFiveGates {
         if (!open.isOpen()) {
             return open;
         }
-        return usable.anySeedUsable() ? open : shut(subject, Gate.USABLE_SEED);
+        if (!usable.anySeedUsable()) {
+            return shut(subject, Gate.USABLE_SEED);
+        }
+        if (usable.seedFileCouldNotOpen()) {
+            return shut(subject, Gate.SEED_FILE_COULD_NOT_OPEN);
+        }
+        return open;
     }
 
     /**
@@ -65,9 +77,10 @@ final class StageFiveGates {
     }
 
     /**
-     * The two gates the seed/corpus comparison consults: a finished seed walk and a usable seed. It
-     * runs before the model gate — the comparison reads stored {@code extraction_metric} columns and
-     * needs no model (ADR-086, ADR-092) — so it never names one.
+     * The two gates the seed/corpus comparison consults: a finished seed walk and a usable seed — and,
+     * ADR-155's addition, a seed file that would not open. It runs before the model gate — the
+     * comparison reads stored {@code extraction_metric} columns and needs no model (ADR-086,
+     * ADR-092) — so it never names one.
      */
     static Preamble seedWalkAndUsable(String subject, SeedGate seeds, UsableSeedGate usable) {
         Optional<SeedGate.SeedWalk> seedWalk = seeds.seedWalk();
@@ -76,6 +89,9 @@ final class StageFiveGates {
         }
         if (!usable.anySeedUsable()) {
             return shut(subject, Gate.USABLE_SEED);
+        }
+        if (usable.seedFileCouldNotOpen()) {
+            return shut(subject, Gate.SEED_FILE_COULD_NOT_OPEN);
         }
         return new Preamble(Optional.empty(), seedWalk, Optional.empty());
     }
@@ -90,7 +106,9 @@ final class StageFiveGates {
          */
         SEED_WALK("no seed folder is named, or stage 4's gate is shut, or the seed walk has not finished"),
         /** A seed folder whose documents produced no text (ADR-083). */
-        USABLE_SEED("no seed document produced any text");
+        USABLE_SEED("no seed document produced any text"),
+        /** A seed file that would not open when seed extraction read it (ADR-155). */
+        SEED_FILE_COULD_NOT_OPEN("a seed file could not be opened");
 
         private final String reason;
 
