@@ -23,8 +23,13 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -476,6 +481,87 @@ class DeliverableInvocationTest {
     }
 
     @Test
+    @Issue("287")
+    @Story("Whatever comes after the hand-off can be built without reading the prose")
+    @DisplayName("The listing gives every document its content hash, including one nothing else was the size of")
+    @Link(name = "ADR-151", url = Adr.THE_MANIFESTS_CONTENT_HASH_IS_EVERY_SURVIVORS_SHA_256, type = "adr")
+    @Link(name = "ADR-067", url = Adr.CONTENT_IDENTITY_IS_A_SHA_256_HASH, type = "adr")
+    void fillsTheContentHashOfADocumentWithNoPeerOfItsSize(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+
+        claim(
+                "the precondition: the two documents of this corpus differ in size, so the first stage"
+                        + " hashed neither of them. It hashes only among files that share a size, since no"
+                        + " other file can be a copy of one. Without this, a filled column below could have"
+                        + " come from that stage's record, and would say nothing about the gap",
+                () -> assertThat(hashesTheFirstStageRecordedFor(root)).isZero());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "every one of the " + TWO_DOCUMENTS + " documents is listed with the SHA-256 of its own"
+                        + " bytes in the content_hash column. The expected value is computed here from"
+                        + " the file on disk, not read from any code under test. A blank cell is the"
+                        + " failure: on the first real archive, 47 rows of 65 were blank",
+                () -> assertThat(contentHashesOfTheListing(root))
+                        .hasSize(TWO_DOCUMENTS)
+                        .containsEntry("corpus.txt", sha256Of(root.resolve("corpus.txt")))
+                        .containsEntry(
+                                "another-corpus-document.txt", sha256Of(root.resolve("another-corpus-document.txt"))));
+    }
+
+    @Test
+    @Issue("287")
+    @Story("Whatever comes after the hand-off can be built without reading the prose")
+    @DisplayName("A document gone from the archive before the tree is written is still listed, with a blank content hash and a warning")
+    @Link(name = "ADR-151", url = Adr.THE_MANIFESTS_CONTENT_HASH_IS_EVERY_SURVIVORS_SHA_256, type = "adr")
+    void leavesTheContentHashBlankForADocumentGoneBeforeTheTreeIsWritten(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+        Path gone = root.resolve("corpus.txt");
+        GenerationScriptedBeans.duringEachCall(() -> {
+            try {
+                Files.deleteIfExists(gone);
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        });
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the precondition: the document really is gone by the time the tree is written. It is"
+                        + " deleted while the model is being asked, which is after the call's documents"
+                        + " were read and before documents.csv is written -- the same window a file that"
+                        + " goes away during 6b's model calls falls into",
+                () -> assertThat(gone).doesNotExist());
+        claim(
+                "both of the " + TWO_DOCUMENTS + " survivors are still listed: a document the archive no"
+                        + " longer opens is a fact about that document, and the tree is written anyway",
+                () -> assertThat(rowsOfTheListing(root)).hasSize(TWO_DOCUMENTS));
+        claim(
+                "the gone document's content_hash cell is blank rather than a value from anywhere else,"
+                        + " and the other document's cell is still the SHA-256 of its own bytes, computed"
+                        + " here with the JDK",
+                () -> assertThat(contentHashesOfTheListing(root))
+                        .hasSize(TWO_DOCUMENTS)
+                        .containsEntry("corpus.txt", "")
+                        .containsEntry(
+                                "another-corpus-document.txt", sha256Of(root.resolve("another-corpus-document.txt"))));
+        claim(
+                "and one warning names the file and the content_hash cell it left blank, so the gap in the"
+                        + " listing is explained where the operator reads the run",
+                () -> assertThat(logged.list)
+                        .filteredOn(event -> event.getLevel() == ch.qos.logback.classic.Level.WARN)
+                        .map(ILoggingEvent::getFormattedMessage)
+                        .filteredOn(line -> line.contains("content_hash"))
+                        .singleElement()
+                        .asString()
+                        .contains(gone.getFileName().toString()));
+    }
+
+    @Test
     @Story("Whatever comes after the hand-off can be built without reading the prose")
     @DisplayName("A group's own page carries the writing with its citation resolved and the whole group beneath it")
     @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
@@ -655,6 +741,72 @@ class DeliverableInvocationTest {
                 .skip(1)
                 .filter(line -> !line.isBlank())
                 .toList();
+    }
+
+    /**
+     * Each listed document's content_hash cell, keyed by the path the listing gives it.
+     *
+     * <p>The columns are found by name in the header rather than by position, so this claim is about
+     * the column's content and not about where the column sits. A row is split on commas outside
+     * double quotes, the way a program loading the file splits it.
+     */
+    private Map<String, String> contentHashesOfTheListing(Path root) throws IOException {
+        List<String> lines = Files.readAllLines(theTreeOf(root).resolve(Deliverable.MANIFEST_FILE_NAME)).stream()
+                .filter(line -> !line.isBlank())
+                .toList();
+        List<String> header = cellsOf(lines.getFirst());
+        int path = header.indexOf("path");
+        int contentHash = header.indexOf("content_hash");
+        Map<String, String> byPath = new LinkedHashMap<>();
+        for (String row : lines.subList(1, lines.size())) {
+            List<String> cells = cellsOf(row);
+            byPath.put(cells.get(path), cells.get(contentHash));
+        }
+        return byPath;
+    }
+
+    /** One CSV line's cells, with quotes stripped and a doubled quote read as one. */
+    private static List<String> cellsOf(String line) {
+        List<String> cells = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        boolean quoted = false;
+        for (int at = 0; at < line.length(); at++) {
+            char c = line.charAt(at);
+            if (c == '"' && quoted && at + 1 < line.length() && line.charAt(at + 1) == '"') {
+                cell.append('"');
+                at++;
+            } else if (c == '"') {
+                quoted = !quoted;
+            } else if (c == ',' && !quoted) {
+                cells.add(cell.toString());
+                cell.setLength(0);
+            } else {
+                cell.append(c);
+            }
+        }
+        cells.add(cell.toString());
+        return cells;
+    }
+
+    /**
+     * The SHA-256 of {@code file}'s bytes as lowercase hex, computed here with the JDK. Neither of the
+     * two hashers under test is used, so the expected value is not read back out of the code it checks.
+     */
+    private static String sha256Of(Path file) throws IOException {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required of every JVM", e);
+        }
+    }
+
+    /** How many content hashes the first stage recorded for any occurrence of this corpus's walks. */
+    private int hashesTheFirstStageRecordedFor(Path root) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM content_hash ch JOIN file_occurrence fo ON fo.id = ch.occurrence_id"
+                        + " JOIN walk w ON w.id = fo.walk_id WHERE w.root = ?",
+                Integer.class,
+                Walk.canonicalRoot(root).toString());
     }
 
     /**

@@ -698,6 +698,14 @@ public final class Adr {
             + "0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md";
 
     /**
+     * ADR-151 -- the manifest's content hash is every survivor's SHA-256, taken at 6b through
+     * extraction's own hash, because stage 1 hashes only within size-matched groups and left 47 of
+     * 65 measured rows blank.
+     */
+    public static final String THE_MANIFESTS_CONTENT_HASH_IS_EVERY_SURVIVORS_SHA_256 = FILE
+            + "0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md";
+
+    /**
      * ADR-153 -- the whole-job tests share one slice annotation carrying the import list they all
      * named, so a stage's configuration class stops being the seam they import (amends ADR-131); and
      * what each kind of run records it was derived from is pinned as literal text.
