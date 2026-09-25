@@ -4,10 +4,15 @@ import java.nio.file.Path;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Deque;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
@@ -392,9 +397,10 @@ public class Ledger {
     }
 
     /**
-     * Appends one verdict against an occurrence, under the run that judged it. Verdicts are only ever
-     * appended: retuning a stage is a delete of that stage's rows and a re-run, never an update in
-     * place (CONTEXT.md, "Verdict").
+     * Appends one verdict against an occurrence, under the run that judged it. Verdicts accumulate:
+     * retuning a stage mints a new run of that stage (ADR-117, ADR-154) rather than an update in
+     * place, and none is deleted except by the step that wrote it, redoing its own unfinished work
+     * under the same run (ADR-116, CONTEXT.md, "Verdict").
      */
     public void verdict(OccurrenceId occurrenceId, RunId runId, VerdictKind kind, String reason) {
         jdbcTemplate.update(
@@ -409,24 +415,34 @@ public class Ledger {
      * How many occurrences {@link #survivors} would hand out for {@code runId} — the denominator a
      * stage's progress line needs before it starts (ADR-093).
      *
-     * <p>The same anti-join as the reader, and deliberately not a count the caller keeps as it reads:
-     * a stage reports progress against the set it was given, and that set is a query.
+     * <p>The same anti-join as the reader, over the same {@link #runsInScope} set, and deliberately
+     * not a count the caller keeps as it reads: a stage reports progress against the set it was
+     * given, and that set is a query.
      */
     public long survivorCount(RunId runId) {
+        List<String> runsInScope = runsInScope(runId);
+        String placeholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
+        Object[] arguments = new Object[runsInScope.size() + 1];
+        arguments[0] = runId.value();
+        for (int i = 0; i < runsInScope.size(); i++) {
+            arguments[i + 1] = runsInScope.get(i);
+        }
         Long count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM file_occurrence"
                         + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
                         + " AND NOT EXISTS (SELECT 1 FROM verdict"
                         + " WHERE verdict.occurrence_id = file_occurrence.id"
-                        + " AND verdict.kind IN (" + blockingKinds() + "))",
+                        + " AND verdict.kind IN (" + blockingKinds() + ")"
+                        + " AND verdict.run_id IN (" + placeholders + "))",
                 Long.class,
-                runId.value());
+                arguments);
         return count == null ? 0 : count;
     }
 
     /**
-     * The occurrences of {@code runId}'s walk that carry no blocking verdict — the survivor set, as a
-     * reader a step consumes chunk by chunk (ADR-060).
+     * The occurrences of {@code runId}'s walk that carry no blocking verdict under {@code runId} or
+     * any run upstream of it, transitively — the survivor set, as a reader a step consumes chunk by
+     * chunk (ADR-060, ADR-156).
      *
      * <p>A reader, not a view and not a {@code List}. The survivor set is the whole corpus minus what
      * has been ruled out, so at stage 1 it is every occurrence there is; handing back a reader is
@@ -434,26 +450,31 @@ public class Ledger {
      * {@code ledger} where the shape of {@code verdict} is nobody else's business. Each capability
      * module then queries its own tables for the chunk it was handed.
      *
-     * <p>The run names the walk, so this reader is scoped to that walk's occurrences. Verdicts are
-     * not filtered by run: a blocking verdict from any run removes an occurrence, which is what makes
-     * survival cumulative across the cascade rather than one stage's opinion.
+     * <p>The run names the walk, so this reader is scoped to that walk's occurrences. A blocking
+     * verdict counts only when it was written under {@code runId} itself or under a run reached from
+     * {@code runId} by following {@code run_upstream}, however many steps back ({@link #runsInScope}).
+     * A verdict under any other run of the same walk — a sibling, a later run, or a run this run does
+     * not read — stays recorded and removes nothing (ADR-156 §2).
      *
      * <p>The reader is a stream — open it before reading, close it after, which is what a Spring
      * Batch step does for a reader it was handed.
      */
     public ItemStreamReader<OccurrenceId> survivors(RunId runId) {
+        List<String> runsInScope = runsInScope(runId);
+
         SqlitePagingQueryProvider queryProvider = new SqlitePagingQueryProvider();
         queryProvider.setSelectClause("id");
         queryProvider.setFromClause("file_occurrence");
         queryProvider.setWhereClause("walk_id = (SELECT walk_id FROM run WHERE id = :runId)"
                 + " AND NOT EXISTS (SELECT 1 FROM verdict"
                 + " WHERE verdict.occurrence_id = file_occurrence.id"
-                + " AND verdict.kind IN (" + blockingKinds() + "))");
+                + " AND verdict.kind IN (" + blockingKinds() + ")"
+                + " AND verdict.run_id IN (:runsInScope))");
         queryProvider.setSortKeys(Map.of("id", Order.ASCENDING));
 
         JdbcPagingItemReader<OccurrenceId> reader = new JdbcPagingItemReader<>(dataSource(), queryProvider);
         reader.setName("survivors");
-        reader.setParameterValues(Map.of("runId", runId.value()));
+        reader.setParameterValues(Map.of("runId", runId.value(), "runsInScope", runsInScope));
         reader.setPageSize(SURVIVORS_PAGE_SIZE);
         reader.setRowMapper((resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("id")));
         try {
@@ -464,6 +485,30 @@ public class Ledger {
             throw new IllegalStateException("the survivors reader is misconfigured", e);
         }
         return reader;
+    }
+
+    /**
+     * {@code runId} itself, plus every run reached from it by following {@code run_upstream}
+     * transitively — the set of runs whose blocking verdicts a run's survivors answer to (ADR-156
+     * §1). Resolved here, in Java, rather than as a recursive CTE inside the paging query: the reader
+     * stays a plain anti-join with a bound {@code IN} list, and this walk is a handful of rows per
+     * run (one upstream per stage, seven stages), never a scan per occurrence.
+     */
+    private List<String> runsInScope(RunId runId) {
+        List<String> runsInScope = new ArrayList<>();
+        Set<String> visited = new LinkedHashSet<>();
+        Deque<RunId> toVisit = new ArrayDeque<>();
+        toVisit.add(runId);
+        while (!toVisit.isEmpty()) {
+            RunId current = toVisit.poll();
+            if (visited.add(current.value())) {
+                runsInScope.add(current.value());
+                for (RunId upstream : upstreamRuns(current)) {
+                    toVisit.add(upstream);
+                }
+            }
+        }
+        return runsInScope;
     }
 
     /**

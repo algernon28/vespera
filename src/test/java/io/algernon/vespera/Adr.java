@@ -750,6 +750,15 @@ public final class Adr {
     public static final String A_SEED_FILE_THAT_WILL_NOT_OPEN_IS_RECORDED_UNDER_A_REASON_OF_ITS_OWN = FILE
             + "0155-a-seed-file-that-will-not-open-is-recorded-under-a-reason-of-its-own-and-seed-extraction-records-no-completion-until-it-opens.md";
 
+    /**
+     * ADR-156 -- a run's survivors are the occurrences with no blocking verdict under that run or any
+     * run upstream of it, so a verdict under a run the invocation did not arrive at stays recorded and
+     * removes nothing, and a loosened floor brings documents back over a reused walk (amends ADR-060,
+     * ADR-089, ADR-014, ADR-154).
+     */
+    public static final String A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS = FILE
+            + "0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md";
+
     private Adr() {
     }
 }

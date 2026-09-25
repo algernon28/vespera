@@ -26,7 +26,8 @@ import org.springframework.stereotype.Component;
  * never a gate, never a block (ADR-086's own words).
  *
  * <p><b>Corpus side is survivors</b>, not every occurrence: {@link Ledger#survivors} over the
- * extraction run, because what matters is whether the seeds resemble what would actually be scored.
+ * measurement run, whose upstream is stage 4's run (ADR-089), because what matters is whether the
+ * seeds resemble what would actually be scored (ADR-156).
  *
  * <p><b>Seed side is measured, usable seeds</b> (ADR-092, amending the premise ADR-086 stated).
  * {@link Ledger#occurrencesOf} the seed walk names every candidate; a candidate with no {@code
@@ -78,12 +79,14 @@ public class SeedCorpusComparison {
     }
 
     /**
-     * Measures how far the seed walk's usable, measured seeds resemble {@code extractionRunId}'s
+     * Measures how far the seed walk's usable, measured seeds resemble {@code measurementRunId}'s
      * survivors, writes the comparison under {@code measurementRunId}, and returns the same value —
-     * the value {@code pipeline} then renders as the HTML report (ADR-075).
+     * the value {@code pipeline} then renders as the HTML report (ADR-075). {@code extractionRunId}
+     * names the run whose {@code extraction_metric} rows carry the corpus side's measurements
+     * (ADR-086); it is not the run survivors are read through (ADR-156).
      */
     public Comparison measure(RunId measurementRunId, RunId extractionRunId, WalkId seedWalkId) {
-        Set<Long> corpusSurvivorIds = drain(ledger.survivors(extractionRunId));
+        Set<Long> corpusSurvivorIds = drain(ledger.survivors(measurementRunId));
         Set<Long> seedCandidateIds = drain(ledger.occurrencesOf(seedWalkId));
         Set<Long> unusableSeedIds = unusableSeedIds(measurementRunId);
 

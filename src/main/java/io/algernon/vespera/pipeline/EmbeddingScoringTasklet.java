@@ -113,7 +113,7 @@ class EmbeddingScoringTasklet implements Tasklet {
         }
 
         Path canonicalRoot = Walk.canonicalRoot(root);
-        Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun.extractionRunId()));
+        Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun.runId()));
         Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk, measurementRun);
         LOG.info(
                 "Stage 5c (embedding scoring) starting under scoring run {}: re-chunking and embedding {}"

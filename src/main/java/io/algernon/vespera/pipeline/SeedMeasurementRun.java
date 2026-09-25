@@ -19,10 +19,11 @@ import tools.jackson.databind.json.JsonMapper;
  * <p><b>Its upstream is stage 4's run, not stage 2's.</b> ADR-086 originally said stage 2's, reasoning
  * from which tables the seed/corpus comparison reads — every signal is an {@code extraction_metric}
  * column. ADR-089 corrected it: the corpus side of that comparison is <em>survivors</em>, and
- * {@link Ledger#survivors} counts blocking verdicts from every run, so stage 4's {@code
- * redundant-with} verdicts change what this run measures. Naming stage 4 folds stage 3's, stage 2's
- * and stage 1's identities in anyway (ADR-048), so nothing is lost by it and a run id that would
- * otherwise describe two different corpora is avoided.
+ * {@link Ledger#survivors} reads a run's survivors through that run and every run upstream of it
+ * (ADR-156), so stage 4's {@code redundant-with} verdicts change what this run measures only if stage
+ * 4 is this run's own upstream. Naming stage 4 folds stage 3's, stage 2's and stage 1's identities in
+ * anyway (ADR-048), so nothing is lost by it and a run id that would otherwise describe two different
+ * corpora is avoided.
  *
  * <p>Every caller reaches this bean through an {@code ObjectProvider}, so it — and the run row its
  * constructor mints — is never instantiated while {@link SeedGate} is closed or while no seed proved
