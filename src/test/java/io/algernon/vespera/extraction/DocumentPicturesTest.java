@@ -26,8 +26,9 @@ import org.springframework.test.context.ActiveProfiles;
  *
  * <p>Read back through the seam a caller uses, over a real database, with the cache's own writer
  * putting the rows there, as {@code LeadingChunksTest} does: a stubbed cache would make the answer an
- * assumption rather than a claim. Keyed by content hash alone, for the reason {@code DocumentTitles}
- * gives, and ordered so that repeated reads of one archive answer the same way.
+ * assumption rather than a claim. Keyed by content hash and extractor identity (ADR-150 §5): a
+ * working directory can hold a conversion made before pictures were asked for and one made after,
+ * and only the current identity's row carries a PDF's pixels.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -64,7 +65,7 @@ class DocumentPicturesTest {
     void answersWithThePicturesTheStoredConversionCarries() {
         new ExtractionCache(jdbcTemplate).put(CONTENT_HASH, THE_FIRST_IDENTITY, responseCarrying(A_DIAGRAM));
 
-        List<DocumentPicture> pictures = new DocumentPictures(jdbcTemplate).forContentHash(CONTENT_HASH);
+        List<DocumentPicture> pictures = new DocumentPictures(jdbcTemplate).forContentHash(CONTENT_HASH, THE_FIRST_IDENTITY);
 
         claim(
                 "the one picture the stored conversion carries comes back, with exactly the bytes that were"
@@ -85,24 +86,38 @@ class DocumentPicturesTest {
                 "asking about content nothing was stored for answers with no pictures and does not throw: a"
                         + " document the archive no longer holds, or never converted, is a question, not a"
                         + " fault",
-                () -> assertThat(new DocumentPictures(jdbcTemplate).forContentHash(ANOTHER_CONTENT_HASH))
+                () -> assertThat(new DocumentPictures(jdbcTemplate).forContentHash(ANOTHER_CONTENT_HASH, THE_FIRST_IDENTITY))
                         .isEmpty());
     }
 
     @Test
     @Story("A document's pictures are read out of the stored conversion")
-    @DisplayName("A document converted by two instruments answers from the same one on every read")
-    void answersFromTheFirstInstrumentInOrder() {
+    @DisplayName("A document converted by two instruments answers from the one it is asked about, and from no other")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void answersFromTheInstrumentItIsAskedAbout() {
         ExtractionCache cache = new ExtractionCache(jdbcTemplate);
-        cache.put(CONTENT_HASH, THE_SECOND_IDENTITY, responseCarrying(ANOTHER_RENDERING));
         cache.put(CONTENT_HASH, THE_FIRST_IDENTITY, responseCarrying(A_DIAGRAM));
+        cache.put(CONTENT_HASH, THE_SECOND_IDENTITY, responseCarrying(ANOTHER_RENDERING));
+        DocumentPictures pictures = new DocumentPictures(jdbcTemplate);
 
         claim(
-                "the answer comes from the instrument whose identity sorts first, whichever was stored first,"
-                        + " so a tree written twice from one archive shows the same pictures both times",
-                () -> assertThat(new DocumentPictures(jdbcTemplate).forContentHash(CONTENT_HASH))
+                "asked about the instrument whose identity sorts second, the answer comes from that"
+                        + " instrument's conversion, not from the one that sorts first: a conversion made"
+                        + " before pixels were asked for is never read in place of the one made after",
+                () -> assertThat(pictures.forContentHash(CONTENT_HASH, THE_SECOND_IDENTITY))
+                        .singleElement()
+                        .satisfies(picture -> assertThat(picture.pixels()).isEqualTo(ANOTHER_RENDERING)));
+        claim(
+                "and asked about the first, the answer comes from the first",
+                () -> assertThat(pictures.forContentHash(CONTENT_HASH, THE_FIRST_IDENTITY))
                         .singleElement()
                         .satisfies(picture -> assertThat(picture.pixels()).isEqualTo(A_DIAGRAM)));
+        claim(
+                "while an instrument that never converted the document answers with nothing, rather than"
+                        + " with another instrument's pictures",
+                () -> assertThat(pictures.forContentHash(CONTENT_HASH, new ExtractorIdentity("docling-serve;c")))
+                        .isEmpty());
     }
 
     private static DoclingResponse responseCarrying(byte[] pixels) {

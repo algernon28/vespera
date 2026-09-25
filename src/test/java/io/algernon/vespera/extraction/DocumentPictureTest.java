@@ -215,6 +215,82 @@ class DocumentPictureTest {
                         .isEmpty());
     }
 
+    /**
+     * ADR-150 §5: a picture Docling cropped from a page says where on the page it sat, which the
+     * same-place rule compares within one document. Read from the first {@code prov} entry as the
+     * response gives it, with no conversion between coordinate origins.
+     */
+    @Test
+    @Story("A picture says where on its page it sat")
+    @DisplayName("A picture cropped from a page carries its page and its box, and one with no position carries none")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void readsWhereOnItsPageAPictureSat() {
+        String response = """
+                {"document":{"json_content":{"pictures":[
+                  {"content_layer":"body","captions":[],
+                    "prov":[{"page_no":2,"bbox":{"l":60.5,"t":795.5,"r":205.0,"b":761.0,"coord_origin":"BOTTOMLEFT"}},
+                            {"page_no":3,"bbox":{"l":1,"t":2,"r":3,"b":4,"coord_origin":"BOTTOMLEFT"}}],
+                    "image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],"image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],"prov":[{"page_no":1}],
+                    "image":{"mimetype":"image/png","uri":"%s"}}]}}}
+                """.formatted(
+                        dataUri(PNG, FIRST_IN_READING_ORDER), dataUri(PNG, INSIDE_A_GROUP), dataUri(PNG, A_PHOTOGRAPH));
+
+        List<DocumentPicture> pictures = DocumentPicture.allOf(response);
+
+        claim(
+                "the cropped picture carries the page number and the four edges of its first position,"
+                        + " exactly as the converter gave them",
+                () -> assertThat(pictures.get(0).place())
+                        .contains(new PicturePlace(2, 60.5, 795.5, 205.0, 761.0)));
+        claim(
+                "a picture with no position at all, as an office document's usually has, carries none",
+                () -> assertThat(pictures.get(1).place()).isEmpty());
+        claim(
+                "and neither does one whose position names a page but no box, since a place without edges"
+                        + " cannot be compared with another",
+                () -> assertThat(pictures.get(2).place()).isEmpty());
+    }
+
+    /**
+     * ADR-150 §5: a position that is there but broken gives no place, rather than a place at page 0 or
+     * at the page's corner. A place made up of defaults would be compared with every other such place,
+     * and two broken pictures on different pages of one document would look like one repeated at one
+     * place.
+     */
+    @Test
+    @Story("A picture says where on its page it sat")
+    @DisplayName("A picture whose position has an empty box, an empty entry or no page number carries no place")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void givesNoPlaceForAPositionThatIsThereButBroken() {
+        String response = """
+                {"document":{"json_content":{"pictures":[
+                  {"content_layer":"body","captions":[],"prov":[{"page_no":2,"bbox":null}],
+                    "image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],"prov":[null],
+                    "image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],
+                    "prov":[{"bbox":{"l":60.5,"t":795.5,"r":205.0,"b":761.0,"coord_origin":"BOTTOMLEFT"}}],
+                    "image":{"mimetype":"image/png","uri":"%s"}}]}}}
+                """.formatted(
+                        dataUri(PNG, FIRST_IN_READING_ORDER), dataUri(PNG, INSIDE_A_GROUP), dataUri(PNG, A_PHOTOGRAPH));
+
+        List<DocumentPicture> pictures = DocumentPicture.allOf(response);
+
+        claim(
+                "a position whose box is empty carries no place, not one with every edge at zero",
+                () -> assertThat(pictures.get(0).place()).isEmpty());
+        claim(
+                "a position list whose first entry is empty carries no place",
+                () -> assertThat(pictures.get(1).place()).isEmpty());
+        claim(
+                "and a position with a box but no page number carries no place, not one on page zero",
+                () -> assertThat(pictures.get(2).place()).isEmpty());
+    }
+
     private static String dataUri(String mediaType, byte[] pixels) {
         return "data:" + mediaType + ";base64," + Base64.getEncoder().encodeToString(pixels);
     }
