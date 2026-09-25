@@ -89,7 +89,8 @@ class ContentCensusTaskletTest {
         Clock clock = Clock.fixed(Instant.parse("2026-09-05T12:00:00Z"), ZoneOffset.UTC);
 
         ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
+                InvocationRecordFixture.afterExtraction(jdbcTemplate, root));
         ContentCensusTasklet tasklet = new ContentCensusTasklet(
                 new DocumentFrequency(jdbcTemplate, ledger),
                 new ConfidenceDistribution(jdbcTemplate, ledger),
@@ -164,7 +165,8 @@ class ContentCensusTaskletTest {
         Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
 
         ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
+                InvocationRecordFixture.afterExtraction(jdbcTemplate, root));
         new ContentCensusTasklet(
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
@@ -207,7 +209,8 @@ class ContentCensusTaskletTest {
         Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
 
         ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
+                InvocationRecordFixture.afterExtraction(jdbcTemplate, root));
         new ContentCensusTasklet(
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
@@ -252,7 +255,8 @@ class ContentCensusTaskletTest {
         RunId firstExtractionRun =
                 walkedThroughExtractionWithScores(ledger, versions, firstRoot, new double[] {0.10});
         ContentCensusRun firstContentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstRoot);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstRoot,
+                InvocationRecordFixture.afterExtraction(jdbcTemplate, firstRoot));
         new ContentCensusTasklet(
                         new DocumentFrequency(jdbcTemplate, ledger),
                         new ConfidenceDistribution(jdbcTemplate, ledger),
@@ -266,7 +270,8 @@ class ContentCensusTaskletTest {
         RunId secondExtractionRun =
                 walkedThroughExtractionWithScores(ledger, versions, secondRoot, new double[] {0.95, 0.95});
         ContentCensusRun secondContentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondRoot);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondRoot,
+                InvocationRecordFixture.afterExtraction(jdbcTemplate, secondRoot));
         Instant secondRanAt = Instant.parse("2026-09-05T11:00:00Z");
         new ContentCensusTasklet(
                         new DocumentFrequency(jdbcTemplate, ledger),
@@ -316,8 +321,9 @@ class ContentCensusTaskletTest {
         WalkId walkId = new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource))
                 .walk(root);
         new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, null);
-        ExtractionRun extractionRun =
-                new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+        ExtractionRun extractionRun = new ExtractionRun(
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
+                InvocationRecordFixture.afterStageOne(jdbcTemplate, root));
         RunId extractionRunId = extractionRun.runId();
 
         for (int i = 0; i < meanScores.length; i++) {

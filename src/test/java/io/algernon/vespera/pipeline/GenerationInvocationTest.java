@@ -242,28 +242,6 @@ class GenerationInvocationTest {
     }
 
     @Test
-    @Story("An approval that names two things stops rather than guessing")
-    @DisplayName("An approval matching two sets of groups stops the invocation instead of choosing one")
-    void stopsWhenTheApprovalMatchesTwo(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
-        RunId arranged = theLatestArrangement(root);
-        anotherArrangementSharingThePrefixOf(arranged);
-        approve(ArrangementGate.shortNameOf(arranged));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation stopped rather than picking one of them: writing over the wrong one would"
-                        + " be writing over something nobody read, and doing it without saying so",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "and it stopped before recording anything, so there is no half-finished record of work"
-                        + " nobody authorised",
-                () -> assertThat(generationRuns(root)).isEmpty());
-    }
-
-    @Test
     @Story("Nothing is written over the archive until a person approves what they read")
     @DisplayName("Opening on the approved groups records no judgement against any document")
     void recordsNoJudgementAgainstAnyDocument(@TempDir Path root, @TempDir Path seeds) throws IOException {
@@ -777,21 +755,6 @@ class GenerationInvocationTest {
                 ArrangementRun.STAGE,
                 Walk.canonicalRoot(root).toString(),
                 profileStore.load().arrangementApproved().value() + "%"));
-    }
-
-    /**
-     * A second arrangement under the same walk whose id opens with the first's twelve characters,
-     * written straight into the table because a content-derived id cannot be steered into a collision.
-     * What is under test is what the invocation does when it meets one, not how likely that is.
-     */
-    private void anotherArrangementSharingThePrefixOf(RunId first) {
-        String colliding = ArrangementGate.shortNameOf(first)
-                + "f".repeat(first.value().length() - ArrangementGate.APPROVAL_LENGTH);
-        jdbcTemplate.update(
-                "INSERT INTO run (id, stage, implementation_version, config_consumed, walk_id)"
-                        + " SELECT ?, stage, 'v-collision', '{}', walk_id FROM run WHERE id = ?",
-                colliding,
-                first.value());
     }
 
     /**

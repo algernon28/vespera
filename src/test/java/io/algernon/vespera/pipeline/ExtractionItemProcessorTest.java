@@ -709,7 +709,9 @@ class ExtractionItemProcessorTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
         ImplementationVersions versions = new ImplementationVersions();
         new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, null);
-        ExtractionRun extractionRun = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+        ExtractionRun extractionRun = new ExtractionRun(
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
+                InvocationRecordFixture.afterStageOne(jdbcTemplate, root));
         List<OccurrenceId> occurrences = paths.stream()
                 .map(path -> ledger.occurrenceId(walkId, path).orElseThrow())
                 .toList();
