@@ -9,14 +9,20 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -124,6 +130,23 @@ public final class Deliverable {
     private static final String ANCHOR_PREFIX = "document-";
 
     /**
+     * The most pictures one document's entry shows (ADR-149 §6), fixed in code because it is about how
+     * much one entry of a page can carry before a reader loses the list rather than a judgement about
+     * any one corpus (ADR-140's precedent). {@code synthesis} cannot read {@code Profile} (ADR-110), so
+     * this is not a profile key.
+     */
+    static final int PICTURES_PER_DOCUMENT = 10;
+
+    /** The media type a survivor's picture is written under a {@code .png} file for. */
+    private static final String PNG_MEDIA_TYPE = "image/png";
+
+    /** The media type a survivor's picture is written under a {@code .jpg} file for. */
+    private static final String JPEG_MEDIA_TYPE = "image/jpeg";
+
+    /** How many hexadecimal characters of a picture's SHA-256 digest its file is named from (ADR-149 §3). */
+    private static final int PICTURE_NAME_LENGTH = 16;
+
+    /**
      * Every column the manifest carries, in order (ADR-104, ADR-112). A machine-read header, not
      * prose, so it names columns as the ledger names them rather than in the reader's plain words
      * (ADR-122).
@@ -151,10 +174,33 @@ public final class Deliverable {
             List<RecordedCluster> arrangement,
             List<RecordedSynthesisDoc> written,
             List<ListedSurvivor> survivors) {
+        return writeTo(workingDirectory, provenance, arrangement, written, survivors, SurvivorPictures.none());
+    }
+
+    /**
+     * Writes the whole tree, with a survivor's pictures beside its cluster file (ADR-149, #285), and
+     * returns where it landed.
+     *
+     * <p>{@code pictures} is asked about every listed survivor twice, in two passes that never hold
+     * more than one document's pixels at a time (ADR-149 §9): first to count which bytes recur among
+     * every survivor the tree lists -- the furniture rule's evidence -- and again, one cluster file at a
+     * time, to write the pictures that pass it.
+     *
+     * @param pictures where a survivor's pictures come from, {@link SurvivorPictures#none()} to write
+     *     exactly the tree this class wrote before it knew about pictures
+     */
+    public static Path writeTo(
+            Path workingDirectory,
+            DeliverableProvenance provenance,
+            List<RecordedCluster> arrangement,
+            List<RecordedSynthesisDoc> written,
+            List<ListedSurvivor> survivors,
+            SurvivorPictures pictures) {
         Path tree = workingDirectory.resolve(DIRECTORY_NAME).resolve(provenance.runId());
         try {
             Files.createDirectories(tree);
-            writeIndexAndClusterFiles(tree, provenance, arrangement, written, survivors);
+            Map<String, Integer> recurrence = countPictureDigests(survivors, pictures);
+            writeIndexAndClusterFiles(tree, provenance, arrangement, written, survivors, pictures, recurrence);
             writeManifest(tree, arrangement, survivors);
             return tree;
         } catch (IOException e) {
@@ -162,12 +208,35 @@ public final class Deliverable {
         }
     }
 
+    /**
+     * The first of the two passes ADR-149 §9 describes: every listed survivor's pictures are asked for
+     * once, and only each picture's digest is kept -- enough to know which bytes recur, and nowhere near
+     * enough to hold every survivor's pixels at once. A picture in the furniture layer is counted too,
+     * because §1(a) counts every picture of every listed survivor; whether it is itself furniture is
+     * also decided by its flag, not by this count.
+     */
+    private static Map<String, Integer> countPictureDigests(List<ListedSurvivor> survivors, SurvivorPictures pictures) {
+        Map<String, Integer> counts = new HashMap<>();
+        Set<OccurrenceId> asked = new HashSet<>();
+        for (ListedSurvivor survivor : survivors) {
+            if (!asked.add(survivor.occurrence())) {
+                continue;
+            }
+            for (ListedPicture picture : pictures.of(survivor.occurrence())) {
+                counts.merge(sha256Hex(picture.pixels()), 1, Integer::sum);
+            }
+        }
+        return counts;
+    }
+
     private static void writeIndexAndClusterFiles(
             Path tree,
             DeliverableProvenance provenance,
             List<RecordedCluster> arrangement,
             List<RecordedSynthesisDoc> written,
-            List<ListedSurvivor> survivors)
+            List<ListedSurvivor> survivors,
+            SurvivorPictures pictures,
+            Map<String, Integer> recurrence)
             throws IOException {
         Map<ClusterKey, RecordedSynthesisDoc> writtenByCluster = new LinkedHashMap<>();
         for (RecordedSynthesisDoc doc : written) {
@@ -229,7 +298,9 @@ public final class Deliverable {
                         recorded,
                         writtenByCluster,
                         membersByCluster.getOrDefault(ClusterKey.of(recorded), List.of()),
-                        provenance.corpusRoot());
+                        provenance.corpusRoot(),
+                        pictures,
+                        recurrence);
             }
         }
 
@@ -244,7 +315,9 @@ public final class Deliverable {
             RecordedCluster recorded,
             Map<ClusterKey, RecordedSynthesisDoc> writtenByCluster,
             List<ListedSurvivor> members,
-            String corpusRoot)
+            String corpusRoot,
+            SurvivorPictures pictures,
+            Map<String, Integer> recurrence)
             throws IOException {
         String label = inACell(recorded.label().value());
         int documentCount = recorded.cluster().documentCount();
@@ -265,7 +338,9 @@ public final class Deliverable {
                     null,
                     documentCount,
                     members,
-                    corpusRoot);
+                    corpusRoot,
+                    pictures,
+                    recurrence);
             return;
         }
         String link = partitionDirName + "/" + clusterFileName;
@@ -284,7 +359,9 @@ public final class Deliverable {
                 doc.doc(),
                 documentCount,
                 members,
-                corpusRoot);
+                corpusRoot,
+                pictures,
+                recurrence);
     }
 
     /**
@@ -330,7 +407,9 @@ public final class Deliverable {
             SynthesisDoc doc,
             int documentCount,
             List<ListedSurvivor> members,
-            String corpusRoot)
+            String corpusRoot,
+            SurvivorPictures pictures,
+            Map<String, Integer> recurrence)
             throws IOException {
         StringBuilder page = new StringBuilder();
         page.append("# ").append(inAHeading(doc == null ? label : doc.title())).append("\n\n");
@@ -347,7 +426,9 @@ public final class Deliverable {
         List<MembershipEntry> numbered = numbered(doc, members);
         if (!numbered.isEmpty()) {
             page.append('\n').append(MEMBERSHIP_HEADING).append("\n\n");
-            appendMembership(page, numbered, file.getParent(), corpusRoot);
+            String pictureDirectoryName = stemOf(file.getFileName().toString());
+            appendMembership(
+                    page, numbered, file.getParent(), corpusRoot, pictureDirectoryName, pictures, recurrence);
         }
         Files.writeString(file, page.toString(), StandardCharsets.UTF_8);
     }
@@ -438,9 +519,21 @@ public final class Deliverable {
      *
      * @param pageDirectory the directory this very cluster file sits in, which a relative destination is
      *     composed against (ADR-135)
+     * @param pictureDirectoryName the name a picture's own directory is given, beside this cluster
+     *     file (ADR-149 §3): that file's own name, without {@code .md}
+     * @param pictures where a member's pictures come from (ADR-149)
+     * @param recurrence every picture digest counted across the whole tree's survivors, the furniture
+     *     rule's evidence (ADR-149 §1)
      */
     private static void appendMembership(
-            StringBuilder page, List<MembershipEntry> entries, Path pageDirectory, String corpusRoot) {
+            StringBuilder page,
+            List<MembershipEntry> entries,
+            Path pageDirectory,
+            String corpusRoot,
+            String pictureDirectoryName,
+            SurvivorPictures pictures,
+            Map<String, Integer> recurrence)
+            throws IOException {
         Optional<Path> corpusRootDirectory = asDirectory(corpusRoot);
         for (int at = 0; at < entries.size(); at++) {
             int ordinal = at + 1;
@@ -459,6 +552,97 @@ public final class Deliverable {
             } else {
                 page.append(escapedPath).append("\n\n");
             }
+            appendPictures(
+                    page, member, ordinal, pageDirectory, pictureDirectoryName, pictures, recurrence);
+        }
+    }
+
+    /**
+     * A survivor's pictures under its own membership entry (ADR-149 §3, §5, §6): the first {@link
+     * #PICTURES_PER_DOCUMENT} that pass the furniture rule, each written as a file beside the cluster
+     * file and shown as an image indented into the entry, then, where any were left uncounted or
+     * unwritten, one line saying how many.
+     *
+     * <p><b>The budget is positions, not files written.</b> The first {@link #PICTURES_PER_DOCUMENT}
+     * non-furniture pictures in reading order are the ones this entry may show; among those, only the
+     * two media types ever measured in the cache are written, and any other kind, though it holds a
+     * position within the budget, is counted as not shown rather than written under no extension
+     * (ADR-149 §6).
+     */
+    private static void appendPictures(
+            StringBuilder page,
+            ListedSurvivor member,
+            int ordinal,
+            Path pageDirectory,
+            String pictureDirectoryName,
+            SurvivorPictures pictures,
+            Map<String, Integer> recurrence)
+            throws IOException {
+        List<ListedPicture> kept = new ArrayList<>();
+        for (ListedPicture picture : pictures.of(member.occurrence())) {
+            if (!isFurniture(picture, recurrence)) {
+                kept.add(picture);
+            }
+        }
+        if (kept.isEmpty()) {
+            return;
+        }
+        int withinBudget = Math.min(PICTURES_PER_DOCUMENT, kept.size());
+        List<ListedPicture> candidates = kept.subList(0, withinBudget);
+        int notShown = kept.size() - withinBudget;
+        String indent = " ".repeat(String.valueOf(ordinal).length() + 2);
+        Path pictureDirectory = pageDirectory.resolve(pictureDirectoryName);
+        for (ListedPicture picture : candidates) {
+            Optional<String> extension = fileExtensionFor(picture.mediaType());
+            if (extension.isEmpty()) {
+                notShown++;
+                continue;
+            }
+            Files.createDirectories(pictureDirectory);
+            String fileName = sha256Hex(picture.pixels()).substring(0, PICTURE_NAME_LENGTH) + extension.get();
+            Files.write(pictureDirectory.resolve(fileName), picture.pixels());
+            String altText = escapeLinkText(onOneLine(picture.caption()));
+            page.append(indent)
+                    .append("![")
+                    .append(altText)
+                    .append("](")
+                    .append(pictureDirectoryName)
+                    .append('/')
+                    .append(fileName)
+                    .append(")\n\n");
+        }
+        if (notShown > 0) {
+            page.append(indent)
+                    .append('*')
+                    .append(notShown)
+                    .append(notShown == 1 ? " more picture from this document is not shown." : " more"
+                            + " pictures from this document are not shown.")
+                    .append("*\n\n");
+        }
+    }
+
+    /** Whether {@code picture} is furniture (ADR-149 §1): the converter's own claim, or recurring bytes. */
+    private static boolean isFurniture(ListedPicture picture, Map<String, Integer> recurrence) {
+        return picture.inFurnitureLayer() || recurrence.getOrDefault(sha256Hex(picture.pixels()), 0) > 1;
+    }
+
+    /** The file extension a picture's media type is written under, or empty for a kind never measured. */
+    private static Optional<String> fileExtensionFor(String mediaType) {
+        if (PNG_MEDIA_TYPE.equals(mediaType)) {
+            return Optional.of(".png");
+        }
+        if (JPEG_MEDIA_TYPE.equals(mediaType)) {
+            return Optional.of(".jpg");
+        }
+        return Optional.empty();
+    }
+
+    /** {@code pixels}' SHA-256 digest, lower-case hexadecimal, in full (ADR-149 §1, §3). */
+    private static String sha256Hex(byte[] pixels) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(pixels));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required of every JVM", e);
         }
     }
 

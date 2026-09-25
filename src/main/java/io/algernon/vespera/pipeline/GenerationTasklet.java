@@ -7,6 +7,7 @@ import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.DoclingExtractor;
+import io.algernon.vespera.extraction.DocumentPictures;
 import io.algernon.vespera.extraction.LeadingChunks;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
@@ -27,14 +28,17 @@ import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.Deliverable;
 import io.algernon.vespera.synthesis.DeliverableProvenance;
 import io.algernon.vespera.synthesis.Exemplar;
+import io.algernon.vespera.synthesis.ListedPicture;
 import io.algernon.vespera.synthesis.ListedSurvivor;
 import io.algernon.vespera.synthesis.NamedValue;
 import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SurvivorPictures;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -118,6 +122,7 @@ class GenerationTasklet implements Tasklet {
     private final RelevanceScoring relevanceScoring;
     private final LeadingChunks leadingChunks;
     private final DoclingExtractor extractor;
+    private final DocumentPictures documentPictures;
     private final ClusterSynthesis clusterSynthesis;
     private final SynthesisDocs synthesisDocs;
     private final ClusterFaults clusterFaults;
@@ -163,6 +168,10 @@ class GenerationTasklet implements Tasklet {
         // test in this cascade to name it, not just the ones this ticket is about; the JdbcTemplate
         // it is built from is already ambient wherever Ledger and SynthesisDocs are.
         this.clusterFaults = new ClusterFaults(jdbcTemplate);
+        // Built the same way (ADR-041 holds: only a picture's own reader touches extraction_cache for
+        // it). A Spring-managed bean would force every invocation test that already @Imports this
+        // class to name it too; the JdbcTemplate it is built from is already ambient here.
+        this.documentPictures = new DocumentPictures(jdbcTemplate);
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
         this.implementationVersions = implementationVersions;
@@ -356,9 +365,11 @@ class GenerationTasklet implements Tasklet {
      * eight profile keys the run consumed, every survivor's path, content hash and score, and the
      * arrangement and the writing produced under this run.
      *
-     * <p>The content hash is read from {@code corpus}'s own record rather than recomputed from the
-     * file, which is what keeps this from touching the archive at all (ADR-104): stage 1's run id is
-     * re-derived from its known-fixed inputs, the way {@link ExtractionRun} already re-derives it.
+     * <p>The content hash on the survivor row is read from {@code corpus}'s own record rather than
+     * recomputed from the file (ADR-104): stage 1's run id is re-derived from its known-fixed inputs,
+     * the way {@link ExtractionRun} already re-derives it. The picture chain (ADR-149 §9) is not exempt
+     * from touching the archive: it reads each listed survivor's file once to hash it, because {@code
+     * extraction} keys its picture cache on its own content hash rather than {@code corpus}'s.
      */
     private Path writeDeliverable(
             RunId generation,
@@ -379,7 +390,70 @@ class GenerationTasklet implements Tasklet {
                 provenance,
                 recordedClusters,
                 synthesisDocs.forRun(generation),
-                survivorsFor(membership, scores, byteLevelReductionRun));
+                survivorsFor(membership, scores, byteLevelReductionRun),
+                survivorPictures(canonicalRoot));
+    }
+
+    /**
+     * Where {@link Deliverable} asks for a survivor's pictures (ADR-149 §9): the same chain {@link
+     * #openingChunkOf} follows to reach a document's cached conversion, joined to {@link
+     * DocumentPictures} instead of {@link LeadingChunks}.
+     *
+     * <p><b>Never {@link ListedSurvivor#contentHash()}.</b> That column is {@code corpus}'s stage-1
+     * hash, recorded only for a survivor that once shared a size with another file, and is blank for
+     * most of them (ADR-149's own finding). {@code extraction} keys its cache on its own hash of every
+     * file, so this hashes the file itself, exactly as {@link #openingChunkOf} does.
+     *
+     * <p><b>Cached per occurrence</b>, but only the hash: {@link Deliverable#writeTo} asks about a
+     * listed survivor twice, once to count recurring bytes and again to write its pictures (ADR-149 §9),
+     * and hashing the archive's own file a second time would cost a second read and, on a file that has
+     * gone away between the two passes, a second warning about the same fact. The hash is cached so the
+     * file is read once and warned about once; the pixels themselves are not cached, so a document's
+     * decoded pictures live only for the one call that decodes them, and ADR-149 §9's one-document bound
+     * on memory holds regardless of how many times a survivor is asked about.
+     */
+    private SurvivorPictures survivorPictures(Path canonicalRoot) {
+        Map<OccurrenceId, Optional<String>> hashes = new HashMap<>();
+        return occurrenceId ->
+                hashOf(occurrenceId, canonicalRoot, hashes).map(this::picturesFor).orElseGet(List::of);
+    }
+
+    /**
+     * The content hash of a survivor's file, read once per occurrence and cached, or empty where the
+     * file cannot be read (ADR-149 §9).
+     *
+     * <p>A file the archive will no longer open contributes no pictures rather than failing the tree,
+     * for {@link #openingChunkOf}'s reason: an archive is a live filesystem, and a document gone since
+     * the walk is a fact about that document, not about this run.
+     */
+    private Optional<String> hashOf(
+            OccurrenceId occurrenceId, Path canonicalRoot, Map<OccurrenceId, Optional<String>> cache) {
+        return cache.computeIfAbsent(occurrenceId, id -> {
+            Path file = canonicalRoot.resolve(pathOf(id));
+            try {
+                return Optional.of(extractor.contentHashFor(file));
+            } catch (UncheckedIOException e) {
+                LOG.warn(
+                        "occurrence {} is a survivor listed in the deliverable but {} could not be read, so"
+                                + " none of its pictures reach the tree",
+                        id.value(),
+                        file,
+                        e);
+                return Optional.empty();
+            }
+        });
+    }
+
+    /**
+     * A survivor's pictures with pixels, read out of {@code extraction}'s cache through the content
+     * hash of the file on disk today. The query and the decode run on every call; nothing here is
+     * cached, so a document's pixels never outlive the call that produced them (ADR-149 §9).
+     */
+    private List<ListedPicture> picturesFor(String contentHash) {
+        return documentPictures.forContentHash(contentHash).stream()
+                .map(picture -> new ListedPicture(
+                        picture.mediaType(), picture.pixels(), picture.inFurnitureLayer(), picture.caption()))
+                .toList();
     }
 
     /** Every {@link Profile} key the run consumed, named as the operator names them (ADR-103). */

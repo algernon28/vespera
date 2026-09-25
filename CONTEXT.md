@@ -187,6 +187,14 @@ _Avoid_: cluster name, cluster label (the label is derived and 6a's; this is gen
 How a synthesis doc points at a document it was written from: an ordinal into the documents that call sent, rendered in the deliverable as a link to that document's entry in the cluster file's membership list. Minted by Vespera for one call rather than written by the model, so a fabricated one is out of range rather than merely wrong. What it points at is never an occurrence id: the reader follows it without a database.
 _Avoid_: reference, source, footnote
 
+**Picture**:
+Something visual that Docling found inside a converted document and returned among its `pictures`, with its pixels where the response carries them. It comes along with its document and is shown under that document's membership entry, never judged on its own: survival stays a fact about documents (ADR-149). A standalone image file is not a picture. It is a document whose format is an image.
+_Avoid_: image (the word for a standalone image file, and for Markdown's image syntax), figure, illustration, attachment
+
+**Furniture picture**:
+A picture whose bytes recur among the pictures of the documents a tree lists, in two documents or twice in one, or that Docling placed in its page furniture. It is left out of the deliverable. Like boilerplate, its recurrence is a fact about how documents are produced rather than about what they say, but it is decided over the documents the tree lists rather than over the corpus, and by exact bytes rather than by shingles (ADR-149).
+_Avoid_: logo, decoration, chrome, boilerplate (boilerplate is text, measured corpus-wide)
+
 **Cluster fault**:
 A cluster stage 6b could not write a synthesis doc for: the call came back, and what came back did not survive checking. Recorded against the cluster, never against its documents — nothing is wrong with them, and nothing is removed. The deliverable keeps the hole, headed by the cluster's label.
 _Avoid_: error, failure, skipped cluster, verdict (a verdict is about a document, and it removes one)
