@@ -52,6 +52,7 @@ class NextAction {
     private final GenerationModel generationModel;
     private final ObjectProvider<Clusters> clusters;
     private final ObjectProvider<SynthesisDocs> synthesisDocs;
+    private final ObjectProvider<ArrangementGate> arrangementGate;
     private final Path workingDirectory;
 
     NextAction(
@@ -61,6 +62,7 @@ class NextAction {
             GenerationModel generationModel,
             ObjectProvider<Clusters> clusters,
             ObjectProvider<SynthesisDocs> synthesisDocs,
+            ObjectProvider<ArrangementGate> arrangementGate,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
         this.profileStore = profileStore;
         this.relevanceLabels = relevanceLabels;
@@ -68,6 +70,7 @@ class NextAction {
         this.generationModel = generationModel;
         this.clusters = clusters;
         this.synthesisDocs = synthesisDocs;
+        this.arrangementGate = arrangementGate;
         this.workingDirectory = workingDirectory;
     }
 
@@ -119,49 +122,36 @@ class NextAction {
      *
      * <p>{@code vespera label} has no root and uses {@link #line()}: it ingests answers and arranges
      * nothing, so there is never an arrangement of its making to name.
+     *
+     * <p>{@code invocationRuns} is what the invocation recorded (ADR-154 §1) — the run of the
+     * arrangement and generation stages this invocation minted or continued, if either ran. This is
+     * never the latest run of either stage, and that is the point (ADR-154 §2): a re-arrangement over a
+     * reused walk (ADR-115) leaves an older arrangement still standing in the walk's history, and only
+     * this invocation's own arrangement is the one the page just written and the closing line agree on.
      */
-    String line(Path corpusRoot) {
+    String line(Path corpusRoot, InvocationRuns invocationRuns, ArrangementGate arrangementGate) {
         Profile profile = profileStore.load();
+        Optional<RunId> arrangement = invocationRuns.runOf(ArrangementRun.STAGE);
+        Optional<RunId> generation = invocationRuns.runOf(GenerationRun.STAGE);
+        boolean approvalMatchesThisInvocation =
+                arrangementGate.approvedArrangement(arrangement).isPresent();
         return line(
                 profile,
                 answersRecordedAgainst(profile),
                 questionsWritten(),
-                arrangementToApprove(corpusRoot).orElse(null),
+                arrangement.map(ArrangementGate::shortNameOf).orElse(null),
                 generationModelName(),
-                deliverableFor(corpusRoot).orElse(null));
+                deliverableFor(generation).orElse(null),
+                approvalMatchesThisInvocation);
     }
 
     /**
-     * The short name of the arrangement this invocation wrote for {@code corpusRoot}, or empty where
-     * nothing has been arranged.
-     *
-     * <p>Read off the ledger at the end rather than handed down from the step, for the reason the rest
-     * of this class is: a line assembled from what each step happened to see is a line that can
-     * disagree with what was actually written.
-     *
-     * <p>The run written last, never the greatest — a run id is a hash of what the run consumed, so
-     * sorting by it would hand the operator whichever arrangement happened to hash highest. The value
-     * on this line has to be the one on the page they were just told to read (ADR-107).
+     * The deliverable this invocation's corpus already has, if a generation run stands for this
+     * invocation — so this is still right on an invocation whose step was already recorded finished and
+     * wrote nothing this time (ADR-103, ADR-111, #186).
      */
-    private Optional<String> arrangementToApprove(Path corpusRoot) {
-        return ledger.finishedWalkFor(Walk.canonicalRoot(corpusRoot))
-                .flatMap(walk -> ledger.latestRunFor(ArrangementRun.STAGE, walk))
-                .map(ArrangementGate::shortNameOf);
-    }
-
-    /**
-     * The deliverable this invocation's corpus already has, if a generation run has ever been minted
-     * for it — read off the ledger rather than handed down from the step (the same reason {@link
-     * #arrangementToApprove} is), so this is still right on an invocation whose step was already
-     * recorded finished and wrote nothing this time (ADR-103, ADR-111, #186).
-     *
-     * <p>The generation run written last, for {@link #arrangementToApprove}'s own reason: a run id
-     * carries no order of its own, and insert order is the one record of sequence the table keeps.
-     */
-    private Optional<DeliverableSummary> deliverableFor(Path corpusRoot) {
-        return ledger.finishedWalkFor(Walk.canonicalRoot(corpusRoot))
-                .flatMap(walk -> ledger.latestRunFor(GenerationRun.STAGE, walk))
-                .flatMap(this::summarize);
+    private Optional<DeliverableSummary> deliverableFor(Optional<RunId> generation) {
+        return generation.flatMap(this::summarize);
     }
 
     /**
@@ -259,7 +249,14 @@ class NextAction {
             boolean questionsWritten,
             String arrangementToApprove,
             String generationModel) {
-        return line(profile, answersRecorded, questionsWritten, arrangementToApprove, generationModel, null);
+        return line(
+                profile,
+                answersRecorded,
+                questionsWritten,
+                arrangementToApprove,
+                generationModel,
+                null,
+                namesThisInvocationsArrangement(profile, arrangementToApprove));
     }
 
     /**
@@ -275,6 +272,45 @@ class NextAction {
             String arrangementToApprove,
             String generationModel,
             DeliverableSummary deliverable) {
+        return line(
+                profile,
+                answersRecorded,
+                questionsWritten,
+                arrangementToApprove,
+                generationModel,
+                deliverable,
+                namesThisInvocationsArrangement(profile, arrangementToApprove));
+    }
+
+    /**
+     * Whether {@code profile.arrangementApproved()} names {@code arrangementToApprove} exactly -- the
+     * only reading available to a caller with no run id to check a real prefix against, since {@code
+     * arrangementToApprove} is already the shortened id {@link ArrangementGate#shortNameOf} gives, not
+     * the run's full id. It is what the two overloads above fall back on, and it agrees with the real
+     * answer whenever the operator copied the short name whole, which is what the closing line always
+     * asks them to do. {@link #line(Path, InvocationRuns, ArrangementGate)} computes the real answer
+     * instead, off {@link ArrangementGate#approvedArrangement}, since only it holds the full id a
+     * shorter approval could be a genuine prefix of.
+     */
+    private static boolean namesThisInvocationsArrangement(Profile profile, String arrangementToApprove) {
+        return arrangementToApprove != null
+                && profile.arrangementApproved().isSet()
+                && arrangementToApprove.equals(profile.arrangementApproved().value().trim());
+    }
+
+    /**
+     * {@link #line(Profile, int, boolean, String, String, DeliverableSummary)}, told directly whether
+     * the approval names the arrangement this invocation made or continued (ADR-154 §2), rather than
+     * having that worked out from strings that cannot always tell a real prefix from a mismatch.
+     */
+    static String line(
+            Profile profile,
+            int answersRecorded,
+            boolean questionsWritten,
+            String arrangementToApprove,
+            String generationModel,
+            DeliverableSummary deliverable,
+            boolean approvalMatchesThisInvocation) {
         List<String> stillWanted = runValuesStillWanted(profile);
         if (!stillWanted.isEmpty()) {
             return whatIsSet(profile, answersRecorded) + " Next: write "
@@ -290,19 +326,34 @@ class NextAction {
         if (otherUnreadable.isPresent()) {
             return otherUnreadable.get();
         }
-        if (profile.relevanceScoreFloor().isSet() && !profile.arrangementApproved().isSet()) {
+        if (profile.relevanceScoreFloor().isSet()) {
             if (arrangementToApprove == null) {
+                // Approval set, and no arrangement this invocation, and approval unset with no
+                // arrangement this invocation are one outcome (ADR-154 §2): in each case no arrangement
+                // has been approved, because none exists yet for this invocation to approve.
                 return "Every value the profile asks for is answered, including relevanceScoreFloor."
                         + " Nothing was arranged this invocation, so there is nothing to approve yet."
                         + " Next: fix what the gated line above names, and run again.";
             }
-            return "Every value the profile asks for is answered, and the documents are"
-                    + " arranged. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
-                    + ", and if that arrangement is the one you want, write " + quoted(arrangementToApprove)
-                    + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
-                    + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
-        }
-        if (profile.relevanceScoreFloor().isSet()) {
+            if (!profile.arrangementApproved().isSet()) {
+                return "Every value the profile asks for is answered, and the documents are"
+                        + " arranged. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
+                        + ", and if that arrangement is the one you want, write " + quoted(arrangementToApprove)
+                        + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
+                        + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
+            }
+            if (!approvalMatchesThisInvocation) {
+                // The approval was set, but names an arrangement this invocation did not arrive at --
+                // an older one of this walk, or a typo (ADR-154 §2). No deliverable is named: no
+                // write-up happened this invocation, and an earlier arrangement's tree is not this
+                // one's.
+                return "Every value the profile asks for is answered, but arrangementApproved holds "
+                        + quoted(profile.arrangementApproved().value()) + ", which is not the arrangement"
+                        + " the documents are in now. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
+                        + ", and if that arrangement is the one you want, write " + quoted(arrangementToApprove)
+                        + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
+                        + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
+            }
             if (deliverable == null) {
                 return "Every value the profile asks for is answered, including the arrangement you"
                         + " approved. Nothing is left to set.";

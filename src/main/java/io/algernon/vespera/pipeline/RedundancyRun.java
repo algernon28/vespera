@@ -8,6 +8,7 @@ import io.algernon.vespera.ledger.WalkId;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.batch.core.configuration.annotation.JobScope;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -39,11 +40,11 @@ import tools.jackson.databind.json.JsonMapper;
  * checks the gate and refuses to run otherwise, since a bean must not depend on every caller remembering
  * to check first.
  *
- * <p>Stage 3's run id and stage 2's are learned rather than worked out: {@link UpstreamRuns} looks up
- * the runs of those stages recorded against this walk (ADR-099). The stage must not depend on having
- * run in the same invocation as its predecessors, and a query is not in-process state. It replaces
- * re-deriving the ids from each earlier stage's known-fixed inputs — which required every stage before
- * it in turn — and would drift silently if any earlier stage's configuration shape changed here.
+ * <p>Stage 3's run id and stage 2's are learned rather than worked out: {@link UpstreamRuns} reads the
+ * runs of those stages this invocation minted or continued, from {@link InvocationRuns} (ADR-154 §1,
+ * amending ADR-099). It replaces re-deriving the ids from each earlier stage's known-fixed inputs —
+ * which required every stage before it in turn — and would drift silently if any earlier stage's
+ * configuration shape changed here.
  */
 @Component
 @JobScope
@@ -76,7 +77,8 @@ class RedundancyRun {
             Ledger ledger,
             ImplementationVersions implementationVersions,
             RedundancyGate redundancyGate,
-            @Value("#{jobParameters['root']}") Path root) {
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("#{jobExecution.executionContext}") ExecutionContext executionContext) {
         this.floor = redundancyGate
                 .floor()
                 .orElseThrow(() ->
@@ -87,9 +89,10 @@ class RedundancyRun {
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 4"));
 
-        UpstreamRuns upstreamRuns = new UpstreamRuns(ledger);
-        this.extractionRunId = upstreamRuns.runOf(ExtractionRun.STAGE, walkId);
-        this.stage3RunId = upstreamRuns.runOf(ContentCensusRun.STAGE, walkId);
+        InvocationRuns invocationRuns = new InvocationRuns(executionContext);
+        UpstreamRuns upstreamRuns = new UpstreamRuns(invocationRuns);
+        this.extractionRunId = upstreamRuns.runOf(ExtractionRun.STAGE);
+        this.stage3RunId = upstreamRuns.runOf(ContentCensusRun.STAGE);
 
         this.runId = ledger.startRun(
                 STAGE,
@@ -97,6 +100,7 @@ class RedundancyRun {
                 configConsumed(canonicalRoot, this.stage3RunId, this.floor),
                 walkId,
                 List.of(this.stage3RunId));
+        invocationRuns.record(STAGE, this.runId);
     }
 
     /**

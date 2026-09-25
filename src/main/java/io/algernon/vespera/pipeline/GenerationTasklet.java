@@ -9,7 +9,6 @@ import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DocumentPictures;
 import io.algernon.vespera.extraction.LeadingChunks;
-import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -68,9 +67,10 @@ import org.springframework.stereotype.Component;
  * purpose — a typo that quietly generated over the latest arrangement would spend an approval it
  * never got.
  *
- * <p><b>An ambiguous approval is not that.</b> A prefix matching two arrangements stops the run
- * rather than choosing one, which is ADR-099's rule for an ambiguous upstream and is deliberately
- * not caught here: the pipeline never guesses which arrangement a person meant.
+ * <p><b>The approval is matched against one arrangement</b> (ADR-154 §2): the one this invocation made
+ * or continued, read from {@link InvocationRuns} and handed to {@link ArrangementGate} rather than
+ * looked up over the walk. An approval naming an older arrangement of the walk closes the gate exactly
+ * as an approval naming nothing does.
  *
  * <p><b>It gathers, and {@code synthesis} writes.</b> Which documents are in a cluster, how they
  * scored and what each opens with live in three modules {@code synthesis} may not name, so they are
@@ -128,7 +128,6 @@ class GenerationTasklet implements Tasklet {
     private final ClusterFaults clusterFaults;
     private final Ledger ledger;
     private final ContentIdentity contentIdentity;
-    private final ImplementationVersions implementationVersions;
     private final ProfileStore profileStore;
     private final Path root;
     private final Path workingDirectory;
@@ -148,7 +147,6 @@ class GenerationTasklet implements Tasklet {
             JdbcTemplate jdbcTemplate,
             Ledger ledger,
             ContentIdentity contentIdentity,
-            ImplementationVersions implementationVersions,
             ProfileStore profileStore,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
@@ -174,7 +172,6 @@ class GenerationTasklet implements Tasklet {
         this.documentPictures = new DocumentPictures(jdbcTemplate);
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
-        this.implementationVersions = implementationVersions;
         this.profileStore = profileStore;
         this.root = root;
         this.workingDirectory = workingDirectory;
@@ -190,12 +187,16 @@ class GenerationTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        // Deliberately outside any catch: an approval naming two arrangements stops the run.
-        Optional<RunId> approved = arrangementGate.approvedArrangement(walk.get());
+        InvocationRuns invocationRuns = new InvocationRuns(
+                chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext());
+        // Never ArrangementRun.getObject() itself, which would mint an arrangement behind the
+        // arrangement step's own gate (ADR-154, Context §3) -- only the arrangement this invocation
+        // already arrived at, if it arrived at one, is asked about.
+        Optional<RunId> approved = arrangementGate.approvedArrangement(invocationRuns.runOf(ArrangementRun.STAGE));
         if (approved.isEmpty()) {
             LOG.info("the generation step is gated: no arrangement of this corpus has been approved --"
-                    + " arrangementApproved is unset, or names no arrangement of this walk. Nothing was"
-                    + " generated.");
+                    + " arrangementApproved is unset, or names an arrangement this invocation did not"
+                    + " arrive at. Nothing was generated.");
             return RepeatStatus.FINISHED;
         }
         RunId arrangement = approved.get();
@@ -292,7 +293,9 @@ class GenerationTasklet implements Tasklet {
                 turnedDownInARow.add(e.fault());
                 if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
                     stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
-                    writeDeliverable(generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
+                    writeDeliverable(
+                            generation, walk.get(), invocationRuns, canonicalRoot, recordedClusters, membership,
+                            scores);
                     return RepeatStatus.FINISHED;
                 }
                 continue;
@@ -334,12 +337,14 @@ class GenerationTasklet implements Tasklet {
                     standingFaults,
                     faulted,
                     generation.value());
-            writeDeliverable(generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
+            writeDeliverable(
+                    generation, walk.get(), invocationRuns, canonicalRoot, recordedClusters, membership, scores);
             return RepeatStatus.FINISHED;
         }
 
         ledger.finishStep(generation, GenerationRun.STAGE);
-        Path tree = writeDeliverable(generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
+        Path tree = writeDeliverable(
+                generation, walk.get(), invocationRuns, canonicalRoot, recordedClusters, membership, scores);
         LOG.info(
                 "The generation step finished under {}, over the arrangement approved as {}: {} synthesis"
                         + " doc(s) written under model {} in a window of {}, {} already recorded by an"
@@ -366,23 +371,22 @@ class GenerationTasklet implements Tasklet {
      * arrangement and the writing produced under this run.
      *
      * <p>The content hash on the survivor row is read from {@code corpus}'s own record rather than
-     * recomputed from the file (ADR-104): stage 1's run id is re-derived from its known-fixed inputs,
-     * the way {@link ExtractionRun} already re-derives it. The picture chain (ADR-149 §9) is not exempt
-     * from touching the archive: it reads each listed survivor's file once to hash it, because {@code
-     * extraction} keys its picture cache on its own content hash rather than {@code corpus}'s.
+     * recomputed from the file (ADR-104): stage 1's run id is this invocation's own byte-level-reduction
+     * run, read from {@link InvocationRuns} through {@link UpstreamRuns} rather than re-derived (ADR-154
+     * §1) — this invocation always holds one, since every invocation passes through stage 1 before it
+     * can reach this step. The picture chain (ADR-149 §9) is not exempt from touching the archive: it
+     * reads each listed survivor's file once to hash it, because {@code extraction} keys its picture
+     * cache on its own content hash rather than {@code corpus}'s.
      */
     private Path writeDeliverable(
             RunId generation,
             WalkId walkId,
+            InvocationRuns invocationRuns,
             Path canonicalRoot,
             List<RecordedCluster> recordedClusters,
             List<DocumentCluster> membership,
             Map<OccurrenceId, Double> scores) {
-        RunId byteLevelReductionRun = RunId.of(
-                implementationVersions.of(ByteLevelReductionTasklet.OWNING_MODULE),
-                ByteLevelReductionTasklet.CONFIG_CONSUMED,
-                walkId,
-                List.of());
+        RunId byteLevelReductionRun = new UpstreamRuns(invocationRuns).runOf(ByteLevelReductionTasklet.STAGE);
         DeliverableProvenance provenance = new DeliverableProvenance(
                 generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
         return Deliverable.writeTo(

@@ -705,6 +705,15 @@ public final class Adr {
     public static final String THE_WHOLE_JOB_TESTS_SHARE_ONE_SLICE = FILE
             + "0153-the-whole-job-tests-share-one-slice-and-a-stages-configuration-class-stops-being-their-seam.md";
 
+    /**
+     * ADR-154 -- a stage names as its upstream the run of the stage before it that this invocation
+     * minted or continued, not whichever the walk holds (amends ADR-099); an arrangement approval opens
+     * generation only on the arrangement this invocation made or continued (amends ADR-107); and what a
+     * new build costs an operator part-way through an archive (amends ADR-058).
+     */
+    public static final String A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT = FILE
+            + "0154-a-stage-reads-the-upstream-run-this-invocation-arrived-at-and-an-approval-opens-only-this-invocations-arrangement.md";
+
     private Adr() {
     }
 }

@@ -8,6 +8,7 @@ import io.algernon.vespera.ledger.WalkId;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.batch.core.configuration.annotation.JobScope;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -43,12 +44,13 @@ import tools.jackson.databind.json.JsonMapper;
  * also keeps the upstream chain intact: stage 4's run is against the corpus walk, and a run may only
  * name an upstream over the same corpus.
  *
- * <p>Stage 4's run and stage 2's are learned rather than worked out: {@link UpstreamRuns} looks up the
- * runs of those stages recorded against this walk (ADR-099). Stage 4's is this run's upstream (ADR-089).
- * Stage 2's is not — it is the run whose {@code extraction_metric} rows carry the corpus side of the
- * mismatch comparison (ADR-086), which has to be named to be read, since the seed side's rows sit
- * under this run instead (ADR-092). Both lookups replace re-deriving every earlier stage's id in turn,
- * which would drift silently if any earlier stage's configuration shape changed here.
+ * <p>Stage 4's run and stage 2's are learned rather than worked out: {@link UpstreamRuns} reads the
+ * runs of those stages this invocation minted or continued, from {@link InvocationRuns} (ADR-154 §1,
+ * amending ADR-099). Stage 4's is this run's upstream (ADR-089). Stage 2's is not — it is the run whose
+ * {@code extraction_metric} rows carry the corpus side of the mismatch comparison (ADR-086), which has
+ * to be named to be read, since the seed side's rows sit under this run instead (ADR-092). Both reads
+ * replace re-deriving every earlier stage's id in turn, which would drift silently if any earlier
+ * stage's configuration shape changed here.
  */
 @Component
 @JobScope
@@ -81,7 +83,8 @@ class SeedMeasurementRun {
             ImplementationVersions implementationVersions,
             RedundancyGate redundancyGate,
             SeedGate seedGate,
-            @Value("#{jobParameters['root']}") Path root) {
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("#{jobExecution.executionContext}") ExecutionContext executionContext) {
         SeedGate.SeedWalk seedWalk = seedGate.seedWalk()
                 .orElseThrow(() -> new IllegalStateException(
                         "SeedMeasurementRun must not be instantiated while the seed gate is closed"));
@@ -95,15 +98,17 @@ class SeedMeasurementRun {
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 5"));
 
-        UpstreamRuns upstreamRuns = new UpstreamRuns(ledger);
-        this.extractionRunId = upstreamRuns.runOf(ExtractionRun.STAGE, walkId);
-        this.redundancyRunId = upstreamRuns.runOf(RedundancyRun.STAGE, walkId);
+        InvocationRuns invocationRuns = new InvocationRuns(executionContext);
+        UpstreamRuns upstreamRuns = new UpstreamRuns(invocationRuns);
+        this.extractionRunId = upstreamRuns.runOf(ExtractionRun.STAGE);
+        this.redundancyRunId = upstreamRuns.runOf(RedundancyRun.STAGE);
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, EXTRACTION_MODULE, PIPELINE_MODULE),
                 configConsumed(canonicalRoot, seedWalk.canonicalRoot(), this.redundancyRunId),
                 walkId,
                 List.of(this.redundancyRunId));
+        invocationRuns.record(STAGE, this.runId);
     }
 
     /**
