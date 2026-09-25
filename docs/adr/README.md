@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-151.
+One file per architecture decision, ADR-001 through ADR-152.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -169,3 +169,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-148](0148-a-backtick-is-escaped-in-every-surrounding-a-value-is-read-in-and-one-renderers-divergence-moves-no-rule.md) | 2026-09-25 | A backtick is escaped in every surrounding a value is read in, and one renderer's divergence moves no rule *(extends ADR-138)* |
 | [ADR-149](0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md) | 2026-09-25 | A survivor's pictures reach its cluster file from the extraction cache, and a picture that recurs is furniture *(amends ADR-104, extends ADR-103)* |
 | [ADR-151](0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md) | 2026-09-25 | The manifest's content hash is every survivor's SHA-256, taken at 6b through extraction's own hash *(amends ADR-104, ADR-149)* |
+| [ADR-152](0152-a-survivor-whose-file-will-not-open-is-still-asked-about-without-its-opening-and-a-step-that-records-completion-stops-instead.md) | 2026-09-25 | A survivor whose file will not open is still asked about, without its opening, and a step that records completion stops instead *(extends ADR-149)* |

@@ -705,6 +705,16 @@ public final class Adr {
     public static final String THE_MANIFESTS_CONTENT_HASH_IS_EVERY_SURVIVORS_SHA_256 = FILE
             + "0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md";
 
+    /**
+     * ADR-152 -- a sampled survivor whose file will not open when stage 5's labelling page is written
+     * is still asked about, with a stated fallback in place of its opening and a warning naming the
+     * file; the page reads the extraction cache and never converts; and a step that records its
+     * completion stops the run on such a file instead, because tolerating it would seal the gap under
+     * a finished run.
+     */
+    public static final String A_SURVIVOR_WHOSE_FILE_WILL_NOT_OPEN_IS_STILL_ASKED_ABOUT = FILE
+            + "0152-a-survivor-whose-file-will-not-open-is-still-asked-about-without-its-opening-and-a-step-that-records-completion-stops-instead.md";
+
     private Adr() {
     }
 }
