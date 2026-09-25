@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import tools.jackson.databind.JsonNode;
@@ -38,8 +39,19 @@ import tools.jackson.databind.node.MissingNode;
  *     layer -- its own page-header and page-footer furniture
  * @param caption the picture's resolved caption texts, joined by a single space and trimmed, or
  *     {@code ""} where Docling gave none
+ * @param place where on its page the picture sat (ADR-150 §5), read from its first {@code prov}
+ *     entry, or empty where there is no such entry or it carries no bounding box
  */
-public record DocumentPicture(String mediaType, byte[] pixels, boolean inFurnitureLayer, String caption) {
+public record DocumentPicture(
+        String mediaType, byte[] pixels, boolean inFurnitureLayer, String caption, Optional<PicturePlace> place) {
+
+    /**
+     * A picture with no known place (ADR-150 §5): every caller from before this record existed, and
+     * every test fixture that has no reason to state one.
+     */
+    public DocumentPicture(String mediaType, byte[] pixels, boolean inFurnitureLayer, String caption) {
+        this(mediaType, pixels, inFurnitureLayer, caption, Optional.empty());
+    }
 
     /** The prefix a data URI carrying base64-encoded bytes starts with. */
     private static final String DATA_URI_PREFIX = "data:";
@@ -139,7 +151,31 @@ public record DocumentPicture(String mediaType, byte[] pixels, boolean inFurnitu
         }
         boolean inFurnitureLayer = FURNITURE_LAYER.equals(picture.path("content_layer").asString(""));
         String caption = captionOf(picture, content);
-        return java.util.Optional.of(new DocumentPicture(mediaType, pixels, inFurnitureLayer, caption));
+        Optional<PicturePlace> place = placeOf(picture);
+        return java.util.Optional.of(new DocumentPicture(mediaType, pixels, inFurnitureLayer, caption, place));
+    }
+
+    /**
+     * {@code picture}'s place on its page (ADR-150 §5), read from its first {@code prov} entry, or
+     * empty where there is no such entry or it carries no bounding box. The edges are read exactly as
+     * the response gives them, with no conversion between coordinate origins: the same-place rule
+     * compares them only within one document, where every entry shares one origin.
+     */
+    private static Optional<PicturePlace> placeOf(JsonNode picture) {
+        JsonNode prov = picture.path("prov").path(0);
+        if (prov.isMissingNode()) {
+            return Optional.empty();
+        }
+        JsonNode bbox = prov.path("bbox");
+        if (bbox.isMissingNode()) {
+            return Optional.empty();
+        }
+        return Optional.of(new PicturePlace(
+                prov.path("page_no").asInt(),
+                bbox.path("l").asDouble(),
+                bbox.path("t").asDouble(),
+                bbox.path("r").asDouble(),
+                bbox.path("b").asDouble()));
     }
 
     /** {@code picture}'s captions, each resolved to its text item and joined by a single space. */

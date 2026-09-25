@@ -121,6 +121,26 @@ class DoclingClientTest {
      */
     private static final int NAMING_SCHEME_VERSION = 1;
 
+    /**
+     * The picture mode every conversion asks for (ADR-150): each picture's pixels as a base64
+     * {@code data:} URI inside the JSON answer. The sidecar's own default, {@code placeholder}, returns
+     * a PDF's pictures located on the page with no pixels at all; {@code referenced} returns a file name
+     * the single synchronous call gives no way to read back.
+     */
+    private static final String PICTURE_EXPORT_MODE = "embedded";
+
+    /**
+     * The picture options ADR-150 leaves at the pinned sidecar's defaults, and so never sends: cropping
+     * is already on and already at the default scale, and describing or classifying a picture would run
+     * a model no decision chose.
+     */
+    private static final List<String> UNSENT_PICTURE_OPTIONS = List.of(
+            "include_images",
+            "images_scale",
+            "include_page_images",
+            "do_picture_classification",
+            "do_picture_description");
+
     /** What the documents in the calls below are converted as; no claim here turns on which. */
     private static final DetectedFormat AS_DETECTED = DetectedFormat.PLAIN_TEXT;
 
@@ -493,8 +513,44 @@ class DoclingClientTest {
                         + " request without being added here fails this claim rather than silently keying"
                         + " new responses under an identity that predates it",
                 () -> assertThat(DoclingClient.sentOptions())
-                        .isEqualTo("to_formats=json;ocr_preset=" + PINNED_OCR_PRESET + ";naming="
-                                + NAMING_SCHEME_VERSION));
+                        .isEqualTo("to_formats=json;ocr_preset=" + PINNED_OCR_PRESET + ";image_export_mode="
+                                + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION));
+    }
+
+    /**
+     * ADR-150: every conversion asks for each picture's pixels inside the JSON, whatever the format,
+     * because the identity is one value for the whole run and an option sent to some formats only would
+     * be an option the identity misstates for the rest. It asks for nothing else about pictures: the
+     * sidecar already crops every picture by default ({@code include_images}), at the default scale the
+     * pinned version declares ({@code images_scale}), so sending either would restate a default.
+     */
+    @Test
+    @Story("The conversion pins what it asks for")
+    @DisplayName("Converting asks for every picture's pixels inside the answer, for every format, and for nothing else about pictures")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
+    void asksForEmbeddedPicturePixelsForEveryFormat(@TempDir Path dir) throws IOException {
+        Path onDisk = aDocument(dir);
+
+        claim(
+                "every format the bytes can yield is sent with the picture mode that puts each picture's"
+                        + " pixels into the answer: without it the service locates a picture on a page of a"
+                        + " PDF and returns no pixels for it, so nothing a reader could be shown ever reaches"
+                        + " the cache",
+                () -> assertThat(EVERY_PAIRING).allSatisfy(pairing -> assertThat(
+                                sentPart(onDisk, pairing.format(), pairing.subtype(), "image_export_mode"))
+                        .as("the picture mode sent for " + pairing.format() + subtypeSuffix(pairing))
+                        .isEqualTo(Optional.of(PICTURE_EXPORT_MODE))));
+        claim(
+                "and no other picture option is sent: the service already crops every picture at its"
+                        + " default scale, so naming either option would only restate a default, and a picture"
+                        + " description or classification would run a model this design never chose",
+                () -> {
+                    String sent = sentBody(onDisk, DetectedFormat.PDF, Optional.empty());
+                    for (String option : UNSENT_PICTURE_OPTIONS) {
+                        assertThat(sent).as("the request's form fields").doesNotContain("name=\"" + option + "\"");
+                    }
+                });
     }
 
     @Test
@@ -573,6 +629,32 @@ class DoclingClientTest {
 
         Matcher filename = Pattern.compile("filename=\"([^\"]+)\"").matcher(sent);
         return filename.find() ? filename.group(1) : "no filename was sent at all";
+    }
+
+    /** The whole multipart body {@link DoclingClient#convert} sends for {@code file}, as the stub received it. */
+    private static String sentBody(Path file, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
+        StringBuilder sent = new StringBuilder();
+        service.expect(requestTo(CONVERT_ENDPOINT))
+                .andExpect(request -> sent.append(request.getBody().toString()))
+                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
+
+        new DoclingClient(builder.build()).convert(file, format, subtype.orElse(null));
+
+        return sent.toString();
+    }
+
+    /**
+     * The value of the form field {@code name} in the body sent for {@code file}, or empty where no such
+     * field was sent: the part's headers are skipped, and its value is the line after the blank one.
+     */
+    private static Optional<String> sentPart(
+            Path file, DetectedFormat format, Optional<DetectedSubtype> subtype, String name) {
+        Matcher part = Pattern.compile(
+                        "name=\"" + Pattern.quote(name) + "\"\\r?\\n(?:[^\\r\\n]+\\r?\\n)*\\r?\\n([^\\r\\n]*)\\r?\\n")
+                .matcher(sentBody(file, format, subtype));
+        return part.find() ? Optional.of(part.group(1)) : Optional.empty();
     }
 
     private static Path aDocument(Path dir) throws IOException {

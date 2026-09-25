@@ -192,7 +192,7 @@ Something visual that Docling found inside a converted document and returned amo
 _Avoid_: image (the word for a standalone image file, and for Markdown's image syntax), figure, illustration, attachment
 
 **Furniture picture**:
-A picture whose bytes recur among the pictures of the documents a tree lists, in two documents or twice in one, or that Docling placed in its page furniture. It is left out of the deliverable. Like boilerplate, its recurrence is a fact about how documents are produced rather than about what they say, but it is decided over the documents the tree lists rather than over the corpus, and by exact bytes rather than by shingles (ADR-149).
+A picture whose bytes recur among the pictures of the documents a tree lists, in two documents or twice in one, or that Docling placed in its page furniture (ADR-149). A picture whose bytes do not recur is furniture too when it is a near-copy of another such picture, within 2 pixels in width and height and 2 bits in difference hash, or when it repeats at one place in its document, on another page with each edge of its box within 3 points and its difference hash within 8 bits (ADR-150). It is left out of the deliverable. Like boilerplate, its recurrence is a fact about how documents are produced rather than about what they say, but it is decided over the documents the tree lists rather than over the corpus, and by the pictures' bytes, pixels and places rather than by shingles.
 _Avoid_: logo, decoration, chrome, boilerplate (boilerplate is text, measured corpus-wide)
 
 **Cluster fault**:

@@ -52,6 +52,19 @@ class PictureScriptedExtractionBeans {
     /** The pixels of the letterhead both corpus documents carry. */
     static final byte[] THE_LETTERHEAD = "the pixels of a letterhead every document holds".getBytes(StandardCharsets.UTF_8);
 
+    /**
+     * A standalone image file in the corpus (ADR-150 §4): stage 1 reads its PNG signature as an image,
+     * and its conversion carries one picture of its own, as Docling's crop of an image file does.
+     */
+    static final String THE_SCREENSHOT = "a-screenshot.png";
+
+    /** The eight bytes that make stage 1 read a file as a PNG image, whatever follows them. */
+    static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+
+    /** The picture the screenshot's conversion carries: a crop of the image file itself. */
+    static final byte[] THE_SCREENSHOTS_CROP =
+            "the pixels docling cropped out of a standalone image file".getBytes(StandardCharsets.UTF_8);
+
     /** Text alone: the response every file but the two picture-bearing documents gets. */
     private static final String TEXT_ONLY = "{\"document\":{\"json_content\":{\"texts\":["
             + "{\"text\":\"" + STUBBED_TITLE + "\",\"label\":\"title\"},"
@@ -63,6 +76,7 @@ class PictureScriptedExtractionBeans {
                 .cachingInto(jdbcTemplate)
                 .answering(THE_DOCUMENT_WITH_A_DIAGRAM, response(withPictures(THE_LETTERHEAD, THE_DIAGRAM)))
                 .answering(THE_DOCUMENT_WITH_ONLY_THE_LETTERHEAD, response(withPictures(THE_LETTERHEAD)))
+                .answering(THE_SCREENSHOT, response(withPictures(THE_SCREENSHOTS_CROP)))
                 .otherwiseAnswering(response(TEXT_ONLY));
     }
 

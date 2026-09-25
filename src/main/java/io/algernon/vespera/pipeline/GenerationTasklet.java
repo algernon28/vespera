@@ -1,5 +1,7 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
@@ -7,7 +9,9 @@ import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DocumentPictures;
+import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.LeadingChunks;
+import io.algernon.vespera.extraction.PicturePlace;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -27,6 +31,7 @@ import io.algernon.vespera.synthesis.Deliverable;
 import io.algernon.vespera.synthesis.DeliverableProvenance;
 import io.algernon.vespera.synthesis.Exemplar;
 import io.algernon.vespera.synthesis.ListedPicture;
+import io.algernon.vespera.synthesis.ListedPicturePlace;
 import io.algernon.vespera.synthesis.ListedSurvivor;
 import io.algernon.vespera.synthesis.NamedValue;
 import io.algernon.vespera.synthesis.RecordedCluster;
@@ -121,6 +126,8 @@ class GenerationTasklet implements Tasklet {
     private final LeadingChunks leadingChunks;
     private final DoclingExtractor extractor;
     private final DocumentPictures documentPictures;
+    private final ExtractorIdentity extractorIdentity;
+    private final DetectedFormats detectedFormats;
     private final ClusterSynthesis clusterSynthesis;
     private final SynthesisDocs synthesisDocs;
     private final ClusterFaults clusterFaults;
@@ -139,6 +146,8 @@ class GenerationTasklet implements Tasklet {
             RelevanceScoring relevanceScoring,
             LeadingChunks leadingChunks,
             DoclingExtractor extractor,
+            ExtractorIdentity extractorIdentity,
+            DetectedFormats detectedFormats,
             ClusterSynthesis clusterSynthesis,
             SynthesisDocs synthesisDocs,
             JdbcTemplate jdbcTemplate,
@@ -155,6 +164,8 @@ class GenerationTasklet implements Tasklet {
         this.relevanceScoring = relevanceScoring;
         this.leadingChunks = leadingChunks;
         this.extractor = extractor;
+        this.extractorIdentity = extractorIdentity;
+        this.detectedFormats = detectedFormats;
         this.clusterSynthesis = clusterSynthesis;
         this.synthesisDocs = synthesisDocs;
         // Constructed rather than injected as its own bean (ADR-041 holds: only this class touches
@@ -379,7 +390,7 @@ class GenerationTasklet implements Tasklet {
                 recordedClusters,
                 synthesisDocs.forRun(generation),
                 survivorsFor(membership, scores, canonicalRoot, hashes),
-                survivorPictures(canonicalRoot, hashes));
+                survivorPictures(canonicalRoot, walkId, hashes));
     }
 
     /**
@@ -396,10 +407,22 @@ class GenerationTasklet implements Tasklet {
      * <p>The pixels themselves are not cached: {@link #picturesFor}'s query and decode run on every
      * call, so a document's decoded pictures live only for the one call that decodes them, and ADR-149
      * §9's one-document bound on memory holds regardless of how many times a survivor is asked about.
+     *
+     * <p><b>An {@code IMAGE} survivor shows no pictures</b> (ADR-150 §4): the picture Docling would crop
+     * from it is a re-sampled region of the original, not a second document worth carrying alongside it.
+     * The format is read under this walk's own byte-level-reduction run, {@link UpstreamRuns} looks up
+     * (ADR-099) rather than re-derived from the current implementation version, which would match
+     * nothing after that version changes.
      */
-    private SurvivorPictures survivorPictures(Path canonicalRoot, Map<OccurrenceId, Optional<String>> hashes) {
-        return occurrenceId ->
-                hashOf(occurrenceId, canonicalRoot, hashes).map(this::picturesFor).orElseGet(List::of);
+    private SurvivorPictures survivorPictures(
+            Path canonicalRoot, WalkId walkId, Map<OccurrenceId, Optional<String>> hashes) {
+        RunId byteLevelReductionRunId = new UpstreamRuns(ledger).runOf(ByteLevelReductionTasklet.STAGE, walkId);
+        return occurrenceId -> {
+            if (detectedFormats.formatFor(occurrenceId, byteLevelReductionRunId).filter(DetectedFormat.IMAGE::equals).isPresent()) {
+                return List.of();
+            }
+            return hashOf(occurrenceId, canonicalRoot, hashes).map(this::picturesFor).orElseGet(List::of);
+        };
     }
 
     /**
@@ -437,10 +460,19 @@ class GenerationTasklet implements Tasklet {
      * cached, so a document's pixels never outlive the call that produced them (ADR-149 §9).
      */
     private List<ListedPicture> picturesFor(String contentHash) {
-        return documentPictures.forContentHash(contentHash).stream()
+        return documentPictures.forContentHash(contentHash, extractorIdentity).stream()
                 .map(picture -> new ListedPicture(
-                        picture.mediaType(), picture.pixels(), picture.inFurnitureLayer(), picture.caption()))
+                        picture.mediaType(),
+                        picture.pixels(),
+                        picture.inFurnitureLayer(),
+                        picture.caption(),
+                        picture.place().map(GenerationTasklet::placeOf)))
                 .toList();
+    }
+
+    /** {@code place}, mapped onto {@code synthesis}'s own place record, field for field (ADR-150 §5). */
+    private static ListedPicturePlace placeOf(PicturePlace place) {
+        return new ListedPicturePlace(place.page(), place.left(), place.top(), place.right(), place.bottom());
     }
 
     /** Every {@link Profile} key the run consumed, named as the operator names them (ADR-103). */

@@ -219,6 +219,13 @@ class DeliverablePicturesInvocationTest {
     /** The two corpus documents, both of which survive into the one group this corpus arranges. */
     private static final int TWO_DOCUMENTS = 2;
 
+    /** The two documents and a standalone image file, where a test adds one (ADR-150 §4). */
+    private static final int THREE_DOCUMENTS = 3;
+
+    /** What follows the image file's PNG signature: stage 1 reads the signature and nothing more. */
+    private static final byte[] SCREENSHOT_BODY =
+            "the rest of a screenshot's bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
     /** How many pages the tree holds: this corpus arranges one group. */
     private static final int ONE_PAGE = 1;
 
@@ -318,6 +325,49 @@ class DeliverablePicturesInvocationTest {
                 });
     }
 
+    /**
+     * ADR-150 §4: a standalone image file that survives shows its entry and nothing else, although its
+     * conversion carries a picture that recurs nowhere. That picture is a re-encoded crop of the
+     * original, and writing it would be the copy of an original ADR-104 refuses. The picture's bytes
+     * are no image, so no rule that decodes a picture can be what leaves it out: only the file's
+     * detected format can.
+     */
+    @Test
+    @Story("A standalone image file shows its entry and nothing else")
+    @DisplayName("An image file that survived shows its entry, and none of the pictures its conversion carried")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
+    void showsAnImageFileAsItsEntryAndNothingElse(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds, true);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success",
+                () -> assertThat(cli.getExitCode()).isZero());
+        Path page = theOnePageOf(root);
+        String text = Files.readString(page);
+        String cropName = nameOf(PictureScriptedExtractionBeans.THE_SCREENSHOTS_CROP);
+
+        claim(
+                "the image file reached the group's page as a membership entry of its own",
+                () -> assertThat(text).contains(PictureScriptedExtractionBeans.THE_SCREENSHOT));
+        claim(
+                "but the picture its conversion carried is written nowhere in the tree, although no other"
+                        + " document carries it: it is a copy of the original, which stays in the archive",
+                () -> assertThat(everyFileIn(theTreeOf(root)))
+                        .noneMatch(file -> file.getFileName().toString().equals(cropName)));
+        claim(
+                "and the image file's entry shows no image at all",
+                () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_SCREENSHOT))
+                        .doesNotContain("!["));
+        claim(
+                "while the diagram of the other document is still shown, so the image file costs its"
+                        + " neighbours nothing",
+                () -> assertThat(text).contains(nameOf(PictureScriptedExtractionBeans.THE_DIAGRAM)));
+    }
+
     /** The one membership entry of {@code page} naming {@code document}, from its number to the next. */
     private static String theEntryNaming(String page, String document) {
         Matcher entry = AN_ENTRY.matcher(page);
@@ -391,10 +441,30 @@ class DeliverablePicturesInvocationTest {
      * produced approved: the state the one test here starts from.
      */
     private void anApprovedCorpus(Path root, Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds, false);
+    }
+
+    /**
+     * {@link #anApprovedCorpus(Path, Path)}, with a standalone image file beside the two documents
+     * where {@code withAScreenshot} says so (ADR-150 §4): a file stage 1 reads as a PNG by its
+     * signature, whatever follows it.
+     */
+    private void anApprovedCorpus(Path root, Path seeds, boolean withAScreenshot) throws IOException {
         Files.writeString(root.resolve(PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_A_DIAGRAM), "a document with a diagram");
         Files.writeString(
                 root.resolve(PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_ONLY_THE_LETTERHEAD),
                 "a document with only the letterhead");
+        int documents = TWO_DOCUMENTS;
+        if (withAScreenshot) {
+            byte[] image = new byte[PictureScriptedExtractionBeans.PNG_SIGNATURE.length + SCREENSHOT_BODY.length];
+            System.arraycopy(PictureScriptedExtractionBeans.PNG_SIGNATURE, 0, image, 0,
+                    PictureScriptedExtractionBeans.PNG_SIGNATURE.length);
+            System.arraycopy(SCREENSHOT_BODY, 0, image, PictureScriptedExtractionBeans.PNG_SIGNATURE.length,
+                    SCREENSHOT_BODY.length);
+            Files.write(root.resolve(PictureScriptedExtractionBeans.THE_SCREENSHOT), image);
+            documents = THREE_DOCUMENTS;
+        }
+        int arranged = documents;
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         Profile profile = profileStore.load();
         profileStore.save(ProfileFixture.profile()
@@ -411,14 +481,14 @@ class DeliverablePicturesInvocationTest {
                 .arrangementApproved(approval, "read by this test")
                 .build());
         claim(
-                "the first invocation arranged both of the " + TWO_DOCUMENTS + " corpus documents, so the"
+                "the first invocation arranged every one of the " + arranged + " corpus documents, so the"
                         + " approved arrangement holds a document with a picture of its own and one without",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM document_cluster WHERE run_id ="
                                         + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)",
                                 Integer.class,
                                 theLatestArrangement(root).value()))
-                        .isEqualTo(TWO_DOCUMENTS));
+                        .isEqualTo(arranged));
     }
 
     /** The arrangement the most recent invocation over {@code root} recorded. */

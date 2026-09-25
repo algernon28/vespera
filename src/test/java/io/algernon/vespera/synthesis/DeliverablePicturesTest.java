@@ -11,7 +11,10 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,9 +26,11 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -42,9 +47,12 @@ import org.junit.jupiter.api.io.TempDir;
  * page and of the files beside it are the evidence, and the destinations are followed the way a
  * renderer follows them.
  *
- * <p>The pixels are short byte strings rather than real images. The writer never decodes a picture:
- * it compares bytes, names a file after their digest, and writes them through, so a valid PNG would
- * prove nothing a distinct byte string does not.
+ * <p>Most pixels are short byte strings rather than real images. They cannot be decoded, so they have
+ * no difference hash, and the rules that need one leave them alone (ADR-150 §3): what those tests claim
+ * is decided by bytes, layer, budget and naming alone, and a string still being written is itself the
+ * evidence that a picture which does not decode is not dropped. The tests of ADR-150's near-copy and
+ * same-place rules use real PNGs, built so that their difference hashes differ in a stated number of
+ * bits.
  *
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122).
  */
@@ -106,6 +114,50 @@ class DeliverablePicturesTest {
     private static final double A_HIGH_SCORE = 0.9;
 
     private static final double A_MIDDLE_SCORE = 0.5;
+
+    private static final double A_LOW_SCORE = 0.2;
+
+    /** The difference hash's grid: 9 columns compared pairwise, in 8 rows (ADR-150 §3). */
+    private static final int HASH_COLUMNS = 9;
+
+    private static final int HASH_ROWS = 8;
+
+    /** How many bits, and how many pixels on each side, a near-copy may differ by (ADR-150 §3 (c)). */
+    private static final int NEAR_COPY_BITS = 2;
+
+    private static final int NEAR_COPY_PIXELS = 2;
+
+    /** How many bits two pictures at one place may differ by, and how many points each edge (§3 (d)). */
+    private static final int SAME_PLACE_BITS = 8;
+
+    private static final double SAME_PLACE_POINTS = 3.0;
+
+    /**
+     * How far apart two crops of one header logo are in bits: more than a near-copy allows, within
+     * what the same-place rule allows, as the measured crops were (research §6d).
+     */
+    private static final int SAME_PLACE_BITS_SEEN = 5;
+
+    /**
+     * Hashes for pictures that are nothing like one another: any two a test uses together still differ
+     * in at least 18 bits after the bits it flips, far more than either rule allows.
+     */
+    private static final long A_LOGO = 0x0123456789abcdefL;
+
+    private static final long A_DIAGRAM = ~A_LOGO;
+
+    private static final long A_CHART = 0x0f0f0f0f0f0f0f0fL;
+
+    private static final long AN_ICON = 0x3333333333333333L;
+
+    private static final long A_STAMP = 0x5555555555555555L;
+
+    /** Where on a page a picture sits, as left, top, right and bottom in points. */
+    private static final double[] THE_HEADER_FRAME = {60.5, 795.5, 205.0, 761.0};
+
+    private static final double[] A_BODY_FRAME = {90.0, 470.0, 690.0, 160.0};
+
+    private static final double[] A_FOOTER_FRAME = {450.0, 60.0, 520.0, 30.0};
 
     /** The media type every picture in the measured cache carried. */
     private static final String PNG = "image/png";
@@ -627,6 +679,150 @@ class DeliverablePicturesTest {
                         .doesNotExist());
     }
 
+    @Test
+    @Story("A picture repeated as a near-copy is furniture and is left out")
+    @DisplayName("Two crops of one logo, two pixels apart in size and two bits apart, are left out of both documents")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void leavesOutANearCopyTwoDocumentsCarry(@TempDir Path workingDirectory) throws IOException {
+        byte[] logo = aPictureHashing(A_LOGO, 100, 50);
+        byte[] theSameLogoCroppedElsewhere = aPictureHashing(A_LOGO ^ bitsFlipped(NEAR_COPY_BITS), 100 + NEAR_COPY_PIXELS, 50 + NEAR_COPY_PIXELS);
+        byte[] diagram = aPictureHashing(A_DIAGRAM, 400, 240);
+        Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(
+                new OccurrenceId(10), List.of(png(logo), png(diagram)),
+                new OccurrenceId(20), List.of(png(theSameLogoCroppedElsewhere)));
+
+        Path tree = writeOneCluster(
+                workingDirectory,
+                null,
+                List.of(aMember(10, "reports/v1.pdf", A_HIGH_SCORE), aMember(20, "reports/v2.pdf", A_MIDDLE_SCORE)),
+                pictures);
+        List<String> written = namesOf(allFilesUnder(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY)));
+
+        claim(
+                "the logo and its crop from the other document are different bytes, so recurrence of bytes"
+                        + " cannot see them; being exactly " + NEAR_COPY_PIXELS + " pixels apart in width and in"
+                        + " height and exactly " + NEAR_COPY_BITS + " bits apart in their hash, both are left"
+                        + " out: each limit is included",
+                () -> assertThat(written)
+                        .doesNotContain(nameOf(logo, ".png"), nameOf(theSameLogoCroppedElsewhere, ".png")));
+        claim(
+                "while the diagram, like neither of them, is still written",
+                () -> assertThat(written).containsExactly(nameOf(diagram, ".png")));
+    }
+
+    @Test
+    @Story("A picture repeated as a near-copy is furniture and is left out")
+    @DisplayName("Pictures one bit too far apart, or a pixel too different in size, are both still shown")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void keepsPicturesJustOutsideTheNearCopyRule(@TempDir Path workingDirectory) throws IOException {
+        byte[] banner = aPictureHashing(A_LOGO, 100, 50);
+        byte[] aBannerWithOtherText = aPictureHashing(A_LOGO ^ bitsFlipped(NEAR_COPY_BITS + 1), 100, 50);
+        byte[] theBannerAtAnotherSize = aPictureHashing(A_LOGO, 100 + NEAR_COPY_PIXELS + 1, 50);
+        Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(
+                new OccurrenceId(10), List.of(png(banner)),
+                new OccurrenceId(20), List.of(png(aBannerWithOtherText)),
+                new OccurrenceId(30), List.of(png(theBannerAtAnotherSize)));
+
+        Path tree = writeOneCluster(
+                workingDirectory,
+                null,
+                List.of(
+                        aMember(10, "reports/a.docx", A_HIGH_SCORE),
+                        aMember(20, "reports/b.docx", A_MIDDLE_SCORE),
+                        aMember(30, "reports/c.docx", A_LOW_SCORE)),
+                pictures);
+        List<String> written = namesOf(allFilesUnder(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY)));
+
+        claim(
+                "two pictures of one size whose hashes differ in " + (NEAR_COPY_BITS + 1) + " bits are both"
+                        + " written: heading banners with different text were measured that close, and they"
+                        + " are content",
+                () -> assertThat(written).contains(nameOf(banner, ".png"), nameOf(aBannerWithOtherText, ".png")));
+        claim(
+                "and a picture with the same hash but " + (NEAR_COPY_PIXELS + 1) + " pixels wider is written"
+                        + " too: both conditions have to hold for a near-copy",
+                () -> assertThat(written).contains(nameOf(theBannerAtAnotherSize, ".png")));
+    }
+
+    @Test
+    @Story("A picture repeated at one place in its document is furniture and is left out")
+    @DisplayName("A header logo cropped at the same place on two pages is left out, although its crops differ, and so is a footer stamp at the limit")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void leavesOutAPictureRepeatedAtOnePlace(@TempDir Path workingDirectory) throws IOException {
+        byte[] headerOnPageOne = aPictureHashing(A_LOGO, 290, 70);
+        byte[] headerOnPageTwo = aPictureHashing(A_LOGO ^ bitsFlipped(SAME_PLACE_BITS_SEEN), 290, 70);
+        byte[] chart = aPictureHashing(A_DIAGRAM, 400, 240);
+        byte[] footerOnPageOne = aPictureHashing(A_STAMP, 200, 60);
+        byte[] footerOnPageThree = aPictureHashing(A_STAMP ^ bitsFlipped(SAME_PLACE_BITS), 200, 60);
+        Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(new OccurrenceId(10), List.of(
+                placed(headerOnPageOne, 1, THE_HEADER_FRAME, 0.0),
+                placed(chart, 1, A_BODY_FRAME, 0.0),
+                placed(footerOnPageOne, 1, A_FOOTER_FRAME, 0.0),
+                placed(headerOnPageTwo, 2, THE_HEADER_FRAME, SAME_PLACE_POINTS),
+                placed(footerOnPageThree, 3, A_FOOTER_FRAME, SAME_PLACE_POINTS)));
+
+        Path tree = writeOneCluster(
+                workingDirectory, null, List.of(aMember(10, "reports/spec.pdf", A_HIGH_SCORE)), pictures);
+        List<String> written = namesOf(allFilesUnder(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY)));
+
+        claim(
+                "the two crops of the header are " + SAME_PLACE_BITS_SEEN + " bits apart, too far for a"
+                        + " near-copy, and sit " + SAME_PLACE_POINTS + " points apart on different pages of one"
+                        + " document: that is page furniture, and both are left out",
+                () -> assertThat(written)
+                        .doesNotContain(nameOf(headerOnPageOne, ".png"), nameOf(headerOnPageTwo, ".png")));
+        claim(
+                "two footer stamps exactly " + SAME_PLACE_BITS + " bits apart, each edge exactly "
+                        + SAME_PLACE_POINTS + " points apart, on pages one and three, are left out too: each limit"
+                        + " is included",
+                () -> assertThat(written)
+                        .doesNotContain(nameOf(footerOnPageOne, ".png"), nameOf(footerOnPageThree, ".png")));
+        claim(
+                "while the chart on the first page, somewhere else on it, is written",
+                () -> assertThat(written).containsExactly(nameOf(chart, ".png")));
+    }
+
+    @Test
+    @Story("A picture repeated at one place in its document is furniture and is left out")
+    @DisplayName("Different charts in one frame, a picture a little elsewhere, and two on the same page are all still shown")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void keepsPicturesJustOutsideTheSamePlaceRule(@TempDir Path workingDirectory) throws IOException {
+        byte[] chartOnPageOne = aPictureHashing(A_CHART, 300, 200);
+        byte[] anotherChartOnPageTwo = aPictureHashing(A_CHART ^ bitsFlipped(SAME_PLACE_BITS + 1), 300, 200);
+        byte[] iconOnPageOne = aPictureHashing(AN_ICON, 300, 200);
+        byte[] iconSlightlyElsewhereOnPageThree = aPictureHashing(AN_ICON ^ bitsFlipped(SAME_PLACE_BITS_SEEN), 300, 200);
+        byte[] stampOnPageFour = aPictureHashing(A_STAMP, 300, 200);
+        byte[] stampAgainOnPageFour = aPictureHashing(A_STAMP ^ bitsFlipped(SAME_PLACE_BITS_SEEN), 300, 200);
+        Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(new OccurrenceId(10), List.of(
+                placed(chartOnPageOne, 1, A_BODY_FRAME, 0.0),
+                placed(anotherChartOnPageTwo, 2, A_BODY_FRAME, 0.0),
+                placed(iconOnPageOne, 1, THE_HEADER_FRAME, 0.0),
+                placed(iconSlightlyElsewhereOnPageThree, 3, THE_HEADER_FRAME, SAME_PLACE_POINTS + 1),
+                placed(stampOnPageFour, 4, A_FOOTER_FRAME, 0.0),
+                placed(stampAgainOnPageFour, 4, A_FOOTER_FRAME, 0.0)));
+
+        Path tree = writeOneCluster(
+                workingDirectory, null, List.of(aMember(10, "reports/report.pdf", A_HIGH_SCORE)), pictures);
+        List<String> written = namesOf(allFilesUnder(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY)));
+
+        claim(
+                "two charts in the same frame on two pages, " + (SAME_PLACE_BITS + 1) + " bits apart, are both"
+                        + " written: a report that draws one chart per page in one frame keeps its charts",
+                () -> assertThat(written).contains(nameOf(chartOnPageOne, ".png"), nameOf(anotherChartOnPageTwo, ".png")));
+        claim(
+                "two pictures alike enough, but " + (SAME_PLACE_POINTS + 1) + " points apart, are both written",
+                () -> assertThat(written)
+                        .contains(nameOf(iconOnPageOne, ".png"), nameOf(iconSlightlyElsewhereOnPageThree, ".png")));
+        claim(
+                "and two alike at the same place on the same page are both written: the rule is about a"
+                        + " page repeating what another page has",
+                () -> assertThat(written).contains(nameOf(stampOnPageFour, ".png"), nameOf(stampAgainOnPageFour, ".png")));
+    }
+
     /** One cluster holding {@code members}, arranged at their count, written over by {@code doc} or not. */
     private static Path writeOneCluster(
             Path workingDirectory,
@@ -739,6 +935,62 @@ class DeliverablePicturesTest {
 
     private static ListedPicture png(byte[] pixels) {
         return new ListedPicture(PNG, pixels, false, "");
+    }
+
+    /**
+     * A PNG picture on {@code page}, in {@code frame} (left, top, right, bottom, in points) with every
+     * edge moved by {@code shift} points, as Docling moves a crop of one logo from page to page.
+     */
+    private static ListedPicture placed(byte[] pixels, int page, double[] frame, double shift) {
+        return new ListedPicture(
+                PNG,
+                pixels,
+                false,
+                "",
+                Optional.of(new ListedPicturePlace(
+                        page, frame[0] + shift, frame[1] + shift, frame[2] + shift, frame[3] + shift)));
+    }
+
+    /**
+     * A real PNG, {@code width} by {@code height}, whose difference hash (ADR-150 §3) is exactly
+     * {@code bits}. It is grey, drawn as the hash's own 9-by-8 grid with each pixel given its cell's
+     * level, so every cell's mean is that level. Each row starts at 100 and steps up 10 for a set bit and
+     * down 10 for a clear one, so it stays between 20 and 180.
+     */
+    private static byte[] aPictureHashing(long bits, int width, int height) {
+        int[][] levels = new int[HASH_ROWS][HASH_COLUMNS];
+        for (int row = 0; row < HASH_ROWS; row++) {
+            int level = 100;
+            levels[row][0] = level;
+            for (int column = 0; column < HASH_COLUMNS - 1; column++) {
+                boolean rising = ((bits >>> (63 - (row * (HASH_COLUMNS - 1) + column))) & 1L) == 1L;
+                level += rising ? 10 : -10;
+                levels[row][column + 1] = level;
+            }
+        }
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int level = levels[y * HASH_ROWS / height][x * HASH_COLUMNS / width];
+                image.setRGB(x, y, (level << 16) | (level << 8) | level);
+            }
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            ImageIO.write(image, "png", out);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return out.toByteArray();
+    }
+
+    /** A mask of the lowest {@code count} bits, to flip that many bits of a hash. */
+    private static long bitsFlipped(int count) {
+        return (1L << count) - 1;
+    }
+
+    private static List<String> namesOf(List<Path> files) {
+        return files.stream().map(file -> file.getFileName().toString()).toList();
     }
 
     private static List<OccurrenceId> sent(long... occurrences) {
