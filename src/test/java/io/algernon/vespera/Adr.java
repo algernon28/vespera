@@ -698,6 +698,14 @@ public final class Adr {
             + "0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md";
 
     /**
+     * ADR-151 -- the manifest's content hash is every survivor's SHA-256, taken at 6b through
+     * extraction's own hash, because stage 1 hashes only within size-matched groups and left 47 of
+     * 65 measured rows blank.
+     */
+    public static final String THE_MANIFESTS_CONTENT_HASH_IS_EVERY_SURVIVORS_SHA_256 = FILE
+            + "0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md";
+
+    /**
      * ADR-152 -- a sampled survivor whose file will not open when stage 5's labelling page is written
      * is still asked about, with a stated fallback in place of its opening and a warning naming the
      * file; the page reads the extraction cache and never converts; and a step that records its
