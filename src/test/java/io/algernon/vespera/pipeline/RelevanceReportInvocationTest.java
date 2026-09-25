@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
@@ -190,6 +191,12 @@ class RelevanceReportInvocationTest {
     /** The logger every operator-facing line in this application is written through. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
+    /**
+     * The logger a failed step's exception is written through: Spring Batch logs it, with its cause
+     * chain, when a step ends in error, and the application does not log it a second time.
+     */
+    private static final String BATCH_LOGGER = "org.springframework.batch";
+
     /** A floor of 1.0 opens stage 4's gate, the way the sibling invocation tests do. */
     private static final String BOILERPLATE_FLOOR = "1.0";
 
@@ -208,6 +215,13 @@ class RelevanceReportInvocationTest {
      */
     private static final String COULD_NOT_BE_OPENED =
             "(the file could not be opened when this page was written, so its opening is not shown)";
+
+    /**
+     * What the page shows in place of a document's opening when no conversion is on record for its
+     * file as it is now (ADR-152 §3), word for word, for the same reason.
+     */
+    private static final String NO_CONVERSION_ON_RECORD =
+            "(no conversion is on record for the file as it is now, so its opening is not shown)";
 
     /**
      * The words every scripted conversion carries after its title, and nothing else on the page does,
@@ -476,6 +490,7 @@ class RelevanceReportInvocationTest {
         cli.run("run", root.toString());
         int conversionsBefore = conversionsOnRecord();
         whateverAnotherTestLeftHere();
+        logged.list.clear();
 
         theBytesChangeAndTheListingDoesNot(root.resolve(HELD_DOCUMENT));
         cli.run("run", root.toString());
@@ -493,14 +508,24 @@ class RelevanceReportInvocationTest {
                 "and the document is still asked about, because the sample is the same whatever the file"
                         + " holds today",
                 () -> assertThat(labelFile()).contains(HELD_DOCUMENT));
+        claim(
+                "the page says why that document's opening is missing: nothing converted from the file as"
+                        + " it is now is on record, which is a different reason from a document that had no"
+                        + " text",
+                () -> assertThat(page()).contains(NO_CONVERSION_ON_RECORD));
+        claim(
+                "a warning names the file, so the operator knows which document the page could not show",
+                () -> assertThat(logged.list)
+                        .anyMatch(event -> event.getLevel() == Level.WARN
+                                && event.getFormattedMessage().contains(HELD_DOCUMENT)));
     }
 
     /**
-     * A step that records its completion stops the run on a file that will not open, and the next run
-     * after the file is released finishes the job (ADR-152 §4).
+     * A step that records its completion stops the run on a file that will not open, and the next
+     * invocation after the file is released finishes the job (ADR-152 §4).
      *
-     * <p>The first run names no embedding model, so every step of stage 5 that reads the archive is
-     * gated and still unfinished. The second names one with the file held: embedding meets it first.
+     * <p>The first invocation names no embedding model, so every step of stage 5 that reads the archive
+     * is gated and still unfinished. The second names one with the file held: embedding meets it first.
      * The third releases it. Guarded as the first test here is, and for the same reason.
      */
     @Test
@@ -515,7 +540,13 @@ class RelevanceReportInvocationTest {
         cli.run("run", root.toString());
         whateverAnotherTestLeftHere();
 
+        String heldFileNamed = "could not hash " + Walk.canonicalRoot(root).resolve(HELD_DOCUMENT);
         int heldExitCode;
+        ListAppender<ILoggingEvent> stepFailures = new ListAppender<>();
+        ch.qos.logback.classic.Logger batchLogger =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(BATCH_LOGGER);
+        stepFailures.start();
+        batchLogger.addAppender(stepFailures);
         try (FileThatWillNotOpen held = FileThatWillNotOpen.hold(root.resolve(HELD_DOCUMENT))) {
             assumeTrue(
                     held.refusesToOpen(),
@@ -524,6 +555,9 @@ class RelevanceReportInvocationTest {
             profile(seeds);
             cli.run("run", root.toString());
             heldExitCode = cli.getExitCode();
+        } finally {
+            batchLogger.detachAppender(stepFailures);
+            stepFailures.stop();
         }
         boolean pageWrittenWhileHeld = Files.exists(workingDirectory.resolve(RelevanceLabellingReport.FILE_NAME));
 
@@ -534,6 +568,12 @@ class RelevanceReportInvocationTest {
                         + " on without the document would leave it unscored under work recorded as complete,"
                         + " where no later run would ever look for it again",
                 () -> assertThat(heldExitCode).isNotZero());
+        claim(
+                "and it failed on that file and said so: the error names the file it could not read, so"
+                        + " the operator knows which one to release before running the same command again",
+                () -> assertThat(stepFailures.list)
+                        .anyMatch(event -> event.getLevel() == Level.ERROR
+                                && anyCauseSays(event.getThrowableProxy(), heldFileNamed)));
         claim(
                 "and no page was written from that run, since the scores it would have shown were never"
                         + " finished",
@@ -688,6 +728,16 @@ class RelevanceReportInvocationTest {
     private void whateverAnotherTestLeftHere() throws IOException {
         Files.deleteIfExists(workingDirectory.resolve(RelevanceLabellingReport.FILE_NAME));
         Files.deleteIfExists(workingDirectory.resolve(RelevanceLabelFile.FILE_NAME));
+    }
+
+    /** Whether {@code thrown}, or anything in the chain of causes beneath it, carries exactly {@code message}. */
+    private static boolean anyCauseSays(IThrowableProxy thrown, String message) {
+        for (IThrowableProxy cause = thrown; cause != null; cause = cause.getCause()) {
+            if (message.equals(cause.getMessage())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Every operator-facing line this invocation wrote, in the order it wrote them. */

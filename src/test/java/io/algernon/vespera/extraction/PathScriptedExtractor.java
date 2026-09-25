@@ -17,6 +17,15 @@ import java.util.Optional;
  * which answer a seed receives depends on how many files the fixture's corpus happened to contain.
  * Keying on the file name instead makes each document's answer a property of that document.
  *
+ * <p><b>Read through {@link #cached(String, ExtractorIdentity)}, it answers by content hash, not by
+ * file name.</b> Once it has stored an answer, any file with the same bytes gets that stored answer,
+ * whatever it is called and whatever was scripted for its name. Stage 2 reads it that way too, because
+ * {@code ConversionDispatch} asks {@code cached} before it dispatches anything. The cache outlives one
+ * test because a test class shares one Spring context, and with it one in-memory database (a pool of one
+ * connection, never retired, in {@code application-test.yaml}). So the rule is: <b>within one test class, the
+ * same bytes must never be scripted two different answers</b>, under two names or in two tests. Give
+ * each document whose answer matters bytes of its own.
+ *
  * <p>Lives in this package for the same reason {@code ScriptedExtractor} does:
  * {@link DoclingExtractor}'s constructor is package-private, deliberately, so subclassing from inside
  * the package is the one way to script it without widening anything.
@@ -83,6 +92,10 @@ public final class PathScriptedExtractor extends DoclingExtractor {
      * always null here, so it would deny holding a conversion this double had just stored. A step that
      * reads the cache without converting would then find nothing for any document in any fixture, and
      * fail for a reason that belongs to the double rather than to the step.
+     *
+     * <p>This answers by content hash alone, and stage 2 reads it before dispatching, so a file whose
+     * bytes were stored under another name gets that other name's answer. The class comment states
+     * the rule that follows.
      */
     @Override
     public Optional<DoclingResponse> cached(String contentHash, ExtractorIdentity extractorIdentity) {
