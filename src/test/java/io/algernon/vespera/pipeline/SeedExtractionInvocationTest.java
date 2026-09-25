@@ -24,6 +24,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -117,6 +118,7 @@ class SeedExtractionInvocationTest {
 
     @BeforeEach
     void captureOperatorLines() {
+        SeedScriptedExtractionBeans.stopMovingAway();
         logged = new ListAppender<>();
         logged.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
@@ -125,8 +127,175 @@ class SeedExtractionInvocationTest {
 
     @AfterEach
     void releaseOperatorLines() {
+        SeedScriptedExtractionBeans.stopMovingAway();
         applicationLogger.detachAppender(logged);
         logged.stop();
+    }
+
+    @Test
+    @Story("A seed file that will not open stops stage 5 without failing the invocation")
+    @DisplayName("A seed file that will not open is recorded under its own reason, and the step finishes only once it opens")
+    @Issue("291")
+    @Link(name = "ADR-155", url = Adr.A_SEED_FILE_THAT_WILL_NOT_OPEN_IS_RECORDED_UNDER_A_REASON_OF_ITS_OWN, type = "adr")
+    void aSeedFileThatWillNotOpenIsRecordedAndReadAgainNextTime(
+            @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document that opens, for ADR-155's first test");
+        Files.writeString(
+                seeds.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
+                "a seed document that is moved away when read, for ADR-155's first test");
+        profile(seeds);
+        SeedScriptedExtractionBeans.moveAwayWhenReadInto(elsewhere);
+
+        cli.run("run", root.toString());
+
+        WalkId seedWalk = theSeedWalkOf(seeds);
+        List<RunId> measurementRuns = runIdsFor("seed-measurement", root);
+
+        claim(
+                "the fixture really did take the file away when seed extraction read it, so what follows"
+                        + " is about a seed that would not open and not about one that did",
+                () -> assertThat(elsewhere.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)).exists());
+        claim(
+                "the invocation reported success: one seed file that cannot be read today is a value"
+                        + " the run needs and does not have, which ends stage 5 and does not fail the command",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "one measurement run was minted, because the other seed produced text",
+                () -> assertThat(measurementRuns).hasSize(ONE_MEASUREMENT_RUN));
+        RunId measurementRun = measurementRuns.getFirst();
+        claim(
+                "the seed that would not open is recorded, and only that seed, under a reason that says"
+                        + " the file could not be opened -- not the reason a seed with no text gets, because"
+                        + " that one is about the document and this one is about the archive today",
+                () -> assertThat(unusableSeeds.forRun(measurementRun).stream()
+                                .map(seed -> ledger.factsFor(seed.occurrenceId()).orElseThrow().path().value()
+                                        + " -> " + seed.reason())
+                                .toList())
+                        .containsExactly(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ
+                                + " -> the file could not be opened when seed extraction read it"));
+        claim(
+                "only the seed that opened carries a metrics row: there were no bytes to measure for the"
+                        + " other one",
+                () -> assertThat(metricRowsAgainst(seedWalk, measurementRun)).isEqualTo(1));
+        claim(
+                "seed extraction is not recorded as finished, so the next invocation reads every seed"
+                        + " again instead of walking past a seed set with a hole in it",
+                () -> assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                        .isFalse());
+        claim(
+                "and stage 5 went no further: the comparison measured nothing, because a comparison"
+                        + " without that seed would be recorded as finished under the same run the full"
+                        + " seed set will be measured under",
+                () -> assertThat(ledger.stepFinished(measurementRun, SeedCorpusComparisonTasklet.STEP))
+                        .isFalse());
+        claim(
+                "the comparison says why, in the shared sentence stage 5's gates use",
+                () -> assertThat(operatorLines())
+                        .anyMatch(line -> line.contains("seed/corpus comparison is gated: a seed file could not"
+                                + " be opened")));
+        claim(
+                "and a warning names the file, so the operator knows which one to release",
+                () -> assertThat(warnings())
+                        .anyMatch(line -> line.contains(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)));
+
+        Files.move(
+                elsewhere.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
+                seeds.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
+                StandardCopyOption.ATOMIC_MOVE);
+        logged.list.clear();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "once the file is back, the next invocation succeeds",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the archive looked the same to it: the seed walk is the one the first invocation made,"
+                        + " so this is the same run being continued and not a new one",
+                () -> {
+                    assertThat(theSeedWalkOf(seeds)).isEqualTo(seedWalk);
+                    assertThat(runIdsFor("seed-measurement", root)).containsExactly(measurementRun);
+                });
+        claim(
+                "seed extraction read the seed again and is now recorded as finished",
+                () -> assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                        .isTrue());
+        claim(
+                "the row saying the file could not be opened is gone: it described one invocation, and"
+                        + " the step discarded its own rows before writing them again",
+                () -> assertThat(unusableSeeds.forRun(measurementRun)).isEmpty());
+        claim(
+                "both seeds are measured now",
+                () -> assertThat(metricRowsAgainst(seedWalk, measurementRun)).isEqualTo(SEEDS_IN_THIS_FOLDER));
+        claim(
+                "and stage 5 carried on in the same invocation, the comparison included",
+                () -> assertThat(ledger.stepFinished(measurementRun, SeedCorpusComparisonTasklet.STEP))
+                        .isTrue());
+    }
+
+    @Test
+    @Story("A seed file that will not open stops stage 5 without failing the invocation")
+    @DisplayName("A seed file that stops opening after seed extraction finished costs a warning and changes no record")
+    @Issue("291")
+    @Link(name = "ADR-155", url = Adr.A_SEED_FILE_THAT_WILL_NOT_OPEN_IS_RECORDED_UNDER_A_REASON_OF_ITS_OWN, type = "adr")
+    void aSeedFileThatStopsOpeningAfterTheStepFinishedChangesNoRecord(
+            @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document that opens, for ADR-155's second test");
+        Files.writeString(
+                seeds.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
+                "a seed document that is moved away when read, for ADR-155's second test");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        RunId measurementRun = runIdsFor("seed-measurement", root).getFirst();
+        WalkId seedWalk = theSeedWalkOf(seeds);
+        claim(
+                "the first invocation extracted both seeds and recorded seed extraction as finished",
+                () -> {
+                    assertThat(cli.getExitCode()).isZero();
+                    assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                            .isTrue();
+                    assertThat(unusableSeeds.forRun(measurementRun)).isEmpty();
+                });
+
+        SeedScriptedExtractionBeans.moveAwayWhenReadInto(elsewhere);
+        logged.list.clear();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the fixture really did take the file away when this invocation's seed extraction read it",
+                () -> assertThat(elsewhere.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)).exists());
+        claim(
+                "the invocation reported success: seed extraction had already recorded everything it"
+                        + " records, and the file was needed for none of it",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "seed extraction is still recorded as finished under the same run",
+                () -> {
+                    assertThat(runIdsFor("seed-measurement", root)).containsExactly(measurementRun);
+                    assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                            .isTrue();
+                });
+        claim(
+                "no unusable-seed row appeared, and both seeds' metrics rows still stand: a file"
+                        + " unavailable today does not rewrite what the finished step recorded",
+                () -> {
+                    assertThat(unusableSeeds.forRun(measurementRun)).isEmpty();
+                    assertThat(metricRowsAgainst(seedWalk, measurementRun)).isEqualTo(SEEDS_IN_THIS_FOLDER);
+                });
+        claim(
+                "and a warning still names the file",
+                () -> assertThat(warnings())
+                        .anyMatch(line -> line.contains(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)));
+        claim(
+                "but no gate shut on it: the finished step's rows are the seed set, and a file used for"
+                        + " nothing this invocation records stops nothing that reads them",
+                () -> assertThat(operatorLines())
+                        .noneMatch(line -> line.contains("a seed file could not be opened")));
     }
 
     @Test
