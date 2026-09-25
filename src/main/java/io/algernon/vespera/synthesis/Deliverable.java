@@ -146,6 +146,18 @@ public final class Deliverable {
     /** How many hexadecimal characters of a picture's SHA-256 digest its file is named from (ADR-149 §3). */
     private static final int PICTURE_NAME_LENGTH = 16;
 
+    /** The near-copy rule's pixel tolerance, on width and height each (ADR-150 §3(c)). */
+    private static final int NEAR_COPY_PIXELS = 2;
+
+    /** The near-copy rule's hash tolerance, in bits (ADR-150 §3(c)). */
+    private static final int NEAR_COPY_BITS = 2;
+
+    /** The same-place rule's bounding-box tolerance, in points, on each edge (ADR-150 §3(d)). */
+    private static final double SAME_PLACE_POINTS = 3.0;
+
+    /** The same-place rule's hash tolerance, in bits (ADR-150 §3(d)). */
+    private static final int SAME_PLACE_BITS = 8;
+
     /**
      * Every column the manifest carries, in order (ADR-104, ADR-112). A machine-read header, not
      * prose, so it names columns as the ledger names them rather than in the reader's plain words
@@ -182,9 +194,9 @@ public final class Deliverable {
      * returns where it landed.
      *
      * <p>{@code pictures} is asked about every listed survivor twice, in two passes that never hold
-     * more than one document's pixels at a time (ADR-149 §9): first to count which bytes recur among
-     * every survivor the tree lists -- the furniture rule's evidence -- and again, one cluster file at a
-     * time, to write the pictures that pass it.
+     * more than one document's pixels at a time (ADR-149 §9): first to decide the set of furniture
+     * digests under ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d), and again, one cluster file at a time, to
+     * write the pictures that pass it.
      *
      * @param pictures where a survivor's pictures come from, {@link SurvivorPictures#none()} to write
      *     exactly the tree this class wrote before it knew about pictures
@@ -199,8 +211,8 @@ public final class Deliverable {
         Path tree = workingDirectory.resolve(DIRECTORY_NAME).resolve(provenance.runId());
         try {
             Files.createDirectories(tree);
-            Map<String, Integer> recurrence = countPictureDigests(survivors, pictures);
-            writeIndexAndClusterFiles(tree, provenance, arrangement, written, survivors, pictures, recurrence);
+            Set<String> furnitureDigests = furnitureDigestsAcrossSurvivors(survivors, pictures);
+            writeIndexAndClusterFiles(tree, provenance, arrangement, written, survivors, pictures, furnitureDigests);
             writeManifest(tree, arrangement, survivors);
             return tree;
         } catch (IOException e) {
@@ -209,24 +221,166 @@ public final class Deliverable {
     }
 
     /**
-     * The first of the two passes ADR-149 §9 describes: every listed survivor's pictures are asked for
-     * once, and only each picture's digest is kept -- enough to know which bytes recur, and nowhere near
-     * enough to hold every survivor's pixels at once. A picture in the furniture layer is counted too,
-     * because §1(a) counts every picture of every listed survivor; whether it is itself furniture is
-     * also decided by its flag, not by this count.
+     * The digests of every furniture picture across every listed survivor (ADR-149 §1(a)/(b), ADR-150
+     * §3(c)/(d)). The first of the two passes ADR-149 §9 describes, extended by ADR-150 §3: every
+     * listed survivor's pictures are asked for once, and only each picture's digest, difference hash
+     * and place are kept -- never its pixels, so this pass never holds more than one document's pixels
+     * at once. From that, {@link #furnitureDigestsOf} decides which of those digests are furniture.
      */
-    private static Map<String, Integer> countPictureDigests(List<ListedSurvivor> survivors, SurvivorPictures pictures) {
-        Map<String, Integer> counts = new HashMap<>();
+    private static Set<String> furnitureDigestsAcrossSurvivors(
+            List<ListedSurvivor> survivors, SurvivorPictures pictures) {
+        List<PictureEntry> entries = new ArrayList<>();
+        Map<String, Integer> recurrence = new HashMap<>();
         Set<OccurrenceId> asked = new HashSet<>();
         for (ListedSurvivor survivor : survivors) {
             if (!asked.add(survivor.occurrence())) {
                 continue;
             }
             for (ListedPicture picture : pictures.of(survivor.occurrence())) {
-                counts.merge(sha256Hex(picture.pixels()), 1, Integer::sum);
+                String digest = sha256Hex(picture.pixels());
+                recurrence.merge(digest, 1, Integer::sum);
+                entries.add(new PictureEntry(
+                        digest,
+                        picture.inFurnitureLayer(),
+                        DifferenceHash.of(picture.pixels()),
+                        survivor.occurrence(),
+                        picture.place()));
             }
         }
-        return counts;
+        return furnitureDigestsOf(entries, recurrence);
+    }
+
+    /**
+     * A picture as the furniture rule needs to know about one (ADR-150 §3, §5): its digest, the
+     * converter's own furniture-layer claim, its difference hash where it decodes, which document it
+     * came from, and where on its page it sat. Never its pixels.
+     */
+    private record PictureEntry(
+            String digest,
+            boolean inFurnitureLayer,
+            Optional<DifferenceHash> hash,
+            OccurrenceId occurrence,
+            Optional<ListedPicturePlace> place) {}
+
+    /**
+     * The digests of every furniture picture among {@code entries}, the population being every picture
+     * of every survivor the tree lists (ADR-149 §1, ADR-150 §3): a digest that recurs (a), one the
+     * converter placed in its own furniture layer (b), one that is a near-copy of another picture the
+     * tree carries (c), or one that repeats at one place in its own document (d). A picture whose bytes
+     * do not decode has no hash, so (c) and (d) do not apply to it, and (a) and (b) still do. A picture
+     * matched by (c) or (d) makes furniture of the other picture too, the first included.
+     */
+    private static Set<String> furnitureDigestsOf(List<PictureEntry> entries, Map<String, Integer> recurrence) {
+        Set<String> furniture = new HashSet<>(recurringOrDeclaredFurniture(entries, recurrence));
+        furniture.addAll(nearCopyFurniture(entries));
+        furniture.addAll(samePlaceFurniture(entries));
+        return furniture;
+    }
+
+    /**
+     * Rules (a) and (b) (ADR-149 §1): the digests of a picture that recurs across the tree's survivors,
+     * or that the converter itself placed in its own furniture layer.
+     */
+    private static Set<String> recurringOrDeclaredFurniture(
+            List<PictureEntry> entries, Map<String, Integer> recurrence) {
+        Set<String> furniture = new HashSet<>();
+        for (PictureEntry entry : entries) {
+            if (entry.inFurnitureLayer() || recurrence.getOrDefault(entry.digest(), 0) > 1) {
+                furniture.add(entry.digest());
+            }
+        }
+        return furniture;
+    }
+
+    /**
+     * Rule (c) (ADR-150 §3(c)): the digests of every pair of distinct pictures, anywhere in the tree,
+     * that are near-copies of one another. Compared only within a window of {@value #NEAR_COPY_PIXELS}
+     * pixels of width, {@code distinct} being sorted by width first so that window can be found by
+     * breaking out of the inner loop rather than scanning every pair.
+     */
+    private static Set<String> nearCopyFurniture(List<PictureEntry> entries) {
+        Set<String> furniture = new HashSet<>();
+        Map<String, PictureEntry> byDigest = new LinkedHashMap<>();
+        for (PictureEntry entry : entries) {
+            byDigest.putIfAbsent(entry.digest(), entry);
+        }
+        List<PictureEntry> distinct = new ArrayList<>(byDigest.values());
+        distinct.sort(Comparator.comparingInt(entry -> entry.hash().map(DifferenceHash::width).orElse(0)));
+        for (int i = 0; i < distinct.size(); i++) {
+            PictureEntry a = distinct.get(i);
+            if (a.hash().isEmpty()) {
+                continue;
+            }
+            DifferenceHash aHash = a.hash().get();
+            for (int j = i + 1; j < distinct.size(); j++) {
+                PictureEntry b = distinct.get(j);
+                if (b.hash().isEmpty()) {
+                    continue;
+                }
+                DifferenceHash bHash = b.hash().get();
+                if (bHash.width() - aHash.width() > NEAR_COPY_PIXELS) {
+                    break;
+                }
+                if (!isNearCopy(aHash, bHash)) {
+                    continue;
+                }
+                furniture.add(a.digest());
+                furniture.add(b.digest());
+            }
+        }
+        return furniture;
+    }
+
+    /**
+     * Rule (d) (ADR-150 §3(d)): the digests of every pair of a single survivor's own pictures that
+     * repeat at one place in its document. Bounded to one occurrence at a time, since the rule is about
+     * where a picture recurs within its own document, not across the tree.
+     */
+    private static Set<String> samePlaceFurniture(List<PictureEntry> entries) {
+        Set<String> furniture = new HashSet<>();
+        Map<OccurrenceId, List<PictureEntry>> byOccurrence = new LinkedHashMap<>();
+        for (PictureEntry entry : entries) {
+            byOccurrence.computeIfAbsent(entry.occurrence(), key -> new ArrayList<>()).add(entry);
+        }
+        for (List<PictureEntry> ofOneOccurrence : byOccurrence.values()) {
+            for (int i = 0; i < ofOneOccurrence.size(); i++) {
+                PictureEntry a = ofOneOccurrence.get(i);
+                if (a.hash().isEmpty() || a.place().isEmpty()) {
+                    continue;
+                }
+                for (int j = i + 1; j < ofOneOccurrence.size(); j++) {
+                    PictureEntry b = ofOneOccurrence.get(j);
+                    if (b.hash().isEmpty() || b.place().isEmpty() || !isSamePlace(a, b)) {
+                        continue;
+                    }
+                    furniture.add(a.digest());
+                    furniture.add(b.digest());
+                }
+            }
+        }
+        return furniture;
+    }
+
+    /**
+     * Whether two pictures are a near-copy of one another (ADR-150 §3(c)): their pixel width and height
+     * are each within {@value #NEAR_COPY_PIXELS} pixels, and their difference hashes are at most {@value
+     * #NEAR_COPY_BITS} bits apart.
+     */
+    private static boolean isNearCopy(DifferenceHash a, DifferenceHash b) {
+        return Math.abs(a.width() - b.width()) <= NEAR_COPY_PIXELS
+                && Math.abs(a.height() - b.height()) <= NEAR_COPY_PIXELS
+                && a.bitsApartFrom(b) <= NEAR_COPY_BITS;
+    }
+
+    /**
+     * Whether two pictures of one document repeat at one place (ADR-150 §3(d)): they sit on different
+     * pages, each of the four bounding-box edges is within {@value #SAME_PLACE_POINTS} points, and their
+     * difference hashes are at most {@value #SAME_PLACE_BITS} bits apart. Both are already known to
+     * carry a hash and a place; the caller checks that.
+     */
+    private static boolean isSamePlace(PictureEntry a, PictureEntry b) {
+        return a.place().get().withinPointsOf(b.place().get(), SAME_PLACE_POINTS)
+                && a.hash().get().bitsApartFrom(b.hash().get()) <= SAME_PLACE_BITS;
     }
 
     private static void writeIndexAndClusterFiles(
@@ -236,7 +390,7 @@ public final class Deliverable {
             List<RecordedSynthesisDoc> written,
             List<ListedSurvivor> survivors,
             SurvivorPictures pictures,
-            Map<String, Integer> recurrence)
+            Set<String> furnitureDigests)
             throws IOException {
         Map<ClusterKey, RecordedSynthesisDoc> writtenByCluster = new LinkedHashMap<>();
         for (RecordedSynthesisDoc doc : written) {
@@ -300,7 +454,7 @@ public final class Deliverable {
                         membersByCluster.getOrDefault(ClusterKey.of(recorded), List.of()),
                         provenance.corpusRoot(),
                         pictures,
-                        recurrence);
+                        furnitureDigests);
             }
         }
 
@@ -317,7 +471,7 @@ public final class Deliverable {
             List<ListedSurvivor> members,
             String corpusRoot,
             SurvivorPictures pictures,
-            Map<String, Integer> recurrence)
+            Set<String> furnitureDigests)
             throws IOException {
         String label = inACell(recorded.label().value());
         int documentCount = recorded.cluster().documentCount();
@@ -340,7 +494,7 @@ public final class Deliverable {
                     members,
                     corpusRoot,
                     pictures,
-                    recurrence);
+                    furnitureDigests);
             return;
         }
         String link = partitionDirName + "/" + clusterFileName;
@@ -361,7 +515,7 @@ public final class Deliverable {
                 members,
                 corpusRoot,
                 pictures,
-                recurrence);
+                furnitureDigests);
     }
 
     /**
@@ -409,7 +563,7 @@ public final class Deliverable {
             List<ListedSurvivor> members,
             String corpusRoot,
             SurvivorPictures pictures,
-            Map<String, Integer> recurrence)
+            Set<String> furnitureDigests)
             throws IOException {
         StringBuilder page = new StringBuilder();
         page.append("# ").append(inAHeading(doc == null ? label : doc.title())).append("\n\n");
@@ -428,7 +582,7 @@ public final class Deliverable {
             page.append('\n').append(MEMBERSHIP_HEADING).append("\n\n");
             String pictureDirectoryName = stemOf(file.getFileName().toString());
             appendMembership(
-                    page, numbered, file.getParent(), corpusRoot, pictureDirectoryName, pictures, recurrence);
+                    page, numbered, file.getParent(), corpusRoot, pictureDirectoryName, pictures, furnitureDigests);
         }
         Files.writeString(file, page.toString(), StandardCharsets.UTF_8);
     }
@@ -522,8 +676,8 @@ public final class Deliverable {
      * @param pictureDirectoryName the name a picture's own directory is given, beside this cluster
      *     file (ADR-149 §3): that file's own name, without {@code .md}
      * @param pictures where a member's pictures come from (ADR-149)
-     * @param recurrence every picture digest counted across the whole tree's survivors, the furniture
-     *     rule's evidence (ADR-149 §1)
+     * @param furnitureDigests the digests judged furniture across the whole tree's survivors, decided
+     *     under ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d)
      */
     private static void appendMembership(
             StringBuilder page,
@@ -532,7 +686,7 @@ public final class Deliverable {
             String corpusRoot,
             String pictureDirectoryName,
             SurvivorPictures pictures,
-            Map<String, Integer> recurrence)
+            Set<String> furnitureDigests)
             throws IOException {
         Optional<Path> corpusRootDirectory = asDirectory(corpusRoot);
         for (int at = 0; at < entries.size(); at++) {
@@ -553,7 +707,7 @@ public final class Deliverable {
                 page.append(escapedPath).append("\n\n");
             }
             appendPictures(
-                    page, member, ordinal, pageDirectory, pictureDirectoryName, pictures, recurrence);
+                    page, member, ordinal, pageDirectory, pictureDirectoryName, pictures, furnitureDigests);
         }
     }
 
@@ -576,11 +730,11 @@ public final class Deliverable {
             Path pageDirectory,
             String pictureDirectoryName,
             SurvivorPictures pictures,
-            Map<String, Integer> recurrence)
+            Set<String> furnitureDigests)
             throws IOException {
         List<ListedPicture> kept = new ArrayList<>();
         for (ListedPicture picture : pictures.of(member.occurrence())) {
-            if (!isFurniture(picture, recurrence)) {
+            if (!isFurniture(picture, furnitureDigests)) {
                 kept.add(picture);
             }
         }
@@ -621,9 +775,13 @@ public final class Deliverable {
         }
     }
 
-    /** Whether {@code picture} is furniture (ADR-149 §1): the converter's own claim, or recurring bytes. */
-    private static boolean isFurniture(ListedPicture picture, Map<String, Integer> recurrence) {
-        return picture.inFurnitureLayer() || recurrence.getOrDefault(sha256Hex(picture.pixels()), 0) > 1;
+    /**
+     * Whether {@code picture} is furniture (ADR-149 §1(a)/(b), ADR-150 §3(c)/(d)): {@code
+     * furnitureDigests} already carries every digest decided furniture by recurring bytes, the
+     * converter's own claim, a near-copy elsewhere, or a repeat at one place in its document.
+     */
+    private static boolean isFurniture(ListedPicture picture, Set<String> furnitureDigests) {
+        return furnitureDigests.contains(sha256Hex(picture.pixels()));
     }
 
     /** The file extension a picture's media type is written under, or empty for a kind never measured. */

@@ -12,27 +12,35 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.zip.CRC32;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.testcontainers.containers.Container;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.utility.MountableFile;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.testcontainers.containers.Container;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.MountableFile;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * {@link DoclingClient} against the real {@code docling-serve} sidecar (ADR-071): one synchronous
@@ -87,6 +95,20 @@ class DoclingClientIT {
 
     /** The distinctive word the older PowerPoint fixture carries, on its one slide. */
     private static final String PPT_MARKER_WORD = "Quiddity";
+
+    /** How a picture's pixels begin when they are written into the answer as a PNG (ADR-150). */
+    private static final String EMBEDDED_PNG_PREFIX = "data:image/png;base64,";
+
+    /** The chart image's width in pixels, drawn at 288 points wide on the page. */
+    private static final int CHART_WIDTH = 240;
+
+    /** The chart image's height in pixels, drawn at 192 points high on the page. */
+    private static final int CHART_HEIGHT = 160;
+
+    /** The chart's four bars: left edge, height, and red, green and blue, each bar 30 pixels wide. */
+    private static final int[][] CHART_BARS = {
+        {40, 60, 200, 30, 30}, {90, 110, 30, 120, 200}, {140, 40, 40, 160, 60}, {190, 130, 230, 160, 20}
+    };
 
     @Autowired
     private DoclingClient client;
@@ -238,6 +260,51 @@ class DoclingClientIT {
                 () -> assertThat(response.rawResponse()).contains(PDF_MARKER_WORD));
     }
 
+    /**
+     * ADR-150: a PDF's pictures come back with their pixels, because the client asks for them. Under
+     * the sidecar's default picture mode the same file comes back with the picture located on the page
+     * and no pixels at all, which is what every PDF in the cache carried before this decision.
+     *
+     * <p>The fixture is a one-page PDF drawing a small bar chart as an image, generated here (ADR-063).
+     * It was measured against the pinned image on 2026-09-25: one picture, with pixels under
+     * {@code embedded} and without them under {@code placeholder}.
+     */
+    @Test
+    @Story("The conversion pins what it asks for")
+    @DisplayName("A picture in a PDF comes back with its pixels, as an image the reader can decode")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void returnsAPicturesPixelsFromAPdf(@TempDir Path dir) throws IOException {
+        DoclingResponse response = client.convert(aPdfWithAChart(dir.resolve("chart.pdf")), DetectedFormat.PDF, null);
+        JsonNode pictures = JsonMapper.builder().build()
+                .readTree(response.rawResponse())
+                .path("document")
+                .path("json_content")
+                .path("pictures");
+
+        claim(
+                "the service reports the conversion succeeded",
+                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
+        claim(
+                "it found the chart as a picture on the page",
+                () -> assertThat(pictures.isArray() && !pictures.isEmpty()).isTrue());
+        String uri = pictures.path(0).path("image").path("uri").asString("");
+        claim(
+                "and the picture carries its pixels inside the answer, as a PNG written into the address"
+                        + " itself, rather than a location on the page with nothing to show",
+                () -> assertThat(uri).startsWith(EMBEDDED_PNG_PREFIX));
+        claim(
+                "and those pixels decode to an image with a width and a height, so what is cached is a"
+                        + " picture a reader can be shown",
+                () -> {
+                    BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(
+                            Base64.getDecoder().decode(uri.substring(EMBEDDED_PNG_PREFIX.length()))));
+                    assertThat(decoded).isNotNull();
+                    assertThat(decoded.getWidth()).isPositive();
+                    assertThat(decoded.getHeight()).isPositive();
+                });
+    }
+
     @Test
     @Story("One call converts one document")
     @DisplayName("Prose in a file with no extension converts, because the name sent is the format's")
@@ -305,6 +372,100 @@ class DoclingClientIT {
         // cross-reference table means. A non-ASCII marker word would silently invalidate every offset.
         Files.writeString(file, pdf, StandardCharsets.US_ASCII);
         return file;
+    }
+
+    /**
+     * A one-page PDF showing {@link #PDF_MARKER_WORD} and, below it, a bar chart drawn as an image: a
+     * {@value #CHART_WIDTH}×{@value #CHART_HEIGHT} RGB image XObject, Flate-compressed, of four coloured
+     * bars on two black axes over white. The same page and the same image as the fixture measured on
+     * 2026-09-25 (ADR-150's research record), which the pinned image reads as one picture. The
+     * cross-reference offsets are byte offsets into what is written, so the binary stream is counted in
+     * bytes, not characters.
+     */
+    private static Path aPdfWithAChart(Path file) throws IOException {
+        byte[] raw = new byte[CHART_WIDTH * CHART_HEIGHT * 3];
+        for (int y = 0; y < CHART_HEIGHT; y++) {
+            for (int x = 0; x < CHART_WIDTH; x++) {
+                int[] rgb = chartPixel(x, y);
+                int at = (y * CHART_WIDTH + x) * 3;
+                raw[at] = (byte) rgb[0];
+                raw[at + 1] = (byte) rgb[1];
+                raw[at + 2] = (byte) rgb[2];
+            }
+        }
+        Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
+        deflater.setInput(raw);
+        deflater.finish();
+        ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        while (!deflater.finished()) {
+            compressed.write(buffer, 0, deflater.deflate(buffer));
+        }
+        deflater.end();
+        byte[] image = compressed.toByteArray();
+
+        String content = "BT /F1 24 Tf 72 700 Td (" + PDF_MARKER_WORD + ") Tj ET\nq 288 0 0 192 72 400 cm /Im1 Do Q\n";
+        List<byte[]> objects = List.of(
+                ascii("<< /Type /Catalog /Pages 2 0 R >>"),
+                ascii("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+                ascii("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >>"
+                        + " /XObject << /Im1 6 0 R >> >> /Contents 5 0 R >>"),
+                ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+                ascii("<< /Length " + content.length() + " >>\nstream\n" + content + "endstream"),
+                concat(
+                        ascii("<< /Type /XObject /Subtype /Image /Width " + CHART_WIDTH + " /Height " + CHART_HEIGHT
+                                + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length "
+                                + image.length + " >>\nstream\n"),
+                        image,
+                        ascii("\nendstream")));
+
+        ByteArrayOutputStream pdf = new ByteArrayOutputStream();
+        pdf.writeBytes(ascii("%PDF-1.7\n"));
+        List<Integer> offsets = new ArrayList<>();
+        for (int object = 0; object < objects.size(); object++) {
+            offsets.add(pdf.size());
+            pdf.writeBytes(ascii((object + 1) + " 0 obj\n"));
+            pdf.writeBytes(objects.get(object));
+            pdf.writeBytes(ascii("\nendobj\n"));
+        }
+        int startOfCrossReferenceTable = pdf.size();
+        StringBuilder trailer = new StringBuilder("xref\n0 ").append(objects.size() + 1).append('\n');
+        trailer.append("0000000000 65535 f \n");
+        offsets.forEach(offset -> trailer.append("%010d 00000 n \n".formatted(offset)));
+        trailer.append("trailer\n<< /Size ")
+                .append(objects.size() + 1)
+                .append(" /Root 1 0 R >>\nstartxref\n")
+                .append(startOfCrossReferenceTable)
+                .append("\n%%EOF\n");
+        pdf.writeBytes(ascii(trailer.toString()));
+        Files.write(file, pdf.toByteArray());
+        return file;
+    }
+
+    /** One pixel of the chart, {@code y} counted from the top row: two axes, four bars, white elsewhere. */
+    private static int[] chartPixel(int x, int y) {
+        int baseline = CHART_HEIGHT - 20;
+        if (x == 20 || y == baseline) {
+            return new int[] {0, 0, 0};
+        }
+        for (int[] bar : CHART_BARS) {
+            if (x >= bar[0] && x < bar[0] + 30 && y >= baseline - bar[1] && y < baseline) {
+                return new int[] {bar[2], bar[3], bar[4]};
+            }
+        }
+        return new int[] {255, 255, 255};
+    }
+
+    private static byte[] ascii(String text) {
+        return text.getBytes(StandardCharsets.US_ASCII);
+    }
+
+    private static byte[] concat(byte[]... parts) {
+        ByteArrayOutputStream joined = new ByteArrayOutputStream();
+        for (byte[] part : parts) {
+            joined.writeBytes(part);
+        }
+        return joined.toByteArray();
     }
 
     /**
