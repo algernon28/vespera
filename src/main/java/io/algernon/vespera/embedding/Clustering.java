@@ -21,9 +21,10 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>What a partition is, is what scoring already recorded.</b> ADR-087 clusters a partition's
  * <em>survivors</em>, which is one rule covering both states of a threshold that ships unset: a
- * document with a blocking verdict is never scored, so it has no score row, so it is not in any
- * partition here and costs nothing. Once the relevance floor is set and {@code below-threshold} is
- * written, that same rule removes those documents without a line of code here changing.
+ * document with a blocking verdict under the scoring run or any run upstream of it is never scored,
+ * so it has no score row, so it is not in any partition here and costs nothing. Once the relevance
+ * floor is set and {@code below-threshold} is written, that same rule removes those documents without
+ * a line of code here changing.
  */
 @Component
 public class Clustering {

@@ -397,10 +397,10 @@ public class Ledger {
     }
 
     /**
-     * Appends one verdict against an occurrence, under the run that judged it. Verdicts are only ever
-     * appended and never deleted: retuning a stage mints a new run of that stage (ADR-117, ADR-154),
-     * whose survivors do not answer to the old run's verdicts (ADR-156), rather than an update in
-     * place (CONTEXT.md, "Verdict").
+     * Appends one verdict against an occurrence, under the run that judged it. Verdicts accumulate:
+     * retuning a stage mints a new run of that stage (ADR-117, ADR-154) rather than an update in
+     * place, and none is deleted except by the step that wrote it, redoing its own unfinished work
+     * under the same run (ADR-116, CONTEXT.md, "Verdict").
      */
     public void verdict(OccurrenceId occurrenceId, RunId runId, VerdictKind kind, String reason) {
         jdbcTemplate.update(
