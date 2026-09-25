@@ -1,7 +1,8 @@
 # Architecture simplification: a plan
 
 **Date:** 2026-09-25
-**Status:** proposal. Nothing here is decided. Every wave below needs its own ADR before any code moves, and follows the usual route: `analyst` → `spec-implementer` → `tester` → `architect`.
+**Status:** proposal, revised after an `architect` review (verdict: sound with amendments, all applied here). Nothing here is decided except Wave 0a, which is in review as #295 (ADR-153). Every other wave needs its own ADR before any code moves, and follows the usual route: `analyst` → `spec-implementer` → `tester` → `architect`.
+**Vocabulary:** a *wave* here is one increment of this refactor. ADR-140 and stage 2's code already use "wave" for one round of eight conversions (`ExtractionJobConfiguration.java:43-54`, `ConversionDispatch.java:46`). The two never meet in a sentence below; a wave's own ADR should say "refactor wave" wherever they could.
 **Scope:** `src/main`, the test base that pins it, and the documentation that describes it. It changes nothing an operator does and removes no capability.
 
 ---
@@ -17,15 +18,15 @@ What has drifted is the *code*. It has grown by copying rather than composing:
 - One fact is never recorded: the key stage 2 used for a file occurrence's extraction cache. Six later classes read the archive again to recompute it. #287 and #289 are two symptoms.
 - The test base names every pipeline class 24 times over, and production code has twice been bent to keep those lists from growing (ADR-131, ADR-132).
 
-Verifying this plan also turned up **a defect nothing tracked**, now [#290](https://github.com/algernon28/vespera/issues/290). After any build that changes `corpus`, `extraction`, `similarity` or `pipeline`, an operator part-way through a corpus is stopped at their next invocation, and nothing they can set gets them out of it (§2, D5).
+Verifying this plan also turned up **a defect**, now [#290](https://github.com/algernon28/vespera/issues/290). Over a walk that ADR-115 reused, anything that gives one stage a second run makes the next stage refuse, and nothing the operator can set gets them out of it. A build that changes `corpus`, `extraction`, `similarity` or `pipeline` does it, and so does setting `degenerateOutputConfidenceFloor` after invocation 1, which the README invites (§2, D5). ADR-099 foresaw the case and left its remedy to whichever change made walks reusable; ADR-115 made them reusable without shipping it. A sibling, [#296](https://github.com/algernon28/vespera/issues/296), lets an old arrangement approval keep opening 6b's gate over a superseded arrangement.
 
 The five moves that matter:
 
 1. **One test base** for the whole-job tests, so moving a class no longer means editing 24 files (Wave 0a).
-2. **Fix the upgrade trap** before anything else changes a module's implementation version (Wave 0b).
+2. **Fix the second-run refusal and the stale approval** before anything else changes a module's implementation version (Wave 0b).
 3. **One way to mint a stage's run and one way to shape a step**, replacing seven run classes and ten one-method configuration classes (Wave 1).
-4. **Rules go home.** Stage 2's failure classification moves to `extraction`, 6b's generation loop to `synthesis`, and duplicate grouping to `corpus` (Wave 2).
-5. **Record stage 2's cache key once**, which removes every later re-read of the archive (Wave 3, folded into #287).
+4. **Rules go home.** Stage 2's failure classification moves to `extraction`, 6b's generation loop to `synthesis`, and content-identity resolution to `corpus` (Wave 2).
+5. **Record stage 2's cache key once**, which removes seven of the eight later re-reads of the archive (Wave 3, folded into #287).
 
 Start with Wave 0a, then 0b. Each later wave is independent enough to land on its own, in the order given.
 
@@ -83,10 +84,15 @@ Four of these are deliberate. The last is exactly what ADR-099 replaced, and its
 | The extractor identity string (the persisted extraction-cache key) | `ExtractionJobConfiguration.java:287-297` | `extraction` |
 | 6b's per-cluster loop, the five-in-a-row breaker and the completion rule | `GenerationTasklet.java:212-339` | `synthesis` |
 | The lead-document and cluster-label rule (ADR-106) | `ArrangementTasklet.java:235-264` | `synthesis` |
-| Size-then-hash duplicate grouping | `ByteLevelReductionTasklet.java:218-278` | `corpus` |
+| Content-identity resolution: size, then hash (ADR-067, ADR-069) | `ByteLevelReductionTasklet.java:218-278` | `corpus` |
 | The eight profile keys, written out by hand | `GenerationTasklet.java:460-471` | derived from `Profile` |
 
-This matters for more than tidiness. A rule in `pipeline` versions under `pipeline`'s implementation version, which six of the eight kinds of run include in their identity, so any edit to the wiring re-mints those runs. Once `pipeline` holds no rule that shapes output, it can drop out of run identity (Wave 7).
+This matters for more than tidiness, in two opposite ways.
+
+- **Stages 3 to 6b over-invalidate.** A rule in `pipeline` versions under `pipeline`'s implementation version, which those six kinds of run include in their identity, so any edit to the wiring re-mints them.
+- **Stages 1 and 2 under-invalidate.** Neither names `pipeline`: stage 1 names `corpus` alone, stage 2 `extraction` and `similarity` (ADR-073). Yet ADR-058:21 says a stage's version includes its orchestration class in `pipeline`. So the ADR-070 classification, the timeout streak and stage 1's content-identity resolution version under nothing today, and a change to them re-mints no run.
+
+Wave 2 moves those rules into the modules their stages already name, which versions them for the first time. Once `pipeline` holds no rule that shapes output, it can drop out of stages 3 to 6b's run identity (Wave 7).
 
 ### D3 — One fact is never recorded, so it is recomputed
 
@@ -99,11 +105,11 @@ Stage 2 keys the extraction cache by the SHA-256 of a file occurrence's bytes (`
 - `ArrangementTasklet.java:251`
 - `GenerationTasklet.java:434, 664`
 
-That is eight call sites in six classes, each with its own answer to "what if the file cannot be opened any more". #289 is the case where the answer is "fail the invocation". #287 is the manifest's `content_hash` column coming out blank for the same underlying reason. It also means stages 5 and 6 read every surviving byte of the archive again, which on the 42,851-file folder this tool exists for is not free.
+That is eight call sites in six classes (seven on the corpus side; `:177` hashes seed occurrences, which stage 2 never sees), each with its own answer to "what if the file cannot be opened any more". #289 is the case where the answer is "fail the invocation". #287 is the manifest's `content_hash` column coming out blank for the same underlying reason. It also means stages 5 and 6 read every surviving byte of the archive again, which on the 42,851-file folder this tool exists for is not free.
 
 ### D4 — The test base encodes the wiring
 
-- **Import lists:** 24 whole-job tests (`@JdbcTest` plus `BatchAutoConfiguration`) each carry an `@Import` list of 88 classes, about 2,100 lines of near-identical text. Only the extraction test double and two probes vary between them. See `src/test/java/io/algernon/vespera/pipeline/CensusInvocationTest.java` and its 23 siblings.
+- **Import lists:** 24 whole-job tests (`@JdbcTest` plus `BatchAutoConfiguration`) each carry an `@Import` list of 85 to 89 classes (16 at 88, 7 at 89, 1 at 85), about 2,100 lines of near-identical text. All 24 name the same 84 classes. What varies is the extraction test double (`SeedScriptedExtractionBeans` in 18 of them), `ClusterFaults` in 4, and two probes. See `src/test/java/io/algernon/vespera/pipeline/CensusInvocationTest.java` and its 23 siblings.
 - **Visibility:** 67 of the 87 pipeline types are package-private, and all 61 pipeline tests share the package.
 - **Effect on production code:**
   - ADR-131 keeps ten one-bean configuration classes because "they are the seam the slice tests import".
@@ -113,30 +119,40 @@ That is eight call sites in six classes, each with its own answer to "what if th
   The test base is dictating the shape of the code.
 - **Coverage gap:** no test pins a run id's inputs byte for byte. `ExtractionRunTest` checks `contains(...)`. A refactor that changed a run's `config_consumed` would pass today's suite.
 
-### D5 — The upgrade trap (a defect)
+### D5 — A second run of one stage over a reused walk stops the next stage (a defect)
 
-Three recorded decisions combine into a trap none of them describes:
+Three recorded decisions meet here:
 
-- **ADR-058:** a stage's implementation version is the SHA of the last commit to each module it names (`.mvn/scripts/implementation-versions.groovy`). A new build gives a stage a new run id.
+- **ADR-058:** a run id hashes the stage's implementation version, which is the SHA of the last commit to each module it names (`.mvn/scripts/implementation-versions.groovy`). It also hashes the configuration the run consumed. So a new build, or a new value in `config_consumed`, gives the stage a new run id.
 - **ADR-115:** a walk that saw nothing new is discarded and the earlier walk reused (`corpus/WalkRecorder.java:140`, `discardIfNothingNewWasSeen`).
 - **ADR-099:** a stage looks up its upstream run over the walk and refuses when it finds two (`pipeline/UpstreamRuns.java:58-64`).
 
-Take an operator between invocations 1 and 2 (README) who picks up a build with any commit to `pipeline`:
+**This is not a case no record foresaw.** ADR-099 described it and assigned its remedy to whichever change made walks reusable (`docs/adr/0099-…md:63-68`; `:85`, "whatever makes a walk reusable must ship the means of choosing, at which point this fault becomes a gate"). ADR-115 made walks reusable and left ADR-099's rule alone (`0115-…md:9`). So the obligation was never discharged, and ADR-099:63's "cannot arise today" stopped being true.
 
-1. Stage 3 mints a second `content-census` run over the reused walk.
-2. Stage 4's `RedundancyRun` finds two and throws `AmbiguousUpstreamRunException`.
-3. The message says "Run a fresh walk" (`AmbiguousUpstreamRunException.java:32`), which ADR-115 makes impossible for an unchanged archive.
-4. The only way out is to change the archive or delete the working directory.
+**The routes in**, traced by reading:
 
-A commit to `corpus` trips the same wire one stage earlier (stage 2's lookup of stage 1), as does a commit to `extraction` or `similarity` (stage 3's lookup of stage 2).
+| Change | Second run of | Refused by |
+|---|---|---|
+| A build with a commit to `corpus` | byte-level reduction (`ByteLevelReductionTasklet.java:109`) | stage 2, `ExtractionRun.java:70` |
+| A build with a commit to `extraction` or `similarity` | extraction (`ExtractionRun.java:73`) | stage 3, `ContentCensusRun.java:75` |
+| A build with a commit to `pipeline` | content census | stage 4, `RedundancyRun.java:92` |
+| `degenerateOutputConfidenceFloor` set after invocation 1 | extraction (its `config_consumed` records the floor) | stage 3, `ContentCensusRun.java:75` |
+| `boilerplateDocumentFrequencyFloor` retuned after stage 5 ran (ADR-099's own example, `:51`) | content redundancy | seed measurement, `SeedMeasurementRun.java:100` |
+| A Docling image or version change, which alters the extractor identity (ADR-147) | extraction | stage 3 |
 
-ADR-099 says the condition "**cannot arise today**" (`docs/adr/0099-…md:63`), because every invocation then minted a fresh walk; ADR-115 made it reachable. This is traced by reading, not yet by a test. Wave 0b starts with the test that proves it.
+- **The fourth route is on the README's own path:** that floor is read off `confidence-distribution.html`, which invocation 1 writes.
+- **There is no way out from inside the tool.** In every case the refusal advises "Run a fresh walk" (`AmbiguousUpstreamRunException.java:32`), which ADR-115 makes impossible for an unchanged archive. Reverting the build or the value does not help, because both run rows stay. The only way out is to change the archive or delete the working directory.
 
-It also means **every other wave in this plan would trigger it**, which is why it comes first.
+**A sibling, [#296](https://github.com/algernon28/vespera/issues/296): an old approval keeps opening 6b's gate.** `ArrangementGate.approvedArrangement` (`ArrangementGate.java:70-80`) matches the approval against every arrangement of the walk.
+
+- **How it happens:** over a reused walk, after a re-arrangement (a changed `relevanceScoreFloor`, say), the old approval still names the old arrangement and opens the gate on it. That contradicts ADR-107:19 and ADR-117:69.
+- **What the operator sees:** if generation over the old arrangement already finished, nothing is regenerated. Meanwhile `arrangement.html` shows the new arrangement and the closing line says nothing is left to set.
+
+Both are traced by reading, not yet by a test; Wave 0b starts with the tests that prove them. And **every other wave in this plan would trigger the first**, which is why it comes first.
 
 ### D6 — Sprawl inside the capability modules
 
-- **`Ledger` does four jobs** (walks, occurrences, runs, verdicts and survivors), 27 public methods in 614 lines. The walk half has one client, `corpus/WalkRecorder`. `survivors` and `occurrencesOf` return Spring Batch's `ItemStreamReader` (`ledger/Ledger.java:529`), so a Batch type crosses into `ledger` and three other modules. Five modules each carry a copied "drain it into a set" helper.
+- **`Ledger` does four jobs** (walks, occurrences, runs, verdicts and survivors), 27 public methods in 614 lines. The walk-recording half has one client, `corpus/WalkRecorder` (`finishedWalkFor` itself has 11 callers). `survivors` and `occurrencesOf` return Spring Batch's `ItemStreamReader` (`ledger/Ledger.java:529`), so a Batch type crosses into `ledger` and three other modules. Five copies of a "drain it into a set" helper sit in four modules. Each already breaks ADR-060, which makes survivors a reader precisely so that nothing holds a million-plus ids in a list.
 - **`synthesis/Deliverable.java` is 1,015 lines with nine seams:**
   - orchestration;
   - index page;
@@ -148,8 +164,8 @@ It also means **every other wave in this plan would trigger it**, which is why i
   - the CSV manifest;
   - Markdown escaping for the surroundings of ADR-134/136/138/148.
 
-  The three Markdown surroundings are one rule with increments: `inAHeading` is `escapeLinkText(onOneLine(x))`, `inACell` adds `|`, and `asLinkText` is `inACell`.
-- **Six identical `*Schema` classes** each call `SchemaVersionGuard.require(module, version)`, and nothing references them.
+  The three Markdown surroundings share one escape set with increments: `inAHeading` is `escapeLinkText(onOneLine(x))`, `inACell` adds `|`, and `asLinkText` is `inACell`. ADR-138:77-79 records that convergence as a result, not a merger (and ADR-137 §4 keeps the destination apart). So a table with one row per surrounding fits the record, and one merged rule does not.
+- **Six identical `*Schema` classes** each call `SchemaVersionGuard.require(module, version)`. Nothing calls them; they run at start-up by construction, because ADR-059 has each module check its own schema version while the context is built.
 - **One `schema.sql`** of 711 lines and 32 tables, where ADR-049 and `docs/architecture.md` §1.5 say "schema.sql per module". Ownership is stated only in comments.
 - **Three SQL reads across table ownership**, invisible to the Modulith boundary test because they are strings, not imports:
   - `Ledger.java:188` deletes `corpus`'s `walk_anomaly`;
@@ -212,12 +228,16 @@ It also means **every other wave in this plan would trigger it**, which is why i
 
 ## 4. Invariants every wave keeps
 
-1. **Persisted names do not change.** Every `run.stage` value and every `finished_step` step name stays byte-identical (ADR-116).
+1. **Persisted names do not change.** Every `run.stage` value and every `finished_step` step name stays byte-identical. A name is recorded, not hashed (`Ledger.startRun`), so a rename re-mints nothing. But upstream lookups and completion records go by name: a renamed stage finds no upstream run, and a renamed step redoes its work once (ADR-116:92).
 2. **Persisted cache keys do not change.** This covers the extractor, chunker, chunking-rule, embedder, shingle and MinHash identity strings. A refactor may move the code that builds them, never the string it builds.
-3. **Run ids do not change except where a wave declares it.** A wave that edits a module named in a stage's implementation version re-mints that stage's runs by construction (ADR-058). Every wave's row in §5 says whether it does, and Wave 0a's golden tests prove the `config_consumed` text itself did not move.
-4. **Operator-visible text does not change.** This covers the closing line, gate sentences, report pages and the deliverable. `OperatorTextTest`, `docs/check-claims.mjs` and the README are the guards.
+3. **Run ids do not change except where a wave declares it, and a re-mint is transitive.** A wave that edits a module named in a stage's implementation version re-mints that stage's runs and every run downstream of it (ADR-058, ADR-048). Every wave's row in §5 says whether it does, and Wave 0a's golden tests prove that the `config_consumed` text and the module lists did not move.
+4. **Operator-visible text does not change.** This covers the closing line, gate sentences, report pages, the deliverable, and the profile keys an operator types. `OperatorTextTest`, `docs/check-claims.mjs` and the README are the guards.
 5. **The module rule holds.** Capability modules depend on `ledger` alone, plus the one declared `extraction` → `corpus` exception (ADR-100).
-6. **No test is weakened** (the `architect` gate). A test that has to move is moved by the `analyst`, never by the implementer.
+6. **Gates and faults keep their outcomes.** No run is minted while its gate is shut (ADR-080). What is a gate, what is a fault, and every exit code stay as they are (ADR-099, ADR-141).
+7. **The schema changes only where a wave declares it.** DDL and each module's schema version stay put unless a wave's ADR says otherwise (ADR-049, ADR-059), because a version bump makes the guard refuse an existing database.
+8. **The job keeps its shape.** Step order, census's transaction setting (ADR-055), stage 2's chunk size and concurrency (ADR-140) and listener order (ADR-139) change only where a wave's ADR says so.
+9. **One writer, bounded memory.** Nothing new writes from a worker thread, and nothing new holds the whole corpus in memory (ADR-127, ADR-140, ADR-060, ADR-149 §9).
+10. **No test is weakened** (the `architect` gate). A test that has to move is moved by the `analyst`, never by the implementer.
 
 ---
 
@@ -225,47 +245,61 @@ It also means **every other wave in this plan would trigger it**, which is why i
 
 | Wave | Goal | ADRs | Tests | Size (estimate) | Re-mints runs? | Risk |
 |---|---|---|---|---|---|---|
-| **0a** | One test base; pin run identity | amend 131 | the 24 whole-job tests move onto a shared annotation; new golden tests | −2,000 test lines | no (no `src/main` change) | low |
-| **0b** | Fix the upgrade trap | amend 099, 058 | new failing test first | small | yes, once (stages 3–6b) | medium |
-| **1** | One way to mint a run, one way to shape a step | amend 131, 099, 080 | golden tests must stay green | −1,100 main lines | yes (`pipeline`) | medium |
-| **2** | Rules move to their modules | amend 110, 040 | existing behaviour tests unchanged; new unit tests per moved rule | −1,000 in `pipeline`, partly moved, not deleted | yes (all modules touched) | medium |
-| **3** | Record stage 2's cache key | via ADR-151 (#287) | #287's and #289's tests | removes 8 archive re-reads | yes, and a schema bump | medium |
-| **4** | `Ledger` and table boundaries | amend 049, 041 | a table-ownership guard; `SchemaVersionDeclarationTest` changes | about −300 | yes where `similarity`/`embedding` change | low–medium |
-| **5** | Split `Deliverable` | none new; cites 133–138, 148, 149 | `DeliverableTest` untouched | neutral in lines; the largest class goes | yes (6a/6b) | low |
-| **6** | Hygiene | supersede 142, amend 046 | delete the dead code's own tests | −500 plus comments | yes, per module touched | low |
-| **7** *(deferred)* | Take `pipeline` out of run identity | amend 058 | — | — | yes, once | medium |
+| **0a** | One test base; pin run identity | ADR-153 amends 131 | done (#295): the 24 whole-job tests share `@CascadeSliceTest`; 8 golden tests; an import guard | −3,035 test lines (measured) | no (no `src/main` change) | low; in review |
+| **0b** | Stop a second run over a reused walk from stranding the operator, and a stale approval from opening 6b (#290, #296) | amend 099, 058; 107 for #296 | failing tests first: two builds, the confidence floor set, the boilerplate floor retuned, a stale approval | small | yes, once (stages 3–6b) | medium |
+| **1** | One way to mint a run, one way to shape a step | amend 131 (its second reason), 099, 080 | golden tests stay green | −1,100 main lines | yes (`pipeline`: stages 3–6b) | medium |
+| **2** | Rules move to their modules | amend 110, 040; cites 070, 071, 111, 139, 140 | behaviour tests unchanged; unit tests per moved rule; `ExtractionItemProcessorTest`'s 18 tests ported | −1,000 in `pipeline`, partly moved, not deleted | yes (every stage whose modules it touches) | medium |
+| **3** | Record stage 2's cache key | via ADR-151 (#287) | #287's and #289's tests | removes 7 of the 8 archive re-reads (8 if seed extraction records its key too) | yes, and a schema bump | medium |
+| **4** | `Ledger` and table boundaries | amend 049, 041; weigh 059, 060 | a table-ownership guard; `SchemaVersionDeclarationTest` changes | about −300 | yes: moving `walk_anomaly` deletion to `corpus` re-mints stage 1 and everything downstream | low–medium |
+| **5** | Split `Deliverable` | none new, if the surroundings become one table with a row each (ADR-134, 137, 138); cites 133, 148, 149 | `DeliverableTest` untouched | neutral in lines; the largest class goes | yes (6a/6b) | low |
+| **6** | Hygiene | supersede 142; amend 046, 029, 039; check 034 | delete the dead code's own tests | −500 plus comments | yes, per module touched | low |
+| **7** *(deferred)* | Take `pipeline` out of stages 3–6b's run identity | amend 058 | — | — | yes, once | medium |
 
 The size figures are estimates from the classes named, not measurements. A wave's ADR should replace them with the measured diff.
 
-### Wave 0a — One test base, and run identity pinned
+### Wave 0a — One test base, and run identity pinned (done: #294, in review as #295)
 
-Owner: `analyst` alone. No `src/main` change, so nothing is re-minted.
+Owner: `analyst` alone. No `src/main` change, so nothing is re-minted. What landed, measured:
 
-- **Add `@CascadeSliceTest`**, a meta-annotation in the `pipeline` test package so package-private types stay reachable. It carries the five class-level annotations the 24 tests share, plus `@Import` of the 82 classes all 24 name. Spring merges meta-annotation imports with a test's own, and bean overriding is off, so a duplicate fails loudly rather than silently. Each test then imports only its extraction double and its probes. `UnconfiguredRootTest` differs (no `ExtractionMetrics`, no `HybridChunker`) and stays explicit, or is checked.
-- **Add golden tests**, one per stage. Each runs the whole job over a fixed corpus and asserts that stage's `run.config_consumed` text and `implementation_version` module list exactly, as strings.
-- **Add a two-build test:** two invocations over one database with different implementation versions. It is red until Wave 0b.
-- **ADR:** amend ADR-131. Its stated reason for keeping ten configuration classes stops holding once the list is shared, and saying so is what licenses Wave 1.
+- **`@CascadeSliceTest`**, a meta-annotation in the `pipeline` test package so package-private types stay reachable.
+  - It carries the five class-level annotations and an 87-class `@Import`: the 84 classes all 24 tests name, plus 3 that 23 of them name (`HybridChunkerBeans`, `ExtractionMetrics`, `LanguageDetection`).
+  - Each test imports only its extraction double, `ClusterFaults` in four tests, and its probes.
+  - `UnconfiguredRootTest` uses it too; its invocation refuses before any stage runs, so the extra beans are built and never called.
+- **A duplicate import does not fail loudly.** Measured: Spring merges a class imported by both the annotation and the test into one set, silently. So `CascadeSliceImportsTest` fails any test that repeats a shared import.
+- **`RunIdentityGoldenTest`:** one test per kind of run (eight), pinning the exact `config_consumed` text and the module list and order of the implementation version. The order is made visible by a test-only `ModuleNamedVersionsBeans`. Both floors are pinned only as unset.
+- **ADR-153** amends ADR-131. Its first reason ("the seam the slice tests import") no longer holds. Its second ("the place each stage's step is named") is Wave 1's to weigh.
+- **Result:** 709 → 718 tests, 0 failures. The 24 files lose 3,035 lines.
 
-### Wave 0b — The upgrade trap
+### Wave 0b — A second run over a reused walk, and a stale approval ([#290](https://github.com/algernon28/vespera/issues/290), [#296](https://github.com/algernon28/vespera/issues/296))
 
-1. Take [#290](https://github.com/algernon28/vespera/issues/290) and write the failing test first: the two-build test from 0a.
-2. **ADR amending ADR-099:** when narrowing to one upstream run, prefer the candidates minted under the current build's implementation version. Ambiguity from a *configuration* change is still refused, as ADR-099 intends. Also correct `AmbiguousUpstreamRunException`'s advice, since a fresh walk is not available for an unchanged archive.
-3. **ADR amending ADR-058:** its cost is per build, not per commit, and ADR-115 changed what that cost is. Record what an operator sees when a build lands mid-campaign.
-4. **Code:** a `StageIdentity` table (stage name plus module list, the ADR-058 table in one place) and the narrowing inside `UpstreamRuns`.
+1. **Failing tests first.** Each runs two invocations over one database and asserts that the second completes:
+   - with a changed implementation version for one module. This is the two-builds test, moved here from 0a so 0a lands green; it can vary one module's version through 0a's `ModuleNamedVersionsBeans` seam;
+   - with `degenerateOutputConfidenceFloor` set between them;
+   - with `boilerplateDocumentFrequencyFloor` retuned after stage 5.
 
-The fix itself re-mints stages 3 to 6b once. That is the last time a build should strand anyone.
+   And one for #296: approve an arrangement, change `relevanceScoreFloor`, invoke again, and 6b must not proceed over the older arrangement.
+2. **An ADR amending ADR-099 on how a stage chooses its upstream run once one walk holds two.** This is an open decision with three options:
+   - ADR-099's own answer: a gate naming the run to continue from.
+   - Take the upstream run this invocation minted or continued. Since ADR-115 every invocation starts at census, so the id is in hand; this amends ADR-099:23's reasoning.
+   - Narrow by the current build's implementation version only. That fixes the build routes and leaves the configuration routes stranding the operator, so it is not enough alone.
+
+   Whichever is chosen, correct `AmbiguousUpstreamRunException`'s advice. The same ADR, or a sibling amending ADR-107, settles #296: the approval matches only the arrangement this invocation minted or continued.
+3. **An ADR amending ADR-058.** Its cost is per build, not per commit, and ADR-115 changed what that cost is. Record what an operator sees when a build lands mid-campaign, and the stage 1–2 gap in D2.
+4. **Code:** a `StageModules` table and the chosen lookup. The table holds each stage's name and the modules its implementation version spans, which is the ADR-058 table in one place. It is named so as not to borrow the instruments' word "identity".
+
+The fix itself re-mints stages 3 to 6b once.
 
 ### Wave 1 — One way to mint a run, one way to shape a step
 
-**Minting.** Replace the seven run classes and the inline mint in stage 1 with one helper in `pipeline`:
+**Minting.** Replace the seven run classes and the inline mint in stage 1 with one helper in `pipeline`, reusing Wave 0b's `StageModules`:
 
 ```java
-record StageIdentity(String stage, List<String> modules) {}
+record StageModules(String stage, List<String> modules) {} // from Wave 0b
 
 final class StageRuns {
     WalkId finishedWalk(Path canonicalRoot, String whatNeedsIt);
-    RunId mint(StageIdentity stage, Record configConsumed, WalkId walk, Optional<RunId> upstream);
-    RunId mint(StageIdentity stage, String configJson, WalkId walk, Optional<RunId> upstream); // stage 1's "{}"
+    RunId mint(StageModules stage, Record configConsumed, WalkId walk, Optional<RunId> upstream);
+    RunId mint(StageModules stage, String configJson, WalkId walk, Optional<RunId> upstream); // stage 1's "{}"
 }
 ```
 
@@ -282,39 +316,44 @@ Three conditions keep every id byte-identical, and Wave 0a's golden tests enforc
 static RepeatStatus once(Ledger ledger, RunId run, String step, Runnable discard, Runnable work)
 ```
 
-It absorbs `RunCompletion` (one use) and the private copy in `RedundancyJobConfiguration`.
+It does not absorb `RunCompletion` or `RedundancyJobConfiguration`'s `SignatureStepCompletion`. Those are completion listeners on chunk steps, and ADR-139 pins `ExtractionFaultRecorder`'s registration after `RunCompletion`. The two listeners can become one gated listener beside `once(...)`, not inside it.
 
 **Wiring:**
-- Fold the ten one-bean configuration classes into the job configuration, and rename `CensusJobConfiguration` for what it is.
+- Fold the ten one-bean configuration classes into the job configuration, and rename `CensusJobConfiguration` for what it is. ADR-153 left ADR-131's second reason ("the place each stage's step is named") for this wave's ADR to weigh.
 - Put every step name in one place, with the persisted values unchanged.
 - Make `GenerationTasklet.java:381`'s recompute a lookup. It can only be done after Wave 0b, because a lookup there would otherwise hit the trap.
 - Collapse the three "cannot name one run" exceptions (`NoUpstreamRunException`, `AmbiguousUpstreamRunException`, `AmbiguousArrangementException`) if their ADR agrees. They are fatal, never caught, and asserted only by type.
 
 ### Wave 2 — Rules go home
 
-- **To `synthesis`: 6b's loop, breaker and completion rule** (`GenerationTasklet.java:212-339`). The loop already uses only `synthesis` types plus `Ledger`. Its one outside input is each cluster's exemplars, which come from `embedding`'s membership and scores, `extraction`'s leading chunks, and `ledger`'s facts. Hand them over through a `synthesis`-owned callback, `ClusterExemplars`, on the precedent of `SurvivorPictures` (ADR-149). Keep it lazy per cluster so file reads, warnings and memory stay as they are. The loop returns a sealed result: finished, incomplete, or stopped with its faults. `pipeline` keeps stopping the step, writing the deliverable and recording completion. This is ADR-110's hand-over, extended, and needs an amendment saying so.
+- **To `synthesis`: 6b's loop, breaker and completion rule** (`GenerationTasklet.java:212-339`). The loop already uses only `synthesis` types plus `Ledger`. Its one outside input is each cluster's exemplars, which come from `embedding`'s membership and scores, `extraction`'s leading chunks, and `ledger`'s facts. Hand them over through a `synthesis`-owned callback, `ClusterExemplars`, on the precedent of `SurvivorPictures` (ADR-149). Keep it lazy per cluster so file reads, warnings and memory stay as they are. The loop returns a sealed result: finished, incomplete, or stopped with its faults. `pipeline` keeps stopping the step, writing the deliverable and recording completion. The callback must also supply the winning seed's path (`GenerationTasklet.java:274`), and ADR-111's breaker moves with the loop. This is ADR-110's hand-over, extended, and needs an amendment saying so.
 - **To `synthesis`: the lead-document and label rule** (`ArrangementTasklet.java:235-264`). Today it is computed twice per cluster.
-- **To `extraction`: ADR-070's classification and the timeout streak** (`ExtractionItemProcessor.java:267-376`). `ServiceScopeFailureException` stays the Batch skip marker. `ExtractorStoppedAnsweringException` keeps its fully-qualified name, which `ExceptionNamingTest` pins, or the test moves with it via the `analyst`.
+- **To `extraction`: ADR-070's classification and the timeout streak** (`ExtractionItemProcessor.java:267-376`), together with what ADR-071, ADR-139 and ADR-140 say about them. ADR-140's rule that both streak counters are observed on one thread must survive the move. `ExtractionItemProcessorTest`'s 18 tests, which use the test-only constructor, are ported to the new home, not deleted. `ServiceScopeFailureException` stays the Batch skip marker. `ExtractorStoppedAnsweringException` keeps its fully-qualified name, which `ExceptionNamingTest` pins, or the test moves with it via the `analyst`.
 - **To `extraction`: the extractor identity string** (`ExtractionJobConfiguration.java:287-297`). The string must come out byte-identical; `ExtractorIdentityCompositionTest` is the guard.
-- **To `corpus`: size-then-hash duplicate grouping** (`ByteLevelReductionTasklet.java:218-278`).
+- **To `corpus`: content-identity resolution, size then hash** (`ByteLevelReductionTasklet.java:218-278`; ADR-067, ADR-069). ADR-040 is a reconstituted record, and the reading of it this changes is the one at `ByteLevelReductionTasklet.java:55-57`; the amendment should quote it.
+- **What this buys for stages 1 and 2:** they name no `pipeline` version (D2), so these moves version their rules for the first time.
 - **Profile keys:** `GenerationTasklet.java:460-471`'s list comes from `Profile`'s own component order, which it already matches.
 
 ### Wave 3 — Record stage 2's cache key
 
-Stage 2 records, per occurrence and under its own run, the key it used for the extraction cache. The later sites in D3 look it up instead of reading the archive.
+Stage 2 records, per occurrence and under its own run, the key it used for the extraction cache. Seven of the eight later sites in D3, the corpus-side ones, look it up instead of reading the archive. The eighth, `RelevanceScoringTasklet.java:177`, hashes seed occurrences, which stage 2 never sees; it goes too only if seed extraction records its key as well (`SeedExtractionItemProcessor.java:92`).
 
-- **Why here:** this is the substance of #287, so it belongs in ADR-151's decision rather than a new one. It also turns ADR-152's (#289) per-step split into a question about one remaining site, since the other four steps stop reading the archive.
+- **Why here:** this is the substance of #287, so it belongs in ADR-151's decision rather than a new one, provided ADR-151, already being written, decides that stage 2 records the key. It also turns ADR-152's (#289) per-step split into a question about one remaining site, since the other four steps stop reading the archive.
 - **Cost:** a schema version bump in `extraction`, so `SchemaVersionGuard` refuses an existing database and the operator starts a fresh working directory. Land it at a corpus boundary, never mid-campaign.
 
 ### Wave 4 — `Ledger` and table boundaries
 
-- **Split `Ledger` inside `ledger`** into walks, occurrences, runs and verdicts/survivors. `ledger` is in no stage's implementation version, so this re-mints nothing. Moving the walk half into `corpus` is *not* proposed; ADR-041 puts identity in `ledger`.
-- **Take `ItemStreamReader` out of the capability APIs**, and give `ledger` one `survivorIds(RunId)` so the five drain helpers go. First check the semantics: `survivors()` is a paged, live query, and a snapshot changes behaviour if a step writes blocking verdicts ahead of its own cursor. The ADR records what was checked.
+- **Split `Ledger` inside `ledger`** into walks, occurrences, runs and verdicts/survivors. `ledger` is in no stage's implementation version, so the split itself re-mints nothing. Moving the walk half into `corpus` is *not* proposed; ADR-041 puts identity in `ledger`.
+- **Take `ItemStreamReader` out of the capability APIs without breaking ADR-060.**
+  - ADR-060 makes survivors a Spring Batch reader, "never a materialized `List`" of what could be a million-plus ids. So the replacement is a streaming shape without the Batch type, such as a cursor or a `Stream<OccurrenceId>` its caller closes, not a `survivorIds` list.
+  - The five drain helpers already break ADR-060, and go with this change.
+  - First check the semantics: `survivors()` is a paged, live query, and any shape that reads ahead changes behaviour if a step writes blocking verdicts ahead of its own cursor.
+  - The ADR records what was checked, and amends ADR-060 if the Batch type itself is what that record named.
 - **Fix the three table-ownership breaches:**
-  - `walk_anomaly` deletion moves to `corpus` (`AnomalyLog`), called in the same transaction by `WalkRecorder`.
+  - `walk_anomaly` deletion moves to `corpus` (`AnomalyLog`), called in the same transaction by `WalkRecorder`. This is a `corpus` change, so it re-mints stage 1 and, through the upstream chain, every stage after it.
   - The two `extraction_metric` reads get their rows from `pipeline`, the way `pipeline` already hands `synthesis` its inputs.
 - **One schema file per module** (`schema/ledger.sql` and so on, via `spring.sql.init.schema-locations`), which makes ADR-049's text true. Add a table-ownership guard test that fails when a module's SQL names another module's table. Amend ADR-049.
-- **One schema-version declaration per module** instead of six classes. The guard must still fail while the context is being built. `SchemaVersionDeclarationTest` changes with it (`analyst`).
+- **One schema-version declaration per module** instead of six classes. They run at start-up by construction (ADR-059), and the replacement must still fail while the context is being built. `SchemaVersionDeclarationTest` changes with it (`analyst`).
 
 ### Wave 5 — Split `Deliverable`
 
@@ -322,7 +361,7 @@ Package-private collaborators inside `synthesis`, each with the rule it carries:
 
 | Collaborator | Carries |
 |---|---|
-| `MarkdownSurroundings` | one table-driven escaper for heading, cell and link text |
+| `MarkdownSurroundings` | one table with a row per surrounding (heading, cell, link text). The rules move here from `Deliverable` and are not copied, so ADR-134's reopen trigger (a second class under `synthesis` with an escaping method) is not tripped. One table keeps ADR-138:77-79 and ADR-137 §4, where one merged rule would not. |
 | `ArchiveLink` | relative destinations and their percent-encoding |
 | `ManifestCsv` | RFC 4180 quoting |
 | `ClusterPage` | the cluster file, including membership numbering from the call's exemplars |
@@ -336,16 +375,23 @@ Package-private collaborators inside `synthesis`, each with the rule it carries:
 
 ### Wave 6 — Hygiene
 
-- **Delete dead code:** the LLM chunking fallback and its interface (inject the windowed one directly), `Ledger.walkFinished`, `ContentIdentity.representativeFor`, `RelevanceFloor.State.removesAnything`, the test-only constructor, and `RedundancyResolutionTasklet.STEP`, which only aliases `RedundancyRun.STAGE`.
-- **Pom:** each removal cites the decision that stops requiring it (ADR-046). Candidates: `lombok`, the actuator starters, `spring-boot-starter-batch-test`, and the OpenAI starter, after checking it is not ADR-072's reference model in waiting.
-- **Chroma:** `VectorStoreConfiguration`, the Chroma starter and its test container go under an ADR superseding ADR-142 (nothing reads the projection; re-add it when the first reader is built).
+- **Delete dead code:**
+  - the LLM chunking fallback and its interface, injecting the windowed one directly. Its "currently off" seam is ADR-029's recorded shape, so this amends ADR-029;
+  - `Ledger.walkFinished`;
+  - `ContentIdentity.representativeFor`;
+  - `RelevanceFloor.State.removesAnything`;
+  - `RedundancyResolutionTasklet.STEP`, which only aliases `RedundancyRun.STAGE`.
+
+  The test-only `ExtractionItemProcessor` constructor goes in Wave 2, with its 18 tests ported.
+- **Pom:** each removal cites the decision that stops requiring it (ADR-046). Candidates: `lombok`, the actuator starters, `spring-boot-starter-batch-test`, and the OpenAI starter. The OpenAI starter's pom comment cites ADR-034 (the hosted ceiling model in the embedding bake-off), so check ADR-034 and ADR-072 first.
+- **Chroma:** `VectorStoreConfiguration`, the Chroma starter and its test container go only under an ADR that also weighs ADR-039, which makes Chroma the disposable projection and which ADR-142 keeps. "Re-add it when the first reader is built" is the reasoning ADR-046 rejects (the pom carries what a decision requires), so the ADR has to retire the requirement, not just the dependency.
 - **Duplicated helpers:** remove them only inside modules another wave is already re-minting, so no wave re-mints a stage just to delete a copy.
 - **Javadoc policy:** a class cites the ADR it implements and states its own contract. It does not restate the ADR's reasoning. Correct the stale javadocs in D7.
 - **Agent files:** move `AGENTS.md`'s defect history (line 23) and status narrative (line 21) out, keeping every sentence `docs/check-claims.mjs` matches. Fix the stale agent definitions.
 
 ### Wave 7 — Take `pipeline` out of run identity (deferred)
 
-Once Wave 2 leaves `pipeline` holding no rule that shapes output, drop it from every stage's module list (amend ADR-058). A wiring change then stops re-minting stages 3 to 6b. Doing it before Wave 2 would make invalidation too lazy, which is exactly the failure ADR-058 exists to prevent.
+Once Wave 2 leaves `pipeline` holding no rule that shapes output, drop it from stages 3 to 6b's module lists (amend ADR-058). A wiring change then stops re-minting them. Doing it before Wave 2 would make invalidation too lazy, which is exactly the failure ADR-058 exists to prevent, and which D2 shows is already true of stages 1 and 2.
 
 ---
 
@@ -354,9 +400,9 @@ Once Wave 2 leaves `pipeline` holding no rule that shapes output, drop it from e
 | Tempting move | Why not |
 |---|---|
 | Replace Spring Batch with plain loops | Saves about 600 lines. It costs a rewrite of the three chunk steps and the exit mapping, ADR-140's read-ahead, 24 tests, and amendments to ADR-036, 047, 131, 140 and 141. The resourceless repository already makes it nearly free. |
-| Derive `NextAction` and every gate from one ordered table | The orders differ. `NextAction` names values in README order (seed folder, boilerplate floor, embedding model). The job meets them in cascade order (floor, then seed, then model). One table would change the sentence an operator reads. `UsableSeedGate` is an in-job flag, not a profile value, so it is not a gate in `CONTEXT.md`'s sense; rename it instead. |
+| Derive `NextAction` and every gate from one ordered table | The orders differ. `NextAction` names values in README order (seed folder, boilerplate floor, embedding model). The job meets them in cascade order (floor, then seed, then model). One table would change the sentence an operator reads. |
 | One SHA-256 helper for every module | The copies produce persisted keys in modules with different implementation versions. Merging them re-mints stages for no behavioural gain. Do it only inside Wave 6's rule. |
-| De-duplicate the 16 `discardForRun` methods | Each is one to three lines against its own module's table, which ADR-041 wants owned there. |
+| De-duplicate the 15 `discardForRun` methods (16 with `Ledger.discardVerdicts`) | Each is one to three lines against its own module's table, which ADR-041 wants owned there. |
 | Move `Ledger`'s walk half into `corpus` | ADR-041 puts occurrence identity in `ledger`. Split it inside `ledger` instead (Wave 4). |
 | Stage-shaped packages under `pipeline` | Rejected in `docs/architecture.md:169` for a reason that still holds. |
 
@@ -364,19 +410,19 @@ Once Wave 2 leaves `pipeline` holding no rule that shapes output, drop it from e
 
 ## 7. What an operator sees, and how to deliver
 
-**A wave that re-mints costs an operator mid-campaign:**
+**What a wave that re-mints costs an operator mid-campaign.** This is after Wave 0b; before it, the operator is stranded instead (D5).
 
+- A re-minted stage 2 re-hashes every surviving file (`ExtractionItemProcessor.java:203-205`), though its conversions are cache hits.
 - Stages 3 and 4 redo their work from the database alone.
-- Docling conversions and embeddings are cache hits.
-- Clustering and 6a recompute, so a new arrangement is minted and has to be approved again.
-- 6b calls the generation model once per cluster again and writes a second deliverable tree beside the first.
-
-After Wave 0b that is the whole cost. Before it, the operator is stranded instead (D5).
+- Embeddings are cache hits. Until Wave 3, though, every re-minted step in stages 5 to 6b re-reads the archive at the D3 sites.
+- Clustering and 6a recompute and mint a new arrangement. Whether the operator is asked to approve it depends on #296: today the old approval keeps opening the gate over the old arrangement.
+- 6b calls the generation model once per cluster again for any arrangement it has not finished, and writes a second deliverable tree beside the first.
 
 **Delivery:**
 
 - Merge the waves in order.
 - The cost is paid per build, not per commit, so an operator mid-campaign should take one build that carries several waves, at a corpus boundary if possible.
+- **The same holds for the open tickets.** #286, #287, #289 (in #293) and #291 each edit `extraction` or `pipeline`. Until Wave 0b lands, each merge re-mints and strands an operator part-way through a corpus. Release them at a corpus boundary too.
 - Wave 3 needs a fresh working directory whenever it lands.
 
 ---
@@ -385,24 +431,30 @@ After Wave 0b that is the whole cost. Before it, the operator is stranded instea
 
 Each belongs in the ADR of the wave that meets it. They are listed here so no wave discovers them late.
 
-1. **Wave 0b:** exactly how the upstream lookup prefers the current build, and what it says when the current build has no run yet.
+1. **Wave 0b:**
+   - how a stage chooses its upstream run once one walk holds two (the three options in Wave 0b);
+   - how the arrangement approval is matched over a reused walk (#296).
 2. **Wave 1:** whether the three "cannot name one run" exceptions become one.
-3. **Wave 4:** whether a snapshot of survivors is safe at every current call site, measured rather than argued.
+3. **Wave 4:** which streaming shape replaces the Batch reader, and whether ADR-060 is kept or amended, measured at every current call site rather than argued.
 4. **Wave 4:** per-module schema files. Accept the one-time move, or keep one file and correct the documentation instead.
-5. **Wave 6:** which decision, if any, still requires each of the pom entries in D6, and whether the OpenAI starter is ADR-072's reference model.
+5. **Wave 6:**
+   - which decision, if any, still requires each pom entry in D6 (ADR-034 for the OpenAI starter, ADR-072 for the reference model);
+   - whether ADR-039's requirement for Chroma is retired.
 6. **Wave 6:** the javadoc policy above, recorded once so later changes follow it.
 
 ---
 
 ## 9. Tracker shape
 
-- **One bug now:** the upgrade trap (D5), filed as [#290](https://github.com/algernon28/vespera/issues/290). It is a defect in what ships and should not wait for a map.
-- **Then a wayfinder map, "Architecture simplification":** one child ticket per wave, 0a to 6, with 7 parked. Each ticket's resolution comment is its spec, as usual.
+- **Bugs now:** [#290](https://github.com/algernon28/vespera/issues/290) (a second run of one stage over a reused walk) and its sibling [#296](https://github.com/algernon28/vespera/issues/296) (a stale approval). They are defects in what ships and should not wait for a map.
+- **Wave 0a** is [#294](https://github.com/algernon28/vespera/issues/294), in review as #295.
+- **Then a wayfinder map, "Architecture simplification":** one child ticket per remaining wave, with 7 parked. Each ticket's resolution comment is its spec, as usual.
+  - Charting it means editing the two `AGENTS.md` sentences that `docs/check-claims.mjs` checks (lines 44–46, starting "**No wayfinder map is open.**"), in the same change that opens the map. Otherwise CI's claims job fails.
 - **Relation to open work:**
-  - **#286** (PDF pictures) is independent.
-  - **#287** (blank `content_hash`, ADR-151) *is* Wave 3.
-  - **#289** (the relevance report and an unopenable file, ADR-152) is settled on its own terms first. Wave 3 later removes the re-reads that ADR-152 decides to fail on.
-  - A seed-side twin of #289 is [#291](https://github.com/algernon28/vespera/issues/291): a seed file that cannot be opened fails seed extraction instead of becoming an unusable seed.
+  - **#286** (PDF pictures) is independent of the waves, but see §7 on when to release it.
+  - **#287** (blank `content_hash`, ADR-151) *is* Wave 3, provided ADR-151 decides that stage 2 records the key.
+  - **#289** (the relevance report and a file that will not open, ADR-152, in #293) is settled on its own terms first. Wave 3 later removes the re-reads that ADR-152 decides to fail on.
+  - **#291** is a seed-side twin of #289: a seed file that cannot be opened fails seed extraction instead of becoming an unusable seed.
 
 ---
 
@@ -416,21 +468,22 @@ Each belongs in the ADR of the wave that meets it. They are listed here so no wa
 | Upstream refusal | `pipeline/UpstreamRuns.java:58-64`; `AmbiguousUpstreamRunException.java:32` |
 | Walk reuse | `corpus/WalkRecorder.java:140` |
 | Per-commit implementation versions | `.mvn/scripts/implementation-versions.groovy` |
-| "Cannot arise today" | `docs/adr/0099-*.md:63` |
-| Approval by id prefix | `pipeline/ArrangementGate.java:70-79` |
+| "Cannot arise today", and the remedy handed on | `docs/adr/0099-*.md:63-68, 85`; `docs/adr/0115-*.md:9` |
+| Floors in run identity | `pipeline/ExtractionRun.java:73, 88-90`; `pipeline/SeedMeasurementRun.java:100` |
+| Approval by id prefix, over every arrangement of the walk (#296) | `pipeline/ArrangementGate.java:70-80` |
 | Failure classification in `pipeline` | `pipeline/ExtractionItemProcessor.java:267-376` |
 | Extractor identity in `pipeline` | `pipeline/ExtractionJobConfiguration.java:287-297` |
 | 6b's loop in `pipeline` | `pipeline/GenerationTasklet.java:212-339` |
 | Hand-written profile keys | `pipeline/GenerationTasklet.java:460-471` |
 | Label rule in `pipeline` | `pipeline/ArrangementTasklet.java:235-264` |
-| Duplicate grouping in `pipeline` | `pipeline/ByteLevelReductionTasklet.java:218-278` |
+| Content-identity resolution in `pipeline` | `pipeline/ByteLevelReductionTasklet.java:218-278` |
 | The archive re-read | `DoclingExtractor.java:65`; the eight sites in D3 |
 | Seed-side first read | `pipeline/SeedExtractionItemProcessor.java:92` |
 | Batch type in `ledger` | `ledger/Ledger.java:529` |
 | Cross-ownership SQL | `ledger/Ledger.java:188`; `similarity/RedundancyResolution.java:205`; `embedding/SeedCorpusComparison.java:347` |
-| Test import lists | the 24 `pipeline/*InvocationTest.java` and sibling whole-job tests, 88 classes each |
+| Test import lists | the 24 `pipeline/*InvocationTest.java` and sibling whole-job tests, 85 to 89 classes each |
 | Stage-shaped packages rejected | `docs/architecture.md:169` |
 
 ## Appendix B — How the figures were taken
 
-The line and file counts are `wc -l` over `src/main/java` and `src/test/java` at `6f16ccc`. Comment lines are lines whose first non-blank characters are `*`, `/*` or `//`. Call-site counts are `grep -c` over `pipeline`. Import-list sizes count `.class` literals inside each test's `@Import({...})`. The upgrade trap was traced through the code named in D5; it has not been executed.
+The line and file counts are `wc -l` over `src/main/java` and `src/test/java` at `6f16ccc`. Comment lines are lines whose first non-blank characters are `*`, `/*` or `//`. Call-site counts are `grep -c` over `pipeline`. Import-list sizes count `.class` literals inside each test's `@Import({...})`. D5's routes and #296 were traced through the code named there; they have not been executed. After the `architect` review, the import counts were re-taken from git objects at `6f16ccc`, and Wave 0a's figures were measured on its own commit (`9490d2c`, #295).
