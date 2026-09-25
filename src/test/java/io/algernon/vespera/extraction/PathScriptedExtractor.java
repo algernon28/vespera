@@ -75,6 +75,20 @@ public final class PathScriptedExtractor extends DoclingExtractor {
         return cached(contentHashFor(file), extractorIdentity, answerFor(file));
     }
 
+    /**
+     * What this double has already stored for {@code contentHash}, read without answering anything
+     * (ADR-140's cache-only seam, and the only read ADR-152 leaves stage 5's labelling page).
+     *
+     * <p>Overridden because the inherited one reads {@link DoclingExtractor}'s own cache, which is
+     * always null here, so it would deny holding a conversion this double had just stored. A step that
+     * reads the cache without converting would then find nothing for any document in any fixture, and
+     * fail for a reason that belongs to the double rather than to the step.
+     */
+    @Override
+    public Optional<DoclingResponse> cached(String contentHash, ExtractorIdentity extractorIdentity) {
+        return cache == null ? Optional.empty() : cache.get(contentHash, extractorIdentity);
+    }
+
     /** The seam a worker thread reaches (ADR-140 section 3): the answer scripted for this path. */
     @Override
     public DoclingResponse convertUncached(Path file, DetectedFormat format, DetectedSubtype subtype) {

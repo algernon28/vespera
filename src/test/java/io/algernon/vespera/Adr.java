@@ -697,6 +697,16 @@ public final class Adr {
     public static final String A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE = FILE
             + "0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md";
 
+    /**
+     * ADR-152 -- a sampled survivor whose file will not open when stage 5's labelling page is written
+     * is still asked about, with a stated fallback in place of its opening and a warning naming the
+     * file; the page reads the extraction cache and never converts; and a step that records its
+     * completion stops the run on such a file instead, because tolerating it would seal the gap under
+     * a finished run.
+     */
+    public static final String A_SURVIVOR_WHOSE_FILE_WILL_NOT_OPEN_IS_STILL_ASKED_ABOUT = FILE
+            + "0152-a-survivor-whose-file-will-not-open-is-still-asked-about-without-its-opening-and-a-step-that-records-completion-stops-instead.md";
+
     private Adr() {
     }
 }
