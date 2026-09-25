@@ -164,16 +164,14 @@ class ArrangementTasklet implements Tasklet {
         List<Partition> partitions = Arrangement.partitionsOf(clusteredDocuments(membership, scores));
 
         List<ArrangedCluster> arranged = Arrangement.order(partitions);
-        List<RecordedCluster> recorded = new ArrayList<>();
         for (ArrangedCluster cluster : arranged) {
             ClusterLabel label = labelFor(cluster, membership, scores);
             clusters.record(arrangement, cluster, label);
-            recorded.add(new RecordedCluster(cluster, label));
         }
         write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
                 ArrangementGate.shortNameOf(arrangement),
                 Walk.canonicalRoot(root).toString(),
-                reportOf(recorded, membership, scores)));
+                reportOf(clusters.forRun(arrangement), membership, scores)));
         ledger.finishStep(arrangement, ArrangementRun.STAGE);
         LOG.info(
                 "The arrangement step finished under {}: {} seed partition(s), {} cluster(s), {}"

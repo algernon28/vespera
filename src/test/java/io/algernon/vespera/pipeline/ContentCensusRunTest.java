@@ -24,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
+import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -126,8 +127,9 @@ class ContentCensusRunTest {
             Files.writeString(root.resolve("document-" + i + ".txt"), "the content of document " + i);
         }
         new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource)).walk(root);
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, null);
-        ExecutionContext invocation = InvocationRecordFixture.afterStageOne(jdbcTemplate, root);
+        ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, step);
+        ExecutionContext invocation = InvocationRecordFixture.recordOf(step);
         new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocation);
         return invocation;
     }

@@ -81,7 +81,7 @@ class ByteLevelReductionTaskletTest {
 
         new ByteLevelReductionTasklet(
                         ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
-                .execute(null, null);
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
                 "the broken pdf is verdicted broken",
@@ -102,7 +102,7 @@ class ByteLevelReductionTaskletTest {
 
         new ByteLevelReductionTasklet(
                         ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
-                .execute(null, null);
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
                 "one run was minted, for the walk census produced",
@@ -128,7 +128,7 @@ class ByteLevelReductionTaskletTest {
 
         new ByteLevelReductionTasklet(
                         ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
-                .execute(null, null);
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         List<String> aVerdicts = verdictKindsFor(ledger, walkId, "copy-a.txt");
         List<String> bVerdicts = verdictKindsFor(ledger, walkId, "copy-b.txt");
@@ -163,7 +163,7 @@ class ByteLevelReductionTaskletTest {
 
         new ByteLevelReductionTasklet(
                         ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
-                .execute(null, null);
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
                 "a file that is removed is still recorded as what it was found to be -- a count that"
@@ -211,7 +211,7 @@ class ByteLevelReductionTaskletTest {
 
         new ByteLevelReductionTasklet(
                         ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
-                .execute(null, null);
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
         claim(
@@ -259,7 +259,7 @@ class ByteLevelReductionTaskletTest {
 
         new ByteLevelReductionTasklet(
                         ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
-                .execute(null, null);
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
                 "the workbook, its byte-identical copy, and the older spreadsheet are each removed as out of"

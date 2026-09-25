@@ -133,6 +133,9 @@ class GenerationInvocationTest {
     /** What one unfinished piece of work leaves behind: the one cluster that was written, and no more. */
     private static final int ONE_CLUSTER_WRITTEN = 1;
 
+    /** What an invocation that reached the step under a standing approval records: one run of it. */
+    private static final int ONE_GENERATION_RUN = 1;
+
     /** The name given to the cluster nothing in this run can be sent for, so a claim can name it plainly. */
     private static final String A_CLUSTER_WITH_NOTHING_TO_SEND = "A group whose documents cannot be opened";
 
@@ -392,9 +395,20 @@ class GenerationInvocationTest {
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
         theArchiveNoLongerHandsOverItsDocuments(root);
+        GenerationScriptedBeans.forgetScriptedAnswers();
 
         cli.run("run", root.toString());
 
+        claim(
+                "the step really ran: the approval still named the arrangement, so exactly "
+                        + ONE_GENERATION_RUN + " record of writing over it was made -- the claims below"
+                        + " would hold just as well if the gate had stayed shut and nothing ran at all, so"
+                        + " this is what makes them about the step",
+                () -> assertThat(generationRuns(root)).hasSize(ONE_GENERATION_RUN));
+        claim(
+                "and it asked the model nothing, since the group held nothing it could send -- "
+                        + NOTHING_WAS_ASKED + " calls",
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(NOTHING_WAS_ASKED));
         claim(
                 "nothing was written over the group, because there was nothing to write from",
                 () -> assertThat(generatedDocs(root)).isEmpty());

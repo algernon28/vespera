@@ -43,6 +43,7 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -708,10 +709,11 @@ class ExtractionItemProcessorTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = walkRecorder(ledger).walk(root);
         ImplementationVersions versions = new ImplementationVersions();
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, null);
+        ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, step);
         ExtractionRun extractionRun = new ExtractionRun(
                 ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
-                InvocationRecordFixture.afterStageOne(jdbcTemplate, root));
+                InvocationRecordFixture.recordOf(step));
         List<OccurrenceId> occurrences = paths.stream()
                 .map(path -> ledger.occurrenceId(walkId, path).orElseThrow())
                 .toList();

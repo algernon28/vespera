@@ -6,7 +6,7 @@ This file is what an agent needs to start working. Everything it points at is au
 
 ## The shape of the system
 
-**A verdict ledger, not a moving pipeline.** Documents never move between stages. One table is populated once by the census; every stage *appends* verdict rows against a file occurrence. "Survivors" is a query over occurrences carrying no blocking verdict, never a place things are put. Retuning a threshold is a `DELETE` of one stage's rows plus a re-run.
+**A verdict ledger, not a moving pipeline.** Documents never move between stages. One table is populated once by the census; every stage *appends* verdict rows against a file occurrence. "Survivors" is a query over occurrences carrying no blocking verdict, never a place things are put. Retuning a threshold mints a new run of that stage beside the old one, and each later stage reads the run the invocation arrived at (ADR-154). Nothing deletes the old run's rows, and whether its verdicts should still count is open ([#297](https://github.com/algernon28/vespera/issues/297)).
 
 **Seven stages, cheapest filter first**, each defined by the verdicts it writes: census (0), byte-level reduction (1), extraction (2), content census (3), content redundancy (4), relevance (5), arrangement and generation (6a/6b). The run ends at 6b: what it produces is the deliverable — a directory of Markdown in the working directory, one file per cluster, every link in it resolving with no database (ADR-103). The files are written; nothing here carries them to a destination of any kind — no wiki, no site, no upload (ADR-101). Stages never call each other — they read and write only through the ledger.
 

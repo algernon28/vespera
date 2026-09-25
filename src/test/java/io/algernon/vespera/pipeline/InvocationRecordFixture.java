@@ -1,50 +1,43 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.ledger.RunId;
-import java.nio.file.Path;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.job.JobInstance;
+import org.springframework.batch.core.job.parameters.JobParameters;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.core.scope.context.StepContext;
+import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * What an invocation holds once stage 1 has run, for a test that drives the stages by hand rather
- * than through the job (ADR-154 §1).
+ * One invocation, for a test that drives the stages by hand rather than through the job (ADR-154 §1).
  *
- * <p>A stage names as its upstream the run the same invocation minted or continued, read from the job
- * execution's context. A test that constructs a run bean directly has no job execution, so it hands
- * the bean a context of its own. It is filled here the way stage 1 fills it: with the byte-level
- * reduction run stage 1 just minted over {@code root}'s walk and, where stage 2 has run too, the
- * extraction run it minted.
+ * <p>A stage names as its upstream the run the same invocation minted or continued, and the invocation
+ * holds that record in its job execution's context. A test that calls a tasklet or builds a run bean
+ * directly has no job running, so this gives it a step of one: a real {@link ChunkContext} over a real
+ * {@link JobExecution}, built from {@code spring-batch-core}'s own types. {@code spring-batch-test}'s
+ * factory would do the same, but it is not in the pom, and adding it would want a decision (ADR-046).
  *
- * <p>Each run is read back from the row its stage wrote rather than recomputed, so the claim a test
- * makes about what a later stage names is still a claim about the run that actually exists.
+ * <p>Stage 1 records its run into the context it is handed, as it does in the job, and every later run
+ * bean is handed {@link #recordOf} that same step. So what a test's later stage names is what that
+ * invocation's stage 1 actually recorded. Nothing here reads the run back from the ledger, and nothing
+ * picks the run written last, which is the recency rule ADR-154 rejects.
  */
 final class InvocationRecordFixture {
+
+    /** The job every invocation runs under (the name is not read by anything these tests reach). */
+    private static final String JOB = "vespera";
 
     private InvocationRecordFixture() {
     }
 
-    /** A fresh invocation's record, holding the byte-level reduction run last written over {@code root}. */
-    static ExecutionContext afterStageOne(JdbcTemplate jdbcTemplate, Path root) {
-        return after(jdbcTemplate, root, ByteLevelReductionTasklet.STAGE);
+    /** A step of a fresh invocation, carrying an empty record of the runs that invocation arrived at. */
+    static ChunkContext aStepOfAFreshInvocation() {
+        JobExecution invocation = new JobExecution(1L, new JobInstance(1L, JOB), new JobParameters());
+        return new ChunkContext(new StepContext(new StepExecution(1L, "a step", invocation)));
     }
 
-    /** A fresh invocation's record, holding stage 1's run and then stage 2's, each the last written over {@code root}. */
-    static ExecutionContext afterExtraction(JdbcTemplate jdbcTemplate, Path root) {
-        return after(jdbcTemplate, root, ByteLevelReductionTasklet.STAGE, ExtractionRun.STAGE);
-    }
-
-    private static ExecutionContext after(JdbcTemplate jdbcTemplate, Path root, String... stages) {
-        ExecutionContext invocation = new ExecutionContext();
-        InvocationRuns runs = new InvocationRuns(invocation);
-        for (String stage : stages) {
-            runs.record(stage, new RunId(jdbcTemplate.queryForObject(
-                    "SELECT run.id FROM run JOIN walk w ON w.id = run.walk_id"
-                            + " WHERE run.stage = ? AND w.root = ? ORDER BY run.rowid DESC LIMIT 1",
-                    String.class,
-                    stage,
-                    Walk.canonicalRoot(root).toString())));
-        }
-        return invocation;
+    /** The record of runs held by the invocation {@code step} belongs to. */
+    static ExecutionContext recordOf(ChunkContext step) {
+        return step.getStepContext().getStepExecution().getJobExecution().getExecutionContext();
     }
 }
