@@ -41,11 +41,19 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>Once the run exists, it also writes the seed side's {@code extraction_metric} rows</b>
  * (ADR-092): {@code ExtractionMetrics.write} — never {@code writeAndJudge}, since a seed's tier-2
- * confidence is never a floor — for every outcome, usable or not. This is the same seam the {@code
- * unusable_seed} rows are written from and for the same reason: the run cannot exist until the whole
- * folder has been converted, so a per-document write is impossible without reopening ADR-083's gate
- * ordering. What is held until then is each seed's measured row, not the document it was measured
- * from — the processor measures while the document is open and passes the columns on.
+ * confidence is never a floor — for every outcome that was converted, usable or not. This is the same
+ * seam the {@code unusable_seed} rows are written from and for the same reason: the run cannot exist
+ * until the whole folder has been converted, so a per-document write is impossible without reopening
+ * ADR-083's gate ordering. What is held until then is each seed's measured row, not the document it
+ * was measured from — the processor measures while the document is open and passes the columns on.
+ *
+ * <p><b>A seed whose file would not open (ADR-155) carries no {@code extraction_metric} row</b> --
+ * nothing was converted, so there is nothing measured -- but it still carries an {@code unusable_seed}
+ * row, under {@link SeedExtractionOutcome#FILE_COULD_NOT_BE_OPENED}. While the step is not yet
+ * recorded as finished and at least one such seed was met, this class does not call {@link
+ * Ledger#finishStep}, so stage 5 goes no further in this invocation (ADR-155 section 2) and the next
+ * invocation discards and rewrites these same rows rather than walking past a seed set with a hole in
+ * it.
  */
 @Component
 @StepScope
@@ -114,7 +122,9 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         if (usableSeeds == 0) {
             // ADR-083's gate, and a gate for the right reason rather than a quality judgement:
             // ADR-020's scoring function is a maximum over the seed set, and over an empty set it is
-            // undefined -- a value the pipeline requires and does not have.
+            // undefined -- a value the pipeline requires and does not have. A seed whose file would not
+            // open is not usable either, because no one knows whether it would be (ADR-155) -- and it
+            // is counted in unusableSeedCount the same as one that converted with no text in it.
             log.warn(
                     "No seed document produced any text, so stage 5 minted no run: {} seed documents were"
                             + " extracted and none of them was usable. Fix the seed folder and run again.",
@@ -127,7 +137,9 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         // (ADR-115, ADR-116) -- seed-corpus-comparison, which shares this run, is not asked: each step
         // answers only for itself. The read-and-convert above still ran (cheap: DoclingExtractor's
         // cache is keyed by content hash, not by run), which is what keeps usableSeedGate answered on
-        // every invocation regardless of whether this step's own rows are rewritten.
+        // every invocation regardless of whether this step's own rows are rewritten. A seed file that
+        // stops opening after this step finished costs only the processor's own warning (ADR-155
+        // section 2): the rows already written stand, and this branch sets no new fact.
         if (ledger.stepFinished(runId, SeedExtractionJobConfiguration.STEP_NAME)) {
             log.info("Stage 5a (seed extraction) was already recorded under run {}", runId.value());
             return stepExecution.getExitStatus();
@@ -139,12 +151,34 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         extractionMetrics.discardForRun(runId);
         unusableSeeds.discardForRun(runId);
 
+        long couldNotOpenCount = 0;
         for (SeedExtractionOutcome outcome : outcomes) {
-            extractionMetrics.write(outcome.occurrenceId(), runId, outcome.measurement());
+            if (outcome.hasMeasurement()) {
+                extractionMetrics.write(outcome.occurrenceId(), runId, outcome.measurement());
+            } else {
+                couldNotOpenCount++;
+            }
             if (!outcome.usable()) {
                 unusableSeeds.record(outcome.occurrenceId(), runId, outcome.unusableReason());
             }
         }
+
+        if (couldNotOpenCount > 0) {
+            // No completion is recorded while any seed file would not open (ADR-155 section 2): the
+            // rows just written stand under this run, but the next invocation discards and rewrites
+            // them rather than this invocation, or any later one, walking past a seed set with a hole
+            // in it. Stage 5's later steps are shut by usableSeedGate's second fact until an invocation
+            // finds every seed file open.
+            usableSeedGate.recordSeedFileCouldNotOpen();
+            log.warn(
+                    "{} seed file(s) could not be opened, so stage 5a (seed extraction) is not recorded"
+                            + " as finished under run {} and stage 5 goes no further in this invocation."
+                            + " Release them and run the same command again.",
+                    couldNotOpenCount,
+                    runId.value());
+            return stepExecution.getExitStatus();
+        }
+
         ledger.finishStep(runId, SeedExtractionJobConfiguration.STEP_NAME);
         log.info(
                 "Stage 5 extracted the seed set under run {}: {} usable, {} recorded as unusable",

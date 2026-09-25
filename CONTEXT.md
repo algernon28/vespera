@@ -65,7 +65,7 @@ The operator-supplied folder of known-relevant documents. The sole carrier of do
 _Avoid_: training set, examples, ground truth
 
 **Unusable seed**:
-A seed document extraction produced no text from. Recorded and reported, never removed and never a verdict: a seed is not a candidate at all, so nothing in the verdict vocabulary applies to it, and what it costs is a definition of relevance narrower than the operator intended.
+A seed document extraction produced no text from. Recorded and reported, never removed and never a verdict: a seed is not a candidate at all, so nothing in the verdict vocabulary applies to it, and what it costs is a definition of relevance narrower than the operator intended. A seed whose file could not be opened is recorded the same way under a reason of its own, but it narrows nothing: while one is recorded, seed extraction records no completion and stage 5 goes no further, so nothing is scored without it (ADR-155).
 _Avoid_: broken seed, failed seed, invalid seed
 
 **Seed/corpus mismatch**:
