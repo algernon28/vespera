@@ -17,30 +17,30 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.zip.Deflater;
-import javax.imageio.ImageIO;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.zip.CRC32;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.testcontainers.containers.Container;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.utility.MountableFile;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.testcontainers.containers.Container;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.MountableFile;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * {@link DoclingClient} against the real {@code docling-serve} sidecar (ADR-071): one synchronous
@@ -272,6 +272,7 @@ class DoclingClientIT {
     @Test
     @Story("The conversion pins what it asks for")
     @DisplayName("A picture in a PDF comes back with its pixels, as an image the reader can decode")
+    @Issue("286")
     @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
     void returnsAPicturesPixelsFromAPdf(@TempDir Path dir) throws IOException {
         DoclingResponse response = client.convert(aPdfWithAChart(dir.resolve("chart.pdf")), DetectedFormat.PDF, null);
@@ -377,8 +378,9 @@ class DoclingClientIT {
      * A one-page PDF showing {@link #PDF_MARKER_WORD} and, below it, a bar chart drawn as an image: a
      * {@value #CHART_WIDTH}×{@value #CHART_HEIGHT} RGB image XObject, Flate-compressed, of four coloured
      * bars on two black axes over white. The same page and the same image as the fixture measured on
-     * 2026-09-25 (ADR-150's research record), which the pinned image reads as one picture. The cross-reference offsets are
-     * byte offsets into what is written, so the binary stream is counted in bytes, not characters.
+     * 2026-09-25 (ADR-150's research record), which the pinned image reads as one picture. The
+     * cross-reference offsets are byte offsets into what is written, so the binary stream is counted in
+     * bytes, not characters.
      */
     private static Path aPdfWithAChart(Path file) throws IOException {
         byte[] raw = new byte[CHART_WIDTH * CHART_HEIGHT * 3];

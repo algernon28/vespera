@@ -9,8 +9,13 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.awt.Transparency;
+import java.awt.color.ColorSpace;
 import java.awt.image.BufferedImage;
+import java.awt.image.ComponentColorModel;
+import java.awt.image.DataBuffer;
 import java.awt.image.IndexColorModel;
+import java.awt.image.WritableRaster;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -42,6 +47,40 @@ class DifferenceHashTest {
     /** No bit set. */
     private static final long NONE_RISING = 0L;
 
+    /**
+     * Two rises in every row, its fourth and fifth bits: a picture dark on its left half and light on its
+     * right. The boundary falls inside the fifth of the nine cells, which is brighter than the dark cell
+     * before it and darker than the light cell after it.
+     */
+    private static final long RISING_INTO_AND_OUT_OF_THE_MIDDLE_CELL = 0x1818181818181818L;
+
+    /** Only the first bit of every row set: the second cell is brighter than the first, and nothing else rises. */
+    private static final long RISING_AT_THE_FIRST_COMPARISON_ONLY = 0x8080808080808080L;
+
+    /** Every row rising, falling, rising, falling: stripes one cell wide, starting dark. */
+    private static final long RISING_AND_FALLING_BY_TURNS = 0xaaaaaaaaaaaaaaaaL;
+
+    /** The eight rows of the grid, each holding eight of the hash's bits. */
+    private static final int ROWS = 8;
+
+    /**
+     * How far apart {@link #ALL_RISING} and {@link #RISING_AT_THE_FIRST_COMPARISON_ONLY} are: they share
+     * the first bit of each of the {@value #ROWS} rows and differ in every other bit.
+     */
+    private static final int ALL_BUT_THE_FIRST_BIT_OF_EVERY_ROW = Long.SIZE - ROWS;
+
+    /** A 16-bit sample that is black by its high byte and would be near-white by its low byte. */
+    private static final int BLACK_BY_ITS_HIGH_BYTE = 0x00ff;
+
+    /** A 16-bit sample that is white by its high byte and would be black by its low byte. */
+    private static final int WHITE_BY_ITS_HIGH_BYTE = 0xff00;
+
+    /** How many bits each sample of a 16-bit-per-channel PNG holds. */
+    private static final int SIXTEEN_BITS = 16;
+
+    /** The PNG colour type of an image stored as red, green and blue samples with no alpha. */
+    private static final int PNG_TRUE_COLOUR = 2;
+
     /** The width and height most golden images share: wide enough for ten pixels per column. */
     private static final int WIDTH = 90;
 
@@ -70,9 +109,10 @@ class DifferenceHashTest {
                         .isEqualTo(NONE_RISING));
         claim(
                 "ten-pixel stripes starting black alternate the bits within every row, the first bit read"
-                        + " being the most significant",
+                        + " being the most significant, so each row reads 1010 1010 and the hash is"
+                        + " 0xaaaaaaaaaaaaaaaa",
                 () -> assertThat(bitsOf(rgb(WIDTH, HEIGHT, (x, y) -> (x / 10) % 2 == 0 ? 0x000000 : 0xffffff)))
-                        .isEqualTo(0xaaaaaaaaaaaaaaaaL));
+                        .isEqualTo(RISING_AND_FALLING_BY_TURNS));
     }
 
     @Test
@@ -81,18 +121,19 @@ class DifferenceHashTest {
     void weighsColourAndCompositesOverWhite() {
         claim(
                 "pure red beside pure green rises at the boundary, because green weighs 587 against red's"
-                        + " 299",
+                        + " 299: into and out of the middle cell the boundary straddles, the fourth and fifth"
+                        + " bits of every row, 0x1818181818181818",
                 () -> assertThat(bitsOf(rgb(WIDTH, HEIGHT, (x, y) -> x < WIDTH / 2 ? 0xff0000 : 0x00ff00)))
-                        .isEqualTo(0x1818181818181818L));
+                        .isEqualTo(RISING_INTO_AND_OUT_OF_THE_MIDDLE_CELL));
         claim(
                 "and pure red beside pure blue does not, because blue weighs only 114",
                 () -> assertThat(bitsOf(rgb(WIDTH, HEIGHT, (x, y) -> x < WIDTH / 2 ? 0xff0000 : 0x0000ff)))
                         .isEqualTo(NONE_RISING));
         claim(
                 "a transparent right half reads as white, not as the black its colour channels hold, so it"
-                        + " rises at the boundary as black beside white does",
+                        + " rises at the boundary as black beside white does, to the same 0x1818181818181818",
                 () -> assertThat(bitsOf(argb(WIDTH, HEIGHT, (x, y) -> x < WIDTH / 2 ? OPAQUE_BLACK : TRANSPARENT_BLACK)))
-                        .isEqualTo(0x1818181818181818L));
+                        .isEqualTo(RISING_INTO_AND_OUT_OF_THE_MIDDLE_CELL));
     }
 
     @Test
@@ -108,7 +149,8 @@ class DifferenceHashTest {
         claim(
                 "and it hashes to the full-colour picture's 0x1818181818181818: the hash reads each pixel's"
                         + " palette colour, not its palette index as if the index were red",
-                () -> assertThat(DifferenceHash.of(redGreen).orElseThrow().bits()).isEqualTo(0x1818181818181818L));
+                () -> assertThat(DifferenceHash.of(redGreen).orElseThrow().bits())
+                        .isEqualTo(RISING_INTO_AND_OUT_OF_THE_MIDDLE_CELL));
     }
 
     @Test
@@ -128,7 +170,7 @@ class DifferenceHashTest {
                 "and it hashes to 0x1818181818181818 as the full-colour picture does, not to 0: the"
                         + " transparent half reads as white through the palette's alpha",
                 () -> assertThat(DifferenceHash.of(blackTransparent).orElseThrow().bits())
-                        .isEqualTo(0x1818181818181818L));
+                        .isEqualTo(RISING_INTO_AND_OUT_OF_THE_MIDDLE_CELL));
     }
 
     @Test
@@ -141,9 +183,31 @@ class DifferenceHashTest {
                 () -> assertThat(bitsOf(rgb(100, 50, (x, y) -> x == 11 ? 0xffffff : 0x000000))).isEqualTo(NONE_RISING));
         claim(
                 "while a white column at x = 12 falls in the second (108 over 100 is 1), so the first bit of"
-                        + " every row is set",
+                        + " every row is set, 0x8080808080808080",
                 () -> assertThat(bitsOf(rgb(100, 50, (x, y) -> x == 12 ? 0xffffff : 0x000000)))
-                        .isEqualTo(0x8080808080808080L));
+                        .isEqualTo(RISING_AT_THE_FIRST_COMPARISON_ONLY));
+    }
+
+    @Test
+    @Story("A picture's difference hash is the same wherever it is computed")
+    @DisplayName("A picture with sixteen bits per channel is read by the high byte of each sample")
+    void readsASixteenBitSampleByItsHighByte() {
+        byte[] stripes = sixteenBitRgb(
+                WIDTH, HEIGHT, (x, y) -> (x / 10) % 2 == 0 ? BLACK_BY_ITS_HIGH_BYTE : WHITE_BY_ITS_HIGH_BYTE);
+
+        claim(
+                "the ten-pixel stripes are stored as a full-colour PNG with sixteen bits per sample, so the"
+                        + " fixture is the wide-sample case",
+                () -> {
+                    assertThat(bitDepthOf(stripes)).isEqualTo(SIXTEEN_BITS);
+                    assertThat(colourTypeOf(stripes)).isEqualTo(PNG_TRUE_COLOUR);
+                });
+        claim(
+                "and they hash to the eight-bit stripes' 0xaaaaaaaaaaaaaaaa: each sample is read by its high"
+                        + " byte, black then white, where reading the low byte would see white then black and"
+                        + " give the opposite bits, 0x5555555555555555",
+                () -> assertThat(DifferenceHash.of(stripes).orElseThrow().bits())
+                        .isEqualTo(RISING_AND_FALLING_BY_TURNS));
     }
 
     @Test
@@ -178,11 +242,12 @@ class DifferenceHashTest {
                     assertThat(rising.height()).isEqualTo(HEIGHT);
                 });
         claim(
-                "every bit set against the first bit of each of the eight rows set is 56 bits apart, and a"
-                        + " hash is no bits apart from itself",
+                "every bit set against only the first bit of each row set is " + ALL_BUT_THE_FIRST_BIT_OF_EVERY_ROW
+                        + " bits apart, the 64 bits less the " + ROWS + " the two share, measured either way"
+                        + " round, and a hash is no bits apart from itself",
                 () -> {
-                    assertThat(rising.bitsApartFrom(stripes)).isEqualTo(56);
-                    assertThat(stripes.bitsApartFrom(rising)).isEqualTo(56);
+                    assertThat(rising.bitsApartFrom(stripes)).isEqualTo(ALL_BUT_THE_FIRST_BIT_OF_EVERY_ROW);
+                    assertThat(stripes.bitsApartFrom(rising)).isEqualTo(ALL_BUT_THE_FIRST_BIT_OF_EVERY_ROW);
                     assertThat(rising.bitsApartFrom(rising)).isZero();
                 });
     }
@@ -242,6 +307,28 @@ class DifferenceHashTest {
             }
         }
         return png(image);
+    }
+
+    /**
+     * A PNG with three 16-bit samples per pixel and no alpha, each pixel grey: red, green and blue all
+     * the sample {@code level} gives it.
+     */
+    private static byte[] sixteenBitRgb(int width, int height, IntBinaryOperator level) {
+        ComponentColorModel model = new ComponentColorModel(
+                ColorSpace.getInstance(ColorSpace.CS_sRGB), false, false, Transparency.OPAQUE, DataBuffer.TYPE_USHORT);
+        WritableRaster raster = model.createCompatibleWritableRaster(width, height);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int sample = level.applyAsInt(x, y);
+                raster.setPixel(x, y, new int[] {sample, sample, sample});
+            }
+        }
+        return png(new BufferedImage(model, raster, false, null));
+    }
+
+    /** The bit depth byte of a PNG's header chunk: 8 signature bytes, 8 chunk-header bytes, then 8 more. */
+    private static int bitDepthOf(byte[] png) {
+        return png[24];
     }
 
     /** The colour type byte of a PNG's header chunk: 8 signature bytes, 8 chunk-header bytes, then 9 more. */

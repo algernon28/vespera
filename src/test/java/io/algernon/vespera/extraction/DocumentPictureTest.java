@@ -254,6 +254,43 @@ class DocumentPictureTest {
                 () -> assertThat(pictures.get(2).place()).isEmpty());
     }
 
+    /**
+     * ADR-150 §5: a position that is there but broken gives no place, rather than a place at page 0 or
+     * at the page's corner. A place made up of defaults would be compared with every other such place,
+     * and two broken pictures on different pages of one document would look like one repeated at one
+     * place.
+     */
+    @Test
+    @Story("A picture says where on its page it sat")
+    @DisplayName("A picture whose position has an empty box, an empty entry or no page number carries no place")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void givesNoPlaceForAPositionThatIsThereButBroken() {
+        String response = """
+                {"document":{"json_content":{"pictures":[
+                  {"content_layer":"body","captions":[],"prov":[{"page_no":2,"bbox":null}],
+                    "image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],"prov":[null],
+                    "image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],
+                    "prov":[{"bbox":{"l":60.5,"t":795.5,"r":205.0,"b":761.0,"coord_origin":"BOTTOMLEFT"}}],
+                    "image":{"mimetype":"image/png","uri":"%s"}}]}}}
+                """.formatted(
+                        dataUri(PNG, FIRST_IN_READING_ORDER), dataUri(PNG, INSIDE_A_GROUP), dataUri(PNG, A_PHOTOGRAPH));
+
+        List<DocumentPicture> pictures = DocumentPicture.allOf(response);
+
+        claim(
+                "a position whose box is empty carries no place, not one with every edge at zero",
+                () -> assertThat(pictures.get(0).place()).isEmpty());
+        claim(
+                "a position list whose first entry is empty carries no place",
+                () -> assertThat(pictures.get(1).place()).isEmpty());
+        claim(
+                "and a position with a box but no page number carries no place, not one on page zero",
+                () -> assertThat(pictures.get(2).place()).isEmpty());
+    }
+
     private static String dataUri(String mediaType, byte[] pixels) {
         return "data:" + mediaType + ";base64," + Base64.getEncoder().encodeToString(pixels);
     }

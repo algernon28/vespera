@@ -46,7 +46,7 @@ public record DocumentPicture(
         String mediaType, byte[] pixels, boolean inFurnitureLayer, String caption, Optional<PicturePlace> place) {
 
     /**
-     * A picture with no known place (ADR-150 §5): every caller from before this record existed, and
+     * A picture with no known place (ADR-150 §5): every caller from before this component existed, and
      * every test fixture that has no reason to state one.
      */
     public DocumentPicture(String mediaType, byte[] pixels, boolean inFurnitureLayer, String caption) {
@@ -136,10 +136,10 @@ public record DocumentPicture(
     }
 
     /** {@code picture}, or empty where it carries no data URI. */
-    private static java.util.Optional<DocumentPicture> documentPictureAt(JsonNode picture, JsonNode content) {
+    private static Optional<DocumentPicture> documentPictureAt(JsonNode picture, JsonNode content) {
         String uri = picture.path("image").path("uri").asString("");
         if (!uri.startsWith(DATA_URI_PREFIX) || !uri.contains(BASE64_MARKER)) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
         int markerAt = uri.indexOf(BASE64_MARKER);
         String mediaType = uri.substring(DATA_URI_PREFIX.length(), markerAt);
@@ -147,12 +147,12 @@ public record DocumentPicture(
         try {
             pixels = Base64.getDecoder().decode(uri.substring(markerAt + BASE64_MARKER.length()));
         } catch (IllegalArgumentException e) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
         boolean inFurnitureLayer = FURNITURE_LAYER.equals(picture.path("content_layer").asString(""));
         String caption = captionOf(picture, content);
         Optional<PicturePlace> place = placeOf(picture);
-        return java.util.Optional.of(new DocumentPicture(mediaType, pixels, inFurnitureLayer, caption, place));
+        return Optional.of(new DocumentPicture(mediaType, pixels, inFurnitureLayer, caption, place));
     }
 
     /**
@@ -163,19 +163,23 @@ public record DocumentPicture(
      */
     private static Optional<PicturePlace> placeOf(JsonNode picture) {
         JsonNode prov = picture.path("prov").path(0);
-        if (prov.isMissingNode()) {
+        if (prov.isMissingNode() || prov.isNull() || !prov.isObject()) {
             return Optional.empty();
         }
         JsonNode bbox = prov.path("bbox");
-        if (bbox.isMissingNode()) {
+        if (bbox.isMissingNode() || bbox.isNull() || !bbox.isObject()) {
             return Optional.empty();
         }
-        return Optional.of(new PicturePlace(
-                prov.path("page_no").asInt(),
-                bbox.path("l").asDouble(),
-                bbox.path("t").asDouble(),
-                bbox.path("r").asDouble(),
-                bbox.path("b").asDouble()));
+        JsonNode pageNo = prov.path("page_no");
+        JsonNode left = bbox.path("l");
+        JsonNode top = bbox.path("t");
+        JsonNode right = bbox.path("r");
+        JsonNode bottom = bbox.path("b");
+        if (!pageNo.isNumber() || !left.isNumber() || !top.isNumber() || !right.isNumber() || !bottom.isNumber()) {
+            return Optional.empty();
+        }
+        return Optional.of(
+                new PicturePlace(pageNo.asInt(), left.asDouble(), top.asDouble(), right.asDouble(), bottom.asDouble()));
     }
 
     /** {@code picture}'s captions, each resolved to its text item and joined by a single space. */

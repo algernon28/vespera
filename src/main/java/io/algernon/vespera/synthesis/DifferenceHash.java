@@ -1,6 +1,9 @@
 package io.algernon.vespera.synthesis;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.IndexColorModel;
+import java.awt.image.Raster;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Optional;
@@ -15,9 +18,13 @@ import javax.imageio.ImageIO;
  *
  * <ol>
  *   <li>Decode the image, reading the sample values the file stores with no colour-space conversion:
- *       a grey image's sample is its R, G and B alike. Composite any transparency over white, each
- *       channel as {@code (c · a + 255 · (255 − a)) / 255}. Each pixel's luminance is
- *       {@code (299 R + 587 G + 114 B) / 1000}. All of it is integer arithmetic.
+ *       a grey image's sample is its R, G and B alike. A palette image is read through its palette, as
+ *       PIL's {@code convert} does: each pixel is the red, green, blue and alpha of the palette entry
+ *       its index names, never the index itself, and a transparency chunk gives the entries their
+ *       alpha. A sample wider than 8 bits is read by its high byte, which scales it to 0 to 255 as PIL
+ *       reads a 16-bit RGB image. Composite any transparency over white, each channel as {@code (c · a
+ *       + 255 · (255 − a)) / 255}. Each pixel's luminance is {@code (299 R + 587 G + 114 B) / 1000}.
+ *       All of it is integer arithmetic.
  *   <li>Divide the image into a grid of 9 columns and 8 rows. Pixel {@code (x, y)} belongs to column
  *       {@code x · 9 / width} and row {@code y · 8 / height}, both in integer division. Each cell's
  *       value is the integer mean of its pixels' luminance, the sum divided by the count.
@@ -30,10 +37,10 @@ import javax.imageio.ImageIO;
  * reader cannot decode: {@link #of} is empty for both, rather than throwing, because a picture whose
  * bytes do not decode is still judged by the furniture rules that need no hash.
  *
- * <p><b>{@link java.awt.image.BufferedImage#getRGB} is not used to read a sample</b>, because the JDK
- * gamma-shifts a grey image's samples on the way to sRGB, which would move a value the format never
- * held opinions about (research §6c). Samples are read through the image's own {@link
- * java.awt.image.Raster} instead, which returns exactly the numbers the file stores.
+ * <p><b>{@link BufferedImage#getRGB} is not used to read a sample</b>, because the JDK gamma-shifts a
+ * grey image's samples on the way to sRGB, which would move a value the format never held opinions
+ * about (research §6c). Samples are read through the image's own {@link Raster} instead, which returns
+ * exactly the numbers the file stores.
  *
  * <p>Package-private: only {@code synthesis} computes this hash (ADR-150 §5), which is where the
  * furniture rule that reads it lives.
@@ -65,8 +72,8 @@ record DifferenceHash(long bits, int width, int height) {
         int height = image.getHeight();
         long[] sums = new long[COLUMNS * ROWS];
         int[] counts = new int[COLUMNS * ROWS];
-        java.awt.image.Raster raster = image.getRaster();
-        java.awt.image.ColorModel model = image.getColorModel();
+        Raster raster = image.getRaster();
+        ColorModel model = image.getColorModel();
         int[] samples = new int[model.getNumComponents()];
         int sampleShift = Math.max(0, model.getComponentSize(0) - 8);
         for (int y = 0; y < height; y++) {
@@ -102,7 +109,7 @@ record DifferenceHash(long bits, int width, int height) {
      * as its three channels; either is composited over white first where the model carries alpha, all
      * in integer arithmetic.
      *
-     * <p>Where {@code model} is an {@link java.awt.image.IndexColorModel}, {@code samples[0]} is the
+     * <p>Where {@code model} is an {@link IndexColorModel}, {@code samples[0]} is the
      * palette index, not a colour value: the raster holds one component, the index, and the palette
      * gives the actual R, G, B and alpha for it. Low-bit-depth greyscale PNGs decode to an
      * {@code IndexColorModel} too, so the same lookup covers them.
@@ -112,12 +119,12 @@ record DifferenceHash(long bits, int width, int height) {
      * image; it is not how PIL reads a 16-bit greyscale one, which it clamps, so the probe's Python is
      * no reference for that case.
      */
-    private static int luminanceOf(java.awt.image.ColorModel model, int[] samples, int sampleShift) {
+    private static int luminanceOf(ColorModel model, int[] samples, int sampleShift) {
         int r;
         int g;
         int b;
         int a = 255;
-        if (model instanceof java.awt.image.IndexColorModel icm) {
+        if (model instanceof IndexColorModel icm) {
             int index = samples[0];
             r = icm.getRed(index);
             g = icm.getGreen(index);

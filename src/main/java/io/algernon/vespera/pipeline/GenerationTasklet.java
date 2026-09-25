@@ -431,9 +431,13 @@ class GenerationTasklet implements Tasklet {
      * which would match nothing after that version changes.
      */
     private SurvivorPictures survivorPictures(
-            Path canonicalRoot, RunId byteLevelReductionRunId, Map<OccurrenceId, Optional<String>> hashes) {
+            Path canonicalRoot, RunId byteLevelReductionRun, Map<OccurrenceId, Optional<String>> hashes) {
         return occurrenceId -> {
-            if (detectedFormats.formatFor(occurrenceId, byteLevelReductionRunId).filter(DetectedFormat.IMAGE::equals).isPresent()) {
+            boolean isImage = detectedFormats
+                    .formatFor(occurrenceId, byteLevelReductionRun)
+                    .filter(DetectedFormat.IMAGE::equals)
+                    .isPresent();
+            if (isImage) {
                 return List.of();
             }
             return hashOf(occurrenceId, canonicalRoot, hashes).map(this::picturesFor).orElseGet(List::of);

@@ -152,12 +152,15 @@ class DeliverablePicturesTest {
 
     private static final long A_STAMP = 0x5555555555555555L;
 
-    /** Where on a page a picture sits, as left, top, right and bottom in points. */
-    private static final double[] THE_HEADER_FRAME = {60.5, 795.5, 205.0, 761.0};
+    /**
+     * Where on the first page a picture sits, its edges in points. {@link #placed} moves one to the page
+     * a picture is on.
+     */
+    private static final ListedPicturePlace THE_HEADER_FRAME = new ListedPicturePlace(1, 60.5, 795.5, 205.0, 761.0);
 
-    private static final double[] A_BODY_FRAME = {90.0, 470.0, 690.0, 160.0};
+    private static final ListedPicturePlace A_BODY_FRAME = new ListedPicturePlace(1, 90.0, 470.0, 690.0, 160.0);
 
-    private static final double[] A_FOOTER_FRAME = {450.0, 60.0, 520.0, 30.0};
+    private static final ListedPicturePlace A_FOOTER_FRAME = new ListedPicturePlace(1, 450.0, 60.0, 520.0, 30.0);
 
     /** The media type every picture in the measured cache carried. */
     private static final String PNG = "image/png";
@@ -248,7 +251,7 @@ class DeliverablePicturesTest {
                 List.of(aMember(10, "reports/2019/retrofit.docx", A_HIGH_SCORE)),
                 pictures);
         Path page = thePageOf(tree);
-        Path file = tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY).resolve(nameOf(diagram, ".png"));
+        Path file = thePictureDirectoryOf(tree).resolve(nameOf(diagram, ".png"));
 
         claim(
                 "the picture is written as a file in a directory beside the group's page, named after that"
@@ -286,7 +289,7 @@ class DeliverablePicturesTest {
         Path partition = tree.resolve(THE_PARTITION_DIRECTORY);
 
         claim(
-                "the logo both documents carry is written nowhere in the tree, although each page holds only"
+                "the letterhead both documents carry is written nowhere in the tree, although each page holds only"
                         + " one of the two documents: recurrence is counted over every document the tree"
                         + " lists, not page by page",
                 () -> assertThat(allFilesUnder(tree)).noneMatch(file -> file.getFileName().toString()
@@ -302,7 +305,7 @@ class DeliverablePicturesTest {
                 () -> assertThat(partition.resolve(THE_PICTURE_DIRECTORY).resolve(nameOf(diagram, ".png")))
                         .hasBinaryContent(diagram));
         claim(
-                "and the second page, whose document carried nothing but the shared logo, gets no picture"
+                "and the second page, whose document carried nothing but the shared letterhead, gets no picture"
                         + " directory at all",
                 () -> assertThat(partition.resolve(THE_OTHER_PICTURE_DIRECTORY)).doesNotExist());
     }
@@ -322,7 +325,7 @@ class DeliverablePicturesTest {
                 "an icon repeated three times inside one document is written not even once: the repetition"
                         + " is the evidence it is part of the document's furniture, and keeping the first"
                         + " copy would keep the furniture",
-                () -> assertThat(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY))
+                () -> assertThat(thePictureDirectoryOf(tree))
                         .doesNotExist());
         claim(
                 "and the entry carries no image",
@@ -366,7 +369,7 @@ class DeliverablePicturesTest {
                 pictures);
 
         claim(
-                "the logo is written nowhere: in the second document it sits in the body, where its flag"
+                "the emblem is written nowhere: in the second document it sits in the body, where its flag"
                         + " alone would have kept it, but its bytes recur because the first document carries"
                         + " them too, in its header -- recurrence counts every picture of every document,"
                         + " whichever layer it sits in",
@@ -538,7 +541,7 @@ class DeliverablePicturesTest {
                 () -> assertThat(destinationsOn(page)).containsExactlyElementsOf(expected));
         claim(
                 "and only those " + TEN + " files are written",
-                () -> assertThat(allFilesUnder(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY)))
+                () -> assertThat(allFilesUnder(thePictureDirectoryOf(tree)))
                         .hasSize(TEN));
         claim(
                 "and the entry says, after its pictures, how many more the document has, so the page never"
@@ -592,7 +595,7 @@ class DeliverablePicturesTest {
 
         Path tree = writeOneCluster(
                 workingDirectory, null, List.of(aMember(10, "reports/site.docx", A_HIGH_SCORE)), pictures);
-        Path directory = tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY);
+        Path directory = thePictureDirectoryOf(tree);
 
         claim(
                 "the JPEG is written with a .jpg extension and linked by it",
@@ -675,13 +678,13 @@ class DeliverablePicturesTest {
                         .isEqualTo(THE_PAGE_WITH_NO_PICTURES));
         claim(
                 "and no picture directory is created where there is nothing to put in it",
-                () -> assertThat(withNone.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY))
+                () -> assertThat(thePictureDirectoryOf(withNone))
                         .doesNotExist());
     }
 
     @Test
     @Story("A picture repeated as a near-copy is furniture and is left out")
-    @DisplayName("Two crops of one logo, two pixels apart in size and two bits apart, are left out of both documents")
+    @DisplayName("Two crops of one emblem, two pixels apart in size and two bits apart, are left out of both documents")
     @Issue("286")
     @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
     void leavesOutANearCopyTwoDocumentsCarry(@TempDir Path workingDirectory) throws IOException {
@@ -697,10 +700,10 @@ class DeliverablePicturesTest {
                 null,
                 List.of(aMember(10, "reports/v1.pdf", A_HIGH_SCORE), aMember(20, "reports/v2.pdf", A_MIDDLE_SCORE)),
                 pictures);
-        List<String> written = namesOf(allFilesUnder(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY)));
+        List<String> written = namesOf(allFilesUnder(thePictureDirectoryOf(tree)));
 
         claim(
-                "the logo and its crop from the other document are different bytes, so recurrence of bytes"
+                "the emblem and its crop from the other document are different bytes, so recurrence of bytes"
                         + " cannot see them; being exactly " + NEAR_COPY_PIXELS + " pixels apart in width and in"
                         + " height and exactly " + NEAR_COPY_BITS + " bits apart in their hash, both are left"
                         + " out: each limit is included",
@@ -733,7 +736,7 @@ class DeliverablePicturesTest {
                         aMember(20, "reports/b.docx", A_MIDDLE_SCORE),
                         aMember(30, "reports/c.docx", A_LOW_SCORE)),
                 pictures);
-        List<String> written = namesOf(allFilesUnder(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY)));
+        List<String> written = namesOf(allFilesUnder(thePictureDirectoryOf(tree)));
 
         claim(
                 "two pictures of one size whose hashes differ in " + (NEAR_COPY_BITS + 1) + " bits are both"
@@ -748,7 +751,7 @@ class DeliverablePicturesTest {
 
     @Test
     @Story("A picture repeated at one place in its document is furniture and is left out")
-    @DisplayName("A header logo cropped at the same place on two pages is left out, although its crops differ, and so is a footer stamp at the limit")
+    @DisplayName("A header picture cropped at the same place on two pages is left out, although its crops differ, and so is a footer stamp at the limit")
     @Issue("286")
     @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
     void leavesOutAPictureRepeatedAtOnePlace(@TempDir Path workingDirectory) throws IOException {
@@ -766,7 +769,7 @@ class DeliverablePicturesTest {
 
         Path tree = writeOneCluster(
                 workingDirectory, null, List.of(aMember(10, "reports/spec.pdf", A_HIGH_SCORE)), pictures);
-        List<String> written = namesOf(allFilesUnder(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY)));
+        List<String> written = namesOf(allFilesUnder(thePictureDirectoryOf(tree)));
 
         claim(
                 "the two crops of the header are " + SAME_PLACE_BITS_SEEN + " bits apart, too far for a"
@@ -807,7 +810,7 @@ class DeliverablePicturesTest {
 
         Path tree = writeOneCluster(
                 workingDirectory, null, List.of(aMember(10, "reports/report.pdf", A_HIGH_SCORE)), pictures);
-        List<String> written = namesOf(allFilesUnder(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY)));
+        List<String> written = namesOf(allFilesUnder(thePictureDirectoryOf(tree)));
 
         claim(
                 "two charts in the same frame on two pages, " + (SAME_PLACE_BITS + 1) + " bits apart, are both"
@@ -938,17 +941,26 @@ class DeliverablePicturesTest {
     }
 
     /**
-     * A PNG picture on {@code page}, in {@code frame} (left, top, right, bottom, in points) with every
-     * edge moved by {@code shift} points, as Docling moves a crop of one logo from page to page.
+     * A PNG picture on {@code page}, in {@code frame}'s edges with each moved by {@code shift} points, as
+     * Docling moves a crop of one header picture from page to page.
      */
-    private static ListedPicture placed(byte[] pixels, int page, double[] frame, double shift) {
+    private static ListedPicture placed(byte[] pixels, int page, ListedPicturePlace frame, double shift) {
         return new ListedPicture(
                 PNG,
                 pixels,
                 false,
                 "",
                 Optional.of(new ListedPicturePlace(
-                        page, frame[0] + shift, frame[1] + shift, frame[2] + shift, frame[3] + shift)));
+                        page,
+                        frame.left() + shift,
+                        frame.top() + shift,
+                        frame.right() + shift,
+                        frame.bottom() + shift)));
+    }
+
+    /** The directory beside the group's page that the pictures of {@code tree}'s one page are written to. */
+    private static Path thePictureDirectoryOf(Path tree) {
+        return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY);
     }
 
     /**

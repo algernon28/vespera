@@ -211,7 +211,7 @@ public final class Deliverable {
         Path tree = workingDirectory.resolve(DIRECTORY_NAME).resolve(provenance.runId());
         try {
             Files.createDirectories(tree);
-            Set<String> furnitureDigests = countPictureDigests(survivors, pictures);
+            Set<String> furnitureDigests = furnitureDigestsAcrossSurvivors(survivors, pictures);
             writeIndexAndClusterFiles(tree, provenance, arrangement, written, survivors, pictures, furnitureDigests);
             writeManifest(tree, arrangement, survivors);
             return tree;
@@ -221,13 +221,14 @@ public final class Deliverable {
     }
 
     /**
-     * The first of the two passes ADR-149 §9 describes, extended by ADR-150 §3: every listed survivor's
-     * pictures are asked for once, and only each picture's digest, difference hash and place are kept --
-     * never its pixels, so this pass never holds more than one document's pixels at once. From that,
-     * {@link #furnitureDigestsOf} decides which digests are furniture under ADR-149 §1(a)/(b) and
-     * ADR-150 §3(c)/(d).
+     * The digests of every furniture picture across every listed survivor (ADR-149 §1(a)/(b), ADR-150
+     * §3(c)/(d)). The first of the two passes ADR-149 §9 describes, extended by ADR-150 §3: every
+     * listed survivor's pictures are asked for once, and only each picture's digest, difference hash
+     * and place are kept -- never its pixels, so this pass never holds more than one document's pixels
+     * at once. From that, {@link #furnitureDigestsOf} decides which of those digests are furniture.
      */
-    private static Set<String> countPictureDigests(List<ListedSurvivor> survivors, SurvivorPictures pictures) {
+    private static Set<String> furnitureDigestsAcrossSurvivors(
+            List<ListedSurvivor> survivors, SurvivorPictures pictures) {
         List<PictureEntry> entries = new ArrayList<>();
         Map<String, Integer> recurrence = new HashMap<>();
         Set<OccurrenceId> asked = new HashSet<>();
@@ -270,12 +271,35 @@ public final class Deliverable {
      * matched by (c) or (d) makes furniture of the other picture too, the first included.
      */
     private static Set<String> furnitureDigestsOf(List<PictureEntry> entries, Map<String, Integer> recurrence) {
+        Set<String> furniture = new HashSet<>(recurringOrDeclaredFurniture(entries, recurrence));
+        furniture.addAll(nearCopyFurniture(entries));
+        furniture.addAll(samePlaceFurniture(entries));
+        return furniture;
+    }
+
+    /**
+     * Rules (a) and (b) (ADR-149 §1): the digests of a picture that recurs across the tree's survivors,
+     * or that the converter itself placed in its own furniture layer.
+     */
+    private static Set<String> recurringOrDeclaredFurniture(
+            List<PictureEntry> entries, Map<String, Integer> recurrence) {
         Set<String> furniture = new HashSet<>();
         for (PictureEntry entry : entries) {
             if (entry.inFurnitureLayer() || recurrence.getOrDefault(entry.digest(), 0) > 1) {
                 furniture.add(entry.digest());
             }
         }
+        return furniture;
+    }
+
+    /**
+     * Rule (c) (ADR-150 §3(c)): the digests of every pair of distinct pictures, anywhere in the tree,
+     * that are near-copies of one another. Compared only within a window of {@value #NEAR_COPY_PIXELS}
+     * pixels of width, {@code distinct} being sorted by width first so that window can be found by
+     * breaking out of the inner loop rather than scanning every pair.
+     */
+    private static Set<String> nearCopyFurniture(List<PictureEntry> entries) {
+        Set<String> furniture = new HashSet<>();
         Map<String, PictureEntry> byDigest = new LinkedHashMap<>();
         for (PictureEntry entry : entries) {
             byDigest.putIfAbsent(entry.digest(), entry);
@@ -287,21 +311,33 @@ public final class Deliverable {
             if (a.hash().isEmpty()) {
                 continue;
             }
+            DifferenceHash aHash = a.hash().get();
             for (int j = i + 1; j < distinct.size(); j++) {
                 PictureEntry b = distinct.get(j);
                 if (b.hash().isEmpty()) {
                     continue;
                 }
-                if (b.hash().get().width() - a.hash().get().width() > NEAR_COPY_PIXELS) {
+                DifferenceHash bHash = b.hash().get();
+                if (bHash.width() - aHash.width() > NEAR_COPY_PIXELS) {
                     break;
                 }
-                if (!isNearCopy(a.hash().get(), b.hash().get())) {
+                if (!isNearCopy(aHash, bHash)) {
                     continue;
                 }
                 furniture.add(a.digest());
                 furniture.add(b.digest());
             }
         }
+        return furniture;
+    }
+
+    /**
+     * Rule (d) (ADR-150 §3(d)): the digests of every pair of a single survivor's own pictures that
+     * repeat at one place in its document. Bounded to one occurrence at a time, since the rule is about
+     * where a picture recurs within its own document, not across the tree.
+     */
+    private static Set<String> samePlaceFurniture(List<PictureEntry> entries) {
+        Set<String> furniture = new HashSet<>();
         Map<OccurrenceId, List<PictureEntry>> byOccurrence = new LinkedHashMap<>();
         for (PictureEntry entry : entries) {
             byOccurrence.computeIfAbsent(entry.occurrence(), key -> new ArrayList<>()).add(entry);
@@ -314,10 +350,7 @@ public final class Deliverable {
                 }
                 for (int j = i + 1; j < ofOneOccurrence.size(); j++) {
                     PictureEntry b = ofOneOccurrence.get(j);
-                    if (b.hash().isEmpty()
-                            || b.place().isEmpty()
-                            || a.place().get().page() == b.place().get().page()
-                            || !isSamePlace(a.hash().get(), a.place().get(), b.hash().get(), b.place().get())) {
+                    if (b.hash().isEmpty() || b.place().isEmpty() || !isSamePlace(a, b)) {
                         continue;
                     }
                     furniture.add(a.digest());
@@ -340,17 +373,14 @@ public final class Deliverable {
     }
 
     /**
-     * Whether two pictures, already known to sit on different pages of one document, repeat at one place
-     * (ADR-150 §3(d)): each of the four bounding-box edges is within {@value #SAME_PLACE_POINTS} points,
-     * and their difference hashes are at most {@value #SAME_PLACE_BITS} bits apart.
+     * Whether two pictures of one document repeat at one place (ADR-150 §3(d)): they sit on different
+     * pages, each of the four bounding-box edges is within {@value #SAME_PLACE_POINTS} points, and their
+     * difference hashes are at most {@value #SAME_PLACE_BITS} bits apart. Both are already known to
+     * carry a hash and a place; the caller checks that.
      */
-    private static boolean isSamePlace(
-            DifferenceHash aHash, ListedPicturePlace aPlace, DifferenceHash bHash, ListedPicturePlace bPlace) {
-        return Math.abs(aPlace.left() - bPlace.left()) <= SAME_PLACE_POINTS
-                && Math.abs(aPlace.top() - bPlace.top()) <= SAME_PLACE_POINTS
-                && Math.abs(aPlace.right() - bPlace.right()) <= SAME_PLACE_POINTS
-                && Math.abs(aPlace.bottom() - bPlace.bottom()) <= SAME_PLACE_POINTS
-                && aHash.bitsApartFrom(bHash) <= SAME_PLACE_BITS;
+    private static boolean isSamePlace(PictureEntry a, PictureEntry b) {
+        return a.place().get().withinPointsOf(b.place().get(), SAME_PLACE_POINTS)
+                && a.hash().get().bitsApartFrom(b.hash().get()) <= SAME_PLACE_BITS;
     }
 
     private static void writeIndexAndClusterFiles(

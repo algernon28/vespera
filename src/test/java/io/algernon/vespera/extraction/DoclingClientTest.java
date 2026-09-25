@@ -121,12 +121,7 @@ class DoclingClientTest {
      */
     private static final int NAMING_SCHEME_VERSION = 1;
 
-    /**
-     * The picture mode every conversion asks for (ADR-150): each picture's pixels as a base64
-     * {@code data:} URI inside the JSON answer. The sidecar's own default, {@code placeholder}, returns
-     * a PDF's pictures located on the page with no pixels at all; {@code referenced} returns a file name
-     * the single synchronous call gives no way to read back.
-     */
+    /** The picture mode every conversion must send, whatever the format (ADR-150 §1). */
     private static final String PICTURE_EXPORT_MODE = "embedded";
 
     /**
@@ -527,6 +522,7 @@ class DoclingClientTest {
     @Test
     @Story("The conversion pins what it asks for")
     @DisplayName("Converting asks for every picture's pixels inside the answer, for every format, and for nothing else about pictures")
+    @Issue("286")
     @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
     @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
     void asksForEmbeddedPicturePixelsForEveryFormat(@TempDir Path dir) throws IOException {
