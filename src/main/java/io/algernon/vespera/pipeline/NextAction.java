@@ -129,12 +129,12 @@ class NextAction {
      * reused walk (ADR-115) leaves an older arrangement still standing in the walk's history, and only
      * this invocation's own arrangement is the one the page just written and the closing line agree on.
      */
-    String line(Path corpusRoot, InvocationRuns invocationRuns, ArrangementGate arrangementGate) {
+    String line(Path corpusRoot, InvocationRuns invocationRuns) {
         Profile profile = profileStore.load();
         Optional<RunId> arrangement = invocationRuns.runOf(ArrangementRun.STAGE);
         Optional<RunId> generation = invocationRuns.runOf(GenerationRun.STAGE);
         boolean approvalMatchesThisInvocation =
-                arrangementGate.approvedArrangement(arrangement).isPresent();
+                arrangementGate.getObject().approvedArrangement(arrangement).isPresent();
         return line(
                 profile,
                 answersRecordedAgainst(profile),
@@ -288,7 +288,7 @@ class NextAction {
      * arrangementToApprove} is already the shortened id {@link ArrangementGate#shortNameOf} gives, not
      * the run's full id. It is what the two overloads above fall back on, and it agrees with the real
      * answer whenever the operator copied the short name whole, which is what the closing line always
-     * asks them to do. {@link #line(Path, InvocationRuns, ArrangementGate)} computes the real answer
+     * asks them to do. {@link #line(Path, InvocationRuns)} computes the real answer
      * instead, off {@link ArrangementGate#approvedArrangement}, since only it holds the full id a
      * shorter approval could be a genuine prefix of.
      */
