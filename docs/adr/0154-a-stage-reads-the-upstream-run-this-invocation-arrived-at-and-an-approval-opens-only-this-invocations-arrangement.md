@@ -105,7 +105,7 @@ The prefix rule itself is unchanged: the approval is compared as a prefix, as `r
 
   when it is set. The first sentence corrects a line older than this record, which pointed `vespera label` at a gated line it never prints; ADR-154 made the second case reachable, where before it read "Nothing is left to set". `ClosingLineInvocationTest` pins both sentences whole.
 
-The wording in the first bullet is fixed here so that `OperatorTextTest` and a reviewer have one place to check it against. The tests pin its load-bearing parts: `Next:`, the quoted short name, `arrangementApproved`, and the absence of "Nothing is left to set" and of a deliverable.
+The wording of the mismatch bullet (an approval that names another arrangement) is fixed here so that `OperatorTextTest` and a reviewer have one place to check it against. The tests pin its load-bearing parts: `Next:`, the quoted short name, `arrangementApproved`, and the absence of "Nothing is left to set" and of a deliverable.
 
 **`arrangement.html` names the arrangement this invocation arrived at, including when it continued a finished one.** Otherwise the closing line and the page it tells the operator to read disagree whenever a value is put back, and the operator approves a name they did not read. When the arrangement step finds its own work recorded, it still renders the page from the rows recorded under that arrangement, and writes nothing else. This amends ADR-115's "a skipped step writes no report" for this one page, because it is the only page whose name an approval copies. The others stay as ADR-115 left them (see *What this does not decide*).
 
