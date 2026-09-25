@@ -688,6 +688,15 @@ public final class Adr {
     public static final String A_BACKTICK_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN = FILE
             + "0148-a-backtick-is-escaped-in-every-surrounding-a-value-is-read-in-and-one-renderers-divergence-moves-no-rule.md";
 
+    /**
+     * ADR-149 -- a survivor's pictures are read from the extraction cache and written into the tree
+     * beside its cluster file, under its membership entry, named from their own bytes; a picture whose
+     * bytes recur among the documents the tree lists, or that Docling placed in its furniture layer, is
+     * left out, and a document shows at most ten.
+     */
+    public static final String A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE = FILE
+            + "0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md";
+
     private Adr() {
     }
 }
