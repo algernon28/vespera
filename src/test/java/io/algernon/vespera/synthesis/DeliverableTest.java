@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -218,6 +219,59 @@ class DeliverableTest {
      * by a live bracket, and the link does not survive it.
      */
     private static final String A_BRACKET_ESCAPED_TWICE = "\\\\[";
+
+    /**
+     * A seed path with two backticks in it, which NTFS permits and a walk can really record (ADR-148).
+     * Two in one value are a code span in every renderer configuration measured, and it is the pair that
+     * is the hazard: both characters leave the heading's text, with nothing to say they were there.
+     */
+    private static final String A_SEED_PATH_WITH_TWO_BACKTICKS = "seeds/`draft` Safety Standards.docx";
+
+    /** That seed path as its heading has to read: each backtick behind a backslash, nothing else moved. */
+    private static final String THAT_SEED_PATH_WITH_ITS_BACKTICKS_ESCAPED =
+            "seeds/\\`draft\\` Safety Standards.docx";
+
+    /**
+     * A cluster label with a pair of backticks either side of a bracketed word, which is the case that
+     * switches the other rules off: no backslash escape is processed inside a code span, so the escape
+     * the cell rule writes before each bracket is shown at the reader as a backslash the archive never
+     * held, in every configuration but {@code marked}, which consumes it inside link text. A Docling
+     * title is arbitrary text off a title block, so nothing bounds what it spells.
+     */
+    private static final String A_LABEL_WITH_BACKTICKS_AROUND_A_BRACKET = "The `[draft]` retrofit";
+
+    /** That label as the linked first column has to carry it: all four characters behind a backslash. */
+    private static final String THAT_LABEL_WITH_ITS_BACKTICKS_ESCAPED = "The \\`\\[draft\\]\\` retrofit";
+
+    /**
+     * A cluster title marking a name as code, which is what a model asked to name a group of documents
+     * about a piece of software is likely to answer -- it is how it has seen such names written.
+     */
+    private static final String A_TITLE_MARKING_A_NAME_AS_CODE = "Migrating `libsprinkler` to v2";
+
+    /** That title as the third column has to carry it: characters to be read, not formatting to apply. */
+    private static final String THAT_TITLE_WITH_ITS_BACKTICKS_ESCAPED = "Migrating \\`libsprinkler\\` to v2";
+
+    /**
+     * The label of a cluster nothing was written over, whose cell is its row's whole text, with no link.
+     * It carries one backtick and nothing on its row carries another, so it is a literal backtick under
+     * the specification in every configuration measured: it is here so that a cell rule escaping a
+     * backtick only where a partner follows it fails a test.
+     */
+    private static final String AN_UNLINKED_LABEL_WITH_ONE_BACKTICK = "The O`Brien survey";
+
+    /** That label as its cell has to carry it: the backtick behind a backslash, nothing else moved. */
+    private static final String THAT_UNLINKED_LABEL_WITH_ITS_BACKTICK_ESCAPED = "The O\\`Brien survey";
+
+    /** A document whose own name carries two backticks, for the listing, where a backtick is only data. */
+    private static final String A_PATH_WITH_TWO_BACKTICKS = "reports/the `final` draft.pdf";
+
+    /**
+     * A backtick with no backslash in front of it, which is a code span delimiter wherever another run
+     * of the same length follows it. None of the values these fixtures give carries a backslash of its
+     * own, so every backslash in front of a backtick on the page is one a rule wrote.
+     */
+    private static final Pattern A_LIVE_BACKTICK = Pattern.compile("(?<!\\\\)`");
 
     /** The first place in an order, which both levels count from (ADR-112). */
     private static final int FIRST_PLACE = 1;
@@ -810,6 +864,126 @@ class DeliverableTest {
                         + " cell rather than out of the name, because a name spelling a link of its own"
                         + " puts a second one of these in front of the real one",
                 () -> assertThat(tree.resolve(theRouteOutOf(cellsOf(linkedRow).get(1)))).isRegularFile());
+    }
+
+    /**
+     * Every position a backtick reaches in the index, driven from one tree, and the listing beside it
+     * (ADR-148).
+     *
+     * <p><b>The pair is the hazard, and it is not one renderer's.</b> Two backticks in one value form a
+     * code span in every renderer configuration measured, in a heading and in a cell alike: both
+     * characters leave the rendered name, and a bracket between them is shown with the backslash the
+     * cell rule wrote in front of it -- in every configuration but {@code marked} inside link text --
+     * because nothing inside a code span is unescaped. So the seed's heading, the linked label and the
+     * written-up title each carry two, and the label carries them either side of a bracket.
+     *
+     * <p><b>The unlinked label carries one, for the rule's shape rather than its ground.</b> A lone
+     * backtick is a literal backtick under the specification, and the single one {@code marked} refuses in
+     * link text is deliberately not the ground of the escape: ADR-148 gives a divergence of one renderer
+     * from the specification no weight. The rule is unconditional for ADR-138's reasons, which is what
+     * makes it reach a lone backtick too, and that label is where the cell rule is held to it; the heading
+     * rule and the membership entry are held to it in {@code ClusterFileTest}.
+     *
+     * <p><b>The listing is the one surrounding that must not change</b>, and it is claimed here so a
+     * rule applied to every value the tree writes, rather than to the three Markdown positions, fails a
+     * test: a backslash in a manifest column is a character of the name to the program that loads it.
+     */
+    @Test
+    @Story("A name out of the archive cannot rewrite the page it is listed on")
+    @DisplayName("A group named with a pair of backticks is listed under that name rather than as code")
+    @Issue("261")
+    @Link(name = "ADR-148", url = Adr.A_BACKTICK_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN, type = "adr")
+    void keepsABacktickedNameFromTurningIntoCode(@TempDir Path workingDirectory) throws IOException {
+        Path tree = Deliverable.writeTo(
+                workingDirectory,
+                provenance(THE_SEED_FOLDER_VALUE),
+                List.of(
+                        aCluster(FIRST_ORDINAL, A_LABEL_WITH_BACKTICKS_AROUND_A_BRACKET, FIRST_PLACE, FIRST_PLACE),
+                        aCluster(A_LATER_ORDINAL, AN_UNLINKED_LABEL_WITH_ONE_BACKTICK, FIRST_PLACE, SECOND_PLACE)),
+                List.of(new RecordedSynthesisDoc(
+                        THE_SEED,
+                        FIRST_ORDINAL,
+                        new SynthesisDoc(
+                                A_TITLE_MARKING_A_NAME_AS_CODE,
+                                THE_PROSE,
+                                List.of(new OccurrenceId(10), new OccurrenceId(11))))),
+                List.of(
+                        new ListedSurvivor(
+                                new OccurrenceId(10),
+                                new OccurrencePath(A_PATH_WITH_TWO_BACKTICKS),
+                                "3a7b",
+                                THE_SEED,
+                                A_SEED_PATH_WITH_TWO_BACKTICKS,
+                                FIRST_ORDINAL,
+                                A_SCORE),
+                        new ListedSurvivor(
+                                new OccurrenceId(11),
+                                new OccurrencePath("reports/2021/retrofit follow-up.pdf"),
+                                "9c11",
+                                THE_SEED,
+                                A_SEED_PATH_WITH_TWO_BACKTICKS,
+                                FIRST_ORDINAL,
+                                A_LOWER_SCORE),
+                        new ListedSurvivor(
+                                new OccurrenceId(12),
+                                new OccurrencePath("reports/2020/retrofit review.pdf"),
+                                "5e40",
+                                THE_SEED,
+                                A_SEED_PATH_WITH_TWO_BACKTICKS,
+                                A_LATER_ORDINAL,
+                                A_LOWER_SCORE)));
+
+        Path indexFile = tree.resolve(Deliverable.INDEX_FILE_NAME);
+        String index = Files.readString(indexFile);
+        String linkedRow = lineOf(indexFile, "retrofit](");
+        String plainRow = lineOf(indexFile, THE_HOLE);
+        List<String> rows = rowsOf(tree);
+
+        claim(
+                "the heading naming the seed carries each backtick behind a backslash, so the name is"
+                        + " read as the name: written through, the two are a code span, both leave the"
+                        + " heading's text, and nothing in it says two characters were ever there",
+                () -> assertThat(index).contains("## " + THAT_SEED_PATH_WITH_ITS_BACKTICKS_ESCAPED + "\n"));
+        claim(
+                "and the group's own name in the column that links to its page escapes the backticks and"
+                        + " the brackets between them, and still opens that page: a bracket inside a code"
+                        + " span keeps the backslash written in front of it in every renderer configuration"
+                        + " but marked, so written through, the reader is shown a backslash the archive"
+                        + " never held",
+                () -> {
+                    assertThat(cellsOf(linkedRow).get(1))
+                            .startsWith("[" + THAT_LABEL_WITH_ITS_BACKTICKS_ESCAPED + "](");
+                    assertThat(tree.resolve(theRouteOutOf(cellsOf(linkedRow).get(1)))).isRegularFile();
+                });
+        claim(
+                "and the name a group nothing was written over is listed under escapes its one backtick"
+                        + " although nothing on its row could pair with it, so the cell rule is applied to the"
+                        + " character wherever it stands rather than where a partner follows; and its cell is"
+                        + " that name rather than merely containing it -- the row's whole text, with no link"
+                        + " formed on it for a rule to be applied where a link is",
+                () -> assertThat(cellsOf(plainRow).get(1)).isEqualTo(THAT_UNLINKED_LABEL_WITH_ITS_BACKTICK_ESCAPED));
+        claim(
+                "and the name the writing gave a group keeps its backticks as characters: what the model"
+                        + " answered is a name the index lists, and a title marking a word as code would"
+                        + " otherwise lose both marks to the formatting they stand for",
+                () -> assertThat(cellsOf(linkedRow).get(THE_WRITTEN_UP_COLUMN))
+                        .isEqualTo(THAT_TITLE_WITH_ITS_BACKTICKS_ESCAPED));
+        claim(
+                "and no backtick reaches the page without a backslash in front of it, anywhere on it,"
+                        + " which is what says the escape is applied to every value in every position rather"
+                        + " than to the ones this test happened to look at",
+                () -> assertThat(A_LIVE_BACKTICK.matcher(index).find())
+                        .withFailMessage("the index carries a backtick no rule escaped:%n%s", index)
+                        .isFalse());
+        claim(
+                "while the listing carries the same names as the archive spells them, backticks and all"
+                        + " and no backslash beside them: a program loading it reads a backslash as a"
+                        + " character of the name, and would go looking for a document that is not there",
+                () -> {
+                    assertThat(columnsOf(rows.getFirst())[THE_PATH_COLUMN]).isEqualTo(A_PATH_WITH_TWO_BACKTICKS);
+                    assertThat(columnsOf(rows.getFirst())[THE_SEED_PARTITION_COLUMN])
+                            .isEqualTo(A_SEED_PATH_WITH_TWO_BACKTICKS);
+                });
     }
 
     @Test

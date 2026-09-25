@@ -679,6 +679,15 @@ public final class Adr {
     public static final String THE_DOCLING_SIDECAR_IS_A_DERIVED_IMAGE = FILE
             + "0147-the-docling-sidecar-is-a-derived-image-with-libreoffice-writer-and-impress-and-the-image-joins-the-extractor-identity.md";
 
+    /**
+     * ADR-148 -- a backtick is backslash-escaped in the heading rule, the cell rule and the link-text
+     * rule, unconditionally, because two of them in one value form a code span in every renderer
+     * configuration measured and switch the other rules' escapes off; and a rendering hazard present
+     * only in one renderer that diverges from the specification is recorded and moves no rule.
+     */
+    public static final String A_BACKTICK_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN = FILE
+            + "0148-a-backtick-is-escaped-in-every-surrounding-a-value-is-read-in-and-one-renderers-divergence-moves-no-rule.md";
+
     private Adr() {
     }
 }
