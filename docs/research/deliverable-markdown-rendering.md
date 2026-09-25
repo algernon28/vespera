@@ -1,8 +1,8 @@
 # What renderers do with the deliverable
 
-Research record for five issues, measured in five passes on one day — the ordinal a section carries counts
-rounds of measurement across the whole record, so §1 to §3 are the first, §6 the second, §7 the third, §8 the
-fourth and §9 the fifth. §7's round is the one that re-measured it in §6's own environment and
+Research record for five issues, measured in six passes, the first five on one day and the sixth on
+2026-09-25 — the ordinal a section carries counts rounds of measurement across the whole record, so §1 to §3
+are the first, §6 the second, §7 the third, §8 the fourth, §9 the fifth and §10 the sixth. §7's round is the one that re-measured it in §6's own environment and
 regenerated §6b's entry, which is why it counts as a round though it moved no machine. Where §7 and §8a call a false attempt of their
 own "the first pass", that is local to the section and not a step on this counter. §1 to §3 are
 [#251](https://github.com/algernon28/vespera/issues/251) — `<` and `&` in a value taken out of the archive.
@@ -14,14 +14,16 @@ is resolved rather than read. §9 is [#258](https://github.com/algernon28/vesper
 in the two positions that compose no link of their own, a heading and a plain cell, measured as rendered
 output rather than as source. §8b carries one further measurement, of
 [#261](https://github.com/algernon28/vespera/issues/261) — a backtick in a name, which `marked` alone refuses
-to make a link of — recorded where the sweep found it and decided nowhere. Facts only — no decisions.
+to make a link of — recorded where the sweep found it, and §10 is the same issue measured in every position
+and with a second backtick in the value, which is where it stops being about one renderer. Facts only — no
+decisions.
 Feeds the decisions those tickets ask for, and [ADR-134](../adr/0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md),
 which declined to settle the first of them and said what it wanted was a measurement rather than an argument.
 
 ## Scope and method
 
 Every claim below is labelled `MEASURED` and was produced by rendering a fixture on the machine described
-below on 2026-09-21. Nothing here is inferred from documentation. Where a result has a documented cause, the
+below on 2026-09-21, except §9's re-render, on 2026-09-22, and §10, on 2026-09-25. Nothing here is inferred from documentation. Where a result has a documented cause, the
 primary source is quoted and linked; where I did not establish the cause, the claim says so.
 
 The fixture reproduces the four positions `Deliverable` writes an untrusted value into, built from the format
@@ -463,8 +465,8 @@ One further fact, measured here and belonging to neither this question nor
 `reports/a` + backtick + `b.pdf`, printing the entry as source. That is a property of the **link text**,
 where the backtick is not escaped, and not of the destination, which is `%60` and is what the other six
 configurations resolve. It is recorded because the sweep found it and a later reader re-running this sweep
-will see it. It is now [#261](https://github.com/algernon28/vespera/issues/261), and nothing in the decision
-record decides it.
+will see it. It is now [#261](https://github.com/algernon28/vespera/issues/261), measured in full in §10, and
+decided by [ADR-148](../adr/0148-a-backtick-is-escaped-in-every-surrounding-a-value-is-read-in-and-one-renderers-divergence-moves-no-rule.md).
 
 ### 8c. The same names with `%26` written, in the same seven
 
@@ -720,8 +722,8 @@ writer's linked first column and of the `correct` one's, which emit that cell by
 measured on both and is neither caused nor closed by anything decided here, and the source is
 conforming: CommonMark makes `\[` a literal `[`, and an image needs an unescaped one. It is the shape of
 [#261](https://github.com/algernon28/vespera/issues/261) — one renderer diverging from the specification the
-other six implement — and it is recorded because this sweep found it and nothing in the decision record
-decides it.
+other six implement — and it is recorded because this sweep found it. ADR-148 §5 later declines to escape
+against it; the measurement here is unchanged by that.
 
 ### What was not measured here
 
@@ -730,3 +732,117 @@ Whether GitHub's proxy actually retrieves `https://example.com/x.png`: what is m
 is rewritten to a proxy URL carrying that address, not the request leaving GitHub's side. And a reference-style
 link or image — `[text][label]` with a definition elsewhere in the same value — which the same escape covers
 by the same character and which no fixture here drives.
+
+---
+
+## 10. A backtick in every surrounding, alone and in a pair
+
+`MEASURED` on 2026-09-25, sixth pass, on the machine of the method table above — Windows 11 Pro build
+10.0.26200, Node v22.23.1 — against the same four renderers at the same versions, in the seven configurations
+§6 counts. This section exists for [#261](https://github.com/algernon28/vespera/issues/261), which §8b found
+in one position and one renderer. What is measured here is the **rendered output** in every position a value
+is read in, for a backtick alone and for two in one value, because the second is the case §8b did not drive
+and it is not the same finding.
+
+### 10a. How every fixture here was made
+
+**Every fixture was generated by running a writer and reading back the files it wrote**, cut by position in
+the file rather than by content, written out with `\n` line endings, and confirmed with `cat -A` before any
+renderer saw it. Every renderer read from that file. The GitHub rows are one `POST /markdown` call per fixture
+per mode. Two writers were run:
+
+| Writer | What it is |
+|---|---|
+| **shipped** | `Deliverable.writeTo` from `target/classes` at `b2c9a4b`, unmodified |
+| **escaped** | a scratch copy outside the repository with `` .replace("`", "\\`") `` added after the bracket replacements in `escapeLinkText`, `inAHeading` and `inACell`, and nothing else changed, compiled against `target/classes` |
+
+Each writer was run three times, once per value, and each run wrote one tree holding one seed partition and
+two clusters, the first written over and the second not, so that one tree reaches every position:
+
+| Value `v` | The partition heading | The linked first column | The unlinked first column | The third column and the page heading | The membership entry |
+|---|---|---|---|---|---|
+| a backtick alone, `` a`b `` | `seeds/v.docx` | label `L v` | label `U v` | title `T v` | `reports/v.pdf` |
+| two backticks, `` a`b`c `` | the same | the same | the same | the same | the same |
+| two around a bracket, `` a`[x]`b `` | the same | the same | the same | the same | the same |
+
+**The trap the ticket names was checked for, not assumed away.** The destination the writer emits carries
+`%60`, never a raw backtick — `java.net.URI`'s path quoting encodes it (§8b) — so every entry below is the
+emitted form, with the backtick raw in the text and encoded in the route. Read back, the shipped writer's
+entry for the first value is
+
+```
+1. <a id="document-1"></a>[reports/a`b.pdf](../../../../archive-that-is-not-there/reports/a%60b.pdf)
+```
+
+and its page heading for the second is `` # T a`b`c ``. The escaped writer's are the same with each backtick
+behind a backslash in the text — `` [reports/a\`b.pdf] `` and `` # T a\`b\`c `` — and **the destination
+byte for byte unchanged**, since no backslash rule reaches it.
+
+### 10b. A backtick alone, from the shipped writer
+
+| Position | Rendered |
+|---|---|
+| the membership entry | the link forms, text `` reports/a`b.pdf ``, in six of seven; **`marked` prints the whole entry as its source** |
+| the linked first column | the link forms in `markdown-it` in both settings and on GitHub in both modes; **`marked` prints the cell as its source**; `commonmark` in both settings, which builds no table, pairs this backtick with the one in the third column of the same row and the code span it forms swallows the link: `` [L a<code>b](1-a-b/1-l-a-b.md) | 1 | T a</code>b `` |
+| the unlinked first column, the third column, both headings | a literal backtick, seven of seven |
+
+So `marked`'s refusal is a property of **link text**, in both positions the tool composes one, and nowhere
+else: it reads a backtick in a heading or a plain cell as the literal the specification says it is. The
+`commonmark` row is the reference implementation doing what CommonMark says — a code span may run across
+what GFM would have split into cells, because without the table extension there are no cells — and it is
+recorded because it is the one place a lone backtick costs a link in a conforming configuration; it needs a
+second backtick elsewhere on the row, and it happens only where the row was already a paragraph.
+
+### 10c. Two backticks in one value, from the shipped writer
+
+| Position | Rendered, seven of seven unless stated |
+|---|---|
+| the partition heading, `` ## seeds/a`b`c.docx `` | `<h2>seeds/a<code>b</code>c.docx</h2>` |
+| the page heading, `` # T a`b`c `` | `<h1>T a<code>b</code>c</h1>` |
+| the linked first column | `<a href="1-a-b-c/1-l-a-b-c.md">L a<code>b</code>c</a>` — the link forms, `marked` included |
+| the unlinked first column and the third column | `a<code>b</code>c` |
+| the membership entry | the link forms with text `reports/a<code>b</code>c.pdf` |
+
+**Both backticks leave the rendered text in every position and every configuration**, and what replaces them
+is formatting, not a character. GitHub's `mode=markdown` states the heading's text content outright: the
+partition heading's permalink is labelled `Permalink: seeds/abc.docx` and slugged `seedsabcdocx`, and the page
+heading's `Permalink: T abc`. The archive holds `` seeds/a`b`c.docx ``. Nothing on the page says two
+characters were removed. This is §3's silent-deletion failure and §9d's, arriving by a third route, and it is
+not renderer-specific: [CommonMark's code spans](https://spec.commonmark.org/0.31.2/#code-spans) make a
+backtick run a delimiter wherever a run of the same length follows in the same inline content.
+
+**Two backticks around a character another rule escapes print that rule's backslash at the reader.**
+CommonMark processes no backslash escape inside a code span, so for `` a`[x]`b ``, emitted as
+`` a`\[x\]`b `` in every position:
+
+| Position | Rendered |
+|---|---|
+| both headings, the unlinked first column, the third column | `a<code>\[x\]</code>b` — seven of seven |
+| the linked first column and the membership entry | `a<code>\[x\]</code>b` in six of seven; `marked` alone renders `a<code>[x]</code>b` inside link text |
+
+The reader is shown `\[x\]`, two backslashes the archive does not hold, in the code font that makes a reader
+most likely to take them as literal. Only `\[` and `\]` were driven; the specification's rule is about
+backslash escapes as such, so `\\`, `\<` and `\&` inside a code span are the same case by the same sentence of
+it, and are not a measured row here. Of every character this record has driven, the backtick is the only one
+measured switching the other rules' escapes off.
+
+### 10d. The same three values from the escaped writer
+
+| Value | Every position, all seven configurations |
+|---|---|
+| `` a`b `` | a literal backtick; **the link forms in `marked`** in the entry and the linked first column; `commonmark`'s cross-cell code span does not form |
+| `` a`b`c `` | `` a`b`c `` as characters, no `<code>` anywhere; GitHub labels the headings `` Permalink: seeds/a`b`c.docx `` and `` Permalink: T a`b`c `` |
+| `` a`[x]`b `` | `` a`[x]`b `` as characters, no `<code>` and no backslash anywhere, `marked` included |
+
+**Every position, every value, seven configurations of seven**, and the destination — which this writer does
+not touch — resolves as §8b records. The slugs are unchanged by the escape (`seedsabcdocx`, `t-abc`,
+`seedsaxbdocx`, `t-axb`), GitHub's slugger dropping the backtick either way; what the escape changes is the
+heading's text, which now carries both characters.
+
+### What was not measured here
+
+Which renderers an operator actually opens the tree with — the same gap every section records, unchanged.
+A backtick run longer than one, which is the same delimiter to CommonMark and which the same one-character
+escape covers character by character; no fixture drives it. And the CSV, where a backtick is data to an RFC
+4180 parser and was read back raw from both writers, `` reports/a`b.pdf `` in the `path` column — there is
+nothing a renderer does to it, so there is no rendered row to take.

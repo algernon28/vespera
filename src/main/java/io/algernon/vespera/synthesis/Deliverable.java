@@ -556,14 +556,14 @@ public final class Deliverable {
 
     /**
      * {@code text} as Markdown link text: the backslash, the angle bracket and the ampersand
-     * shared with every Markdown surrounding (ADR-136), and the two characters that would close or nest
-     * the link, all escaped.
+     * shared with every Markdown surrounding (ADR-136), the two characters that would close or nest
+     * the link, and the backtick that would open a code span (ADR-148), all escaped.
      *
      * <p><b>A membership entry, not a table cell</b>, which is why this is not {@link #asLinkText}
      * (#246). Here the text is a path, the surrounding structure is a numbered list, and a pipe is an
      * ordinary character. The backslash is escaped first here too, but not on {@link #inACell}'s
-     * ground: this method inserts {@code \[} and {@code \]}, which that one now inserts as well, so
-     * the hazard has the same shape -- what it lacks here is an input. It is applied to
+     * ground: this method inserts {@code \[}, {@code \]} and {@code \`}, which that one now inserts
+     * as well, so the hazard has the same shape -- what it lacks here is an input. It is applied to
      * {@code member.path().value()}, an {@code OccurrencePath} that is separator-normalised
      * to {@code /} and cannot hold a backslash on NTFS (ADR-051) — nothing here should be read as
      * claiming a path on this filesystem can carry one. The rule is kept anyway as cheap defence
@@ -577,10 +577,13 @@ public final class Deliverable {
      * backslash, the destination answers to a resolver and escapes by percent-encoding, and the CSV
      * answers to a parser and escapes by doubling a quote. ADR-136's character class lands in all
      * five even so — {@code \<} and {@code \&} in the cell, the list and the heading; {@code %3C}
-     * and {@code %26} in the destination; neither in the CSV.
+     * and {@code %26} in the destination; neither in the CSV. ADR-148's backtick lands the same
+     * way: {@code \`} in the cell, the list and the heading; {@code %60} in the destination, written
+     * by the URI quoting; nothing in the CSV.
      */
     private static String escapeLinkText(String text) {
-        return text.replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&").replace("[", "\\[").replace("]", "\\]");
+        return text.replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&").replace("[", "\\[")
+                .replace("]", "\\]").replace("`", "\\`");
     }
 
     private static void openIndexWith(StringBuilder index, DeliverableProvenance provenance) {
@@ -690,16 +693,18 @@ public final class Deliverable {
 
     /**
      * {@code text} as an ATX heading carries it: folded to one line, then the backslash and the
-     * four characters a renderer would read as markup escaped (ADR-136, ADR-138).
+     * five characters a renderer would read as markup escaped (ADR-136, ADR-138, ADR-148).
      *
      * <p><b>A surrounding of its own, and so a rule of its own</b> -- the fourth to be counted, of the
      * five {@link #escapeLinkText} lists (ADR-136, ADR-137) -- which is ADR-134's own rule applied
      * where its premise holds rather than an exception to it. A heading has no pipe to guard --
      * not structural on a line that begins with {@code #} -- but its two brackets are guarded here,
-     * because a link and an image both form in an ATX heading in every renderer measured (ADR-138).
-     * {@link #inACell} is still not borrowed for the pipe: it would write a backslash before a
-     * character a heading has no hazard from. A value is only ever dangerous with respect to the
-     * structure it lands in, and that is the whole reason these rules are separate.
+     * because a link and an image both form in an ATX heading in every renderer measured (ADR-138),
+     * and its backtick is guarded here, unconditionally, because a pair forms a code span in every
+     * renderer measured (ADR-148). {@link #inACell} is still not
+     * borrowed for the pipe: it would write a backslash before a character a heading has no hazard
+     * from. A value is only ever dangerous with respect to the structure it lands in, and that is the
+     * whole reason these rules are separate.
      *
      * <p><b>This is the position that had no escaping at all</b>: folding was its entire treatment,
      * so a title reading {@code <draft>} reached the renderer untouched and was deleted outright by
@@ -711,7 +716,7 @@ public final class Deliverable {
      */
     private static String inAHeading(String text) {
         return onOneLine(text).replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&")
-                .replace("[", "\\[").replace("]", "\\]");
+                .replace("[", "\\[").replace("]", "\\]").replace("`", "\\`");
     }
 
     /**
@@ -751,9 +756,16 @@ public final class Deliverable {
      * ADR-103 says resolves every link with no network. The escape inserted is the same backslash
      * escape as the rest of this method's set, {@code \[} and {@code \]}.
      *
+     * <p><b>A backtick is structural in a table cell exactly as it is in a heading (ADR-148)</b>: two
+     * of them around any text form a code span in every renderer measured, and a lone one is a literal
+     * backtick under the specification; only in link text does one renderer, {@code marked}, refuse
+     * to form the link around it, a divergence ADR-148 §3 gives no weight. The escape
+     * is unconditional, on the same ground {@link #inAHeading} gives, and it costs nothing where a
+     * value carries no backtick.
+     *
      * <p><b>The backslash goes first, on a ground that is not about the data (ADR-134).</b> This
-     * method inserts escape characters of its own -- {@code \<}, {@code \&}, {@code \[}, {@code \]}
-     * and {@code \|} -- so a literal backslash already present must be escaped before it can merge
+     * method inserts escape characters of its own -- {@code \<}, {@code \&}, {@code \[}, {@code \]},
+     * {@code \|} and {@code \`} -- so a literal backslash already present must be escaped before it can merge
      * with what is added after it; a rule that adds an escape character without first escaping one
      * already present is not a function of its input in the way it claims to be. A label reading
      * {@code Retrofits \| Phase 2} would otherwise become {@code Retrofits \\| Phase 2} — an escaped
@@ -768,7 +780,7 @@ public final class Deliverable {
      */
     private static String inACell(String text) {
         return onOneLine(text).replace("\\", "\\\\").replace("<", "\\<").replace("&", "\\&")
-                .replace("[", "\\[").replace("]", "\\]").replace("|", "\\|");
+                .replace("[", "\\[").replace("]", "\\]").replace("|", "\\|").replace("`", "\\`");
     }
 
     /**

@@ -199,6 +199,43 @@ class ClusterFileTest {
     private static final String THAT_NAME_AS_A_DESTINATION = "reports/%26copy;%20notes.pdf";
 
     /**
+     * A document whose own name carries one backtick, standing in for an apostrophe as it often does in
+     * a name typed on a keyboard that has one. NTFS permits it, so a walk can really record it.
+     */
+    private static final String A_NAME_WITH_ONE_BACKTICK = "reports/O`Brien survey.pdf";
+
+    /** That name as the entry has to carry it: the backtick behind a backslash, nothing else touched. */
+    private static final String THAT_NAME_WITH_ITS_BACKTICK_ESCAPED = "reports/O\\`Brien survey.pdf";
+
+    /**
+     * And that name as the route to it: the backtick percent-encoded by the URI quoting every destination
+     * already goes through, which is what guards this surrounding, and no backslash anywhere in it.
+     */
+    private static final String THAT_NAME_WITH_ONE_BACKTICK_AS_A_DESTINATION = "reports/O%60Brien%20survey.pdf";
+
+    /**
+     * A document whose name carries two backticks either side of a bracketed word: the pair is a code
+     * span in every renderer configuration measured, and inside one the backslash written before each
+     * bracket is shown at the reader rather than consumed, in every configuration but {@code marked}, which
+     * consumes it inside link text.
+     */
+    private static final String A_NAME_WITH_BACKTICKS_AROUND_A_BRACKET = "reports/the `[final]` draft.pdf";
+
+    /** That name as the entry has to carry it: all four characters behind a backslash. */
+    private static final String THAT_NAME_WITH_ITS_BACKTICKS_ESCAPED = "reports/the \\`\\[final\\]\\` draft.pdf";
+
+    /**
+     * A cluster title carrying one backtick and no partner for it, the way a model echoes a name it was
+     * shown with a backtick for an apostrophe. Alone, it is a literal backtick under the specification in
+     * every configuration measured; it is here so that a heading rule escaping a backtick only where a
+     * partner follows it fails a test.
+     */
+    private static final String A_TITLE_WITH_ONE_BACKTICK = "Retrofits after the O`Brien survey";
+
+    /** That title as the page's heading has to read: the backtick behind a backslash, nothing else moved. */
+    private static final String THAT_TITLE_WITH_ITS_BACKTICK_ESCAPED = "Retrofits after the O\\`Brien survey";
+
+    /**
      * A bracketed ordinal that is not immediately followed by {@code (}, which is a citation the page
      * failed to rewrite (ADR-109): a link's own {@code [n]} is followed by its destination and so is
      * not a survivor.
@@ -769,6 +806,82 @@ class ClusterFileTest {
                         + " characters a reader of the raw page sees, and not in where the link goes",
                 () -> assertThat(whereTheFirstEntryLeadsFrom(page))
                         .isEqualTo(archive.resolve(A_NAME_SPELLING_AN_ENTITY)));
+    }
+
+    /**
+     * The two positions a backtick reaches on a group's page, the membership entry and the heading
+     * (ADR-148).
+     *
+     * <p><b>Two backticks are the hazard, in every renderer configuration measured.</b> They are a code
+     * span: both leave the rendered name, and a bracket between them keeps the backslash the entry's
+     * rule wrote in front of it, in every configuration but {@code marked}, because nothing inside a code
+     * span is unescaped. The second member carries that case; the pair in a heading is claimed in
+     * {@code DeliverableTest}, on the seed's.
+     *
+     * <p><b>The first member and the heading each carry one backtick, and they are here for the rule's
+     * shape, not its ground.</b> One backtick alone is a literal backtick under the specification; in the
+     * entry only one renderer refuses to form the link around it -- a divergence ADR-148 gives no weight --
+     * and in the heading none misreads it. The escape reaches it because ADR-148 makes the rule
+     * unconditional, for ADR-138's reasons, and a rule that escaped a backtick only when a partner followed
+     * would have to parse what a renderer parses. What this pins is that the escape is applied to the
+     * character, wherever it stands, in both rules this page is written through.
+     *
+     * <p><b>The route is claimed as well, and it must not move.</b> The destination is guarded by the
+     * URI quoting it already goes through, which writes a backtick as a percent escape; a rule applied to
+     * the whole entry instead of to its text would put a backslash in the route and leave the reader a
+     * link to nothing.
+     */
+    @Test
+    @Story("A claim leads to the document behind it in two clicks")
+    @DisplayName("A document or group named with backticks is listed under that name rather than as code")
+    @Issue("261")
+    @Link(name = "ADR-148", url = Adr.A_BACKTICK_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN, type = "adr")
+    void keepsABacktickInAnEntryAndAHeadingReadableAsItself(@TempDir Path workingDirectory) throws IOException {
+        Path archive = anArchiveBeside(workingDirectory);
+        Path page = thePageOf(write(
+                workingDirectory,
+                archive,
+                new SynthesisDoc(A_TITLE_WITH_ONE_BACKTICK, "The nearest one [1] is the survey.", sent(10)),
+                List.of(
+                        aMember(10, A_NAME_WITH_ONE_BACKTICK, A_HIGH_SCORE, FIRST_ORDINAL),
+                        aMember(11, A_NAME_WITH_BACKTICKS_AROUND_A_BRACKET, A_MIDDLE_SCORE, FIRST_ORDINAL))));
+        String text = Files.readString(page);
+        String destination = theDestinationTextOn(page);
+
+        claim(
+                "the page opens with the name the writing gave the group, its one backtick behind a"
+                        + " backslash although nothing on the line could pair with it: the heading rule is"
+                        + " applied to the character wherever it stands, not only where a partner follows",
+                () -> assertThat(text).startsWith("# " + THAT_TITLE_WITH_ITS_BACKTICK_ESCAPED + "\n"));
+        claim(
+                "and the entry for a document whose name carries two backticks around a bracketed word"
+                        + " escapes all four, so the reader is shown the name the archive holds: written"
+                        + " through, the bracket keeps its backslash inside the code span in every renderer"
+                        + " configuration but marked, and the reader is shown a character the filename"
+                        + " never had",
+                () -> assertThat(text)
+                        .contains(THE_SECOND_ENTRY + ". <a id=\"document-2\"></a>["
+                                + THAT_NAME_WITH_ITS_BACKTICKS_ESCAPED + "]("));
+        claim(
+                "and the entry for a document whose name carries a single backtick escapes it as well,"
+                        + " because the rule is applied to the character wherever it stands rather than"
+                        + " to the values where a partner happens to follow it",
+                () -> assertThat(text)
+                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>["
+                                + THAT_NAME_WITH_ITS_BACKTICK_ESCAPED + "]("));
+        claim(
+                "while the route to that document is untouched by it: the backtick arrives there as the"
+                        + " percent escape the URI quoting has always written, with no backslash beside it"
+                        + " and no raw backtick anywhere in it",
+                () -> assertThat(destination)
+                        .endsWith(THAT_NAME_WITH_ONE_BACKTICK_AS_A_DESTINATION)
+                        .doesNotContain("\\")
+                        .doesNotContain("`"));
+        claim(
+                "and following it still arrives at the document beneath the archive's own root, so the"
+                        + " escape is paid in what a reader of the raw page sees and not in where the link"
+                        + " goes",
+                () -> assertThat(whereTheFirstEntryLeadsFrom(page)).isEqualTo(archive.resolve(A_NAME_WITH_ONE_BACKTICK)));
     }
 
     /** Writes one tree holding one cluster arranged at the size of the list it holds, and returns its root. */
