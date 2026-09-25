@@ -71,6 +71,23 @@ class RelevanceReportTasklet implements Tasklet {
     private static final int TEXT_OPENING_CHARACTERS = 400;
 
     /**
+     * What a sampled survivor's preview shows when its file could not be opened while this page was
+     * written (ADR-152 §1). Distinct from {@code (no text was extracted)}: that fallback is a fact
+     * about the document's conversion, this one is a fact about the archive at this one moment.
+     */
+    private static final String FILE_COULD_NOT_BE_OPENED_FALLBACK =
+            "(the file could not be opened when this page was written, so its opening is not shown)";
+
+    /**
+     * What a sampled survivor's preview shows when the extraction cache holds no conversion for its
+     * file's current bytes (ADR-152 §3) — under one run chain, the file's bytes changed since stage 2
+     * converted it. The claim is only about the cache, which is all this step knows; it does not say
+     * the file has changed.
+     */
+    private static final String NO_CONVERSION_ON_RECORD_FALLBACK =
+            "(no conversion is on record for the file as it is now, so its opening is not shown)";
+
+    /**
      * The step's own name, which its own wiring builds it under. It is not the name of a completion
      * record, and there is no {@code finishStep} call in this class.
      *
@@ -271,12 +288,20 @@ class RelevanceReportTasklet implements Tasklet {
     }
 
     /**
-     * The start of a document's extracted text, taken from its first chunk.
+     * The start of a document's extracted text, taken from its first chunk (ADR-152).
      *
-     * <p>Read back through the extraction cache, so this costs no Docling call: gate 3's step already
-     * converted every survivor, and a cache hit is what {@link DoclingExtractor#convert} returns.
-     * Chunking is how {@code pipeline} reaches the text at all — the parse that turns a stored
-     * response into text items belongs to {@code extraction} and is not this module's to call.
+     * <p>Read back through the extraction cache only, never converted: gate 3's step already converted
+     * every survivor, and a cache hit under the file's own current hash is what {@link
+     * DoclingExtractor#cached} answers. A page for a person to read is not a place to spend a Docling
+     * call, and on a survivor whose bytes changed since stage 2 that call would convert bytes no score
+     * was computed from.
+     *
+     * <p><b>A file that cannot be opened is a fact about that document, not a fault in this run.</b>
+     * Hashing the file is the one archive access this method makes, and only the {@link
+     * UncheckedIOException} it can throw is tolerated — the survivor stays in the sample and on the
+     * page, with {@link #FILE_COULD_NOT_BE_OPENED_FALLBACK} standing in for its opening and one warning
+     * naming it. A cache miss under the hash that was read is tolerated the same way, with {@link
+     * #NO_CONVERSION_ON_RECORD_FALLBACK} in its place. Neither ever reaches Docling.
      */
     private String textOpeningOf(Path canonicalRoot, OccurrenceId occurrenceId) {
         Optional<OccurrenceFacts> facts = ledger.factsFor(occurrenceId);
@@ -284,9 +309,29 @@ class RelevanceReportTasklet implements Tasklet {
             return "(no text was extracted)";
         }
         Path file = canonicalRoot.resolve(facts.get().path().value());
-        String contentHash = extractor.contentHashFor(file);
-        DoclingResponse response = SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
-        List<Chunk> chunks = hybridChunker.chunk(response.rawResponse(), contentHash, ChunkingRule.DEFAULT);
+        String contentHash;
+        try {
+            contentHash = extractor.contentHashFor(file);
+        } catch (UncheckedIOException fileCouldNotBeOpened) {
+            LOG.warn(
+                    "occurrence {} is sampled on the labelling page but its file {} could not be opened,"
+                            + " so its opening is not shown",
+                    occurrenceId.value(),
+                    file,
+                    fileCouldNotBeOpened);
+            return FILE_COULD_NOT_BE_OPENED_FALLBACK;
+        }
+        Optional<DoclingResponse> cached = extractor.cached(contentHash, extractorIdentity);
+        if (cached.isEmpty()) {
+            LOG.warn(
+                    "occurrence {} is sampled on the labelling page but its file {} carries no cached"
+                            + " conversion under its current content hash, so its opening is not shown",
+                    occurrenceId.value(),
+                    file);
+            return NO_CONVERSION_ON_RECORD_FALLBACK;
+        }
+        List<Chunk> chunks =
+                hybridChunker.chunk(cached.get().rawResponse(), contentHash, ChunkingRule.DEFAULT);
         if (chunks.isEmpty()) {
             return "(no text was extracted)";
         }
