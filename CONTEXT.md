@@ -158,7 +158,7 @@ One execution of one stage under one configuration. Minted when the configuratio
 _Avoid_: job, pass, execution
 
 **Upstream run**:
-The run a stage names as its immediate predecessor — the run of the stage before it, over the same walk, whose record this stage read. Each run names one, and earlier ones are reached through it rather than listed alongside it. Where one walk holds two runs of the same stage, there is no upstream run until a person says which of them is meant.
+The run a stage names as its immediate predecessor — the run of the stage before it that the same invocation minted or continued, over the same walk, whose record this stage read. Each run names one, and earlier ones are reached through it rather than listed alongside it. Where one walk holds two runs of the same stage, the one meant is the one the profile and the build name now, which is the one this invocation arrives at; putting a value back is how a person chooses the other (ADR-154).
 _Avoid_: parent run, previous run, run chain, ancestry
 
 **Invocation**:

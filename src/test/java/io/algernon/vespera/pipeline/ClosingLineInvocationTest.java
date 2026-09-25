@@ -71,6 +71,12 @@ class ClosingLineInvocationTest {
     /** Above every measured document frequency here, so stage 4's gate is open. */
     private static final String BOILERPLATE_FLOOR = "1.0";
 
+    /** A threshold, set so the closing line is past asking for one. */
+    private static final String A_THRESHOLD = "0.0";
+
+    /** An approval as an operator writes it, twelve characters of an arrangement's name. */
+    private static final String AN_APPROVAL = "0123456789ab";
+
     /** The model the scripted embedder answers for. */
     private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
@@ -188,6 +194,54 @@ class ClosingLineInvocationTest {
     }
 
     @Test
+    @Issue("299")
+    @Link(name = "ADR-154", url = Adr.A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT, type = "adr")
+    @Story("Recording answers says what the next run will do, and nothing it did not check")
+    @DisplayName("vespera label with the threshold set and nothing approved sends the operator to run, to be shown an arrangement")
+    void labelWithTheThresholdSetSendsTheOperatorToRun(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerEveryQuestion();
+        theThresholdAndApprovalSetTo(A_THRESHOLD, null);
+
+        cli.run("label");
+
+        claim(
+                "the line says the next run arranges the documents and asks for them to be approved. It"
+                        + " points at no line above it, because recording answers prints none, and it says"
+                        + " nothing about an arrangement, because recording answers arranges nothing",
+                () -> assertThat(stdoutAfterWhatWasRecorded(output).strip())
+                        .isEqualTo("Every value the profile asks for is answered, including relevanceScoreFloor."
+                                + " Next: run vespera run, which arranges the documents and writes"
+                                + " arrangement.html for you to approve."));
+    }
+
+    @Test
+    @Issue("299")
+    @Link(name = "ADR-154", url = Adr.A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT, type = "adr")
+    @Story("Recording answers says what the next run will do, and nothing it did not check")
+    @DisplayName("vespera label with an approval written says the next run checks it, and claims no match")
+    void labelWithAnApprovalWrittenSaysTheNextRunChecksIt(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerEveryQuestion();
+        theThresholdAndApprovalSetTo(A_THRESHOLD, AN_APPROVAL);
+
+        cli.run("label");
+
+        claim(
+                "the line repeats the approval as written and says the next run checks it against the"
+                        + " arrangement the documents are in then. It does not say the approval matches or"
+                        + " that nothing is left to set, since recording answers checked no arrangement,"
+                        + " and it points at no line above it, since recording answers prints none",
+                () -> assertThat(stdoutAfterWhatWasRecorded(output).strip())
+                        .isEqualTo("Every value the profile asks for is answered, and arrangementApproved holds \""
+                                + AN_APPROVAL + "\". Next: run vespera run, which checks that value against the"
+                                + " arrangement the documents are in then and asks for a new approval if they"
+                                + " differ."));
+    }
+
+    @Test
     @Story("A seed folder naming nothing ends the invocation it is read in, not the invocation itself")
     @DisplayName("A seed folder that is not there leaves the run successful and still closing on a line")
     void aSeedFolderThatIsNotThereIsNotFatal(@TempDir Path root, @TempDir Path seeds) throws IOException {
@@ -295,6 +349,14 @@ class ClosingLineInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
+                .build());
+    }
+
+    /** Writes the threshold and the approval, leaving every other key as it was. */
+    private void theThresholdAndApprovalSetTo(String threshold, String approval) {
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .relevanceScoreFloor(threshold, "set by this test")
+                .arrangementApproved(approval, approval == null ? null : "set by this test")
                 .build());
     }
 

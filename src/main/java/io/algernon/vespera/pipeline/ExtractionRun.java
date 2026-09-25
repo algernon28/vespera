@@ -9,6 +9,7 @@ import io.algernon.vespera.ledger.WalkId;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -26,11 +27,12 @@ import tools.jackson.databind.json.JsonMapper;
  * here hard-codes the corpus walk), by resolving the same {@code root} job parameter stage 1 resolved
  * its own walk from.
  *
- * <p>Stage 1's run id is learned rather than worked out: {@link UpstreamRuns} looks up the run of
- * stage 1 recorded against this walk (ADR-099). The stage must not depend on having run in the same
- * invocation as its predecessor — no job-execution-context handoff — and a query is not in-process
- * state. It replaces re-deriving the id from stage 1's known-fixed inputs, which would drift silently
- * if the JSON shape stage 1 hashed ever changed here (ADR-099).
+ * <p>Stage 1's run id is learned rather than worked out: {@link UpstreamRuns} reads the run of stage 1
+ * this invocation minted or continued, from {@link InvocationRuns} (ADR-154 §1, amending ADR-099). The
+ * job-execution-context handoff ADR-099 refused is exactly what this now relies on: every invocation
+ * starts at census and passes through every step in order, so stage 1's run is always in hand by the
+ * time this one asks for it. It replaces re-deriving the id from stage 1's known-fixed inputs, which
+ * would drift silently if the JSON shape stage 1 hashed ever changed here.
  */
 @Component
 @StepScope
@@ -61,19 +63,21 @@ class ExtractionRun {
             ImplementationVersions implementationVersions,
             ExtractorIdentity extractorIdentity,
             DegenerateOutputConfidenceFloor confidenceFloor,
-            @Value("#{jobParameters['root']}") Path root) {
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("#{stepExecution.jobExecution.executionContext}") ExecutionContext executionContext) {
         this.canonicalRoot = Walk.canonicalRoot(root);
         WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 2"));
-        this.byteLevelReductionRunId =
-                new UpstreamRuns(ledger).runOf(ByteLevelReductionTasklet.STAGE, walkId);
+        InvocationRuns invocationRuns = new InvocationRuns(executionContext);
+        this.byteLevelReductionRunId = new UpstreamRuns(invocationRuns).runOf(ByteLevelReductionTasklet.STAGE);
         this.runId = ledger.startRun(
                 STAGE,
                 implementationVersions.of(OWNING_MODULE, SIMILARITY_MODULE),
                 configConsumed(extractorIdentity, confidenceFloor),
                 walkId,
                 List.of(this.byteLevelReductionRunId));
+        invocationRuns.record(STAGE, this.runId);
     }
 
     /**
@@ -82,8 +86,8 @@ class ExtractionRun {
      * requirement).
      *
      * <p>Private since ADR-099: nothing outside this class needs it. It was package-visible only while
-     * later stages re-derived this run's identity by reproducing this JSON shape, and they now look the
-     * run up instead.
+     * later stages re-derived this run's identity by reproducing this JSON shape, and they now
+     * read the run this invocation recorded instead (ADR-154).
      */
     private static String configConsumed(ExtractorIdentity extractorIdentity, DegenerateOutputConfidenceFloor confidenceFloor) {
         return JSON_MAPPER.writeValueAsString(

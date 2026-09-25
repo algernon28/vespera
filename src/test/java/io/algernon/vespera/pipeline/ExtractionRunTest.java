@@ -30,6 +30,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import java.util.Map;
+import java.util.HashMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -75,6 +78,12 @@ class ExtractionRunTest {
     /** Documents written under the second archive. */
     private static final int FILES_IN_THE_SECOND_ARCHIVE = 3;
 
+    /**
+     * The invocation each archive was taken through stage 1 in, so extraction is handed the record that
+     * invocation's stage 1 actually wrote (ADR-154).
+     */
+    private final Map<Path, ExecutionContext> invocations = new HashMap<>();
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -88,7 +97,7 @@ class ExtractionRunTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         walked(ledger, root, FILES_IN_THE_FIRST_ARCHIVE);
 
-        ExtractionRun extractionRun = new ExtractionRun(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+        ExtractionRun extractionRun = new ExtractionRun(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocations.get(root));
 
         claim(
                 "what extraction consumed names the engine it ran against, so a judgement made under one"
@@ -104,11 +113,11 @@ class ExtractionRunTest {
         walked(ledger, root, FILES_IN_THE_FIRST_ARCHIVE);
         RunId previousStage = theOneRunOf(ByteLevelReductionTasklet.STAGE);
 
-        ExtractionRun extractionRun = new ExtractionRun(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+        ExtractionRun extractionRun = new ExtractionRun(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocations.get(root));
 
         claim(
-                "extraction works out the identity of the previous stage's work rather than being handed"
-                        + " it, and what it works out is that work's own identity -- exact only if it matches",
+                "extraction names the previous stage's work this invocation did, as the invocation"
+                        + " recorded it, and that is the work's own identity -- exact only if it matches",
                 () -> assertThat(extractionRun.byteLevelReductionRunId()).isEqualTo(previousStage));
         claim(
                 "and it records that " + ONE_PREVIOUS_PIECE_OF_WORK + " piece of work as what it read, so"
@@ -124,7 +133,7 @@ class ExtractionRunTest {
         walked(ledger, root, FILES_IN_THE_FIRST_ARCHIVE);
 
         ExtractionRun extractionRun =
-                new ExtractionRun(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(0.5), root);
+                new ExtractionRun(ledger, new ImplementationVersions(), IDENTITY, new DegenerateOutputConfidenceFloor(0.5), root, invocations.get(root));
 
         claim(
                 "what extraction consumed also names the tier-2 threshold it ran against, so a run's own"
@@ -142,8 +151,8 @@ class ExtractionRunTest {
         ImplementationVersions versions = new ImplementationVersions();
         ExtractionJobConfiguration configuration = new ExtractionJobConfiguration();
 
-        ExtractionRun overTheFirst = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstArchive);
-        ExtractionRun overTheSecond = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondArchive);
+        ExtractionRun overTheFirst = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstArchive, invocations.get(firstArchive));
+        ExtractionRun overTheSecond = new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondArchive, invocations.get(secondArchive));
         // The reader discards this step's own rows where its work is not recorded as finished, so it is
         // handed what holds them: the two collaborators below, and the template the fault rows are
         // cleared through (ADR-139). Neither archive here has ever been read, so every discard deletes
@@ -184,8 +193,8 @@ class ExtractionRunTest {
      *
      * <p>The previous stage really runs, rather than having a row inserted for it, because extraction
      * declares that stage's work as what it read and the database enforces that the work exists. That
-     * enforcement is exactly what makes working the identity out again safe instead of a guess, so a
-     * test that bypassed it would prove nothing about the working out.
+     * enforcement is what makes naming the work this invocation recorded safe instead of a guess, so
+     * a test that bypassed it would prove nothing about what extraction names (ADR-154).
      *
      * <p>Distinct contents rather than repeated ones, so that the previous stage resolving
      * byte-identical documents to a single representative (ADR-069) does not quietly reduce the count
@@ -200,8 +209,10 @@ class ExtractionRunTest {
         }
         WalkId walkId = new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource))
                 .walk(root);
+        ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
         new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), new ImplementationVersions(), root, root.resolveSibling("stage1-working"))
-                .execute(null, null);
+                .execute(null, step);
+        invocations.put(root, InvocationRecordFixture.recordOf(step));
         return names.stream()
                 .map(name -> ledger.occurrenceId(walkId, new OccurrencePath(name)).orElseThrow())
                 .sorted((left, right) -> Long.compare(left.value(), right.value()))

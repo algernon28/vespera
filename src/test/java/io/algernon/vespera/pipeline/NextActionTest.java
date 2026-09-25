@@ -55,11 +55,20 @@ class NextActionTest {
     /** ADR-088's stratified sample, answered in full. */
     private static final int SIXTY_ANSWERED = 60;
 
+    /**
+     * Whether the approval in the profile names the arrangement this invocation arrived at (ADR-154
+     * §2). Every state here but one is before any approval, or has nothing arranged, so none matches.
+     */
+    private static final boolean NO_APPROVAL_MATCHES_THIS_INVOCATION = false;
+
+    /** The one state here whose approval names the arrangement the invocation arrived at. */
+    private static final boolean APPROVAL_MATCHES_THIS_INVOCATION = true;
+
     @Test
     @Story("Step zero is the seed folder, because it is the only key available on day one")
     @DisplayName("With nothing set, the next action is to name the seed folder")
     void withNothingSetTheNextActionIsTheSeedFolder() {
-        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the line names seedFolder as the value to write, which is the one key no measurement"
@@ -79,7 +88,7 @@ class NextActionTest {
     @Story("The next action names every value the next invocation needs, so no invocation is spent discovering one")
     @DisplayName("With nothing set, the line also names the two values invocation 2 needs")
     void withNothingSetTheLineNamesEveryValueTheNextInvocationNeeds() {
-        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+        String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the boilerplate floor is named, and it is actionable now rather than later: the"
@@ -101,7 +110,7 @@ class NextActionTest {
     @Story("With the run's own values answered, the next act is the operator's own: labelling")
     @DisplayName("With the three run values set and nothing answered, the next action is to label and ingest")
     void withTheRunValuesSetTheNextActionIsToLabel() {
-        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the line says what is set, so an operator who has forgotten what they wrote is not sent"
@@ -121,7 +130,7 @@ class NextActionTest {
     @Story("Answers recorded and no threshold: the number is the operator's to write")
     @DisplayName("With answers recorded, the next action is to write the threshold off the labelling report")
     void withAnswersRecordedTheNextActionIsTheThreshold() {
-        String line = NextAction.line(theRunValuesSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+        String line = NextAction.line(theRunValuesSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the threshold is named now, because the page it is read off exists now -- which is why"
@@ -144,7 +153,7 @@ class NextActionTest {
     @Story("The last point on the path still ends with a line, and it says there is nothing to do")
     @DisplayName("With everything answered, including the arrangement approved, nothing is left to set")
     void withTheThresholdSetThereIsNothingLeftToSet() {
-        String line = NextAction.line(everythingApproved(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT, THE_GENERATION_MODEL);
+        String line = NextAction.line(everythingApproved(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT, THE_GENERATION_MODEL, APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the line says every value is answered, rather than the invocation ending on silence --"
@@ -168,7 +177,7 @@ class NextActionTest {
     @Story("An operator who took step zero is not told their answer is missing")
     @DisplayName("With only the seed folder set, the line says so and names the two values still wanted")
     void withOnlyTheSeedFolderSetTheLineCreditsIt() {
-        String line = NextAction.line(onlyTheSeedFolderSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+        String line = NextAction.line(onlyTheSeedFolderSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the seed folder is reported as set -- this is where the table in ADR-098 puts an"
@@ -196,7 +205,7 @@ class NextActionTest {
     @Story("A threshold nobody can parse is not a threshold, and the line says so")
     @DisplayName("A non-numeric threshold is reported as wanting a number, not as answered")
     void aThresholdThatIsNotANumberIsNotAnAnswer() {
-        String line = NextAction.line(theFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+        String line = NextAction.line(theFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the line does not call the path finished: the run read this value, failed to parse it"
@@ -219,7 +228,7 @@ class NextActionTest {
     @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
     void aMistypedBoilerplateFloorIsReportedToo() {
         String line = NextAction.line(
-                theBoilerplateFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+                theBoilerplateFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the key is named and a number is asked for, exactly as for the other threshold: until"
@@ -251,7 +260,7 @@ class NextActionTest {
                 .build();
 
         String line = NextAction.line(
-                mistypedAndIncomplete, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+                mistypedAndIncomplete, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the mistyped value is quoted back even though another key is unanswered: this is the"
@@ -287,7 +296,7 @@ class NextActionTest {
                 .build();
 
         String line = NextAction.line(
-                onlyTheMistypedFloor, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+                onlyTheMistypedFloor, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the line still says nothing is answered, which is true: the one key holding anything"
@@ -312,7 +321,7 @@ class NextActionTest {
     @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
     void aMistypedConfidenceFloorIsReportedToo() {
         String line = NextAction.line(
-                theConfidenceFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+                theConfidenceFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "this key is named too, and it is the one where saying nothing would be worst: a"
@@ -329,7 +338,7 @@ class NextActionTest {
     @Story("The operator is never sent to a file the invocation did not write")
     @DisplayName("With no questions written, the line does not send the operator to the label file")
     void withNoQuestionsWrittenTheOperatorIsNotSentToTheLabelFile() {
-        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+        String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "no label file is named, because none was written -- a seed folder that produced no"
@@ -355,7 +364,7 @@ class NextActionTest {
     @Issue("175")
     @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
     void withTheThresholdSetTheNextActionIsToApproveTheArrangement() {
-        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT, THE_GENERATION_MODEL);
+        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the approval is named now, because the arrangement it is about exists now -- which is"
@@ -376,7 +385,7 @@ class NextActionTest {
     @DisplayName("With the threshold set and nothing arranged, the approval is not asked for yet")
     @Issue("175")
     void withNothingArrangedTheApprovalIsNotAskedForYet() {
-        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+        String line = NextAction.line(everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "nothing asks the operator to approve an arrangement that was never written: a value"
@@ -391,7 +400,7 @@ class NextActionTest {
     @Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
     void theApprovalLineNamesTheModelGenerationWillRunUnder() {
         String line = NextAction.line(
-                everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT, THE_GENERATION_MODEL);
+                everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, AN_ARRANGEMENT, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the operator is told which model is about to write the connecting text, before the call"
@@ -410,7 +419,7 @@ class NextActionTest {
     @Issue("179")
     void withNothingArrangedNoModelIsNamed() {
         String line = NextAction.line(
-                everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL);
+                everythingSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "naming the model that would generate is only useful beside an arrangement to approve:"

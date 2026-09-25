@@ -52,6 +52,7 @@ class NextAction {
     private final GenerationModel generationModel;
     private final ObjectProvider<Clusters> clusters;
     private final ObjectProvider<SynthesisDocs> synthesisDocs;
+    private final ObjectProvider<ArrangementGate> arrangementGate;
     private final Path workingDirectory;
 
     NextAction(
@@ -61,6 +62,7 @@ class NextAction {
             GenerationModel generationModel,
             ObjectProvider<Clusters> clusters,
             ObjectProvider<SynthesisDocs> synthesisDocs,
+            ObjectProvider<ArrangementGate> arrangementGate,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
         this.profileStore = profileStore;
         this.relevanceLabels = relevanceLabels;
@@ -68,6 +70,7 @@ class NextAction {
         this.generationModel = generationModel;
         this.clusters = clusters;
         this.synthesisDocs = synthesisDocs;
+        this.arrangementGate = arrangementGate;
         this.workingDirectory = workingDirectory;
     }
 
@@ -110,7 +113,32 @@ class NextAction {
      */
     String line() {
         Profile profile = profileStore.load();
-        return line(profile, answersRecordedAgainst(profile), questionsWritten(), null, generationModelName());
+        int answersRecorded = answersRecordedAgainst(profile);
+        if (profile.relevanceScoreFloor().isSet() && anEarlierValueWanted(profile, answersRecorded).isEmpty()) {
+            return afterRecordingAnswers(profile);
+        }
+        // No root and no invocation record: there is no arrangement of this invocation's own to match
+        // an approval against, so there is nothing for the gate's rule to say yes to (ADR-154 §2).
+        return line(profile, answersRecorded, questionsWritten(), null, generationModelName(), false);
+    }
+
+    /**
+     * {@code vespera label}'s line once the relevance floor is set (ADR-154 §2).
+     *
+     * <p>Recording answers arranges nothing and prints no gate line, so this line may neither point at a
+     * gated line above it nor say an approval matches, since it checked none. It says what the next
+     * {@code vespera run} will do instead.
+     */
+    private static String afterRecordingAnswers(Profile profile) {
+        if (!profile.arrangementApproved().isSet()) {
+            return "Every value the profile asks for is answered, including relevanceScoreFloor."
+                    + " Next: run vespera run, which arranges the documents and writes "
+                    + ArrangementTasklet.ARRANGEMENT_FILE_NAME + " for you to approve.";
+        }
+        return "Every value the profile asks for is answered, and arrangementApproved holds "
+                + quoted(profile.arrangementApproved().value()) + ". Next: run vespera run, which checks that"
+                + " value against the arrangement the documents are in then and asks for a new approval if"
+                + " they differ.";
     }
 
     /**
@@ -119,49 +147,36 @@ class NextAction {
      *
      * <p>{@code vespera label} has no root and uses {@link #line()}: it ingests answers and arranges
      * nothing, so there is never an arrangement of its making to name.
+     *
+     * <p>{@code invocationRuns} is what the invocation recorded (ADR-154 §1) — the run of the
+     * arrangement and generation stages this invocation minted or continued, if either ran. This is
+     * never the latest run of either stage, and that is the point (ADR-154 §2): a re-arrangement over a
+     * reused walk (ADR-115) leaves an older arrangement still standing in the walk's history, and only
+     * this invocation's own arrangement is the one the page just written and the closing line agree on.
      */
-    String line(Path corpusRoot) {
+    String line(Path corpusRoot, InvocationRuns invocationRuns) {
         Profile profile = profileStore.load();
+        Optional<RunId> arrangement = invocationRuns.runOf(ArrangementRun.STAGE);
+        Optional<RunId> generation = invocationRuns.runOf(GenerationRun.STAGE);
+        boolean approvalMatchesThisInvocation =
+                arrangementGate.getObject().approvedArrangement(arrangement).isPresent();
         return line(
                 profile,
                 answersRecordedAgainst(profile),
                 questionsWritten(),
-                arrangementToApprove(corpusRoot).orElse(null),
+                arrangement.map(ArrangementGate::shortNameOf).orElse(null),
                 generationModelName(),
-                deliverableFor(corpusRoot).orElse(null));
+                deliverableFor(generation).orElse(null),
+                approvalMatchesThisInvocation);
     }
 
     /**
-     * The short name of the arrangement this invocation wrote for {@code corpusRoot}, or empty where
-     * nothing has been arranged.
-     *
-     * <p>Read off the ledger at the end rather than handed down from the step, for the reason the rest
-     * of this class is: a line assembled from what each step happened to see is a line that can
-     * disagree with what was actually written.
-     *
-     * <p>The run written last, never the greatest — a run id is a hash of what the run consumed, so
-     * sorting by it would hand the operator whichever arrangement happened to hash highest. The value
-     * on this line has to be the one on the page they were just told to read (ADR-107).
+     * The deliverable this invocation's corpus already has, if a generation run stands for this
+     * invocation — so this is still right on an invocation whose step was already recorded finished and
+     * wrote nothing this time (ADR-103, ADR-111, #186).
      */
-    private Optional<String> arrangementToApprove(Path corpusRoot) {
-        return ledger.finishedWalkFor(Walk.canonicalRoot(corpusRoot))
-                .flatMap(walk -> ledger.latestRunFor(ArrangementRun.STAGE, walk))
-                .map(ArrangementGate::shortNameOf);
-    }
-
-    /**
-     * The deliverable this invocation's corpus already has, if a generation run has ever been minted
-     * for it — read off the ledger rather than handed down from the step (the same reason {@link
-     * #arrangementToApprove} is), so this is still right on an invocation whose step was already
-     * recorded finished and wrote nothing this time (ADR-103, ADR-111, #186).
-     *
-     * <p>The generation run written last, for {@link #arrangementToApprove}'s own reason: a run id
-     * carries no order of its own, and insert order is the one record of sequence the table keeps.
-     */
-    private Optional<DeliverableSummary> deliverableFor(Path corpusRoot) {
-        return ledger.finishedWalkFor(Walk.canonicalRoot(corpusRoot))
-                .flatMap(walk -> ledger.latestRunFor(GenerationRun.STAGE, walk))
-                .flatMap(this::summarize);
+    private Optional<DeliverableSummary> deliverableFor(Optional<RunId> generation) {
+        return generation.flatMap(this::summarize);
     }
 
     /**
@@ -252,21 +267,9 @@ class NextAction {
      *     null} where none was. It is a parameter rather than a profile key because an approval can only be
      *     asked for once the thing it is about exists: naming it any earlier would ask the operator
      *     for a value they have no way to supply (ADR-107).
-     */
-    static String line(
-            Profile profile,
-            int answersRecorded,
-            boolean questionsWritten,
-            String arrangementToApprove,
-            String generationModel) {
-        return line(profile, answersRecorded, questionsWritten, arrangementToApprove, generationModel, null);
-    }
-
-    /**
-     * {@link #line(Profile, int, boolean, String, String)}, with the deliverable this invocation's
-     * corpus already has, where there is one (ADR-103, ADR-111, #186) — empty for {@code vespera
-     * label}, which arranges nothing, and for every state before the arrangement is approved, where
-     * naming a tree would be naming one that cannot exist yet.
+     * @param approvalMatchesThisInvocation whether the approval opens the gate on the arrangement this
+     *     invocation made or continued, per {@link ArrangementGate#approvedArrangement} -- the caller's
+     *     to supply, since only the gate's own rule (a prefix of the full id) decides it (ADR-154 §2).
      */
     static String line(
             Profile profile,
@@ -274,35 +277,63 @@ class NextAction {
             boolean questionsWritten,
             String arrangementToApprove,
             String generationModel,
-            DeliverableSummary deliverable) {
-        List<String> stillWanted = runValuesStillWanted(profile);
-        if (!stillWanted.isEmpty()) {
-            return whatIsSet(profile, answersRecorded) + " Next: write "
-                    + listed(stillWanted) + " into " + PROFILE + ", and run again.";
+            boolean approvalMatchesThisInvocation) {
+        return line(
+                profile,
+                answersRecorded,
+                questionsWritten,
+                arrangementToApprove,
+                generationModel,
+                null,
+                approvalMatchesThisInvocation);
+    }
+
+    /**
+     * {@link #line(Profile, int, boolean, String, String, boolean)}, with the deliverable this
+     * invocation's corpus already has, where there is one (ADR-103, ADR-111, #186) — empty for {@code
+     * vespera label}, which arranges nothing, and for every state before the arrangement is approved,
+     * where naming a tree would be naming one that cannot exist yet.
+     */
+    static String line(
+            Profile profile,
+            int answersRecorded,
+            boolean questionsWritten,
+            String arrangementToApprove,
+            String generationModel,
+            DeliverableSummary deliverable,
+            boolean approvalMatchesThisInvocation) {
+        Optional<String> earlier = anEarlierValueWanted(profile, answersRecorded);
+        if (earlier.isPresent()) {
+            return earlier.get();
         }
-        if (profile.relevanceScoreFloor().reading() instanceof NumericValue.Unreadable unreadable) {
-            return "Every run value is set, but relevanceScoreFloor reads " + quoted(unreadable.text())
-                    + ", which is not a number, so this run ignored it and removed nothing. Next: write"
-                    + " a score on the scale " + RelevanceLabellingReport.FILE_NAME + " reports into"
-                    + " relevanceScoreFloor in " + PROFILE + ", and run again.";
-        }
-        Optional<String> otherUnreadable = theConfidenceFloorUnreadable(profile);
-        if (otherUnreadable.isPresent()) {
-            return otherUnreadable.get();
-        }
-        if (profile.relevanceScoreFloor().isSet() && !profile.arrangementApproved().isSet()) {
+        if (profile.relevanceScoreFloor().isSet()) {
             if (arrangementToApprove == null) {
+                // Approval set, and no arrangement this invocation, and approval unset with no
+                // arrangement this invocation are one outcome (ADR-154 §2): in each case no arrangement
+                // has been approved, because none exists yet for this invocation to approve.
                 return "Every value the profile asks for is answered, including relevanceScoreFloor."
                         + " Nothing was arranged this invocation, so there is nothing to approve yet."
                         + " Next: fix what the gated line above names, and run again.";
             }
-            return "Every value the profile asks for is answered, and the documents are"
-                    + " arranged. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
-                    + ", and if that arrangement is the one you want, write " + quoted(arrangementToApprove)
-                    + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
-                    + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
-        }
-        if (profile.relevanceScoreFloor().isSet()) {
+            if (!profile.arrangementApproved().isSet()) {
+                return "Every value the profile asks for is answered, and the documents are"
+                        + " arranged. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
+                        + ", and if that arrangement is the one you want, write " + quoted(arrangementToApprove)
+                        + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
+                        + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
+            }
+            if (!approvalMatchesThisInvocation) {
+                // The approval was set, but names an arrangement this invocation did not arrive at --
+                // an older one of this walk, or a typo (ADR-154 §2). No deliverable is named: no
+                // write-up happened this invocation, and an earlier arrangement's tree is not this
+                // one's.
+                return "Every value the profile asks for is answered, but arrangementApproved holds "
+                        + quoted(profile.arrangementApproved().value()) + ", which is not the arrangement"
+                        + " the documents are in now. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
+                        + ", and if that arrangement is the one you want, write " + quoted(arrangementToApprove)
+                        + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
+                        + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
+            }
             if (deliverable == null) {
                 return "Every value the profile asks for is answered, including the arrangement you"
                         + " approved. Nothing is left to set.";
@@ -327,6 +358,27 @@ class NextAction {
                 + RelevanceLabellingReport.FILE_NAME + ", which says what each candidate cut would keep"
                 + " and discard, write it into relevanceScoreFloor in " + PROFILE + " with how you"
                 + " arrived at it, and run again.";
+    }
+
+    /**
+     * The line for a value wanted before the relevance floor's own outcome can be told — a run value
+     * unset or unreadable, or a numeric floor holding no number — empty where there is none. Shared by
+     * both invocations' lines, so {@code vespera label} names such a value exactly as {@code vespera run}
+     * does.
+     */
+    private static Optional<String> anEarlierValueWanted(Profile profile, int answersRecorded) {
+        List<String> stillWanted = runValuesStillWanted(profile);
+        if (!stillWanted.isEmpty()) {
+            return Optional.of(whatIsSet(profile, answersRecorded) + " Next: write "
+                    + listed(stillWanted) + " into " + PROFILE + ", and run again.");
+        }
+        if (profile.relevanceScoreFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but relevanceScoreFloor reads " + quoted(unreadable.text())
+                    + ", which is not a number, so this run ignored it and removed nothing. Next: write"
+                    + " a score on the scale " + RelevanceLabellingReport.FILE_NAME + " reports into"
+                    + " relevanceScoreFloor in " + PROFILE + ", and run again.");
+        }
+        return theConfidenceFloorUnreadable(profile);
     }
 
     /**

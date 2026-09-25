@@ -23,6 +23,8 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
+import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -66,19 +68,19 @@ class ContentCensusRunTest {
 
     @Test
     @Story("What stage 3 records about itself")
-    @DisplayName("Stage 3's run names the extraction run as its upstream, correctly re-derived")
+    @DisplayName("Stage 3's run names the extraction run this invocation did as its upstream")
     void namesTheExtractionRunAsItsUpstream(@TempDir Path root) throws Exception {
         Ledger ledger = new Ledger(jdbcTemplate);
         ImplementationVersions versions = new ImplementationVersions();
-        walkedThroughExtraction(ledger, versions, root, FILES_IN_THE_FIRST_ARCHIVE);
+        ExecutionContext invocation = walkedThroughExtraction(ledger, versions, root, FILES_IN_THE_FIRST_ARCHIVE);
         RunId theExtractionRun = theOneRunOf(ExtractionRun.STAGE);
 
         ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocation);
 
         claim(
-                "stage 3 works out extraction's own run identity rather than being handed it, and what"
-                        + " it works out is that run's own identity -- exact only if it matches",
+                "stage 3 names the extraction run this invocation recorded, and what it names is that"
+                        + " run's own identity -- exact only if it matches",
                 () -> assertThat(contentCensusRun.extractionRunId()).isEqualTo(theExtractionRun));
         claim(
                 "and it records that run as what it read, so a later question about what stage 3's"
@@ -93,40 +95,43 @@ class ContentCensusRunTest {
             throws Exception {
         Ledger ledger = new Ledger(jdbcTemplate);
         ImplementationVersions versions = new ImplementationVersions();
-        RunId extractionOverTheFirst =
+        ExecutionContext invocationOverTheFirst =
                 walkedThroughExtraction(ledger, versions, firstArchive, FILES_IN_THE_FIRST_ARCHIVE);
-        RunId extractionOverTheSecond =
+        RunId extractionOverTheFirst = theOneRunOf(ExtractionRun.STAGE);
+        ExecutionContext invocationOverTheSecond =
                 walkedThroughExtraction(ledger, versions, secondArchive, FILES_IN_THE_SECOND_ARCHIVE);
+        RunId extractionOverTheSecond = theOneRunOf(ExtractionRun.STAGE);
 
         ContentCensusRun overTheFirst = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstArchive);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstArchive, invocationOverTheFirst);
         ContentCensusRun overTheSecond = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondArchive);
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondArchive, invocationOverTheSecond);
 
         claim(
-                "handed the first archive, stage 3 re-derives the first archive's own extraction run --"
+                "handed the first archive, stage 3 names the first archive's own extraction run --"
                         + " nothing here hard-codes which archive was walked",
                 () -> assertThat(overTheFirst.extractionRunId()).isEqualTo(extractionOverTheFirst));
         claim(
-                "handed the second, it re-derives the second archive's own extraction run instead",
+                "handed the second, it names the second archive's own extraction run instead",
                 () -> assertThat(overTheSecond.extractionRunId()).isEqualTo(extractionOverTheSecond));
     }
 
     /**
      * Walks {@code root}, runs byte-level reduction and extraction for real against it, and returns
-     * extraction's own minted run id -- the fixture {@link ContentCensusRun} needs actually present in
-     * the ledger, since it re-derives that same id rather than being told it.
+     * the invocation's record holding extraction's own minted run id -- the fixture {@link ContentCensusRun} needs actually present in
+     * the ledger and recorded as this invocation's, the way the job's own step leaves it (ADR-154).
      */
-    private RunId walkedThroughExtraction(Ledger ledger, ImplementationVersions versions, Path root, int files)
+    private ExecutionContext walkedThroughExtraction(Ledger ledger, ImplementationVersions versions, Path root, int files)
             throws Exception {
         for (int i = 0; i < files; i++) {
             Files.writeString(root.resolve("document-" + i + ".txt"), "the content of document " + i);
         }
         new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource)).walk(root);
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, null);
-        ExtractionRun extractionRun =
-                new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root);
-        return extractionRun.runId();
+        ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, step);
+        ExecutionContext invocation = InvocationRecordFixture.recordOf(step);
+        new ExtractionRun(ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocation);
+        return invocation;
     }
 
     private RunId theOneRunOf(String stage) {

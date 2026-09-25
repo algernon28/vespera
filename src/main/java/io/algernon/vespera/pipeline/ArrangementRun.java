@@ -8,6 +8,7 @@ import io.algernon.vespera.ledger.WalkId;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.batch.core.configuration.annotation.JobScope;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -69,7 +70,8 @@ class ArrangementRun {
             Ledger ledger,
             ImplementationVersions implementationVersions,
             ObjectProvider<ScoringRun> scoringRun,
-            @Value("#{jobParameters['root']}") Path root) {
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("#{jobExecution.executionContext}") ExecutionContext executionContext) {
         RunId scoring = scoringRun.getObject().runId();
         Path canonicalRoot = Walk.canonicalRoot(root);
         WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
@@ -82,6 +84,10 @@ class ArrangementRun {
                 configConsumed(canonicalRoot, scoring),
                 walkId,
                 List.of(scoring));
+        // Recorded the moment startRun returns (ADR-154 §1): this is what §2 lets the arrangement gate
+        // and the closing line read, without either reaching this bean -- and therefore this
+        // constructor, and therefore a mint -- themselves (ADR-154, Context §3).
+        new InvocationRuns(executionContext).record(STAGE, this.runId);
     }
 
     /**

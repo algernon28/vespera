@@ -66,9 +66,10 @@ import org.springframework.stereotype.Component;
  * purpose — a typo that quietly generated over the latest arrangement would spend an approval it
  * never got.
  *
- * <p><b>An ambiguous approval is not that.</b> A prefix matching two arrangements stops the run
- * rather than choosing one, which is ADR-099's rule for an ambiguous upstream and is deliberately
- * not caught here: the pipeline never guesses which arrangement a person meant.
+ * <p><b>The approval is matched against one arrangement</b> (ADR-154 §2): the one this invocation made
+ * or continued, read from {@link InvocationRuns} and handed to {@link ArrangementGate} rather than
+ * looked up over the walk. An approval naming an older arrangement of the walk closes the gate exactly
+ * as an approval naming nothing does.
  *
  * <p><b>It gathers, and {@code synthesis} writes.</b> Which documents are in a cluster, how they
  * scored and what each opens with live in three modules {@code synthesis} may not name, so they are
@@ -182,12 +183,16 @@ class GenerationTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        // Deliberately outside any catch: an approval naming two arrangements stops the run.
-        Optional<RunId> approved = arrangementGate.approvedArrangement(walk.get());
+        InvocationRuns invocationRuns = new InvocationRuns(
+                chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext());
+        // Never ArrangementRun.getObject() itself, which would mint an arrangement behind the
+        // arrangement step's own gate (ADR-154, Context §3) -- only the arrangement this invocation
+        // already arrived at, if it arrived at one, is asked about.
+        Optional<RunId> approved = arrangementGate.approvedArrangement(invocationRuns.runOf(ArrangementRun.STAGE));
         if (approved.isEmpty()) {
             LOG.info("the generation step is gated: no arrangement of this corpus has been approved --"
-                    + " arrangementApproved is unset, or names no arrangement of this walk. Nothing was"
-                    + " generated.");
+                    + " arrangementApproved is unset, or names an arrangement this invocation did not"
+                    + " arrive at. Nothing was generated.");
             return RepeatStatus.FINISHED;
         }
         RunId arrangement = approved.get();
@@ -284,7 +289,9 @@ class GenerationTasklet implements Tasklet {
                 turnedDownInARow.add(e.fault());
                 if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
                     stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
-                    writeDeliverable(generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
+                    writeDeliverable(
+                            generation, walk.get(), canonicalRoot, recordedClusters, membership,
+                            scores);
                     return RepeatStatus.FINISHED;
                 }
                 continue;
@@ -326,12 +333,14 @@ class GenerationTasklet implements Tasklet {
                     standingFaults,
                     faulted,
                     generation.value());
-            writeDeliverable(generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
+            writeDeliverable(
+                    generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
             return RepeatStatus.FINISHED;
         }
 
         ledger.finishStep(generation, GenerationRun.STAGE);
-        Path tree = writeDeliverable(generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
+        Path tree = writeDeliverable(
+                generation, walk.get(), canonicalRoot, recordedClusters, membership, scores);
         LOG.info(
                 "The generation step finished under {}, over the arrangement approved as {}: {} synthesis"
                         + " doc(s) written under model {} in a window of {}, {} already recorded by an"

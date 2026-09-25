@@ -16,6 +16,7 @@ import io.algernon.vespera.synthesis.ClusterLabel;
 import io.algernon.vespera.synthesis.ClusteredDocument;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.Partition;
+import io.algernon.vespera.synthesis.RecordedCluster;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -139,11 +140,20 @@ class ArrangementTasklet implements Tasklet {
         }
 
         RunId arrangement = arrangementRun.getObject().runId();
+        Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
+                scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
 
-        // This step's own work under this run is already recorded, so there is nothing here to do
-        // (ADR-115, ADR-116).
+        // This step's own work under this run is already recorded, so there are no rows to write --
+        // but the page an approval copies its name off is written every time this invocation arrives
+        // at an arrangement, from the rows recorded under it, including when they were recorded by an
+        // earlier invocation (ADR-154 §2, amending ADR-115's "a skipped step writes no report" for this
+        // one page).
         if (ledger.stepFinished(arrangement, ArrangementRun.STAGE)) {
             LOG.info("the arrangement step was already recorded under run {}", arrangement.value());
+            write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
+                    ArrangementGate.shortNameOf(arrangement),
+                    Walk.canonicalRoot(root).toString(),
+                    reportOf(clusters.forRun(arrangement), membership, scores)));
             return RepeatStatus.FINISHED;
         }
 
@@ -151,18 +161,17 @@ class ArrangementTasklet implements Tasklet {
         // this step's own rows before working is ADR-115's other half (ADR-116).
         clusters.discardForRun(arrangement);
 
-        Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
-                scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
         List<Partition> partitions = Arrangement.partitionsOf(clusteredDocuments(membership, scores));
 
         List<ArrangedCluster> arranged = Arrangement.order(partitions);
         for (ArrangedCluster cluster : arranged) {
-            clusters.record(arrangement, cluster, labelFor(cluster, membership, scores));
+            ClusterLabel label = labelFor(cluster, membership, scores);
+            clusters.record(arrangement, cluster, label);
         }
         write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
                 ArrangementGate.shortNameOf(arrangement),
                 Walk.canonicalRoot(root).toString(),
-                reportOf(arranged, membership, scores)));
+                reportOf(clusters.forRun(arrangement), membership, scores)));
         ledger.finishStep(arrangement, ArrangementRun.STAGE);
         LOG.info(
                 "The arrangement step finished under {}: {} seed partition(s), {} cluster(s), {}"
@@ -175,22 +184,20 @@ class ArrangementTasklet implements Tasklet {
     }
 
     /**
-     * The arrangement as the page shows it, read back off what was just recorded rather than off the
-     * arithmetic that produced it — so what a reviewer is shown is the rows, in the stored order,
-     * which is what their approval then names.
+     * The arrangement as the page shows it, read back off the rows recorded under this run (ADR-112,
+     * ADR-154 §2) rather than off the arithmetic that produced them — so what a reviewer is shown, and
+     * an approval then names, is the same whether this invocation just wrote those rows or is only
+     * rendering a page for a run an earlier invocation finished (ADR-115, ADR-154 §2).
      */
     private List<ArrangementReport.Partition> reportOf(
-            List<ArrangedCluster> arranged, List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
+            List<RecordedCluster> recordedClusters, List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
         Map<OccurrenceId, List<ArrangementReport.Cluster>> bySeed = new LinkedHashMap<>();
-        for (ArrangedCluster cluster : arranged) {
+        for (RecordedCluster recorded : recordedClusters) {
+            ArrangedCluster cluster = recorded.cluster();
             OccurrenceId lead = leadDocumentOf(cluster, membership, scores);
             bySeed.computeIfAbsent(cluster.winningSeed(), seed -> new ArrayList<>())
                     .add(new ArrangementReport.Cluster(
-                            ClusterLabel.derivedFrom(titleOf(lead).orElse(null), pathObjectOf(lead), cluster.ordinal())
-                                    .value(),
-                            cluster.documentCount(),
-                            pathOf(lead),
-                            linkTo(lead)));
+                            recorded.label().value(), cluster.documentCount(), pathOf(lead), linkTo(lead)));
         }
         List<ArrangementReport.Partition> partitions = new ArrayList<>();
         bySeed.forEach((seed, clusters) -> partitions.add(new ArrangementReport.Partition(pathOf(seed), clusters)));
