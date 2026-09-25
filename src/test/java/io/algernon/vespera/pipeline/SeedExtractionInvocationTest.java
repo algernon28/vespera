@@ -291,6 +291,11 @@ class SeedExtractionInvocationTest {
                 "and a warning still names the file",
                 () -> assertThat(warnings())
                         .anyMatch(line -> line.contains(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)));
+        claim(
+                "but no gate shut on it: the finished step's rows are the seed set, and a file used for"
+                        + " nothing this invocation records stops nothing that reads them",
+                () -> assertThat(operatorLines())
+                        .noneMatch(line -> line.contains("a seed file could not be opened")));
     }
 
     @Test

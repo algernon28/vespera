@@ -59,7 +59,7 @@ Once the whole folder has been read, the writer behaves as follows.
 
 So the comparison logs `stage 5's seed/corpus comparison is gated: a seed file could not be opened.` The labelling page does not consult the usable-seed gate. With no scores under the run, it stays shut on its own reason (ADR-088). Generation is shut because no arrangement was made in this invocation (ADR-154 §2).
 
-`UsableSeedGate` carries this second fact for the length of one invocation. It is in-process for the same reason as the first: the gate is answered before anything a later step could read it from exists.
+`UsableSeedGate` carries this second fact for the length of one invocation. It is in-process for a reason of its own, not the first fact's. By the time it is set, the run has been minted and the `unusable_seed` rows that record it have been written. But the fact belongs to this invocation's read of the archive, and those rows sit under a step that is not recorded as finished, which no later step may trust (ADR-116). So the fact is not read back from them.
 
 ### 4. Each such seed is named in a warning, and the step says why it stopped
 
@@ -97,4 +97,8 @@ In the unfinished branch, the writer logs one warning after writing. It gives ho
 **What pins it**, in `SeedExtractionInvocationTest`. The fixture moves a seed out of the seed folder at the moment seed extraction reads it, using a hook on `PathScriptedExtractor.contentHashFor`. The move is an atomic rename, so the file's size and times are kept. Because the read then really finds no file, the test runs on every platform and as any user:
 
 - The seed file is moved away during the invocation that first extracts the seed set. The invocation must succeed, and one measurement run must be minted. One `unusable_seed` row must name that seed with §1's reason, and only the usable seed may carry a metrics row. Neither seed extraction nor the comparison may be recorded as finished, the comparison's shut sentence must name §3's reason, and a warning must name the file. Once it is moved back, the next invocation must keep the same seed walk and the same run, record both steps as finished, leave no `unusable_seed` row, and measure both seeds (§2, §5).
-- A seed file is moved away during an invocation that comes after seed extraction finished. The invocation must succeed, the step must still be recorded as finished, no `unusable_seed` row may appear, both seeds' metrics rows must stand, and a warning must name the file (§2's finished branch).
+- A seed file is moved away during an invocation that comes after seed extraction finished. The invocation must succeed, the step must still be recorded as finished, no `unusable_seed` row may appear, both seeds' metrics rows must stand, and a warning must name the file. No line may say that a seed file could not be opened, because no gate shuts on it (§2's finished branch).
+
+And in `EmbeddingScoringInvocationTest`, whose fixture names an embedding model, so the scoring steps get past the model gate and reach §3's reason. Without a model named they shut on the model gate first, and nothing would show whether `modelSeedWalkUsable` asks §3's question at all:
+
+- The seed file is moved away during the invocation that first extracts the seed set. The invocation must succeed. Neither scoring step may be shut by an earlier gate. Embedding scoring and relevance scoring must each log that they are gated because a seed file could not be opened, and embedding scoring may not be recorded as finished under any run over the corpus. Once the file is moved back, the next invocation must succeed, log no such line, and record embedding scoring as finished (§3, §5).

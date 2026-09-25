@@ -18,34 +18,34 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * Holds what the seed pass learned, and, once the whole pass is done, decides whether stage 5's
+ * Holds what the seed pass learned, and — once the whole pass is done — decides whether stage 5's
  * measurement run exists at all (ADR-083's gate, under ADR-080's rule).
  *
  * <p>Writer and step-execution listener in one class, which is the shape the gate forces rather than
  * a convenience. ADR-083's second gate is <b>no usable seed at all</b>, and that cannot be answered
  * until every seed has been extracted: the answer is a property of the whole folder, not of a chunk.
- * So the per-chunk half of this class only accumulates -- the caches it accumulates from are
- * content-addressed and need no run -- and {@link #afterStep} is where the run is minted, exactly once,
+ * So the per-chunk half of this class only accumulates — the caches it accumulates from are
+ * content-addressed and need no run — and {@link #afterStep} is where the run is minted, exactly once,
  * and only if something usable was found.
  *
  * <p>{@link SeedMeasurementRun} is reached through an {@code ObjectProvider} so that the run row is
  * never minted while the gate is shut: "a run that did nothing should not exist in the {@code run}
  * table" (ADR-080), and a stage-5 run row against a seed folder that produced nothing would read as a
- * measurement that found nothing to say -- which is a different claim from never having run.
+ * measurement that found nothing to say — which is a different claim from never having run.
  *
  * <p>Consequently, when no seed is usable, <b>no {@code unusable_seed} row is written either</b>:
  * those rows carry the run id that found them, and there is no run. What the operator gets in that
  * case is this class's own log line and a successful invocation that removed nothing, which is what a
- * gate is -- the invocation ends having recorded what it learned, and the seed folder is what needs
+ * gate is — the invocation ends having recorded what it learned, and the seed folder is what needs
  * fixing.
  *
  * <p><b>Once the run exists, it also writes the seed side's {@code extraction_metric} rows</b>
- * (ADR-092): {@code ExtractionMetrics.write} -- never {@code writeAndJudge}, since a seed's tier-2
- * confidence is never a floor -- for every outcome that was converted, usable or not. This is the same
+ * (ADR-092): {@code ExtractionMetrics.write} — never {@code writeAndJudge}, since a seed's tier-2
+ * confidence is never a floor — for every outcome that was converted, usable or not. This is the same
  * seam the {@code unusable_seed} rows are written from and for the same reason: the run cannot exist
  * until the whole folder has been converted, so a per-document write is impossible without reopening
  * ADR-083's gate ordering. What is held until then is each seed's measured row, not the document it
- * was measured from -- the processor measures while the document is open and passes the columns on.
+ * was measured from — the processor measures while the document is open and passes the columns on.
  *
  * <p><b>A seed whose file would not open (ADR-155) carries no {@code extraction_metric} row</b> --
  * nothing was converted, so there is nothing measured -- but it still carries an {@code unusable_seed}
@@ -167,7 +167,8 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             // No completion is recorded while any seed file would not open (ADR-155 section 2): the
             // rows just written stand under this run, but the next invocation discards and rewrites
             // them rather than this invocation, or any later one, walking past a seed set with a hole
-            // in it. Stage 5's later steps are shut by usableSeedGate's second fact until they do.
+            // in it. Stage 5's later steps are shut by usableSeedGate's second fact until an invocation
+            // finds every seed file open.
             usableSeedGate.recordSeedFileCouldNotOpen();
             log.warn(
                     "{} seed file(s) could not be opened, so stage 5a (seed extraction) is not recorded"
