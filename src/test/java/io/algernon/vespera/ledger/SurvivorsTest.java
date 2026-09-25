@@ -91,6 +91,114 @@ class SurvivorsTest {
     }
 
     @Test
+    @Story("Survival over a reused walk")
+    @DisplayName("A verdict under a sibling run removes nothing from the other run's survivors")
+    @Issue("297")
+    @Link(name = "ADR-156", url = Adr.A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS, type = "adr")
+    void aSiblingRunsVerdictRemovesNothing() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        OccurrenceId removedByTheStricterFloor = record(ledger, walkId, "irrelevant-at-1.5.txt");
+        OccurrenceId neverRemoved = record(ledger, walkId, "relevant.txt");
+        RunId measurement = ledger.startRun("seed-measurement", "abc123", "{}", walkId, List.of());
+        RunId stricter = ledger.startRun(
+                "embedding-scoring", "abc123", "{\"relevanceScoreFloor\":1.5}", walkId, List.of(measurement));
+        RunId looser = ledger.startRun(
+                "embedding-scoring", "abc123", "{\"relevanceScoreFloor\":0.1}", walkId, List.of(measurement));
+
+        ledger.verdict(removedByTheStricterFloor, stricter, VerdictKind.BELOW_THRESHOLD, "under 1.5");
+
+        claim(
+                "the looser run's survivors still hold the document the stricter run removed: the two runs"
+                        + " name the same upstream and neither reaches the other, so a floor lowered over a"
+                        + " reused walk brings back what the higher one took (#297)",
+                () -> assertThat(drain(ledger.survivors(looser)))
+                        .containsExactly(removedByTheStricterFloor, neverRemoved));
+        claim(
+                "and the stricter run's own survivors still lack it, because its verdict is kept rather than"
+                        + " deleted, and counts again the moment an invocation arrives at that run",
+                () -> assertThat(drain(ledger.survivors(stricter))).containsExactly(neverRemoved));
+    }
+
+    @Test
+    @Story("Survival over a reused walk")
+    @DisplayName("A verdict under a later run removes nothing from an earlier run's survivors")
+    @Issue("297")
+    @Link(name = "ADR-156", url = Adr.A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS, type = "adr")
+    void aLaterRunsVerdictDoesNotReachBack() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        OccurrenceId removedLater = record(ledger, walkId, "irrelevant.txt");
+        OccurrenceId kept = record(ledger, walkId, "relevant.txt");
+        RunId extraction = ledger.startRun("extraction", "abc123", "{}", walkId, List.of());
+        RunId scoring = ledger.startRun("embedding-scoring", "def456", "{}", walkId, List.of(extraction));
+
+        ledger.verdict(removedLater, scoring, VerdictKind.BELOW_THRESHOLD, "under the floor");
+
+        claim(
+                "stage 2's survivors still hold the document stage 5 removed: a run's survivor set is a"
+                        + " question about that run and the runs it read, so a census read under stage 2's"
+                        + " run never counts the corpus as a later floor left it",
+                () -> assertThat(drain(ledger.survivors(extraction))).containsExactly(removedLater, kept));
+    }
+
+    @Test
+    @Story("Survival over a reused walk")
+    @DisplayName("A verdict two runs upstream still removes an occurrence")
+    @Issue("297")
+    @Link(name = "ADR-156", url = Adr.A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS, type = "adr")
+    void aVerdictSeveralRunsUpstreamStillRemoves() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        OccurrenceId broken = record(ledger, walkId, "broken.txt");
+        OccurrenceId redundant = record(ledger, walkId, "redundant.txt");
+        OccurrenceId survivor = record(ledger, walkId, "fine.txt");
+        RunId stageOne = ledger.startRun("byte-level-reduction", "abc123", "{}", walkId, List.of());
+        RunId stageTwo = ledger.startRun("extraction", "abc123", "{}", walkId, List.of(stageOne));
+        RunId stageThree = ledger.startRun("content-census", "abc123", "{}", walkId, List.of(stageTwo));
+        RunId stageFour = ledger.startRun("content-redundancy", "abc123", "{}", walkId, List.of(stageThree));
+        RunId measurement = ledger.startRun("seed-measurement", "abc123", "{}", walkId, List.of(stageFour));
+
+        ledger.verdict(broken, stageOne, VerdictKind.BROKEN, "zero bytes");
+        ledger.verdict(redundant, stageFour, VerdictKind.REDUNDANT_WITH, "says what fine.txt says");
+
+        claim(
+                "the measurement run's survivors lack what stage 1 and stage 4 removed, though it names only"
+                        + " stage 4 upstream: the rule follows the upstream runs all the way back, which is"
+                        + " what keeps the cascade cumulative",
+                () -> assertThat(drain(ledger.survivors(measurement))).containsExactly(survivor));
+    }
+
+    @Test
+    @Story("Survival over a reused walk")
+    @DisplayName("The survivor count answers the same set as the survivors reader")
+    @Issue("297")
+    @Link(name = "ADR-156", url = Adr.A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS, type = "adr")
+    void theCountAgreesWithTheReader() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        OccurrenceId removedBySibling = record(ledger, walkId, "irrelevant-at-1.5.txt");
+        OccurrenceId removedUpstream = record(ledger, walkId, "broken.txt");
+        record(ledger, walkId, "relevant.txt");
+        RunId stageOne = ledger.startRun("byte-level-reduction", "abc123", "{}", walkId, List.of());
+        RunId stricter = ledger.startRun(
+                "embedding-scoring", "abc123", "{\"relevanceScoreFloor\":1.5}", walkId, List.of(stageOne));
+        RunId looser = ledger.startRun(
+                "embedding-scoring", "abc123", "{\"relevanceScoreFloor\":0.1}", walkId, List.of(stageOne));
+
+        ledger.verdict(removedUpstream, stageOne, VerdictKind.BROKEN, "zero bytes");
+        ledger.verdict(removedBySibling, stricter, VerdictKind.BELOW_THRESHOLD, "under 1.5");
+
+        claim(
+                "the count is two, the occurrence the sibling run removed included and the one stage 1"
+                        + " removed left out: a progress line counts the set the stage is handed, so the"
+                        + " count and the reader answer one question",
+                () -> assertThat(ledger.survivorCount(looser))
+                        .isEqualTo(2)
+                        .isEqualTo(drain(ledger.survivors(looser)).size()));
+    }
+
+    @Test
     @Story("What survives a stage")
     @DisplayName("A run records the runs it read, so the chain back to the walk stays queryable")
     @Link(name = "ADR-048", url = Adr.WALK_AND_RUN_IDENTITY, type = "adr")

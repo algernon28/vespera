@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-154.
+One file per architecture decision, ADR-001 through ADR-156.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -172,3 +172,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-152](0152-a-survivor-whose-file-will-not-open-is-still-asked-about-without-its-opening-and-a-step-that-records-completion-stops-instead.md) | 2026-09-25 | A survivor whose file will not open is still asked about, without its opening, and a step that records completion stops instead *(extends ADR-149)* |
 | [ADR-153](0153-the-whole-job-tests-share-one-slice-and-a-stages-configuration-class-stops-being-their-seam.md) | 2026-09-25 | The whole-job tests share one slice, and a stage's configuration class stops being their seam *(amends ADR-131)* |
 | [ADR-154](0154-a-stage-reads-the-upstream-run-this-invocation-arrived-at-and-an-approval-opens-only-this-invocations-arrangement.md) | 2026-09-25 | A stage reads the upstream run this invocation arrived at, and an approval opens only this invocation's arrangement *(amends ADR-099, ADR-107, ADR-115, ADR-058)* |
+| [ADR-156](0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md) | 2026-09-25 | A run's survivors are read through its upstream runs, and a verdict under any other run stays recorded and removes nothing *(amends ADR-060, ADR-089, ADR-014, ADR-154)* |

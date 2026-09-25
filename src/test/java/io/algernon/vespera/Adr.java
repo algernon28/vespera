@@ -732,6 +732,15 @@ public final class Adr {
     public static final String A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT = FILE
             + "0154-a-stage-reads-the-upstream-run-this-invocation-arrived-at-and-an-approval-opens-only-this-invocations-arrangement.md";
 
+    /**
+     * ADR-156 -- a run's survivors are the occurrences with no blocking verdict under that run or any
+     * run upstream of it, so a verdict under a run the invocation did not arrive at stays recorded and
+     * removes nothing, and a loosened floor brings documents back over a reused walk (amends ADR-060,
+     * ADR-089, ADR-014, ADR-154).
+     */
+    public static final String A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS = FILE
+            + "0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md";
+
     private Adr() {
     }
 }

@@ -133,7 +133,7 @@ class RelevanceScoringTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun.extractionRunId()));
+        Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun.runId()));
         LOG.info(
                 "Stage 5d (relevance scoring) starting under scoring run {}: scoring {} corpus"
                         + " survivor(s) against {} resident seed document(s)",

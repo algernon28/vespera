@@ -35,7 +35,7 @@ The single record of file occurrence identity, verdicts and run identity — the
 _Avoid_: the database, the store, the index
 
 **Verdict**:
-A recorded judgement against one file occurrence by one stage, carrying its reason. Verdicts accumulate; they never replace one another.
+A recorded judgement against one file occurrence by one stage, carrying its reason, under the run that made it. Verdicts accumulate down the cascade: a run's survivors answer to its own verdicts and to those of every run upstream of it. They never replace one another, and none is ever deleted. A verdict under a run the present profile and build no longer arrive at stays recorded and removes nothing, until putting a value back arrives at that run again (ADR-156).
 _Avoid_: status, state, flag
 
 **Out of scope**:
@@ -43,7 +43,7 @@ Of a kind of file this tool leaves out whatever it holds, which since ADR-146 me
 _Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this tool chooses not to read them)
 
 **Survivor**:
-A file occurrence carrying no blocking verdict. A question the ledger answers, not a place documents are moved to.
+A file occurrence carrying no blocking verdict under a given run or any run upstream of it. A question the ledger answers of one run, not a place documents are moved to (ADR-156).
 _Avoid_: shortlist, whitelist, the keep pile
 
 **Extraction fault**:
