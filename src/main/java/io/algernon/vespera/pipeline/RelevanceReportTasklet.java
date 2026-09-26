@@ -54,8 +54,9 @@ import org.springframework.stereotype.Component;
  * mechanical shape test would be an unmeasured threshold of its own.
  *
  * <p>Gated exactly as the scoring step before it is, and for the same reason: with no model named,
- * no seed folder, or no usable seed, no score exists to be spread across bands, so there is nothing
- * to put to a person.
+ * no seed folder, no usable seed, or a seed file that would not open, no score exists to be spread
+ * across bands, so there is nothing to put to a person. Since ADR-160 that is literally the same
+ * preamble, and not only the same outcome.
  *
  * <p><b>There is no {@code finishStep} call in this class.</b> ADR-118 names this step and {@code
  * relevance-floor} as the only two that read the answers a person gave, and takes them out of
@@ -97,6 +98,7 @@ class RelevanceReportTasklet implements Tasklet {
 
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
+    private final UsableSeedGate usableSeedGate;
     private final StageRuns stageRuns;
     private final RelevanceDistribution relevanceDistribution;
     private final RelevanceLabels relevanceLabels;
@@ -112,6 +114,7 @@ class RelevanceReportTasklet implements Tasklet {
     RelevanceReportTasklet(
             EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
+            UsableSeedGate usableSeedGate,
             StageRuns stageRuns,
             RelevanceDistribution relevanceDistribution,
             RelevanceLabels relevanceLabels,
@@ -125,6 +128,7 @@ class RelevanceReportTasklet implements Tasklet {
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
+        this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
         this.relevanceDistribution = relevanceDistribution;
         this.relevanceLabels = relevanceLabels;
@@ -139,8 +143,17 @@ class RelevanceReportTasklet implements Tasklet {
     }
 
     /**
-     * Both gates are checked before anything resolves a run, and the seed gate is not optional here
-     * (#141).
+     * Every gate the scoring half consults is checked before anything resolves a run, and neither seed
+     * gate is optional here (#141, ADR-160).
+     *
+     * <p><b>Both seed-usability questions are asked here too, not left to the missing scores.</b> This
+     * step used to consult only the model and the seed walk, on the reasoning that with no usable seed
+     * no survivor carries a score and the step shuts on that itself. It did shut, but only after
+     * resolving {@link StageRuns#embeddingScoring} to learn which run had no scores, and that resolution minted a
+     * scoring run and a seed measurement run behind ADR-083's gate, which ADR-080 forbids -- and a
+     * scoring run behind ADR-155's, over a seed set missing a file (#309). So with a model named, this
+     * step now shuts on either fact in the sentence its siblings use, and mints nothing. Its own
+     * no-scores line below is for the state it was written for: every gate open, and nothing scored.
      *
      * <p>{@link StageRuns#embeddingScoring} resolves the seed-measurement run, which refuses to exist
      * while the seed gate is shut. So a model named with no seed folder -- ADR-098's invocation 2 for an operator who
@@ -151,8 +164,8 @@ class RelevanceReportTasklet implements Tasklet {
      */
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        StageFiveGates.Preamble preamble = StageFiveGates.modelAndSeedWalk(
-                "stage 5's relevance-report step", embeddingModelGate, seedGate);
+        StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
+                "stage 5's relevance-report step", embeddingModelGate, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;

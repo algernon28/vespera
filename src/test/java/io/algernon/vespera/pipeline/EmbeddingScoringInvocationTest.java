@@ -143,11 +143,11 @@ class EmbeddingScoringInvocationTest {
                         .anyMatch(line -> line.contains(
                                 "stage 5's relevance-scoring step is gated: a seed file could not be opened")));
         claim(
-                "embedding scoring is recorded as finished under no run over this corpus, so nothing was"
-                        + " scored and sealed against the seeds that happened to open. The labelling page may"
-                        + " name the scoring run on its own gate, which is why the claim is about the step and"
-                        + " not about the run row",
-                () -> assertThat(scoringFinishedOver(root)).isFalse());
+                "no embedding-scoring run exists over this corpus, so nothing was scored and sealed"
+                        + " against the seeds that happened to open. The relevance report asks the same"
+                        + " seed-usability question before it reaches a scoring run (ADR-160), so no step of"
+                        + " this invocation mints one, and the claim can be about the run row itself",
+                () -> assertThat(runIdsOver(ScoringRun.STAGE, root)).isEmpty());
 
         Files.move(
                 elsewhere.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),

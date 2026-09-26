@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-157.
+One file per architecture decision, ADR-001 through ADR-160.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -176,3 +176,6 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-155](0155-a-seed-file-that-will-not-open-is-recorded-under-a-reason-of-its-own-and-seed-extraction-records-no-completion-until-it-opens.md) | 2026-09-25 | A seed file that will not open is recorded under a reason of its own, and seed extraction records no completion until it opens *(extends ADR-083, ADR-152)* |
 | [ADR-156](0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md) | 2026-09-25 | A run's survivors are read through its upstream runs, and a verdict under any other run stays recorded and removes nothing *(amends ADR-060, ADR-089, ADR-014, ADR-154)* |
 | [ADR-157](0157-a-stage-asks-for-its-run-after-its-own-gate-one-helper-mints-every-run-and-every-step-is-named-once.md) | 2026-09-26 | A stage asks for its run after its own gate, one helper mints every run, and every step is named once *(amends ADR-131, ADR-080, ADR-116, ADR-139)* |
+| [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md) | 2026-09-26 | The operator starts the sidecars from compose.yaml, and the packaged jar starts none *(amends ADR-011)* |
+| [ADR-159](0159-generation-asks-for-no-thinking-and-the-prompt-names-the-square-brackets-a-citation-is-written-in.md) | 2026-09-26 | Generation asks for no thinking, and the prompt names the square brackets a citation is written in *(amends ADR-108, extends ADR-108, ADR-109)* |
+| [ADR-160](0160-the-relevance-report-asks-both-seed-usability-questions-before-it-reaches-the-scoring-run.md) | 2026-09-26 | The relevance report asks both seed-usability questions before it reaches the scoring run *(amends ADR-132, ADR-155)* |

@@ -53,6 +53,15 @@ import org.springframework.stereotype.Component;
  * Ledger#finishStep}, so stage 5 goes no further in this invocation (ADR-155 section 2) and the next
  * invocation discards and rewrites these same rows rather than walking past a seed set with a hole in
  * it.
+ *
+ * <p><b>A step that did not complete concludes nothing (#306).</b> {@link #afterStep} runs after a
+ * failed step too, and then what this class holds is only the chunks written before the failure. So
+ * before any of the above, a step whose exit status is not {@code COMPLETED} gets one line naming
+ * its failure, as {@link StepFailure#named} reads it, and saying to run the same command again, and
+ * nothing else: no answer to {@link
+ * UsableSeedGate}, which stays closed as it starts, no run, no row and no completion. The next
+ * invocation reads every seed again and derives the same run identity, which is ADR-116's rule for
+ * any step that did not finish, and the rule {@link RunCompletion} applies for the steps that use it.
  */
 @Component
 @StepScope
@@ -102,9 +111,26 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
 
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
+        if (!ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())) {
+            // Spring Batch calls this from a finally, so a step that failed part-way arrives here too
+            // (#306). What outcomes holds then is the chunks written before the failure, never the
+            // whole folder: a chunk that rolled back was not handed to write. Every branch below reads
+            // outcomes as the whole folder -- ADR-083's gate would tell a converter crash in the first
+            // chunk that no seed had text, and the run branch would record completion (ADR-116) over a
+            // seed set missing every seed after the crash, which no later invocation would revisit.
+            // So nothing is concluded: usableSeedGate stays as it starts, closed, no run is minted, and
+            // no row is written. The job stops at this failed step, so no later step asks the gate.
+            log.error(
+                    "Stage 5a (seed extraction) failed before it had read the whole seed folder, so stage 5"
+                            + " minted no run and nothing is concluded about the seeds: {}. Fix what that"
+                            + " names -- if docling-serve stopped answering, bring it back -- and run the"
+                            + " same command again.",
+                    StepFailure.named(stepExecution));
+            return stepExecution.getExitStatus();
+        }
         long usableSeeds = outcomes.stream().filter(SeedExtractionOutcome::usable).count();
         long unusableSeedCount = outcomes.size() - usableSeeds;
-        // Told to the rest of stage 5 before this method can return either way: with no usable seed
+        // Told to the rest of stage 5 before any branch below can return: with no usable seed
         // there is no run, so nothing is written that a later step could read the answer off (ADR-092).
         usableSeedGate.recordUsableSeeds(usableSeeds);
         if (seedGate.seedWalk().isEmpty()) {

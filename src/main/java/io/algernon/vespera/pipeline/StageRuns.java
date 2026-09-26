@@ -245,6 +245,16 @@ class StageRuns {
     /**
      * Stage 6b's run, minted the first time this is called in this invocation.
      *
+     * <p><b>The generator identity is what was asked and what answered, never where it was served</b>
+     * (ADR-090, ADR-091): the model's name, the digest of the weights actually serving under that
+     * name, and — once anything sends them — the options actually sent. "The options actually sent"
+     * means the fields of Ollama's {@code options} object — {@code num_ctx} and {@code num_predict}
+     * today — and nothing past it: {@code think} and {@code format} are top-level request fields, not
+     * members of that object, and a code constant outside it reaches this run's id through the
+     * implementation version rather than through {@link GenerationConfigConsumed} (ADR-159, amending
+     * ADR-108). The digest is read here because {@code synthesis} may not reach the serving engine, so
+     * {@code pipeline} reads it and hands it down as a plain string (ADR-110).
+     *
      * @throws IllegalStateException if no approved arrangement stands for this invocation's own
      *     arrangement — unreachable past {@link ArrangementGate}'s own gate, and asserted by no test
      */
@@ -295,7 +305,23 @@ class StageRuns {
     /** Stage 6a's own {@code ConfigConsumed}, unchanged. */
     private record ArrangementConfigConsumed(String corpusRoot, String scoringRunId) {}
 
-    /** Stage 6b's own {@code ConfigConsumed}, unchanged. */
+    /**
+     * Stage 6b's own {@code ConfigConsumed}, unchanged from the run class this replaces.
+     *
+     * <p>Of the options ADR-108 names — {@code num_ctx}, {@code num_predict}, {@code temperature},
+     * {@code seed} — the first two are here, because those are the two anything sends (#180, #182).
+     * {@code temperature} and {@code seed} join this record in the ticket that first puts them on a
+     * call, and a changed identity minting a new run is exactly what should happen when it does.
+     * <b>{@code think} is deliberately not a fifth</b>: it is a top-level request field, not a member
+     * of Ollama's {@code options} object, so it is not one of "the options actually sent" and does not
+     * belong here — a code constant, and it reaches this run's id through the implementation version
+     * like the prompt text does (ADR-159, amending ADR-108).
+     *
+     * <p>The window is what an invocation resolved rather than what the code ships with, so an
+     * operator who widens it re-generates the corpus under a run of its own: a larger window reads
+     * more of each cluster, so the same archive written under two windows is two different pieces of
+     * work and neither can be mistaken for the other.
+     */
     private record GenerationConfigConsumed(
             String corpusRoot,
             String arrangementRunId,

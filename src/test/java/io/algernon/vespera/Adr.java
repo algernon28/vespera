@@ -767,6 +767,29 @@ public final class Adr {
     public static final String A_STAGE_ASKS_FOR_ITS_RUN_AFTER_ITS_OWN_GATE = FILE
             + "0157-a-stage-asks-for-its-run-after-its-own-gate-one-helper-mints-every-run-and-every-step-is-named-once.md";
 
+    /**
+     * ADR-158 -- the operator starts the sidecars from {@code compose.yaml}, and the packaged jar
+     * starts none (amends ADR-011).
+     */
+    public static final String THE_PACKAGED_JAR_STARTS_NO_SIDECAR = FILE
+            + "0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md";
+
+    /**
+     * ADR-159 -- a generation call asks the model not to think before it answers, and the prompt
+     * names the square brackets a citation is written in, with an example; a citation in any other
+     * form is still no citation.
+     */
+    public static final String GENERATION_ASKS_FOR_NO_THINKING_AND_NAMES_THE_SQUARE_BRACKETS = FILE
+            + "0159-generation-asks-for-no-thinking-and-the-prompt-names-the-square-brackets-a-citation-is-written-in.md";
+
+    /**
+     * ADR-160 -- the relevance report asks whether any seed produced text and whether a seed file would
+     * not open before it reaches the scoring run, so it mints nothing behind either gate (amends
+     * ADR-132, ADR-155).
+     */
+    public static final String THE_RELEVANCE_REPORT_ASKS_BOTH_SEED_USABILITY_QUESTIONS = FILE
+            + "0160-the-relevance-report-asks-both-seed-usability-questions-before-it-reaches-the-scoring-run.md";
+
     private Adr() {
     }
 }
