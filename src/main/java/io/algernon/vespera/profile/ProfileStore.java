@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.dataformat.yaml.YAMLMapper;
 
@@ -60,6 +61,10 @@ public class ProfileStore {
      *
      * <p>A corpus with no profile yet is not a special case: it loads as the same complete skeleton
      * of unset keys that an empty file would.
+     *
+     * @throws MisshapenProfileException when the file is not in the shape a profile takes — a key
+     *     nobody knows, a key written flat, or text that is not YAML — carrying the one line the
+     *     operator is told (#321). Jackson's own message named a Java type and no file.
      */
     public Profile load() {
         if (!Files.exists(file)) {
@@ -74,7 +79,11 @@ public class ProfileStore {
         if (yaml.isBlank()) {
             return Profile.skeleton();
         }
-        return YAML.readValue(yaml, Profile.class);
+        try {
+            return YAML.readValue(yaml, Profile.class);
+        } catch (JacksonException notInShape) {
+            throw new MisshapenProfileException(file, notInShape);
+        }
     }
 
     /** Writes the profile out whole, creating the working directory if it is not there yet. */
