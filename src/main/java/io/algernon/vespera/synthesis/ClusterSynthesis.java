@@ -105,6 +105,24 @@ public class ClusterSynthesis {
      */
     static final int INSTRUCTION_RESERVE = 256;
 
+    /**
+     * The length, in words, the instruction after the documents asks the answer to keep to
+     * (ADR-161 §2).
+     *
+     * <p>Chosen by measurement, held under {@code REPLY_ALLOWANCE / TOKENS_PER_WORD} (512): {@code
+     * REPLY_ALLOWANCE / TOKENS_PER_WORD} is 512 words, the most the allowance can hold with nothing
+     * left over for the title or the JSON frame around the writing. 400 leaves about a fifth of the
+     * allowance for those two — 400 * {@link #TOKENS_PER_WORD} is 800, comfortably under {@code
+     * REPLY_ALLOWANCE}'s 1024 — and it is what was measured: the longest of 45 passing calls came to
+     * 345 words and 529 of the 1024 tokens, barely half the allowance.
+     *
+     * <p><b>The model is not bound by it, and nothing checks it.</b> An answer longer than 400 words
+     * that still finishes inside the allowance is believed, because words are not what the checks
+     * below verify — {@code done_reason} is. This is a request that measurably keeps the answer to
+     * the task, not a limit.
+     */
+    private static final int WORD_LIMIT = 400;
+
     /** Highest scoring first, which is the order ADR-108 sends the documents in. */
     private static final Comparator<Exemplar> CLOSEST_TO_THE_SEED_FIRST =
             Comparator.comparingDouble(Exemplar::score).reversed();
@@ -312,7 +330,34 @@ public class ClusterSynthesis {
             throw new ClusterFaultException(new ClusterFault(
                     ClusterFaultKind.SCHEMA_VIOLATION, "the answer came back with no writing in it"));
         }
+        checkNoTrailingBrace(parsed.prose());
         return parsed;
+    }
+
+    /**
+     * Fails the cluster where the writing ends with the answer's own closing brace (ADR-162): the
+     * model's JSON object closed once inside the string, typed as ordinary characters of {@code
+     * prose}, and then closed again for real. That is a malformed answer no earlier check can see,
+     * because the brace sits inside a well-formed string.
+     *
+     * <p><b>Narrow on purpose.</b> The last non-blank character has to be {@code }}, and the writing
+     * has to hold more {@code }} than {@code {} — a balanced pair, such as {@code {PORT}}, is content
+     * a technical corpus can legitimately hold, and is believed. Nothing is stripped either way: a
+     * turned-down answer's writing is never reached by anything that stores it, and a believed one is
+     * returned exactly as {@link #parseAnswer} read it, down to trailing blank space (ADR-109).
+     */
+    private static void checkNoTrailingBrace(String prose) {
+        String withoutTrailingBlank = prose.stripTrailing();
+        if (!withoutTrailingBlank.endsWith("}")) {
+            return;
+        }
+        long closingBraces = withoutTrailingBlank.chars().filter(c -> c == '}').count();
+        long openingBraces = withoutTrailingBlank.chars().filter(c -> c == '{').count();
+        if (closingBraces > openingBraces) {
+            throw new ClusterFaultException(new ClusterFault(
+                    ClusterFaultKind.SCHEMA_VIOLATION,
+                    "the answer's writing ends with a closing brace that belongs to no opening one"));
+        }
     }
 
     /**
@@ -453,8 +498,18 @@ public class ClusterSynthesis {
     }
 
     /**
-     * What the call says: what the cluster is, what it sits under, and the documents under their
-     * ordinals.
+     * What the call says: what the cluster is, what it sits under, the documents under their
+     * ordinals, and — after them, where the model reads it last — what to write and how long
+     * (ADR-108, ADR-161 §1).
+     *
+     * <p><b>The instruction comes after the documents, not before them</b> (ADR-161 §1). Measured on
+     * the 14-document cluster the defect was found on: with the instruction first, some 4,000 tokens
+     * of record rows sat between it and the point where the model starts writing, and the model
+     * either copied the records back until it ran out of room or finished citing nothing. Moved
+     * after the documents, the same request passed 15 calls of 15. The opening keeps the count, the
+     * label, the seed document, and the line saying each document opens below under the number to
+     * cite it by; the documents follow under their ordinals, exactly as ADR-108 and ADR-133 send
+     * them.
      *
      * <p><b>The citation form is named, with an example, rather than left to "the bracketed
      * numbers"</b> (ADR-159 §2). Asked only that, and under the answer schema, the shipped model
@@ -466,6 +521,11 @@ public class ClusterSynthesis {
      * shown even to a single-document call — invited an out-of-range citation from exactly the group
      * size ADR-087 says is an expected outcome. The check is not widened to match the model instead:
      * the deliverable resolves only {@code [n]} into a link (ADR-109).
+     *
+     * <p><b>The instruction names a length, in words, held under {@link #REPLY_ALLOWANCE}</b>
+     * (ADR-161 §2): see {@link #WORD_LIMIT}. A length alone, said before the documents, fixed
+     * nothing measured (0 passes of 8); placement is what fixed it, and the length is what keeps the
+     * passing answers well inside the allowance rather than merely finished.
      */
     private static String promptFor(ClusterCall call, List<Exemplar> inScoreOrder) {
         String exemplars = IntStream.range(0, inScoreOrder.size())
@@ -477,20 +537,24 @@ public class ClusterSynthesis {
 
                 The group is called "%s", and it sits under the seed document "%s".
 
-                Each document opens below under the number to cite it by. Connect them: say what they
-                share, where they differ and what they amount to together. Do not summarise them one
-                by one. Cite with the bracketed numbers, inline, written in square brackets exactly as they
-                appear below, such as %s, and use no other citation of any
-                kind.
+                Each document opens below under the number to cite it by.
 
                 %s
+
+                That is all %d document(s). Connect them in at most %d words: say what they
+                share, where they differ and what they amount to together. Do not summarise them one
+                by one. Cite with the bracketed numbers, inline, written in square brackets exactly as they
+                appear above, such as %s, and use no other citation of any
+                kind.
                 """
                 .formatted(
                         inScoreOrder.size(),
                         call.label(),
                         call.seedPath(),
-                        citationExample(inScoreOrder.size()),
-                        exemplars);
+                        exemplars,
+                        inScoreOrder.size(),
+                        WORD_LIMIT,
+                        citationExample(inScoreOrder.size()));
     }
 
     /**

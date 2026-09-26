@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-160.
+One file per architecture decision, ADR-001 through ADR-162.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -179,3 +179,5 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md) | 2026-09-26 | The operator starts the sidecars from compose.yaml, and the packaged jar starts none *(amends ADR-011)* |
 | [ADR-159](0159-generation-asks-for-no-thinking-and-the-prompt-names-the-square-brackets-a-citation-is-written-in.md) | 2026-09-26 | Generation asks for no thinking, and the prompt names the square brackets a citation is written in *(amends ADR-108, extends ADR-108, ADR-109)* |
 | [ADR-160](0160-the-relevance-report-asks-both-seed-usability-questions-before-it-reaches-the-scoring-run.md) | 2026-09-26 | The relevance report asks both seed-usability questions before it reaches the scoring run *(amends ADR-132, ADR-155)* |
+| [ADR-161](0161-the-instruction-follows-the-documents-and-names-a-length-the-reply-allowance-holds.md) | 2026-09-26 | The instruction follows the documents and names a length the reply allowance holds *(amends ADR-159, extends ADR-108)* |
+| [ADR-162](0162-writing-that-ends-with-the-answers-closing-brace-is-turned-down-as-malformed.md) | 2026-09-26 | Writing that ends with the answer's closing brace is turned down as malformed *(extends ADR-108)* |
