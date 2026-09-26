@@ -7,7 +7,9 @@ package io.algernon.vespera.pipeline;
  * <p>Seven of these values are also a {@link StageModules} stage name — two persisted facts that
  * happen to be equal, {@code finished_step.step} and {@code run.stage}, each declared in its own
  * table and neither defined as the other. After this record, no {@code pipeline} source outside this
- * class and {@link StageModules} holds a string literal equal to a persisted stage or step name.
+ * class and {@link StageModules} holds a string literal naming a persisted stage or step. A module
+ * name is not one: {@code "extraction"} in {@code package-info.java}'s {@code allowedDependencies}
+ * names the module ({@code RunsAndNamesHaveOnePlaceTest}).
  */
 final class StepNames {
 
