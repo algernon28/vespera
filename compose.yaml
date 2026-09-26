@@ -35,8 +35,11 @@ services:
     # Built here rather than pulled, because it adds LibreOffice to the pinned image so that .doc and
     # .ppt convert (ADR-147). The tag is ours and is the image vespera.docling.image names, which the
     # extractor identity carries: this image and the stock one report the same versions and convert
-    # some PDFs differently.
-    image: 'vespera/docling-serve-cpu-libreoffice:v1.32.0'
+    # some PDFs differently. The tag also names the PDF parser the Containerfile pins in place of the
+    # base's own, docling-parse 7.17.0, because a parser change converts PDFs differently too and a
+    # tag that did not say so would let a machine keep running the old parser under the new name
+    # (ADR-163).
+    image: 'vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0'
     build:
       context: docker/docling-serve
       dockerfile: Containerfile

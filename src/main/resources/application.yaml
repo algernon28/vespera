@@ -15,9 +15,10 @@ vespera:
     base-url: http://localhost:5001
     # The image compose.yaml runs the sidecar from, which the extractor identity carries (ADR-147):
     # two images reporting the same versions were measured to convert the same PDF differently, and
-    # the sidecar does not say which image it is. Keep in step with compose.yaml and
-    # TestcontainersConfiguration.
-    image: vespera/docling-serve-cpu-libreoffice:v1.32.0
+    # the sidecar does not say which image it is. The tag names the PDF parser pinned in place of the
+    # base's own, docling-parse 7.17.0, because that changes conversions too (ADR-163). Keep in step
+    # with compose.yaml and TestcontainersConfiguration.
+    image: vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0
 
 spring:
   application:

@@ -5,9 +5,16 @@
 # Writer and Impress, and not Calc: spreadsheets are out of scope (ADR-146), and Calc would be
 # installed only to be attacked. On the pinned v1.32.0; the v1.35.0 bump that hardens the
 # LibreOffice call is a decision of its own. Keep the base in step with compose.yaml's tag.
+#
+# The base's own PDF parser, docling-parse 7.16.0, publishes its base fonts to every decoding
+# thread before it has filled them, and a fresh process decoding a PDF's pages in parallel can read
+# one still empty: 9 crashes and 21 more conversions losing a page, in 30, on a cold process
+# (ADR-163). The layer below replaces it with 7.17.0, the release measured clean, pinned so a
+# rebuild can never pick up a different parser unannounced. Keep the tag below in step with it.
 FROM quay.io/docling-project/docling-serve-cpu:v1.32.0
 USER 0
 RUN dnf -y install --nodocs --setopt=install_weak_deps=False \
       libreoffice-core libreoffice-writer libreoffice-impress \
  && dnf -y clean all && rm -rf /var/cache/dnf
 USER 1001
+RUN pip install --no-cache-dir --no-deps docling-parse==7.17.0 && pip check
