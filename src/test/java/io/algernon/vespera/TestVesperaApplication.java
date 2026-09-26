@@ -12,7 +12,8 @@ import org.springframework.boot.SpringApplication;
  * {@code spring-boot-docker-compose} starts and stops for you.
  * <p>
  * Both paths honour the same decision: the tool owns its own sidecars, so neither asks the operator
- * to start a service by hand (ADR-011).
+ * to start a service by hand (ADR-011). The packaged jar is the one path that does ask: it carries
+ * no compose support, and the operator starts {@code compose.yaml} before running it (ADR-158).
  *
  * @see TestcontainersConfiguration for the containers this adds
  */

@@ -99,11 +99,57 @@ vespera label [file]   record the answers you wrote into the label file
 
 ## Running it
 
-Java 26 and a Docker daemon. Vespera runs its document converter and its embedding model as sidecars and manages them itself.
+You need Java 26 and a Docker daemon. Run every command below from the root of this repository.
+
+**Build it.** This builds the jar Vespera runs from:
 
 ```
-./mvnw verify
+./mvnw package
 ```
+
+**Start the sidecars, once, before the first invocation.** Vespera needs three services running beside it:
+
+- Chroma, the vector store;
+- Ollama, which serves the models;
+- docling-serve, the document converter.
+
+The jar does not start them or stop them. You start them yourself from `compose.yaml`:
+
+```
+docker compose up -d --build
+```
+
+The document converter's image is not pulled. It is built on your machine from `docker/docling-serve`, because it adds LibreOffice to the published image, so that `.doc` and `.ppt` files convert. `--build` builds it the first time and rebuilds it if its `Containerfile` has changed. The first build is the slow one. After that, Docker reuses what it built.
+
+The services listen on ports `8000`, `11434` and `5001`, which is where Vespera looks for them. If something else on your machine already holds one of those ports, the start fails and names the port.
+
+Leave the sidecars up for all five invocations. They can be days apart.
+
+**Give Ollama its models.** Ollama serves only the models it has been given, and Vespera does not fetch them for you:
+
+- The embedding model you name in `embeddingModel` has to be there before invocation 2.
+- The model the connecting text is written with has to be there before invocation 5. That is `qwen3:8b`, unless you set `generationModel`.
+
+```
+docker compose exec ollama ollama pull <embeddingModel>
+docker compose exec ollama ollama pull qwen3:8b
+```
+
+**Run it.** Each `vespera` in this file is this command:
+
+```
+java -jar target/vespera-0.0.1-SNAPSHOT.jar
+```
+
+So `vespera run <root>` is `java -jar target/vespera-0.0.1-SNAPSHOT.jar run <root>`, and `vespera label` is `java -jar target/vespera-0.0.1-SNAPSHOT.jar label`. Unless you set it as "Where things live" describes, the working directory is `.vespera` under the directory you run the command from.
+
+**Stop the sidecars when you are finished:**
+
+```
+docker compose stop
+```
+
+This keeps the models you gave Ollama. `docker compose down` removes the containers, and the models inside them go too.
 
 ## Where the run ends
 

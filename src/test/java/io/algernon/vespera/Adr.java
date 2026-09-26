@@ -759,6 +759,13 @@ public final class Adr {
     public static final String A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS = FILE
             + "0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md";
 
+    /**
+     * ADR-158 -- the operator starts the sidecars from {@code compose.yaml}, and the packaged jar
+     * starts none (amends ADR-011).
+     */
+    public static final String THE_PACKAGED_JAR_STARTS_NO_SIDECAR = FILE
+            + "0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md";
+
     private Adr() {
     }
 }
