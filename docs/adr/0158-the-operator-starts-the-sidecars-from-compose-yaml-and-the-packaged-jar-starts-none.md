@@ -3,7 +3,7 @@
 - **Date**: 2026-09-26
 - **Status**: accepted
 - **Amends**: [ADR-011](0011-managed-containers-the-tool-owns-its-sidecars.md), for the packaged jar. The repository still owns the sidecars: `compose.yaml` declares them and pins their images and their ports. The jar does not start or stop them. The operator starts them once, from `compose.yaml`, and leaves them up across the invocations. ADR-011's single-command start still holds where Spring Boot's compose support is on the classpath, which is the development entry points only.
-- **Keeps**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md). `spring-boot-docker-compose` and `spring-ai-spring-boot-docker-compose` stay `<optional>` in `pom.xml`, and this record is now the decision behind that. Nothing in the pom changes.
+- **Keeps**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md). `spring-boot-docker-compose` and `spring-ai-spring-boot-docker-compose` stay `<optional>` in `pom.xml`, and the pom leaves the Boot plugin's `excludeDockerCompose` and `includeOptional` at their defaults. This record is now the decision behind all three. Nothing in the pom changes.
 - **Keeps**: [ADR-141](0141-the-cli-exits-with-the-commands-exit-code-and-the-scheduler-no-feature-uses-is-removed-at-its-source.md). The operator's shell receives the command's own exit code, because the operator runs the jar directly and no launcher sits between them.
 - **Keeps**: [ADR-147](0147-the-docling-sidecar-is-a-derived-image-with-libreoffice-writer-and-impress-and-the-image-joins-the-extractor-identity.md). The Docling image is built from `docker/docling-serve`, and the operator's start command builds it.
 - **Answers** [#304](https://github.com/algernon28/vespera/issues/304).
@@ -12,8 +12,13 @@
 
 The README said: "Vespera runs its document converter and its embedding model as sidecars and manages them itself." That was not true of the packaged jar, and nothing said so.
 
-- **What starts `compose.yaml`.** Spring Boot's Docker Compose support is what brings `compose.yaml` up. It lives in `spring-boot-docker-compose`, with Spring AI's connection details for Chroma and Ollama in `spring-ai-spring-boot-docker-compose`. Both are `<optional>true</optional>` in `pom.xml`, and the Boot plugin leaves optional dependencies out of the repackaged jar. Measured on 2026-09-26: `target/vespera-0.0.1-SNAPSHOT.jar` nests 143 dependency jars under `BOOT-INF/lib/`, and none of them is either compose artifact.
-- **Where it runs.** The compose support runs under `./mvnw spring-boot:run`, under an IDE launching `VesperaApplication`, and under `TestVesperaApplication`. It does not run under `java -jar`.
+- **What starts `compose.yaml`.** Spring Boot's Docker Compose support is what brings `compose.yaml` up. It lives in `spring-boot-docker-compose`. Spring AI's `spring-ai-spring-boot-docker-compose` starts nothing: it holds only connection-details factories, which read back containers Spring Boot's support has already started.
+- **Why the jar has neither.** Two settings of the Boot plugin's `repackage` goal keep compose support out, each on its own. Both were read from the descriptor of `spring-boot-maven-plugin` 4.1.1, the version `spring-boot-starter-parent` 4.1.1 brings:
+  - `excludeDockerCompose` (since 3.1.0, default `true`, user property `spring-boot.repackage.excludeDockerCompose`) strips `spring-boot-docker-compose` from the jar, whatever its scope and whether or not it is `<optional>`. It names that one artifact, and not Spring AI's.
+  - `includeOptional` (since 3.5.7, default `false`) leaves every `<optional>` dependency out of the jar. Both compose artifacts are `<optional>true</optional>` in `pom.xml`, so this drops both.
+
+  So `spring-boot-docker-compose` is kept out twice over, and Spring AI's artifact once, by `<optional>`. Measured on 2026-09-26: `target/vespera-0.0.1-SNAPSHOT.jar` nests 143 dependency jars under `BOOT-INF/lib/`, and none of them is either compose artifact.
+- **Where it runs.** The compose support is on the classpath under `./mvnw spring-boot:run`, under an IDE launching `VesperaApplication`, and under `TestVesperaApplication`, because `<optional>` and the plugin's exclusion govern only the repackaged jar. Nothing in the tree sets `spring.docker.compose.enabled` for those entry points. Spring Boot skips compose only when a JUnit or `org.springframework.boot.test` frame is on the stack (`DockerComposeSkipCheck`), and a `main` launch has none. So, by the code, the support runs under all three. That is read from the code and not measured. It does not run under `java -jar`.
 - **What `compose.yaml` already assumed.** Its header comment already reasoned from this: "from `java -jar` nothing reads it back". That is why every host port is pinned to the default that `application.yaml` and Spring AI assume. So the file was written for a jar that does not start its own sidecars, and the README described one that did.
 - **What operators actually do.** The one operator run on this machine runs the jar with `java -jar`, and starts the sidecars itself from `compose.yaml`.
 - **No launcher exists.** The README's commands are written as `vespera run <root>`, and the tree holds no launcher of that name. There is no script and no wrapper, and the build produces nothing named `vespera` on a path. picocli's command is named `vespera`. The operator gets there by `java -jar` on the Boot jar.
@@ -22,17 +27,19 @@ The README said: "Vespera runs its document converter and its embedding model as
 
 ## Decision
 
-**The operator starts the sidecars, and the operator runs the jar.** Before the first invocation, the operator runs `docker compose up -d --build` from the repository root. That starts Chroma, Ollama and docling-serve, and builds the Docling image from `docker/docling-serve`. The operator then runs Vespera as `java -jar target/vespera-0.0.1-SNAPSHOT.jar`, followed by the subcommand. The sidecars stay up across all five invocations, and the operator stops them when the curation is done.
+**The operator starts the sidecars, and the operator runs the jar.** Before the first invocation, the operator runs `docker compose -p vespera up -d --build` from the repository root. That starts Chroma, Ollama and docling-serve, and builds the Docling image from `docker/docling-serve`. The operator then runs Vespera as `java -jar target/vespera-0.0.1-SNAPSHOT.jar`, followed by the subcommand. The sidecars stay up across all five invocations, and the operator stops them when the curation is done.
 
-**The packaged jar carries no compose support, deliberately.** The two compose dependencies stay `<optional>`, so the jar starts no container and stops none. Before this record, `<optional>` was Spring Initializr's default. From this record on, it is the decision.
+**Every compose command the operator is given names the project, as `-p vespera`.** Without it, Docker Compose names the project after the directory holding `compose.yaml`. A second checkout, a worktree or a renamed directory then gets a second set of containers, which collide with the first on the pinned ports, and `stop` or `exec` from there misses the containers that are running. `-p vespera` gives the same containers from any checkout. It is on the command line rather than a `name:` in `compose.yaml`, because a `name:` would also rename the project the development entry points start, and that is not measured here. `docker compose -p vespera up -d` from the repository root was run successfully on 2026-09-26.
+
+**The packaged jar carries no compose support, deliberately.** The pom keeps both compose dependencies `<optional>`, and leaves the Boot plugin's `excludeDockerCompose` at `true` and `includeOptional` at `false`. So the jar starts no container and stops none. Before this record, those were Spring Initializr's and the plugin's defaults. From this record on, they are the decision.
 
 ### Why not the other two
 
-**The jar manages the sidecars (drop `<optional>`).** Rejected for three reasons:
+**Ship compose support in the jar, so that the jar manages the sidecars.** That takes two changes to the pom, and neither alone does it. `excludeDockerCompose` has to be `false`, and `spring-boot-docker-compose` has to reach the jar, by dropping its `<optional>` or by setting `includeOptional` to `true`. Rejected for three reasons:
 
 - **It ties the jar to the checkout.** Spring Boot looks for `compose.yaml` in the working directory, and the file's build context is `docker/docling-serve`, relative to the file. So the jar could only be launched from the repository root, or with `spring.docker.compose.file` pointed back at the checkout. Under this record the jar needs nothing from the checkout, and runs from wherever it is copied to.
 - **It puts Docker in front of every command.** `vespera label`, `vespera --version` and a rejected option each need no sidecar. Each would have to start or confirm the whole stack before picocli read the command line. That is the start-up dependency ADR-142 removed for Chroma.
-- **It gains nothing for the sidecars that need it most.** Dropping `<optional>` would let Chroma's and Ollama's ports float again, but docling-serve has no connection-details factory at all (ADR-071). Its port stays pinned whatever the classpath holds, so `compose.yaml`'s pinning argument would be rewritten for two of three services and still stand for the third.
+- **It gains nothing for the sidecars that need it most.** Shipping compose support would let Chroma's and Ollama's ports float again, but docling-serve has no connection-details factory at all (ADR-071). Its port stays pinned whatever the classpath holds, so `compose.yaml`'s pinning argument would be rewritten for two of three services and still stand for the third.
 
 **Maven is the launcher (`./mvnw spring-boot:run`).** Rejected because it breaks two things an operator is promised:
 
@@ -47,7 +54,7 @@ Maven launching also recompiles on every invocation, and it passes the archive r
 - **It keeps what the single command was for:**
   - the operator never chooses an image, a version or a port;
   - `compose.yaml` is still the one file that pins them, in step with `TestcontainersConfiguration` and `vespera.docling.image` (ADR-147).
-- **The development entry points still start and stop the sidecars themselves.** These are `spring-boot:run`, an IDE run of `VesperaApplication`, and `TestVesperaApplication`. ADR-142's "the compose lifecycle still starts the sidecars" stays true of those entry points. It is not true of the jar.
+- **The development entry points still start and stop the sidecars themselves.** These are `spring-boot:run`, an IDE run of `VesperaApplication`, and `TestVesperaApplication`. `TestVesperaApplication` also adds the Testcontainers containers of `TestcontainersConfiguration`, and does not turn compose off, so by the code it brings up both sets. Which set its connection details then point at is not measured. ADR-142's "the compose lifecycle still starts the sidecars" stays true of those entry points. It is not true of the jar.
 
 ## Consequences
 
@@ -62,8 +69,12 @@ Maven launching also recompiles on every invocation, and it passes the archive r
   - the services, the build context and the ports against `compose.yaml`;
   - the generation model against `application.yaml`;
   - the Java version against the pom.
-- **`PackagedJarIT` pins the jar's half.** It opens the packaged jar and asserts that no compose artifact is under `BOOT-INF/lib/`. If someone drops `<optional>`, the jar starts containers from wherever it is launched, which silently reverses this record, and this test is what fails.
-- **`compose.yaml` does not change.** Its header comment was written on the premise this record adopts, and it stays true word for word.
+- **`PackagedJarIT` pins the jar's half.** It opens the packaged jar and asserts that neither compose artifact is under `BOOT-INF/lib/`. It fails whenever either one is nested, and that is stricter than the decision:
+  - Dropping `<optional>` from `spring-boot-docker-compose` alone changes nothing, because `excludeDockerCompose` still strips it. Setting `excludeDockerCompose` to `false` alone changes nothing either, because `<optional>` still leaves it out. The test stays green in both cases.
+  - Dropping `<optional>` from `spring-ai-spring-boot-docker-compose`, or setting `includeOptional` to `true`, nests Spring AI's artifact. The jar still starts nothing, because that artifact only reads back containers something else started. The test fails anyway, so the change has to come back to this record.
+  - Reversing this record for real takes both changes: `excludeDockerCompose` at `false`, and `spring-boot-docker-compose` let through by dropping its `<optional>` or by `includeOptional`. The jar would then start containers from wherever it is launched, and this test is what fails.
+- **The README names the project on every compose command, as `-p vespera`.** `docs/check-claims.mjs` checks that each `docker compose` line in "Running it" carries it.
+- **`compose.yaml`'s header comment is corrected, and nothing else in the file changes.** It said the compose support is out of the jar because it is `<optional>`, which is one of the two causes. It now names both. Its argument for pinning the ports stands as it was.
 - **Operator-facing costs:**
   - **The embedding model and the generation model live inside the Ollama container.** `compose.yaml` declares no volume, so `docker compose down` discards them with the container, and `docker compose stop` keeps them. The README says which command to use.
   - **Chroma's contents go with its container too.** That is harmless, because Chroma is a disposable projection of what SQLite holds (ADR-039).

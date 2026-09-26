@@ -427,7 +427,11 @@ function readmeSection(heading, name) {
 
     // The compose file, its services, and the one exec'd into.
     if (!section.includes("`compose.yaml`")) wrong.push(`it does not name ${COMPOSE}`);
-    if (!/^docker compose up -d --build$/m.test(section)) wrong.push("it shows no docker compose up -d --build");
+    if (!/^docker compose -p vespera up -d --build$/m.test(section)) wrong.push("it shows no docker compose -p vespera up -d --build");
+    // Every compose command names the project, or one run from another checkout misses the containers (ADR-158).
+    for (const m of section.matchAll(/docker compose (?!-p vespera )[^\n`]*/g)) {
+      wrong.push(`${m[0]} does not name the project as -p vespera`);
+    }
     const body = compose.slice(compose.search(/^services:\s*$/m));
     const services = [...body.matchAll(/^ {2}([\w-]+):\s*$/gm)].map((m) => m[1]);
     const said = { chroma: /\bChroma\b/, ollama: /\bOllama\b/, "docling-serve": /\bdocling-serve\b/ };
@@ -436,8 +440,8 @@ function readmeSection(heading, name) {
       else if (!said[s].test(section)) wrong.push(`${COMPOSE} runs ${s} and the section never names it`);
     }
     for (const s of Object.keys(said)) if (!services.includes(s)) wrong.push(`the section names ${s} and ${COMPOSE} runs no such service`);
-    for (const m of section.matchAll(/^docker compose exec (\S+)/gm)) {
-      if (!services.includes(m[1])) wrong.push(`docker compose exec ${m[1]} names no service in ${COMPOSE}`);
+    for (const m of section.matchAll(/^docker compose -p vespera exec (\S+)/gm)) {
+      if (!services.includes(m[1])) wrong.push(`docker compose -p vespera exec ${m[1]} names no service in ${COMPOSE}`);
     }
 
     // The Docling image is built, from the directory the section names.

@@ -21,12 +21,20 @@ import org.junit.jupiter.api.Test;
  * The packaged jar starts no sidecar, because it carries no compose support (ADR-158).
  *
  * <p>The operator starts the sidecars from {@code compose.yaml} and then runs this jar. That split
- * holds only while Spring Boot's Docker Compose support stays out of the jar. It is out because
- * {@code spring-boot-docker-compose} and {@code spring-ai-spring-boot-docker-compose} are
- * {@code <optional>} in {@code pom.xml}, and the Boot plugin leaves optional dependencies out of the
- * jar it repackages. Drop either {@code <optional>}, and the jar would look for a
- * {@code compose.yaml} wherever it is launched from, and start or stop containers on every command.
- * That reverses the decision without a word, so this test opens the jar and fails on it.
+ * holds only while Spring Boot's Docker Compose support stays out of the jar. Two settings of the
+ * Boot plugin's {@code repackage} goal keep it out, each on its own. {@code excludeDockerCompose},
+ * {@code true} by default, strips {@code spring-boot-docker-compose} whatever its scope.
+ * {@code includeOptional}, {@code false} by default, leaves out every {@code <optional>} dependency,
+ * and both {@code spring-boot-docker-compose} and {@code spring-ai-spring-boot-docker-compose} are
+ * {@code <optional>} in {@code pom.xml}. Only both changes together, {@code excludeDockerCompose}
+ * at {@code false} and {@code spring-boot-docker-compose} let through, give the jar a compose
+ * support that looks for a {@code compose.yaml} wherever it is launched from, and starts or stops
+ * containers on every command. That reverses the decision without a word.
+ *
+ * <p>This test fails whenever either compose artifact is nested, which is stricter than that. Spring
+ * AI's artifact holds only connection-details factories and starts nothing, so letting it in alone
+ * leaves the jar starting nothing. The test fails on it anyway, so that any change to what the jar
+ * carries here comes back to ADR-158.
  *
  * <p>It is an integration test only because the packaged jar exists only after {@code package}. It
  * needs no Docker daemon, and it launches nothing.

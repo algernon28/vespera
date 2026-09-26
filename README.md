@@ -116,8 +116,10 @@ You need Java 26 and a Docker daemon. Run every command below from the root of t
 The jar does not start them or stop them. You start them yourself from `compose.yaml`:
 
 ```
-docker compose up -d --build
+docker compose -p vespera up -d --build
 ```
+
+`-p vespera` names the Compose project `vespera`, whatever your checkout's directory is called. Give it on every `docker compose` command here, so that each one finds the same containers. Without it, Docker Compose names the project after the directory, and a second checkout starts a second set that fights the first for the same ports.
 
 The document converter's image is not pulled. It is built on your machine from `docker/docling-serve`, because it adds LibreOffice to the published image, so that `.doc` and `.ppt` files convert. `--build` builds it the first time and rebuilds it if its `Containerfile` has changed. The first build is the slow one. After that, Docker reuses what it built.
 
@@ -131,8 +133,8 @@ Leave the sidecars up for all five invocations. They can be days apart.
 - The model the connecting text is written with has to be there before invocation 5. That is `qwen3:8b`, unless you set `generationModel`.
 
 ```
-docker compose exec ollama ollama pull <embeddingModel>
-docker compose exec ollama ollama pull qwen3:8b
+docker compose -p vespera exec ollama ollama pull <embeddingModel>
+docker compose -p vespera exec ollama ollama pull qwen3:8b
 ```
 
 **Run it.** Each `vespera` in this file is this command:
@@ -146,10 +148,10 @@ So `vespera run <root>` is `java -jar target/vespera-0.0.1-SNAPSHOT.jar run <roo
 **Stop the sidecars when you are finished:**
 
 ```
-docker compose stop
+docker compose -p vespera stop
 ```
 
-This keeps the models you gave Ollama. `docker compose down` removes the containers, and the models inside them go too.
+This keeps the models you gave Ollama. `docker compose -p vespera down` removes the containers, and the models inside them go too.
 
 ## Where the run ends
 
