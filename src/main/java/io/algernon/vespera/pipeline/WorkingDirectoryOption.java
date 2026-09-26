@@ -11,8 +11,9 @@ import picocli.CommandLine.Spec;
  *
  * <p>ADR-054 makes the working directory overridable per invocation on the command line, and an
  * invocation is any command, not only {@code run}. The option was declared on {@code run} alone, so
- * {@code vespera label --db-dir=<path>} was refused as an unknown option and an operator who had moved
- * the working directory could not reach it from invocation 3. Declaring it here, once, is what keeps
+ * {@code vespera label --db-dir=<path>} was refused as an unknown option, and an operator who had moved
+ * the working directory with {@code --db-dir} could reach it from invocation 3 only by also setting
+ * {@code vespera.working-dir} in configuration. Declaring it here, once, is what keeps
  * every command agreeing on its name, its form and its check, rather than relying on two copies that
  * would drift the way the property and the option already can.
  *
@@ -62,8 +63,8 @@ final class WorkingDirectoryOption {
             return null;
         }
         return ("%s was given --db-dir %s but the database and profile were opened in %s;"
-                        + " --db-dir has to be given as --db-dir=<path>, because it is read as the %s"
-                        + " property before this command is parsed")
+                        + " --db-dir has to be given as --db-dir=<path>, because it is read as the db-dir"
+                        + " property %s is resolved from, before this command is parsed")
                 .formatted(command.qualifiedName(), typed, actual, WorkingDirectoryPreparer.PROPERTY);
     }
 }

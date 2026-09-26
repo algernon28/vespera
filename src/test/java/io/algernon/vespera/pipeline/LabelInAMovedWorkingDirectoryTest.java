@@ -32,8 +32,9 @@ import picocli.CommandLine;
  *
  * <p>ADR-054 makes the working directory overridable per invocation on the command line, and the
  * README tells the operator to move it with {@code --db-dir=<path>}. {@code vespera label} is
- * invocation 3, and it refused the option outright, so the only way to reach a moved working
- * directory from it was a property the README never named for that case.
+ * invocation 3, and it refused the option outright, so an operator who had moved the working
+ * directory with {@code --db-dir} could reach it from there only by also setting
+ * {@code vespera.working-dir} in configuration.
  *
  * <p>The option is read twice (the property the datasource is built from, and the option picocli
  * parses), so an in-process test cannot see the property half: the context here is built with
@@ -95,7 +96,8 @@ class LabelInAMovedWorkingDirectoryTest {
         claim(
                 "the label command accepts the same database directory the run was given, and reports"
                         + " success -- an operator who moved the directory names it on every command, and"
-                        + " refusing it here left no documented way to reach it",
+                        + " refusing it here left an operator who moved it with --db-dir only a"
+                        + " configuration edit to reach it",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
                 "and the " + EVERY_ANSWER + " answer written into that directory's label file is now a row",
@@ -139,7 +141,7 @@ class LabelInAMovedWorkingDirectoryTest {
                 "the file is refused: where it sits says nothing about which database it belongs to, so"
                         + " it is checked against the questions the opened directory's last run asked,"
                         + " and these answers are to questions that run never asked",
-                () -> assertThat(cli.getExitCode()).isNotZero());
+                () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.SOFTWARE));
         claim("and no answer was recorded", () -> assertThat(labelCount(seeds)).isZero());
     }
 

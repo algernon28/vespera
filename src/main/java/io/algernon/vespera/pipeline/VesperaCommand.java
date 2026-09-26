@@ -27,7 +27,7 @@ import picocli.CommandLine.Spec;
  * labelling, it reads a file they authored, and it mints no run, so folding it into the run would
  * weld a deliberate act onto an unattended pass.
  *
- * <p>{@code run} takes the corpus root and nothing else. The root is the argument, and
+ * <p>{@code run} takes one argument, the corpus root. The root is the argument, and
  * {@code vespera.corpus-root} in {@code application.yaml} answers only an invocation that names none
  * (ADR-066). Where the database and the profile live is operator configuration rather than something
  * derived from the root (ADR-054), so it is {@code vespera.working-dir} in the same file, overridden
