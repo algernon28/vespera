@@ -12,8 +12,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
+import picocli.CommandLine.Mixin;
+import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Parameters;
+import picocli.CommandLine.Spec;
 
 /**
  * The command surface (ADR-047, ADR-054, narrowed by ADR-101): {@code vespera run <root>} and
@@ -25,11 +27,12 @@ import picocli.CommandLine.Parameters;
  * labelling, it reads a file they authored, and it mints no run, so folding it into the run would
  * weld a deliberate act onto an unattended pass.
  *
- * <p>{@code run} takes the corpus root and nothing else. The root is the argument, and
+ * <p>{@code run} takes one argument, the corpus root. The root is the argument, and
  * {@code vespera.corpus-root} in {@code application.yaml} answers only an invocation that names none
  * (ADR-066). Where the database and the profile live is operator configuration rather than something
  * derived from the root (ADR-054), so it is {@code vespera.working-dir} in the same file, overridden
- * per invocation with {@code --db-dir=<path>}.
+ * per invocation with {@code --db-dir=<path>} — on either command, since each opens that directory
+ * ({@link WorkingDirectoryOption}, #310).
  */
 @Component
 @Command(
@@ -47,10 +50,21 @@ public class VesperaCommand implements Callable<Integer> {
         this.label = label;
     }
 
-    /** Bare {@code vespera} names no act, so it prints what the acts are. */
+    /** The model {@link #commandLine()} built, subcommands and all, injected by picocli on parsing. */
+    @Spec
+    private CommandSpec spec;
+
+    /**
+     * Bare {@code vespera} names no act, so it prints what the acts are.
+     *
+     * <p>It prints from the model already built rather than building another from this object. A
+     * second model would be built with picocli's default factory, which cannot construct the
+     * subcommand beans, and reading {@code --db-dir} out of {@link WorkingDirectoryOption} needs the
+     * subcommand instance to exist.
+     */
     @Override
     public Integer call() {
-        CommandLine.usage(this, System.out);
+        spec.commandLine().usage(System.out);
         return CommandLine.ExitCode.USAGE;
     }
 
@@ -110,12 +124,8 @@ public class VesperaCommand implements Callable<Integer> {
                         + " in application.yaml when omitted.")
         private Path root;
 
-        @Option(
-                names = "--db-dir",
-                paramLabel = "<path>",
-                description = "Where the database and profile.yaml live. Must be given as --db-dir=<path>,"
-                        + " because it is read before this command is parsed.")
-        private Path databaseDirectory;
+        @Mixin
+        private WorkingDirectoryOption databaseDirectory = new WorkingDirectoryOption();
 
         Run(
                 JobOperator jobOperator,
@@ -135,16 +145,17 @@ public class VesperaCommand implements Callable<Integer> {
          *
          * <p>Every parsed argument belongs to one invocation, and this bean outlives them all. Only
          * the two fields picocli writes are cleared; the injected ones are configuration, which does
-         * not change between invocations of the same process.
+         * not change between invocations of the same process. The option is cleared by swapping the
+         * whole mixin for a fresh one, which is the instance picocli then parses into.
          */
         void forgetPreviousInvocation() {
             root = null;
-            databaseDirectory = null;
+            databaseDirectory = new WorkingDirectoryOption();
         }
 
         @Override
         public Integer call() throws Exception {
-            String misnamedDatabaseDirectory = misnamedDatabaseDirectory();
+            String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
             if (misnamedDatabaseDirectory != null) {
                 System.err.println(misnamedDatabaseDirectory);
                 return CommandLine.ExitCode.SOFTWARE;
@@ -187,36 +198,6 @@ public class VesperaCommand implements Callable<Integer> {
             }
             return configuredRoot == null || configuredRoot.isBlank() ? null : Path.of(configuredRoot.strip());
         }
-
-        /**
-         * What to tell the operator when the option they typed is not the directory the application
-         * actually opened, or {@code null} when the two agree.
-         *
-         * <p>{@code --db-dir} is read twice by two different mechanisms: as a property, before the
-         * datasource exists, and as an option here. That is not redundancy — without the option
-         * picocli would reject the argument outright — but it does mean the two could drift, and the
-         * way they drift is silent: rename the property placeholder and the flag keeps parsing while
-         * the database quietly opens somewhere else. Comparing them is what makes that loud.
-         *
-         * <p>Returned as a message rather than thrown, for the same reason the missing-root case is:
-         * this is an operator typing a flag the wrong way round, and the useful answer is the sentence
-         * that says so plus a non-zero exit code. Thrown, it leaves {@code call} through picocli's
-         * default handler, which prints a Java stack trace at somebody who mistyped an argument.
-         */
-        private String misnamedDatabaseDirectory() {
-            if (databaseDirectory == null) {
-                return null;
-            }
-            Path named = databaseDirectory.toAbsolutePath().normalize();
-            Path opened = workingDirectoryInUse.toAbsolutePath().normalize();
-            if (named.equals(opened)) {
-                return null;
-            }
-            return ("vespera run was given --db-dir %s but the database and profile were opened in %s;"
-                            + " --db-dir has to be given as --db-dir=<path>, because it is read as the %s"
-                            + " property before this command is parsed")
-                    .formatted(named, opened, WorkingDirectoryPreparer.PROPERTY);
-        }
     }
 
 
@@ -239,6 +220,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         private final LabelIngestion labelIngestion;
         private final NextAction nextAction;
+        private final Path workingDirectoryInUse;
 
         @Parameters(
                 index = "0",
@@ -248,18 +230,42 @@ public class VesperaCommand implements Callable<Integer> {
                         + " working directory.")
         private Path file;
 
-        Label(LabelIngestion labelIngestion, NextAction nextAction) {
+        /**
+         * The same option {@code run} takes (ADR-054, #310): an operator who moved the working
+         * directory names it on every invocation, and this is invocation 3.
+         */
+        @Mixin
+        private WorkingDirectoryOption databaseDirectory = new WorkingDirectoryOption();
+
+        Label(
+                LabelIngestion labelIngestion,
+                NextAction nextAction,
+                @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse) {
             this.labelIngestion = labelIngestion;
             this.nextAction = nextAction;
+            this.workingDirectoryInUse = workingDirectoryInUse;
         }
 
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             file = null;
+            databaseDirectory = new WorkingDirectoryOption();
         }
 
+        /**
+         * Records the answers, after refusing a {@code --db-dir} that is not the directory opened.
+         *
+         * <p>A named file is not checked against the directory it sits in. Where a file is kept says
+         * nothing about which database it belongs to; what does is the run it was generated under,
+         * which {@link LabelIngestion} compares with the sample the opened working directory holds.
+         */
         @Override
         public Integer call() {
+            String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
+            if (misnamedDatabaseDirectory != null) {
+                System.err.println(misnamedDatabaseDirectory);
+                return CommandLine.ExitCode.SOFTWARE;
+            }
             LabelIngestion.Outcome outcome = labelIngestion.ingest(file);
             if (outcome.refused()) {
                 System.err.println("vespera label recorded nothing: " + outcome.message());
