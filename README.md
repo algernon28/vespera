@@ -86,24 +86,72 @@ deliverable/<run>/index.md       what was written, group by group, and what prod
 deliverable/<run>/documents.csv  every surviving document, with its place in the order
 ```
 
-Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration.
+Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration. Both commands take `--db-dir=<path>`, so if you moved the working directory, name it on `vespera label` as well as on `vespera run`. A command given a `--db-dir` other than the directory it actually opened refuses and records nothing.
 
 ## Commands
 
 ```
-vespera run <root>     walk a corpus and take it as far as the next missing value
-vespera label [file]   record the answers you wrote into the label file
+vespera run <root> [--db-dir=<path>]     walk a corpus and take it as far as the next missing value
+vespera label [file] [--db-dir=<path>]   record the answers you wrote into the label file
 ```
 
 `vespera run` takes the archive root as its argument, falling back to `vespera.corpus-root` in configuration. Given neither, it refuses rather than guessing — a census of the wrong tree reports success.
 
 ## Running it
 
-Java 26 and a Docker daemon. Vespera runs its document converter and its embedding model as sidecars and manages them itself.
+You need Java 26 and a Docker daemon. Run every command below from the root of this repository.
+
+**Build it.** This builds the jar Vespera runs from:
 
 ```
-./mvnw verify
+./mvnw package
 ```
+
+**Start the sidecars, once, before the first invocation.** Vespera needs three services running beside it:
+
+- Chroma, the vector store;
+- Ollama, which serves the models;
+- docling-serve, the document converter.
+
+The jar does not start them or stop them. You start them yourself from `compose.yaml`:
+
+```
+docker compose -p vespera up -d --build
+```
+
+`-p vespera` names the Compose project `vespera`, whatever your checkout's directory is called. Give it on every `docker compose` command here, so that each one finds the same containers. Without it, Docker Compose names the project after the directory, and a second checkout starts a second set that fights the first for the same ports.
+
+The document converter's image is not pulled. It is built on your machine from `docker/docling-serve`, because it adds LibreOffice to the published image, so that `.doc` and `.ppt` files convert. `--build` builds it the first time and rebuilds it if its `Containerfile` has changed. The first build is the slow one. After that, Docker reuses what it built.
+
+The services listen on ports `8000`, `11434` and `5001`, which is where Vespera looks for them. If something else on your machine already holds one of those ports, the start fails and names the port.
+
+Leave the sidecars up for all five invocations. They can be days apart.
+
+**Give Ollama its models.** Ollama serves only the models it has been given, and Vespera does not fetch them for you:
+
+- The embedding model you name in `embeddingModel` has to be there before invocation 2.
+- The model the connecting text is written with has to be there before invocation 5. That is `qwen3:8b`, unless you set `generationModel`.
+
+```
+docker compose -p vespera exec ollama ollama pull <embeddingModel>
+docker compose -p vespera exec ollama ollama pull qwen3:8b
+```
+
+**Run it.** Each `vespera` in this file is this command:
+
+```
+java -jar target/vespera-0.0.1-SNAPSHOT.jar
+```
+
+So `vespera run <root>` is `java -jar target/vespera-0.0.1-SNAPSHOT.jar run <root>`, and `vespera label` is `java -jar target/vespera-0.0.1-SNAPSHOT.jar label`. Unless you set it as "Where things live" describes, the working directory is `.vespera` under the directory you run the command from.
+
+**Stop the sidecars when you are finished:**
+
+```
+docker compose -p vespera stop
+```
+
+This keeps the models you gave Ollama. `docker compose -p vespera down` removes the containers, and the models inside them go too.
 
 ## Where the run ends
 
