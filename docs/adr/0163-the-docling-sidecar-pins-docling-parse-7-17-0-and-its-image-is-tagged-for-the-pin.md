@@ -31,13 +31,13 @@ Each iteration restarted the container, so its process was cold, waited for `/he
 | 7.17.0 (probe) | `core14-8.pdf` | 0 | 0 | 30 |
 | 7.17.0 (probe) | `ManualeFunzioni_EasyCheck_20120622.pdf` | 0 | 0 | 30 |
 
-Every page lost carried the same entry in Docling's `errors[]`: `backend_failure`, *"Page N failed to parse."*, one entry per page. On the real seed a lost conversion lost 1 or 2 of its 6 pages.
+Every entry kept from Docling's `errors[]` was the same: `backend_failure`, *"Page N failed to parse."*, naming one page. The harness kept at most the first three entries of a response, and a synthetic conversion reported up to seven, so the rest were not seen. On the real seed a lost conversion lost 1 or 2 of its 6 pages.
 
 **Controls, on 7.16.0, 30 iterations each, from a cold process:**
 
 - The same synthetic PDF, with the single-threaded page decode (`pdf_backend=docling_parse`): 30 of 30 `success`.
 - Then, in the same process, the same PDF with the default threaded decode: 30 of 30 `success`. The first call had already loaded every base font the PDF uses.
-- Two and four single-threaded decodes of different PDFs at once, in a fresh forked process each time: 200 of 200 clean at each width.
+- Two and four single-threaded decodes of one PDF at once, each loading it as its own document, in a fresh forked process each time: 200 of 200 clean at each width. Only the two summary lines were kept, in `crossdoc.out`.
 
 A third container on the 7.16.0 parser, set up to capture the faulting thread, crashed in 2 of 10 iterations and lost pages in the other 8. In both crashes the faulting thread was inside `docling_parse`'s native library, at the same instruction, reading one byte at address `0x8`: a field read through a null pointer. The library is stripped, so the trace does not name the function.
 
@@ -89,7 +89,7 @@ docling-parse itself is at 7.22.0 (2026-09-26). No release of it after 7.17.0 wa
 14 distinct PDFs, from the GesPOS corpus and its seed folder, were converted twice through a sidecar of each parser. The second pass of each was compared, so a cold-process race could not affect the comparison, and every one of those conversions was `success`:
 
 - **13 of 14 differ** in the document JSON. Mostly this is picture bounding boxes, a few hundredths of a point, and picture pixel sizes, a few pixels.
-- **In 6 of 14 the text differs**, in 2 to 21 places per PDF, counting each text item added or removed. Examples: a letter `E` from a logo appears as a text item of its own, one table cell's text is split in two, and one item is removed.
+- **In 8 of 14 the extracted text differs**: in 6 the text items themselves, and in 2 more only the text of table cells, which is extracted text too (ADR-145). The count compares, for each PDF, the text items and the table cells' text of the two kept outputs (`out-stock-threaded`, `out-fixed-threaded`) as collections. No per-PDF count of places is given, because the script that counted them was not kept. Examples: a letter `E` from a logo appears as a text item of its own, one table cell's text is split in two, and one item is removed.
 - The page counts are the same in all 14.
 
 ## Decision
@@ -120,7 +120,7 @@ The image is now `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.
 
 This record removes the cause measured here. It does not change how Vespera treats `partial_success`. ADR-070's rule stands: the conversion goes to the floor and is judged on what it produced. Pages can still fail to parse for reasons of the PDF's own, and that is what ADR-070 was written for.
 
-**What stays true, and is recorded rather than fixed:** a conversion that lost pages is visible only in `extraction_metric` and in the extraction cache. The operator is not told. Whether stage 2's closing line or a report counts `partial_success` conversions, and whether a `backend_failure` page loss earns a second attempt, both reopen ADR-070. That is the operator's decision, not this record's. A separate ticket is recommended. None is filed here.
+**What stays true, and is recorded rather than fixed:** a conversion that lost pages is visible only in `extraction_metric` and in the extraction cache. The operator is not told. Whether stage 2's closing line or a report counts `partial_success` conversions, and whether a `backend_failure` page loss earns a second attempt, both reopen ADR-070. That is the operator's decision, not this record's, and it is [#327](https://github.com/algernon28/vespera/issues/327)'s question.
 
 ### §4. Surviving a sidecar that dies partway through a step is #326's question
 
