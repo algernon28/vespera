@@ -63,12 +63,12 @@ public class TestcontainersConfiguration {
     private static final String OLLAMA_IMAGE = "ollama/ollama:0.33.2";
 
     /**
-     * docling-serve v1.32.0 (CPU image) with LibreOffice, built from the repository's own
-     * {@code Containerfile} rather than pulled (ADR-147). Keep in step with {@code compose.yaml}, which
-     * builds and tags the same image, and with {@code vespera.docling.image}, which the extractor
-     * identity carries.
+     * docling-serve v1.32.0 (CPU image) with LibreOffice and docling-parse 7.17.0, built from the
+     * repository's own {@code Containerfile} rather than pulled (ADR-147, ADR-163). Keep in step with
+     * {@code compose.yaml}, which builds and tags the same image, and with {@code vespera.docling.image},
+     * which the extractor identity carries.
      */
-    static final String DOCLING_SERVE_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0";
+    static final String DOCLING_SERVE_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0";
 
     /** Where that image is built from, relative to the repository root Maven runs the tests in. */
     private static final Path DOCLING_SERVE_CONTAINERFILE = Path.of("docker/docling-serve/Containerfile");

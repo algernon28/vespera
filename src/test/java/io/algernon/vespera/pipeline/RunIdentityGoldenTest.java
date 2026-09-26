@@ -158,7 +158,8 @@ class RunIdentityGoldenTest {
                         + " versions sorted by name, and the options sent with every conversion -- then the"
                         + " confidence floor, recorded as null because this profile sets none",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
-                        "{\"extractorIdentity\":\"docling-serve;image=vespera/docling-serve-cpu-libreoffice:v1.32.0;"
+                        "{\"extractorIdentity\":\"docling-serve;"
+                                + "image=vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0;"
                                 + "docling=2.124.0;docling-serve=1.32.0;to_formats=json;ocr_preset=rapidocr;"
                                 + "image_export_mode=embedded;naming=1\","
                                 + "\"degenerateOutputConfidenceFloor\":null}"));

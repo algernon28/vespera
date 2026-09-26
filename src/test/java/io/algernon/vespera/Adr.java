@@ -806,6 +806,15 @@ public final class Adr {
     public static final String WRITING_ENDING_WITH_THE_ANSWERS_CLOSING_BRACE_IS_TURNED_DOWN = FILE
             + "0162-writing-that-ends-with-the-answers-closing-brace-is-turned-down-as-malformed.md";
 
+    /**
+     * ADR-163 -- the Docling sidecar's image replaces the PDF parser its base ships with docling-parse
+     * 7.17.0, pinned exactly, whose base fonts are published to other threads only once they are whole;
+     * the image's tag names the base and the parser, and changes in step everywhere it is named
+     * (amends ADR-147).
+     */
+    public static final String THE_DOCLING_SIDECAR_PINS_DOCLING_PARSE = FILE
+            + "0163-the-docling-sidecar-pins-docling-parse-7-17-0-and-its-image-is-tagged-for-the-pin.md";
+
     private Adr() {
     }
 }
