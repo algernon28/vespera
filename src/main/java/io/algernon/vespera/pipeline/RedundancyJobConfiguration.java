@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.similarity.RedundancySignatures;
 import org.slf4j.Logger;
@@ -14,7 +15,6 @@ import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -32,16 +32,13 @@ import org.springframework.transaction.PlatformTransactionManager;
  *
  * <p><b>The gate is checked in both steps, before either touches a run.</b> The signature step's reader
  * yields no items at all when the gate is closed, which is what keeps its writer — and the {@link
- * RedundancyRun} it depends on — from ever being constructed; the resolution tasklet checks the same
+ * StageRuns} it depends on — from ever minting stage 4's run; the resolution tasklet checks the same
  * gate directly. Neither behaves differently for "stage 4 is the last step today" versus "stage 4 has a
  * successor" — that distinction is a Spring Batch flow transition to build once stage 5 actually exists
  * (#75's own comment), not before.
  */
 @Configuration
 public class RedundancyJobConfiguration {
-
-    /** The signature step's own name, and the name its completion is recorded under (ADR-116). */
-    static final String SIGNATURE_STEP = "redundancy-signature";
 
     /**
      * The signature step's chunk size — an implementer's default, not a spec-fixed number. Signature
@@ -57,16 +54,14 @@ public class RedundancyJobConfiguration {
             PlatformTransactionManager transactionManager,
             OccurrenceReader redundancySignatureReader,
             RedundancySignatureItemWriter redundancySignatureItemWriter,
-            Ledger ledger,
-            RedundancyGate redundancyGate,
-            ObjectProvider<RedundancyRun> redundancyRunProvider) {
-        return new StepBuilder(SIGNATURE_STEP, jobRepository)
+            Ledger ledger) {
+        return new StepBuilder(StepNames.REDUNDANCY_SIGNATURE, jobRepository)
                 .<OccurrenceId, OccurrenceId>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
                 .reader(redundancySignatureReader)
                 .writer(redundancySignatureItemWriter)
                 .listener(new SignatureStepBoundaryLog())
-                .listener(new SignatureStepCompletion(ledger, redundancyGate, redundancyRunProvider))
+                .listener(new RunCompletion(ledger, StageModules.CONTENT_REDUNDANCY, StepNames.REDUNDANCY_SIGNATURE))
                 .build();
     }
 
@@ -76,20 +71,20 @@ public class RedundancyJobConfiguration {
             PlatformTransactionManager transactionManager,
             RedundancyResolutionTasklet redundancyResolutionTasklet) {
         return TaskletSteps.taskletStep(
-                RedundancyRun.STAGE, jobRepository, transactionManager, redundancyResolutionTasklet);
+                StepNames.CONTENT_REDUNDANCY, jobRepository, transactionManager, redundancyResolutionTasklet);
     }
 
     /**
-     * The survivors reader, scoped to whichever run {@link RedundancyRun} minted for a run — or, while
-     * the gate is closed, an {@link ItemStreamReader} that immediately reports no items at all, so the
-     * step completes having read nothing and written nothing (ADR-080, ADR-047).
+     * The survivors reader, scoped to whichever run {@link StageRuns#contentRedundancy} minted — or,
+     * while the gate is closed, an {@link ItemStreamReader} that immediately reports no items at all,
+     * so the step completes having read nothing and written nothing (ADR-080, ADR-047).
      */
     @Bean
     @StepScope
     OccurrenceReader redundancySignatureReader(
             Ledger ledger,
             RedundancyGate redundancyGate,
-            ObjectProvider<RedundancyRun> redundancyRunProvider,
+            StageRuns stageRuns,
             RedundancySignatures redundancySignatures) {
         // One read of the profile, decided on and explained from the same value (ADR-120): asking the
         // gate twice would let it shut on one reading of the file and word its sentence from another.
@@ -98,13 +93,13 @@ public class RedundancyJobConfiguration {
             logGateClosed(LoggerFactory.getLogger(RedundancyJobConfiguration.class), floor);
             return OccurrenceReader.yieldingNothing();
         }
-        RedundancyRun redundancyRun = redundancyRunProvider.getObject();
+        RunId redundancyRun = stageRuns.contentRedundancy();
         // This step's own work under this run is already recorded, so it reads nothing (ADR-115,
         // ADR-116) -- content-redundancy, the step after it, is not asked: the two share a run but
         // each answers only for itself.
-        if (ledger.stepFinished(redundancyRun.runId(), SIGNATURE_STEP)) {
+        if (ledger.stepFinished(redundancyRun, StepNames.REDUNDANCY_SIGNATURE)) {
             LoggerFactory.getLogger(RedundancyJobConfiguration.class)
-                    .info("Stage 4a (redundancy signatures) was already recorded under run {}", redundancyRun.runId().value());
+                    .info("Stage 4a (redundancy signatures) was already recorded under run {}", redundancyRun.value());
             return OccurrenceReader.yieldingNothing();
         }
         // Not finished: an invocation that stopped partway may have left rows behind under this same run id, and both
@@ -112,8 +107,8 @@ public class RedundancyJobConfiguration {
         // first document it re-signed. Discarded here rather than in the writer, because the writer is
         // constructed whether or not this reader yields anything -- doing it there emptied the table on
         // an invocation that then correctly wrote nothing (ADR-115's discard half, ADR-116).
-        redundancySignatures.discardForRun(redundancyRun.runId());
-        return new OccurrenceReader(ledger.survivors(redundancyRun.runId()));
+        redundancySignatures.discardForRun(redundancyRun);
+        return new OccurrenceReader(ledger.survivors(redundancyRun));
     }
 
     /**
@@ -146,7 +141,7 @@ public class RedundancyJobConfiguration {
     /**
      * Stage 4a's step start/end lines (ADR-093), kept out of the writer on purpose: a listener is
      * resolved at the step's boundaries whatever the gate says, and the writer reaching {@link
-     * RedundancyRun} directly means a step-scoped writer used as a listener would mint a run row on
+     * StageRuns} directly means a step-scoped writer used as a listener would mint stage 4's run on
      * every closed-gate invocation. This listener depends on nothing, so the counts it reports are all
      * it can say — the run id is on the reader's own lines, and the closed case says so above.
      *
@@ -167,8 +162,8 @@ public class RedundancyJobConfiguration {
         public ExitStatus afterStep(StepExecution stepExecution) {
             if (!ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())) {
                 // Spring Batch calls this from a finally, so a step that failed arrives here too (#311).
-                // The same exit-code test SignatureStepCompletion makes, so this line says failed only
-                // when the step did not complete, and a step that did not complete records no
+                // The same exit-code test RunCompletion makes (ADR-157 §6), so this line says failed
+                // only when the step did not complete, and a step that did not complete records no
                 // completion; the next invocation discards what this one signed and signs every survivor
                 // again under the same run (ADR-115, ADR-116).
                 log.error(
@@ -183,40 +178,6 @@ public class RedundancyJobConfiguration {
                     "Stage 4a (redundancy signatures) finished: read={}, written={}",
                     stepExecution.getReadCount(),
                     stepExecution.getWriteCount());
-            return stepExecution.getExitStatus();
-        }
-    }
-
-    /**
-     * Marks {@link #SIGNATURE_STEP}'s own work as holding all of it, once the step has finished doing
-     * it (ADR-116) — not {@link RunCompletion}, because that class reaches its run through a supplier
-     * with no gate of its own, and {@link RedundancyRun}'s constructor throws while the gate is shut.
-     * This listener checks the same gate the reader above already checks before it ever asks for the
-     * run, so a closed-gate invocation — reading and writing nothing — records no completion either
-     * (ADR-116's "a step that is gated records nothing").
-     */
-    private static final class SignatureStepCompletion implements StepExecutionListener {
-
-        private final Ledger ledger;
-        private final RedundancyGate redundancyGate;
-        private final ObjectProvider<RedundancyRun> redundancyRunProvider;
-
-        SignatureStepCompletion(
-                Ledger ledger, RedundancyGate redundancyGate, ObjectProvider<RedundancyRun> redundancyRunProvider) {
-            this.ledger = ledger;
-            this.redundancyGate = redundancyGate;
-            this.redundancyRunProvider = redundancyRunProvider;
-        }
-
-        @Override
-        public ExitStatus afterStep(StepExecution stepExecution) {
-            if (ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())
-                    && redundancyGate.floor().isPresent()) {
-                // Fires at every boundary this step reaches, including one the reader already
-                // recognised as finished and skipped -- Ledger.finishStep tolerates being told the
-                // same true thing twice (ADR-116).
-                ledger.finishStep(redundancyRunProvider.getObject().runId(), SIGNATURE_STEP);
-            }
             return stepExecution.getExitStatus();
         }
     }

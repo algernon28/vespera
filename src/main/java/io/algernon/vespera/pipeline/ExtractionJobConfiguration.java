@@ -11,6 +11,7 @@ import io.algernon.vespera.similarity.Shingler;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
@@ -28,9 +29,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * Stage 2's own Batch wiring (extraction), kept apart from {@link CensusJobConfiguration} and
- * {@link ByteLevelReductionJobConfiguration} for the same reason those are already separate: each stage
- * contributes its own step bean rather than growing one shared configuration class.
+ * Stage 2's own Batch wiring (extraction), kept apart from {@link VesperaJobConfiguration} because it
+ * holds a chunk step's reader, writer, listeners and the extractor's own bean, not one plain step
+ * (ADR-157 §7).
  *
  * <p>The first chunk-oriented step in the job (ADR: "stage 2 runs as a chunk-oriented Spring Batch
  * step (not a tasklet), so that its fault-tolerance mechanics — skip, circuit breaker — have the
@@ -100,8 +101,8 @@ public class ExtractionJobConfiguration {
             ExtractionCircuitBreaker extractionCircuitBreaker,
             ExtractionHealthCheckListener extractionHealthCheckListener,
             ExtractionFaultRecorder extractionFaultRecorder,
-            RunCompletion extractionRunCompletion) {
-        return new StepBuilder(ExtractionRun.STAGE, jobRepository)
+            Ledger ledger) {
+        return new StepBuilder(StepNames.EXTRACTION, jobRepository)
                 .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
                 .reader(extractionConversionDispatch)
@@ -112,7 +113,9 @@ public class ExtractionJobConfiguration {
                 .skipLimit(SKIP_LIMIT)
                 .listener(extractionCircuitBreaker)
                 .listener(extractionHealthCheckListener)
-                .listener(extractionRunCompletion)
+                // Built inline rather than as a bean of its own (ADR-157 §6): it needs nothing scoped,
+                // and a plain object is what the class itself is built to be handed as.
+                .listener(new RunCompletion(ledger, StageModules.EXTRACTION, StepNames.EXTRACTION))
                 .listener(extractionFaultRecorder)
                 .build();
     }
@@ -129,10 +132,11 @@ public class ExtractionJobConfiguration {
      * which is what puts up to the width in flight at once without anything holding more than one
      * chunk ahead -- see {@link ConversionDispatch}'s own javadoc.
      *
-     * <p>Wraps {@link #extractionReader} rather than folding into it, because {@code
-     * ExtractionRunTest} calls that method directly, by its current five-argument signature, and reads
-     * the result as a plain {@code ItemStreamReader<OccurrenceId>} -- widening it here, once it already
-     * exists, changes nothing that call sees.
+     * <p>Wraps {@link #extractionReader} rather than folding into it, because the two decide separate
+     * things: {@link #extractionReader} decides which occurrences this run reads at all -- the
+     * already-finished check and the discard (ADR-115, ADR-116) -- and this class only adds the
+     * concurrent dispatch ADR-140 asks for on top of whatever it yields, without duplicating that
+     * decision.
      */
     @Bean
     @StepScope
@@ -143,7 +147,7 @@ public class ExtractionJobConfiguration {
             DetectedFormats detectedFormats,
             DoclingExtractor doclingExtractor,
             ExtractorIdentity extractorIdentity,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             PendingConversions extractionPendingConversions) {
         return new ConversionDispatch(
                 extractionReader,
@@ -152,7 +156,7 @@ public class ExtractionJobConfiguration {
                 detectedFormats,
                 doclingExtractor,
                 extractorIdentity,
-                extractionRun,
+                stageRuns,
                 extractionPendingConversions,
                 CONVERSION_CONCURRENCY);
     }
@@ -171,46 +175,50 @@ public class ExtractionJobConfiguration {
     /**
      * {@link ExtractionFaultRecorder}, wired here rather than made {@code @Component} because {@link
      * ExtractionFaults} is not one (ADR-139, on {@code ClusterFaults}' own precedent) — the same reason
-     * {@link #extractionRunCompletion} below builds its listener by hand from an ambient {@link Ledger}.
+     * {@code extractionStep} builds its {@code RunCompletion} listener inline, by hand, from an ambient
+     * {@link Ledger} (ADR-157 §6).
      *
-     * <p><b>Registered after {@code extractionRunCompletion} above, deliberately.</b> Spring Batch's
-     * {@code CompositeStepExecutionListener} runs {@code afterStep} in the reverse of registration
-     * order (confirmed against the {@code spring-batch-core} sources), so the listener named last in
-     * the chain below is the one whose {@code afterStep} runs first. Registering this one after {@code
-     * extractionRunCompletion} is what makes its verdicts commit before that listener records the step
-     * as holding all of its own work (ADR-139 section 4) -- naming it first in the chain, which reads
-     * as "runs first," would in fact run it last. {@code @Order} was considered and refused: both
-     * listeners arrive here as {@code @StepScope} CGLIB subclasses, and {@code OrderedComposite.add}
-     * only detects {@code @Order} through {@code AnnotationUtils.isAnnotationDeclaredLocally}, which a
-     * generated subclass never satisfies -- the annotation would be silently ignored rather than honoured.
+     * <p><b>Registered after {@code RunCompletion} in {@code extractionStep}'s listener chain,
+     * deliberately.</b> Spring Batch's {@code CompositeStepExecutionListener} runs {@code afterStep} in
+     * the reverse of registration order (confirmed against the {@code spring-batch-core} sources), so
+     * the listener named last in that chain is the one whose {@code afterStep} runs first. Registering
+     * this one after {@code RunCompletion} is what makes its verdicts commit before that listener
+     * records the step as holding all of its own work (ADR-139 section 4) -- naming it first in the
+     * chain, which reads as "runs first," would in fact run it last. {@code @Order} was considered and
+     * refused: this bean still arrives as a {@code @StepScope} CGLIB subclass, and {@code
+     * OrderedComposite.add} only detects {@code @Order} through {@code
+     * AnnotationUtils.isAnnotationDeclaredLocally}, which a generated subclass never satisfies -- the
+     * annotation would be silently ignored rather than honoured.
      */
     @Bean
     @StepScope
     ExtractionFaultRecorder extractionFaultRecorder(
             JdbcTemplate jdbcTemplate,
             Ledger ledger,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             PlatformTransactionManager transactionManager) {
         return new ExtractionFaultRecorder(
-                new ExtractionFaults(jdbcTemplate), ledger, extractionRun, transactionManager);
+                new ExtractionFaults(jdbcTemplate), ledger, stageRuns, transactionManager);
     }
 
     /**
-     * The survivors reader (ADR-060), scoped to whichever run {@link ExtractionRun} minted — itself scoped
-     * to whichever walk the {@code root} job parameter names, never hard-coded to the corpus walk.
+     * The survivors reader (ADR-060), scoped to whichever run {@link StageRuns#extraction} minted --
+     * itself scoped to whichever walk the {@code root} job parameter names, never hard-coded to the
+     * corpus walk.
      */
     @Bean
     @StepScope
     OccurrenceReader extractionReader(
             Ledger ledger,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             ExtractionMetrics extractionMetrics,
             Shingler shingler,
             JdbcTemplate jdbcTemplate) {
+        RunId extractionRun = stageRuns.extraction();
         // This step's own work under this run is already recorded, so it runs in its usual place and
         // reads nothing (ADR-115, ADR-116) -- the shape a shut gate already uses, for a different
         // reason.
-        if (ledger.stepFinished(extractionRun.runId(), ExtractionRun.STAGE)) {
+        if (ledger.stepFinished(extractionRun, StepNames.EXTRACTION)) {
             return OccurrenceReader.yieldingNothing();
         }
 
@@ -231,19 +239,12 @@ public class ExtractionJobConfiguration {
         // back, restoring the rows just deleted, and step scope survives the rollback -- so the
         // discard never runs again and the collision it exists to prevent comes back. A reader is
         // opened outside the chunk transaction, which is the only place a delete can be made to stick.
-        ledger.discardVerdicts(extractionRun.runId(), VerdictKind.EXTRACTION_FAILED, VerdictKind.DEGENERATE_OUTPUT);
-        extractionMetrics.discardForRun(extractionRun.runId());
-        shingler.discardForRun(extractionRun.runId());
-        new ExtractionFaults(jdbcTemplate).discardForRun(extractionRun.runId());
+        ledger.discardVerdicts(extractionRun, VerdictKind.EXTRACTION_FAILED, VerdictKind.DEGENERATE_OUTPUT);
+        extractionMetrics.discardForRun(extractionRun);
+        shingler.discardForRun(extractionRun);
+        new ExtractionFaults(jdbcTemplate).discardForRun(extractionRun);
 
-        return new OccurrenceReader(ledger.survivors(extractionRun.runId()));
-    }
-
-    /** Marks this step's own work as holding all of it, once it has finished doing it (ADR-115, ADR-116). */
-    @Bean
-    @StepScope
-    RunCompletion extractionRunCompletion(Ledger ledger, ExtractionRun extractionRun) {
-        return new RunCompletion(ledger, extractionRun::runId, ExtractionRun.STAGE);
+        return new OccurrenceReader(ledger.survivors(extractionRun));
     }
 
     /**
@@ -270,9 +271,8 @@ public class ExtractionJobConfiguration {
      * <p>{@code @Lazy}, because composing this needs the sidecar to answer: an eager singleton would
      * demand that at context refresh, before {@link ExtractionHealthCheckListener} has established the
      * sidecar is even there (ADR-071's lazy readiness check). Deferred, it is first built when stage
-     * 2's step asks for it — after that listener has run — and then reused, so {@link RedundancyRun}
-     * re-deriving stage 2's identity later in the job costs no second call and does not require the
-     * sidecar to still be up.
+     * 2's step asks for it — after that listener has run — and then reused: an ordinary singleton bean,
+     * so nothing that asks for it afterwards costs a second call or needs the sidecar still up.
      *
      * <p>Not {@code @StepScope}: a scoped bean is injected as a CGLIB proxy, and {@link
      * ExtractorIdentity} is a record and therefore final. That is a fair constraint rather than an

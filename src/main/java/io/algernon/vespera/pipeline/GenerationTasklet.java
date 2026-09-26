@@ -57,7 +57,6 @@ import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -92,7 +91,7 @@ import org.springframework.stereotype.Component;
  * and refused again: no call is ever made for a cluster nothing fits into (ADR-121), so no later
  * invocation can turn one into a {@code synthesis_doc} row and this step never records completion
  * for it. Widening the reading window is not the repair — the window is consumed into this run's own
- * id ({@link GenerationRun}), so an operator who widens it generates under a run of its own rather
+ * id ({@link StageRuns#generation}), so an operator who widens it generates under a run of its own rather
  * than finishing this one. ADR-121 accepts that permanence rather than mitigating it, and #183
  * settled in the negative that such a cluster earns no {@code cluster_fault} row of its own: the 6a
  * {@code cluster} row is the denominator, and the missing {@code synthesis_doc} row is the hole.
@@ -118,7 +117,7 @@ class GenerationTasklet implements Tasklet {
     static final int CONSECUTIVE_TURNED_DOWN_ANSWERS = 5;
 
     private final ArrangementGate arrangementGate;
-    private final ObjectProvider<GenerationRun> generationRun;
+    private final StageRuns stageRuns;
     private final GenerationModel generationModel;
     private final GenerationContextWindow generationContextWindow;
     private final Clusters clusters;
@@ -139,7 +138,7 @@ class GenerationTasklet implements Tasklet {
 
     GenerationTasklet(
             ArrangementGate arrangementGate,
-            ObjectProvider<GenerationRun> generationRun,
+            StageRuns stageRuns,
             GenerationModel generationModel,
             GenerationContextWindow generationContextWindow,
             Clusters clusters,
@@ -157,7 +156,7 @@ class GenerationTasklet implements Tasklet {
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
         this.arrangementGate = arrangementGate;
-        this.generationRun = generationRun;
+        this.stageRuns = stageRuns;
         this.generationModel = generationModel;
         this.generationContextWindow = generationContextWindow;
         this.clusters = clusters;
@@ -185,7 +184,7 @@ class GenerationTasklet implements Tasklet {
     }
 
     @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         Path canonicalRoot = Walk.canonicalRoot(root);
         Optional<WalkId> walk = ledger.finishedWalkFor(canonicalRoot);
         if (walk.isEmpty()) {
@@ -196,10 +195,11 @@ class GenerationTasklet implements Tasklet {
 
         InvocationRuns invocationRuns = new InvocationRuns(
                 chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext());
-        // Never ArrangementRun.getObject() itself, which would mint an arrangement behind the
-        // arrangement step's own gate (ADR-154, Context §3) -- only the arrangement this invocation
-        // already arrived at, if it arrived at one, is asked about.
-        Optional<RunId> approved = arrangementGate.approvedArrangement(invocationRuns.runOf(ArrangementRun.STAGE));
+        // Never stageRuns.arrangement() itself, which would mint an arrangement behind the arrangement
+        // step's own gate (ADR-154, Context §3) -- only the arrangement this invocation already
+        // arrived at, if it arrived at one, is asked about.
+        Optional<RunId> approved =
+                arrangementGate.approvedArrangement(invocationRuns.runOf(StageModules.ARRANGEMENT.stage()));
         if (approved.isEmpty()) {
             LOG.info("the generation step is gated: no arrangement of this corpus has been approved --"
                     + " arrangementApproved is unset, or names an arrangement this invocation did not"
@@ -210,167 +210,176 @@ class GenerationTasklet implements Tasklet {
         // The byte-level-reduction run this invocation arrived at (ADR-154), which the picture lookup
         // reads a survivor's detected format under (ADR-150 §4). Resolved here, before any work is
         // recorded, so a missing upstream run stops the step before it can be marked finished.
-        RunId byteLevelReductionRun = new UpstreamRuns(invocationRuns).runOf(ByteLevelReductionTasklet.STAGE);
+        RunId byteLevelReductionRun = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
 
-        RunId generation = generationRun.getObject().runId();
+        RunId generation = stageRuns.generation();
 
-        // This step's own work under this run is already recorded, so there is nothing here to do
-        // (ADR-115, ADR-116).
-        if (ledger.stepFinished(generation, GenerationRun.STAGE)) {
-            LOG.info("the generation step was already recorded under run {}", generation.value());
-            return RepeatStatus.FINISHED;
-        }
+        // Nothing is discarded (ADR-157 §5): stage 6b never discards its own rows, since a synthesis
+        // doc is the most expensive call this system makes.
+        return TaskletSteps.once(
+                ledger,
+                generation,
+                StepNames.GENERATION,
+                () -> LOG.info("the generation step was already recorded under run {}", generation.value()),
+                () -> {},
+                () -> {
+                    RunId scoring = scoringRunBehind(arrangement);
+                    List<DocumentCluster> membership = documentClusters.forRun(scoring);
+                    Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
+                            scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
+                    Map<ClusterKey, List<DocumentCluster>> byCluster = membership.stream()
+                            .collect(Collectors.groupingBy(ClusterKey::of));
+                    String modelName = generationModel.name();
+                    int contextWindow = generationContextWindow.size();
+                    List<RecordedCluster> recordedClusters = clusters.forRun(arrangement);
 
-        RunId scoring = scoringRunBehind(arrangement);
-        List<DocumentCluster> membership = documentClusters.forRun(scoring);
-        Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
-                scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
-        Map<ClusterKey, List<DocumentCluster>> byCluster = membership.stream()
-                .collect(Collectors.groupingBy(ClusterKey::of));
-        String modelName = generationModel.name();
-        int contextWindow = generationContextWindow.size();
+                    // Rows an earlier invocation of this run already wrote (ADR-115, ADR-116): those
+                    // clusters are skipped rather than written again.
+                    Set<ClusterKey> alreadyWritten = synthesisDocs.forRun(generation).stream()
+                            .map(recordedDoc -> new ClusterKey(recordedDoc.winningSeed(), recordedDoc.clusterOrdinal()))
+                            .collect(Collectors.toSet());
 
-        // Rows an earlier invocation of this run already wrote (ADR-115, ADR-116): stage 6b never
-        // discards its own rows, since a synthesis doc is the most expensive call this system makes --
-        // those clusters are skipped rather than written again.
-        Set<ClusterKey> alreadyWritten = synthesisDocs.forRun(generation).stream()
-                .map(recordedDoc -> new ClusterKey(recordedDoc.winningSeed(), recordedDoc.clusterOrdinal()))
-                .collect(Collectors.toSet());
+                    int written = 0;
+                    int skipped = 0;
+                    int unsendable = 0;
+                    int faulted = 0;
+                    // The consecutive-fault streak (ADR-111), held here rather than in a class of its
+                    // own the way ExtractionCircuitBreaker's is: that one counts across chunk boundaries
+                    // and so has to outlive the call that increments it, where this whole step is one
+                    // pass of one loop. The faults themselves are kept rather than a count, because what
+                    // the operator has to act on is which checks the run of answers failed.
+                    List<ClusterFault> turnedDownInARow = new ArrayList<>();
+                    for (RecordedCluster recorded : recordedClusters) {
+                        ClusterKey key = ClusterKey.of(recorded);
+                        if (alreadyWritten.contains(key)) {
+                            skipped++;
+                            continue;
+                        }
+                        List<Exemplar> exemplars = exemplarsOf(
+                                byCluster.getOrDefault(key, List.of()), scores, canonicalRoot);
+                        if (exemplars.isEmpty()) {
+                            LOG.warn(
+                                    "cluster {} of partition {} has no document this run can send --"
+                                            + " nothing it holds was ever chunked, or none of it could be"
+                                            + " read -- so no synthesis doc was written for it",
+                                    recorded.cluster().ordinal(),
+                                    recorded.cluster().partitionOrder());
+                            unsendable++;
+                            continue;
+                        }
+                        if (ClusterSynthesis.nothingFitsIn(contextWindow, exemplars)) {
+                            LOG.warn(
+                                    "cluster {} of partition {} has {} document(s) this run could open but"
+                                            + " a reading window of {} leaves room for none of them -- so"
+                                            + " no call was made and no synthesis doc was written for it",
+                                    recorded.cluster().ordinal(),
+                                    recorded.cluster().partitionOrder(),
+                                    exemplars.size(),
+                                    contextWindow);
+                            unsendable++;
+                            continue;
+                        }
+                        SynthesisDoc doc;
+                        try {
+                            doc = clusterSynthesis.docFor(
+                                    new ClusterCall(
+                                            recorded.label().value(),
+                                            pathOf(recorded.cluster().winningSeed()),
+                                            exemplars),
+                                    modelName,
+                                    contextWindow);
+                        } catch (ClusterFaultException e) {
+                            // A call came back and failed one of ADR-108's/ADR-109's four checks
+                            // (ADR-111). Recorded against the cluster, never a document -- nothing here
+                            // removes anything -- and the run carries straight on.
+                            LOG.warn(
+                                    "cluster {} of partition {} had its answer turned down -- {}: {} --"
+                                            + " so no synthesis doc was written for it",
+                                    recorded.cluster().ordinal(),
+                                    recorded.cluster().partitionOrder(),
+                                    e.fault().kind(),
+                                    e.fault().detail());
+                            clusterFaults.record(
+                                    generation,
+                                    recorded.cluster().winningSeed(),
+                                    recorded.cluster().ordinal(),
+                                    e.fault());
+                            faulted++;
+                            turnedDownInARow.add(e.fault());
+                            if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
+                                stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
+                                writeDeliverable(
+                                        generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                                        recordedClusters, membership, scores);
+                                return false;
+                            }
+                            continue;
+                        }
+                        synthesisDocs.record(
+                                generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), doc);
+                        // A repair pass re-attempts a cluster that already carries a fault row from an
+                        // earlier invocation of this run (ADR-111, #185). It just succeeded, so that row
+                        // would now say the cluster both failed and succeeded under one run -- which the
+                        // ledger must never say -- and is deleted. A no-op for the ordinary cluster that
+                        // never faulted.
+                        clusterFaults.delete(
+                                generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal());
+                        written++;
+                        // An answer that was believed is the only thing that drops the streak. A cluster
+                        // skipped because an earlier invocation already wrote it, and one nothing could
+                        // be sent for, both reach neither this line nor the one above: no call was made,
+                        // so neither is evidence that the model, the budget and the schema are right --
+                        // and neither is evidence they are wrong.
+                        turnedDownInARow.clear();
+                    }
 
-        int written = 0;
-        int skipped = 0;
-        int unsendable = 0;
-        int faulted = 0;
-        // The consecutive-fault streak (ADR-111), held here rather than in a class of its own the way
-        // ExtractionCircuitBreaker's is: that one counts across chunk boundaries and so has to outlive
-        // the call that increments it, where this whole step is one pass of one loop. The faults
-        // themselves are kept rather than a count, because what the operator has to act on is which
-        // checks the run of answers failed.
-        List<ClusterFault> turnedDownInARow = new ArrayList<>();
-        List<RecordedCluster> recordedClusters = clusters.forRun(arrangement);
-        for (RecordedCluster recorded : recordedClusters) {
-            ClusterKey key = ClusterKey.of(recorded);
-            if (alreadyWritten.contains(key)) {
-                skipped++;
-                continue;
-            }
-            List<Exemplar> exemplars = exemplarsOf(
-                    byCluster.getOrDefault(key, List.of()), scores, canonicalRoot);
-            if (exemplars.isEmpty()) {
-                LOG.warn(
-                        "cluster {} of partition {} has no document this run can send -- nothing it holds"
-                                + " was ever chunked, or none of it could be read -- so no synthesis doc was"
-                                + " written for it",
-                        recorded.cluster().ordinal(),
-                        recorded.cluster().partitionOrder());
-                unsendable++;
-                continue;
-            }
-            if (ClusterSynthesis.nothingFitsIn(contextWindow, exemplars)) {
-                LOG.warn(
-                        "cluster {} of partition {} has {} document(s) this run could open but a reading"
-                                + " window of {} leaves room for none of them -- so no call was made and no"
-                                + " synthesis doc was written for it",
-                        recorded.cluster().ordinal(),
-                        recorded.cluster().partitionOrder(),
-                        exemplars.size(),
-                        contextWindow);
-                unsendable++;
-                continue;
-            }
-            SynthesisDoc doc;
-            try {
-                doc = clusterSynthesis.docFor(
-                        new ClusterCall(
-                                recorded.label().value(),
-                                pathOf(recorded.cluster().winningSeed()),
-                                exemplars),
-                        modelName,
-                        contextWindow);
-            } catch (ClusterFaultException e) {
-                // A call came back and failed one of ADR-108's/ADR-109's four checks (ADR-111).
-                // Recorded against the cluster, never a document -- nothing here removes anything --
-                // and the run carries straight on.
-                LOG.warn(
-                        "cluster {} of partition {} had its answer turned down -- {}: {} -- so no"
-                                + " synthesis doc was written for it",
-                        recorded.cluster().ordinal(),
-                        recorded.cluster().partitionOrder(),
-                        e.fault().kind(),
-                        e.fault().detail());
-                clusterFaults.record(
-                        generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), e.fault());
-                faulted++;
-                turnedDownInARow.add(e.fault());
-                if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
-                    stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
-                    writeDeliverable(
+                    // Completion needs two things, not one (ADR-116): every sendable cluster carries a
+                    // synthesis doc -- written just now or by an earlier invocation of this run
+                    // (ADR-115) -- and no cluster_fault row stands under this run. A turned-down cluster
+                    // leaves the step unfinished until the next invocation asks about it again and the
+                    // answer is believed, which deletes the fault row above and lets this finish
+                    // (ADR-111, #185). An unsendable one leaves it unfinished with nothing to repair it:
+                    // no call is ever made for a cluster nothing fits into (ADR-121), so no later
+                    // invocation can turn that into a synthesis doc. Recording the step finished in
+                    // either case would short-circuit every later invocation and leave the hole
+                    // permanent and unannounced.
+                    int standingFaults = clusterFaults.forRun(generation).size();
+                    if (unsendable > 0 || standingFaults > 0) {
+                        // The standing count, not this invocation's -- a repair invocation that turned
+                        // nothing down itself still meets an earlier one's reason, and reporting its own
+                        // two zeroes would say nothing went wrong and then refuse to finish.
+                        LOG.warn(
+                                "the generation step left {} cluster(s) unwritten and {} cluster(s)"
+                                        + " standing with an answer that was turned down ({} of them this"
+                                        + " invocation) under run {}, so it is not recorded as finished and"
+                                        + " the next invocation will attempt what is missing again",
+                                unsendable,
+                                standingFaults,
+                                faulted,
+                                generation.value());
+                        writeDeliverable(
+                                generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters,
+                                membership, scores);
+                        return false;
+                    }
+
+                    Path tree = writeDeliverable(
                             generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters,
                             membership, scores);
-                    return RepeatStatus.FINISHED;
-                }
-                continue;
-            }
-            synthesisDocs.record(
-                    generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), doc);
-            // A repair pass re-attempts a cluster that already carries a fault row from an earlier
-            // invocation of this run (ADR-111, #185). It just succeeded, so that row would now say the
-            // cluster both failed and succeeded under one run -- which the ledger must never say -- and
-            // is deleted. A no-op for the ordinary cluster that never faulted.
-            clusterFaults.delete(generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal());
-            written++;
-            // An answer that was believed is the only thing that drops the streak. A cluster skipped
-            // because an earlier invocation already wrote it, and one nothing could be sent for, both
-            // reach neither this line nor the one above: no call was made, so neither is evidence that
-            // the model, the budget and the schema are right -- and neither is evidence they are wrong.
-            turnedDownInARow.clear();
-        }
-
-        // Completion needs two things, not one (ADR-116): every sendable cluster carries a synthesis
-        // doc -- written just now or by an earlier invocation of this run (ADR-115) -- and no
-        // cluster_fault row stands under this run. A turned-down cluster leaves the step unfinished
-        // until the next invocation asks about it again and the answer is believed, which deletes the
-        // fault row above and lets this finish (ADR-111, #185). An unsendable one leaves it unfinished
-        // with nothing to repair it: no call is ever made for a cluster nothing fits into (ADR-121), so
-        // no later invocation can turn that into a synthesis doc. Recording the step finished in either
-        // case would short-circuit every later invocation and leave the hole permanent and unannounced.
-        int standingFaults = clusterFaults.forRun(generation).size();
-        if (unsendable > 0 || standingFaults > 0) {
-            // The standing count, not this invocation's -- a repair invocation that turned nothing
-            // down itself still meets an earlier one's reason, and reporting its own two zeroes would
-            // say nothing went wrong and then refuse to finish.
-            LOG.warn(
-                    "the generation step left {} cluster(s) unwritten and {} cluster(s) standing with an"
-                            + " answer that was turned down ({} of them this invocation) under run {}, so"
-                            + " it is not recorded as finished and the next invocation will attempt what"
-                            + " is missing again",
-                    unsendable,
-                    standingFaults,
-                    faulted,
-                    generation.value());
-            writeDeliverable(
-                    generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters, membership,
-                    scores);
-            return RepeatStatus.FINISHED;
-        }
-
-        ledger.finishStep(generation, GenerationRun.STAGE);
-        Path tree = writeDeliverable(
-                generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters, membership,
-                scores);
-        LOG.info(
-                "The generation step finished under {}, over the arrangement approved as {}: {} synthesis"
-                        + " doc(s) written under model {} in a window of {}, {} already recorded by an"
-                        + " earlier invocation of this run and left as they were -- the deliverable tree is"
-                        + " at {}",
-                generation.value(),
-                ArrangementGate.shortNameOf(arrangement),
-                written,
-                modelName,
-                contextWindow,
-                skipped,
-                tree);
-        return RepeatStatus.FINISHED;
+                    LOG.info(
+                            "The generation step finished under {}, over the arrangement approved as {}:"
+                                    + " {} synthesis doc(s) written under model {} in a window of {}, {}"
+                                    + " already recorded by an earlier invocation of this run and left as"
+                                    + " they were -- the deliverable tree is at {}",
+                            generation.value(),
+                            ArrangementGate.shortNameOf(arrangement),
+                            written,
+                            modelName,
+                            contextWindow,
+                            skipped,
+                            tree);
+                    return true;
+                });
     }
 
     /**

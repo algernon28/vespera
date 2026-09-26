@@ -41,8 +41,8 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * The assembled stage-2 step (ADR-071), driven through the real job rather than through its parts in
  * isolation. {@link ExtractionItemProcessorTest} pins the per-occurrence judgement,
- * {@link ExtractionCircuitBreakerTest} pins the streak counter on its own, and {@link ExtractionRunTest} pins
- * what the run records — none of them drives {@link ExtractionJobConfiguration}'s own {@code extractionStep}
+ * {@link ExtractionCircuitBreakerTest} pins the streak counter on its own, and {@link
+ * EarlyStageRunsInvocationTest} pins what the run records — none of them drives {@link ExtractionJobConfiguration}'s own {@code extractionStep}
  * bean, so nothing claims the reader, processor, writer and listeners are actually wired to each
  * other rather than merely each individually correct. This class is that claim.
  *

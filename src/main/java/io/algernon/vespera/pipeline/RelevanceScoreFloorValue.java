@@ -5,8 +5,8 @@ import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 
 /**
- * {@code pipeline}'s reading of the profile's {@code relevanceScoreFloor} key, for {@link ScoringRun}'s
- * own identity (ADR-117) — {@code embedding} may depend only on {@code ledger} (ADR-040), so the
+ * {@code pipeline}'s reading of the profile's {@code relevanceScoreFloor} key, for gate 3's scoring
+ * run's own identity (ADR-117) — {@code embedding} may depend only on {@code ledger} (ADR-040), so the
  * profile is read here rather than there, the same shape {@link DegenerateOutputConfidenceFloor}
  * already uses for stage 2's tier-2 key.
  *
@@ -22,9 +22,9 @@ import io.algernon.vespera.profile.ProfileStore;
  * vectors carry), and folding that into the run's identity would make the identity depend on what the
  * run itself produces. This record carries only the operator's number.
  *
- * <p><b>Read directly by {@link ScoringRun}'s own constructor, never as a bean of its own.</b>
- * {@code ScoringRun} is {@code @JobScope} precisely so a changed profile between invocations is seen;
- * a singleton bean handing out this value would cache whatever the profile said the first time it was
+ * <p><b>Read directly by {@link StageRuns#embeddingScoring}, never as a bean of its own.</b> {@link
+ * StageRuns} is {@code @JobScope} precisely so a changed profile between invocations is seen; a
+ * singleton bean handing out this value would cache whatever the profile said the first time it was
  * asked, which is the one thing ADR-117 exists to stop. A record is also final, so a scoped bean
  * wrapping one would need a CGLIB proxy that cannot be built over it — {@code extraction}'s own
  * {@code ExtractorIdentity} is the same shape for the same reason, deliberately not scoped either.

@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
  * approval named stays an arrangement of that walk after a later invocation has made a new one. Before
  * ADR-154 this was matched against every arrangement of the walk, which let a stale approval keep
  * opening the gate on an arrangement the documents were no longer in. It is never told the walk, and
- * never reaches {@code ArrangementRun} itself: the caller passes the arrangement this invocation
+ * never reaches {@link StageRuns#arrangement} itself: the caller passes the arrangement this invocation
  * arrived at, if it arrived at one, which is what keeps this class from minting one behind the
  * arrangement step's own gate (ADR-154, Context §3).
  *

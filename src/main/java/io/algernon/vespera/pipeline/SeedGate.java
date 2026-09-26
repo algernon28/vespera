@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * rather than there — the shape {@link RedundancyGate} and {@link DegenerateOutputConfidenceFloor}
  * already use for stage 4's and stage 2's keys.
  *
- * <p>Checked before anything stage 5 does, and before {@link SeedMeasurementRun} mints a row,
+ * <p>Checked before anything stage 5 does, and before {@link StageRuns#seedMeasurement} mints a row,
  * because a run that did nothing should not exist in the {@code run} table (ADR-080).
  *
  * <p>An <em>unfinished</em> walk closes the gate just as an unset key does, and for a reason worth

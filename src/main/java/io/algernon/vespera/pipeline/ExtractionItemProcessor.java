@@ -17,6 +17,7 @@ import io.algernon.vespera.extraction.FailureCategory;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.similarity.Shingler;
 import java.nio.file.Path;
@@ -66,7 +67,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private final DoclingExtractor extractor;
     private final ExtractorIdentity extractorIdentity;
     private final ExtractionTimeoutStreak timeoutStreak;
-    private final ExtractionRun extractionRun;
+    private final StageRuns stageRuns;
     private final ExtractionMetrics extractionMetrics;
     private final DegenerateOutputConfidenceFloor confidenceFloor;
     private final Shingler shingler;
@@ -86,7 +87,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
             ExtractionTimeoutStreak timeoutStreak,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             ExtractionMetrics extractionMetrics,
             DegenerateOutputConfidenceFloor confidenceFloor,
             Shingler shingler) {
@@ -97,7 +98,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                 extractor,
                 extractorIdentity,
                 timeoutStreak,
-                extractionRun,
+                stageRuns,
                 extractionMetrics,
                 confidenceFloor,
                 shingler,
@@ -122,7 +123,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
             ExtractionTimeoutStreak timeoutStreak,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             ExtractionMetrics extractionMetrics,
             DegenerateOutputConfidenceFloor confidenceFloor,
             Shingler shingler,
@@ -133,7 +134,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
         this.timeoutStreak = timeoutStreak;
-        this.extractionRun = extractionRun;
+        this.stageRuns = stageRuns;
         this.extractionMetrics = extractionMetrics;
         this.confidenceFloor = confidenceFloor;
         this.shingler = shingler;
@@ -141,7 +142,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         // Nothing is discarded here. ExtractionJobConfiguration's reader does it, where a delete is
         // outside the chunk transaction and so cannot be rolled back under this step's fault tolerance
         // (ADR-115's discard half, ADR-116).
-        this.progress = StageProgress.over("Stage 2 (extraction)", ledger.survivorCount(extractionRun.runId()));
+        this.progress = StageProgress.over("Stage 2 (extraction)", ledger.survivorCount(stageRuns.extraction()));
     }
 
     @Override
@@ -158,7 +159,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private ExtractionOutcome doProcess(OccurrenceId occurrenceId) {
         Path file = resolvePath(occurrenceId);
         Optional<DetectedFormat> format =
-                detectedFormats.formatFor(occurrenceId, extractionRun.byteLevelReductionRunId());
+                detectedFormats.formatFor(occurrenceId, stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION));
         if (format.isEmpty()) {
             return unreadableFormat(occurrenceId);
         }
@@ -176,7 +177,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             // carries — degenerate-output is the only verdict reachable from here.
             timeoutStreak.reset();
             ExtractionOutcome outcome = judgeConverted(occurrenceId, response);
-            shingler.write(occurrenceId, extractionRun.runId(), DoclingDocumentTexts.lines(response.rawResponse()));
+            shingler.write(occurrenceId, stageRuns.extraction(), DoclingDocumentTexts.lines(response.rawResponse()));
             return outcome;
         }
 
@@ -200,11 +201,12 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         // ExtractionItemProcessorTest's own constructor, so pending is always empty there and this falls
         // back to placing the call itself, exactly as it always has.
         DoclingResponse response = pending.take(occurrenceId).orElseGet(() -> {
+            RunId byteLevelReductionRunId = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
             String contentHash = contentIdentity
-                    .hashFor(occurrenceId, extractionRun.byteLevelReductionRunId())
+                    .hashFor(occurrenceId, byteLevelReductionRunId)
                     .orElseGet(() -> extractor.contentHashFor(file));
             DetectedSubtype subtype = detectedFormats
-                    .subtypeFor(occurrenceId, extractionRun.byteLevelReductionRunId())
+                    .subtypeFor(occurrenceId, byteLevelReductionRunId)
                     .orElse(null);
             return extractor.convert(file, contentHash, extractorIdentity, format, subtype);
         });
@@ -226,7 +228,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      */
     private ExtractionOutcome unreadableFormat(OccurrenceId occurrenceId) {
         String reason = "no detected format is recorded for occurrence " + occurrenceId.value() + " under run "
-                + extractionRun.byteLevelReductionRunId().value();
+                + stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION).value();
         log.info("[extraction] {}", reason);
         return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
     }
@@ -241,7 +243,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      */
     private ExtractionOutcome judgeConverted(OccurrenceId occurrenceId, DoclingResponse response) {
         DegeneracyVerdict verdict =
-                extractionMetrics.writeAndJudge(occurrenceId, extractionRun.runId(), response, confidenceFloor.value());
+                extractionMetrics.writeAndJudge(occurrenceId, stageRuns.extraction(), response, confidenceFloor.value());
         if (verdict.degenerate()) {
             return new ExtractionOutcome(occurrenceId, VerdictKind.DEGENERATE_OUTPUT, verdict.reason());
         }
@@ -270,7 +272,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             throw new ServiceScopeFailureException(occurrenceId, "timeout", detail);
         }
         if (response != null) {
-            extractionMetrics.write(occurrenceId, extractionRun.runId(), response);
+            extractionMetrics.write(occurrenceId, stageRuns.extraction(), response);
         }
         return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, "timeout: " + detail);
     }
@@ -302,7 +304,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         Optional<DoclingError> unconditional =
                 errors.stream().filter(error -> isUnconditionalDocumentScope(error.category())).findFirst();
         if (unconditional.isPresent()) {
-            extractionMetrics.write(occurrenceId, extractionRun.runId(), response);
+            extractionMetrics.write(occurrenceId, stageRuns.extraction(), response);
             return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(unconditional.get()));
         }
 
@@ -315,7 +317,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                     .or(() -> errors.stream().findFirst())
                     .map(ExtractionItemProcessor::reasonFor)
                     .orElse(UNCATEGORISED + ": " + NO_CATEGORIZED_ERROR);
-            extractionMetrics.write(occurrenceId, extractionRun.runId(), response);
+            extractionMetrics.write(occurrenceId, stageRuns.extraction(), response);
             return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
         }
 
@@ -383,6 +385,6 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         OccurrenceFacts facts = ledger.factsFor(occurrenceId)
                 .orElseThrow(
                         () -> new IllegalStateException("no facts are recorded for occurrence " + occurrenceId.value()));
-        return extractionRun.canonicalRoot().resolve(facts.path().value());
+        return stageRuns.canonicalRoot().resolve(facts.path().value());
     }
 }

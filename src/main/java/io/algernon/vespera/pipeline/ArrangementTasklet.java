@@ -35,7 +35,6 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -80,8 +79,7 @@ class ArrangementTasklet implements Tasklet {
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
-    private final ObjectProvider<ScoringRun> scoringRun;
-    private final ObjectProvider<ArrangementRun> arrangementRun;
+    private final StageRuns stageRuns;
     private final DocumentClusters documentClusters;
     private final RelevanceScoring relevanceScoring;
     private final Clusters clusters;
@@ -95,8 +93,7 @@ class ArrangementTasklet implements Tasklet {
             EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
-            ObjectProvider<ScoringRun> scoringRun,
-            ObjectProvider<ArrangementRun> arrangementRun,
+            StageRuns stageRuns,
             DocumentClusters documentClusters,
             RelevanceScoring relevanceScoring,
             Clusters clusters,
@@ -108,8 +105,7 @@ class ArrangementTasklet implements Tasklet {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
-        this.scoringRun = scoringRun;
-        this.arrangementRun = arrangementRun;
+        this.stageRuns = stageRuns;
         this.documentClusters = documentClusters;
         this.relevanceScoring = relevanceScoring;
         this.clusters = clusters;
@@ -121,7 +117,7 @@ class ArrangementTasklet implements Tasklet {
     }
 
     @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
                 "the arrangement step", embeddingModelGate, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
@@ -129,7 +125,7 @@ class ArrangementTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        RunId scoring = scoringRun.getObject().runId();
+        RunId scoring = stageRuns.embeddingScoring();
         List<DocumentCluster> membership = documentClusters.forRun(scoring);
         if (membership.isEmpty()) {
             LOG.info(
@@ -139,48 +135,47 @@ class ArrangementTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        RunId arrangement = arrangementRun.getObject().runId();
+        RunId arrangement = stageRuns.arrangement();
         Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
                 scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
 
-        // This step's own work under this run is already recorded, so there are no rows to write --
-        // but the page an approval copies its name off is written every time this invocation arrives
-        // at an arrangement, from the rows recorded under it, including when they were recorded by an
+        // The page an approval copies its name off is written every time this invocation arrives at an
+        // arrangement, from the rows recorded under it, including when they were recorded by an
         // earlier invocation (ADR-154 §2, amending ADR-115's "a skipped step writes no report" for this
-        // one page).
-        if (ledger.stepFinished(arrangement, ArrangementRun.STAGE)) {
-            LOG.info("the arrangement step was already recorded under run {}", arrangement.value());
-            write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
-                    ArrangementGate.shortNameOf(arrangement),
-                    Walk.canonicalRoot(root).toString(),
-                    reportOf(clusters.forRun(arrangement), membership, scores)));
-            return RepeatStatus.FINISHED;
-        }
+        // one page) -- kept as its own alreadyRecorded action (ADR-157 §5).
+        return TaskletSteps.once(
+                ledger,
+                arrangement,
+                StepNames.ARRANGEMENT,
+                () -> {
+                    LOG.info("the arrangement step was already recorded under run {}", arrangement.value());
+                    write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
+                            ArrangementGate.shortNameOf(arrangement),
+                            Walk.canonicalRoot(root).toString(),
+                            reportOf(clusters.forRun(arrangement), membership, scores)));
+                },
+                () -> clusters.discardForRun(arrangement),
+                () -> {
+                    List<Partition> partitions = Arrangement.partitionsOf(clusteredDocuments(membership, scores));
 
-        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
-        // this step's own rows before working is ADR-115's other half (ADR-116).
-        clusters.discardForRun(arrangement);
-
-        List<Partition> partitions = Arrangement.partitionsOf(clusteredDocuments(membership, scores));
-
-        List<ArrangedCluster> arranged = Arrangement.order(partitions);
-        for (ArrangedCluster cluster : arranged) {
-            ClusterLabel label = labelFor(cluster, membership, scores);
-            clusters.record(arrangement, cluster, label);
-        }
-        write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
-                ArrangementGate.shortNameOf(arrangement),
-                Walk.canonicalRoot(root).toString(),
-                reportOf(clusters.forRun(arrangement), membership, scores)));
-        ledger.finishStep(arrangement, ArrangementRun.STAGE);
-        LOG.info(
-                "The arrangement step finished under {}: {} seed partition(s), {} cluster(s), {}"
-                        + " document(s)",
-                arrangement.value(),
-                partitions.size(),
-                arranged.size(),
-                arranged.stream().mapToInt(ArrangedCluster::documentCount).sum());
-        return RepeatStatus.FINISHED;
+                    List<ArrangedCluster> arranged = Arrangement.order(partitions);
+                    for (ArrangedCluster cluster : arranged) {
+                        ClusterLabel label = labelFor(cluster, membership, scores);
+                        clusters.record(arrangement, cluster, label);
+                    }
+                    write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
+                            ArrangementGate.shortNameOf(arrangement),
+                            Walk.canonicalRoot(root).toString(),
+                            reportOf(clusters.forRun(arrangement), membership, scores)));
+                    LOG.info(
+                            "The arrangement step finished under {}: {} seed partition(s), {} cluster(s), {}"
+                                    + " document(s)",
+                            arrangement.value(),
+                            partitions.size(),
+                            arranged.size(),
+                            arranged.stream().mapToInt(ArrangedCluster::documentCount).sum());
+                    return true;
+                });
     }
 
     /**

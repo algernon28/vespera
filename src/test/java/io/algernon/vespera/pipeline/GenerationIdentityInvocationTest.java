@@ -33,13 +33,18 @@ import org.springframework.test.context.DynamicPropertySource;
  * How the record of stage 6b's work is composed, and what it takes to stop one being written at all
  * (ADR-110, ADR-114, ADR-126, #196).
  *
- * <p><b>Why these claims are made against the database rather than against a method.</b> {@code
- * GenerationRunTest} already says what a generator identity is made of: it hands {@code
- * GenerationRun.configConsumed} a digest of its own and claims that digest comes back. That is a true
- * claim about a string builder and says nothing about the call site — replace the reading of the
- * serving engine with the model's own name in {@link GenerationRun}'s constructor and every one of
- * those claims still holds, over an identity now carrying the name twice and no digest at all. So
- * these claims are made against the row an invocation actually wrote (ADR-126).
+ * <p><b>Why these claims are made against the database rather than against a method.</b> A test that
+ * hands the method composing the generator identity a digest of its own, and claims that digest comes
+ * back, makes a true claim about a string builder and says nothing about the call site: replace the
+ * reading of the serving engine with the model's own name where the run is minted, and every such
+ * claim still holds, over an identity now carrying the name twice and no digest at all. So these
+ * claims are made against the row an invocation actually wrote (ADR-126).
+ *
+ * <p>The four claims {@code GenerationRunTest} made against that method are all here now, made
+ * against the row: the model's name and its digest, no trace of where the model was served, the
+ * reading window, and the approved arrangement. That class called the method on the class that mints
+ * the run, which ADR-157 folds into one holder with every other stage's mint, so its claims were
+ * moved here rather than left to name a class that no longer exists.
  *
  * <p><b>The order the two things happen in is claimed through what the record holds</b>, not through
  * what is left lying about afterwards (ADR-126). ADR-114 puts its stops where the name is resolved and
@@ -93,6 +98,13 @@ class GenerationIdentityInvocationTest {
      * it means and why that number is the one to look for.
      */
     private static final String THE_PORT_A_RUNTIME_LISTENS_ON = "11434";
+
+    /**
+     * A reading window other than the 8192 tokens the tool ships with, so a record carrying it can only
+     * have taken it from the profile. Wider than the default, so every group this fixture arranges still
+     * fits into a call.
+     */
+    private static final String A_WINDOW_OTHER_THAN_THE_DEFAULT = "16384";
 
     /** What a refused invocation is worth: nothing written down at all, not a record of work with a hole in it. */
     private static final int NO_RECORD_AT_ALL = 0;
@@ -179,6 +191,53 @@ class GenerationIdentityInvocationTest {
     }
 
     @Test
+    @Story("The record of a piece of work says which weights actually did it")
+    @DisplayName("What is written down carries how much each call was allowed to read, as the operator set it")
+    void recordsTheReadingWindowTheOperatorSet(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        cli.run("run", root.toString());
+        approveGeneratingUnder(ArrangementGate.shortNameOf(theLatestArrangement(root)), THE_WRITING_MODEL);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .generationContextWindow(A_WINDOW_OTHER_THAN_THE_DEFAULT, "set by this test")
+                .build());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the work was recorded at all, so the claim below is about something that exists",
+                () -> assertThat(theRecordOfTheWork(root)).isNotEmpty());
+        claim(
+                "and it carries the window of " + A_WINDOW_OTHER_THAN_THE_DEFAULT + " tokens this test set"
+                        + " rather than the one the tool ships with: how much each call could read is part"
+                        + " of what was asked, and the same archive read through a narrower window is"
+                        + " written from fewer documents, which is different work and has to be recorded"
+                        + " as different work rather than as the same work twice",
+                () -> assertThat(theRecordOfTheWork(root))
+                        .contains("\"contextWindow\":" + A_WINDOW_OTHER_THAN_THE_DEFAULT + ","));
+    }
+
+    @Test
+    @Story("The record of a piece of work says which weights actually did it")
+    @DisplayName("What is written down names the arrangement the approval named")
+    void recordsTheApprovedArrangement(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        cli.run("run", root.toString());
+        RunId approved = theLatestArrangement(root);
+        approveGeneratingUnder(ArrangementGate.shortNameOf(approved), THE_WRITING_MODEL);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the work was recorded at all, so the claim below is about something that exists",
+                () -> assertThat(theRecordOfTheWork(root)).isNotEmpty());
+        claim(
+                "and it names, in full, the arrangement the approval named, as well as reading it: a"
+                        + " re-arrangement then changes what the work is recorded as, and so the directory"
+                        + " the archive is written into, without anyone having to remember to change it",
+                () -> assertThat(theRecordOfTheWork(root)).contains("\"arrangementRunId\":\"" + approved.value() + "\""));
+    }
+
+    @Test
     @Story("Nothing is written over the archive under weights nobody can name")
     @DisplayName("With the model named never having been given to the runtime, the invocation stops")
     void stopsWhenTheRuntimeCannotSayWhatItHoldsUnderThatName(@TempDir Path root, @TempDir Path seeds)
@@ -247,7 +306,7 @@ class GenerationIdentityInvocationTest {
                 "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
                         + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
                 String.class,
-                ArrangementRun.STAGE,
+                "arrangement",
                 Walk.canonicalRoot(root).toString()));
     }
 
@@ -271,7 +330,7 @@ class GenerationIdentityInvocationTest {
                 "SELECT r.config_consumed FROM run r JOIN walk w ON w.id = r.walk_id"
                         + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid",
                 String.class,
-                GenerationRun.STAGE,
+                "generation",
                 Walk.canonicalRoot(root).toString());
     }
 }

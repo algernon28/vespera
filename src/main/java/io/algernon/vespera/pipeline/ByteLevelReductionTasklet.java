@@ -15,7 +15,6 @@ import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
-import io.algernon.vespera.ledger.WalkId;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -60,12 +59,6 @@ import org.springframework.stereotype.Component;
 @StepScope
 public class ByteLevelReductionTasklet implements Tasklet {
 
-    /** The stage name a run is minted under. */
-    static final String STAGE = "byte-level-reduction";
-
-    /** The module whose implementation version this stage's runs are versioned against (ADR-058). */
-    static final String OWNING_MODULE = "corpus";
-
     /** Stage 1 is fully deterministic — no profile value shapes it, so a run's config is empty. */
     static final String CONFIG_CONSUMED = "{}";
 
@@ -102,39 +95,42 @@ public class ByteLevelReductionTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         Path canonicalRoot = Walk.canonicalRoot(root);
-        WalkId walkId = ledger.finishedWalkFor(canonicalRoot)
-                .orElseThrow(() -> new IllegalStateException(
-                        "no finished walk is recorded for " + canonicalRoot + "; census must run before stage 1"));
-        RunId runId =
-                ledger.startRun(STAGE, implementationVersions.of(OWNING_MODULE), CONFIG_CONSUMED, walkId, List.of());
-        // Recorded the moment startRun returns (ADR-154 §1): stage 1 has no upstream of its own to
-        // read, but everything after it reads this invocation's own byte-level-reduction run from here
-        // rather than looking it up over the walk.
-        new InvocationRuns(chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext())
-                .record(STAGE, runId);
+        // Stage 1 has no upstream of its own to read (ADR-157 §2), so it mints through RunMint built
+        // inline from this tasklet's own Ledger and ImplementationVersions and from the job execution's
+        // own context -- everything after it reads this invocation's own byte-level-reduction run from
+        // InvocationRuns rather than looking it up over the walk.
+        RunMint runMint = new RunMint(
+                ledger,
+                implementationVersions,
+                new InvocationRuns(
+                        chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext()));
+        var walk = runMint.finishedWalk(canonicalRoot, "stage 1");
+        RunId runId = runMint.mint(StageModules.BYTE_LEVEL_REDUCTION, CONFIG_CONSUMED, walk, Optional.empty());
 
-        // This step's own work under this run is already written, so there is nothing here to do
-        // (ADR-115, ADR-116). This is what a content-derived identity was always for: the same inputs
-        // name the same work, and work already done is recognised rather than repeated.
-        if (ledger.stepFinished(runId, STAGE)) {
-            log.info("Stage 1 (byte-level reduction) was already recorded under run {}", runId.value());
-            return RepeatStatus.FINISHED;
-        }
-
-        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
-        // this step's own rows before working is ADR-115's other half (ADR-116).
-        ledger.discardVerdicts(runId, VerdictKind.BROKEN, VerdictKind.OUT_OF_SCOPE, VerdictKind.SUPERSEDED_BY);
-        detectedFormats.discardForRun(runId);
-        contentIdentity.discardForRun(runId);
-
-        log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
-
-        verdictBrokenSurvivors(runId, canonicalRoot);
-        resolveDuplicates(runId, canonicalRoot);
-
-        ledger.finishStep(runId, STAGE);
-        log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
-        return RepeatStatus.FINISHED;
+        return TaskletSteps.once(
+                ledger,
+                runId,
+                StepNames.BYTE_LEVEL_REDUCTION,
+                // This step's own work under this run is already written, so there is nothing here to
+                // do (ADR-115, ADR-116). This is what a content-derived identity was always for: the
+                // same inputs name the same work, and work already done is recognised rather than
+                // repeated.
+                () -> log.info("Stage 1 (byte-level reduction) was already recorded under run {}", runId.value()),
+                // Not finished: an invocation that stopped partway may have left rows behind under this
+                // same run id. Discarding this step's own rows before working is ADR-115's other half
+                // (ADR-116).
+                () -> {
+                    ledger.discardVerdicts(runId, VerdictKind.BROKEN, VerdictKind.OUT_OF_SCOPE, VerdictKind.SUPERSEDED_BY);
+                    detectedFormats.discardForRun(runId);
+                    contentIdentity.discardForRun(runId);
+                },
+                () -> {
+                    log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
+                    verdictBrokenSurvivors(runId, canonicalRoot);
+                    resolveDuplicates(runId, canonicalRoot);
+                    log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
+                    return true;
+                });
     }
 
     private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot) throws Exception {

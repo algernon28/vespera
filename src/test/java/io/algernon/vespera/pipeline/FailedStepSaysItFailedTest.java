@@ -43,9 +43,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * ({@code AbstractStep.execute}, spring-batch-core 6.0.5). Neither line looked at the step's exit
  * status, so a step that had just failed was reported as having <em>finished</em>, directly under
  * Spring Batch's own error for it. The counts were true; the verb was not, and it is the one word an
- * operator reading a failed invocation's log looks for. The listeners that record completion ({@link
- * RunCompletion} and stage 4a's own) already check for {@code COMPLETED}, so nothing but the line was
- * wrong (ADR-116).
+ * operator reading a failed invocation's log looks for. The one listener that records completion for
+ * both steps, {@link RunCompletion} (ADR-157 §6), already checks for {@code COMPLETED}, so nothing but
+ * the line was wrong (ADR-116).
  *
  * <p>Each failing test fails its step after one whole chunk has been written, so the counts on the
  * line are not zero and a line that merely drops the counts would not pass.

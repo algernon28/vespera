@@ -36,7 +36,6 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -58,6 +57,15 @@ import org.springframework.stereotype.Component;
  * no seed folder, no usable seed, or a seed file that would not open, no score exists to be spread
  * across bands, so there is nothing to put to a person. Since ADR-160 that is literally the same
  * preamble, and not only the same outcome.
+ *
+ * <p><b>There is no {@code finishStep} call in this class.</b> ADR-118 names this step and {@code
+ * relevance-floor} as the only two that read the answers a person gave, and takes them out of
+ * ADR-116's list for the reason ADR-116's own governing clause gives: a completion record is safe only
+ * where a run's identity names everything the step consumes. Answers are keyed by path and seed set
+ * (ADR-097) and no run names them -- deliberately, since a run id that moved when someone answered the
+ * page would re-score the corpus in reply to its own question. So this step keeps only the second of
+ * ADR-116's two rules: it does its work again on every invocation, and rewriting a file is its own
+ * discard.
  */
 @Component
 @StepScope
@@ -88,24 +96,10 @@ class RelevanceReportTasklet implements Tasklet {
     private static final String NO_CONVERSION_ON_RECORD_FALLBACK =
             "(no conversion is on record for the file as it is now, so its opening is not shown)";
 
-    /**
-     * The step's own name, which its own wiring builds it under. It is not the name of a completion
-     * record, and there is no {@code finishStep} call in this class.
-     *
-     * <p>ADR-118 names this step and {@code relevance-floor} as the only two that read the answers a
-     * person gave, and takes them out of ADR-116's list for the reason ADR-116's own governing clause
-     * gives: a completion record is safe only where a run's identity names everything the step
-     * consumes. Answers are keyed by path and seed set (ADR-097) and no run names them -- deliberately,
-     * since a run id that moved when someone answered the page would re-score the corpus in reply to
-     * its own question. So this step keeps only the second of ADR-116's two rules: it does its work
-     * again on every invocation, and rewriting a file is its own discard.
-     */
-    static final String STEP = "relevance-report";
-
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
-    private final ObjectProvider<ScoringRun> scoringRun;
+    private final StageRuns stageRuns;
     private final RelevanceDistribution relevanceDistribution;
     private final RelevanceLabels relevanceLabels;
     private final RelevanceFloor relevanceFloor;
@@ -121,7 +115,7 @@ class RelevanceReportTasklet implements Tasklet {
             EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
-            ObjectProvider<ScoringRun> scoringRun,
+            StageRuns stageRuns,
             RelevanceDistribution relevanceDistribution,
             RelevanceLabels relevanceLabels,
             RelevanceFloor relevanceFloor,
@@ -135,7 +129,7 @@ class RelevanceReportTasklet implements Tasklet {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
-        this.scoringRun = scoringRun;
+        this.stageRuns = stageRuns;
         this.relevanceDistribution = relevanceDistribution;
         this.relevanceLabels = relevanceLabels;
         this.relevanceFloor = relevanceFloor;
@@ -155,18 +149,20 @@ class RelevanceReportTasklet implements Tasklet {
      * <p><b>Both seed-usability questions are asked here too, not left to the missing scores.</b> This
      * step used to consult only the model and the seed walk, on the reasoning that with no usable seed
      * no survivor carries a score and the step shuts on that itself. It did shut, but only after
-     * resolving {@link ScoringRun} to learn which run had no scores, and that resolution minted a
-     * scoring run and a seed measurement run behind ADR-083's gate, which ADR-080 forbids -- and a
-     * scoring run behind ADR-155's, over a seed set missing a file (#309). So with a model named, this
-     * step now shuts on either fact in the sentence its siblings use, and mints nothing. Its own
-     * no-scores line below is for the state it was written for: every gate open, and nothing scored.
+     * resolving the scoring run (then {@code ScoringRun}) to learn which run had no scores, and that
+     * resolution minted a scoring run and a seed measurement run behind ADR-083's gate, which ADR-080
+     * forbids -- and a scoring run behind ADR-155's, over a seed set missing a file (#309). So with a
+     * model named, this step now shuts on either fact in the sentence its siblings use, and mints
+     * nothing. Its own no-scores line below is for the state it was written for: every gate open, and
+     * nothing scored.
      *
-     * <p>{@link ScoringRun} resolves {@link SeedMeasurementRun}, which refuses to exist while the seed
-     * gate is shut. So a model named with no seed folder -- ADR-098's invocation 2 for an operator who
-     * never took step zero -- threw out of this step and failed the whole job, in a state every other
-     * step in stage 5 reports as gated and exits 0 on. A mistyped folder arrived the same way: {@link
-     * SeedGate} swallows the resolution failure deliberately, because census already recorded it and
-     * carried on (ADR-064), and this step turned that back into a failed invocation two steps later.
+     * <p>{@link StageRuns#embeddingScoring} resolves the seed-measurement run, which refuses to exist
+     * while the seed gate is shut. So a model named with no seed folder -- ADR-098's invocation 2 for
+     * an operator who never took step zero -- threw out of this step and failed the whole job, in a
+     * state every other step in stage 5 reports as gated and exits 0 on. A mistyped folder arrived the
+     * same way: {@link SeedGate} swallows the resolution failure deliberately, because census already
+     * recorded it and carried on (ADR-064), and this step turned that back into a failed invocation two
+     * steps later.
      */
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
@@ -178,15 +174,15 @@ class RelevanceReportTasklet implements Tasklet {
         }
         String modelName = preamble.modelName().orElseThrow();
 
-        ScoringRun scoring = scoringRun.getObject();
+        RunId scoring = stageRuns.embeddingScoring();
 
         RelevanceDistribution.Distribution distribution;
         try {
-            distribution = relevanceDistribution.measure(scoring.runId());
+            distribution = relevanceDistribution.measure(scoring);
         } catch (java.util.NoSuchElementException nothingScored) {
             LOG.info("stage 5's relevance-report step is gated: no survivor carries a relevance score"
                     + " under {}, so there is no spread to report. Nothing was put to a person.",
-                    scoring.runId().value());
+                    scoring.value());
             return RepeatStatus.FINISHED;
         }
 
@@ -205,19 +201,19 @@ class RelevanceReportTasklet implements Tasklet {
         // headline consequence made executable: a label is a fact about a document, so a re-score under
         // a new model re-reads what a person already answered rather than asking them again.
         Map<OccurrenceId, Boolean> answers =
-                seedSet().map(seedSet -> answersInThisWalk(seedSet, scoring.runId())).orElseGet(Map::of);
+                seedSet().map(seedSet -> answersInThisWalk(seedSet, scoring)).orElseGet(Map::of);
 
         write(
                 RelevanceLabellingReport.FILE_NAME,
                 RelevanceLabellingReport.render(
                         distribution,
                         previews,
-                        relevanceDistribution.spreadOf(scoring.runId(), answers),
+                        relevanceDistribution.spreadOf(scoring, answers),
                         ignoredFloor().orElse(null)));
         write(
                 RelevanceLabelFile.FILE_NAME,
                 RelevanceLabelFile.render(
-                        scoring.runId().value(),
+                        scoring.value(),
                         relevanceDistribution.anyEmbedderIdentity().orElse(modelName),
                         entries));
         pointTheThresholdKeyAtThePage();
@@ -225,7 +221,7 @@ class RelevanceReportTasklet implements Tasklet {
         LOG.info(
                 "Stage 5 (relevance report) finished under scoring run {}: {} scored document(s) spread"
                         + " over {} bands, {} put to a person",
-                scoring.runId().value(),
+                scoring.value(),
                 distribution.scoredDocumentCount(),
                 distribution.bands().size(),
                 distribution.sample().size());

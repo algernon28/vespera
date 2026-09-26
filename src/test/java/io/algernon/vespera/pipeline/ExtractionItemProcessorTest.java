@@ -24,6 +24,7 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.similarity.Shingler;
@@ -38,13 +39,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -416,7 +420,7 @@ class ExtractionItemProcessorTest {
                                 "SELECT COUNT(*) FROM shingle WHERE occurrence_id = ? AND run_id = ?",
                                 Integer.class,
                                 corpus.occurrence(0).value(),
-                                corpus.extractionRun().runId().value()))
+                                corpus.extractionRunId().value()))
                         .isPositive());
     }
 
@@ -628,7 +632,7 @@ class ExtractionItemProcessorTest {
                         + " extraction-failed verdict in the system that no Docling response produced: in the"
                         + " ledger it is otherwise indistinguishable from a conversion that really failed",
                 () -> assertThat(unreadable.reason())
-                        .contains(corpus.extractionRun().byteLevelReductionRunId().value())
+                        .contains(corpus.byteLevelReductionRunId().value())
                         .contains(String.valueOf(corpus.occurrence(0).value())));
         claim(
                 "and nothing was converted for it: a document whose format could not be read is not sent"
@@ -685,7 +689,7 @@ class ExtractionItemProcessorTest {
                 docling,
                 IDENTITY,
                 new ExtractionTimeoutStreak(),
-                corpus.extractionRun(),
+                corpus.stage2(),
                 new ExtractionMetrics(jdbcTemplate, new LanguageDetection()),
                 new DegenerateOutputConfidenceFloor(null),
                 new Shingler(jdbcTemplate));
@@ -711,21 +715,56 @@ class ExtractionItemProcessorTest {
         ImplementationVersions versions = new ImplementationVersions();
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
         new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, step);
-        ExtractionRun extractionRun = new ExtractionRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
-                InvocationRecordFixture.recordOf(step));
+        ExecutionContext invocation = InvocationRecordFixture.recordOf(step);
+        // Stage 2 passes no gate, so the gates and the later stages' collaborators are left out: an
+        // accessor that needed one would fail here rather than mint.
+        StageRuns stageRuns = new StageRuns(
+                ledger,
+                versions,
+                new StaticListableBeanFactory(Map.of("extractorIdentity", IDENTITY))
+                        .getBeanProvider(ExtractorIdentity.class),
+                new DegenerateOutputConfidenceFloor(null),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                root,
+                invocation);
+        stageRuns.extraction();
         List<OccurrenceId> occurrences = paths.stream()
                 .map(path -> ledger.occurrenceId(walkId, path).orElseThrow())
                 .toList();
-        return new Corpus(ledger, extractionRun, occurrences);
+        return new Corpus(ledger, new InvocationRuns(invocation), stageRuns, occurrences);
     }
 
     private WalkRecorder walkRecorder(Ledger ledger) {
         return new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource));
     }
 
-    /** One walked corpus and the run stage 2 judges it under. */
-    private record Corpus(Ledger ledger, ExtractionRun extractionRun, List<OccurrenceId> occurrences) {
+    /**
+     * One walked corpus and the run stage 2 judges it under.
+     *
+     * <p>The claims read the runs through {@link #extractionRunId()} and {@link
+     * #byteLevelReductionRunId()}, which ask the invocation's own record, as every later stage does
+     * (ADR-154). {@code stage2} is the holder stage 2 asks for its run through (ADR-157), handed to the
+     * processor and read nowhere else. So the class that mints stage 2's run is named only by {@link
+     * #corpusOf}, {@link #processorOver} and this record's third component, which is why ADR-157's
+     * folding of the run classes changed those and no claim.
+     */
+    private record Corpus(
+            Ledger ledger, InvocationRuns invocation, StageRuns stage2, List<OccurrenceId> occurrences) {
+
+        RunId extractionRunId() {
+            return invocation.runOf("extraction").orElseThrow();
+        }
+
+        RunId byteLevelReductionRunId() {
+            return invocation.runOf("byte-level-reduction").orElseThrow();
+        }
 
         OccurrenceId occurrence(int index) {
             return occurrences.get(index);

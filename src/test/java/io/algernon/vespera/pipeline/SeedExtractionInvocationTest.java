@@ -181,13 +181,13 @@ class SeedExtractionInvocationTest {
         claim(
                 "seed extraction is not recorded as finished, so the next invocation reads every seed"
                         + " again instead of walking past a seed set with a hole in it",
-                () -> assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                () -> assertThat(ledger.stepFinished(measurementRun, "seed-extraction"))
                         .isFalse());
         claim(
                 "and stage 5 went no further: the comparison measured nothing, because a comparison"
                         + " without that seed would be recorded as finished under the same run the full"
                         + " seed set will be measured under",
-                () -> assertThat(ledger.stepFinished(measurementRun, SeedCorpusComparisonTasklet.STEP))
+                () -> assertThat(ledger.stepFinished(measurementRun, "seed-corpus-comparison"))
                         .isFalse());
         claim(
                 "the comparison says why, in the shared sentence stage 5's gates use",
@@ -219,7 +219,7 @@ class SeedExtractionInvocationTest {
                 });
         claim(
                 "seed extraction read the seed again and is now recorded as finished",
-                () -> assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                () -> assertThat(ledger.stepFinished(measurementRun, "seed-extraction"))
                         .isTrue());
         claim(
                 "the row saying the file could not be opened is gone: it described one invocation, and"
@@ -230,7 +230,7 @@ class SeedExtractionInvocationTest {
                 () -> assertThat(metricRowsAgainst(seedWalk, measurementRun)).isEqualTo(SEEDS_IN_THIS_FOLDER));
         claim(
                 "and stage 5 carried on in the same invocation, the comparison included",
-                () -> assertThat(ledger.stepFinished(measurementRun, SeedCorpusComparisonTasklet.STEP))
+                () -> assertThat(ledger.stepFinished(measurementRun, "seed-corpus-comparison"))
                         .isTrue());
     }
 
@@ -256,7 +256,7 @@ class SeedExtractionInvocationTest {
                 "the first invocation extracted both seeds and recorded seed extraction as finished",
                 () -> {
                     assertThat(cli.getExitCode()).isZero();
-                    assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                    assertThat(ledger.stepFinished(measurementRun, "seed-extraction"))
                             .isTrue();
                     assertThat(unusableSeeds.forRun(measurementRun)).isEmpty();
                 });
@@ -277,7 +277,7 @@ class SeedExtractionInvocationTest {
                 "seed extraction is still recorded as finished under the same run",
                 () -> {
                     assertThat(runIdsFor("seed-measurement", root)).containsExactly(measurementRun);
-                    assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                    assertThat(ledger.stepFinished(measurementRun, "seed-extraction"))
                             .isTrue();
                 });
         claim(

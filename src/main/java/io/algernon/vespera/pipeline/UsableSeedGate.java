@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
  * of the archive, and those rows sit under a step that is not recorded as finished, which no later
  * step may trust (ADR-116) — so the fact is not read back from them.
  *
- * <p>{@code @JobScope} for the same reason {@link SeedMeasurementRun} is: one instance serves every
+ * <p>{@code @JobScope} for the same reason {@link StageRuns} is: one instance serves every
  * step of stage 5 within one invocation, and the next invocation asks its own question. Closed until
  * seed extraction says otherwise, which is also the right answer when that step never ran at all —
  * {@link SeedGate} shut means nothing was converted, and nothing converted means nothing usable.

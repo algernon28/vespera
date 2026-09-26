@@ -232,7 +232,7 @@ class RunUpstreamChainTest {
                 "SELECT id FROM run WHERE walk_id = ? AND stage = ?",
                 String.class,
                 walkId.value(),
-                ArrangementRun.STAGE));
+                "arrangement"));
     }
 
     /** Each stage's upstream run ids, in the order the stages minted their runs. */

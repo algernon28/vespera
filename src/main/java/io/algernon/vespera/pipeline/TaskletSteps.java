@@ -1,9 +1,12 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.RunId;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
@@ -60,5 +63,50 @@ final class TaskletSteps {
                 .tasklet(tasklet, transactionManager)
                 .transactionAttribute(outsideAnyTransaction)
                 .build();
+    }
+
+    /** What a tasklet does at two of the three points {@link #once} calls into, keeping its own text. */
+    @FunctionalInterface
+    interface StepAction {
+        void run() throws Exception;
+    }
+
+    /**
+     * The work a tasklet does under a run, once past its own gate and discard — {@code true} where it
+     * counts as the step's own work being wholly done, {@code false} where it is not (ADR-157 §5).
+     */
+    @FunctionalInterface
+    interface StepWork {
+        boolean run() throws Exception;
+    }
+
+    /**
+     * The skip-if-done shell nine tasklets share (ADR-157 §5, amending ADR-131): byte-level reduction,
+     * content census, redundancy resolution, seed/corpus comparison, embedding scoring, relevance
+     * scoring, clustering, arrangement and generation.
+     *
+     * <p>If {@code run}'s own work under {@code step} is already recorded, runs {@code alreadyRecorded}
+     * and stops — every "already recorded" branch keeps its own sentence and its own logger, and {@link
+     * ArrangementTasklet} keeps writing {@code arrangement.html} from that branch (ADR-154 §2).
+     * Otherwise runs {@code discard}, then {@code work}, and records {@code step} finished under {@code
+     * run} only where {@code work} answered {@code true} — three tasklets have a path that ends without
+     * recording completion, and this is what keeps that path (ADR-116).
+     *
+     * <p>A function rather than a base class: clustering and arrangement check their gates, and reach
+     * their own run, in a different order from the rest, so each tasklet keeps its own preamble and
+     * calls this last.
+     */
+    static RepeatStatus once(
+            Ledger ledger, RunId run, String step, StepAction alreadyRecorded, StepAction discard, StepWork work)
+            throws Exception {
+        if (ledger.stepFinished(run, step)) {
+            alreadyRecorded.run();
+            return RepeatStatus.FINISHED;
+        }
+        discard.run();
+        if (work.run()) {
+            ledger.finishStep(run, step);
+        }
+        return RepeatStatus.FINISHED;
     }
 }

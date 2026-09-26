@@ -13,6 +13,7 @@ import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
@@ -24,7 +25,6 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -39,9 +39,9 @@ import org.springframework.stereotype.Component;
  * <p>Once the model is named and stage 5's earlier gates are open, every corpus survivor <em>and</em>
  * every usable seed is re-chunked from {@code extraction_cache} — {@link
  * DoclingExtractor#convert(Path, String, ExtractorIdentity)}'s cache hit means zero Docling calls —
- * and each chunk is embedded and stored as a vector via {@link ChunkEmbedder}, under {@link
- * ScoringRun}'s own run row. Both sides go through the same path with no instruction (ADR-084): a
- * seed chunk against a corpus chunk is two documents, not a query against a document.
+ * and each chunk is embedded and stored as a vector via {@link ChunkEmbedder}, under gate 3's own run
+ * row (ADR-084). Both sides go through the same path with no instruction: a seed chunk against a
+ * corpus chunk is two documents, not a query against a document.
  */
 @Component
 @StepScope
@@ -52,8 +52,7 @@ class EmbeddingScoringTasklet implements Tasklet {
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
-    private final ObjectProvider<SeedMeasurementRun> seedMeasurementRun;
-    private final ObjectProvider<ScoringRun> scoringRun;
+    private final StageRuns stageRuns;
     private final Ledger ledger;
     private final DoclingExtractor extractor;
     private final ExtractorIdentity extractorIdentity;
@@ -66,8 +65,7 @@ class EmbeddingScoringTasklet implements Tasklet {
             EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
-            ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
-            ObjectProvider<ScoringRun> scoringRun,
+            StageRuns stageRuns,
             Ledger ledger,
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
@@ -78,8 +76,7 @@ class EmbeddingScoringTasklet implements Tasklet {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
-        this.seedMeasurementRun = seedMeasurementRun;
-        this.scoringRun = scoringRun;
+        this.stageRuns = stageRuns;
         this.ledger = ledger;
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
@@ -90,7 +87,7 @@ class EmbeddingScoringTasklet implements Tasklet {
     }
 
     @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
                 "stage 5's scoring step", embeddingModelGate, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
@@ -100,36 +97,37 @@ class EmbeddingScoringTasklet implements Tasklet {
         String modelName = preamble.modelName().orElseThrow();
         SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();
 
-        SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
-        ScoringRun scoring = scoringRun.getObject();
+        RunId measurementRun = stageRuns.seedMeasurement();
+        RunId scoring = stageRuns.embeddingScoring();
 
-        // This step's own work under this run is already recorded, so there is nothing here to do
-        // (ADR-115, ADR-116). Nothing is discarded first: a vector is content under an instrument, not
-        // a judgement under a run (ADR-085), so it is keyed outside the run and re-embedding it would
-        // cost a second call to Ollama for no reason at all.
-        if (ledger.stepFinished(scoring.runId(), ScoringRun.STAGE)) {
-            LOG.info("Stage 5c (embedding scoring) was already recorded under run {}", scoring.runId().value());
-            return RepeatStatus.FINISHED;
-        }
-
-        Path canonicalRoot = Walk.canonicalRoot(root);
-        Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun.runId()));
-        Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk, measurementRun);
-        LOG.info(
-                "Stage 5c (embedding scoring) starting under scoring run {}: re-chunking and embedding {}"
-                        + " corpus survivor(s) and {} usable seed(s)",
-                scoring.runId().value(),
-                survivors.size(),
-                usableSeeds.size());
-        for (OccurrenceId occurrenceId : survivors) {
-            rechunkAndEmbed(canonicalRoot, occurrenceId, modelName);
-        }
-        for (OccurrenceId occurrenceId : usableSeeds) {
-            rechunkAndEmbed(seedWalk.canonicalRoot(), occurrenceId, modelName);
-        }
-        ledger.finishStep(scoring.runId(), ScoringRun.STAGE);
-        LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.runId().value());
-        return RepeatStatus.FINISHED;
+        // Nothing is discarded (ADR-157 §5): a vector is content under an instrument, not a judgement
+        // under a run (ADR-085), so it is keyed outside the run and re-embedding it would cost a second
+        // call to Ollama for no reason at all.
+        return TaskletSteps.once(
+                ledger,
+                scoring,
+                StepNames.EMBEDDING_SCORING,
+                () -> LOG.info("Stage 5c (embedding scoring) was already recorded under run {}", scoring.value()),
+                () -> {},
+                () -> {
+                    Path canonicalRoot = Walk.canonicalRoot(root);
+                    Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun));
+                    Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk, measurementRun);
+                    LOG.info(
+                            "Stage 5c (embedding scoring) starting under scoring run {}: re-chunking and"
+                                    + " embedding {} corpus survivor(s) and {} usable seed(s)",
+                            scoring.value(),
+                            survivors.size(),
+                            usableSeeds.size());
+                    for (OccurrenceId occurrenceId : survivors) {
+                        rechunkAndEmbed(canonicalRoot, occurrenceId, modelName);
+                    }
+                    for (OccurrenceId occurrenceId : usableSeeds) {
+                        rechunkAndEmbed(seedWalk.canonicalRoot(), occurrenceId, modelName);
+                    }
+                    LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.value());
+                    return true;
+                });
     }
 
     /**
@@ -137,9 +135,9 @@ class EmbeddingScoringTasklet implements Tasklet {
      * comparison are embedded through the same {@link #rechunkAndEmbed} path (ADR-084), so a seed's
      * vector exists exactly where a corpus chunk's does, keyed the same way.
      */
-    private Set<OccurrenceId> usableSeedOccurrences(SeedGate.SeedWalk seedWalk, SeedMeasurementRun measurementRun) {
+    private Set<OccurrenceId> usableSeedOccurrences(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
         Set<OccurrenceId> allSeeds = ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId()));
-        Set<OccurrenceId> unusable = unusableSeeds.forRun(measurementRun.runId()).stream()
+        Set<OccurrenceId> unusable = unusableSeeds.forRun(measurementRun).stream()
                 .map(UnusableSeed::occurrenceId)
                 .collect(Collectors.toSet());
         allSeeds.removeAll(unusable);
