@@ -233,8 +233,8 @@ class FailedStepSaysItFailedTest {
 
     /**
      * The other half of the rule, and the half nothing else in the suite pins: a step that completed
-     * still says it finished. Without it, a condition that said "failed" on every ending, or one turned
-     * the wrong way round, would pass both tests above.
+     * still says it finished. Without it, a condition that said "failed" on every ending would pass
+     * both tests above; one turned the wrong way round is caught by them as well as by this one.
      *
      * <p>What it cannot tell apart is comparing the whole exit status rather than its code, the code
      * being what {@link RunCompletion} compares: {@code ExitStatus.equals} compares the description
