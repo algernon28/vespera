@@ -44,6 +44,7 @@ const POM = "pom.xml";
 const APPLICATION_YAML = "src/main/resources/application.yaml";
 const COMPOSE = "compose.yaml";
 const COMMANDS = MAIN + "/pipeline/VesperaCommand.java";
+const WORKING_DIRECTORY_OPTION = MAIN + "/pipeline/WorkingDirectoryOption.java";
 const PROFILE = MAIN + "/profile/Profile.java";
 // No trailing slash: the list form is /issues?labels=..., and /issues/?labels=... is a 404.
 const ISSUE_API = "https://api.github.com/repos/algernon28/vespera/issues";
@@ -329,6 +330,39 @@ function readmeSection(heading, name) {
     for (const c of real) if (!named.includes(c)) wrong.push(`vespera ${c} exists and ${README} documents it nowhere`);
     if (wrong.length) fail(NAME, wrong.join("; "));
     else pass(NAME, named.map((c) => `vespera ${c}`).join(", "));
+  }
+}
+
+{
+  // #310: README told the operator to move the working directory with --db-dir and did not say
+  // it worked on `run` only, which is all it did. So every command README writes the option
+  // against has to mix in the one class that declares it, and that class has to declare it.
+  const NAME = "the commands README gives --db-dir";
+  const section = readmeSection("## Commands", NAME);
+  if (section) {
+    const given = [...section.matchAll(/^vespera (\w+) .*--db-dir=<path>/gm)].map((c) => c[1]).sort();
+    const option = /names = "(--[\w-]+)"/.exec(readFileSync(WORKING_DIRECTORY_OPTION, "utf8"));
+    // Each subcommand's source runs from its @Command to the next one.
+    const source = readFileSync(COMMANDS, "utf8");
+    const bodies = new Map(
+      source
+        .split(/(?=@Command\(\s*name = ")/)
+        .map((b) => [/^@Command\(\s*name = "(\w+)"/.exec(b)?.[1], b])
+        .filter(([c]) => c),
+    );
+    const wrong = [];
+    if (!given.length) wrong.push(`${README} writes --db-dir=<path> against no command`);
+    if (!option || option[1] !== "--db-dir") wrong.push(`${WORKING_DIRECTORY_OPTION} does not declare --db-dir`);
+    for (const c of given) {
+      const body = bodies.get(c);
+      if (!body) wrong.push(`${README} gives vespera ${c} --db-dir and no such subcommand exists`);
+      else if (!/@Mixin\s+private WorkingDirectoryOption /.test(body)) wrong.push(`vespera ${c} does not mix in WorkingDirectoryOption`);
+    }
+    for (const c of bodies.keys()) {
+      if (c !== "vespera" && !given.includes(c)) wrong.push(`vespera ${c} exists and ${README} does not give it --db-dir`);
+    }
+    if (wrong.length) fail(NAME, wrong.join("; "));
+    else pass(NAME, given.map((c) => `vespera ${c}`).join(", "));
   }
 }
 
