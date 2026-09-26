@@ -162,6 +162,6 @@ class ArrangementGateTest {
 
     private RunId anArrangement(WalkId walkId) {
         return new Ledger(jdbcTemplate)
-                .startRun("arrangement","v" + System.nanoTime(), "{}", walkId, List.of());
+                .startRun("arrangement", "v" +System.nanoTime(), "{}", walkId, List.of());
     }
 }
