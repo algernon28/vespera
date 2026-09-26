@@ -27,8 +27,8 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
+import io.algernon.vespera.ledger.RunId;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -62,13 +62,10 @@ class ClusteringTasklet implements Tasklet {
     /** The size report's name in the working directory, beside the profile and the database (ADR-054). */
     static final String CLUSTER_SIZES_FILE_NAME = "cluster-sizes.html";
 
-    /** The step's own name, and the name its completion is recorded under (ADR-116). */
-    static final String STEP = "clustering";
-
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
-    private final ObjectProvider<ScoringRun> scoringRun;
+    private final StageRuns stageRuns;
     private final Ledger ledger;
     private final DoclingExtractor extractor;
     private final HybridChunker hybridChunker;
@@ -81,7 +78,7 @@ class ClusteringTasklet implements Tasklet {
             EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
-            ObjectProvider<ScoringRun> scoringRun,
+            StageRuns stageRuns,
             Ledger ledger,
             DoclingExtractor extractor,
             HybridChunker hybridChunker,
@@ -92,7 +89,7 @@ class ClusteringTasklet implements Tasklet {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
-        this.scoringRun = scoringRun;
+        this.stageRuns = stageRuns;
         this.ledger = ledger;
         this.extractor = extractor;
         this.hybridChunker = hybridChunker;
@@ -103,7 +100,7 @@ class ClusteringTasklet implements Tasklet {
     }
 
     @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
                 "stage 5's clustering step", embeddingModelGate, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
@@ -112,82 +109,85 @@ class ClusteringTasklet implements Tasklet {
         }
         String modelName = preamble.modelName().orElseThrow();
 
-        ScoringRun scoring = scoringRun.getObject();
+        RunId scoring = stageRuns.embeddingScoring();
 
-        // This step's own work under this run is already recorded, so there is nothing here to do
-        // (ADR-115, ADR-116). relevance-scoring and relevance-floor, which share this run, are not
-        // asked -- each step answers only for itself.
-        if (ledger.stepFinished(scoring.runId(), STEP)) {
-            LOG.info("Stage 5f (clustering) was already recorded under scoring run {}", scoring.runId().value());
-            return RepeatStatus.FINISHED;
-        }
+        // relevance-scoring and relevance-floor, which share this run, are not asked -- each step
+        // answers only for itself. The empty-partition check sits between the finished check and the
+        // discard (ADR-157 §5): the discard is at the head of work, after the check.
+        return TaskletSteps.once(
+                ledger,
+                scoring,
+                StepNames.CLUSTERING,
+                () -> LOG.info("Stage 5f (clustering) was already recorded under scoring run {}", scoring.value()),
+                () -> {},
+                () -> {
+                    List<OccurrenceId> partitions = clustering.partitions(scoring);
+                    if (partitions.isEmpty()) {
+                        LOG.info(
+                                "stage 5's clustering step is gated: no survivor carries a relevance score"
+                                        + " under {}, so there is no partition to cluster. Nothing was"
+                                        + " clustered.",
+                                scoring.value());
+                        return false;
+                    }
 
-        List<OccurrenceId> partitions = clustering.partitions(scoring.runId());
-        if (partitions.isEmpty()) {
-            LOG.info(
-                    "stage 5's clustering step is gated: no survivor carries a relevance score under {},"
-                            + " so there is no partition to cluster. Nothing was clustered.",
-                    scoring.runId().value());
-            return RepeatStatus.FINISHED;
-        }
+                    documentClusters.discardForRun(scoring);
 
-        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
-        // this step's own rows before working is ADR-115's other half (ADR-116).
-        documentClusters.discardForRun(scoring.runId());
+                    Path canonicalRoot = Walk.canonicalRoot(root);
+                    String chunkerIdentity = hybridChunker.identity();
+                    String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
 
-        Path canonicalRoot = Walk.canonicalRoot(root);
-        String chunkerIdentity = hybridChunker.identity();
-        String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
+                    // The survivor set as it stands after the floor step, drained once: a document
+                    // removed as below-threshold still carries the score row that put it in a partition,
+                    // and clustering it would give a page to a document this run has just decided is not
+                    // in the archive. ADR-060 keeps the verdict join in the ledger, so the filter is
+                    // here rather than in the partition query embedding owns.
+                    Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(scoring));
 
-        // The survivor set as it stands after the floor step, drained once: a document removed as
-        // below-threshold still carries the score row that put it in a partition, and clustering it
-        // would give a page to a document this run has just decided is not in the archive. ADR-060
-        // keeps the verdict join in the ledger, so the filter is here rather than in the partition
-        // query embedding owns.
-        Set<OccurrenceId> survivors =
-                ItemStreamReaders.drain(ledger.survivors(scoring.runId()));
+                    LOG.info(
+                            "Stage 5f (clustering) starting under scoring run {}: {} seed partition(s) to"
+                                    + " cluster",
+                            scoring.value(),
+                            partitions.size());
+                    List<ClusterSizeReport.Partition> reported = new ArrayList<>();
+                    for (OccurrenceId winningSeed : partitions) {
+                        List<OccurrenceId> members = clustering.membersOf(scoring, winningSeed).stream()
+                                .filter(survivors::contains)
+                                .toList();
+                        if (members.isEmpty()) {
+                            // Every document this seed won was removed by the floor. A partition of
+                            // nothing is not a partition, and a heading with no page under it is not
+                            // worth minting.
+                            continue;
+                        }
+                        // The spread of the kept edges comes back from the pass that built the graph,
+                        // because that is the only place the similarities exist: recovering them
+                        // afterwards would mean the N-squared-over-two pass a second time (ADR-096).
+                        // Nothing reads it but the page.
+                        Optional<RetainedEdgeSpread> spread = clustering.clusterAndRecord(
+                                scoring,
+                                winningSeed,
+                                contentHashesOf(canonicalRoot, members),
+                                chunkerIdentity,
+                                chunkingRuleIdentity,
+                                modelName);
+                        // Read back rather than returned from the pass: a cluster exists as the set of
+                        // rows carrying its identity, so the sizes a reader is shown are the rows, not
+                        // what the arithmetic meant to write.
+                        reported.add(new ClusterSizeReport.Partition(
+                                pathOf(winningSeed), documentClusters.sizesFor(scoring, winningSeed), spread));
+                    }
 
-        LOG.info(
-                "Stage 5f (clustering) starting under scoring run {}: {} seed partition(s) to cluster",
-                scoring.runId().value(),
-                partitions.size());
-        List<ClusterSizeReport.Partition> reported = new ArrayList<>();
-        for (OccurrenceId winningSeed : partitions) {
-            List<OccurrenceId> members = clustering.membersOf(scoring.runId(), winningSeed).stream()
-                    .filter(survivors::contains)
-                    .toList();
-            if (members.isEmpty()) {
-                // Every document this seed won was removed by the floor. A partition of nothing is not
-                // a partition, and a heading with no page under it is not worth minting.
-                continue;
-            }
-            // The spread of the kept edges comes back from the pass that built the graph, because that
-            // is the only place the similarities exist: recovering them afterwards would mean the
-            // N-squared-over-two pass a second time (ADR-096). Nothing reads it but the page.
-            Optional<RetainedEdgeSpread> spread = clustering.clusterAndRecord(
-                    scoring.runId(),
-                    winningSeed,
-                    contentHashesOf(canonicalRoot, members),
-                    chunkerIdentity,
-                    chunkingRuleIdentity,
-                    modelName);
-            // Read back rather than returned from the pass: a cluster exists as the set of rows carrying
-            // its identity, so the sizes a reader is shown are the rows, not what the arithmetic meant to
-            // write.
-            reported.add(new ClusterSizeReport.Partition(
-                    pathOf(winningSeed), documentClusters.sizesFor(scoring.runId(), winningSeed), spread));
-        }
-
-        write(CLUSTER_SIZES_FILE_NAME, ClusterSizeReport.render(reported));
-        ledger.finishStep(scoring.runId(), STEP);
-        LOG.info(
-                "Stage 5f (clustering) finished under scoring run {}: {} partition(s), {} document(s) in"
-                        + " {} cluster(s)",
-                scoring.runId().value(),
-                reported.size(),
-                reported.stream().mapToInt(ClusterSizeReport.Partition::documentCount).sum(),
-                reported.stream().mapToInt(ClusterSizeReport.Partition::clusterCount).sum());
-        return RepeatStatus.FINISHED;
+                    write(CLUSTER_SIZES_FILE_NAME, ClusterSizeReport.render(reported));
+                    LOG.info(
+                            "Stage 5f (clustering) finished under scoring run {}: {} partition(s), {}"
+                                    + " document(s) in {} cluster(s)",
+                            scoring.value(),
+                            reported.size(),
+                            reported.stream().mapToInt(ClusterSizeReport.Partition::documentCount).sum(),
+                            reported.stream().mapToInt(ClusterSizeReport.Partition::clusterCount).sum());
+                    return true;
+                });
     }
 
     /**

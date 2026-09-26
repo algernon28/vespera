@@ -16,17 +16,17 @@ import org.springframework.stereotype.Component;
 class ExtractionItemWriter implements ItemWriter<ExtractionOutcome> {
 
     private final Ledger ledger;
-    private final ExtractionRun extractionRun;
+    private final StageRuns stageRuns;
 
-    ExtractionItemWriter(Ledger ledger, ExtractionRun extractionRun) {
+    ExtractionItemWriter(Ledger ledger, StageRuns stageRuns) {
         this.ledger = ledger;
-        this.extractionRun = extractionRun;
+        this.stageRuns = stageRuns;
     }
 
     @Override
     public void write(Chunk<? extends ExtractionOutcome> outcomes) {
         for (ExtractionOutcome outcome : outcomes) {
-            ledger.verdict(outcome.occurrenceId(), extractionRun.runId(), outcome.kind(), outcome.reason());
+            ledger.verdict(outcome.occurrenceId(), stageRuns.extraction(), outcome.kind(), outcome.reason());
         }
     }
 }

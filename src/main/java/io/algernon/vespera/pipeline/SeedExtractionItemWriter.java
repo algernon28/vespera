@@ -14,7 +14,6 @@ import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.infrastructure.item.Chunk;
 import org.springframework.batch.infrastructure.item.ItemWriter;
 import org.springframework.batch.core.ExitStatus;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
@@ -28,8 +27,8 @@ import org.springframework.stereotype.Component;
  * content-addressed and need no run — and {@link #afterStep} is where the run is minted, exactly once,
  * and only if something usable was found.
  *
- * <p>{@link SeedMeasurementRun} is reached through an {@code ObjectProvider} so that the run row is
- * never minted while the gate is shut: "a run that did nothing should not exist in the {@code run}
+ * <p>Stage 5's measurement run is reached through {@link StageRuns} so that the run row is never
+ * minted while the gate is shut: "a run that did nothing should not exist in the {@code run}
  * table" (ADR-080), and a stage-5 run row against a seed folder that produced nothing would read as a
  * measurement that found nothing to say — which is a different claim from never having run.
  *
@@ -62,7 +61,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
     private static final Logger log = LoggerFactory.getLogger(SeedExtractionItemWriter.class);
 
     private final SeedGate seedGate;
-    private final ObjectProvider<SeedMeasurementRun> seedMeasurementRun;
+    private final StageRuns stageRuns;
     private final UnusableSeeds unusableSeeds;
     private final ExtractionMetrics extractionMetrics;
     private final UsableSeedGate usableSeedGate;
@@ -76,13 +75,13 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
 
     SeedExtractionItemWriter(
             SeedGate seedGate,
-            ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
+            StageRuns stageRuns,
             UnusableSeeds unusableSeeds,
             ExtractionMetrics extractionMetrics,
             UsableSeedGate usableSeedGate,
             Ledger ledger) {
         this.seedGate = seedGate;
-        this.seedMeasurementRun = seedMeasurementRun;
+        this.stageRuns = stageRuns;
         this.unusableSeeds = unusableSeeds;
         this.extractionMetrics = extractionMetrics;
         this.usableSeedGate = usableSeedGate;
@@ -131,7 +130,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
                     unusableSeedCount);
             return stepExecution.getExitStatus();
         }
-        RunId runId = seedMeasurementRun.getObject().runId();
+        RunId runId = stageRuns.seedMeasurement();
 
         // This step's own work under this run is already recorded, so there is nothing left to write
         // (ADR-115, ADR-116) -- seed-corpus-comparison, which shares this run, is not asked: each step
@@ -140,7 +139,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         // every invocation regardless of whether this step's own rows are rewritten. A seed file that
         // stops opening after this step finished costs only the processor's own warning (ADR-155
         // section 2): the rows already written stand, and this branch sets no new fact.
-        if (ledger.stepFinished(runId, SeedExtractionJobConfiguration.STEP_NAME)) {
+        if (ledger.stepFinished(runId, StepNames.SEED_EXTRACTION)) {
             log.info("Stage 5a (seed extraction) was already recorded under run {}", runId.value());
             return stepExecution.getExitStatus();
         }
@@ -179,7 +178,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             return stepExecution.getExitStatus();
         }
 
-        ledger.finishStep(runId, SeedExtractionJobConfiguration.STEP_NAME);
+        ledger.finishStep(runId, StepNames.SEED_EXTRACTION);
         log.info(
                 "Stage 5 extracted the seed set under run {}: {} usable, {} recorded as unusable",
                 runId.value(),

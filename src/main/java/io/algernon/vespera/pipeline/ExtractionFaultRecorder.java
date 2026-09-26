@@ -64,11 +64,11 @@ class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOu
     ExtractionFaultRecorder(
             ExtractionFaults extractionFaults,
             Ledger ledger,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             PlatformTransactionManager transactionManager) {
         this.extractionFaults = extractionFaults;
         this.ledger = ledger;
-        this.runId = extractionRun.runId();
+        this.runId = stageRuns.extraction();
         this.transactions = new TransactionTemplate(transactionManager);
     }
 

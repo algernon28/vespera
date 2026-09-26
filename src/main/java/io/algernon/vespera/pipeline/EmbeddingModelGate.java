@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  * depend only on {@code ledger} (ADR-040), so the profile is read here rather than there, the same
  * shape {@link SeedGate} and {@link RedundancyGate} already use for their own keys.
  *
- * <p>Checked before {@code ScoringRun} mints a row, because a scoring run that did nothing should
+ * <p>Checked before {@link StageRuns#embeddingScoring} mints a row, because a scoring run that did nothing should
  * not exist in the {@code run} table (ADR-080's rule, applied a third time).
  */
 @Component

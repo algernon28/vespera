@@ -4,6 +4,7 @@ import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import java.util.List;
 import java.util.Optional;
@@ -14,7 +15,6 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
@@ -36,26 +36,20 @@ import org.springframework.stereotype.Component;
  * <p><b>The number is never written back.</b> Nothing here touches the profile: a threshold the
  * engine wrote would break the rule that the profile is authored by a person and never guessed at,
  * and ADR-062's census that never touches an existing value.
+ *
+ * <p><b>There is no {@code finishStep} call in this class.</b> ADR-118 names this step and {@code
+ * relevance-report} as the only two that read the answers a person gave, and takes them out of
+ * ADR-116's list for the reason ADR-116's own governing clause gives: a completion record is safe only
+ * where a run's identity names everything the step consumes. Answers are keyed by path and seed set
+ * (ADR-097) and no run names them -- deliberately, since a run id that moved when someone answered the
+ * page would re-score the corpus in reply to its own question. So this step decides again on every
+ * invocation, which is what lets an answer given between two of them take effect at all.
  */
 @Component
 @StepScope
 class RelevanceFloorTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(RelevanceFloorTasklet.class);
-
-    /**
-     * The step's own name, which its own wiring builds it under. It is not the name of a completion
-     * record, and there is no {@code finishStep} call in this class.
-     *
-     * <p>ADR-118 names this step and {@code relevance-report} as the only two that read the answers a
-     * person gave, and takes them out of ADR-116's list for the reason ADR-116's own governing clause
-     * gives: a completion record is safe only where a run's identity names everything the step
-     * consumes. Answers are keyed by path and seed set (ADR-097) and no run names them -- deliberately,
-     * since a run id that moved when someone answered the page would re-score the corpus in reply to
-     * its own question. So this step decides again on every invocation, which is what lets an answer
-     * given between two of them take effect at all.
-     */
-    static final String STEP = "relevance-floor";
 
     /**
      * What the verdict row records as its reason. It names the number and the scale it was read on,
@@ -66,7 +60,7 @@ class RelevanceFloorTasklet implements Tasklet {
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
-    private final ObjectProvider<ScoringRun> scoringRun;
+    private final StageRuns stageRuns;
     private final RelevanceFloor relevanceFloor;
     private final RelevanceScoring relevanceScoring;
     private final RelevanceDistribution relevanceDistribution;
@@ -76,7 +70,7 @@ class RelevanceFloorTasklet implements Tasklet {
             EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
-            ObjectProvider<ScoringRun> scoringRun,
+            StageRuns stageRuns,
             RelevanceFloor relevanceFloor,
             RelevanceScoring relevanceScoring,
             RelevanceDistribution relevanceDistribution,
@@ -84,7 +78,7 @@ class RelevanceFloorTasklet implements Tasklet {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
-        this.scoringRun = scoringRun;
+        this.stageRuns = stageRuns;
         this.relevanceFloor = relevanceFloor;
         this.relevanceScoring = relevanceScoring;
         this.relevanceDistribution = relevanceDistribution;
@@ -101,7 +95,7 @@ class RelevanceFloorTasklet implements Tasklet {
         }
         String modelName = preamble.modelName().orElseThrow();
 
-        ScoringRun scoring = scoringRun.getObject();
+        RunId scoring = stageRuns.embeddingScoring();
 
         // This run's own scale, not a stamp over every model the database has held: comparing a
         // threshold against the wrong identity is what would let a number calibrated elsewhere remove
@@ -125,7 +119,7 @@ class RelevanceFloorTasklet implements Tasklet {
         // turn either way between two invocations: a threshold that became applicable removes
         // documents, and one that stopped being applicable must withdraw the removals it already made.
         // Discarding only inside the applicable branch would keep the harsher half of that.
-        ledger.discardVerdicts(scoring.runId(), VerdictKind.BELOW_THRESHOLD);
+        ledger.discardVerdicts(scoring, VerdictKind.BELOW_THRESHOLD);
 
         switch (state) {
             case RelevanceFloor.Unset ignored -> {
@@ -143,14 +137,14 @@ class RelevanceFloorTasklet implements Tasklet {
                     elsewhere.calibratedUnder(),
                     elsewhere.currentIdentity());
             case RelevanceFloor.Applicable applicable -> {
-                List<OccurrenceId> below = relevanceScoring.scoredBelow(scoring.runId(), applicable.value());
+                List<OccurrenceId> below = relevanceScoring.scoredBelow(scoring, applicable.value());
                 for (OccurrenceId occurrenceId : below) {
-                    ledger.verdict(occurrenceId, scoring.runId(), VerdictKind.BELOW_THRESHOLD, REASON);
+                    ledger.verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, REASON);
                 }
                 LOG.info(
                         "Stage 5e (relevance floor) finished under scoring run {}: threshold {}, {}"
                                 + " survivor(s) removed as below-threshold",
-                        scoring.runId().value(),
+                        scoring.value(),
                         applicable.value(),
                         below.size());
             }

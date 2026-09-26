@@ -27,9 +27,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 @Configuration
 public class SeedExtractionJobConfiguration {
 
-    /** The step's name, and stage 5's first entry in the job's stage order. */
-    static final String STEP_NAME = "seed-extraction";
-
     /**
      * The step's chunk size, matching stage 2's for the same reason: each item is up to a 5-minute
      * HTTP call, so a small chunk bounds how much already-cached work a rolled-back chunk redoes. A
@@ -44,7 +41,7 @@ public class SeedExtractionJobConfiguration {
             OccurrenceReader seedReader,
             ObjectProvider<SeedExtractionItemProcessor> seedExtractionItemProcessor,
             SeedExtractionItemWriter seedExtractionItemWriter) {
-        return new StepBuilder(STEP_NAME, jobRepository)
+        return new StepBuilder(StepNames.SEED_EXTRACTION, jobRepository)
                 .<OccurrenceId, SeedExtractionOutcome>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
                 .reader(seedReader)

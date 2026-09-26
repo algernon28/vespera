@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.similarity.RedundancySignatures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +18,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Never invoked while the gate is closed: {@link RedundancyJobConfiguration}'s reader yields no items
  * in that case, so this writer's own step-scoped target is never even constructed — which is what keeps
- * {@link RedundancyRun}, reached here as a direct dependency, from minting a run row it should not.
+ * {@link StageRuns}, reached here as a direct dependency, from minting stage 4's run row when it should
+ * not.
  */
 @Component
 @StepScope
@@ -26,7 +28,9 @@ class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
     private static final Logger log = LoggerFactory.getLogger(RedundancySignatureItemWriter.class);
 
     private final RedundancySignatures redundancySignatures;
-    private final RedundancyRun redundancyRun;
+    private final StageRuns stageRuns;
+    private final RunId runId;
+    private final RunId extractionRunId;
     private final RedundancyBoilerplate redundancyBoilerplate;
 
     /** Stage 4a's progress line (ADR-093), over the survivor set this step's reader was given. */
@@ -35,24 +39,21 @@ class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
     RedundancySignatureItemWriter(
             Ledger ledger,
             RedundancySignatures redundancySignatures,
-            RedundancyRun redundancyRun,
+            StageRuns stageRuns,
             RedundancyBoilerplate redundancyBoilerplate) {
         this.redundancySignatures = redundancySignatures;
-        this.redundancyRun = redundancyRun;
+        this.stageRuns = stageRuns;
+        this.runId = stageRuns.contentRedundancy();
+        this.extractionRunId = stageRuns.upstream(StageModules.EXTRACTION);
         this.redundancyBoilerplate = redundancyBoilerplate;
-        this.progress = StageProgress.over(
-                "Stage 4a (redundancy signatures)", ledger.survivorCount(redundancyRun.runId()));
+        this.progress = StageProgress.over("Stage 4a (redundancy signatures)", ledger.survivorCount(runId));
     }
 
     @Override
     public void write(Chunk<? extends OccurrenceId> chunk) {
         for (OccurrenceId occurrenceId : chunk) {
             redundancySignatures.write(
-                    occurrenceId,
-                    redundancyRun.runId(),
-                    redundancyRun.extractionRunId(),
-                    redundancyBoilerplate.hashes(),
-                    redundancyRun.floor());
+                    occurrenceId, runId, extractionRunId, redundancyBoilerplate.hashes(), stageRuns.contentRedundancyFloor());
             log.info("[redundancy-signature] finished {}", occurrenceId.value());
             progress.itemDone();
         }

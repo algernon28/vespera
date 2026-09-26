@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.similarity.RedundancyResolution;
 import java.util.Set;
@@ -19,8 +20,8 @@ import org.springframework.stereotype.Component;
  * tasklet, like stage 3's own corpus-wide pass, since this work is one traversal over already-written
  * rows rather than a per-item conversion.
  *
- * <p>Checks {@link RedundancyGate#floor()} itself, before reaching for {@link RedundancyRun} or {@link
- * RedundancyBoilerplate} through their providers — the gate's own mechanism (#75's hand-off comment):
+ * <p>Checks {@link RedundancyGate#floor()} itself, before reaching {@link StageRuns} or {@link
+ * RedundancyBoilerplate} through its provider — the gate's own mechanism (#75's hand-off comment):
  * with the floor unset, this step logs which key is missing and where its data lives, and completes
  * having minted nothing.
  */
@@ -29,30 +30,27 @@ class RedundancyResolutionTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(RedundancyResolutionTasklet.class);
 
-    /** The step's own name, and the name its completion is recorded under (ADR-116). */
-    static final String STEP = RedundancyRun.STAGE;
-
     private final RedundancyGate redundancyGate;
-    private final ObjectProvider<RedundancyRun> redundancyRunProvider;
+    private final StageRuns stageRuns;
     private final ObjectProvider<RedundancyBoilerplate> redundancyBoilerplateProvider;
     private final RedundancyResolution redundancyResolution;
     private final Ledger ledger;
 
     RedundancyResolutionTasklet(
             RedundancyGate redundancyGate,
-            ObjectProvider<RedundancyRun> redundancyRunProvider,
+            StageRuns stageRuns,
             ObjectProvider<RedundancyBoilerplate> redundancyBoilerplateProvider,
             RedundancyResolution redundancyResolution,
             Ledger ledger) {
         this.redundancyGate = redundancyGate;
-        this.redundancyRunProvider = redundancyRunProvider;
+        this.stageRuns = stageRuns;
         this.redundancyBoilerplateProvider = redundancyBoilerplateProvider;
         this.redundancyResolution = redundancyResolution;
         this.ledger = ledger;
     }
 
     @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         if (redundancyGate.floor().isEmpty()) {
             // Silent on purpose (#135). Stage 4a's reader has already said what this gate wants, and
             // one gate with one missing value and one action was printing its whole paragraph twice in
@@ -60,27 +58,27 @@ class RedundancyResolutionTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        RedundancyRun redundancyRun = redundancyRunProvider.getObject();
+        RunId runId = stageRuns.contentRedundancy();
+        RunId stage3RunId = stageRuns.upstream(StageModules.CONTENT_CENSUS);
+        RunId extractionRunId = stageRuns.upstream(StageModules.EXTRACTION);
 
-        // This step's own work under this run is already recorded, so there is nothing here to do
-        // (ADR-115, ADR-116) -- redundancy-signature, the step before it, is not asked: the two share
-        // a run but each answers only for itself.
-        if (ledger.stepFinished(redundancyRun.runId(), STEP)) {
-            LOG.info("Stage 4b (redundancy resolution) was already recorded under run {}", redundancyRun.runId().value());
-            return RepeatStatus.FINISHED;
-        }
-
-        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
-        // this step's own rows before working is ADR-115's other half (ADR-116).
-        ledger.discardVerdicts(redundancyRun.runId(), VerdictKind.REDUNDANT_WITH);
-        redundancyResolution.discardForRun(redundancyRun.runId());
-
-        LOG.info("Stage 4b (redundancy resolution) starting under run {}", redundancyRun.runId().value());
-        Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();
-        redundancyResolution.resolve(
-                redundancyRun.runId(), redundancyRun.stage3RunId(), redundancyRun.extractionRunId(), boilerplateHashes);
-        ledger.finishStep(redundancyRun.runId(), STEP);
-        LOG.info("Stage 4b (redundancy resolution) finished under run {}", redundancyRun.runId().value());
-        return RepeatStatus.FINISHED;
+        return TaskletSteps.once(
+                ledger,
+                runId,
+                StepNames.CONTENT_REDUNDANCY,
+                // redundancy-signature, the step before it, is not asked: the two share a run but each
+                // answers only for itself.
+                () -> LOG.info("Stage 4b (redundancy resolution) was already recorded under run {}", runId.value()),
+                () -> {
+                    ledger.discardVerdicts(runId, VerdictKind.REDUNDANT_WITH);
+                    redundancyResolution.discardForRun(runId);
+                },
+                () -> {
+                    LOG.info("Stage 4b (redundancy resolution) starting under run {}", runId.value());
+                    Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();
+                    redundancyResolution.resolve(runId, stage3RunId, extractionRunId, boilerplateHashes);
+                    LOG.info("Stage 4b (redundancy resolution) finished under run {}", runId.value());
+                    return true;
+                });
     }
 }

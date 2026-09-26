@@ -13,8 +13,8 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
+import io.algernon.vespera.ledger.RunId;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -28,7 +28,7 @@ import org.springframework.stereotype.Component;
  * <p>A tasklet, like {@link RedundancyResolutionTasklet}: this is one corpus-wide read over rows two
  * earlier passes already wrote, not a per-document conversion.
  *
- * <p>Gated twice before it reaches {@link SeedMeasurementRun}, the same way {@link
+ * <p>Gated twice before it reaches stage 5's measurement run, the same way {@link
  * RedundancyResolutionTasklet} checks {@link RedundancyGate} first: {@link SeedGate} for whether a
  * seed folder was walked at all, and {@link UsableSeedGate} for whether any seed produced text. Either
  * one shut means the first step minted no run, and reaching for it here would mint one over a folder
@@ -47,14 +47,11 @@ class SeedCorpusComparisonTasklet implements Tasklet {
     /** The seed/corpus comparison report's fixed name in the working directory (ADR-086). */
     static final String SEED_CORPUS_COMPARISON_FILE_NAME = "seed-corpus-comparison.html";
 
-    /** The step's own name, and the name its completion is recorded under (ADR-116). */
-    static final String STEP = "seed-corpus-comparison";
-
     private static final Logger LOG = LoggerFactory.getLogger(SeedCorpusComparisonTasklet.class);
 
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
-    private final ObjectProvider<SeedMeasurementRun> seedMeasurementRun;
+    private final StageRuns stageRuns;
     private final SeedCorpusComparison seedCorpusComparison;
     private final Ledger ledger;
     private final Path workingDirectory;
@@ -62,20 +59,20 @@ class SeedCorpusComparisonTasklet implements Tasklet {
     SeedCorpusComparisonTasklet(
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
-            ObjectProvider<SeedMeasurementRun> seedMeasurementRun,
+            StageRuns stageRuns,
             SeedCorpusComparison seedCorpusComparison,
             Ledger ledger,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
-        this.seedMeasurementRun = seedMeasurementRun;
+        this.stageRuns = stageRuns;
         this.seedCorpusComparison = seedCorpusComparison;
         this.ledger = ledger;
         this.workingDirectory = workingDirectory;
     }
 
     @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         StageFiveGates.Preamble preamble = StageFiveGates.seedWalkAndUsable(
                 "stage 5's seed/corpus comparison", seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
@@ -84,33 +81,30 @@ class SeedCorpusComparisonTasklet implements Tasklet {
         }
         SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();
 
-        SeedMeasurementRun measurementRun = seedMeasurementRun.getObject();
+        RunId measurementRun = stageRuns.seedMeasurement();
+        RunId extractionRunId = stageRuns.upstream(StageModules.EXTRACTION);
 
-        // This step's own work under this run is already measured (ADR-115, ADR-116), report
-        // included: the page was written from these very rows, so measuring again would answer the
-        // same question twice. seed-extraction, which shares this run, is not asked -- each step
-        // answers only for itself.
-        if (ledger.stepFinished(measurementRun.runId(), STEP)) {
-            LOG.info(
-                    "Stage 5b (seed/corpus comparison) was already recorded under run {}",
-                    measurementRun.runId().value());
-            return RepeatStatus.FINISHED;
-        }
-
-        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
-        // this step's own rows before working is ADR-115's other half (ADR-116).
-        seedCorpusComparison.discardForRun(measurementRun.runId());
-
-        LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.runId().value());
-        SeedCorpusComparison.Comparison comparison = seedCorpusComparison.measure(
-                measurementRun.runId(), measurementRun.extractionRunId(), seedWalk.walkId());
-        Path reportFile = writeReport(comparison);
-        ledger.finishStep(measurementRun.runId(), STEP);
-        LOG.info(
-                "Stage 5b (seed/corpus comparison) finished under run {}; report written to {}",
-                measurementRun.runId().value(),
-                reportFile);
-        return RepeatStatus.FINISHED;
+        return TaskletSteps.once(
+                ledger,
+                measurementRun,
+                StepNames.SEED_CORPUS_COMPARISON,
+                // seed-extraction, which shares this run, is not asked -- each step answers only for
+                // itself.
+                () -> LOG.info(
+                        "Stage 5b (seed/corpus comparison) was already recorded under run {}",
+                        measurementRun.value()),
+                () -> seedCorpusComparison.discardForRun(measurementRun),
+                () -> {
+                    LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.value());
+                    SeedCorpusComparison.Comparison comparison =
+                            seedCorpusComparison.measure(measurementRun, extractionRunId, seedWalk.walkId());
+                    Path reportFile = writeReport(comparison);
+                    LOG.info(
+                            "Stage 5b (seed/corpus comparison) finished under run {}; report written to {}",
+                            measurementRun.value(),
+                            reportFile);
+                    return true;
+                });
     }
 
     /**

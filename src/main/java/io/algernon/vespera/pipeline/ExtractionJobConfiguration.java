@@ -11,6 +11,7 @@ import io.algernon.vespera.similarity.Shingler;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
@@ -28,9 +29,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * Stage 2's own Batch wiring (extraction), kept apart from {@link CensusJobConfiguration} and
- * {@link ByteLevelReductionJobConfiguration} for the same reason those are already separate: each stage
- * contributes its own step bean rather than growing one shared configuration class.
+ * Stage 2's own Batch wiring (extraction), kept apart from {@link VesperaJobConfiguration} because it
+ * holds a chunk step's reader, writer, listeners and the extractor's own bean, not one plain step
+ * (ADR-157 §7).
  *
  * <p>The first chunk-oriented step in the job (ADR: "stage 2 runs as a chunk-oriented Spring Batch
  * step (not a tasklet), so that its fault-tolerance mechanics — skip, circuit breaker — have the
@@ -101,7 +102,7 @@ public class ExtractionJobConfiguration {
             ExtractionHealthCheckListener extractionHealthCheckListener,
             ExtractionFaultRecorder extractionFaultRecorder,
             RunCompletion extractionRunCompletion) {
-        return new StepBuilder(ExtractionRun.STAGE, jobRepository)
+        return new StepBuilder(StepNames.EXTRACTION, jobRepository)
                 .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
                 .reader(extractionConversionDispatch)
@@ -143,7 +144,7 @@ public class ExtractionJobConfiguration {
             DetectedFormats detectedFormats,
             DoclingExtractor doclingExtractor,
             ExtractorIdentity extractorIdentity,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             PendingConversions extractionPendingConversions) {
         return new ConversionDispatch(
                 extractionReader,
@@ -152,7 +153,7 @@ public class ExtractionJobConfiguration {
                 detectedFormats,
                 doclingExtractor,
                 extractorIdentity,
-                extractionRun,
+                stageRuns,
                 extractionPendingConversions,
                 CONVERSION_CONCURRENCY);
     }
@@ -189,28 +190,30 @@ public class ExtractionJobConfiguration {
     ExtractionFaultRecorder extractionFaultRecorder(
             JdbcTemplate jdbcTemplate,
             Ledger ledger,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             PlatformTransactionManager transactionManager) {
         return new ExtractionFaultRecorder(
-                new ExtractionFaults(jdbcTemplate), ledger, extractionRun, transactionManager);
+                new ExtractionFaults(jdbcTemplate), ledger, stageRuns, transactionManager);
     }
 
     /**
-     * The survivors reader (ADR-060), scoped to whichever run {@link ExtractionRun} minted — itself scoped
-     * to whichever walk the {@code root} job parameter names, never hard-coded to the corpus walk.
+     * The survivors reader (ADR-060), scoped to whichever run {@link StageRuns#extraction} minted --
+     * itself scoped to whichever walk the {@code root} job parameter names, never hard-coded to the
+     * corpus walk.
      */
     @Bean
     @StepScope
     OccurrenceReader extractionReader(
             Ledger ledger,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             ExtractionMetrics extractionMetrics,
             Shingler shingler,
             JdbcTemplate jdbcTemplate) {
+        RunId extractionRun = stageRuns.extraction();
         // This step's own work under this run is already recorded, so it runs in its usual place and
         // reads nothing (ADR-115, ADR-116) -- the shape a shut gate already uses, for a different
         // reason.
-        if (ledger.stepFinished(extractionRun.runId(), ExtractionRun.STAGE)) {
+        if (ledger.stepFinished(extractionRun, StepNames.EXTRACTION)) {
             return OccurrenceReader.yieldingNothing();
         }
 
@@ -231,19 +234,19 @@ public class ExtractionJobConfiguration {
         // back, restoring the rows just deleted, and step scope survives the rollback -- so the
         // discard never runs again and the collision it exists to prevent comes back. A reader is
         // opened outside the chunk transaction, which is the only place a delete can be made to stick.
-        ledger.discardVerdicts(extractionRun.runId(), VerdictKind.EXTRACTION_FAILED, VerdictKind.DEGENERATE_OUTPUT);
-        extractionMetrics.discardForRun(extractionRun.runId());
-        shingler.discardForRun(extractionRun.runId());
-        new ExtractionFaults(jdbcTemplate).discardForRun(extractionRun.runId());
+        ledger.discardVerdicts(extractionRun, VerdictKind.EXTRACTION_FAILED, VerdictKind.DEGENERATE_OUTPUT);
+        extractionMetrics.discardForRun(extractionRun);
+        shingler.discardForRun(extractionRun);
+        new ExtractionFaults(jdbcTemplate).discardForRun(extractionRun);
 
-        return new OccurrenceReader(ledger.survivors(extractionRun.runId()));
+        return new OccurrenceReader(ledger.survivors(extractionRun));
     }
 
     /** Marks this step's own work as holding all of it, once it has finished doing it (ADR-115, ADR-116). */
     @Bean
     @StepScope
-    RunCompletion extractionRunCompletion(Ledger ledger, ExtractionRun extractionRun) {
-        return new RunCompletion(ledger, extractionRun::runId, ExtractionRun.STAGE);
+    RunCompletion extractionRunCompletion(Ledger ledger) {
+        return new RunCompletion(ledger, StageModules.EXTRACTION, StepNames.EXTRACTION);
     }
 
     /**
@@ -270,7 +273,7 @@ public class ExtractionJobConfiguration {
      * <p>{@code @Lazy}, because composing this needs the sidecar to answer: an eager singleton would
      * demand that at context refresh, before {@link ExtractionHealthCheckListener} has established the
      * sidecar is even there (ADR-071's lazy readiness check). Deferred, it is first built when stage
-     * 2's step asks for it — after that listener has run — and then reused, so {@link RedundancyRun}
+     * 2's step asks for it — after that listener has run — and then reused, so {@link StageRuns}
      * re-deriving stage 2's identity later in the job costs no second call and does not require the
      * sidecar to still be up.
      *

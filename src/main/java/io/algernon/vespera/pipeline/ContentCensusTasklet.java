@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
@@ -30,8 +31,8 @@ import org.springframework.stereotype.Component;
  * same shape {@link CensusTasklet} and {@link ByteLevelReductionTasklet} already use.
  *
  * <p>Drives {@code similarity}'s document-frequency pass (ADR-038, ADR-074) and {@code extraction}'s
- * confidence-distribution report (ADR-075) under the run {@link ContentCensusRun} minted. Writes no
- * verdict of any kind — stage 3 measures, it does not judge.
+ * confidence-distribution report (ADR-075) under the run {@link StageRuns#contentCensus} mints.
+ * Writes no verdict of any kind — stage 3 measures, it does not judge.
  *
  * <p>The confidence-distribution HTML file and the profile pointer to it are composed here rather
  * than inside {@code extraction} (ADR-040: a capability module may depend on {@code ledger} and
@@ -50,7 +51,7 @@ class ContentCensusTasklet implements Tasklet {
 
     private final DocumentFrequency documentFrequency;
     private final ConfidenceDistribution confidenceDistribution;
-    private final ContentCensusRun contentCensusRun;
+    private final StageRuns stageRuns;
     private final Ledger ledger;
     private final ProfileStore profileStore;
     private final Clock clock;
@@ -59,14 +60,14 @@ class ContentCensusTasklet implements Tasklet {
     ContentCensusTasklet(
             DocumentFrequency documentFrequency,
             ConfidenceDistribution confidenceDistribution,
-            ContentCensusRun contentCensusRun,
+            StageRuns stageRuns,
             Ledger ledger,
             ProfileStore profileStore,
             Clock clock,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.documentFrequency = documentFrequency;
         this.confidenceDistribution = confidenceDistribution;
-        this.contentCensusRun = contentCensusRun;
+        this.stageRuns = stageRuns;
         this.ledger = ledger;
         this.profileStore = profileStore;
         this.clock = clock;
@@ -74,43 +75,42 @@ class ContentCensusTasklet implements Tasklet {
     }
 
     @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        // This step's own work under this run is already measured, so there is nothing here to do
-        // (ADR-115, ADR-116). The report beside the database is not rewritten either: it was written
-        // from these very rows, and a step that skipped its measuring and rewrote its page would be
-        // claiming to have looked again.
-        if (ledger.stepFinished(contentCensusRun.runId(), ContentCensusRun.STAGE)) {
-            log.info(
-                    "Stage 3 (content census) was already recorded under run {}",
-                    contentCensusRun.runId().value());
-            return RepeatStatus.FINISHED;
-        }
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
+        RunId runId = stageRuns.contentCensus();
+        RunId extractionRunId = stageRuns.upstream(StageModules.EXTRACTION);
+        return TaskletSteps.once(
+                ledger,
+                runId,
+                StepNames.CONTENT_CENSUS,
+                // The report beside the database is not rewritten either: it was written from these
+                // very rows, and a step that skipped its measuring and rewrote its page would be
+                // claiming to have looked again.
+                () -> log.info("Stage 3 (content census) was already recorded under run {}", runId.value()),
+                () -> {
+                    documentFrequency.discardForRun(runId);
+                    confidenceDistribution.discardForRun(runId);
+                },
+                () -> {
+                    log.info("Stage 3 (content census) starting under run {}", runId.value());
 
-        // Not finished: an invocation that stopped partway may have left rows behind under this same run id. Discarding
-        // this step's own rows before working is ADR-115's other half (ADR-116).
-        documentFrequency.discardForRun(contentCensusRun.runId());
-        confidenceDistribution.discardForRun(contentCensusRun.runId());
+                    documentFrequency.measure(runId, extractionRunId);
+                    log.info("Stage 3 (content census) measured shingle document frequency");
 
-        log.info("Stage 3 (content census) starting under run {}", contentCensusRun.runId().value());
+                    ConfidenceDistribution.Distribution distribution =
+                            confidenceDistribution.measure(runId, extractionRunId);
+                    log.info("Stage 3 (content census) measured the confidence distribution");
+                    Path reportFile = writeReport(distribution);
 
-        documentFrequency.measure(contentCensusRun.runId(), contentCensusRun.extractionRunId());
-        log.info("Stage 3 (content census) measured shingle document frequency");
+                    Profile profile = profileStore.load();
+                    profileStore.save(profile.withDegenerateOutputConfidenceFloorMeasurement(
+                            new Measurement(reportFile.toString(), clock.instant())));
 
-        ConfidenceDistribution.Distribution distribution =
-                confidenceDistribution.measure(contentCensusRun.runId(), contentCensusRun.extractionRunId());
-        log.info("Stage 3 (content census) measured the confidence distribution");
-        Path reportFile = writeReport(distribution);
-
-        Profile profile = profileStore.load();
-        profileStore.save(profile.withDegenerateOutputConfidenceFloorMeasurement(
-                new Measurement(reportFile.toString(), clock.instant())));
-
-        ledger.finishStep(contentCensusRun.runId(), ContentCensusRun.STAGE);
-        log.info(
-                "Stage 3 (content census) finished under run {}; report written to {}",
-                contentCensusRun.runId().value(),
-                reportFile);
-        return RepeatStatus.FINISHED;
+                    log.info(
+                            "Stage 3 (content census) finished under run {}; report written to {}",
+                            runId.value(),
+                            reportFile);
+                    return true;
+                });
     }
 
     /**

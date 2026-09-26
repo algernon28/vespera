@@ -156,8 +156,8 @@ class NextAction {
      */
     String line(Path corpusRoot, InvocationRuns invocationRuns) {
         Profile profile = profileStore.load();
-        Optional<RunId> arrangement = invocationRuns.runOf(ArrangementRun.STAGE);
-        Optional<RunId> generation = invocationRuns.runOf(GenerationRun.STAGE);
+        Optional<RunId> arrangement = invocationRuns.runOf(StageModules.ARRANGEMENT.stage());
+        Optional<RunId> generation = invocationRuns.runOf(StageModules.GENERATION.stage());
         boolean approvalMatchesThisInvocation =
                 arrangementGate.getObject().approvedArrangement(arrangement).isPresent();
         return line(

@@ -10,6 +10,7 @@ import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -66,7 +67,7 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
     private final DetectedFormats detectedFormats;
     private final DoclingExtractor extractor;
     private final ExtractorIdentity extractorIdentity;
-    private final ExtractionRun extractionRun;
+    private final StageRuns stageRuns;
     private final PendingConversions pending;
     private final ExecutorService workers;
 
@@ -77,7 +78,7 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
             DetectedFormats detectedFormats,
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
-            ExtractionRun extractionRun,
+            StageRuns stageRuns,
             PendingConversions pending,
             int width) {
         this.delegate = delegate;
@@ -86,7 +87,7 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
         this.detectedFormats = detectedFormats;
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
-        this.extractionRun = extractionRun;
+        this.stageRuns = stageRuns;
         this.pending = pending;
         AtomicInteger sequence = new AtomicInteger();
         this.workers = Executors.newFixedThreadPool(width, task -> {
@@ -106,17 +107,17 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
     }
 
     private void dispatchIfConvertible(OccurrenceId occurrenceId) {
-        Optional<DetectedFormat> format =
-                detectedFormats.formatFor(occurrenceId, extractionRun.byteLevelReductionRunId());
+        RunId byteLevelReductionRunId = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
+        Optional<DetectedFormat> format = detectedFormats.formatFor(occurrenceId, byteLevelReductionRunId);
         if (format.isEmpty()) {
             return;
         }
         Path file = resolvePath(occurrenceId);
         String contentHash = contentIdentity
-                .hashFor(occurrenceId, extractionRun.byteLevelReductionRunId())
+                .hashFor(occurrenceId, byteLevelReductionRunId)
                 .orElseGet(() -> extractor.contentHashFor(file));
         DetectedSubtype subtype = detectedFormats
-                .subtypeFor(occurrenceId, extractionRun.byteLevelReductionRunId())
+                .subtypeFor(occurrenceId, byteLevelReductionRunId)
                 .orElse(null);
         DetectedFormat resolvedFormat = format.get();
 
@@ -136,7 +137,7 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
                 .orElseThrow(
                         () -> new IllegalStateException(
                                 "no facts are recorded for occurrence " + occurrenceId.value()));
-        return extractionRun.canonicalRoot().resolve(facts.path().value());
+        return stageRuns.canonicalRoot().resolve(facts.path().value());
     }
 
     @Override

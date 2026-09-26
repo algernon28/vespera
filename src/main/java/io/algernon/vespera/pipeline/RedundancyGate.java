@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  * (ADR-040), so the profile is read here rather than there, the same shape {@link
  * DegenerateOutputConfidenceFloor} already uses for stage 2's tier-2 key.
  *
- * <p>Checked before anything else stage 4 does — before {@link RedundancyRun} mints a row, before a
+ * <p>Checked before anything else stage 4 does — before {@link StageRuns#contentRedundancy} mints a row, before a
  * signature is computed — because a stage-4 run that did nothing should not exist in the {@code run}
  * table (ADR-080's own wording).
  */

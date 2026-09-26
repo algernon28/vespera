@@ -1,47 +1,54 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.RunId;
-import java.util.function.Supplier;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.step.StepExecution;
 
 /**
- * Marks a step's own work under its run as holding all of it, once the step has finished doing it
- * (ADR-115, ADR-116).
+ * The one listener that records a chunk step's completion, gated by what this invocation holds rather
+ * than by scoping (ADR-157 §6, amending ADR-116 and ADR-139 on one class: this is the single
+ * completion listener for both {@code extractionStep} and {@code redundancySignatureStep}, and {@code
+ * SignatureStepCompletion} is gone).
  *
- * <p><b>Only on success.</b> A step that failed or was stopped leaves its own completion unrecorded,
- * which is exactly right: the next invocation re-derives the same run identity, finds this step's
- * work missing, and does it again rather than skipping work that never completed. Recording
- * completion for a step that did not finish would make a partial invocation indistinguishable from a complete
- * one — and every later invocation would skip it forever.
+ * <p><b>{@code afterStep} records {@code ledger.finishStep(run, step)} only where two things hold:</b>
+ * the step's exit status is {@code COMPLETED}, and this invocation holds a run of {@code stage}, read
+ * as {@code new InvocationRuns(...).runOf(stage.stage())} from the job execution's own context. It
+ * holds no supplier and no provider, and it has no scope of its own — it cannot mint, because it only
+ * reads.
  *
- * <p>The run arrives as a supplier rather than a value because the beans that mint runs are
- * job- or step-scoped, and reaching one at wiring time would mint it behind a shut gate (ADR-080).
- * A gated step never reaches {@code afterStep} with a run to name, so nothing is marked.
+ * <p>The gate this applies is exactly the one needed. A step whose gate was shut minted nothing this
+ * invocation, so it records nothing, which is ADR-116's "a step that is gated records nothing". A step
+ * whose work was already recorded still called its accessor to find that out, so its run is held, and
+ * it records the same true thing again, which {@code finishStep} tolerates. For extraction, which has
+ * no gate, the run is always held once the reader was opened. For stage 4a it is held exactly when the
+ * reader passed the gate.
  *
- * <p>The step name is carried explicitly rather than read off {@link StepExecution#getStepName()},
- * because completion is recorded per step of a run rather than per run (ADR-116): several runs in
- * this system are shared by more than one step, and naming the step here is what keeps one step's
- * completion from being recorded on another's say-so.
+ * <p><b>ADR-139 §4's order is unchanged.</b> {@code extractionStep} registers this where it registered
+ * {@code extractionRunCompletion} before, after {@code extractionHealthCheckListener} and before {@code
+ * extractionFaultRecorder} — so in {@code afterStep} the fault recorder still runs first (Spring
+ * Batch's own composite listener runs {@code afterStep} in reverse registration order). {@code
+ * redundancySignatureStep} registers this where {@code SignatureStepCompletion} was, after {@code
+ * SignatureStepBoundaryLog}.
  */
 class RunCompletion implements StepExecutionListener {
 
     private final Ledger ledger;
-    private final Supplier<RunId> runId;
+    private final StageModules stage;
     private final String step;
 
-    RunCompletion(Ledger ledger, Supplier<RunId> runId, String step) {
+    RunCompletion(Ledger ledger, StageModules stage, String step) {
         this.ledger = ledger;
-        this.runId = runId;
+        this.stage = stage;
         this.step = step;
     }
 
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
         if (ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())) {
-            ledger.finishStep(runId.get(), step);
+            new InvocationRuns(stepExecution.getJobExecution().getExecutionContext())
+                    .runOf(stage.stage())
+                    .ifPresent(run -> ledger.finishStep(run, step));
         }
         return stepExecution.getExitStatus();
     }
