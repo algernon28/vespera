@@ -760,6 +760,13 @@ public final class Adr {
             + "0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md";
 
     /**
+     * ADR-158 -- the operator starts the sidecars from {@code compose.yaml}, and the packaged jar
+     * starts none (amends ADR-011).
+     */
+    public static final String THE_PACKAGED_JAR_STARTS_NO_SIDECAR = FILE
+            + "0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md";
+
+    /**
      * ADR-160 -- the relevance report asks whether any seed produced text and whether a seed file would
      * not open before it reaches the scoring run, so it mints nothing behind either gate (amends
      * ADR-132, ADR-155).
