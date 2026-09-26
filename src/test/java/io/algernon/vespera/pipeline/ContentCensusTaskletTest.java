@@ -41,6 +41,7 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import java.util.HashMap;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -58,11 +59,11 @@ import org.springframework.test.context.ActiveProfiles;
  * than run through a real Docling call, since what this class pins is the report, not extraction's own
  * per-document judgement.
  *
- * <p><b>Only two methods here name how a run is minted:</b> {@link #contentCensusOver} and the line in
- * {@link #walkedThroughExtractionWithScores} that mints stage 2's run. Every claim reads the run this
- * invocation recorded, through {@link InvocationRuns}, never through the class that minted it. So when
- * ADR-157 folds the run classes into one holder, those two methods are the whole of this class's
- * change, and no claim moves.
+ * <p><b>Only the fixture names how a run is minted:</b> {@link #stageRunsOver} builds the holder, and
+ * {@link #contentCensusOver} and the line in {@link #walkedThroughExtractionWithScores} that mints
+ * stage 2's run ask it. Every claim reads the run this invocation recorded, through {@link
+ * InvocationRuns}, never through the class that minted it, which is why ADR-157's folding of the run
+ * classes into one holder changed those methods and moved no claim.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -288,16 +289,38 @@ class ContentCensusTaskletTest {
             ProfileStore profileStore,
             Clock clock,
             Path workingDirectory) {
-        ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocations.get(root));
         return new ContentCensusTasklet(
                 new DocumentFrequency(jdbcTemplate, ledger),
                 new ConfidenceDistribution(jdbcTemplate, ledger),
-                contentCensusRun,
+                stageRunsOver(ledger, versions, root),
                 ledger,
                 profileStore,
                 clock,
                 workingDirectory);
+    }
+
+    /**
+     * The holder a stage asks for its run through (ADR-157), over the invocation that took {@code root}
+     * through byte-level reduction. Stages 2 and 3 pass no gate, so the gates and the later stages'
+     * collaborators are left out: an accessor that needed one would fail here rather than mint.
+     */
+    private StageRuns stageRunsOver(Ledger ledger, ImplementationVersions versions, Path root) {
+        return new StageRuns(
+                ledger,
+                versions,
+                new StaticListableBeanFactory(Map.of("extractorIdentity", IDENTITY))
+                        .getBeanProvider(ExtractorIdentity.class),
+                new DegenerateOutputConfidenceFloor(null),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                root,
+                invocations.get(root));
     }
 
     /** The content-census run the invocation over {@code root} recorded, read as later stages read it. */
@@ -320,9 +343,7 @@ class ContentCensusTaskletTest {
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
         new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, step);
         invocations.put(root, InvocationRecordFixture.recordOf(step));
-        ExtractionRun extractionRun = new ExtractionRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocations.get(root));
-        RunId extractionRunId = extractionRun.runId();
+        RunId extractionRunId = stageRunsOver(ledger, versions, root).extraction();
 
         for (int i = 0; i < meanScores.length; i++) {
             OccurrenceId occurrenceId =

@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -714,12 +716,29 @@ class ExtractionItemProcessorTest {
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
         new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, step);
         ExecutionContext invocation = InvocationRecordFixture.recordOf(step);
-        ExtractionRun extractionRun = new ExtractionRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocation);
+        // Stage 2 passes no gate, so the gates and the later stages' collaborators are left out: an
+        // accessor that needed one would fail here rather than mint.
+        StageRuns stageRuns = new StageRuns(
+                ledger,
+                versions,
+                new StaticListableBeanFactory(Map.of("extractorIdentity", IDENTITY))
+                        .getBeanProvider(ExtractorIdentity.class),
+                new DegenerateOutputConfidenceFloor(null),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                root,
+                invocation);
+        stageRuns.extraction();
         List<OccurrenceId> occurrences = paths.stream()
                 .map(path -> ledger.occurrenceId(walkId, path).orElseThrow())
                 .toList();
-        return new Corpus(ledger, new InvocationRuns(invocation), extractionRun, occurrences);
+        return new Corpus(ledger, new InvocationRuns(invocation), stageRuns, occurrences);
     }
 
     private WalkRecorder walkRecorder(Ledger ledger) {
@@ -731,12 +750,13 @@ class ExtractionItemProcessorTest {
      *
      * <p>The claims read the runs through {@link #extractionRunId()} and {@link
      * #byteLevelReductionRunId()}, which ask the invocation's own record, as every later stage does
-     * (ADR-154). {@code stage2} is handed to the processor and read nowhere else. So the class that
-     * mints stage 2's run is named only by {@link #corpusOf}, {@link #processorOver} and this record's
-     * third component, and ADR-157's folding of the run classes changes those and no claim.
+     * (ADR-154). {@code stage2} is the holder stage 2 asks for its run through (ADR-157), handed to the
+     * processor and read nowhere else. So the class that mints stage 2's run is named only by {@link
+     * #corpusOf}, {@link #processorOver} and this record's third component, which is why ADR-157's
+     * folding of the run classes changed those and no claim.
      */
     private record Corpus(
-            Ledger ledger, InvocationRuns invocation, ExtractionRun stage2, List<OccurrenceId> occurrences) {
+            Ledger ledger, InvocationRuns invocation, StageRuns stage2, List<OccurrenceId> occurrences) {
 
         RunId extractionRunId() {
             return invocation.runOf("extraction").orElseThrow();
