@@ -428,12 +428,19 @@ public class ClusterSynthesis {
     }
 
     /**
-     * What every call this module makes is made under: the model, the window it may read in, and the
-     * shape the answer has to arrive in.
+     * What every call this module makes is made under: the model, the window it may read in, the
+     * shape the answer has to arrive in, and that the model is not to think before answering.
      *
      * <p>Package-private rather than inlined above, so the integration test that puts these on a real
      * serving engine asserts about <em>this</em> request (#181) — checking whether the window
      * survives the framework, not whether a rebuilt copy of it would.
+     *
+     * <p><b>Thinking is asked to be off, never left unsaid</b> (ADR-159). Unsaid, Ollama turns it on
+     * for any model that can think — the shipped default among them — and every token of reasoning
+     * counts against {@link #REPLY_ALLOWANCE}, so an answer can run out of room before its first word
+     * of writing. Measured on {@code qwen3:8b}, CPU-served: 113 s and 2,486 characters of reasoning
+     * with it on, 26 s and none with it off, the same prompt. Saying off to a model that cannot think
+     * is accepted by the engine rather than refused; only asking one to think is refused.
      */
     static OllamaChatOptions optionsFor(String modelName, int contextWindow) {
         return OllamaChatOptions.builder()
@@ -441,10 +448,21 @@ public class ClusterSynthesis {
                 .numCtx(contextWindow)
                 .numPredict(REPLY_ALLOWANCE)
                 .outputSchema(ANSWER_SCHEMA)
+                .disableThinking()
                 .build();
     }
 
-    /** What the call says: what the cluster is, what it sits under, and the documents under their ordinals. */
+    /**
+     * What the call says: what the cluster is, what it sits under, and the documents under their
+     * ordinals.
+     *
+     * <p><b>The citation form is named, with an example, rather than left to "the bracketed
+     * numbers"</b> (ADR-159). Asked only that, and under the answer schema, the shipped model cited
+     * every document as {@code {1}} — never {@code [1]} — so {@link #CITATION} found nothing and 8
+     * clusters of 9 were turned down as uncited. With the sentence as it reads below, 3 calls of 3
+     * came back citing in square brackets. The check is not widened to match the model instead: the
+     * deliverable resolves only {@code [n]} into a link (ADR-109).
+     */
     private static String promptFor(ClusterCall call, List<Exemplar> inScoreOrder) {
         String exemplars = IntStream.range(0, inScoreOrder.size())
                 .mapToObj(index -> "[" + (index + 1) + "] " + inScoreOrder.get(index).leadingChunk())
@@ -457,7 +475,8 @@ public class ClusterSynthesis {
 
                 Each document opens below under the number to cite it by. Connect them: say what they
                 share, where they differ and what they amount to together. Do not summarise them one
-                by one. Cite with the bracketed numbers, inline, and use no other citation of any
+                by one. Cite with the bracketed numbers, inline, written in square brackets exactly as they
+                appear above, such as [1] or [2][3], and use no other citation of any
                 kind.
 
                 %s

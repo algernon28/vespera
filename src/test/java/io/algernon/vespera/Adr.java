@@ -759,6 +759,14 @@ public final class Adr {
     public static final String A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS = FILE
             + "0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md";
 
+    /**
+     * ADR-159 -- a generation call asks the model not to think before it answers, and the prompt
+     * names the square brackets a citation is written in, with an example; a citation in any other
+     * form is still no citation.
+     */
+    public static final String GENERATION_ASKS_FOR_NO_THINKING_AND_NAMES_THE_SQUARE_BRACKETS = FILE
+            + "0159-generation-asks-for-no-thinking-and-the-prompt-names-the-square-brackets-a-citation-is-written-in.md";
+
     private Adr() {
     }
 }
