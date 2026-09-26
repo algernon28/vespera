@@ -759,6 +759,14 @@ public final class Adr {
     public static final String A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS = FILE
             + "0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md";
 
+    /**
+     * ADR-160 -- the relevance report asks whether any seed produced text and whether a seed file would
+     * not open before it reaches the scoring run, so it mints nothing behind either gate (amends
+     * ADR-132, ADR-155).
+     */
+    public static final String THE_RELEVANCE_REPORT_ASKS_BOTH_SEED_USABILITY_QUESTIONS = FILE
+            + "0160-the-relevance-report-asks-both-seed-usability-questions-before-it-reaches-the-scoring-run.md";
+
     private Adr() {
     }
 }

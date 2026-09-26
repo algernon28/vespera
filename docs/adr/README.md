@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-156.
+One file per architecture decision, ADR-001 through ADR-160.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -175,3 +175,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-154](0154-a-stage-reads-the-upstream-run-this-invocation-arrived-at-and-an-approval-opens-only-this-invocations-arrangement.md) | 2026-09-25 | A stage reads the upstream run this invocation arrived at, and an approval opens only this invocation's arrangement *(amends ADR-099, ADR-107, ADR-115, ADR-058)* |
 | [ADR-155](0155-a-seed-file-that-will-not-open-is-recorded-under-a-reason-of-its-own-and-seed-extraction-records-no-completion-until-it-opens.md) | 2026-09-25 | A seed file that will not open is recorded under a reason of its own, and seed extraction records no completion until it opens *(extends ADR-083, ADR-152)* |
 | [ADR-156](0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md) | 2026-09-25 | A run's survivors are read through its upstream runs, and a verdict under any other run stays recorded and removes nothing *(amends ADR-060, ADR-089, ADR-014, ADR-154)* |
+| [ADR-160](0160-the-relevance-report-asks-both-seed-usability-questions-before-it-reaches-the-scoring-run.md) | 2026-09-26 | The relevance report asks both seed-usability questions before it reaches the scoring run *(amends ADR-132, ADR-155)* |

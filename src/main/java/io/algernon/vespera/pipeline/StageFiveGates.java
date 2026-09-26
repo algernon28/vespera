@@ -22,14 +22,17 @@ import java.util.Optional;
  * is not one of the three at all — it approves a named arrangement, which is a different kind of
  * question from whether a profile value is set.
  *
- * <p><b>Three call sites, because stage 5 has three step shapes.</b> A scoring-half step consults all
- * three gates, and so asks both seed-usability questions; the labelling report's {@code
- * modelAndSeedWalk} consults the model and the seed walk but asks neither — not whether a seed was
- * usable nor whether a seed file could not be opened — because a run with no usable seed produced no
- * scores and the report gates on that itself; the seed/corpus comparison runs before the model gate by
- * design (ADR-086, ADR-092) and consults the seed walk and both seed-usability questions. Each entry
- * point asks its gates in the same order and shares the one reason vocabulary, so the shapes differ in
- * which gates they name and in nothing else.
+ * <p><b>Two call shapes, because stage 5 has two step shapes.</b> A scoring-half step, the labelling
+ * report among them, consults all three gates and so asks both seed-usability questions; the
+ * seed/corpus comparison runs before the model gate by design (ADR-086, ADR-092) and consults the seed
+ * walk and both seed-usability questions. Each entry point asks its gates in the same order and shares
+ * the one reason vocabulary, so the shapes differ in which gates they name and in nothing else.
+ *
+ * <p>The labelling report once had a shape of its own, {@code modelAndSeedWalk}, which asked neither
+ * seed-usability question and left the report to shut on finding no scores. Finding that out meant
+ * resolving the scoring run, which minted it behind ADR-083's gate, the seed measurement run with it,
+ * and behind ADR-155's gate as well (#309). ADR-160 withdrew that entry point, and {@code
+ * modelAndSeedWalk} is now only the first half of {@code modelSeedWalkUsable}.
  *
  * <p><b>A fourth reason, asked right after the usable-seed question (ADR-155 section 3).</b> A seed
  * file that would not open while seed extraction's step was unfinished this invocation is a different
@@ -61,13 +64,13 @@ final class StageFiveGates {
     }
 
     /**
-     * The two gates the labelling report consults: a model named and a finished seed walk.
+     * The first two of {@link #modelSeedWalkUsable}'s gates: a model named and a finished seed walk.
      *
-     * <p>It does not ask whether a seed was usable. With none, seed extraction minted no run and no
-     * survivor carries a relevance score, so the report gates on there being no scores to spread — its
-     * own measured reason, not this preamble's (ADR-088).
+     * <p>No step calls this on its own any longer (ADR-160). The labelling report did, and so never
+     * asked either seed-usability question, which let it mint a scoring run behind ADR-083's gate and
+     * ADR-155's (#309).
      */
-    static Preamble modelAndSeedWalk(String subject, EmbeddingModelGate model, SeedGate seeds) {
+    private static Preamble modelAndSeedWalk(String subject, EmbeddingModelGate model, SeedGate seeds) {
         Optional<String> modelName = model.modelName();
         if (modelName.isEmpty()) {
             return shut(subject, Gate.EMBEDDING_MODEL);
