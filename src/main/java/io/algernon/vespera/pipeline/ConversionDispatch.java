@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
 
@@ -58,6 +59,17 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
  * <p>An occurrence stage 1 recorded no format for is not dispatched at all; the processor's own check
  * finds the same absence and reports it exactly as it always has (ADR-100's case is not this class's
  * to decide).
+ *
+ * <p><b>Nothing here asks for the sidecar or the run until {@link #open}</b> (#319). Spring Batch opens
+ * a step's streams only once every {@code beforeStep} has passed, so a step whose health check failed
+ * never opens this reader -- but it still closes it, and closing a step-scoped proxy is what first
+ * builds the object behind it. Built then with the extractor identity in hand, this class called the
+ * sidecar's {@code /version} while closing a step that had just found the sidecar missing; and closing
+ * the survivors reader beneath it built that one too, which mints stage 2's run behind the failed check
+ * -- the rule ADR-080 states for a gate, which #319 asks of this check too. So the identity is read in
+ * {@link #open}, and {@link #close} closes the delegate only if opening it succeeded: a delegate that
+ * was never opened, or threw while opening, has nothing to release, and this reader then releases only
+ * its idle worker pool.
  */
 class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
 
@@ -66,10 +78,19 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
     private final ContentIdentity contentIdentity;
     private final DetectedFormats detectedFormats;
     private final DoclingExtractor extractor;
-    private final ExtractorIdentity extractorIdentity;
+    private final Supplier<ExtractorIdentity> extractorIdentitySource;
     private final StageRuns stageRuns;
     private final PendingConversions pending;
     private final ExecutorService workers;
+
+    /** Read in {@link #open}, once the sidecar has passed its health check; {@code null} until then. */
+    private ExtractorIdentity extractorIdentity;
+
+    /**
+     * Whether opening the delegate succeeded; raised after it, so a reader whose delegate threw while
+     * opening is not closed again.
+     */
+    private boolean opened;
 
     ConversionDispatch(
             ItemStreamReader<OccurrenceId> delegate,
@@ -77,7 +98,7 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
             ContentIdentity contentIdentity,
             DetectedFormats detectedFormats,
             DoclingExtractor extractor,
-            ExtractorIdentity extractorIdentity,
+            Supplier<ExtractorIdentity> extractorIdentity,
             StageRuns stageRuns,
             PendingConversions pending,
             int width) {
@@ -86,7 +107,7 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
         this.contentIdentity = contentIdentity;
         this.detectedFormats = detectedFormats;
         this.extractor = extractor;
-        this.extractorIdentity = extractorIdentity;
+        this.extractorIdentitySource = extractorIdentity;
         this.stageRuns = stageRuns;
         this.pending = pending;
         AtomicInteger sequence = new AtomicInteger();
@@ -143,6 +164,8 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
     @Override
     public void open(ExecutionContext executionContext) {
         delegate.open(executionContext);
+        opened = true;
+        extractorIdentity = extractorIdentitySource.get();
     }
 
     @Override
@@ -153,7 +176,9 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
     @Override
     public void close() {
         try {
-            delegate.close();
+            if (opened) {
+                delegate.close();
+            }
         } finally {
             workers.shutdownNow();
         }
