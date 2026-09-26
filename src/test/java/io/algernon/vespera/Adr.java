@@ -759,6 +759,14 @@ public final class Adr {
     public static final String A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS = FILE
             + "0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md";
 
+    /**
+     * ADR-157 -- a stage asks for its run after its own gate, through one invocation-scoped holder, and
+     * that explicit call is what keeps a gated stage from leaving a run row (amends ADR-080); one helper
+     * mints every run; one completion listener; every step is named once (amends ADR-131).
+     */
+    public static final String A_STAGE_ASKS_FOR_ITS_RUN_AFTER_ITS_OWN_GATE = FILE
+            + "0157-a-stage-asks-for-its-run-after-its-own-gate-one-helper-mints-every-run-and-every-step-is-named-once.md";
+
     private Adr() {
     }
 }

@@ -201,14 +201,14 @@ class SurvivalOverAReusedWalkTest {
         String keptContentHash = ContentHash.sha256(root.resolve(theOtherDocumentIn(root)));
         ledger.verdict(
                 removedByStageFour,
-                new RunId(theOnlyRunOf(root, RedundancyRun.STAGE)),
+                new RunId(theOnlyRunOf(root, "content-redundancy")),
                 VerdictKind.REDUNDANT_WITH,
                 "written by this test");
         profile(seeds, null);
 
         cli.run("run", root.toString());
 
-        String measurementRun = theOnlyRunOf(root, SeedMeasurementRun.STAGE);
+        String measurementRun = theOnlyRunOf(root, "seed-measurement");
         String scoringRun = theOnlyScoringRun(root);
         claim(
                 "the seed/corpus comparison counted one corpus document, not " + CORPUS_DOCUMENTS + ": its"
@@ -309,7 +309,7 @@ class SurvivalOverAReusedWalkTest {
     }
 
     private List<String> scoringRunIdsFor(Path root) {
-        return runIdsOf(root, ScoringRun.STAGE);
+        return runIdsOf(root, "embedding-scoring");
     }
 
     private String theOnlyRunOf(Path root, String stage) {
@@ -319,7 +319,7 @@ class SurvivalOverAReusedWalkTest {
     }
 
     private String theOnlyScoringRun(Path root) {
-        return theOnlyRunOf(root, ScoringRun.STAGE);
+        return theOnlyRunOf(root, "embedding-scoring");
     }
 
     /**
@@ -353,7 +353,7 @@ class SurvivalOverAReusedWalkTest {
                 "SELECT COALESCE(SUM(c.document_count), 0) FROM cluster c"
                         + " JOIN run r ON r.id = c.run_id"
                         + " JOIN run_upstream u ON u.run_id = r.id"
-                        + " WHERE r.stage = '" + ArrangementRun.STAGE + "' AND u.upstream_run_id = ?",
+                        + " WHERE r.stage = 'arrangement' AND u.upstream_run_id = ?",
                 scoringRunId);
     }
 

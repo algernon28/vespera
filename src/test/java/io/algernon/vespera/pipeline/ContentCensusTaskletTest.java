@@ -54,9 +54,15 @@ import org.springframework.test.context.ActiveProfiles;
  * profile pointer — the composition only {@code pipeline} may do (ADR-040).
  *
  * <p>Assembled by hand against a real walk taken through byte-level reduction and a minted extraction
- * run, the same shape {@link ContentCensusRunTest} already uses — {@code extraction_metric} rows are
- * written directly for the fixture's own occurrences rather than run through a real Docling call,
- * since what this class pins is the report, not extraction's own per-document judgement.
+ * run. The {@code extraction_metric} rows are written directly for the fixture's own occurrences rather
+ * than run through a real Docling call, since what this class pins is the report, not extraction's own
+ * per-document judgement.
+ *
+ * <p><b>Only two methods here name how a run is minted:</b> {@link #contentCensusOver} and the line in
+ * {@link #walkedThroughExtractionWithScores} that mints stage 2's run. Every claim reads the run this
+ * invocation recorded, through {@link InvocationRuns}, never through the class that minted it. So when
+ * ADR-157 folds the run classes into one holder, those two methods are the whole of this class's
+ * change, and no claim moves.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -97,17 +103,7 @@ class ContentCensusTaskletTest {
         ProfileStore profileStore = new ProfileStore(workingDirectory);
         Clock clock = Clock.fixed(Instant.parse("2026-09-05T12:00:00Z"), ZoneOffset.UTC);
 
-        ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
-                invocations.get(root));
-        ContentCensusTasklet tasklet = new ContentCensusTasklet(
-                new DocumentFrequency(jdbcTemplate, ledger),
-                new ConfidenceDistribution(jdbcTemplate, ledger),
-                contentCensusRun,
-                ledger,
-                profileStore,
-                clock,
-                workingDirectory);
+        ContentCensusTasklet tasklet = contentCensusOver(ledger, versions, root, profileStore, clock, workingDirectory);
 
         tasklet.execute(null, null);
 
@@ -139,7 +135,7 @@ class ContentCensusTaskletTest {
             long tableCount = jdbcTemplate.queryForObject(
                     "SELECT document_count FROM confidence_distribution WHERE run_id = ? AND grade = ?",
                     Long.class,
-                    contentCensusRun.runId().value(),
+                    theContentCensusRunOf(root).value(),
                     grade);
             claim(
                     "the table itself measured what the fixture set up for " + grade,
@@ -173,18 +169,7 @@ class ContentCensusTaskletTest {
         Instant ranAt = Instant.parse("2026-09-05T12:00:00Z");
         Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
 
-        ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
-                invocations.get(root));
-        new ContentCensusTasklet(
-                        new DocumentFrequency(jdbcTemplate, ledger),
-                        new ConfidenceDistribution(jdbcTemplate, ledger),
-                        contentCensusRun,
-                ledger,
-                        profileStore,
-                        clock,
-                        workingDirectory)
-                .execute(null, null);
+        contentCensusOver(ledger, versions, root, profileStore, clock, workingDirectory).execute(null, null);
 
         Profile profile = profileStore.load();
         Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
@@ -217,18 +202,7 @@ class ContentCensusTaskletTest {
         Instant ranAt = Instant.parse("2026-09-05T12:00:00Z");
         Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
 
-        ContentCensusRun contentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root,
-                invocations.get(root));
-        new ContentCensusTasklet(
-                        new DocumentFrequency(jdbcTemplate, ledger),
-                        new ConfidenceDistribution(jdbcTemplate, ledger),
-                        contentCensusRun,
-                ledger,
-                        profileStore,
-                        clock,
-                        workingDirectory)
-                .execute(null, null);
+        contentCensusOver(ledger, versions, root, profileStore, clock, workingDirectory).execute(null, null);
 
         Profile afterTheRun = profileStore.load();
         Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
@@ -263,14 +237,10 @@ class ContentCensusTaskletTest {
 
         RunId firstExtractionRun =
                 walkedThroughExtractionWithScores(ledger, versions, firstRoot, new double[] {0.10});
-        ContentCensusRun firstContentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), firstRoot,
-                invocations.get(firstRoot));
-        new ContentCensusTasklet(
-                        new DocumentFrequency(jdbcTemplate, ledger),
-                        new ConfidenceDistribution(jdbcTemplate, ledger),
-                        firstContentCensusRun,
+        contentCensusOver(
                         ledger,
+                        versions,
+                        firstRoot,
                         profileStore,
                         Clock.fixed(Instant.parse("2026-09-05T10:00:00Z"), ZoneOffset.UTC),
                         workingDirectory)
@@ -278,18 +248,8 @@ class ContentCensusTaskletTest {
 
         RunId secondExtractionRun =
                 walkedThroughExtractionWithScores(ledger, versions, secondRoot, new double[] {0.95, 0.95});
-        ContentCensusRun secondContentCensusRun = new ContentCensusRun(
-                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), secondRoot,
-                invocations.get(secondRoot));
         Instant secondRanAt = Instant.parse("2026-09-05T11:00:00Z");
-        new ContentCensusTasklet(
-                        new DocumentFrequency(jdbcTemplate, ledger),
-                        new ConfidenceDistribution(jdbcTemplate, ledger),
-                        secondContentCensusRun,
-                        ledger,
-                        profileStore,
-                        Clock.fixed(secondRanAt, ZoneOffset.UTC),
-                        workingDirectory)
+        contentCensusOver(ledger, versions, secondRoot, profileStore, Clock.fixed(secondRanAt, ZoneOffset.UTC), workingDirectory)
                 .execute(null, null);
 
         Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
@@ -312,9 +272,37 @@ class ContentCensusTaskletTest {
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT document_count FROM confidence_distribution WHERE run_id = ? AND grade = ?",
                                 Long.class,
-                                firstContentCensusRun.runId().value(),
+                                theContentCensusRunOf(firstRoot).value(),
                                 "poor"))
                         .isEqualTo(1));
+    }
+
+    /**
+     * Stage 3's tasklet as the step builds it, over the content-census run this invocation of {@code
+     * root} mints: the one place this class says how that run comes to exist.
+     */
+    private ContentCensusTasklet contentCensusOver(
+            Ledger ledger,
+            ImplementationVersions versions,
+            Path root,
+            ProfileStore profileStore,
+            Clock clock,
+            Path workingDirectory) {
+        ContentCensusRun contentCensusRun = new ContentCensusRun(
+                ledger, versions, IDENTITY, new DegenerateOutputConfidenceFloor(null), root, invocations.get(root));
+        return new ContentCensusTasklet(
+                new DocumentFrequency(jdbcTemplate, ledger),
+                new ConfidenceDistribution(jdbcTemplate, ledger),
+                contentCensusRun,
+                ledger,
+                profileStore,
+                clock,
+                workingDirectory);
+    }
+
+    /** The content-census run the invocation over {@code root} recorded, read as later stages read it. */
+    private RunId theContentCensusRunOf(Path root) {
+        return new InvocationRuns(invocations.get(root)).runOf("content-census").orElseThrow();
     }
 
     /**

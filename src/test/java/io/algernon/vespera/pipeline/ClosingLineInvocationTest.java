@@ -301,7 +301,7 @@ class ClosingLineInvocationTest {
                 .queryForObject(
                         "SELECT id FROM run WHERE stage = ? ORDER BY rowid DESC LIMIT 1",
                         String.class,
-                        ArrangementRun.STAGE)
+                        "arrangement")
                 .substring(0, ArrangementGate.APPROVAL_LENGTH);
     }
 

@@ -52,7 +52,9 @@ class StepCompletionOrderProbe {
         return new Ledger(jdbcTemplate) {
             @Override
             public void finishStep(RunId runId, String step) {
-                if (ExtractionRun.STAGE.equals(step)) {
+                // Stage 2's step, by its persisted name: the probe watches the name the completion
+                // is recorded under, not a constant that could move with the code.
+                if ("extraction".equals(step)) {
                     Long faults = jdbcTemplate.queryForObject(
                             "SELECT COUNT(*) FROM extraction_fault WHERE run_id = ?", Long.class, runId.value());
                     FAULT_ROWS_VISIBLE_WHEN_STAGE_2_WAS_RECORDED_COMPLETE.add(faults == null ? 0 : faults);

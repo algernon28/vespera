@@ -209,8 +209,8 @@ class EmbeddingScoringInvocationTest {
 
     /** Whether embedding scoring is recorded as finished under any scoring run over this test's corpus. */
     private boolean scoringFinishedOver(Path root) {
-        return runIdsOver(ScoringRun.STAGE, root).stream()
-                .anyMatch(runId -> ledger.stepFinished(new RunId(runId), ScoringRun.STAGE));
+        return runIdsOver("embedding-scoring", root).stream()
+                .anyMatch(runId -> ledger.stepFinished(new RunId(runId), "embedding-scoring"));
     }
 
     private long chunkCacheRowCount() {

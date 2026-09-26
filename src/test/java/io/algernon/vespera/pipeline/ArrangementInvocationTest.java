@@ -255,7 +255,7 @@ class ArrangementInvocationTest {
         return new RunId(jdbcTemplate.queryForObject(
                 "SELECT id FROM run WHERE stage = ? ORDER BY rowid DESC LIMIT 1",
                 String.class,
-                ArrangementRun.STAGE));
+                "arrangement"));
     }
 
     private int verdictCountUnder(RunId runId) {

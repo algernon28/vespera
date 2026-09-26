@@ -982,7 +982,7 @@ class DeliverableInvocationTest {
                 "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
                         + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
                 String.class,
-                ArrangementRun.STAGE,
+                "arrangement",
                 Walk.canonicalRoot(root).toString()));
     }
 
@@ -992,7 +992,7 @@ class DeliverableInvocationTest {
                 "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
                         + " WHERE r.stage = ? AND w.root = ? AND r.id LIKE ? ORDER BY r.rowid LIMIT 1",
                 String.class,
-                ArrangementRun.STAGE,
+                "arrangement",
                 Walk.canonicalRoot(root).toString(),
                 profileStore.load().arrangementApproved().value() + "%"));
     }
@@ -1009,7 +1009,7 @@ class DeliverableInvocationTest {
                 "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
                         + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid",
                 String.class,
-                GenerationRun.STAGE,
+                "generation",
                 Walk.canonicalRoot(root).toString());
     }
 }
