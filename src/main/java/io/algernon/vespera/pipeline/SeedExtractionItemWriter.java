@@ -58,7 +58,8 @@ import org.springframework.stereotype.Component;
  * <p><b>A step that did not complete concludes nothing (#306).</b> {@link #afterStep} runs after a
  * failed step too, and then what this class holds is only the chunks written before the failure. So
  * before any of the above, a step whose exit status is not {@code COMPLETED} gets one line naming
- * its failure and saying to run the same command again, and nothing else: no answer to {@link
+ * its failure, as {@link StepFailure#named} reads it, and saying to run the same command again, and
+ * nothing else: no answer to {@link
  * UsableSeedGate}, which stays closed as it starts, no run, no row and no completion. The next
  * invocation reads every seed again and derives the same run identity, which is ADR-116's rule for
  * any step that did not finish, and the rule {@link RunCompletion} applies for the steps that use it.
@@ -125,7 +126,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
                             + " minted no run and nothing is concluded about the seeds: {}. Fix what that"
                             + " names -- if docling-serve stopped answering, bring it back -- and run the"
                             + " same command again.",
-                    failureOf(stepExecution));
+                    StepFailure.named(stepExecution));
             return stepExecution.getExitStatus();
         }
         long usableSeeds = outcomes.stream().filter(SeedExtractionOutcome::usable).count();
@@ -211,23 +212,5 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
                 usableSeeds,
                 unusableSeedCount);
         return stepExecution.getExitStatus();
-    }
-
-    /**
-     * What failed the step, in words the operator can act on: the first failure beneath Spring
-     * Batch's own wrappers. A chunk that fails in the processor arrives as {@code
-     * FatalStepExecutionException: Unable to process chunk}, which names no cause; the exception it
-     * wraps is the converter's, and its message says which call failed and how.
-     */
-    private static String failureOf(StepExecution stepExecution) {
-        List<Throwable> failures = stepExecution.getFailureExceptions();
-        if (failures.isEmpty()) {
-            return "the step ended " + stepExecution.getExitStatus().getExitCode();
-        }
-        Throwable failure = failures.getFirst();
-        while (failure.getCause() != null && failure.getClass().getName().startsWith("org.springframework.batch.")) {
-            failure = failure.getCause();
-        }
-        return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
     }
 }
