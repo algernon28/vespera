@@ -31,7 +31,7 @@
 // can no longer be found is therefore a FAILURE and not a skip — a rewording that
 // quietly turns a check off is the same defect as a renderer dropping a section.
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const AGENTS = "AGENTS.md";
@@ -42,6 +42,7 @@ const MAIN = "src/main/java/io/algernon/vespera";
 const TEST = "src/test/java";
 const POM = "pom.xml";
 const APPLICATION_YAML = "src/main/resources/application.yaml";
+const COMPOSE = "compose.yaml";
 const COMMANDS = MAIN + "/pipeline/VesperaCommand.java";
 const PROFILE = MAIN + "/profile/Profile.java";
 // No trailing slash: the list form is /issues?labels=..., and /issues/?labels=... is a 404.
@@ -378,6 +379,115 @@ function readmeSection(heading, name) {
   }
 }
 
+/* ---------- how README.md says to run it ---------- */
+
+// "Running it" once said that Vespera starts its own sidecars, and the packaged jar has never
+// carried the compose support that would do it (#304, ADR-158). The section now names a build, a
+// compose file, three services, a build context, three ports, a model and a jar path. Each of
+// those is a value some file in the tree holds, so each is read out of the section and
+// compared with that file. The section is parsed, rather than one sentence matched, because an
+// operator copies these lines into a shell, and a stale one fails in a way nothing here would see.
+//
+// compose.yaml is read with patterns, not a YAML parser, so as to keep this file dependency-free.
+// It is a short file of one shape: two-space service keys, and quoted 'host:container' ports.
+// DoclingSidecarImageTest reads the same file with a real parser, for what the tests rely on.
+{
+  const NAME = "how README says to run it";
+  const section = readmeSection("## Running it", NAME);
+  if (section) {
+    const pom = readFileSync(POM, "utf8");
+    const application = readFileSync(APPLICATION_YAML, "utf8");
+    const compose = readFileSync(COMPOSE, "utf8");
+    const wrong = [];
+
+    // Java, against the pom.
+    const java = /\bJava (\d+)\b/.exec(section);
+    const pomJava = /<java\.version>([^<]+)<\/java\.version>/.exec(pom);
+    if (!java) wrong.push("it names no Java version");
+    else if (!pomJava || pomJava[1] !== java[1]) wrong.push(`it says Java ${java[1]}; the pom says ${pomJava ? pomJava[1] : "nothing"}`);
+
+    // The build: a phase at or past package, since the jar is made by the Boot plugin's repackage there.
+    const build = /^\.\/mvnw (\w+)$/m.exec(section);
+    if (!build) wrong.push("it shows no ./mvnw command to build with");
+    else if (!["package", "verify", "install"].includes(build[1])) wrong.push(`./mvnw ${build[1]} does not build the jar`);
+
+    // The jar: every java -jar path, against the artifact the pom builds under its default name.
+    const project = pom.slice(pom.indexOf("</parent>"));
+    const artifact = /<artifactId>([^<]+)<\/artifactId>/.exec(project);
+    const version = /<version>([^<]+)<\/version>/.exec(project);
+    const jar = artifact && version ? `target/${artifact[1]}-${version[1]}.jar` : null;
+    const launched = [...section.matchAll(/java -jar (\S+?)`?(?:\s|$)/g)].map((m) => m[1]);
+    if (!jar) wrong.push(`could not read the project's artifactId and version from ${POM}`);
+    else {
+      if (/<finalName>/.test(pom)) wrong.push(`${POM} sets a finalName, so the jar is not ${jar}`);
+      if (!/<artifactId>spring-boot-maven-plugin<\/artifactId>/.test(pom)) wrong.push(`${POM} has no Boot plugin, so ${jar} is not executable`);
+      if (launched.length === 0) wrong.push("it names no java -jar command");
+      for (const l of launched) if (l !== jar) wrong.push(`it runs ${l}; the pom builds ${jar}`);
+    }
+
+    // The compose file, its services, and the one exec'd into.
+    if (!section.includes("`compose.yaml`")) wrong.push(`it does not name ${COMPOSE}`);
+    if (!/^docker compose -p vespera up -d --build$/m.test(section)) wrong.push("it shows no docker compose -p vespera up -d --build");
+    // Every compose command names the project, or one run from another checkout misses the containers (ADR-158).
+    for (const m of section.matchAll(/docker compose (?!-p vespera )[^\n`]*/g)) {
+      wrong.push(`${m[0]} does not name the project as -p vespera`);
+    }
+    const body = compose.slice(compose.search(/^services:\s*$/m));
+    const services = [...body.matchAll(/^ {2}([\w-]+):\s*$/gm)].map((m) => m[1]);
+    const said = { chroma: /\bChroma\b/, ollama: /\bOllama\b/, "docling-serve": /\bdocling-serve\b/ };
+    for (const s of services) {
+      if (!said[s]) wrong.push(`${COMPOSE} runs ${s} and the section does not know it`);
+      else if (!said[s].test(section)) wrong.push(`${COMPOSE} runs ${s} and the section never names it`);
+    }
+    for (const s of Object.keys(said)) if (!services.includes(s)) wrong.push(`the section names ${s} and ${COMPOSE} runs no such service`);
+    for (const m of section.matchAll(/^docker compose -p vespera exec (\S+)/gm)) {
+      if (!services.includes(m[1])) wrong.push(`docker compose -p vespera exec ${m[1]} names no service in ${COMPOSE}`);
+    }
+
+    // The Docling image is built, from the directory the section names.
+    const docling = body.split(/^ {2}(?=[\w-]+:\s*$)/m).find((b) => b.startsWith("docling-serve:")) ?? "";
+    const context = /^\s+context: (\S+)\s*$/m.exec(docling);
+    const dockerfile = /^\s+dockerfile: (\S+)\s*$/m.exec(docling);
+    const namedContext = /built on your machine from `([^`]+)`/.exec(section);
+    if (!namedContext) wrong.push("it does not say where the converter's image is built from");
+    else if (!context) wrong.push(`${COMPOSE} builds docling-serve from nothing; the section says ${namedContext[1]}`);
+    else if (context[1] !== namedContext[1]) wrong.push(`it says ${namedContext[1]}; ${COMPOSE} builds from ${context[1]}`);
+    else if (!dockerfile || !existsSync(join(context[1], dockerfile[1]))) wrong.push(`${context[1]} holds no ${dockerfile ? dockerfile[1] : "dockerfile"}`);
+
+    // The ports, as a set, against the host ports compose.yaml publishes.
+    const portsSentence = /listen on ports ([^.]+)\./.exec(section);
+    const named = portsSentence ? [...portsSentence[1].matchAll(/`(\d+)`/g)].map((m) => m[1]).sort() : [];
+    const published = [...body.matchAll(/- '(\d+):\d+'/g)].map((m) => m[1]).sort();
+    if (!portsSentence) wrong.push("it names no ports");
+    else if (named.join() !== published.join()) wrong.push(`it names ports ${named.join(", ")}; ${COMPOSE} publishes ${published.join(", ")}`);
+
+    // The generation model, against the default Spring AI is configured with; and nothing pulls it.
+    const model = /^\s+model: (\S+)\s*$/m.exec(application);
+    const pulled = [...section.matchAll(/ollama pull (\S+)$/gm)].map((m) => m[1]).filter((p) => !p.startsWith("<"));
+    const prose = /That is `([^`]+)`, unless you set `generationModel`/.exec(section);
+    if (!model) wrong.push(`could not read the generation model from ${APPLICATION_YAML}`);
+    else {
+      if (!prose) wrong.push("it does not say which model the connecting text is written with");
+      else if (prose[1] !== model[1]) wrong.push(`it says ${prose[1]}; ${APPLICATION_YAML} says ${model[1]}`);
+      if (pulled.length === 0) wrong.push("it pulls no generation model");
+      for (const p of pulled) if (p !== model[1]) wrong.push(`it pulls ${p}; ${APPLICATION_YAML} generates with ${model[1]}`);
+    }
+    if (/pull-model-strategy/.test(application) && /does not fetch them for you/.test(section)) {
+      wrong.push(`it says Vespera does not fetch the models, and ${APPLICATION_YAML} configures a pull strategy`);
+    }
+
+    // The default working directory, against the placeholder the property falls back to.
+    const home = /^\s+working-dir: \$\{db-dir:\$\{user\.dir\}\/([^}]+)\}\s*$/m.exec(application);
+    const namedHome = /the working directory is `([^`]+)` under the directory you run/.exec(section);
+    if (!namedHome) wrong.push("it does not say where the working directory defaults to");
+    else if (!home) wrong.push(`${APPLICATION_YAML}'s working-dir no longer defaults under user.dir`);
+    else if (home[1] !== namedHome[1]) wrong.push(`it says ${namedHome[1]}; ${APPLICATION_YAML} defaults to ${home[1]}`);
+
+    if (wrong.length) fail(NAME, wrong.join("; "));
+    else pass(NAME, `${jar}; ${services.join(", ")} from ${COMPOSE} on ${published.join(", ")}; built from ${context[1]}; ${model[1]}`);
+  }
+}
+
 /* ---------- what this does not check ---------- */
 
 // Printed on every run, including a clean one. The point of the list is that the
@@ -392,6 +502,8 @@ const UNCHECKED = [
   "docs/architecture.md, which this never opens — its own status line has rotted the same way",
   "whether five invocations is still the right number — four gates imply it, and nothing counts gates",
   "whether the reports README points at actually inform the value it points them at for",
+  'whether following "Running it" gets an invocation past stage 2 — that needs Docker, and this starts nothing',
+  'that the packaged jar starts no sidecar — PackagedJarIT holds that, under ./mvnw verify, not this',
 ];
 
 /* ---------- report ---------- */

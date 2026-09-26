@@ -32,7 +32,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 - Prose written for a reader outside this project is free of the lists altogether; ADR-122 enumerates the audiences, and this is deliberately not a second copy of that list. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
 - **Cluster** renders as *group*.
 
-**`docs/adr/`** holds 156 decisions, ADR-001 to ADR-156, and two things about it are invisible from the files:
+**`docs/adr/`** holds 157 decisions, ADR-001 to ADR-158, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.
@@ -54,7 +54,7 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 ./mvnw -q test-compile                                         # compile only
 ```
 
-- **A test needing an external tool is an integration test**: named `*IT`, run by failsafe under `./mvnw verify`, excluded from surefire's `./mvnw test`. There are six — `CliExitIT`, `ClusterSynthesisIT`, `DoclingClientIT`, `OllamaClientIT`, `RelevanceReportIT`, `VesperaApplicationIT` — and the first of them launches the packaged jar and needs no Docker daemon, only `verify`; the other five each need a Docker daemon, starting their sidecar through Testcontainers. Every other class needs neither Docker nor `verify`.
+- **A test needing an external tool is an integration test**: named `*IT`, run by failsafe under `./mvnw verify`, excluded from surefire's `./mvnw test`. There are seven — `CliExitIT`, `PackagedJarIT`, `ClusterSynthesisIT`, `DoclingClientIT`, `OllamaClientIT`, `RelevanceReportIT`, `VesperaApplicationIT` — and the first two need no Docker daemon, only `verify`: `CliExitIT` launches the packaged jar and `PackagedJarIT` reads it; the other five each need a Docker daemon, starting their sidecar through Testcontainers. Every other class needs neither Docker nor `verify`.
 - **A skipped test is not a passing test.** Several abort by assumption when the environment cannot create a symlink or an unusual filename, so report `Skipped` alongside `Tests run`.
 - **Surefire's console output truncates the cause.** The real stack is in `target/surefire-reports/<class>.txt`.
 - **The build needs Java 26 on `PATH` (or `JAVA_HOME`) — the shell default may be older.** `./mvnw` uses whatever `java` it finds first; an older default fails with `class file version ... only recognizes class file versions up to ...` before any test runs.
