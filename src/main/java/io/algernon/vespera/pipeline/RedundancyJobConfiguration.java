@@ -149,6 +149,10 @@ public class RedundancyJobConfiguration {
      * RedundancyRun} directly means a step-scoped writer used as a listener would mint a run row on
      * every closed-gate invocation. This listener depends on nothing, so the counts it reports are all
      * it can say — the run id is on the reader's own lines, and the closed case says so above.
+     *
+     * <p>The end line says how the step ended, because {@code afterStep} runs after a failed step too:
+     * "finished" only when it completed, and otherwise that it failed, with the same counts and what
+     * failed it (#311).
      */
     private static final class SignatureStepBoundaryLog implements StepExecutionListener {
 
@@ -161,6 +165,19 @@ public class RedundancyJobConfiguration {
 
         @Override
         public ExitStatus afterStep(StepExecution stepExecution) {
+            if (!ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())) {
+                // Spring Batch calls this from a finally, so a step that failed arrives here too (#311).
+                // The same exit-code test SignatureStepCompletion makes, so this line says failed exactly
+                // when no completion is recorded, and the next invocation discards what this one signed
+                // and signs every survivor again under the same run (ADR-115, ADR-116).
+                log.error(
+                        "Stage 4a (redundancy signatures) failed and is not recorded as finished (read={},"
+                                + " written={}): {}. Fix what that names and run the same command again.",
+                        stepExecution.getReadCount(),
+                        stepExecution.getWriteCount(),
+                        StepFailure.named(stepExecution));
+                return stepExecution.getExitStatus();
+            }
             log.info(
                     "Stage 4a (redundancy signatures) finished: read={}, written={}",
                     stepExecution.getReadCount(),

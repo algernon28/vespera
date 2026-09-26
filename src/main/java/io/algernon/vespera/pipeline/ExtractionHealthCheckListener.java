@@ -15,7 +15,9 @@ import org.springframework.stereotype.Component;
  * already handles that.
  *
  * <p>Also carries stage 2's own step start/end logging (ADR-093): the natural place, since it already
- * runs at both boundaries Spring Batch offers a step-scoped listener.
+ * runs at both boundaries Spring Batch offers a step-scoped listener. The end line says how the step
+ * ended, because {@link #afterStep} runs after a failed step too: "finished" only when it completed,
+ * and otherwise that it failed, with the same counts and what failed it (#311).
  */
 @Component
 class ExtractionHealthCheckListener implements StepExecutionListener {
@@ -42,6 +44,22 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
 
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
+        if (!ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())) {
+            // Spring Batch calls this from a finally, so a step that failed arrives here too (#311), and
+            // "finished" beside its error would tell the operator it completed. The same exit-code test
+            // RunCompletion makes, so this line says failed exactly when no completion is recorded, and
+            // the next invocation redoes this run's work under the same id (ADR-115, ADR-116).
+            log.error(
+                    "Stage 2 (extraction) failed and is not recorded as finished (read={}, written={},"
+                            + " skipped={}, filtered={}): {}. Fix what that names -- if docling-serve stopped"
+                            + " answering, bring it back -- and run the same command again.",
+                    stepExecution.getReadCount(),
+                    stepExecution.getWriteCount(),
+                    stepExecution.getSkipCount(),
+                    stepExecution.getFilterCount(),
+                    StepFailure.named(stepExecution));
+            return stepExecution.getExitStatus();
+        }
         log.info(
                 "Stage 2 (extraction) finished: read={}, written={}, skipped={}, filtered={}",
                 stepExecution.getReadCount(),
