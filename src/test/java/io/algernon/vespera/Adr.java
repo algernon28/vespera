@@ -790,6 +790,22 @@ public final class Adr {
     public static final String THE_RELEVANCE_REPORT_ASKS_BOTH_SEED_USABILITY_QUESTIONS = FILE
             + "0160-the-relevance-report-asks-both-seed-usability-questions-before-it-reaches-the-scoring-run.md";
 
+    /**
+     * ADR-161 -- a generation call gives its instruction after the documents rather than before them,
+     * and names a length in words the reply allowance holds; the allowance itself is not raised, and
+     * an answer that runs out of room is not asked for again within the invocation (amends ADR-159 §2).
+     */
+    public static final String THE_INSTRUCTION_FOLLOWS_THE_DOCUMENTS_AND_NAMES_A_LENGTH = FILE
+            + "0161-the-instruction-follows-the-documents-and-names-a-length-the-reply-allowance-holds.md";
+
+    /**
+     * ADR-162 -- writing whose last non-blank character is a closing brace belonging to no opening one
+     * is the answer's own JSON frame, and is turned down as a schema violation rather than stripped or
+     * believed (extends ADR-108).
+     */
+    public static final String WRITING_ENDING_WITH_THE_ANSWERS_CLOSING_BRACE_IS_TURNED_DOWN = FILE
+            + "0162-writing-that-ends-with-the-answers-closing-brace-is-turned-down-as-malformed.md";
+
     private Adr() {
     }
 }
