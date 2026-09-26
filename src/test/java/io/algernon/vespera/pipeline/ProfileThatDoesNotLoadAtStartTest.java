@@ -43,6 +43,10 @@ class ProfileThatDoesNotLoadAtStartTest {
     /** What the README's Step 0 used to lead an operator to write. */
     private static final String A_KEY_WRITTEN_FLAT = "seedFolder: /seeds\n";
 
+    /** The same key in the shape README's Step 0 shows, which the check must let through. */
+    private static final String A_KEY_IN_ITS_SHAPE =
+            "seedFolder:\n  value: '/seeds'\n  provenance: \"the exemplars an archivist picked\"\n";
+
     /** A name Spring would give the first bean to read the profile, which the operator never wrote. */
     private static final String A_BEAN_THAT_ASKED_FIRST = "degenerateOutputConfidenceFloor";
 
@@ -65,6 +69,18 @@ class ProfileThatDoesNotLoadAtStartTest {
         Throwable stopped = catchThrowable(() -> new ProfileShapeCheck().onApplicationEvent(prepared(workingDirectory)));
 
         claim("nothing is refused, since a corpus with no profile loads as every key unset",
+                () -> assertThat(stopped).isNull());
+    }
+
+    @Test
+    @Story("A profile that does not load says why")
+    @DisplayName("A profile written in the shape Step 0 shows starts as it always did")
+    void aProfileInItsShapeStartsAsBefore(@TempDir Path workingDirectory) throws IOException {
+        Files.writeString(workingDirectory.resolve("profile.yaml"), A_KEY_IN_ITS_SHAPE);
+
+        Throwable stopped = catchThrowable(() -> new ProfileShapeCheck().onApplicationEvent(prepared(workingDirectory)));
+
+        claim("nothing is refused, since every key carries its value and provenance beneath it",
                 () -> assertThat(stopped).isNull());
     }
 

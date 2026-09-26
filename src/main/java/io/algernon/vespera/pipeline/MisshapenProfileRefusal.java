@@ -22,7 +22,7 @@ public class MisshapenProfileRefusal implements SpringBootExceptionReporter {
     /**
      * What the invocation exits with: the code {@code vespera label} returns for a label file it
      * cannot use and {@code run} for a {@code --db-dir} that disagrees, since this is the same kind of
-     * refusal — a file the operator wrote that the tool will not act on. Not picocli's usage code,
+     * refusal — something the operator wrote or named that the tool will not act on. Not picocli's usage code,
      * which this command line uses for something the operator left out.
      */
     public static final int EXIT_CODE = CommandLine.ExitCode.SOFTWARE;
