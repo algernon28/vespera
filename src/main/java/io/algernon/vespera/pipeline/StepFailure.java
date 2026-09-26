@@ -13,8 +13,9 @@ import org.springframework.batch.core.step.StepExecution;
  * arrives as {@code FatalStepExecutionException: Unable to process chunk}, which names no cause; the
  * exception it wraps says which call failed and how.
  *
- * <p>The same reading #306 gives seed extraction's writer, kept here once so that every closing line
- * names a failure the same way.
+ * <p>One reading for every closing line that names a failure, so they all name it the same way:
+ * seed extraction's writer (#306), stage 2's {@link ExtractionHealthCheckListener} and stage 4a's
+ * boundary log in {@link RedundancyJobConfiguration} (#311).
  */
 final class StepFailure {
 
