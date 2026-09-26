@@ -192,7 +192,7 @@ class FailedSeedExtractionNamesItsFailureTest {
         claim(
                 "and seed extraction is recorded as finished, with every seed in the folder measured",
                 () -> {
-                    assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                    assertThat(ledger.stepFinished(measurementRun, "seed-extraction"))
                             .isTrue();
                     assertThat(metricRowsAgainst(theSeedWalkOf(seeds), measurementRun))
                             .isEqualTo(SEEDS_IN_A_SHORT_FOLDER);
@@ -229,7 +229,7 @@ class FailedSeedExtractionNamesItsFailureTest {
                 "seed extraction is recorded as finished under no run: the seeds after the crash were"
                         + " never read, and a finished step is one no later invocation does again",
                 () -> assertThat(runIdsFor("seed-measurement", root))
-                        .noneMatch(run -> ledger.stepFinished(run, SeedExtractionJobConfiguration.STEP_NAME)));
+                        .noneMatch(run -> ledger.stepFinished(run, "seed-extraction")));
         claim(
                 "and no measurement run was minted at all, because nothing in this invocation saw the whole"
                         + " seed folder",
@@ -248,7 +248,7 @@ class FailedSeedExtractionNamesItsFailureTest {
                 "and every seed in the folder is measured under the run, the ones the crash cut off"
                         + " included, with seed extraction recorded as finished",
                 () -> {
-                    assertThat(ledger.stepFinished(measurementRun, SeedExtractionJobConfiguration.STEP_NAME))
+                    assertThat(ledger.stepFinished(measurementRun, "seed-extraction"))
                             .isTrue();
                     assertThat(metricRowsAgainst(theSeedWalkOf(seeds), measurementRun))
                             .isEqualTo(SEEDS_IN_A_LONGER_FOLDER);

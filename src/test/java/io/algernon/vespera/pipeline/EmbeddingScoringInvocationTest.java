@@ -147,7 +147,7 @@ class EmbeddingScoringInvocationTest {
                         + " against the seeds that happened to open. The relevance report asks the same"
                         + " seed-usability question before it reaches a scoring run (ADR-160), so no step of"
                         + " this invocation mints one, and the claim can be about the run row itself",
-                () -> assertThat(runIdsOver(ScoringRun.STAGE, root)).isEmpty());
+                () -> assertThat(runIdsOver("embedding-scoring", root)).isEmpty());
 
         Files.move(
                 elsewhere.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),

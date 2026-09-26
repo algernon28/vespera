@@ -46,12 +46,14 @@ import org.springframework.test.context.DynamicPropertySource;
  * later stages stop <em>because of</em> the gate in front of them. Each case here opens every gate
  * except the one it is about, so the runs it does find prove the invocation got as far as that gate.
  *
- * <p><b>One gate is not pinned here, because the code breaks the rule at it today.</b> With a model
- * named and no seed producing text, the relevance-report step checks only the model and the seed walk,
- * and reaching the scoring run mints it and the seed measurement run behind the usable-seed gate
- * (#309). Pinning what that code does would pin the defect, and pinning what it should do would fail
- * on it, so the case waits for #309's own decision rather than being settled as a side effect of a
- * refactor that keeps every gate's outcome.
+ * <p><b>The usable-seed gate with a model named is pinned in its own class, and not repeated here.</b>
+ * When this class was written, the relevance-report step broke the rule at that gate: it checked only
+ * the model and the seed walk, and reaching the scoring run minted it and the seed measurement run
+ * (#309). ADR-160 closed that. The step now asks every seed-usability question before it reaches the
+ * scoring run. {@code RelevanceReportMintsNothingBehindTheUsableSeedGateTest} pins the gate in this
+ * class's own shape: stage 4's floor, the seed folder and the model are all set, and the only runs
+ * left are the ones in front of the gate. The same class also pins ADR-155's gate, a seed file that
+ * will not open, the same way.
  *
  * <p>Every claim is scoped to this test's own corpus walk, because one working directory, and so one
  * database, serves the whole class ({@code @TempDir static}). The profile is written whole at the start
