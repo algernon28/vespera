@@ -21,6 +21,7 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -146,7 +147,7 @@ public class ExtractionJobConfiguration {
             ContentIdentity contentIdentity,
             DetectedFormats detectedFormats,
             DoclingExtractor doclingExtractor,
-            ExtractorIdentity extractorIdentity,
+            ObjectProvider<ExtractorIdentity> extractorIdentity,
             StageRuns stageRuns,
             PendingConversions extractionPendingConversions) {
         return new ConversionDispatch(
@@ -155,7 +156,9 @@ public class ExtractionJobConfiguration {
                 contentIdentity,
                 detectedFormats,
                 doclingExtractor,
-                extractorIdentity,
+                // A provider, read when the reader is opened: the identity asks the sidecar, and this
+                // bean is also built when a step that failed its health check is closed (#319).
+                extractorIdentity::getObject,
                 stageRuns,
                 extractionPendingConversions,
                 CONVERSION_CONCURRENCY);

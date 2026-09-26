@@ -57,10 +57,19 @@ class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOu
 
     private final ExtractionFaults extractionFaults;
     private final Ledger ledger;
-    private final RunId runId;
+    private final StageRuns stageRuns;
     private final TransactionTemplate transactions;
     private final List<PendingFault> held = new ArrayList<>();
 
+    /**
+     * Holds {@link StageRuns} rather than asking it for the run here (#319). This object is step-scoped,
+     * so it is built the first time the step calls it -- and a step whose health check failed calls it
+     * first from {@code afterStep}, having never run. Asking for the run then asked for the extractor
+     * identity, which calls the sidecar that had just failed its check: with the sidecar unreachable that
+     * threw out of {@code afterStep} and stopped every listener after this one, stage 2's closing line
+     * among them, and with it answering but unhealthy it minted stage 2's run behind the failed check,
+     * which #319 forbids as ADR-080 forbids it behind a gate.
+     */
     ExtractionFaultRecorder(
             ExtractionFaults extractionFaults,
             Ledger ledger,
@@ -68,7 +77,7 @@ class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOu
             PlatformTransactionManager transactionManager) {
         this.extractionFaults = extractionFaults;
         this.ledger = ledger;
-        this.runId = stageRuns.extraction();
+        this.stageRuns = stageRuns;
         this.transactions = new TransactionTemplate(transactionManager);
     }
 
@@ -79,11 +88,19 @@ class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOu
         }
     }
 
+    /**
+     * Asks for the run only once a skip is held. A held skip means the step read an occurrence, and the
+     * step reads only through the survivors reader, which asked for this run before it yielded one; so
+     * the run is already this invocation's and asking for it again mints nothing and calls nothing. With
+     * nothing held -- which includes a step that never ran -- there is nothing to record and nothing is
+     * asked for (#319).
+     */
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
         if (held.isEmpty()) {
             return stepExecution.getExitStatus();
         }
+        RunId runId = stageRuns.extraction();
         boolean completed =
                 ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode());
         transactions.executeWithoutResult(status -> {
