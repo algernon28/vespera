@@ -396,10 +396,11 @@ function readmeSection(heading, name) {
   const section = readmeSection("## Step 0", NAME);
   if (section) {
     const fenced = /```yaml\r?\n([\s\S]*?)```/.exec(section);
-    const block = fenced && [fenced[0], fenced[1].replace(/\r/g, "")];
+    const body = fenced && fenced[1].replace(/\r/g, "");
     const profile = readFileSync(PROFILE, "utf8");
     // What an operator writes under a key is every component of the key's value type except the
-    // Measurement, which census writes and nobody else does (ADR-061).
+    // Measurement, census's own pointer (ADR-061), which census refreshes and nobody else writes
+    // (ADR-062).
     const written = (type) => {
       const record = new RegExp(`public record ${type}\\(([^)]*)\\)`).exec(readFileSync(`${MAIN}/profile/${type}.java`, "utf8"));
       return record ? [...record[1].matchAll(/(\w+) (\w+)(?:,|$)/g)].filter((c) => c[1] !== "Measurement").map((c) => c[2]).sort() : null;
@@ -407,13 +408,15 @@ function readmeSection(heading, name) {
     const text = written("TextValue");
     const numeric = written("NumericValue");
     const wrong = [];
-    if (!block) wrong.push("Step 0 shows no ```yaml block");
+    const key = body && /^(\w+):\s*$/m.exec(body);
+    if (!body) wrong.push("Step 0 shows no ```yaml block");
     else if (!text || !numeric) wrong.push("could not read TextValue's or NumericValue's components");
     else {
-      const key = /^(\w+):\s*$/m.exec(block[1]);
-      const nested = [...block[1].matchAll(/^ {2}(\w+): (.*)$/gm)];
+      const nested = [...body.matchAll(/^ {2}(\w+): (.*)$/gm)];
       const shown = nested.map((n) => n[1]).sort();
+      // Step 0's sentence says "under `seedFolder`", so the example has to be that key and no other.
       if (!key) wrong.push("the example names no key on a line of its own");
+      else if (key[1] !== "seedFolder") wrong.push(`Step 0 says seedFolder and the example writes ${key[1]}`);
       else if (!new RegExp(`TextValue ${key[1]}\\b`).test(profile)) wrong.push(`${key[1]} is not a text-valued profile key`);
       if (text.join() !== numeric.join()) wrong.push(`TextValue takes ${text.join(", ")} and NumericValue takes ${numeric.join(", ")}, so "every key takes this shape" is false`);
       if (shown.join() !== text.join()) wrong.push(`the example nests ${shown.join(", ") || "nothing"}; an operator writes ${text.join(", ")}`);
@@ -422,7 +425,7 @@ function readmeSection(heading, name) {
       for (const n of nested) if (n[2].startsWith('"') && n[2].includes("\\")) wrong.push(`${n[1]} puts a backslash inside double quotes`);
     }
     if (wrong.length) fail(NAME, wrong.join("; "));
-    else pass(NAME, `seedFolder nests ${text.join(" and ")}, the same as every other key`);
+    else pass(NAME, `${key[1]} nests ${text.join(" and ")}, the same as every other key`);
   }
 }
 

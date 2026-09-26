@@ -22,7 +22,7 @@ seedFolder:
   provenance: "the twelve reports I would keep without reading them again"
 ```
 
-Every key in `profile.yaml` takes this shape: the answer under `value`, and how you arrived at it under `provenance`. A bare `seedFolder: D:\archive\exemplars` is not read, and no command starts until the key is written as above. Put a Windows path in single quotes, or write it with forward slashes: inside double quotes, YAML reads a backslash as the start of an escape.
+Every key in `profile.yaml` takes this shape: the answer under `value`, and how you arrived at it under `provenance`. A bare `seedFolder: D:\archive\exemplars` is refused, and no command starts until the key is written as above. Put a Windows path in single quotes, or write it with forward slashes: inside double quotes, YAML reads a backslash as the start of an escape.
 
 Do this first. Nothing the tool prints can ask you for it, because by the time anything is printed the first invocation has already happened — and discovering at the second invocation that exemplars were needed all along is the worst way to meet this tool.
 
