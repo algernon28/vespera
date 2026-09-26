@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-162.
+One file per architecture decision, ADR-001 through ADR-163.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -181,3 +181,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-160](0160-the-relevance-report-asks-both-seed-usability-questions-before-it-reaches-the-scoring-run.md) | 2026-09-26 | The relevance report asks both seed-usability questions before it reaches the scoring run *(amends ADR-132, ADR-155)* |
 | [ADR-161](0161-the-instruction-follows-the-documents-and-names-a-length-the-reply-allowance-holds.md) | 2026-09-26 | The instruction follows the documents and names a length the reply allowance holds *(amends ADR-159, extends ADR-108)* |
 | [ADR-162](0162-writing-that-ends-with-the-answers-closing-brace-is-turned-down-as-malformed.md) | 2026-09-26 | Writing that ends with the answer's closing brace is turned down as malformed *(extends ADR-108)* |
+| [ADR-163](0163-the-docling-sidecar-pins-docling-parse-7-17-0-and-its-image-is-tagged-for-the-pin.md) | 2026-09-26 | The Docling sidecar pins docling-parse 7.17.0, and its image is tagged for the pin *(amends ADR-147)* |
