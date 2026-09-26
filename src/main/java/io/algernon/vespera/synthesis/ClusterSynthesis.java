@@ -464,7 +464,7 @@ public class ClusterSynthesis {
      * probe of 12 calls carrying one, two and three documents each, against the same serving engine,
      * came back citing in range every time, where the first wording — a fixed {@code [1] or [2][3]}
      * shown even to a single-document call — invited an out-of-range citation from exactly the group
-     * size ADR-121 says is an expected outcome. The check is not widened to match the model instead:
+     * size ADR-087 says is an expected outcome. The check is not widened to match the model instead:
      * the deliverable resolves only {@code [n]} into a link (ADR-109).
      */
     private static String promptFor(ClusterCall call, List<Exemplar> inScoreOrder) {

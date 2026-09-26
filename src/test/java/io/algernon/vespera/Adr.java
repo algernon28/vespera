@@ -760,6 +760,13 @@ public final class Adr {
             + "0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md";
 
     /**
+     * ADR-158 -- the operator starts the sidecars from {@code compose.yaml}, and the packaged jar
+     * starts none (amends ADR-011).
+     */
+    public static final String THE_PACKAGED_JAR_STARTS_NO_SIDECAR = FILE
+            + "0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md";
+
+    /**
      * ADR-159 -- a generation call asks the model not to think before it answers, and the prompt
      * names the square brackets a citation is written in, with an example; a citation in any other
      * form is still no citation.

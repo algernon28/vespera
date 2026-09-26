@@ -6,7 +6,8 @@
 # reason: the value an operator's configuration already names has to be the value the container is
 # actually on. Spring AI's ServiceConnection support reads a running container back and needs no
 # help with Chroma or Ollama -- but only when spring-boot-docker-compose is on the classpath, and
-# it is <optional> in pom.xml, so the Boot plugin leaves it out of the repackaged jar. Under
+# it is not in the repackaged jar: the Boot plugin's excludeDockerCompose (default true) strips it,
+# and its <optional> in pom.xml would leave it out even without that (ADR-158). Under
 # `./mvnw spring-boot:run` an ephemeral port resolves itself; from `java -jar` nothing reads it
 # back, so the defaults in application.yaml and Spring AI (8000, 11434) are all the invocation has,
 # and a Docker-assigned port makes them wrong. Pinning costs a port collision when something else
