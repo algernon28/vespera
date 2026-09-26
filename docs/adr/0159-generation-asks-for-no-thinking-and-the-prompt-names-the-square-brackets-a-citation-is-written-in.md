@@ -2,7 +2,8 @@
 
 - **Date**: 2026-09-26
 - **Status**: accepted
-- **Extends**: [ADR-108](0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md) (what every generation call is made under gains one more stated option) and [ADR-109](0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md) (its "the instruction reserves square brackets for citations" is made literal in the prompt).
+- **Amends**: [ADR-108](0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md), in what its generator identity's "the options actually sent" means. It means the fields of Ollama's `options` object: `num_ctx` and `num_predict` today, and `temperature` and `seed` if a call ever sends them. It does not mean every field of the request. A top-level request field such as `think` or `format` is not one of them. See *Generation's run identity* below.
+- **Extends**: ADR-108 (what every generation call is made under gains one more stated option) and [ADR-109](0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md) (its "the instruction reserves square brackets for citations" is made literal in the prompt).
 - **Keeps**: ADR-109's check, unchanged and not widened; [ADR-026](0026-generated-content-verified-mechanically-and-by-human-review.md) and ADR-109's refusal to repair model output; [ADR-111](0111-a-turned-down-answer-is-a-cluster-fault-and-five-in-a-row-stop-the-step.md)'s five-in-a-row stop; [ADR-114](0114-the-generation-model-is-named-in-application-configuration-with-a-code-default-and-is-not-a-gate.md) (the generation model is configuration with a code default, and `qwen3:8b` stays that default); [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) (what a code change does to a run's identity).
 - **Rests on**: the first end-to-end run over a real corpus, and a probe of the exact call against the same serving engine, both on 2026-09-26 and both measured below; Ollama's `server/routes.go` at tag `v0.33.2`; Spring AI 2.0.0's `OllamaChatOptions`, `OllamaApi.ChatRequest` and `ThinkOption`.
 
@@ -22,7 +23,18 @@ The call was then reproduced directly against `/api/chat` with `ClusterSynthesis
 | --- | --- | --- | --- | --- |
 | `think` unset (Ollama's default: on for `qwen3`) | 113 s | 2,486 characters | 435 | every document, as `{1}`, `{2}`, `{3}` |
 | `think: false` | 26 s | none | — | every document, as `{1}`, `{2}`, `{3}` |
-| `think: false`, and the citation sentence below | 31–43 s | none | — | `[n]`, in range, in 3 calls of 3 |
+| `think: false`, and the first wording of the citation sentence: "exactly as they appear above, such as [1] or [2][3]" | 31–43 s | none | — | `[n]`, in range, in 3 calls of 3 |
+
+The first wording had two faults, found in review and not in the measurement. It showed `[2][3]` to every call, including a call that sent one document or two. A cluster of one is an expected outcome, and a model copying the example would cite past what it was sent. And it said the numbers appear "above" when the prompt puts the documents below the instruction. So the sentence §2 decides was measured again the same way (same engine, model, schema, `num_ctx` and `num_predict`, `think: false`, real GesPOS opening chunks). The word was "below", and the example was built from the call's own document count:
+
+| Documents sent | Example shown | Where the numbers are said to be | Time | Result |
+| --- | --- | --- | --- | --- |
+| 1 | `[1]` | below | 21–42 s | 3 calls of 3 cite only `[1]` |
+| 1 | `[1]` | above | 30–39 s | 3 calls of 3 cite only `[1]` |
+| 2 | `[1] or [1][2]` | below | 33–53 s | 3 calls of 3 cite `[1]` and `[2]`, nothing else |
+| 3 | `[1] or [2][3]` | below | 25–35 s | 3 calls of 3 cite within `[1]`–`[3]` |
+
+In all 12 calls every citation was in range and none was written in curly braces. Across both probes that makes 15 calls with no brace citation, where the unamended prompt produced braces every time. "Above" and "below" both worked for one document, so the word is chosen because "below" is true of the prompt, not because it measured better.
 
 ### Two causes, independent of each other
 
@@ -42,9 +54,21 @@ The call was then reproduced directly against `/api/chat` with `ClusterSynthesis
 
 ### §2. The prompt names the citation form, with an example
 
-The citation sentence becomes the one the fix was measured with:
+The citation sentence becomes the one the second probe measured:
 
-> Cite with the bracketed numbers, inline, written in square brackets exactly as they appear above, such as [1] or [2][3], and use no other citation of any kind.
+> Cite with the bracketed numbers, inline, written in square brackets exactly as they appear below, such as *example*, and use no other citation of any kind.
+
+**The example comes from the call's own document count**, `n`, the number of documents the call carries:
+
+| `n` | *example* |
+| --- | --- |
+| 1 | `[1]` |
+| 2 | `[1] or [1][2]` |
+| 3 or more | `[1] or [2][3]` |
+
+**The rule is that no number the instruction shows is greater than `n`.** A model that copies the example literally then cites only documents it was sent, and ADR-109's range check has nothing to turn down. That is the part tests pin. The exact wording is not pinned: it may change without a new record so long as the instruction still names square brackets and every `[k]` it shows has `k ≤ n`.
+
+**"Below" because the documents are below.** The instruction comes before the documents in the prompt, and the sentence before it already says "each document opens below under the number to cite it by".
 
 The rest of the prompt is unchanged.
 
@@ -60,15 +84,19 @@ ADR-109 defines a citation as `[n]` inline, and the deliverable rewrites each `[
 
 ## Consequences
 
-**Generation's run identity.** Neither the think option nor the prompt text is in generation's `config_consumed` — the schema and the prompt never were; they are code, and code reaches a run's identity through its implementation version (ADR-058). So `config_consumed` is unchanged and the golden text in `RunIdentityGoldenTest` does not move. The implementation version does: this change touches `synthesis`, whose last-commit SHA is part of both generation's and arrangement's implementation version (`synthesis+extraction+embedding+pipeline`). **Over an existing working directory, the first invocation on the new build therefore mints a new arrangement run and a new generation run**: the arrangement stops at its gate again and has to be approved by its new id (ADR-107, ADR-154 §2) before 6b runs. That is ADR-058's accepted cost of a change to the module, landing where it should — the writing is different, so the run is too.
+**Generation's run identity, and what this record amends in ADR-108.** ADR-108 made the generator's identity "the model name plus the options actually sent — `num_ctx`, `num_predict`, `temperature`, `seed`". After this change `think: false` is sent on every call, so a reader could take it to be one of "the options actually sent" and expect it in `config_consumed`. It is not one of them. The four fields ADR-108 lists are all fields of Ollama's `options` object, and "options" in that sentence means that object. `think` is a top-level request field, like `format`, which carries the answer schema and has never been in `config_consumed`. Both are code constants. A code constant outside the `options` object reaches a run's identity through the implementation version (ADR-058), not through `config_consumed`. The prompt text is code too and reaches it the same way.
 
-**A three-of-three sample is small.** The fix was measured on one cluster's three documents, three times. A model or a cluster that still writes some other form is turned down loudly as before, with the detail saying there was no citation, so a recurrence is visible in `cluster_fault` rather than silent.
+One code constant is in `config_consumed` anyway: `REPLY_ALLOWANCE`, sent as `num_predict`. It is there because ADR-108 names `num_predict` and it sits in the `options` object, not because it can vary between invocations of one build. That is left as it is. Taking it out would change `config_consumed` and the golden text for no gain. Keeping it costs nothing either: a changed allowance is a code change, which already changes the implementation version, so its place in `config_consumed` never mints a run that would not have been minted anyway.
 
-**The example numbers are in every prompt.** `[2][3]` appears in the instruction even for a call that sent one document. A model copying the example literally would cite past what it was sent and be turned down as out of range, which ADR-109 already handles; it is recorded here because the sentence invites it.
+So `config_consumed` is unchanged and the golden text in `RunIdentityGoldenTest` does not move. The implementation version does: this change touches `synthesis`, whose last-commit SHA is part of both generation's and arrangement's implementation version (`synthesis+extraction+embedding+pipeline`). **Over an existing working directory, the first invocation on the new build therefore mints a new arrangement run and a new generation run**: the arrangement stops at its gate again and has to be approved by its new id (ADR-107, ADR-154 §2) before 6b runs. That is ADR-058's accepted cost of a change to the module, landing where it should — the writing is different, so the run is too.
 
-**The writing is produced without a reasoning pass.** Whether that makes it worse is a judgement about prose no check here makes (ADR-026); what is measured is that it now arrives, cited, in 31–43 s where the unfixed call took 113 s.
+**Twelve calls are a small sample.** The sentence §2 decides was measured three times each on calls carrying one, two and three documents, one model, one engine, and all 12 passed. The earlier wording passed 3 of 3 as well. A model or a cluster that still writes some other form is turned down as before, with the detail saying there was no citation. A recurrence therefore shows up in `cluster_fault` and is not silent.
+
+**The example no longer invites an out-of-range citation.** The first wording showed `[2][3]` even to a call that sent one document. A model copying it would have been turned down as `CITATION_NOT_IN_RANGE`, and because clusters of one are an expected outcome, enough of those in a row could have reached ADR-111's five-in-a-row stop and halted 6b. §2's rule removes that: no number the instruction shows is greater than the number of documents the call sent. A model can still cite out of range on its own. ADR-109 turns that down as it always has.
+
+**The writing is produced without a reasoning pass.** Whether that makes it worse is a judgement about prose, and no check here makes it (ADR-026). What is measured is that it now arrives cited, in 21–53 s across the 12 calls, where the unfixed call took 113 s.
 
 ## Tests
 
-- `ThinkingModelWritesNoCitationTest` — the call carries thinking disabled; the prompt carries the citation sentence above, whitespace aside; and writing citing `{1}` and `{2}` is still turned down as having no citation. The first two fail without this change.
+- `ThinkingModelWritesNoCitationTest` — the call carries thinking disabled. For calls carrying one, two and three documents, the instruction names square brackets and every `[k]` it shows has `k` no greater than the number of documents sent. Writing citing `{1}` and `{2}` is still turned down as having no citation. The think test fails without §1. The one- and two-document instruction tests fail on the first wording, which showed `[2][3]` to every call. The last test fails neither way: it pins §3.
 - `ThinkingModelWritesNoCitationIT` — against a real Ollama 0.33.2 in a container, a model the engine lists as able to think (`qwen3:0.6b`) answers a call made under `optionsFor` with no reasoning trace, so the option survives the framework onto the wire.

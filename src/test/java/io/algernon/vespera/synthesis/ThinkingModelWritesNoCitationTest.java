@@ -10,6 +10,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -32,11 +33,14 @@ import org.springframework.ai.ollama.api.ThinkOption;
  * {@code [1]} — with thinking on and with it off; with thinking on, it spent 113 s and 2,486
  * characters of reasoning, all of it counted against the reply allowance.
  *
- * <p><b>Two causes, and so two claims that fail without the fix.</b> {@link
- * ClusterSynthesis#optionsFor} never said whether to think, and Ollama turns thinking on for a model
- * that can; and the prompt said "the bracketed numbers" without saying which brackets. The third
- * test fails neither way: it pins the alternative ADR-159 turned down, which is reading {@code {n}}
- * as a citation.
+ * <p><b>Two causes, and a test for each.</b> {@link ClusterSynthesis#optionsFor} never said whether
+ * to think, and Ollama turns thinking on for a model that can; and the prompt said "the bracketed
+ * numbers" without saying which brackets. The instruction tests pin ADR-159 §2's decision rather
+ * than its wording: the instruction names square brackets, and no number it shows is greater than
+ * the number of documents the call sent — at one, two and three documents, because a group of one is
+ * an expected outcome and an example a model can copy out of range is a turn-down the prompt invited.
+ * The last test fails neither way: it pins the alternative ADR-159 turned down, which is reading
+ * {@code {n}} as a citation.
  *
  * <p>A class of its own rather than more methods in {@code ClusterSynthesisTest}, so the defect has
  * one place that says what it was.
@@ -60,12 +64,13 @@ class ThinkingModelWritesNoCitationTest {
     private static final String A_HEADING = "Terminal flows across three suppliers";
 
     /**
-     * The one sentence of the request that says how to cite, whitespace aside: the wording the fix
-     * was measured with, which returned citations a reader can follow in three calls of three.
+     * A square-bracketed number anywhere in the instruction: the form a citation is written in, and
+     * so the form a model copying the instruction's example would write.
      */
-    private static final String THE_SENTENCE_THAT_SAYS_HOW_TO_CITE =
-            "Cite with the bracketed numbers, inline, written in square brackets exactly as they appear"
-                    + " above, such as [1] or [2][3], and use no other citation of any kind.";
+    private static final Pattern A_BRACKETED_NUMBER = Pattern.compile("\\[(\\d+)\\]");
+
+    /** Writing that cites the first document only, which is in range whatever the call carried. */
+    private static final String WRITING_CITING_THE_FIRST_DOCUMENT = "The flows [1] are described in full.";
 
     /**
      * Writing citing both documents the way the shipped model actually cited them, word for word in
@@ -94,21 +99,72 @@ class ThinkingModelWritesNoCitationTest {
                         .isEqualTo(ThinkOption.ThinkBoolean.DISABLED));
     }
 
+    /**
+     * Fails on the first wording of ADR-159 §2, which showed {@code [1] or [2][3]} to every call: a
+     * group of one is an expected outcome, and a model copying that example cites a document it was
+     * never sent.
+     */
     @Test
     @Story("The request says exactly how a citation is written")
-    @DisplayName("The request names square brackets as the only way to cite, with an example")
-    void theRequestNamesSquareBracketsAsTheOnlyWayToCite() {
-        ScriptedChatModel model = new ScriptedChatModel("The flows [1] and the results [2] agree.");
+    @DisplayName("A request carrying one document names square brackets and shows no number past 1")
+    void aRequestCarryingOneDocumentShowsNoNumberPastOne() {
+        claimTheInstructionCitesWithinTheDocumentsSent(aGroupOf(1));
+    }
 
-        new ClusterSynthesis(model).docFor(aGroupOfTwo(), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+    /** Fails on the first wording of ADR-159 §2, for the reason above: its example shows {@code [3]}. */
+    @Test
+    @Story("The request says exactly how a citation is written")
+    @DisplayName("A request carrying two documents names square brackets and shows no number past 2")
+    void aRequestCarryingTwoDocumentsShowsNoNumberPastTwo() {
+        claimTheInstructionCitesWithinTheDocumentsSent(aGroupOf(2));
+    }
+
+    /**
+     * Holds on the first wording as well as the decided one, whose example for three or more documents
+     * is the same {@code [1] or [2][3]}: it is here so that the rule is pinned at the size where the
+     * example reaches its largest number, not only below it.
+     */
+    @Test
+    @Story("The request says exactly how a citation is written")
+    @DisplayName("A request carrying three documents names square brackets and shows no number past 3")
+    void aRequestCarryingThreeDocumentsShowsNoNumberPastThree() {
+        claimTheInstructionCitesWithinTheDocumentsSent(aGroupOf(3));
+    }
+
+    /**
+     * Sends {@code group} and claims two things of the instruction it was sent with — the request with
+     * every document's own numbered opening taken out, so that only what the instruction itself shows
+     * is read: that it names square brackets, and that no bracketed number in it is greater than the
+     * number of documents sent. The exact wording is left free (ADR-159 §2).
+     */
+    private static void claimTheInstructionCitesWithinTheDocumentsSent(ClusterCall group) {
+        ScriptedChatModel model = new ScriptedChatModel(WRITING_CITING_THE_FIRST_DOCUMENT);
+        new ClusterSynthesis(model).docFor(group, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+        int documentsSent = group.exemplars().size();
+
+        String instruction = model.whatWasAsked();
+        for (Exemplar document : group.exemplars()) {
+            instruction = instruction.replaceAll("\\[\\d+\\] " + Pattern.quote(document.leadingChunk()), "");
+        }
+        String instructionText = instruction.replaceAll("\\s+", " ");
+        List<Integer> numbersShown = A_BRACKETED_NUMBER.matcher(instructionText).results()
+                .map(shown -> Integer.parseInt(shown.group(1)))
+                .toList();
 
         claim(
-                "the request says a citation is written in square brackets, exactly as the numbers"
-                        + " appear above it, and shows one: asked only for \"the bracketed numbers\","
-                        + " the shipped model wrote every citation in curly braces, and writing whose"
-                        + " citations cannot be read is turned down whole",
-                () -> assertThat(model.whatWasAsked().replaceAll("\\s+", " "))
-                        .contains(THE_SENTENCE_THAT_SAYS_HOW_TO_CITE));
+                "the request says a citation is written in square brackets: asked only for \"the"
+                        + " bracketed numbers\", the model shipped by default wrote every citation in"
+                        + " curly braces, and writing whose citations cannot be read is turned down whole",
+                () -> assertThat(instructionText).containsIgnoringCase("square brackets"));
+        claim(
+                "the request shows how a citation looks, with at least one square-bracketed number",
+                () -> assertThat(numbersShown).isNotEmpty());
+        claim(
+                "no number the request shows as an example is greater than the " + documentsSent
+                        + " document(s) this request sent: a model copying the example word for word"
+                        + " would otherwise cite a document it was never given, and be turned down for it",
+                () -> assertThat(numbersShown).allSatisfy(shown -> assertThat(shown)
+                        .isBetween(1, documentsSent)));
     }
 
     @Test
@@ -142,7 +198,15 @@ class ThinkingModelWritesNoCitationTest {
 
     /** Two short documents, opening the way two of the GesPOS documents the defect was found on open. */
     private static ClusterCall aGroupOfTwo() {
-        return new ClusterCall(LABEL, SEED_PATH, List.of(
+        return aGroupOf(DOCUMENTS_SENT);
+    }
+
+    /**
+     * The first {@code size} of three short documents, opening the way three of the GesPOS documents
+     * the defect was found on open, in descending score so the order they are sent in is theirs.
+     */
+    private static ClusterCall aGroupOf(int size) {
+        List<Exemplar> threeDocuments = List.of(
                 new Exemplar(
                         new OccurrenceId(1),
                         "SPECIFICHE FLUSSI NUOVE RISPOSTE ACCOR. Il documento descrive il tracciato dei"
@@ -154,7 +218,14 @@ class ThinkingModelWritesNoCitationTest {
                         "Esiti Telegestione CARD_ESITI_TLG: il flusso riporta per ogni terminale l'esito"
                                 + " della telegestione.",
                         14,
-                        0.77)));
+                        0.77),
+                new Exemplar(
+                        new OccurrenceId(3),
+                        "Specifica del modulo M100: formato dello scontrino e dei campi di chiusura"
+                                + " giornaliera.",
+                        13,
+                        0.74));
+        return new ClusterCall(LABEL, SEED_PATH, threeDocuments.subList(0, size));
     }
 
     /** A model that answers every call with the writing it was given, keeping what it was asked. */
