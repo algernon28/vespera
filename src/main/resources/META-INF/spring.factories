@@ -1,0 +1,4 @@
+# A profile.yaml that does not load is said in one line, in place of Spring's account of a failed
+# start (#321). Spring Boot finds its failure reporters here and nowhere else.
+org.springframework.boot.SpringBootExceptionReporter=\
+io.algernon.vespera.pipeline.MisshapenProfileRefusal
