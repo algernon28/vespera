@@ -86,13 +86,13 @@ deliverable/<run>/index.md       what was written, group by group, and what prod
 deliverable/<run>/documents.csv  every surviving document, with its place in the order
 ```
 
-Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration.
+Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration. Both commands take `--db-dir=<path>`, so if you moved the working directory, name it on `vespera label` as well as on `vespera run`. A command given a `--db-dir` other than the directory it actually opened refuses and records nothing.
 
 ## Commands
 
 ```
-vespera run <root>     walk a corpus and take it as far as the next missing value
-vespera label [file]   record the answers you wrote into the label file
+vespera run <root> [--db-dir=<path>]     walk a corpus and take it as far as the next missing value
+vespera label [file] [--db-dir=<path>]   record the answers you wrote into the label file
 ```
 
 `vespera run` takes the archive root as its argument, falling back to `vespera.corpus-root` in configuration. Given neither, it refuses rather than guessing — a census of the wrong tree reports success.
