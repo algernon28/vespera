@@ -261,9 +261,9 @@ class StageRuns {
     RunId generation() {
         if (generation == null) {
             WalkId walk = runMint.finishedWalk(canonicalRoot, "anything can be generated");
-            // Never ArrangementRun.getObject() itself, which would mint an arrangement behind the
-            // arrangement step's own gate (ADR-154, Context §3) -- only the arrangement this invocation
-            // already arrived at, if it arrived at one, is asked about.
+            // Never arrangement() itself, which would mint an arrangement behind the arrangement
+            // step's own gate (ADR-154, Context §3) -- only the arrangement this invocation already
+            // arrived at, if it arrived at one, is asked about.
             Optional<RunId> thisInvocationsArrangement = invocationRuns.runOf(StageModules.ARRANGEMENT.stage());
             RunId approvedArrangement = arrangementGate
                     .approvedArrangement(thisInvocationsArrangement)

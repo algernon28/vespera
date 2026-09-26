@@ -149,18 +149,20 @@ class RelevanceReportTasklet implements Tasklet {
      * <p><b>Both seed-usability questions are asked here too, not left to the missing scores.</b> This
      * step used to consult only the model and the seed walk, on the reasoning that with no usable seed
      * no survivor carries a score and the step shuts on that itself. It did shut, but only after
-     * resolving {@link StageRuns#embeddingScoring} to learn which run had no scores, and that resolution minted a
-     * scoring run and a seed measurement run behind ADR-083's gate, which ADR-080 forbids -- and a
-     * scoring run behind ADR-155's, over a seed set missing a file (#309). So with a model named, this
-     * step now shuts on either fact in the sentence its siblings use, and mints nothing. Its own
-     * no-scores line below is for the state it was written for: every gate open, and nothing scored.
+     * resolving the scoring run (then {@code ScoringRun}) to learn which run had no scores, and that
+     * resolution minted a scoring run and a seed measurement run behind ADR-083's gate, which ADR-080
+     * forbids -- and a scoring run behind ADR-155's, over a seed set missing a file (#309). So with a
+     * model named, this step now shuts on either fact in the sentence its siblings use, and mints
+     * nothing. Its own no-scores line below is for the state it was written for: every gate open, and
+     * nothing scored.
      *
      * <p>{@link StageRuns#embeddingScoring} resolves the seed-measurement run, which refuses to exist
-     * while the seed gate is shut. So a model named with no seed folder -- ADR-098's invocation 2 for an operator who
-     * never took step zero -- threw out of this step and failed the whole job, in a state every other
-     * step in stage 5 reports as gated and exits 0 on. A mistyped folder arrived the same way: {@link
-     * SeedGate} swallows the resolution failure deliberately, because census already recorded it and
-     * carried on (ADR-064), and this step turned that back into a failed invocation two steps later.
+     * while the seed gate is shut. So a model named with no seed folder -- ADR-098's invocation 2 for
+     * an operator who never took step zero -- threw out of this step and failed the whole job, in a
+     * state every other step in stage 5 reports as gated and exits 0 on. A mistyped folder arrived the
+     * same way: {@link SeedGate} swallows the resolution failure deliberately, because census already
+     * recorded it and carried on (ADR-064), and this step turned that back into a failed invocation two
+     * steps later.
      */
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {

@@ -214,16 +214,6 @@ class GenerationTasklet implements Tasklet {
 
         RunId generation = stageRuns.generation();
 
-        RunId scoring = scoringRunBehind(arrangement);
-        List<DocumentCluster> membership = documentClusters.forRun(scoring);
-        Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
-                scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
-        Map<ClusterKey, List<DocumentCluster>> byCluster = membership.stream()
-                .collect(Collectors.groupingBy(ClusterKey::of));
-        String modelName = generationModel.name();
-        int contextWindow = generationContextWindow.size();
-        List<RecordedCluster> recordedClusters = clusters.forRun(arrangement);
-
         // Nothing is discarded (ADR-157 §5): stage 6b never discards its own rows, since a synthesis
         // doc is the most expensive call this system makes.
         return TaskletSteps.once(
@@ -233,6 +223,16 @@ class GenerationTasklet implements Tasklet {
                 () -> LOG.info("the generation step was already recorded under run {}", generation.value()),
                 () -> {},
                 () -> {
+                    RunId scoring = scoringRunBehind(arrangement);
+                    List<DocumentCluster> membership = documentClusters.forRun(scoring);
+                    Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
+                            scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
+                    Map<ClusterKey, List<DocumentCluster>> byCluster = membership.stream()
+                            .collect(Collectors.groupingBy(ClusterKey::of));
+                    String modelName = generationModel.name();
+                    int contextWindow = generationContextWindow.size();
+                    List<RecordedCluster> recordedClusters = clusters.forRun(arrangement);
+
                     // Rows an earlier invocation of this run already wrote (ADR-115, ADR-116): those
                     // clusters are skipped rather than written again.
                     Set<ClusterKey> alreadyWritten = synthesisDocs.forRun(generation).stream()

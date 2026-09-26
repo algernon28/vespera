@@ -101,7 +101,7 @@ public class ExtractionJobConfiguration {
             ExtractionCircuitBreaker extractionCircuitBreaker,
             ExtractionHealthCheckListener extractionHealthCheckListener,
             ExtractionFaultRecorder extractionFaultRecorder,
-            RunCompletion extractionRunCompletion) {
+            Ledger ledger) {
         return new StepBuilder(StepNames.EXTRACTION, jobRepository)
                 .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
                 .transactionManager(transactionManager)
@@ -113,7 +113,9 @@ public class ExtractionJobConfiguration {
                 .skipLimit(SKIP_LIMIT)
                 .listener(extractionCircuitBreaker)
                 .listener(extractionHealthCheckListener)
-                .listener(extractionRunCompletion)
+                // Built inline rather than as a bean of its own (ADR-157 §6): it needs nothing scoped,
+                // and a plain object is what the class itself is built to be handed as.
+                .listener(new RunCompletion(ledger, StageModules.EXTRACTION, StepNames.EXTRACTION))
                 .listener(extractionFaultRecorder)
                 .build();
     }
@@ -130,10 +132,11 @@ public class ExtractionJobConfiguration {
      * which is what puts up to the width in flight at once without anything holding more than one
      * chunk ahead -- see {@link ConversionDispatch}'s own javadoc.
      *
-     * <p>Wraps {@link #extractionReader} rather than folding into it, because {@code
-     * ExtractionRunTest} calls that method directly, by its current five-argument signature, and reads
-     * the result as a plain {@code ItemStreamReader<OccurrenceId>} -- widening it here, once it already
-     * exists, changes nothing that call sees.
+     * <p>Wraps {@link #extractionReader} rather than folding into it, because the two decide separate
+     * things: {@link #extractionReader} decides which occurrences this run reads at all -- the
+     * already-finished check and the discard (ADR-115, ADR-116) -- and this class only adds the
+     * concurrent dispatch ADR-140 asks for on top of whatever it yields, without duplicating that
+     * decision.
      */
     @Bean
     @StepScope
@@ -172,18 +175,20 @@ public class ExtractionJobConfiguration {
     /**
      * {@link ExtractionFaultRecorder}, wired here rather than made {@code @Component} because {@link
      * ExtractionFaults} is not one (ADR-139, on {@code ClusterFaults}' own precedent) — the same reason
-     * {@link #extractionRunCompletion} below builds its listener by hand from an ambient {@link Ledger}.
+     * {@code extractionStep} builds its {@code RunCompletion} listener inline, by hand, from an ambient
+     * {@link Ledger} (ADR-157 §6).
      *
-     * <p><b>Registered after {@code extractionRunCompletion} above, deliberately.</b> Spring Batch's
-     * {@code CompositeStepExecutionListener} runs {@code afterStep} in the reverse of registration
-     * order (confirmed against the {@code spring-batch-core} sources), so the listener named last in
-     * the chain below is the one whose {@code afterStep} runs first. Registering this one after {@code
-     * extractionRunCompletion} is what makes its verdicts commit before that listener records the step
-     * as holding all of its own work (ADR-139 section 4) -- naming it first in the chain, which reads
-     * as "runs first," would in fact run it last. {@code @Order} was considered and refused: both
-     * listeners arrive here as {@code @StepScope} CGLIB subclasses, and {@code OrderedComposite.add}
-     * only detects {@code @Order} through {@code AnnotationUtils.isAnnotationDeclaredLocally}, which a
-     * generated subclass never satisfies -- the annotation would be silently ignored rather than honoured.
+     * <p><b>Registered after {@code RunCompletion} in {@code extractionStep}'s listener chain,
+     * deliberately.</b> Spring Batch's {@code CompositeStepExecutionListener} runs {@code afterStep} in
+     * the reverse of registration order (confirmed against the {@code spring-batch-core} sources), so
+     * the listener named last in that chain is the one whose {@code afterStep} runs first. Registering
+     * this one after {@code RunCompletion} is what makes its verdicts commit before that listener
+     * records the step as holding all of its own work (ADR-139 section 4) -- naming it first in the
+     * chain, which reads as "runs first," would in fact run it last. {@code @Order} was considered and
+     * refused: this bean still arrives as a {@code @StepScope} CGLIB subclass, and {@code
+     * OrderedComposite.add} only detects {@code @Order} through {@code
+     * AnnotationUtils.isAnnotationDeclaredLocally}, which a generated subclass never satisfies -- the
+     * annotation would be silently ignored rather than honoured.
      */
     @Bean
     @StepScope
@@ -242,13 +247,6 @@ public class ExtractionJobConfiguration {
         return new OccurrenceReader(ledger.survivors(extractionRun));
     }
 
-    /** Marks this step's own work as holding all of it, once it has finished doing it (ADR-115, ADR-116). */
-    @Bean
-    @StepScope
-    RunCompletion extractionRunCompletion(Ledger ledger) {
-        return new RunCompletion(ledger, StageModules.EXTRACTION, StepNames.EXTRACTION);
-    }
-
     /**
      * The engine identity the extraction cache is keyed by and {@code configConsumed} records
      * (ADR-012: "the serving runtime is config, not code"; ADR-090 for what "full extractor identity"
@@ -273,9 +271,8 @@ public class ExtractionJobConfiguration {
      * <p>{@code @Lazy}, because composing this needs the sidecar to answer: an eager singleton would
      * demand that at context refresh, before {@link ExtractionHealthCheckListener} has established the
      * sidecar is even there (ADR-071's lazy readiness check). Deferred, it is first built when stage
-     * 2's step asks for it — after that listener has run — and then reused, so {@link StageRuns}
-     * re-deriving stage 2's identity later in the job costs no second call and does not require the
-     * sidecar to still be up.
+     * 2's step asks for it — after that listener has run — and then reused: an ordinary singleton bean,
+     * so nothing that asks for it afterwards costs a second call or needs the sidecar still up.
      *
      * <p>Not {@code @StepScope}: a scoped bean is injected as a CGLIB proxy, and {@link
      * ExtractorIdentity} is a record and therefore final. That is a fair constraint rather than an

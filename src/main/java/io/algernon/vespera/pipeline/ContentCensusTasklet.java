@@ -82,9 +82,10 @@ class ContentCensusTasklet implements Tasklet {
                 ledger,
                 runId,
                 StepNames.CONTENT_CENSUS,
-                // The report beside the database is not rewritten either: it was written from these
-                // very rows, and a step that skipped its measuring and rewrote its page would be
-                // claiming to have looked again.
+                // This step's own work under this run is already measured, so there is nothing here
+                // to do (ADR-115, ADR-116). The report beside the database is not rewritten either:
+                // it was written from these very rows, and a step that skipped its measuring and
+                // rewrote its page would be claiming to have looked again.
                 () -> log.info("Stage 3 (content census) was already recorded under run {}", runId.value()),
                 () -> {
                     documentFrequency.discardForRun(runId);

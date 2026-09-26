@@ -7,8 +7,9 @@ import org.springframework.batch.infrastructure.item.ExecutionContext;
 /**
  * The record of the runs this invocation minted or continued, one id per stage (ADR-154 §1).
  *
- * <p>Every stage that mints or continues a run records it here at the moment {@code Ledger.startRun}
- * returns -- including stage 1's inline mint in {@link ByteLevelReductionTasklet}. A later stage that
+ * <p>{@link RunMint} records every run here at the moment {@code Ledger.startRun} returns (ADR-157 §2)
+ * -- including stage 1's inline mint in {@link ByteLevelReductionTasklet}, which builds a {@code
+ * RunMint} of its own. A later stage that
  * needs an upstream run's id, or a place that reports what this invocation arrived at ({@link
  * NextAction}, {@link ArrangementGate}), reads it from here rather than looking it up over the walk
  * (ADR-099's rule) or recomputing it. This is the "job-execution-context handoff" ADR-099 refused and
@@ -24,9 +25,9 @@ import org.springframework.batch.infrastructure.item.ExecutionContext;
  * {@code Ledger} -- rather than registered as a Spring bean, so nothing has to be added to a test
  * slice's wiring for it to be reachable.
  *
- * <p>One instance per stage's run bean or tasklet, sharing the one {@link ExecutionContext} the
- * constructor is handed. No id is ever replaced within an invocation: each stage mints or continues its
- * run at most once per job execution, so a key is written at most once.
+ * <p>One instance per caller, sharing the one {@link ExecutionContext} the constructor is handed. No id
+ * is ever replaced within an invocation: each stage mints or continues its run at most once per job
+ * execution, so a key is written at most once.
  */
 class InvocationRuns {
 

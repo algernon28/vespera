@@ -65,7 +65,7 @@ final class TaskletSteps {
                 .build();
     }
 
-    /** What a tasklet does at one of the three points {@link #once} calls into, keeping its own text. */
+    /** What a tasklet does at two of the three points {@link #once} calls into, keeping its own text. */
     @FunctionalInterface
     interface StepAction {
         void run() throws Exception;
