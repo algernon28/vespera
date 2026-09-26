@@ -47,8 +47,9 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
         if (!ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())) {
             // Spring Batch calls this from a finally, so a step that failed arrives here too (#311), and
             // "finished" beside its error would tell the operator it completed. The same exit-code test
-            // RunCompletion makes, so this line says failed exactly when no completion is recorded, and
-            // the next invocation redoes this run's work under the same id (ADR-115, ADR-116).
+            // RunCompletion makes, so this line says failed only when the step did not complete, and a
+            // step that did not complete records no completion; the next invocation redoes this run's
+            // work under the same id (ADR-115, ADR-116).
             log.error(
                     "Stage 2 (extraction) failed and is not recorded as finished (read={}, written={},"
                             + " skipped={}, filtered={}): {}. Fix what that names -- if docling-serve stopped"

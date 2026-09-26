@@ -35,7 +35,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * What stage 2 and stage 4a say at the end of a step that failed part-way through (#311).
+ * What stage 2 and stage 4a say at the end of a step that failed part-way through, and at the end of
+ * one that completed (#311).
  *
  * <p>Both steps log their end line (ADR-093) from a step listener's {@code afterStep}, and Spring Batch
  * calls {@code afterStep} from a {@code finally}, after a failed step as well as a completed one
@@ -46,8 +47,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * RunCompletion} and stage 4a's own) already check for {@code COMPLETED}, so nothing but the line was
  * wrong (ADR-116).
  *
- * <p>Each test fails its step after one whole chunk has been written, so the counts on the line are
- * not zero and a line that merely drops the counts would not pass.
+ * <p>Each failing test fails its step after one whole chunk has been written, so the counts on the
+ * line are not zero and a line that merely drops the counts would not pass.
  *
  * <ul>
  *   <li><b>Stage 2</b> fails the way ADR-071 fails it: the converter stops answering, every call times
@@ -59,13 +60,16 @@ import org.springframework.test.context.DynamicPropertySource;
  *       every document is boilerplate at a floor of 1.0 and stage 4a would then sign nothing.
  * </ul>
  *
- * <p>Both invocations fail, and Spring Batch logs each step's failure with its stack trace at {@code
- * ERROR}. That is the step failing as it should, not noise from the test.
+ * <p>A third test runs the stage 4a setup without the trigger, so both steps complete, and pins that
+ * each still says it finished and neither says it failed.
+ *
+ * <p>The two failing invocations have Spring Batch log each step's failure with its stack trace at
+ * {@code ERROR}. That is the step failing as it should, not noise from the test.
  *
  * <p>{@code @DirtiesContext} per method, as {@link ExtractionStepTest} has it and for its reason: each
  * test scripts the one {@link ScriptedExtractor} from {@link StubbedExtractionBeans}, and a queue left
  * over from one test would answer the next. A fresh context is also a fresh in-memory database, so
- * the trigger the second test installs never reaches another test.
+ * the trigger the stage 4a failure installs never reaches another test.
  */
 @CascadeSliceTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
@@ -201,16 +205,8 @@ class FailedStepSaysItFailedTest {
     @Story("A step that failed says it failed")
     @DisplayName("When a write fails part-way through redundancy signatures, its closing line says the stage failed, with its counts, and not that it finished")
     void signaturesThatFailedPartWaySayTheyFailed(@TempDir Path root) throws IOException {
-        for (int i = 0; i < STAGE_4A_DOCUMENTS; i++) {
-            Files.writeString(root.resolve("document-" + i + ".txt"), "content of document " + i);
-            // Text of its own for each document, in whichever order the conversions are asked for:
-            // every five-word window carries this document's own number, so none is boilerplate.
-            scripted().answering(withText("entry" + i + " alpha" + i + " bravo" + i + " charlie" + i
-                    + " delta" + i + " echo" + i + " foxtrot" + i + " golf" + i));
-        }
-        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .build());
+        documentsWithTextOfTheirOwn(root);
+        openStageFour();
         jdbcTemplate.execute("CREATE TRIGGER the_disk_fills_up BEFORE INSERT ON minhash_signature"
                 + " WHEN (SELECT COUNT(*) FROM minhash_signature) >= " + SIGNED_BEFORE_THE_DISK_FILLS
                 + " BEGIN SELECT RAISE(ABORT, 'this test''s trigger " + THE_DISK_FILLED_UP + "'); END");
@@ -233,6 +229,64 @@ class FailedStepSaysItFailedTest {
                                 && line.contains("written=" + SIGNED_BEFORE_THE_DISK_FILLS)
                                 && line.contains(THE_DISK_FILLED_UP)
                                 && line.contains(RUN_THE_SAME_COMMAND_AGAIN)));
+    }
+
+    /**
+     * The other half of the rule, and the half nothing else in the suite pins: a step that completed
+     * still says it finished. Without it, a condition that said "failed" on every ending, or one turned
+     * the wrong way round, would pass both tests above.
+     *
+     * <p>What it cannot tell apart is comparing the whole exit status rather than its code, the code
+     * being what {@link RunCompletion} compares: {@code ExitStatus.equals} compares the description
+     * too, but a completed step here ends with none, so both comparisons read it as completed.
+     * Measured: that variant passes this test, and the inverted condition fails it.
+     */
+    @Test
+    @Story("A step that completed says it finished")
+    @DisplayName("When extraction and redundancy signatures both complete, each closing line says the stage finished, and neither says it failed")
+    void stepsThatCompletedSayTheyFinished(@TempDir Path root) throws IOException {
+        documentsWithTextOfTheirOwn(root);
+        openStageFour();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation succeeded: nothing here makes either stage fail",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "a line says stage 2 finished, with its counts",
+                () -> assertThat(operatorLines()).anyMatch(line -> line.startsWith(STAGE_2 + FINISHED + ": read=")));
+        claim(
+                "a line says stage 4a finished, with its counts, and it signed every one of the "
+                        + STAGE_4A_DOCUMENTS + " documents -- so stage 4a really did work here, rather than"
+                        + " completing over nothing",
+                () -> assertThat(operatorLines())
+                        .anyMatch(line -> line.startsWith(STAGE_4A + FINISHED + ": read=")
+                                && line.contains("written=" + STAGE_4A_DOCUMENTS)));
+        claim(
+                "and no line says either stage failed",
+                () -> assertThat(operatorLines())
+                        .noneMatch(line -> line.startsWith(STAGE_2 + FAILED) || line.startsWith(STAGE_4A + FAILED)));
+    }
+
+    /**
+     * {@link #STAGE_4A_DOCUMENTS} files with bytes of their own, and a conversion queued for each with
+     * text of its own, in whichever order the conversions are asked for: every five-word window
+     * carries that document's own number, so none is boilerplate and stage 4a has something to sign.
+     */
+    private void documentsWithTextOfTheirOwn(Path root) throws IOException {
+        for (int i = 0; i < STAGE_4A_DOCUMENTS; i++) {
+            Files.writeString(root.resolve("document-" + i + ".txt"), "content of document " + i);
+            scripted().answering(withText("entry" + i + " alpha" + i + " bravo" + i + " charlie" + i
+                    + " delta" + i + " echo" + i + " foxtrot" + i + " golf" + i));
+        }
+    }
+
+    /** Stage 4's gate opened by a floor, leaving every other key of the profile as it stands. */
+    private void openStageFour() {
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .build());
     }
 
     private ScriptedExtractor scripted() {

@@ -167,9 +167,10 @@ public class RedundancyJobConfiguration {
         public ExitStatus afterStep(StepExecution stepExecution) {
             if (!ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())) {
                 // Spring Batch calls this from a finally, so a step that failed arrives here too (#311).
-                // The same exit-code test SignatureStepCompletion makes, so this line says failed exactly
-                // when no completion is recorded, and the next invocation discards what this one signed
-                // and signs every survivor again under the same run (ADR-115, ADR-116).
+                // The same exit-code test SignatureStepCompletion makes, so this line says failed only
+                // when the step did not complete, and a step that did not complete records no
+                // completion; the next invocation discards what this one signed and signs every survivor
+                // again under the same run (ADR-115, ADR-116).
                 log.error(
                         "Stage 4a (redundancy signatures) failed and is not recorded as finished (read={},"
                                 + " written={}): {}. Fix what that names and run the same command again.",
