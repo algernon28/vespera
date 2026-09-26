@@ -60,7 +60,8 @@ import tools.jackson.databind.json.JsonMapper;
  * a real corpus and a project of its own; what is under test is the shape of the exchange.
  *
  * <p>An integration test, so {@code *IT} and failsafe rather than surefire (ADR-052): it needs a
- * Docker daemon and it pulls a model. It is the only test in this stage that needs either.
+ * Docker daemon and it pulls a model. {@code ThinkingModelWritesNoCitationIT} is the other test in
+ * this stage that needs both, for the one request option this class does not look at.
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
