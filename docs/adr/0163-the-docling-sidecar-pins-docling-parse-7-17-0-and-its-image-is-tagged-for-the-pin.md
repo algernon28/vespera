@@ -89,7 +89,7 @@ docling-parse itself is at 7.22.0 (2026-09-26). No release of it after 7.17.0 wa
 14 distinct PDFs, from the GesPOS corpus and its seed folder, were converted twice through a sidecar of each parser. The second pass of each was compared, so a cold-process race could not affect the comparison, and every one of those conversions was `success`:
 
 - **13 of 14 differ** in the document JSON. Mostly this is picture bounding boxes, a few hundredths of a point, and picture pixel sizes, a few pixels.
-- **In 8 of 14 the extracted text differs**: in 6 the text items themselves, and in 2 more only the text of table cells, which is extracted text too (ADR-145). The count compares, for each PDF, the text items and the table cells' text of the two kept outputs (`out-stock-threaded`, `out-fixed-threaded`) as collections. No per-PDF count of places is given, because the script that counted them was not kept. Examples: a letter `E` from a logo appears as a text item of its own, one table cell's text is split in two, and one item is removed.
+- **In 8 of 14 the extracted text differs**: in 6 the text items themselves, and in 2 more only the text of table cells, which is extracted text too (ADR-145). The count compares, for each PDF, the text items and the table cells' text of the two kept outputs (`out-stock-threaded`, `out-fixed-threaded`) as collections. No per-PDF count of places is given, because the script that counted them was not kept. Examples: a letter `E` from a logo appears as a text item of its own, the text of a page header's table cells is divided between them differently, and in one PDF six such cells become two, and one item is removed.
 - The page counts are the same in all 14.
 
 ## Decision
