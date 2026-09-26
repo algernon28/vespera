@@ -14,7 +14,15 @@ This file is how to operate the tool. For the state of the project — what is b
 
 Vespera has no idea what you consider relevant, and it will not try to work it out. You supply a **seed folder**: a handful of documents that are examples of what you want kept. That is the only domain knowledge the tool takes, and everything downstream is measured against it.
 
-Put the path in `profile.yaml` in your working directory, under `seedFolder`.
+Put the path in `profile.yaml` in your working directory, under `seedFolder`, beside a line saying how you chose them. The working directory is `.vespera` under the directory you run the command from, unless you move it as "Where things live" describes. Create it if it is not there yet.
+
+```yaml
+seedFolder:
+  value: 'D:\archive\exemplars'
+  provenance: "the twelve reports I would keep without reading them again"
+```
+
+Every key in `profile.yaml` takes this shape: the answer under `value`, and how you arrived at it under `provenance`. A bare `seedFolder: D:\archive\exemplars` is refused, and no command starts until the key is written as above. Put a Windows path in single quotes, or write it with forward slashes: inside double quotes, YAML reads a backslash as the start of an escape.
 
 Do this first. Nothing the tool prints can ask you for it, because by the time anything is printed the first invocation has already happened — and discovering at the second invocation that exemplars were needed all along is the worst way to meet this tool.
 

@@ -390,6 +390,46 @@ function readmeSection(heading, name) {
 }
 
 {
+  // #304's hand check found this one: Step 0 said "under seedFolder" and showed nothing, and the
+  // one-line form an operator writes from that sentence stops every command at start-up.
+  const NAME = "the profile.yaml example README shows";
+  const section = readmeSection("## Step 0", NAME);
+  if (section) {
+    const fenced = /```yaml\r?\n([\s\S]*?)```/.exec(section);
+    const body = fenced && fenced[1].replace(/\r/g, "");
+    const profile = readFileSync(PROFILE, "utf8");
+    // What an operator writes under a key is every component of the key's value type except the
+    // Measurement, census's own pointer (ADR-061), which census refreshes and nobody else writes
+    // (ADR-062).
+    const written = (type) => {
+      const record = new RegExp(`public record ${type}\\(([^)]*)\\)`).exec(readFileSync(`${MAIN}/profile/${type}.java`, "utf8"));
+      return record ? [...record[1].matchAll(/(\w+) (\w+)(?:,|$)/g)].filter((c) => c[1] !== "Measurement").map((c) => c[2]).sort() : null;
+    };
+    const text = written("TextValue");
+    const numeric = written("NumericValue");
+    const wrong = [];
+    const key = body && /^(\w+):\s*$/m.exec(body);
+    if (!body) wrong.push("Step 0 shows no ```yaml block");
+    else if (!text || !numeric) wrong.push("could not read TextValue's or NumericValue's components");
+    else {
+      const nested = [...body.matchAll(/^ {2}(\w+): (.*)$/gm)];
+      const shown = nested.map((n) => n[1]).sort();
+      // Step 0's sentence says "under `seedFolder`", so the example has to be that key and no other.
+      if (!key) wrong.push("the example names no key on a line of its own");
+      else if (key[1] !== "seedFolder") wrong.push(`Step 0 says seedFolder and the example writes ${key[1]}`);
+      else if (!new RegExp(`TextValue ${key[1]}\\b`).test(profile)) wrong.push(`${key[1]} is not a text-valued profile key`);
+      if (text.join() !== numeric.join()) wrong.push(`TextValue takes ${text.join(", ")} and NumericValue takes ${numeric.join(", ")}, so "every key takes this shape" is false`);
+      if (shown.join() !== text.join()) wrong.push(`the example nests ${shown.join(", ") || "nothing"}; an operator writes ${text.join(", ")}`);
+      // A backslash inside double quotes starts a YAML escape: 'D:\archive' in double quotes is read
+      // as D:, a bell, and "rchive".
+      for (const n of nested) if (n[2].startsWith('"') && n[2].includes("\\")) wrong.push(`${n[1]} puts a backslash inside double quotes`);
+    }
+    if (wrong.length) fail(NAME, wrong.join("; "));
+    else pass(NAME, `${key[1]} nests ${text.join(" and ")}, the same as every other key`);
+  }
+}
+
+{
   const NAME = "the files README says it writes";
   const section = readmeSection("## Where things live", NAME);
   if (section) {
@@ -537,6 +577,7 @@ const UNCHECKED = [
   "whether five invocations is still the right number — four gates imply it, and nothing counts gates",
   "whether the reports README points at actually inform the value it points them at for",
   'whether following "Running it" gets an invocation past stage 2 — that needs Docker, and this starts nothing',
+  "that Step 0's profile.yaml example parses — this compares its keys with the value types, and never runs ProfileStore",
   'that the packaged jar starts no sidecar — PackagedJarIT holds that, under ./mvnw verify, not this',
 ];
 
