@@ -457,11 +457,15 @@ public class ClusterSynthesis {
      * ordinals.
      *
      * <p><b>The citation form is named, with an example, rather than left to "the bracketed
-     * numbers"</b> (ADR-159). Asked only that, and under the answer schema, the shipped model cited
-     * every document as {@code {1}} — never {@code [1]} — so {@link #CITATION} found nothing and 8
-     * clusters of 9 were turned down as uncited. With the sentence as it reads below, 3 calls of 3
-     * came back citing in square brackets. The check is not widened to match the model instead: the
-     * deliverable resolves only {@code [n]} into a link (ADR-109).
+     * numbers"</b> (ADR-159 §2). Asked only that, and under the answer schema, the shipped model
+     * cited every document as {@code {1}} — never {@code [1]} — so {@link #CITATION} found nothing
+     * and 8 clusters of 9 were turned down as uncited. The example is derived from {@code
+     * inScoreOrder.size()} rather than fixed, so a group of one is never shown a number past 1: a
+     * probe of 12 calls carrying one, two and three documents each, against the same serving engine,
+     * came back citing in range every time, where the first wording — a fixed {@code [1] or [2][3]}
+     * shown even to a single-document call — invited an out-of-range citation from exactly the group
+     * size ADR-121 says is an expected outcome. The check is not widened to match the model instead:
+     * the deliverable resolves only {@code [n]} into a link (ADR-109).
      */
     private static String promptFor(ClusterCall call, List<Exemplar> inScoreOrder) {
         String exemplars = IntStream.range(0, inScoreOrder.size())
@@ -476,12 +480,30 @@ public class ClusterSynthesis {
                 Each document opens below under the number to cite it by. Connect them: say what they
                 share, where they differ and what they amount to together. Do not summarise them one
                 by one. Cite with the bracketed numbers, inline, written in square brackets exactly as they
-                appear above, such as [1] or [2][3], and use no other citation of any
+                appear below, such as %s, and use no other citation of any
                 kind.
 
                 %s
                 """
-                .formatted(inScoreOrder.size(), call.label(), call.seedPath(), exemplars);
+                .formatted(
+                        inScoreOrder.size(),
+                        call.label(),
+                        call.seedPath(),
+                        citationExample(inScoreOrder.size()),
+                        exemplars);
+    }
+
+    /**
+     * The citation example shown for a call carrying {@code documentsSent} documents (ADR-159 §2):
+     * never a number past {@code documentsSent}, so a model that copies it literally cites only
+     * documents the call actually sent, and ADR-109's range check has nothing to turn down.
+     */
+    private static String citationExample(int documentsSent) {
+        return switch (documentsSent) {
+            case 1 -> "[1]";
+            case 2 -> "[1] or [1][2]";
+            default -> "[1] or [2][3]";
+        };
     }
 
     /** The shape the answer comes back in: a title for the cluster, and the writing itself. */
