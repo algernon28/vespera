@@ -27,7 +27,7 @@ import org.springframework.ai.retry.NonTransientAiException;
  * ClusterSynthesis#docFor} as the framework's own exception, so the step failed and the invocation
  * with it.
  *
- * <p><b>What was observed.</b> {@code hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M} on Ollama 0.33.2, a
+ * <p><b>What was observed.</b> Ollama 0.33.2's llama-server path, a
  * window of 8192, the GesPOS working directory: the first call of stage 6b came back HTTP 400 with
  * {@code exceed_context_size_error}, a prompt of 8280 tokens against a window of 8192. Spring AI's
  * retry auto-configuration turns every 4xx into {@link NonTransientAiException} with the message
@@ -57,8 +57,8 @@ import org.springframework.ai.retry.NonTransientAiException;
 @Link(name = "ADR-111", url = Adr.A_CLUSTER_FAULT_IS_A_ROW_IN_SYNTHESIS, type = "adr")
 class PromptRefusedAsPastTheWindowTest {
 
-    /** The model the defect was found under. */
-    private static final String MODEL_NAME = "hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M";
+    /** A model name; which one does not change the refusal. */
+    private static final String MODEL_NAME = "a-gguf-chat-model";
 
     /** The window the defect was found in, which is also the shipped one. */
     private static final int THE_WINDOW = 8192;

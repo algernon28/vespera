@@ -42,7 +42,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * the refusal costs that cluster and nothing else, where it used to fail the step, roll back every
  * reason recorded before it, and end the invocation.
  *
- * <p><b>What was observed.</b> Under {@code hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M} on Ollama 0.33.2
+ * <p><b>What was observed.</b> On Ollama 0.33.2's llama-server path,
  * the first call — the largest cluster — came back HTTP 400, {@code exceed_context_size_error}, and
  * Spring AI raised it as {@link NonTransientAiException} out of {@code OllamaChatModel.call}. Nothing
  * caught it, so no cluster was written and no {@code cluster_fault} row was left, and the invocation

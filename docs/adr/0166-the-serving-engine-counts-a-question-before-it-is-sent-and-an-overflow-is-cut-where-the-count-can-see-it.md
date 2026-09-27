@@ -14,7 +14,7 @@
 
 ### Two overflows, one loud and one silent
 
-**The loud one.** Under `generationModel: hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M`, Ollama 0.33.2 and the shipped window of 8192, stage 6b's first call — the largest cluster of the GesPOS arrangement — came back HTTP 400: `request (8280 tokens) exceeds the available context size (8192 tokens)`, `exceed_context_size_error`. Spring AI raised it as `NonTransientAiException` out of `ClusterSynthesis.docFor`. Nothing caught it, so the step failed, its transaction rolled back every fault row recorded in it, and the invocation exited 1. The same cluster would have ended every re-run the same way, and no cluster after it would ever have been written.
+**The loud one.** Under a GGUF chat model pulled from `hf.co` with no Ollama template, on Ollama 0.33.2 and the shipped window of 8192, stage 6b's first call — the largest cluster of the GesPOS arrangement — came back HTTP 400: `request (8280 tokens) exceeds the available context size (8192 tokens)`, `exceed_context_size_error`. Spring AI raised it as `NonTransientAiException` out of `ClusterSynthesis.docFor`. Nothing caught it, so the step failed, its transaction rolled back every fault row recorded in it, and the invocation exited 1. The same cluster would have ended every re-run the same way, and no cluster after it would ever have been written.
 
 **The silent one, which is the worse of the two.** Under the shipped `qwen3:8b` nothing is refused. The GesPOS run of 2026-09-27 sent its largest cluster — *Scontrini*, twelve documents, ten of them `.OK` records — four times, and Ollama's log recorded each call being cut:
 
@@ -28,7 +28,7 @@ The first three answers were turned down under ADR-162. The fourth was accepted,
 
 Against Ollama 0.33.2 as `compose.yaml` pins it (GPU, [ADR-165](0165-ollama-is-given-an-nvidia-gpu-by-an-override-file-and-compose-yaml-alone-asks-for-none.md)), `qwen3:8b`, `/api/chat`, `num_ctx` 8192, from a probe outside the repository:
 
-**Ollama serves a chat model down one of two paths, and they overflow differently.** The header of `llm/llama_server.go` at `v0.33.2` says so: *"Models with explicit Ollama renderers/parsers, Harmony handling, MLX, or an enabled Go TEMPLATE layer still render prompts in Go and call /completion. Other GGUF chat models use llama-server's chat_template handling through /v1/chat/completions."* A library model such as `qwen3:8b` takes the first path, where `completionPromptForRequest` shifts an overlong prompt silently. A GGUF pulled from `hf.co` with no Ollama template takes the second, where llama-server itself refuses it — the MiniCPM5 refusal. So which overflow a model gets is a property of how it was packaged, and a model swap under ADR-114 can change it with nothing in this code changing.
+**Ollama serves a chat model down one of two paths, and they overflow differently.** The header of `llm/llama_server.go` at `v0.33.2` says so: *"Models with explicit Ollama renderers/parsers, Harmony handling, MLX, or an enabled Go TEMPLATE layer still render prompts in Go and call /completion. Other GGUF chat models use llama-server's chat_template handling through /v1/chat/completions."* A library model such as `qwen3:8b` takes the first path, where `completionPromptForRequest` shifts an overlong prompt silently. A GGUF pulled from `hf.co` with no Ollama template takes the second, where llama-server itself refuses it — the refusal above. So which overflow a model gets is a property of how it was packaged, and a model swap under ADR-114 can change it with nothing in this code changing.
 
 **A shifted prompt is counted at about half the window, never at it.** The shift keeps `num_keep` tokens from the front and the tail, cut to
 
@@ -59,7 +59,7 @@ which at `num_ctx` 8192 and the default `num_keep` of 4 is **4,098** — the num
 | whitespace word | 1.32 | 2.71 | 7.18 | 14.0 |
 | UTF-8 byte | 0.22 | 0.38 | 0.72 | 0.93 |
 
-The issue's own measurements add 19.6 tokens a word for a test log, and MiniCPM5 put 1,857 words of the refused cluster at 8,280 tokens — 4.3 a word, where `qwen3:8b` would have counted fewer. The full archive holds 6,319 `.xml`, 858 `.html` and 718 `.json` files beside the prose. So:
+The issue's own measurements add 19.6 tokens a word for a test log, and the model that refused put 1,857 words of the refused cluster at 8,280 tokens — 4.3 a word, where `qwen3:8b` would have counted fewer. The full archive holds 6,319 `.xml`, 858 `.html` and 718 `.json` files beside the prose. So:
 
 - **`TOKENS_PER_WORD = 2.0` was never pessimistic.** Its javadoc says it is *"deliberately more than one word costs"*; for this model it is less than the median chunk costs, and a seventh of what a record costs.
 - **No per-word ratio is an upper bound**, because a word is as long as the text makes it.
@@ -113,7 +113,7 @@ The ordinals are minted over what is sent, so ADR-109's range check, ADR-133's r
 
 **`PROMPT_EVALUATION_CEILING`, and no fifth kind.** It already names the one thing all three cases are — the question did not reach the model whole, or could not:
 
-- **every document passed over (§2.4)**, the detail saying no document of the cluster fits the room by the serving engine's own count, and carrying what the engine said of the last question counted — its count, or its refusal verbatim, which is where MiniCPM5's `8280` is;
+- **every document passed over (§2.4)**, the detail saying no document of the cluster fits the room by the serving engine's own count, and carrying what the engine said of the last question counted — its count, or its refusal verbatim, which is where the refusal's `8280` is;
 - **the answering call refused on length** after its question was counted as fitting — the debugger's handling of #332, kept as a backstop, with the engine's message in the detail;
 - **the answering call counted at `window − 1` or above** (§3).
 

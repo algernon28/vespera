@@ -142,7 +142,7 @@ public class ClusterSynthesis {
 
     /**
      * The part of a serving runner's refusal of a prompt past the window that names the reason, as it
-     * arrived under {@code hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M} on Ollama 0.33.2 (#332): {@code
+     * arrived from llama-server on Ollama 0.33.2 (#332): {@code
      * request (8280 tokens) exceeds the available context size (8192 tokens), try increasing it}.
      */
     private static final String RUNNER_REFUSES_PAST_THE_WINDOW = "exceeds the available context size";
@@ -370,8 +370,8 @@ public class ClusterSynthesis {
      * <p><b>The same overrun the ceiling check below looks for, reported before any answer exists.</b>
      * ADR-108 fails a cluster whose prompt did not fit the window, and read that off {@code
      * prompt_eval_count} only because the engine it measured shifted an oversized prompt silently. A
-     * runner that refuses instead says the same thing outright — measured under {@code
-     * hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M} on Ollama 0.33.2, HTTP 400, a prompt of 8280 tokens
+     * runner that refuses instead says the same thing outright — measured on
+     * Ollama 0.33.2's llama-server path, HTTP 400, a prompt of 8280 tokens
      * against a window of 8192 — so it is recorded as {@link ClusterFaultKind#PROMPT_EVALUATION_CEILING}
      * rather than a fifth kind, which would change no behaviour and no remedy (ADR-121, ADR-123). The
      * detail carries the engine's own message, which is where the count that failed is.

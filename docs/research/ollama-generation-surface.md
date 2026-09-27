@@ -259,7 +259,7 @@ Ollama 0.33.2 is: overflow is silently shifted, not refused.** A caller who want
 >    handling through /v1/chat/completions."* Only the first path reaches `completionPromptForRequest`. On the
 >    second, llama-server refuses an overlong prompt itself, HTTP 400: `request (8280 tokens) exceeds the
 >    available context size (8192 tokens), try increasing it`, `exceed_context_size_error` — measured under
->    `hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M`. `qwen3:8b`, a library model, takes the first path and is shifted.
+>    a GGUF pulled from `hf.co` with no Ollama template. `qwen3:8b`, a library model, takes the first path and is shifted.
 >    Which one a model gets depends on how it was packaged, not on anything the caller sends.
 > 2. **"Roughly half" is exact, and it is why the count cannot show the cut.** The shift cuts to
 >    `contextShiftPromptLimit(numCtx, numKeep) = numCtx - max((numCtx - numKeep)/2, 1)`: 4,098 at `num_ctx` 8192
