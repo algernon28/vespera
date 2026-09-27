@@ -815,6 +815,14 @@ public final class Adr {
     public static final String THE_DOCLING_SIDECAR_PINS_DOCLING_PARSE = FILE
             + "0163-the-docling-sidecar-pins-docling-parse-7-17-0-and-its-image-is-tagged-for-the-pin.md";
 
+    /**
+     * ADR-164 -- every service compose.yaml runs carries restart: unless-stopped, so a sidecar that
+     * dies is started again by Docker and one the operator stopped stays stopped, across a restart of
+     * the machine too; a step the sidecar died under still fails (extends ADR-158).
+     */
+    public static final String EVERY_SIDECAR_RESTARTS_UNLESS_THE_OPERATOR_STOPPED_IT = FILE
+            + "0164-every-sidecar-restarts-unless-the-operator-stopped-it.md";
+
     private Adr() {
     }
 }
