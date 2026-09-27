@@ -1,7 +1,7 @@
 # Architecture simplification: a plan
 
 **Date:** 2026-09-25
-**Status:** proposal, revised after an `architect` review (verdict: sound with amendments, all applied here). Nothing here is decided except Wave 0a, which is in review as #295 (ADR-153). Every other wave needs its own ADR before any code moves, and follows the usual route: `analyst` → `spec-implementer` → `tester` → `architect`.
+**Status (updated 2026-09-27):** Waves 0a, 0b and 1 are done: ADR-153 ([#294](https://github.com/algernon28/vespera/issues/294), merged as #295), ADR-154 ([#290](https://github.com/algernon28/vespera/issues/290) and [#296](https://github.com/algernon28/vespera/issues/296), merged as #299) and ADR-157 ([#303](https://github.com/algernon28/vespera/issues/303)). Wave 2 is open as [#320](https://github.com/algernon28/vespera/issues/320). Waves 3 to 7 have no ticket yet. Wave 3 is still to do, since ADR-151 settled #287 without stage 2 recording its key. Each remaining wave needs its own ADR before any code moves, and follows the usual route: `analyst` → `spec-implementer` → `tester` → `architect`. Everything below the status lines is the plan as reviewed on 2026-09-25: its figures, file and line references date from then, and only the wave headings, §5's table and §9 carry later status.
 **Vocabulary:** a *wave* here is one increment of this refactor. ADR-140 and stage 2's code already use "wave" for one round of eight conversions (`ExtractionJobConfiguration.java:43-54`, `ConversionDispatch.java:46`). The two never meet in a sentence below; a wave's own ADR should say "refactor wave" wherever they could.
 **Scope:** `src/main`, the test base that pins it, and the documentation that describes it. It changes nothing an operator does and removes no capability.
 
@@ -245,10 +245,10 @@ Both are traced by reading, not yet by a test; Wave 0b starts with the tests tha
 
 | Wave | Goal | ADRs | Tests | Size (estimate) | Re-mints runs? | Risk |
 |---|---|---|---|---|---|---|
-| **0a** | One test base; pin run identity | ADR-153 amends 131 | done (#295): the 24 whole-job tests share `@CascadeSliceTest`; 8 golden tests; an import guard | −3,035 test lines (measured) | no (no `src/main` change) | low; in review |
-| **0b** | Stop a second run over a reused walk from stranding the operator, and a stale approval from opening 6b (#290, #296) | amend 099, 058; 107 for #296 | failing tests first: two builds, the confidence floor set, the boilerplate floor retuned, a stale approval | small | yes, once (stages 3–6b) | medium |
-| **1** | One way to mint a run, one way to shape a step | amend 131 (its second reason), 099, 080 | golden tests stay green | −1,100 main lines | yes (`pipeline`: stages 3–6b) | medium |
-| **2** | Rules move to their modules | amend 110, 040; cites 070, 071, 111, 139, 140 | behaviour tests unchanged; unit tests per moved rule; `ExtractionItemProcessorTest`'s 18 tests ported | −1,000 in `pipeline`, partly moved, not deleted | yes (every stage whose modules it touches) | medium |
+| **0a** *(done)* | One test base; pin run identity | ADR-153 amends 131 | done (#295): the 24 whole-job tests share `@CascadeSliceTest`; 8 golden tests; an import guard | −3,035 test lines (measured) | no (no `src/main` change) | low; merged |
+| **0b** *(done, ADR-154, #299)* | Stop a second run over a reused walk from stranding the operator, and a stale approval from opening 6b (#290, #296) | amend 099, 058; 107 for #296 | failing tests first: two builds, the confidence floor set, the boilerplate floor retuned, a stale approval | small | yes, once (stages 3–6b) | medium |
+| **1** *(done, ADR-157, #303)* | One way to mint a run, one way to shape a step | amend 131 (its second reason), 099, 080 | golden tests stay green | −1,100 main lines | yes (`pipeline`: stages 3–6b) | medium |
+| **2** *(open, #320)* | Rules move to their modules | amend 110, 040; cites 070, 071, 111, 139, 140 | behaviour tests unchanged; unit tests per moved rule; `ExtractionItemProcessorTest`'s 18 tests ported | −1,000 in `pipeline`, partly moved, not deleted | yes (every stage whose modules it touches) | medium |
 | **3** | Record stage 2's cache key | via ADR-151 (#287) | #287's and #289's tests | removes 7 of the 8 archive re-reads (8 if seed extraction records its key too) | yes, and a schema bump | medium |
 | **4** | `Ledger` and table boundaries | amend 049, 041; weigh 059, 060 | a table-ownership guard; `SchemaVersionDeclarationTest` changes | about −300 | yes: moving `walk_anomaly` deletion to `corpus` re-mints stage 1 and everything downstream | low–medium |
 | **5** | Split `Deliverable` | none new, if the surroundings become one table with a row each (ADR-134, 137, 138); cites 133, 148, 149 | `DeliverableTest` untouched | neutral in lines; the largest class goes | yes (6a/6b) | low |
@@ -257,7 +257,7 @@ Both are traced by reading, not yet by a test; Wave 0b starts with the tests tha
 
 The size figures are estimates from the classes named, not measurements. A wave's ADR should replace them with the measured diff.
 
-### Wave 0a — One test base, and run identity pinned (done: #294, in review as #295)
+### Wave 0a — One test base, and run identity pinned (done: #294, merged as #295, ADR-153)
 
 Owner: `analyst` alone. No `src/main` change, so nothing is re-minted. What landed, measured:
 
@@ -270,7 +270,7 @@ Owner: `analyst` alone. No `src/main` change, so nothing is re-minted. What land
 - **ADR-153** amends ADR-131. Its first reason ("the seam the slice tests import") no longer holds. Its second ("the place each stage's step is named") is Wave 1's to weigh.
 - **Result:** 709 → 718 tests, 0 failures. The 24 files lose 3,035 lines.
 
-### Wave 0b — A second run over a reused walk, and a stale approval ([#290](https://github.com/algernon28/vespera/issues/290), [#296](https://github.com/algernon28/vespera/issues/296))
+### Wave 0b — A second run over a reused walk, and a stale approval ([#290](https://github.com/algernon28/vespera/issues/290), [#296](https://github.com/algernon28/vespera/issues/296); done: merged as #299, ADR-154)
 
 1. **Failing tests first.** Each runs two invocations over one database and asserts that the second completes:
    - with a changed implementation version for one module. This is the two-builds test, moved here from 0a so 0a lands green; it can vary one module's version through 0a's `ModuleNamedVersionsBeans` seam;
@@ -289,7 +289,7 @@ Owner: `analyst` alone. No `src/main` change, so nothing is re-minted. What land
 
 The fix itself re-mints stages 3 to 6b once.
 
-### Wave 1 — One way to mint a run, one way to shape a step
+### Wave 1 — One way to mint a run, one way to shape a step (done: [#303](https://github.com/algernon28/vespera/issues/303), ADR-157)
 
 **Minting.** Replace the seven run classes and the inline mint in stage 1 with one helper in `pipeline`, reusing Wave 0b's `StageModules`:
 
@@ -324,7 +324,7 @@ It does not absorb `RunCompletion` or `RedundancyJobConfiguration`'s `SignatureS
 - Make `GenerationTasklet.java:381`'s recompute a lookup. It can only be done after Wave 0b, because a lookup there would otherwise hit the trap.
 - Collapse the three "cannot name one run" exceptions (`NoUpstreamRunException`, `AmbiguousUpstreamRunException`, `AmbiguousArrangementException`) if their ADR agrees. They are fatal, never caught, and asserted only by type.
 
-### Wave 2 — Rules go home
+### Wave 2 — Rules go home (open: [#320](https://github.com/algernon28/vespera/issues/320))
 
 - **To `synthesis`: 6b's loop, breaker and completion rule** (`GenerationTasklet.java:212-339`). The loop already uses only `synthesis` types plus `Ledger`. Its one outside input is each cluster's exemplars, which come from `embedding`'s membership and scores, `extraction`'s leading chunks, and `ledger`'s facts. Hand them over through a `synthesis`-owned callback, `ClusterExemplars`, on the precedent of `SurvivorPictures` (ADR-149). Keep it lazy per cluster so file reads, warnings and memory stay as they are. The loop returns a sealed result: finished, incomplete, or stopped with its faults. `pipeline` keeps stopping the step, writing the deliverable and recording completion. The callback must also supply the winning seed's path (`GenerationTasklet.java:274`), and ADR-111's breaker moves with the loop. This is ADR-110's hand-over, extended, and needs an amendment saying so.
 - **To `synthesis`: the lead-document and label rule** (`ArrangementTasklet.java:235-264`). Today it is computed twice per cluster.
@@ -446,13 +446,15 @@ Each belongs in the ADR of the wave that meets it. They are listed here so no wa
 
 ## 9. Tracker shape
 
-- **Bugs now:** [#290](https://github.com/algernon28/vespera/issues/290) (a second run of one stage over a reused walk) and its sibling [#296](https://github.com/algernon28/vespera/issues/296) (a stale approval). They are defects in what ships and should not wait for a map.
-- **Wave 0a** is [#294](https://github.com/algernon28/vespera/issues/294), in review as #295.
+*Status 2026-09-27: every ticket this section named on 2026-09-25 is closed (#286, #287, #289, #290, #291, #294, #296). The waves are tracked as plain issues (#294, #303, #320), and no wayfinder map was charted for them.*
+
+- **Bugs now:** [#290](https://github.com/algernon28/vespera/issues/290) (a second run of one stage over a reused walk) and its sibling [#296](https://github.com/algernon28/vespera/issues/296) (a stale approval). They are defects in what ships and should not wait for a map. *Both closed by ADR-154, merged as #299.*
+- **Wave 0a** is [#294](https://github.com/algernon28/vespera/issues/294), merged as #295. *Wave 1 is [#303](https://github.com/algernon28/vespera/issues/303) (ADR-157), closed. Wave 2 is [#320](https://github.com/algernon28/vespera/issues/320), open.*
 - **Then a wayfinder map, "Architecture simplification":** one child ticket per remaining wave, with 7 parked. Each ticket's resolution comment is its spec, as usual.
   - Charting it means editing the two `AGENTS.md` sentences that `docs/check-claims.mjs` checks (lines 44–46, starting "**No wayfinder map is open.**"), in the same change that opens the map. Otherwise CI's claims job fails.
 - **Relation to open work:**
   - **#286** (PDF pictures) is independent of the waves, but see §7 on when to release it.
-  - **#287** (blank `content_hash`, ADR-151) *is* Wave 3, provided ADR-151 decides that stage 2 records the key.
+  - **#287** (blank `content_hash`, ADR-151) *is* Wave 3, provided ADR-151 decides that stage 2 records the key. *It did not: ADR-151 hashes each survivor at 6b and records nothing new in `extraction`, so Wave 3 is still to do.*
   - **#289** (the relevance report and a file that will not open, ADR-152, in #293) is settled on its own terms first. Wave 3 later removes the re-reads that ADR-152 decides to fail on.
   - **#291** is a seed-side twin of #289: a seed file that cannot be opened fails seed extraction instead of becoming an unusable seed.
 
