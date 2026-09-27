@@ -823,6 +823,14 @@ public final class Adr {
     public static final String EVERY_SIDECAR_RESTARTS_UNLESS_THE_OPERATOR_STOPPED_IT = FILE
             + "0164-every-sidecar-restarts-unless-the-operator-stopped-it.md";
 
+    /**
+     * ADR-165 -- compose.gpu.yaml, named with a second -f, gives Ollama every NVIDIA GPU Docker can
+     * reach; compose.yaml alone asks for no device, because a request no GPU can satisfy stops up; and
+     * neither the embedder nor the generator identity gains a part for the device (extends ADR-158).
+     */
+    public static final String OLLAMA_IS_GIVEN_A_GPU_BY_AN_OVERRIDE_FILE = FILE
+            + "0165-ollama-is-given-an-nvidia-gpu-by-an-override-file-and-compose-yaml-alone-asks-for-none.md";
+
     private Adr() {
     }
 }

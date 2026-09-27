@@ -1,0 +1,13 @@
+# Gives Ollama every NVIDIA GPU Docker can reach. Named with a second -f on every up, beside
+# compose.yaml: `docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build`. Kept
+# out of compose.yaml because a device request the machine cannot satisfy stops up, and
+# compose.yaml's own up line has to succeed on every machine (ADR-165).
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

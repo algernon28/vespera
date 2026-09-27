@@ -22,14 +22,15 @@ services:
     ports:
       - '8000:8000'
   ollama:
+    # From this file alone it runs on the processor; compose.gpu.yaml gives it the GPU (ADR-165).
     image: 'ollama/ollama:0.33.2'
     restart: unless-stopped
     ports:
       - '11434:11434'
   docling-serve:
-    # -cpu: docling-serve also ships a GPU variant; nothing in this design asks for GPU inference
-    # (ADR-013's Ollama default is the only serving runtime this repo currently GPU-accelerates),
-    # and the CPU image is the one that runs anywhere the rest of the stack does.
+    # -cpu: docling-serve also ships a GPU variant; nothing in this design asks the converter for GPU
+    # inference, and the CPU image is the one that runs anywhere the rest of the stack does. Ollama is
+    # the one service that can be given a GPU, and only through compose.gpu.yaml (ADR-165).
     #
     # This one has never had a choice about being pinned: there is no connection-details factory
     # for docling-serve to be read back from at all (ADR-071's own consequence -- "the exact

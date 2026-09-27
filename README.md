@@ -129,6 +129,14 @@ docker compose -p vespera up -d --build
 
 `-p vespera` names the Compose project `vespera`, whatever your checkout's directory is called. Give it on every `docker compose` command here, so that each one finds the same containers. Without it, Docker Compose names the project after the directory, and a second checkout starts a second set that fights the first for the same ports.
 
+If your machine has an NVIDIA graphics card that Docker can use, let Ollama run its models on it, which is several times faster than on the processor. Docker Desktop on Windows can use one through WSL 2; on Linux, Docker needs NVIDIA's Container Toolkit. Start the sidecars with a second file, `compose.gpu.yaml`, named after the first:
+
+```
+docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build
+```
+
+Name both files every time you run `up`, this time and every time after. An `up` without `compose.gpu.yaml` replaces Ollama with one that runs on the processor, and the models you gave it go with it. `stop`, `exec` and `down` need only `-p vespera`. Without such a card, leave `compose.gpu.yaml` out: with it, `up` stops with an error and Ollama does not start. Once a model has answered, `docker compose -p vespera exec ollama ollama ps` shows under `PROCESSOR` `100% GPU` when the model is wholly on the card, a split such as `30%/70% CPU/GPU` when only part of it fits, and `100% CPU` when Ollama is not using the card.
+
 The document converter's image is not pulled. It is built on your machine from `docker/docling-serve`, because it adds LibreOffice to the published image, so that `.doc` and `.ppt` files convert. `--build` builds it the first time and rebuilds it if its `Containerfile` has changed. The first build is the slow one. After that, Docker reuses what it built.
 
 The services listen on ports `8000`, `11434` and `5001`, which is where Vespera looks for them. If something else on your machine already holds one of those ports, the start fails and names the port.
@@ -163,7 +171,7 @@ docker compose -p vespera stop
 
 This keeps the models you gave Ollama. `docker compose -p vespera down` removes the containers, and the models inside them go too.
 
-The same happens when `compose.yaml` has changed since you started the sidecars, for example after you update your checkout. `docker compose -p vespera up -d --build` then replaces the container of each service whose part of `compose.yaml` changed. If Ollama's is one of them, its models go with it: `docker compose -p vespera exec ollama ollama list` shows which it still has, and the same `ollama pull` lines as above give them back. Nothing in your working directory is lost.
+The same happens when `compose.yaml` has changed since you started the sidecars, for example after you update your checkout. `docker compose -p vespera up -d --build`, or the `up` line above that names both files if you started them with both, then replaces the container of each service whose part of `compose.yaml` or `compose.gpu.yaml` changed. If Ollama's is one of them, its models go with it: `docker compose -p vespera exec ollama ollama list` shows which it still has, and the same `ollama pull` lines as above give them back. Nothing in your working directory is lost.
 
 ## Where the run ends
 
