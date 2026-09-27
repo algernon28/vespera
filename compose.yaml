@@ -16,10 +16,14 @@
 services:
   chroma:
     image: 'chromadb/chroma:1.5.9'
+    # Each service here is restarted by Docker if it exits on its own, including after the machine
+    # restarts if Docker starts, but never after the operator stops it (ADR-164).
+    restart: unless-stopped
     ports:
       - '8000:8000'
   ollama:
     image: 'ollama/ollama:0.33.2'
+    restart: unless-stopped
     ports:
       - '11434:11434'
   docling-serve:
@@ -50,5 +54,8 @@ services:
       - ALL
     security_opt:
       - 'no-new-privileges:true'
+    # This is the sidecar measured to crash (ADR-164): after a segmentation fault it answers /health
+    # again about 17 seconds later, with no operator having to notice and run `docker start`.
+    restart: unless-stopped
     ports:
       - '5001:5001'

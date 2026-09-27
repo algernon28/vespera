@@ -135,6 +135,8 @@ The services listen on ports `8000`, `11434` and `5001`, which is where Vespera 
 
 Leave the sidecars up for all five invocations. They can be days apart.
 
+If a sidecar stops on its own, Docker starts it again, and it does the same after your machine restarts, as long as Docker itself starts. So when a command stops because the document converter went away, you can run the same command again without starting anything by hand. The converter usually comes back within half a minute, and a command run before then stops again, so wait a moment and run it once more. A sidecar you stop with `docker compose -p vespera stop` stays stopped, even across a restart of your machine.
+
 **Give Ollama its models.** Ollama serves only the models it has been given, and Vespera does not fetch them for you:
 
 - The embedding model you name in `embeddingModel` has to be there before invocation 2.
@@ -160,6 +162,8 @@ docker compose -p vespera stop
 ```
 
 This keeps the models you gave Ollama. `docker compose -p vespera down` removes the containers, and the models inside them go too.
+
+The same happens when `compose.yaml` has changed since you started the sidecars, for example after you update your checkout. `docker compose -p vespera up -d --build` then replaces the container of each service whose part of `compose.yaml` changed. If Ollama's is one of them, its models go with it: `docker compose -p vespera exec ollama ollama list` shows which it still has, and the same `ollama pull` lines as above give them back. Nothing in your working directory is lost.
 
 ## Where the run ends
 
