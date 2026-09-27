@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-164.
+One file per architecture decision, ADR-001 through ADR-165.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -183,3 +183,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-162](0162-writing-that-ends-with-the-answers-closing-brace-is-turned-down-as-malformed.md) | 2026-09-26 | Writing that ends with the answer's closing brace is turned down as malformed *(extends ADR-108)* |
 | [ADR-163](0163-the-docling-sidecar-pins-docling-parse-7-17-0-and-its-image-is-tagged-for-the-pin.md) | 2026-09-26 | The Docling sidecar pins docling-parse 7.17.0, and its image is tagged for the pin *(amends ADR-147)* |
 | [ADR-164](0164-every-sidecar-restarts-unless-the-operator-stopped-it.md) | 2026-09-27 | Every sidecar restarts unless the operator stopped it *(extends ADR-158)* |
+| [ADR-165](0165-ollama-is-given-an-nvidia-gpu-by-an-override-file-and-compose-yaml-alone-asks-for-none.md) | 2026-09-27 | Ollama is given an NVIDIA GPU by an override file, and compose.yaml alone asks for none *(extends ADR-158)* |
