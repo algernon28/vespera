@@ -18,13 +18,46 @@ public final class ClusterFaultException extends RuntimeException {
 
     private final ClusterFault fault;
 
+    /**
+     * Whether this fault was recorded with no answering call ever made (ADR-166 §4a): a cluster none
+     * of whose documents the counting call finds room for is never put to the model at all — a count
+     * came back, or a refusal, but never an answer.
+     *
+     * <p><b>Read here rather than off {@link ClusterFault#detail}</b>: the detail is prose an operator
+     * reads, and {@code GenerationTasklet} telling this case apart by matching against its wording
+     * would make a change to that wording a silent change of behaviour. What {@code GenerationTasklet}
+     * does with this fact — leaving ADR-111's consecutive-turned-down-answer streak untouched, neither
+     * added to nor cleared — is that step's policy, described there rather than here.
+     */
+    private final boolean noAnswerWasAskedFor;
+
     public ClusterFaultException(ClusterFault fault) {
+        this(fault, false);
+    }
+
+    private ClusterFaultException(ClusterFault fault, boolean noAnswerWasAskedFor) {
         super("the call's answer was turned down: " + fault.kind() + " (" + fault.detail() + ")");
         this.fault = fault;
+        this.noAnswerWasAskedFor = noAnswerWasAskedFor;
+    }
+
+    /**
+     * The fault kept where a cluster's counting call found no document of it fits the window at all
+     * (ADR-166 §4, §4a): a call came back — a count, or a refusal — so this is still a {@link
+     * ClusterFaultException} and not ADR-121's call-never-made case, but no answering call was ever
+     * made, so {@link #noAnswerWasAskedFor()} reads {@code true}.
+     */
+    static ClusterFaultException noDocumentFitsTheWindow(ClusterFault fault) {
+        return new ClusterFaultException(fault, true);
     }
 
     /** Which check turned the answer down, and the number that failed it. */
     public ClusterFault fault() {
         return fault;
+    }
+
+    /** See {@link #noAnswerWasAskedFor}. */
+    public boolean noAnswerWasAskedFor() {
+        return noAnswerWasAskedFor;
     }
 }

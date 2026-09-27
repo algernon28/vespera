@@ -10,6 +10,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
@@ -44,8 +45,9 @@ public class ClusterSynthesis {
      * information.
      *
      * <p>8192, being the smallest window that comfortably holds several heading-led opening chunks
-     * and is served by every model family this could run under. A cluster too large for it sends what
-     * fits and says so, which ADR-108 already accepts.
+     * and is served by every model family this could run under. A cluster too large for it is written
+     * from what the serving engine counts as fitting rather than what this side estimates, and says so
+     * (ADR-166), which ADR-108 already accepted the shape of.
      */
     public static final int CONTEXT_WINDOW = 8192;
 
@@ -71,16 +73,20 @@ public class ClusterSynthesis {
             }""";
 
     /**
-     * How many tokens one word is budgeted as, deliberately more than one word costs.
+     * How many tokens one word is priced at when a cluster's documents are first proposed, before the
+     * serving engine ever counts the question itself (ADR-166 §5).
      *
-     * <p>No tokenizer on this side of the wire and no endpoint to ask for one (ADR-091), so the only
-     * way to stay inside the window is to over-estimate: ordinary English prose runs nearer 1.3
-     * tokens to the word, headings, punctuation, markup and anything not in English run higher, and
-     * this is a corpus nobody has read.
+     * <p>No tokenizer on this side of the wire and no endpoint to ask for one (ADR-091), so a word is
+     * priced at a fixed ratio to decide what to propose first: ordinary English prose runs nearer 1.3
+     * tokens to the word, headings, punctuation, markup and anything not in English run higher, and a
+     * record-heavy file was measured at three to seven times this.
      *
-     * <p>The cost of being wrong is not symmetrical. Too cautious wastes part of a window; too
-     * confident overruns it silently — the prompt is truncated, the answer looks like any other, and
-     * a reader is handed writing about half a cluster with nothing saying so.
+     * <p><b>It no longer guards against an overrun.</b> Every proposal this ratio builds is counted by
+     * the serving engine before it is answered (ADR-166 §1–§2), and what is actually sent is the
+     * longest leading run of the proposal the engine counts inside the room — so a proposal this ratio
+     * got wrong costs a round of counting, never a silently truncated prompt. Raising it would spare
+     * most prose clusters that round; it is kept at 2.0 because raising it was measured to send about
+     * the same documents in the end, for no change in what a reader is handed.
      */
     static final double TOKENS_PER_WORD = 2.0;
 
@@ -101,7 +107,8 @@ public class ClusterSynthesis {
      *
      * <p>256 against instruction text of well under a hundred words, for the reason {@link
      * #TOKENS_PER_WORD} leans high: what it insures against is the two unfixed pieces — a long
-     * derived label and a long path — since running out here costs a silently truncated prompt.
+     * derived label and a long path — since running out here now costs the cluster an extra round of
+     * counting (ADR-166 §2) rather than the silently truncated prompt it used to.
      */
     static final int INSTRUCTION_RESERVE = 256;
 
@@ -133,6 +140,20 @@ public class ClusterSynthesis {
      */
     private static final String FINISH_REASON_LENGTH = "length";
 
+    /**
+     * The part of a serving runner's refusal of a prompt past the window that names the reason, as it
+     * arrived under {@code hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M} on Ollama 0.33.2 (#332): {@code
+     * request (8280 tokens) exceeds the available context size (8192 tokens), try increasing it}.
+     */
+    private static final String RUNNER_REFUSES_PAST_THE_WINDOW = "exceeds the available context size";
+
+    /**
+     * The part of Ollama's own refusal of the same thing that names the reason, from its prompt-length
+     * check when the prompt is not shifted: {@code the prompt is longer than the context length
+     * currently available to the model} ({@code docs/research/ollama-generation-surface.md} §2).
+     */
+    private static final String OLLAMA_REFUSES_PAST_THE_WINDOW = "the prompt is longer than the context length";
+
     /** A citation: the bracketed ordinal a reader is meant to follow back to a document (ADR-109). */
     private static final Pattern CITATION = Pattern.compile("\\[(\\d+)\\]");
 
@@ -150,25 +171,38 @@ public class ClusterSynthesis {
      * <p>The model is named per call rather than read here: which model generates is configuration,
      * and this module may not read it (ADR-110, ADR-114).
      *
-     * <p><b>Refuses before the call is made where the fill comes back empty</b> (ADR-121): writing
-     * over no documents is the one row ADR-113's invariant cannot survive, and it is the floor under
-     * a caller that forgot to ask {@link #nothingFitsIn} first — a defect in that caller, not a state
-     * an archive can be in. Throws {@link IllegalStateException}, never {@link ClusterFaultException}:
-     * no call was made, so there is nothing for a fault to be about.
+     * <p><b>Refuses before any call is made where the word-based estimate comes back empty</b>
+     * (ADR-121): writing over no documents is the one row ADR-113's invariant cannot survive, and it
+     * is the floor under a caller that forgot to ask {@link #nothingFitsIn} first — a defect in that
+     * caller, not a state an archive can be in. Throws {@link IllegalStateException}, never {@link
+     * ClusterFaultException}: no call was made, so there is nothing for a fault to be about.
+     *
+     * <p><b>What is actually sent is found by counting, not estimating</b> (ADR-166 §1–§2): {@link
+     * #sentAfterCounting} puts the word-based proposal to the serving engine itself, one counting call
+     * at a time, and keeps only the longest leading run of it the engine counts inside the room. A
+     * cluster none of whose documents fits at all — every one passed over — throws {@link
+     * ClusterFaultException} here too, carrying {@link ClusterFaultKind#PROMPT_EVALUATION_CEILING}: a
+     * counting call is still a call that came back, so this is not ADR-121's call-never-made case
+     * even though its message reads similarly.
      *
      * <p><b>What comes back carries the documents it was written from, in the order their ordinals
-     * were minted</b> (ADR-133). The fill below drops a document too large for the whole window, so
-     * the documents sent are not in general the highest-scoring ones the caller handed over, and this
-     * is the last point at which which-under-which-number is known at all. A {@link SynthesisDoc}
+     * were minted</b> (ADR-133). Counting drops a document too large for the whole window, so the
+     * documents sent are not in general the highest-scoring ones the caller handed over, and this is
+     * the last point at which which-under-which-number is known at all. A {@link SynthesisDoc}
      * therefore carries the list rather than its length, and the deliverable numbers its membership
      * from it instead of deriving score order a second time.
      *
-     * <p><b>Once a call comes back, every one of ADR-108's and ADR-109's four checks runs before its
-     * text is believed</b> (ADR-111), in the order those records state them: the prompt-evaluation
-     * ceiling, the answer running out of room, a schema failure, and a citation outside the range the
-     * call itself minted. The first that fails throws {@link ClusterFaultException} carrying the
-     * {@link ClusterFault} to record — a call that came back and was rejected, distinct from the
-     * refusal above.
+     * <p><b>Once the answering call comes back, every one of ADR-108's and ADR-109's four checks runs
+     * before its text is believed</b> (ADR-111), in the order those records state them: the
+     * prompt-evaluation ceiling, the answer running out of room, a schema failure, and a citation
+     * outside the range the call itself minted. The first that fails throws {@link
+     * ClusterFaultException} carrying the {@link ClusterFault} to record — a call that came back and
+     * was rejected, distinct from the refusal above.
+     *
+     * <p><b>A call the serving engine refuses as longer than the window fails the cluster too</b>, as
+     * the ceiling it would otherwise have been checked against (#332): see {@link
+     * #callTurningDownARefusalOnLength}. Kept as the backstop for a question the counting call found to
+     * fit and the answering call did not (ADR-166 §4); every other refusal reaches the caller unchanged.
      *
      * <p><b>No check dereferences a response nothing has established is there</b> (ADR-123). The
      * ceiling reads response-level metadata, every field of which is guaranteed; the answer itself is
@@ -185,14 +219,14 @@ public class ClusterSynthesis {
      * rule holds whole for both fields.
      */
     public SynthesisDoc docFor(ClusterCall call, String modelName, int contextWindow) {
-        List<Exemplar> sent = whatFitsIn(contextWindow, call.exemplars());
-        if (sent.isEmpty()) {
+        if (nothingFitsIn(contextWindow, call.exemplars())) {
             throw new IllegalStateException("the cluster \"" + call.label() + "\" has no document that fits"
                     + " a call in a window of " + contextWindow + " tokens, so there is nothing to write"
                     + " over -- check nothingFitsIn before calling docFor rather than reaching this");
         }
-        ChatResponse response =
-                chatModel.call(new Prompt(promptFor(call, sent), optionsFor(modelName, contextWindow)));
+        List<Exemplar> sent = sentAfterCounting(call, modelName, contextWindow);
+        ChatResponse response = callTurningDownARefusalOnLength(
+                new Prompt(promptFor(call, sent), optionsFor(modelName, contextWindow)), contextWindow);
         checkPromptEvaluationCeiling(response, contextWindow);
         Generation answer = answerIn(response);
         checkAnswerDidNotRunOutOfRoom(answer, response);
@@ -206,9 +240,191 @@ public class ClusterSynthesis {
     }
 
     /**
-     * Fails the cluster where the prompt was shifted (ADR-108): {@code prompt_eval_count} at or above
-     * the window sent means part of the cluster's documents never reached the model at all, and the
-     * answer covers less than it was asked about with nothing in it saying which part.
+     * What is actually sent to be answered: the longest leading run of a word-based proposal that the
+     * serving engine itself counts inside the room, found by halving (ADR-166 §1–§2).
+     *
+     * <p><b>The proposal is counted whole first.</b> {@link #whatFitsIn} builds it exactly as ADR-108
+     * and ADR-121 always have — closest to the seed first, a document larger than the estimated room
+     * passed over, the fill stopping at the first document that does not fit what is left. If the
+     * engine counts that whole proposal inside {@code contextWindow - REPLY_ALLOWANCE}, it is what is
+     * sent. So is it where the engine reports no count at all (ADR-123): an absent count arrives as
+     * {@code 0} and so always fits, which leaves the proposal standing exactly as it was estimated. A
+     * refusal that is not about length is not this method's to catch — {@link #countQuestion} rethrows
+     * it, and it reaches the step the way any other refusal ADR-166 §4 leaves alone does.
+     *
+     * <p><b>Otherwise the longest leading run that fits is found by halving</b>: between a run known to
+     * fit (at first, none) and one known not to (at first, the whole proposal), the run halfway between
+     * them is counted and the half its answer says is kept, until the boundary is pinned down — at most
+     * {@code 1 + ceil(log2(n))} counting calls for a proposal of {@code n} documents, scaling by the
+     * count itself having been measured to cost more.
+     *
+     * <p><b>A document that will not fit a call on its own is passed over</b>, exactly as ADR-108
+     * always meant to but now decided by the engine's own count rather than the word estimate: when not
+     * even the first document of a proposal fits by itself, it can never be sent in this window, so it
+     * is dropped and a new proposal is filled from the documents left, back to the top.
+     *
+     * <p><b>A cluster none of whose documents fits at all faults</b> (ADR-166 §4): every document has
+     * been passed over and there is nothing left to propose. The fault carries what the engine said of
+     * the last question it was asked to count — its count, or its refusal verbatim — so the archive's
+     * owner can see by how much without paying for a call again.
+     */
+    private List<Exemplar> sentAfterCounting(ClusterCall call, String modelName, int contextWindow) {
+        List<Exemplar> remaining = call.exemplars();
+        QuestionCount lastCounted = null;
+        while (true) {
+            List<Exemplar> proposed = whatFitsIn(contextWindow, remaining);
+            if (proposed.isEmpty()) {
+                throw noDocumentFitsTheWindow(lastCounted);
+            }
+            QuestionCount whole = countQuestion(call, proposed, modelName, contextWindow);
+            lastCounted = whole;
+            if (whole.fits()) {
+                return proposed;
+            }
+            int low = 0;
+            int high = proposed.size();
+            while (high - low > 1) {
+                int mid = (low + high) / 2;
+                QuestionCount outcome = countQuestion(call, proposed.subList(0, mid), modelName, contextWindow);
+                lastCounted = outcome;
+                if (outcome.fits()) {
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+            }
+            if (low > 0) {
+                return proposed.subList(0, low);
+            }
+            Exemplar passedOver = proposed.get(0);
+            remaining = remaining.stream().filter(exemplar -> exemplar != passedOver).toList();
+        }
+    }
+
+    /**
+     * The fault kept where every document of a cluster has been passed over (ADR-166 §4): none of them
+     * fits the room by the serving engine's own count, so there is no shorter question left to try.
+     *
+     * <p>Recorded as {@link ClusterFaultKind#PROMPT_EVALUATION_CEILING} and not a fifth kind: this is
+     * still the question that did not reach the model whole, only found out before any answering call
+     * rather than after one (ADR-166 §4). Not ADR-121's call-never-made case either — a counting call
+     * is a call that came back, refused or counted, and what came back did not survive checking.
+     *
+     * <p><b>Built through {@link ClusterFaultException#noDocumentFitsTheWindow}</b>, not the ordinary
+     * constructor: no answering call was ever made for this fault, so the exception's own {@code
+     * noAnswerWasAskedFor()} reads {@code true} — what a caller does with that fact is that caller's to
+     * decide, not this method's.
+     */
+    private static ClusterFaultException noDocumentFitsTheWindow(QuestionCount lastCounted) {
+        String engineSaid = lastCounted == null ? "no document was ever counted" : lastCounted.detail();
+        return ClusterFaultException.noDocumentFitsTheWindow(new ClusterFault(
+                ClusterFaultKind.PROMPT_EVALUATION_CEILING,
+                "no document of the cluster fits the window by the serving engine's own count -- the last"
+                        + " question counted: " + engineSaid));
+    }
+
+    /**
+     * Counts {@code documents} the way the answering call itself will ask about them: the same
+     * request, {@code num_predict: 1}, its one token of answer never read (ADR-166 §1) — identical on
+     * purpose, so the engine's prompt cache serves the answering call's evaluation from this one's.
+     *
+     * <p><b>A refusal on length does not fit</b>, told apart from every other refusal by its text
+     * exactly as {@link #isRefusedAsPastTheWindow} tells it apart for the answering call, itself
+     * carried over from how {@code ChunkEmbedder} tells its own refusal apart (ADR-144). Any other
+     * refusal is about the model rather than this question and is not this method's to catch.
+     *
+     * <p><b>An absent count fits</b> (ADR-123): it arrives as {@code 0} from Spring AI's own
+     * substitution, {@code 0} is never past the room, so the proposal stands as it was estimated —
+     * exactly what happened before this record, and no worse.
+     */
+    private QuestionCount countQuestion(
+            ClusterCall call, List<Exemplar> documents, String modelName, int contextWindow) {
+        Prompt prompt = new Prompt(promptFor(call, documents), countingOptionsFor(modelName, contextWindow));
+        try {
+            ChatResponse response = chatModel.call(prompt);
+            int reported = response.getMetadata().getUsage().getPromptTokens();
+            return new QuestionCount(reported <= roomForAQuestionIn(contextWindow), String.valueOf(reported));
+        } catch (NonTransientAiException refused) {
+            if (!isRefusedAsPastTheWindow(refused)) {
+                throw refused;
+            }
+            return new QuestionCount(false, refused.getMessage());
+        }
+    }
+
+    /**
+     * How many tokens a question may be counted at and still leave the answer its whole allowance: the
+     * window less {@link #REPLY_ALLOWANCE} (ADR-166 §1), 7,168 tokens in the shipped window.
+     */
+    private static int roomForAQuestionIn(int contextWindow) {
+        return contextWindow - REPLY_ALLOWANCE;
+    }
+
+    /** What one counting call found: whether the question fits the room, and what the engine said of it. */
+    private record QuestionCount(boolean fits, String detail) {}
+
+    /**
+     * The call itself, failing the cluster where the serving engine refuses the prompt as longer than
+     * the window rather than shifting it (ADR-108, #332).
+     *
+     * <p><b>The same overrun the ceiling check below looks for, reported before any answer exists.</b>
+     * ADR-108 fails a cluster whose prompt did not fit the window, and read that off {@code
+     * prompt_eval_count} only because the engine it measured shifted an oversized prompt silently. A
+     * runner that refuses instead says the same thing outright — measured under {@code
+     * hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M} on Ollama 0.33.2, HTTP 400, a prompt of 8280 tokens
+     * against a window of 8192 — so it is recorded as {@link ClusterFaultKind#PROMPT_EVALUATION_CEILING}
+     * rather than a fifth kind, which would change no behaviour and no remedy (ADR-121, ADR-123). The
+     * detail carries the engine's own message, which is where the count that failed is.
+     *
+     * <p><b>Only a refusal on length.</b> Spring AI raises every 4xx as one {@link
+     * NonTransientAiException} whose message is the status and the body, so the reason is told apart by
+     * the text alone, as {@code ChunkEmbedder} tells its own length refusal apart one instrument along
+     * (ADR-144). Any other refusal — a model never pulled, a model that cannot chat — would come back
+     * for every cluster alike, so it is the step that is wrong rather than this cluster, and it
+     * reaches the step unchanged.
+     *
+     * <p>Without this the refusal escaped {@code GenerationTasklet} as a step failure, rolling back the
+     * step's transaction and every fault row recorded in it before this cluster, exactly as ADR-123
+     * describes for an exception that is not a {@link ClusterFaultException}.
+     */
+    private ChatResponse callTurningDownARefusalOnLength(Prompt prompt, int contextWindow) {
+        try {
+            return chatModel.call(prompt);
+        } catch (NonTransientAiException refused) {
+            if (!isRefusedAsPastTheWindow(refused)) {
+                throw refused;
+            }
+            throw new ClusterFaultException(new ClusterFault(
+                    ClusterFaultKind.PROMPT_EVALUATION_CEILING,
+                    "the serving engine refused the prompt as longer than the window of " + contextWindow
+                            + " token(s): " + refused.getMessage()));
+        }
+    }
+
+    /** Whether {@code refused} is the serving engine turning a prompt down as longer than the window. */
+    private static boolean isRefusedAsPastTheWindow(NonTransientAiException refused) {
+        String message = refused.getMessage();
+        return message != null
+                && (message.contains(RUNNER_REFUSES_PAST_THE_WINDOW)
+                        || message.contains(OLLAMA_REFUSES_PAST_THE_WINDOW));
+    }
+
+    /**
+     * Fails the cluster where the answering call's own question was cut down to fit (ADR-108, amended
+     * by ADR-166 §3): {@code prompt_eval_count} at or above {@code contextWindow - 1} means part of the
+     * cluster's documents never reached the model at all, and the answer covers less than it was asked
+     * about with nothing in it saying which part.
+     *
+     * <p><b>The ceiling sits one token under the window, not at it.</b> Every call sends {@code
+     * num_keep: -1} ({@link #optionsFor}), so the engine keeps a too-long question's head up to {@code
+     * contextWindow - 1} rather than shifting it — {@code contextWindow - 1} is Ollama's own {@code
+     * fullPromptLimit}, the most a question can be counted at whole, and exactly what every cut
+     * question now reports. A whole question that long leaves no room for a single token of answer, so
+     * nothing passing this check at the old ceiling could ever have been believed anyway.
+     *
+     * <p><b>This is the backstop, not the guard.</b> {@link #sentAfterCounting} already asked the
+     * engine to count this very question before the answering call was made; this check exists for the
+     * question the counting call found to fit and the answering call read differently (ADR-166 §4).
      *
      * <p><b>The count is read without a guard</b> (ADR-123). Spring AI declares it {@code Integer}
      * with no {@code @Nullable} in a {@code @NullMarked} package, {@code DefaultUsage} substitutes
@@ -219,11 +435,12 @@ public class ClusterSynthesis {
      */
     private static void checkPromptEvaluationCeiling(ChatResponse response, int contextWindow) {
         int promptTokens = response.getMetadata().getUsage().getPromptTokens();
-        if (promptTokens >= contextWindow) {
+        int ceiling = contextWindow - 1;
+        if (promptTokens >= ceiling) {
             throw new ClusterFaultException(new ClusterFault(
                     ClusterFaultKind.PROMPT_EVALUATION_CEILING,
                     "prompt evaluation count " + promptTokens + " at or above the ceiling of "
-                            + contextWindow + " token(s)"));
+                            + ceiling + " token(s)"));
         }
     }
 
@@ -412,21 +629,24 @@ public class ClusterSynthesis {
     }
 
     /**
-     * The documents one call can carry, closest to the seed first, filled until the room runs out
-     * (ADR-108).
+     * The <em>proposal</em> a cluster's documents are first put together as, closest to the seed first,
+     * filled at the word estimate until the room runs out (ADR-108) — {@link #sentAfterCounting} is
+     * what the serving engine's own count trims it down to before anything is actually sent (ADR-166
+     * §1–§2).
      *
-     * <p><b>No fixed number of them.</b> Eight short documents send all eight; four hundred sends what
-     * fits, and the count returned is what lets the finished page disclose it was written from part
-     * of the cluster.
+     * <p><b>No fixed number of them.</b> Eight short documents propose all eight; four hundred proposes
+     * what fits the estimate, and what the finished page discloses as written from part of the cluster
+     * is however many of this the engine went on to count as fitting.
      *
      * <p><b>A cluster too large is never skipped.</b> Refusing would leave the largest clusters — the
      * ones most worth connecting — with nothing written over them, and nothing is concealed by
      * sending part: the page lists every document regardless (ADR-104).
      *
-     * <p><b>A document too large for an empty call is passed over, and the fill carries on</b> — it
-     * can never be sent, so stopping on it would cost the whole cluster its writing, and sending it
-     * anyway guarantees the silent overrun this budget exists to avoid. A document that merely does
-     * not fit what is <em>left</em> stops the fill instead, since everything after it is further out.
+     * <p><b>A document too large for an empty call is passed over here too, and the fill carries on</b>
+     * — it can never be sent, so stopping on it would cost the whole cluster its writing. A document
+     * that merely does not fit what is <em>left</em> stops the fill instead, since everything after it
+     * is further out. {@link #sentAfterCounting} applies the same rule a second time, against the
+     * engine's own count rather than this estimate, for a document the estimate under-priced.
      */
     private static List<Exemplar> whatFitsIn(int contextWindow, List<Exemplar> exemplars) {
         int room = roomForDocumentsIn(contextWindow);
@@ -473,8 +693,30 @@ public class ClusterSynthesis {
     }
 
     /**
-     * What every call this module makes is made under: the model, the window it may read in, the
-     * shape the answer has to arrive in, and that the model is not to think before answering.
+     * How much of a too-long question the engine is asked to keep, sent as {@code num_keep} on every
+     * call (ADR-166 §3): the whole of it, up to the window's last token, rather than the four leading
+     * tokens and the tail Ollama keeps by default.
+     *
+     * <p><b>This is what makes a cut show in the count.</b> Left unsaid, a question longer than the
+     * window is shifted to about half of it and counted there — a count that reads exactly like a
+     * question that fit. Asked to keep the whole question instead, the engine counts a cut one at
+     * {@code contextWindow - 1}, which {@link #checkPromptEvaluationCeiling} and {@link #countQuestion}
+     * both read as past the room.
+     *
+     * <p><b>Public because it joins the generator identity outside this module</b> (ADR-166 §3):
+     * {@code num_keep} is a member of Ollama's {@code options} object, so it is one of "the options
+     * actually sent" {@code StageRuns.generation()} mints this run's id from, the way {@link
+     * #REPLY_ALLOWANCE} already does.
+     */
+    public static final int KEEP_A_TOO_LONG_QUESTIONS_HEAD = -1;
+
+    /** What a counting call asks the engine to write: one token of answer, never read (ADR-166 §1). */
+    private static final int ONE_TOKEN_OF_ANSWER = 1;
+
+    /**
+     * What every answering call this module makes is made under: the model, the window it may read in,
+     * how much of a too-long question to keep, the shape the answer has to arrive in, and that the
+     * model is not to think before answering.
      *
      * <p>Package-private rather than inlined above, so the integration test that puts these on a real
      * serving engine asserts about <em>this</em> request (#181) — checking whether the window
@@ -486,12 +728,31 @@ public class ClusterSynthesis {
      * of writing. Measured on {@code qwen3:8b}, CPU-served: 113 s and 2,486 characters of reasoning
      * with it on, 26 s and none with it off, the same prompt. Saying off to a model that cannot think
      * is accepted by the engine rather than refused; only asking one to think is refused.
+     *
+     * <p><b>{@code num_keep: -1} joins the options every call sends</b> (ADR-166 §3): see {@link
+     * #KEEP_A_TOO_LONG_QUESTIONS_HEAD}. {@link #countingOptionsFor} is this same request with
+     * one difference, so the engine's prompt cache serves the answering call's evaluation from the
+     * counting call's.
      */
     static OllamaChatOptions optionsFor(String modelName, int contextWindow) {
+        return optionsFor(modelName, contextWindow, REPLY_ALLOWANCE);
+    }
+
+    /**
+     * The answering call's own request, asking for one token of answer instead of the reply allowance
+     * (ADR-166 §1): the same model, window, {@code num_keep}, answer shape and thinking setting, so a
+     * question that fits costs one evaluation shared between the two calls rather than two.
+     */
+    static OllamaChatOptions countingOptionsFor(String modelName, int contextWindow) {
+        return optionsFor(modelName, contextWindow, ONE_TOKEN_OF_ANSWER);
+    }
+
+    private static OllamaChatOptions optionsFor(String modelName, int contextWindow, int numPredict) {
         return OllamaChatOptions.builder()
                 .model(modelName)
                 .numCtx(contextWindow)
-                .numPredict(REPLY_ALLOWANCE)
+                .numPredict(numPredict)
+                .numKeep(KEEP_A_TOO_LONG_QUESTIONS_HEAD)
                 .outputSchema(ANSWER_SCHEMA)
                 .disableThinking()
                 .build();

@@ -93,7 +93,14 @@ class LargestClusterRunsOutOfRoomTest {
     /** Why an answer stopped when it reached the length it was allowed rather than finishing. */
     private static final String STOPPED_AT_THE_LENGTH_ALLOWED = "length";
 
-    /** How much of the question a scripted call reports having read: well inside the window. */
+    /**
+     * How much of the question a scripted call reports having read: well inside the window.
+     *
+     * <p>4,098 is what the cluster the defect was found on reported, and ADR-166 found what it is:
+     * exactly the length Ollama 0.33.2 cuts a question longer than a window of 8,192 down to, keeping
+     * the first four tokens and the end. The instruction that model "lost" sat before the documents,
+     * so it was cut away. Kept as the number measured; inside the window it still is.
+     */
     private static final int A_QUESTION_WELL_INSIDE_THE_WINDOW = 4098;
 
     /**
@@ -313,8 +320,16 @@ class LargestClusterRunsOutOfRoomTest {
             this.response = response;
         }
 
+        /**
+         * Answers every call with the one response, counting and keeping only the call that asks for the
+         * writing: a counting call (ADR-166) is the same question asking for one token, and what is
+         * claimed here is about the question the writing was asked for.
+         */
         @Override
         public ChatResponse call(Prompt prompt) {
+            if (ClusterSynthesisTest.isACountingCall(prompt)) {
+                return response;
+            }
             this.asked = prompt;
             this.calls++;
             return response;

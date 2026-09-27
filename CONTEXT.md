@@ -196,8 +196,12 @@ A picture whose bytes recur among the pictures of the documents a tree lists, in
 _Avoid_: logo, decoration, chrome, boilerplate (boilerplate is text, measured corpus-wide)
 
 **Cluster fault**:
-A cluster stage 6b could not write a synthesis doc for: the call came back, and what came back did not survive checking. Recorded against the cluster, never against its documents — nothing is wrong with them, and nothing is removed. The deliverable keeps the hole, headed by the cluster's label.
+A cluster stage 6b could not write a synthesis doc for: the call came back, and what came back did not survive checking. What came back includes the serving engine's count of the question and its refusal of it, not only an answer — so a cluster none of whose documents the engine counts inside the room — the window less what is kept for the answer — faults, having been asked about (ADR-166). Recorded against the cluster, never against its documents — nothing is wrong with them, and nothing is removed. The deliverable keeps the hole, headed by the cluster's label.
 _Avoid_: error, failure, skipped cluster, verdict (a verdict is about a document, and it removes one)
+
+**Counting call**:
+The call stage 6b makes before it asks for a cluster's writing: the same question, asking for one token of answer, sent so the serving engine says how long it counts the question to be, or refuses it as too long. Its answer is never read. What the writing call then carries is the longest run of the closest documents the engine counted inside the room: the window, less what is kept for the answer (ADR-166). Not a measurement — it renders nothing and leaves no row — and not a retry: it comes before any answer exists.
+_Avoid_: probe, dry run, tokenize call, measuring call (a measurement is a verdict-free pass over the corpus)
 
 **Repair pass**:
 A re-run of generation that finishes what an earlier one left behind: the clusters it never reached, and the clusters it could not write. It asks the same question again and is never shown what went wrong before, so nothing is corrected — only completed, and each pass is smaller than the one before it.

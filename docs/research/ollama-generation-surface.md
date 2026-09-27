@@ -248,6 +248,34 @@ and `supportsContextShift` returns `true` for everything except the `deepseek2` 
 Ollama 0.33.2 is: overflow is silently shifted, not refused.** A caller who wants the refusal has to send
 `"shift": false` — which Spring AI 2.0.0 cannot do (§1).
 
+> **Corrected 2026-09-27 ([#332](https://github.com/algernon28/vespera/issues/332),
+> [ADR-166](../adr/0166-the-serving-engine-counts-a-question-before-it-is-sent-and-an-overflow-is-cut-where-the-count-can-see-it.md)).
+> Measured, unlike the rest of this record.** The mechanism above is right; three consequences drawn from it
+> were wrong or missing.
+>
+> 1. **(b) is one of two paths, and the other refuses.** The header of `llm/llama_server.go` at `v0.33.2`:
+>    *"Models with explicit Ollama renderers/parsers, Harmony handling, MLX, or an enabled Go TEMPLATE layer
+>    still render prompts in Go and call /completion. Other GGUF chat models use llama-server's chat_template
+>    handling through /v1/chat/completions."* Only the first path reaches `completionPromptForRequest`. On the
+>    second, llama-server refuses an overlong prompt itself, HTTP 400: `request (8280 tokens) exceeds the
+>    available context size (8192 tokens), try increasing it`, `exceed_context_size_error` — measured under
+>    `hf.co/openbmb/MiniCPM5-2B-GGUF:Q4_K_M`. `qwen3:8b`, a library model, takes the first path and is shifted.
+>    Which one a model gets depends on how it was packaged, not on anything the caller sends.
+> 2. **"Roughly half" is exact, and it is why the count cannot show the cut.** The shift cuts to
+>    `contextShiftPromptLimit(numCtx, numKeep) = numCtx - max((numCtx - numKeep)/2, 1)`: 4,098 at `num_ctx` 8192
+>    and the default `num_keep` of 4. `prompt_eval_count` then reads 4,098 — measured, `qwen3:8b`, 13,034 words
+>    sent, `done_reason: "stop"`. A shifted prompt is counted at about half the window, never at it, so a check
+>    for a count at or above the window cannot see one.
+> 3. **`num_keep` is the lever that does reach the engine.** With `num_keep` negative the whole prompt is kept up
+>    to `num_ctx - 1`, so the limit is `num_ctx - 1`: the head survives, the tail is cut, and the count reads
+>    8,191 in a window of 8192 (every overlong call that reported a count, five of five). `num_keep` is an ordinary member of `OllamaChatOptions` and is not
+>    in `NON_SUPPORTED_FIELDS`. A prompt that fits is counted the same with it as without it.
+>
+> Also measured: `prompt_eval_count` is not reduced by the prompt cache (identical calls repeated were counted
+> identically), while `prompt_eval_duration` is (3.69 s, then 0.03 s) — and a call whose prompt filled the
+> window under `num_keep: -1` and was then asked for 1,024 tokens came back `done: false` with no counts at
+> all in two calls of four.
+
 **(c) Running out of room while generating.** The response ends with `done_reason: "length"`
 ([`llm/server.go`](https://github.com/ollama/ollama/blob/v0.33.2/llm/server.go#L248-L266)). That is a normal
 `200` with a complete-looking body; only the field distinguishes it from a finished answer.
@@ -258,6 +286,10 @@ the embedding endpoint, where `truncate: false` makes the runtime refuse — the
 [ADR-091](../adr/0091-there-is-no-tokenizer-the-runtime-counts-tokens-and-the-embedder-identity-is-what-ollama-reports.md)
 was built on. The equivalent lever for generation exists (`shift: false`), is undocumented, and is unreachable
 through Spring AI.
+
+> **Corrected 2026-09-27 (ADR-166).** Silent on the `/completion` path only: the llama-server chat path refuses
+> (the first correction above). And the count can be made to show the discard where the caller cannot stop it:
+> `num_keep: -1`, which Spring AI does send, makes a cut prompt read `num_ctx - 1`.
 
 ### How a caller learns a served model's limit
 
@@ -291,6 +323,11 @@ Two standing caveats:
   [#12031](https://github.com/ollama/ollama/issues/12031),
   [PR #12030](https://github.com/ollama/ollama/pull/12030)). So the budget can be compared against the limit only
   after the fact, via `prompt_eval_count`.
+
+  > **Corrected 2026-09-27 (ADR-166).** "After the fact" need not mean after the answer. The same request with
+  > `num_predict: 1` is answered in one token and returns the count, and the engine's prompt cache then serves
+  > the full request's evaluation from it — measured, 0.03 s against 3.69 s for a first evaluation. That is a
+  > count taken by the model's own tokenizer before any answer is read, which is what ADR-166 builds on.
 
 ---
 

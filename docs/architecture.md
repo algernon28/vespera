@@ -248,7 +248,7 @@ flowchart TD
     JOB["<b>job 'vespera' started</b><br/>one job parameter: the root<br/><i>never started by the app coming up</i>"]
     S0["<b>step: census</b><br/>stage 0 — walk, record, merge the profile"]
     LATER["<b>steps: stages 1 to 6a</b><br/>thirteen more on the same job<br/><i>through the arrangement and its gate</i>"]
-    S6BSTEP["<b>step: stage 6b</b><br/>one call per cluster, then the tree<br/><i>gate · run · generation</i>"]
+    S6BSTEP["<b>step: stage 6b</b><br/>one answer per cluster, then the tree<br/><i>gate · run · generation</i>"]
     EXIT(["exit code<br/>0, or non-zero if the job failed"])
 
 
