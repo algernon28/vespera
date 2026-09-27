@@ -91,3 +91,10 @@ ajcore.*.txt
 /qodana.sarif.json
 /.qodana/
 /qodana.yaml
+
+# Session handoffs: the notes an agent session leaves so the next one can pick its work up cold.
+# They describe one moment of work in progress, go stale as soon as it lands, and belong on the
+# machine that wrote them, not in the repository's history. Ignoring the folder does not untrack
+# what is already committed in it: handouts/architecture-simplification.md stays tracked, because
+# ADR-157 cites it by path and the refactor waves it plans are recorded nowhere else.
+/handouts/
