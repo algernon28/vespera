@@ -98,3 +98,9 @@ ajcore.*.txt
 # what is already committed in it: handouts/architecture-simplification.md stays tracked, because
 # ADR-157 cites it by path and the refactor waves it plans are recorded nowhere else.
 /handouts/
+
+# Working notes kept inside the checkout: probe results, scratch analysis, measurements on one
+# operator's corpus. They belong on the machine that took them. A measurement that should outlive
+# its session goes into docs/research/ or an ADR instead, and a value's own evidence goes beside the
+# profile it justifies, in that run's working directory.
+/notes/
