@@ -831,6 +831,16 @@ public final class Adr {
     public static final String OLLAMA_IS_GIVEN_A_GPU_BY_AN_OVERRIDE_FILE = FILE
             + "0165-ollama-is-given-an-nvidia-gpu-by-an-override-file-and-compose-yaml-alone-asks-for-none.md";
 
+    /**
+     * ADR-166 -- a counting call, the same request asking for one token, precedes every answering call,
+     * and what is sent is the longest leading run of the proposed documents the serving engine counts
+     * inside the window less the reply allowance; every call sends num_keep -1, so a cut question is
+     * counted at the window less one, which is where the ceiling now sits (amends ADR-108, ADR-111,
+     * ADR-121, extends ADR-091).
+     */
+    public static final String THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT = FILE
+            + "0166-the-serving-engine-counts-a-question-before-it-is-sent-and-an-overflow-is-cut-where-the-count-can-see-it.md";
+
     private Adr() {
     }
 }

@@ -261,6 +261,7 @@ class RunIdentityGoldenTest {
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
     @DisplayName("Generation is identified by the corpus root, the approved arrangement and the writing model's identity")
+    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
     void generation() {
         Map<String, Object> run = theRunOf("generation");
 
@@ -268,12 +269,14 @@ class RunIdentityGoldenTest {
                 "the settings it records are the corpus root, the id of the approved arrangement, the"
                         + " writing model this profile names, the weights the serving runtime reported"
                         + " under that name, the 8192-token window it reads each group through by default,"
-                        + " and the 1024 tokens it leaves the reply",
+                        + " the 1024 tokens it leaves the reply, and -1 for how much of a question too long"
+                        + " for the window the engine is asked to keep: all of it that fits, so a cut shows"
+                        + " in the count",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
                         ("{\"corpusRoot\":\"%s\",\"arrangementRunId\":\"%s\","
                                         + "\"generationModel\":\"" + GENERATION_MODEL + "\","
                                         + "\"weightsDigest\":\"" + EmbeddingScriptedBeans.DIGEST + "\","
-                                        + "\"contextWindow\":8192,\"replyAllowance\":1024}")
+                                        + "\"contextWindow\":8192,\"replyAllowance\":1024,\"numKeep\":-1}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("arrangement"))));
         claim(
                 "and its code version is the synthesis module's, then extraction's, then embedding's, then"

@@ -876,9 +876,16 @@ class ClusterSynthesisTest {
                         .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_TITLE_AT_ALL)));
     }
 
-    /** A model that hands back the same response to every call, whatever it was asked. */
+    /**
+     * A model that hands back the same response to every call asking for the writing, whatever it was
+     * asked.
+     *
+     * <p>A counting call (ADR-166) is answered with a response carrying nothing — no answer and no
+     * count, which leaves the documents proposed standing — so that what each claim here scripts is
+     * read where the claim says it is: by the checks on the answer, not by the count before it.
+     */
     private static ChatModel alwaysAnswering(ChatResponse response) {
-        return prompt -> response;
+        return prompt -> isACountingCall(prompt) ? new ChatResponse(List.of()) : response;
     }
 
     /** A response that came back carrying no answer at all, which is what {@code getResult} reads. */
@@ -1028,12 +1035,24 @@ class ClusterSynthesisTest {
             this.prose = prose;
         }
 
+        /**
+         * Answers the call, and counts it and keeps what it asked only when it asks for the writing.
+         *
+         * <p>A counting call (ADR-166) — the same request asking for one token — is answered with no
+         * count at all, which leaves the documents proposed standing, and is neither counted nor kept:
+         * every claim here is about the one question the writing is asked for, and {@code
+         * CountedBeforeItIsAnsweredTest} is where the counting call is the subject.
+         */
         @Override
         public ChatResponse call(Prompt prompt) {
+            ChatResponse answer = new ChatResponse(List.of(new Generation(
+                    new AssistantMessage("{\"title\":\"" + GENERATED_TITLE + "\",\"prose\":\"" + prose + "\"}"))));
+            if (isACountingCall(prompt)) {
+                return answer;
+            }
             this.asked = prompt;
             this.calls++;
-            return new ChatResponse(List.of(new Generation(
-                    new AssistantMessage("{\"title\":\"" + GENERATED_TITLE + "\",\"prose\":\"" + prose + "\"}"))));
+            return answer;
         }
 
         /** Everything the one call carried, as the text the model was handed. */
@@ -1050,5 +1069,11 @@ class ClusterSynthesisTest {
         OllamaChatOptions optionsUsed() {
             return (OllamaChatOptions) asked.getOptions();
         }
+    }
+
+    /** Whether {@code prompt} is a counting call: the answering request asking for one token (ADR-166). */
+    static boolean isACountingCall(Prompt prompt) {
+        Integer numPredict = ((OllamaChatOptions) prompt.getOptions()).getNumPredict();
+        return numPredict != null && numPredict == 1;
     }
 }

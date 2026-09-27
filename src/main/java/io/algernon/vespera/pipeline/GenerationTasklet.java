@@ -290,28 +290,52 @@ class GenerationTasklet implements Tasklet {
                                     contextWindow);
                         } catch (ClusterFaultException e) {
                             // A call came back and failed one of ADR-108's/ADR-109's four checks
-                            // (ADR-111). Recorded against the cluster, never a document -- nothing here
-                            // removes anything -- and the run carries straight on.
-                            LOG.warn(
-                                    "cluster {} of partition {} had its answer turned down -- {}: {} --"
-                                            + " so no synthesis doc was written for it",
-                                    recorded.cluster().ordinal(),
-                                    recorded.cluster().partitionOrder(),
-                                    e.fault().kind(),
-                                    e.fault().detail());
+                            // (ADR-111), or -- per ADR-166 §4 -- the answering call was refused as
+                            // longer than the window after the counting call before it found the same
+                            // question to fit (#332), or no document of the cluster fit the room by
+                            // the counting call's own count and no answering call was ever made.
+                            // Recorded against the cluster, never a document -- nothing here removes
+                            // anything -- and the run carries straight on.
+                            if (e.noAnswerWasAskedFor()) {
+                                LOG.warn(
+                                        "cluster {} of partition {} has no document the serving engine"
+                                                + " counts inside the room for a question -- no answer was"
+                                                + " asked for -- {}: {}",
+                                        recorded.cluster().ordinal(),
+                                        recorded.cluster().partitionOrder(),
+                                        e.fault().kind(),
+                                        e.fault().detail());
+                            } else {
+                                LOG.warn(
+                                        "cluster {} of partition {} had its answer turned down -- {}: {} --"
+                                                + " so no synthesis doc was written for it",
+                                        recorded.cluster().ordinal(),
+                                        recorded.cluster().partitionOrder(),
+                                        e.fault().kind(),
+                                        e.fault().detail());
+                            }
                             clusterFaults.record(
                                     generation,
                                     recorded.cluster().winningSeed(),
                                     recorded.cluster().ordinal(),
                                     e.fault());
                             faulted++;
-                            turnedDownInARow.add(e.fault());
-                            if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
-                                stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
-                                writeDeliverable(
-                                        generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                                        recordedClusters, membership, scores);
-                                return false;
+                            // The third of the three cases above never asked for an answer, so it is no
+                            // evidence the writing model, the word budget or the answer's shape are
+                            // right -- and none that they are wrong either (ADR-166 §4a, ADR-111's
+                            // consequences as #184 settled them for a cluster no call could be made
+                            // for). It is left out of the streak below, neither dropping the count to
+                            // nothing the way a believed answer does nor adding to it the way every
+                            // other turned-down answer does.
+                            if (!e.noAnswerWasAskedFor()) {
+                                turnedDownInARow.add(e.fault());
+                                if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
+                                    stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
+                                    writeDeliverable(
+                                            generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                                            recordedClusters, membership, scores);
+                                    return false;
+                                }
                             }
                             continue;
                         }
@@ -350,9 +374,9 @@ class GenerationTasklet implements Tasklet {
                         // two zeroes would say nothing went wrong and then refuse to finish.
                         LOG.warn(
                                 "the generation step left {} cluster(s) unwritten and {} cluster(s)"
-                                        + " standing with an answer that was turned down ({} of them this"
-                                        + " invocation) under run {}, so it is not recorded as finished and"
-                                        + " the next invocation will attempt what is missing again",
+                                        + " standing with a fault ({} of them this invocation) under run"
+                                        + " {}, so it is not recorded as finished and the next invocation"
+                                        + " will attempt what is missing again",
                                 unsendable,
                                 standingFaults,
                                 faulted,

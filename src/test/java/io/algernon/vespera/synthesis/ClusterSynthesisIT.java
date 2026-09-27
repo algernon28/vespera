@@ -14,12 +14,14 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -82,6 +84,21 @@ class ClusterSynthesisIT {
     /** One tiny prompt. What it says does not matter; that it costs some tokens does. */
     private static final String A_TINY_PROMPT = "Say something about one document in one short sentence.";
 
+    /**
+     * A question far longer than the window: 10,000 ten-digit numbers, which this model's tokenizer
+     * reads one digit to a token, so well past 8,192 tokens whatever the chat template adds.
+     */
+    private static final String A_QUESTION_TOO_LONG_FOR_THE_WINDOW =
+            String.join(" ", Collections.nCopies(10_000, "1234567890"));
+
+    /**
+     * What Ollama 0.33.2 cuts a question longer than the window to under its default {@code num_keep}
+     * of 4, from {@code contextShiftPromptLimit} in {@code llm/llama_server.go}: the window less half
+     * of what is left after the kept tokens — 4,098 of 8,192, the number in every log line of #332.
+     */
+    private static final int OLLAMAS_DEFAULT_CUT =
+            ClusterSynthesis.CONTEXT_WINDOW - (ClusterSynthesis.CONTEXT_WINDOW - 4) / 2;
+
     /** Where the engine reports the window a resident model is actually being served under. */
     private static final String ACTIVE_MODELS = "/api/ps";
 
@@ -118,6 +135,42 @@ class ClusterSynthesisIT {
                         + " rather than finished -- and it arrives only when both token counts do, so this"
                         + " claim is also what proves those counts are really there",
                 () -> assertThat(response.getResult().getMetadata().getFinishReason()).isNotBlank());
+    }
+
+    @Test
+    @Story("A group of long records is written from what the engine can read, not cut short in silence")
+    @DisplayName("A question too long for the window is counted at the window's last token, where a cut shows")
+    @Issue("332")
+    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
+    void countsAQuestionTooLongForTheWindowAtItsLastToken() throws Exception {
+        ollama.execInContainer("ollama", "pull", MODEL);
+
+        ChatResponse ours = chatModel.call(new Prompt(
+                A_QUESTION_TOO_LONG_FOR_THE_WINDOW,
+                ClusterSynthesis.countingOptionsFor(MODEL, ClusterSynthesis.CONTEXT_WINDOW)));
+        ChatResponse leftToTheEngine = chatModel.call(new Prompt(
+                A_QUESTION_TOO_LONG_FOR_THE_WINDOW,
+                OllamaChatOptions.builder()
+                        .model(MODEL)
+                        .numCtx(ClusterSynthesis.CONTEXT_WINDOW)
+                        .numPredict(1)
+                        .disableThinking()
+                        .build()));
+
+        claim(
+                "asked the way every call of ours asks, the engine counts a question too long for the window"
+                        + " at the window's last token, " + (ClusterSynthesis.CONTEXT_WINDOW - 1) + " -- having"
+                        + " kept its beginning and cut the rest -- which is the count the check on every answer"
+                        + " turns down, so a cut question can never be the one a page is written from",
+                () -> assertThat(ours.getMetadata().getUsage().getPromptTokens())
+                        .isEqualTo(ClusterSynthesis.CONTEXT_WINDOW - 1));
+        claim(
+                "where left to the engine's own default the same question is cut to "
+                        + OLLAMAS_DEFAULT_CUT + " -- about half the window, kept from its first few tokens and"
+                        + " its end -- and counted there, which is a count that looks like a question that fit:"
+                        + " the silent cut the largest group of a real archive was written from",
+                () -> assertThat(leftToTheEngine.getMetadata().getUsage().getPromptTokens())
+                        .isEqualTo(OLLAMAS_DEFAULT_CUT));
     }
 
     /**

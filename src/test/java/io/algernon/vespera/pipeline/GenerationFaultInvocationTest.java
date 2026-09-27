@@ -103,8 +103,15 @@ class GenerationFaultInvocationTest {
      */
     private static final String THE_READING_WINDOW = "4096";
 
-    /** The same number as an integer, which is the ceiling the first check reads against. */
-    private static final int THE_CEILING = 4096;
+    /** The same number as an integer: the window every call in this class reads in. */
+    private static final int THE_WINDOW = 4096;
+
+    /**
+     * The ceiling the first check reads against: the window less one (ADR-166). A question the engine
+     * cuts to fit is counted there, because every call asks it to keep the question's beginning up to
+     * the window's last token; and a whole question that long leaves the answer not one token.
+     */
+    private static final int THE_CEILING = THE_WINDOW - 1;
 
     /**
      * A prompt count past the ceiling: the model reports having read more of the question than the
@@ -117,6 +124,12 @@ class GenerationFaultInvocationTest {
 
     /** One token short of the ceiling: the whole question arrived, and the answer stands. */
     private static final int A_COUNT_UNDER_THE_CEILING = THE_CEILING - 1;
+
+    /**
+     * What the counting call reports a question at when it is too long for this window at any length:
+     * the ceiling, which is where the engine counts a question it cut (ADR-166).
+     */
+    private static final int COUNTED_AT_THE_CEILING = THE_CEILING;
 
     /**
      * How long an answer that ran out of room came to, in tokens: the whole of what an answer is
@@ -302,7 +315,7 @@ class GenerationFaultInvocationTest {
 
         claim(
                 "the reason kept says the question did not arrive whole: a model reporting it read "
-                        + A_COUNT_PAST_THE_CEILING + " tokens of a question a window of " + THE_CEILING
+                        + A_COUNT_PAST_THE_CEILING + " tokens of a question a window of " + THE_WINDOW
                         + " tokens holds has been handed something cut down to fit, so what it wrote is"
                         + " about part of a group with nothing in the answer saying which part",
                 () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
@@ -325,8 +338,8 @@ class GenerationFaultInvocationTest {
 
     @Test
     @Story("An answer written from part of the question is never believed")
-    @DisplayName("A question filling the window exactly is already too much, and its group is left unwritten")
-    void turnsDownAnAnswerThatFilledTheWindowExactly(@TempDir Path root, @TempDir Path seeds)
+    @DisplayName("A question reaching the window's last token is already too much, and its group is left unwritten")
+    void turnsDownAnAnswerThatReachedTheWindowsLastToken(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
         GenerationScriptedBeans.answerFor(
@@ -335,10 +348,10 @@ class GenerationFaultInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "a question filling the window to the last token is turned down rather than let through:"
-                        + " reaching the ceiling is how being cut down to fit looks from this side, since"
-                        + " what was dropped was dropped before the count was taken -- so " + THE_CEILING
-                        + " of a " + THE_CEILING + "-token window fails where " + A_COUNT_UNDER_THE_CEILING
+                "a question reaching the window's last token is turned down rather than let through: that"
+                        + " is the count a question cut down to fit comes back at, since every call asks the"
+                        + " engine to keep a too-long question's beginning up to there -- so " + THE_CEILING
+                        + " of a " + THE_WINDOW + "-token window fails where " + A_COUNT_UNDER_THE_CEILING
                         + " does not",
                 () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
                                 kept.fault().kind())
@@ -347,7 +360,7 @@ class GenerationFaultInvocationTest {
 
     @Test
     @Story("An answer written from part of the question is never believed")
-    @DisplayName("A question stopping one token short of the window is believed, and its group is written")
+    @DisplayName("A question stopping two tokens short of the window is believed, and its group is written")
     void believesAnAnswerThatStoppedShortOfTheWindow(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
@@ -358,13 +371,43 @@ class GenerationFaultInvocationTest {
 
         claim(
                 "the group is written over: a question of " + A_COUNT_UNDER_THE_CEILING + " tokens in a"
-                        + " window of " + THE_CEILING + " arrived whole, and a check that turned this one"
+                        + " window of " + THE_WINDOW + " arrived whole, and a check that turned this one"
                         + " down would leave every group in the archive unwritten while looking exactly"
                         + " like a careful one",
                 () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
         claim(
                 "and no reason is kept, because there is nothing to explain",
                 () -> assertThat(reasonsKept(root)).isEmpty());
+    }
+
+    @Test
+    @Story("An answer written from part of the question is never believed")
+    @DisplayName("A group the engine counts too long for the window at any length is left unwritten, and never asked for its writing")
+    @Issue("332")
+    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
+    void turnsDownAClusterTheEngineCountsTooLongAtAnyLengthWithoutAskingForItsWriting(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds);
+        GenerationScriptedBeans.answerFor(
+                theOnlyCluster(), anOrdinaryAnswer().countedAt(COUNTED_AT_THE_CEILING));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the reason kept says the question could not reach the model whole: the engine counted it at "
+                        + COUNTED_AT_THE_CEILING + " tokens of a " + THE_WINDOW + "-token window, which is"
+                        + " where it counts a question it had to cut, and the group has no shorter question"
+                        + " left to ask",
+                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
+                                kept.fault().kind())
+                        .isEqualTo(ClusterFaultKind.PROMPT_EVALUATION_CEILING)));
+        claim(
+                "and the model was never asked to write -- " + NOTHING_WAS_ASKED + " calls for writing --"
+                        + " because a question the engine cannot read whole has no answer worth paying for",
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(NOTHING_WAS_ASKED));
+        claim(
+                "though the question was counted, so what was spent is what finding out cost",
+                () -> assertThat(GenerationScriptedBeans.countingCallsMade()).isPositive());
     }
 
     @Test

@@ -11,8 +11,22 @@ package io.algernon.vespera.synthesis;
 public enum ClusterFaultKind {
 
     /**
-     * {@code prompt_eval_count} came back at or above the window sent: the prompt was shifted, and
-     * part of the cluster was silently dropped before the model ever read it (ADR-108).
+     * The question did not reach the model whole (ADR-108, amended by ADR-166 §4): {@code
+     * prompt_eval_count} came back at or above the window less one token, which is what a question the
+     * engine had to cut down to fit is counted at once every call asks it to keep the whole of one that
+     * is too long — so part of the cluster was dropped before the model ever read it.
+     *
+     * <p>Also what a cluster none of whose documents the counting call before an answer finds room for
+     * is recorded as (ADR-166 §1–§2, §4): the question was counted, or refused, before any answering
+     * call was ever made, and what came back — a count too high, or a refusal on length, of every
+     * leading run down to each document alone — did not survive that count. {@code GenerationTasklet}
+     * leaves this one case out of ADR-111's consecutive-turned-down streak, neither adding to it nor
+     * clearing it (ADR-166 §4a): it is no evidence the writing model, the word budget or the answer's
+     * shape are right, because none of them was ever asked.
+     *
+     * <p>And what a serving engine's refusal of the answering call's own prompt as longer than the
+     * window is recorded as (#332): the same overrun, said outright where another runner shifts
+     * silently, after the counting call before it found the same question to fit.
      */
     PROMPT_EVALUATION_CEILING,
 

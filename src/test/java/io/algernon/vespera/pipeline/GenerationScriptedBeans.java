@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
@@ -11,6 +12,8 @@ import org.springframework.ai.chat.metadata.DefaultUsage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
@@ -57,6 +60,21 @@ class GenerationScriptedBeans {
 
     /** How much an unremarkable answer reports having written, well inside what it is allowed. */
     private static final int AN_UNREMARKABLE_ANSWER_LENGTH = 120;
+
+    /** What a counting call asks the model to write, and what it reports having written: one token. */
+    private static final int ONE_TOKEN = 1;
+
+    /**
+     * What a counting call reports an unscripted question at, in tokens (ADR-166): one, so that it
+     * fits whatever window a test sets.
+     *
+     * <p>Not {@link #AN_UNREMARKABLE_PROMPT_COUNT}: the smallest window a profile may name is 1282
+     * (ADR-121), which leaves a question 258 tokens once the answer's 1024 are kept back, and a
+     * default of 512 would turn down every cluster of a test that sets a small window on purpose. Not
+     * zero either, which is an engine reporting no count at all — a case of its own, pinned in {@code
+     * CountedBeforeItIsAnsweredTest}.
+     */
+    private static final int A_COUNT_INSIDE_EVERY_ROOM = 1;
 
     /** The text of a response that carries no answer at all: there is none, because there is no answer. */
     private static final String NO_BODY = null;
@@ -105,12 +123,42 @@ class GenerationScriptedBeans {
         duringEachCall = action;
     }
 
+    /**
+     * A refusal the serving engine gives, raised as Spring AI raises a 4xx, to every call — counting or
+     * answering — whose question {@code refused} picks out, until the scripts are next dropped.
+     *
+     * <p>Applied to the counting call as well as the answering one because an engine refuses a
+     * question, not a kind of call: a question too long for the window is refused when it is counted
+     * (ADR-166), and a model never pulled is refused whatever it is asked.
+     */
+    static void refuseEvery(Predicate<String> refused, String refusal) {
+        refusing = refused;
+        refusalText = refusal;
+    }
+
+    /** Which questions the engine refuses; none, until a test says otherwise. */
+    private static Predicate<String> refusing = question -> false;
+
+    /** The refusal those questions get, as Spring AI's message reads it. */
+    private static String refusalText = "";
+
     /** Drops every scripted answer, so nothing a test wrote outlives it. */
     static void forgetScriptedAnswers() {
         BY_LABEL.clear();
         callsMade = 0;
+        countingCallsMade = 0;
         PROMPTS_SENT.clear();
         duringEachCall = () -> {};
+        refusing = question -> false;
+        refusalText = "";
+    }
+
+    /** How many counting calls (ADR-166) the model has been put since the scripts were last dropped. */
+    private static int countingCallsMade;
+
+    /** How many counting calls have been made since the count was last dropped. */
+    static int countingCallsMade() {
+        return countingCallsMade;
     }
 
     /**
@@ -144,17 +192,39 @@ class GenerationScriptedBeans {
         return List.copyOf(PROMPTS_SENT);
     }
 
+    /**
+     * The model, answering a counting call and an answering call differently (ADR-166).
+     *
+     * <p><b>A counting call</b> — the answering request asking for one token — is answered with the
+     * count its cluster's {@link ScriptedAnswer#counted()} says, an unremarkable one unless a test
+     * scripted otherwise, and is kept out of {@link #callsMade()}, {@link #promptsSent()} and {@code
+     * duringEachCall}: every claim in this package that counts calls or reads a question is about the
+     * question the writing is asked for. A scripted {@link ScriptedAnswer#havingRead} therefore reaches
+     * the check on the answer, as it always has, and not the count before it.
+     */
     @Bean
     ChatModel chatModel() {
         return prompt -> {
-            callsMade++;
-            PROMPTS_SENT.add(prompt.getContents());
-            duringEachCall.run();
+            if (refusing.test(prompt.getContents())) {
+                throw new NonTransientAiException(refusalText);
+            }
             ScriptedAnswer answer = BY_LABEL.entrySet().stream()
                     .filter(scripted -> prompt.getContents().contains(scripted.getKey()))
                     .map(Map.Entry::getValue)
                     .findFirst()
                     .orElseGet(() -> ScriptedAnswer.saying(GENERATED_TITLE, GENERATED_PROSE));
+            Integer numPredict = ((OllamaChatOptions) prompt.getOptions()).getNumPredict();
+            if (numPredict != null && numPredict == ONE_TOKEN) {
+                countingCallsMade++;
+                return new ChatResponse(
+                        List.of(),
+                        ChatResponseMetadata.builder()
+                                .usage(new DefaultUsage(answer.counted(), ONE_TOKEN))
+                                .build());
+            }
+            callsMade++;
+            PROMPTS_SENT.add(prompt.getContents());
+            duringEachCall.run();
             if (!answer.carriesAnAnswer()) {
                 return new ChatResponse(List.of(), metadataOf(answer));
             }
@@ -194,9 +264,15 @@ class GenerationScriptedBeans {
      * @param carriesAnAnswer whether the response carries an answer at all. False is the response a
      *     serving engine can hand back with no generation in it, which nothing about {@code body} can
      *     express — that case is the absence of the thing {@code body} is the text of (ADR-123).
+     * @param counted what the counting call before the answer reports the question at (ADR-166)
      */
     record ScriptedAnswer(
-            String body, int promptTokens, int answerLength, String finishReason, boolean carriesAnAnswer) {
+            String body,
+            int promptTokens,
+            int answerLength,
+            String finishReason,
+            boolean carriesAnAnswer,
+            int counted) {
 
         /** An answer that says what it was asked for, in the shape the call imposed, and passes. */
         static ScriptedAnswer saying(String title, String prose) {
@@ -209,7 +285,12 @@ class GenerationScriptedBeans {
          */
         static ScriptedAnswer carryingNoAnswerAtAll() {
             return new ScriptedAnswer(
-                    NO_BODY, AN_UNREMARKABLE_PROMPT_COUNT, NOTHING_WRITTEN, STOPPED_HAVING_FINISHED, false);
+                    NO_BODY,
+                    AN_UNREMARKABLE_PROMPT_COUNT,
+                    NOTHING_WRITTEN,
+                    STOPPED_HAVING_FINISHED,
+                    false,
+                    A_COUNT_INSIDE_EVERY_ROOM);
         }
 
         /**
@@ -222,17 +303,23 @@ class GenerationScriptedBeans {
                     AN_UNREMARKABLE_PROMPT_COUNT,
                     AN_UNREMARKABLE_ANSWER_LENGTH,
                     STOPPED_HAVING_FINISHED,
-                    true);
+                    true,
+                    A_COUNT_INSIDE_EVERY_ROOM);
         }
 
         /** The same answer, reporting that it read {@code promptTokens} tokens of the question. */
         ScriptedAnswer havingRead(int promptTokens) {
-            return new ScriptedAnswer(body, promptTokens, answerLength, finishReason, carriesAnAnswer);
+            return new ScriptedAnswer(body, promptTokens, answerLength, finishReason, carriesAnAnswer, counted);
         }
 
         /** The same answer, reporting that it stopped after {@code answerLength} because it ran out. */
         ScriptedAnswer stoppedForRoomAfter(int answerLength) {
-            return new ScriptedAnswer(body, promptTokens, answerLength, STOPPED_FOR_ROOM, carriesAnAnswer);
+            return new ScriptedAnswer(body, promptTokens, answerLength, STOPPED_FOR_ROOM, carriesAnAnswer, counted);
+        }
+
+        /** The same answer, its question counted at {@code tokens} by the counting call before it. */
+        ScriptedAnswer countedAt(int tokens) {
+            return new ScriptedAnswer(body, promptTokens, answerLength, finishReason, carriesAnAnswer, tokens);
         }
     }
 }

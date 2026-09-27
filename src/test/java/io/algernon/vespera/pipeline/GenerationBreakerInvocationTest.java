@@ -57,9 +57,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>Only an answer that came back counts, in either direction</b> (ADR-111's consequences, as
  * #184 settled them). A cluster an earlier invocation already wrote (ADR-115, ADR-116) and a cluster no
  * call could be made for (ADR-121) are walked past without a call, so neither adds to the streak and
- * neither clears it — and the streak belongs to the invocation that made the calls, so an invocation
- * that stopped on five leaves nothing behind that could stop the next one before it has asked
- * anything.
+ * neither clears it. So is a cluster none of whose documents the engine counts inside the room
+ * walked past (ADR-166 §4a): it is asked about and leaves a reason, but is never asked for an answer,
+ * so it too neither adds to the streak nor clears it. And the streak belongs to the invocation that
+ * made the calls, so an invocation that stopped on five leaves nothing behind that could stop the
+ * next one before it has asked anything.
  *
  * <p><b>The clusters are written straight into the arrangement.</b> Every document this fixture
  * converts comes back alike, so no corpus can be written that clusters into nine clusters of its own.
@@ -98,11 +100,24 @@ class GenerationBreakerInvocationTest {
      */
     private static final String THE_READING_WINDOW = "4096";
 
-    /** The same number as an integer, which is the ceiling the first of the four checks reads against. */
-    private static final int THE_CEILING = 4096;
+    /** The same number as an integer: the window every call in this class reads in. */
+    private static final int THE_WINDOW = 4096;
 
-    /** A count past the ceiling: more question read than the window holds, so it was cut down to fit. */
-    private static final int A_COUNT_PAST_THE_CEILING = THE_CEILING + 904;
+    /**
+     * The ceiling the first of the four checks reads against: the window less one (ADR-166), the count
+     * a question the engine cut to fit comes back at.
+     */
+    private static final int THE_CEILING = THE_WINDOW - 1;
+
+    /**
+     * What the counting call reports a cluster's question at, however few documents it carries: the
+     * ceiling, where the engine counts a question it had to cut (ADR-166). Past the room at every
+     * length, so no document of the cluster fits.
+     */
+    private static final int COUNTED_TOO_LONG_AT_ANY_LENGTH = THE_CEILING;
+
+    /** A count past the window: more question read than the window holds, so it was cut down to fit. */
+    private static final int A_COUNT_PAST_THE_CEILING = THE_WINDOW + 904;
 
     /** The whole of what an answer is allowed, which is what running out of room looks like. */
     private static final int THE_WHOLE_ANSWER_ALLOWANCE = 1024;
@@ -448,6 +463,74 @@ class GenerationBreakerInvocationTest {
         claim(
                 "and nothing at all was written over the groups",
                 () -> assertThat(writingKept(root)).hasSize(NO_WRITING_AT_ALL));
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("A group none of whose documents fits the window with room left for the answer neither adds to the count nor clears it")
+    @Issue("332")
+    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
+    void doesNotClearTheCountForAClusterTheEngineFindsNoRoomFor(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangementOf(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, root, seeds);
+        answersTurnedDownFor(EVERY_CLUSTER_BUT_THE_THIRD);
+        GenerationScriptedBeans.answerFor(
+                CLUSTER_NAMES.get(THE_CLUSTER_NOTHING_COULD_BE_SENT_FOR_IS_THIRD),
+                anOrdinaryAnswer().countedAt(COUNTED_TOO_LONG_AT_ANY_LENGTH));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports failure, so the third group -- whose question the engine counted too"
+                        + " long for the window however few of its documents it carried -- did not clear the"
+                        + " count on its way past: it was never asked for an answer, so it is no evidence that"
+                        + " the writing model and the shape imposed on the answer are right",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "exactly " + A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK + " answers were asked for, one for each"
+                        + " turned down -- which is also what says the third group did not count towards the"
+                        + " stop, since counting it would have stopped the step one answer earlier",
+                () -> assertThat(GenerationScriptedBeans.callsMade())
+                        .isEqualTo(A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK));
+        claim(
+                "and a reason is kept for it too, " + (THE_STREAK_THAT_STOPS_THE_STEP + 1) + " in all: unlike"
+                        + " a group nothing could be sent for, this one was asked about, and what came back"
+                        + " -- the engine's count -- is the reason",
+                () -> assertThat(reasonsKept(root)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP + 1));
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("Five groups in a row none of whose documents fits the window with room left for the answer do not stop the step")
+    @Issue("332")
+    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
+    void doesNotStopForFiveClustersTheEngineFindsNoRoomFor(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangementOf(ONE_MORE_CLUSTER_THAN_THE_STREAK, root, seeds);
+        for (int cluster = 0; cluster < THE_STREAK_THAT_STOPS_THE_STEP; cluster++) {
+            GenerationScriptedBeans.answerFor(
+                    CLUSTER_NAMES.get(cluster), anOrdinaryAnswer().countedAt(COUNTED_TOO_LONG_AT_ANY_LENGTH));
+        }
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the group after the five is written: the five were left unwritten because their documents"
+                        + " are too long for the window by the engine's own count, which is the same on every"
+                        + " run -- so were they to stop the step, every later run would stop at the same five"
+                        + " and the groups after them would never be written",
+                () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
+        claim(
+                "and a reason is kept for each of the " + THE_STREAK_THAT_STOPS_THE_STEP + ", saying their"
+                        + " question could not reach the model whole",
+                () -> assertThat(reasonsKept(root))
+                        .hasSize(THE_STREAK_THAT_STOPS_THE_STEP)
+                        .allSatisfy(kept -> assertThat(kept.fault().kind())
+                                .isEqualTo(ClusterFaultKind.PROMPT_EVALUATION_CEILING)));
+        claim(
+                "and exactly " + ONE_PIECE_OF_WRITING + " answer was asked for, the sixth group's: none of"
+                        + " the five was asked to write",
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(ONE_PIECE_OF_WRITING));
     }
 
     @Test
