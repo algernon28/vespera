@@ -841,6 +841,14 @@ public final class Adr {
     public static final String THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT = FILE
             + "0166-the-serving-engine-counts-a-question-before-it-is-sent-and-an-overflow-is-cut-where-the-count-can-see-it.md";
 
+    /**
+     * ADR-167 -- a BMP image is out of scope: stage 1 recognises one from its bytes, BM followed by the
+     * length of a header a BMP carries, as its own detected format, and removes it with the out-of-scope
+     * verdict; it is sent to Docling under the neutral name an image is sent under (extends ADR-146).
+     */
+    public static final String BMP_IMAGES_ARE_OUT_OF_SCOPE = FILE
+            + "0167-bmp-images-are-out-of-scope-and-stage-1-recognises-one-by-its-file-header-and-the-header-after-it.md";
+
     private Adr() {
     }
 }

@@ -294,6 +294,87 @@ class ByteLevelReductionTaskletTest {
                 () -> assertThat(countIn(html, "left out as out of scope")).isEqualTo(3));
     }
 
+    /**
+     * ADR-167: BMP images are out of scope too, removed in the same pass and under the same verdict as a
+     * spreadsheet, with a reason of their own. The other images beside it are the point: the rule is
+     * about one kind of image, not about images. The detected format is read as the text the ledger
+     * stores, so this compiles before the value exists.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("A BMP image is removed as out of scope and counted on the page; a JPEG and a PNG are kept")
+    @Link(name = "ADR-167", url = Adr.BMP_IMAGES_ARE_OUT_OF_SCOPE, type = "adr")
+    void removesBmpImagesAsOutOfScope(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        Files.write(root.resolve("logo.bmp"), MINIMAL_BMP);
+        Files.write(root.resolve("photo.jpg"), JPEG_FILE);
+        Files.write(root.resolve("screen.png"), PNG_FILE);
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
+
+        claim(
+                "the BMP image is recorded as a BMP image, told from the other images by its bytes",
+                () -> assertThat(storedFormatOf(ledger, walkId, "logo.bmp")).isEqualTo(BMP_FORMAT));
+        claim(
+                "and it is removed as out of scope, although it is intact",
+                () -> assertThat(verdictKindsFor(ledger, walkId, "logo.bmp")).containsExactly("OUT_OF_SCOPE"));
+        claim(
+                "with a reason naming the kind of file, so a removal an operator did not expect explains itself",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, "logo.bmp")).containsExactly(BMP_REASON));
+        claim(
+                "the JPEG and the PNG are kept: a BMP image is what is out of scope, not every image",
+                () -> assertThat(List.of(
+                                verdictKindsFor(ledger, walkId, "photo.jpg"),
+                                verdictKindsFor(ledger, walkId, "screen.png")))
+                        .containsOnly(List.of()));
+        String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
+        claim(
+                "the page stage 1 writes counts the one file it left out",
+                () -> assertThat(countIn(html, "left out as out of scope")).isEqualTo(1));
+        claim(
+                "and gives BMP images a row of their own, holding the one BMP image",
+                () -> assertThat(countIn(html, "<td>BMP images</td>")).isEqualTo(1));
+    }
+
+    /** The name the ledger stores for the detected format of a BMP image. */
+    private static final String BMP_FORMAT = "BMP";
+
+    /** The reason a BMP image's out-of-scope verdict carries, word for word. */
+    private static final String BMP_REASON = "a BMP image, and BMP images are out of scope";
+
+    /**
+     * A whole BMP of 1 pixel by 1: {@code BM} and the rest of the 14-byte file header, the 40-byte
+     * picture header almost every BMP carries, and one 24-bit pixel padded to 4 bytes. Little-endian
+     * throughout. It declares 3,780 pixels per metre, an ordinary 96 dots per inch, because the rule
+     * is about the kind of file and not about what the file declares.
+     */
+    private static final byte[] MINIMAL_BMP = {
+        'B', 'M', 58, 0, 0, 0, 0, 0, 0, 0, 54, 0, 0, 0, // file header: length 58, pixels at 54
+        40, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 24, 0, // header length 40, 1 x 1, one plane, 24 bits
+        0, 0, 0, 0, 4, 0, 0, 0, (byte) 0xC4, 0x0E, 0, 0, (byte) 0xC4, 0x0E, 0, 0, // uncompressed, 4 bytes, 3,780 per metre
+        0, 0, 0, 0, 0, 0, 0, 0, // no palette
+        0x7F, 0x7F, 0x7F, 0 // one grey pixel and its padding
+    };
+
+    /** The three bytes every JPEG begins with, then enough to give it a length of its own. */
+    private static final byte[] JPEG_FILE = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0x10, 'J', 'F', 'I', 'F', 0};
+
+    /** The eight bytes every PNG begins with, then enough to give it a length of its own. */
+    private static final byte[] PNG_FILE = {
+        (byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n', 0, 0, 0, 0x0D, 'I', 'H', 'D', 'R', 0, 0, 0, 1, 0, 0, 0, 1
+    };
+
+    /** The detected format stage 1 stored for {@code fileName}, as the text the ledger holds. */
+    private String storedFormatOf(Ledger ledger, WalkId walkId, String fileName) {
+        return jdbcTemplate.queryForObject(
+                "SELECT format FROM detected_format WHERE occurrence_id = ?",
+                String.class,
+                occurrence(ledger, walkId, fileName).value());
+    }
+
     /** The eight bytes every OLE compound file begins with, then padding, so it reads as one. */
     private static final byte[] OLE_COMPOUND_FILE = oleCompoundFile(64);
 

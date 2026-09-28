@@ -425,6 +425,34 @@ class DoclingClientTest {
                 () -> assertThatCode(service::verify).doesNotThrowAnyException());
     }
 
+    /**
+     * ADR-167: stage 1 now records a BMP image as a format of its own, and leaves the corpus's out of
+     * scope; a seed's still arrives here. It is posted under the name every other image is, so no
+     * response goes stale and the naming scheme keeps its version. The value is named by its string, so
+     * this compiles before it exists.
+     */
+    @Test
+    @Story("The name sent is the format's, not the path's")
+    @DisplayName("A BMP image is posted under the same name as any other image, so nothing already converted goes stale")
+    @Link(name = "ADR-167", url = Adr.BMP_IMAGES_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    void postsABmpImageUnderTheNameAnImageIsPosted(@TempDir Path dir) throws IOException {
+        Path onDisk = Files.writeString(dir.resolve("logo.bmp"), "bytes that the name lies about");
+
+        claim(
+                "a BMP image is posted as " + NEUTRAL_PART_NAME + ", exactly as it was while it counted as an"
+                        + " ordinary image, so the conversion the service returns for it is the one it"
+                        + " returned before",
+                () -> assertThat(postedName(onDisk, DetectedFormat.valueOf("BMP"), Optional.empty()))
+                        .isEqualTo(postedName(onDisk, DetectedFormat.IMAGE, Optional.empty()))
+                        .isEqualTo(NEUTRAL_PART_NAME));
+        claim(
+                "and so the options the conversion cache is keyed by still name version "
+                        + NAMING_SCHEME_VERSION + " of the naming scheme: no name changed, so no conversion"
+                        + " already cached has to be made again",
+                () -> assertThat(DoclingClient.sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
+    }
+
     @Test
     @Story("The name sent is the format's, not the path's")
     @DisplayName("Every format the bytes can yield is posted under the one name that reaches its pipeline")
