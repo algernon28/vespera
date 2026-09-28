@@ -98,6 +98,19 @@ final class LabelFileReader {
         }
     }
 
+    /**
+     * The seed set a file says it was generated under (ADR-169 §4), for a caller checking it against
+     * the one the profile names now. A file with no stamp -- one written before that decision -- answers
+     * empty, and is read against whatever seed set the profile names, as it was before.
+     */
+    static Optional<String> seedSetNamedBy(String yaml) {
+        try {
+            return Optional.ofNullable(text(YAML.readTree(yaml), "generatedUnderSeedSet"));
+        } catch (RuntimeException malformed) {
+            return Optional.empty();
+        }
+    }
+
     private static String text(JsonNode root, String field) {
         JsonNode value = root.path(field);
         return value.isMissingNode() || value.isNull() ? null : value.asString();

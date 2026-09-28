@@ -858,6 +858,15 @@ public final class Adr {
     public static final String VIDEOS_ARE_OUT_OF_SCOPE = FILE
             + "0168-videos-are-out-of-scope-and-stage-1-recognises-one-by-its-container-signature.md";
 
+    /**
+     * ADR-169 -- the label file shows, beside each document it asks about, the answer already recorded
+     * for it against the seed set; label compares each answered entry with the recorded one, a changed
+     * answer replaces it and is named with both values on the line label prints, and a blank entry
+     * retracts nothing (amends ADR-088).
+     */
+    public static final String THE_LABEL_FILE_SHOWS_THE_ANSWERS_ALREADY_RECORDED = FILE
+            + "0169-the-label-file-shows-the-answers-already-recorded-and-a-changed-answer-replaces-the-old-one-and-is-reported.md";
+
     private Adr() {
     }
 }

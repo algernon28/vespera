@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -119,20 +121,55 @@ class LabelIngestion {
                     + " these answers to be about. Nothing was recorded.");
         }
 
-        int recorded = 0;
-        for (LabelFileReader.Answer answer : answers.answers()) {
-            relevanceLabels.record(
-                    new OccurrencePath(answer.path()),
-                    seedSet,
-                    answer.relevant(),
-                    run,
-                    answer.scoreShown(),
-                    answers.embedderIdentity());
-            recorded++;
+        // The file names the seed set it was generated under (ADR-169 §4). A file with no stamp was
+        // written before that decision and carries only answers the operator typed by hand, so it is
+        // read against whatever seed set the profile names now, as it always was. A file that does name
+        // one is refused outright when it disagrees with the profile, before anything is recorded --
+        // recording it under the new seed set would make every answer it shows an answer to a question
+        // nobody asked.
+        Optional<String> fileSeedSet = LabelFileReader.seedSetNamedBy(offeredYaml);
+        if (fileSeedSet.isPresent() && !fileSeedSet.get().equals(seedSet)) {
+            return Outcome.refused("the label file was generated under the seed set at " + fileSeedSet.get()
+                    + ", but the profile now names the seed set at " + seedSet + "; answers about one seed"
+                    + " set are not answers about another, so nothing in it was recorded");
         }
 
-        String message = "recorded " + recorded + " answer(s) about the seed set at " + seedSet
-                + (answers.unanswered() > 0 ? "; " + answers.unanswered() + " question(s) are still blank" : "");
+        // Compared against what was recorded before this answer overwrites it (ADR-169 §2): new,
+        // unchanged, or changed, and a changed one is named so a correction is never made silently.
+        int newCount = 0;
+        int changedCount = 0;
+        int unchangedCount = 0;
+        List<String> changedDescriptions = new ArrayList<>();
+        for (LabelFileReader.Answer answer : answers.answers()) {
+            OccurrencePath path = new OccurrencePath(answer.path());
+            Optional<Boolean> previous = relevanceLabels.answerFor(path, seedSet);
+            if (previous.isEmpty()) {
+                newCount++;
+            } else if (previous.get() == answer.relevant()) {
+                unchangedCount++;
+            } else {
+                changedCount++;
+                changedDescriptions.add(answer.path() + " was " + previous.get() + ", now " + answer.relevant());
+            }
+            relevanceLabels.record(
+                    path, seedSet, answer.relevant(), run, answer.scoreShown(), answers.embedderIdentity());
+        }
+
+        String message;
+        if (newCount > 0 || changedCount > 0) {
+            int total = newCount + changedCount + unchangedCount;
+            message = "recorded " + total + " answer(s) about the seed set at " + seedSet + ": " + newCount
+                    + " new, " + changedCount + " changed, " + unchangedCount + " unchanged";
+            if (changedCount > 0) {
+                message += "; changed: " + String.join(", ", changedDescriptions);
+            }
+        } else {
+            message = "recorded nothing new about the seed set at " + seedSet + ": " + unchangedCount
+                    + " answer(s) unchanged, none new";
+        }
+        if (answers.unanswered() > 0) {
+            message += "; " + answers.unanswered() + " question(s) are still blank";
+        }
         LOG.info("{}", message);
         return Outcome.recorded(message);
     }
