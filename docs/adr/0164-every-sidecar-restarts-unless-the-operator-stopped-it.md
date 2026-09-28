@@ -119,7 +119,16 @@ In both steps the operator still reads the closing line #311 gave a failed step,
 
 ### §3. Deliberately not decided here
 
-These are points 2 to 5 of #326. They stay open there, and this record decides none of them:
+**Settled**: points 2 to 5 of #326 are now settled by ADRs 170, 171, 172 and 173.
+
+The original unsettled questions were:
+
+- **Point 2**: Whether Vespera waits and retries when a call fails because the connection was refused or reset.
+- **Point 3**: Its bounds (how long a step waits, how many restarts it tolerates, how a retried call is kept from counting twice toward ADR-071's streak, and when a file that crashes the converter every time becomes an `extraction-failed` verdict).
+- **Point 4**: Whether stage 2 and seed extraction answer the same way for Docling failures.
+- **Point 5**: What the operator's message says if Vespera gives up because the sidecar was not back in time.
+
+All four points are now settled by the new ADRs above.
 
 - **Point 2, whether Vespera waits and retries.** When a call fails because the connection was refused or reset, should the step wait for `/health` and retry the calls in flight? That would amend ADR-071's *"Service-scope failures are skipped immediately, no in-process retry"*. The 17 seconds measured in G are an input to that decision, not the decision.
 - **Point 3, its bounds.** How long a step waits, how many restarts it tolerates, how a retried call is kept from counting twice toward ADR-071's streak, and when a file that crashes the converter every time becomes an `extraction-failed` verdict with a reason of its own.
