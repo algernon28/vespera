@@ -867,6 +867,16 @@ public final class Adr {
     public static final String THE_LABEL_FILE_SHOWS_THE_ANSWERS_ALREADY_RECORDED = FILE
             + "0169-the-label-file-shows-the-answers-already-recorded-and-a-changed-answer-replaces-the-old-one-and-is-reported.md";
 
+    /**
+     * ADR-170 -- the Docling sidecar's Containerfile takes its base as a build argument defaulting to the
+     * CPU base, and compose.gpu.yaml builds it on docling-serve's CUDA 12.8 base of the same release,
+     * gives it every NVIDIA GPU, and tags it apart, because its conversions differ and the sidecar cannot
+     * say which image it is; the operator names the GPU tag in vespera.docling.image (amends ADR-165,
+     * ADR-147).
+     */
+    public static final String DOCLING_RUNS_ON_THE_GPU_WITH_AN_IMAGE_TAG_OF_ITS_OWN = FILE
+            + "0170-docling-runs-on-the-gpu-under-compose-gpu-yaml-with-an-image-tag-of-its-own.md";
+
     private Adr() {
     }
 }

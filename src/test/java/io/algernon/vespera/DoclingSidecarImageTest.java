@@ -32,6 +32,12 @@ import org.yaml.snakeyaml.Yaml;
  * release beside the base (ADR-163): the parser the base ships crashed the sidecar and lost pages when
  * several pages of one PDF were decoded at once in a fresh process.
  *
+ * <p>The same {@code Containerfile} also builds on docling-serve's CUDA 12.8 base, where
+ * {@code compose.gpu.yaml} asks for it, under a tag of its own (ADR-170). The GPU build converts some PDFs
+ * slightly differently and reports the same versions, so only its name keeps its conversions apart from
+ * the processor build's. The three places above go on naming the processor build, which is the default
+ * everywhere.
+ *
  * <p>Read from the files themselves, with no Docker: each fact here is a line an operator can edit.
  */
 @Epic("Extraction")
@@ -65,6 +71,21 @@ class DoclingSidecarImageTest {
 
     /** The image with that parser, on the {@code docling-serve} v1.32.0 base, written out. */
     private static final String THE_IMAGE = IMAGE_NAME + ":v1.32.0-docling-parse-" + MEASURED_PARSER;
+
+    /** The file that gives the sidecar the GPU, and builds it on a GPU base under its own tag (ADR-170). */
+    private static final Path GPU_FILE = Path.of("compose.gpu.yaml");
+
+    /** The build argument the {@code Containerfile} takes its base from. */
+    private static final String BASE_ARG = "DOCLING_SERVE_BASE";
+
+    /** The base every build uses unless told otherwise: docling-serve's CPU image, at the pinned release. */
+    private static final String CPU_BASE = "quay.io/docling-project/docling-serve-cpu:v1.32.0";
+
+    /**
+     * docling-serve's CUDA 12.8 image, without its tag: the RTX 50 series needs CUDA 12.8 or later, and
+     * {@code cu126} has no v1.32.0 tag (ADR-170).
+     */
+    private static final String GPU_BASE_REPOSITORY = "quay.io/docling-project/docling-serve-cu128";
 
     @Test
     @Story("One image, named the same everywhere")
@@ -154,6 +175,75 @@ class DoclingSidecarImageTest {
                 () -> assertThat(composed).isEqualTo(THE_IMAGE));
     }
 
+    @Test
+    @Story("One Containerfile, built for the processor or for the GPU")
+    @DisplayName("The Containerfile takes its base as a build argument, and the processor base is the default")
+    @Link(name = "ADR-170", url = Adr.DOCLING_RUNS_ON_THE_GPU_WITH_AN_IMAGE_TAG_OF_ITS_OWN, type = "adr")
+    void buildsFromABaseArgumentThatDefaultsToTheCpuBase() throws IOException {
+        List<String> instructions = instructions();
+
+        claim(
+                "the Containerfile is built FROM the base named by the " + BASE_ARG + " build argument, so"
+                        + " the processor build and the GPU build share every layer Vespera adds",
+                () -> assertThat(instructions).contains("FROM ${" + BASE_ARG + "}"));
+        claim(
+                "and that argument defaults to " + CPU_BASE + ", so every build that passes no argument,"
+                        + " which is every build from compose.yaml alone, is the processor build it was before",
+                () -> assertThat(instructions).contains("ARG " + BASE_ARG + "=" + CPU_BASE));
+    }
+
+    @Test
+    @Story("One Containerfile, built for the processor or for the GPU")
+    @DisplayName("The GPU build has a tag of its own, which names the same base release and PDF parser")
+    @Link(name = "ADR-170", url = Adr.DOCLING_RUNS_ON_THE_GPU_WITH_AN_IMAGE_TAG_OF_ITS_OWN, type = "adr")
+    void tagsTheGpuImageApartWithTheSameSuffix() throws IOException {
+        String cpuImage = (String) service().get("image");
+        String gpuImage = (String) gpuService().get("image");
+        String suffix = ":" + baseTag() + "-docling-parse-" + pinnedParserVersion();
+
+        claim(
+                "compose.gpu.yaml names the GPU build by an image name of its own",
+                () -> assertThat(gpuImage).isNotBlank());
+        claim(
+                "which is not the processor build's, because the two convert some PDFs differently and"
+                        + " the sidecar cannot say which one it is, so one name for both would record one"
+                        + " extractor's conversions as the other's",
+                () -> assertThat(gpuImage).isNotEqualTo(cpuImage));
+        claim(
+                "its tag is the base release, then the PDF parser release the Containerfile pins, as the"
+                        + " processor build's is, so a parser bump cannot update one tag and forget the other",
+                () -> {
+                    assertThat(gpuImage).endsWith(suffix);
+                    assertThat(cpuImage).endsWith(suffix);
+                });
+        claim(
+                "which, written out, ends both tags with :v1.32.0-docling-parse-" + MEASURED_PARSER,
+                () -> assertThat(gpuImage).endsWith(":v1.32.0-docling-parse-" + MEASURED_PARSER));
+    }
+
+    @Test
+    @Story("One Containerfile, built for the processor or for the GPU")
+    @DisplayName("The GPU build is on docling-serve's CUDA 12.8 base, at the same release as the processor base")
+    @Link(name = "ADR-170", url = Adr.DOCLING_RUNS_ON_THE_GPU_WITH_AN_IMAGE_TAG_OF_ITS_OWN, type = "adr")
+    void buildsTheGpuImageOnCu128AtTheSameRelease() throws IOException {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> build = (Map<String, Object>) gpuService().get("build");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> args = build == null ? null : (Map<String, Object>) build.get("args");
+
+        claim(
+                "compose.gpu.yaml passes the Containerfile a base of its own, through " + BASE_ARG,
+                () -> assertThat(args).isNotNull().containsKey(BASE_ARG));
+        String gpuBase = (String) args.get(BASE_ARG);
+        claim(
+                "that base is docling-serve's CUDA 12.8 image, the lowest CUDA the RTX 50 series runs on",
+                () -> assertThat(gpuBase).startsWith(GPU_BASE_REPOSITORY + ":"));
+        claim(
+                "at the same docling-serve release as the processor base the Containerfile defaults to, so"
+                        + " the two builds differ by the device and by nothing anyone chose",
+                () -> assertThat(gpuBase).isEqualTo(GPU_BASE_REPOSITORY + ":" + baseTag()));
+    }
+
     /** Every {@code RUN} instruction of the {@code Containerfile} that pins the parser. */
     private static List<String> instructionsInstallingTheParser() throws IOException {
         return instructions().stream()
@@ -172,13 +262,29 @@ class DoclingSidecarImageTest {
         return null;
     }
 
-    /** The tag of the image the {@code Containerfile} is built {@code FROM}. */
+    /**
+     * The tag of the image the {@code Containerfile} is built {@code FROM} when no build argument is
+     * passed: the {@code FROM} line's own image, or, where it names an {@code ARG}, that argument's default.
+     */
     private static String baseTag() throws IOException {
-        String from = instructions().stream()
+        List<String> instructions = instructions();
+        String from = instructions.stream()
                 .filter(instruction -> instruction.startsWith("FROM "))
                 .findFirst()
-                .orElseThrow();
-        return from.substring(from.lastIndexOf(':') + 1).trim();
+                .orElseThrow()
+                .substring("FROM ".length())
+                .trim();
+        Matcher argument = Pattern.compile("^\\$\\{?(\\w+)}?$").matcher(from);
+        if (argument.matches()) {
+            String declared = "ARG " + argument.group(1) + "=";
+            from = instructions.stream()
+                    .filter(instruction -> instruction.startsWith(declared))
+                    .findFirst()
+                    .orElseThrow()
+                    .substring(declared.length())
+                    .trim();
+        }
+        return from.substring(from.lastIndexOf(':') + 1);
     }
 
     /** The {@code Containerfile}'s instructions, comments dropped and each continued line joined to the next. */
@@ -204,6 +310,15 @@ class DoclingSidecarImageTest {
     private static Map<String, Object> service() throws IOException {
         Map<String, Object> compose = new Yaml().load(Files.readString(COMPOSE_FILE));
         return (Map<String, Object>) ((Map<String, Object>) compose.get("services")).get(SERVICE);
+    }
+
+    /** The sidecar's service in {@code compose.gpu.yaml}, or an empty map where the file gives it nothing. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> gpuService() throws IOException {
+        Map<String, Object> compose = new Yaml().load(Files.readString(GPU_FILE));
+        Map<String, Object> service =
+                (Map<String, Object>) ((Map<String, Object>) compose.get("services")).get(SERVICE);
+        return service == null ? Map.of() : service;
     }
 
     @SuppressWarnings("unchecked")
