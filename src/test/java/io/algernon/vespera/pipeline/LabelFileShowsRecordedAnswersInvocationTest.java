@@ -306,6 +306,39 @@ class LabelFileShowsRecordedAnswersInvocationTest {
                 () -> assertThat(stampShown).isEqualTo(generatedUnder));
     }
 
+    @Test
+    @Story("A file of answers about one seed set is refused under another")
+    @DisplayName("A file that names no seed set is read against the seed folder the profile names now, as it always was")
+    void aFileNamingNoSeedSetIsReadAgainstTheProfilesSeedSet(
+            @TempDir Path root, @TempDir Path seeds, @TempDir Path otherSeeds) throws IOException {
+        aScoredCorpus(root, seeds);
+        String generated = Files.readString(labelFile());
+        claim(
+                "the file as written names its seed set, so removing that line below is what makes it a"
+                        + " file written before ADR-169",
+                () -> assertThat(generated).containsPattern("(?m)^generatedUnderSeedSet: "));
+        Files.writeString(labelFile(), generated.replaceFirst("(?m)^generatedUnderSeedSet: .*\\R", ""));
+        answerInTheFile(FIRST_DOCUMENT, true);
+        Files.writeString(otherSeeds.resolve("seed.txt"), "a different seed document");
+        nameTheSeedFolder(otherSeeds);
+
+        cli.run("label");
+
+        claim(
+                "the invocation reports success: a file with no seed set named was written blank, so every"
+                        + " answer in it was typed by the operator, and refusing it would stop someone who"
+                        + " upgraded part-way through a file",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the answer is recorded against the seed set the profile names now, which is how such a"
+                        + " file was always read",
+                () -> assertThat(answerRecordedFor(FIRST_DOCUMENT, otherSeeds)).isEqualTo(true));
+        claim(
+                "and nothing is recorded against the seed set the file was generated under, since the file"
+                        + " no longer says which that was",
+                () -> assertThat(answerRecordedFor(FIRST_DOCUMENT, seeds)).isNull());
+    }
+
     /** Runs the pipeline far enough that a sample exists and a label file has been written. */
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve(FIRST_DOCUMENT), "a corpus document");
