@@ -77,7 +77,7 @@ A document near the decision boundary — plausibly relevant, actually not. The 
 _Avoid_: counter-example, negative sample
 
 **Relevance label**:
-A person's recorded answer about one document: relevant to the seed set, or not. Not a verdict — it removes nothing and no stage writes it — and not a measurement, because no re-run can produce it a second time. It is a fact about the document rather than about the run that showed it, so it outlives the score that prompted it and the model that computed that score.
+A person's recorded answer about one document: relevant to the seed set, or not. Not a verdict — it removes nothing and no stage writes it — and not a measurement, because no re-run can produce it a second time. It is a fact about the document rather than about the run that showed it, so it outlives the score that prompted it and the model that computed that score. The label file shows the answer already recorded, for the seed set it names, beside each document it asks about; a different answer given later replaces the recorded one and is reported, and a blank entry takes nothing back (ADR-169).
 _Avoid_: annotation, ground truth, judgement, rating
 
 **Winning seed**:

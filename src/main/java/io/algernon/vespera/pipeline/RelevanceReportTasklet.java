@@ -45,7 +45,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Two files beside the database and the profile, never inside the corpus (ADR-054): a page
  * showing how the scores are spread and which sixty documents to judge, and a label file with one
- * blank answer per document. The profile's threshold key is pointed at the page, and left unset —
+ * answer per document, blank unless an answer is already recorded for the seed set (ADR-169). The
+ * profile's threshold key is pointed at the page, and left unset —
  * ADR-088 is explicit that nothing writes the value, because a threshold guessed by the engine is
  * exactly what the profile's "authored by a person" rule exists to prevent.
  *
@@ -215,7 +216,8 @@ class RelevanceReportTasklet implements Tasklet {
                 RelevanceLabelFile.render(
                         scoring.value(),
                         relevanceDistribution.anyEmbedderIdentity().orElse(modelName),
-                        entries));
+                        entries,
+                        answers));
         pointTheThresholdKeyAtThePage();
 
         LOG.info(

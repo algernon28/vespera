@@ -70,7 +70,7 @@ Every value you set carries a `provenance` field. Write down how you arrived at 
 Invocation 2 leaves two files beside the database:
 
 - **`relevance-labelling.html`** — how the scores are spread, the five bands they fall into, and what cutting at each band boundary would cost you in documents kept and documents lost. Open it in a browser; every document links to the original.
-- **`relevance-labels.yaml`** — sixty documents drawn evenly across the score range, each with `relevant: null` waiting for a `true` or a `false`.
+- **`relevance-labels.yaml`** — sixty documents drawn evenly across the score range, each with `relevant: null` waiting for a `true` or a `false`. A document you have already answered, against the same seed folder and from the same corpus root, shows your answer instead, so a later run's file starts from what you said last time. The file names the seed folder it was written for; if you change `seedFolder` before running `vespera label`, it is refused, so run again first.
 
 Answer them, then run `vespera label`. At roughly two minutes a document that is about two hours, and the sixty is a ceiling rather than a target: the same run always asks about the same documents, so you can stop and come back.
 

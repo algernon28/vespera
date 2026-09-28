@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -119,20 +121,42 @@ class LabelIngestion {
                     + " these answers to be about. Nothing was recorded.");
         }
 
-        int recorded = 0;
+        // Compared against what was recorded before this answer overwrites it (ADR-169 §2): new,
+        // unchanged, or changed, and a changed one is named so a correction is never made silently.
+        int newCount = 0;
+        int changedCount = 0;
+        int unchangedCount = 0;
+        List<String> changedDescriptions = new ArrayList<>();
         for (LabelFileReader.Answer answer : answers.answers()) {
+            OccurrencePath path = new OccurrencePath(answer.path());
+            Optional<Boolean> previous = relevanceLabels.answerFor(path, seedSet);
+            if (previous.isEmpty()) {
+                newCount++;
+            } else if (previous.get() == answer.relevant()) {
+                unchangedCount++;
+            } else {
+                changedCount++;
+                changedDescriptions.add(answer.path() + " was " + previous.get() + ", now " + answer.relevant());
+            }
             relevanceLabels.record(
-                    new OccurrencePath(answer.path()),
-                    seedSet,
-                    answer.relevant(),
-                    run,
-                    answer.scoreShown(),
-                    answers.embedderIdentity());
-            recorded++;
+                    path, seedSet, answer.relevant(), run, answer.scoreShown(), answers.embedderIdentity());
         }
 
-        String message = "recorded " + recorded + " answer(s) about the seed set at " + seedSet
-                + (answers.unanswered() > 0 ? "; " + answers.unanswered() + " question(s) are still blank" : "");
+        String message;
+        if (newCount > 0 || changedCount > 0) {
+            int total = newCount + changedCount + unchangedCount;
+            message = "recorded " + total + " answer(s) about the seed set at " + seedSet + ": " + newCount
+                    + " new, " + changedCount + " changed, " + unchangedCount + " unchanged";
+            if (changedCount > 0) {
+                message += "; changed: " + String.join(", ", changedDescriptions);
+            }
+        } else {
+            message = "recorded nothing new about the seed set at " + seedSet + ": " + unchangedCount
+                    + " answer(s) unchanged, none new";
+        }
+        if (answers.unanswered() > 0) {
+            message += "; " + answers.unanswered() + " question(s) are still blank";
+        }
         LOG.info("{}", message);
         return Outcome.recorded(message);
     }

@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.embedding.RelevanceDistribution;
+import io.algernon.vespera.ledger.OccurrenceId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -9,8 +10,14 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
  * The file a person writes their relevance answers into (ADR-088): one entry per sampled document,
- * the answer left blank, on the same author-a-file-and-re-invoke loop the profile already uses
- * (ADR-061) and the same YAML machinery.
+ * on the same author-a-file-and-re-invoke loop the profile already uses (ADR-061) and the same YAML
+ * machinery.
+ *
+ * <p><b>An entry carries the answer already recorded for it, where there is one (ADR-169).</b> A
+ * re-run that reaches this step no longer costs the operator their view of what they answered. Every
+ * answer the file shows is one the labelling page counts, because both are built from the same read of
+ * {@code relevance_label}; the page may also count answers to documents the current sample does not
+ * ask about. Every other entry stays blank.
  *
  * <p>It names the run and the embedder identity it was generated under. That is not provenance for
  * its own sake: it is what lets a completed file offered against a different sample be refused
@@ -42,8 +49,20 @@ final class RelevanceLabelFile {
      */
     record Entry(String path, RelevanceDistribution.Sampled sampled, String winningSeedPath) {}
 
-    /** The file's whole text: the stamps, then one unanswered entry per sampled document. */
+    /** The file's whole text with every entry blank, for a caller with no recorded answers to show. */
     static String render(String scoringRunId, String embedderIdentity, List<Entry> entries) {
+        return render(scoringRunId, embedderIdentity, entries, Map.of());
+    }
+
+    /**
+     * The file's whole text: the stamps, then one entry per sampled document, carrying the answer
+     * already recorded for it where {@code recordedAnswers} has one (ADR-169 §1) and blank otherwise.
+     */
+    static String render(
+            String scoringRunId,
+            String embedderIdentity,
+            List<Entry> entries,
+            Map<OccurrenceId, Boolean> recordedAnswers) {
         Map<String, Object> document = new LinkedHashMap<>();
         document.put("generatedUnderRun", scoringRunId);
         document.put("generatedUnderEmbedder", embedderIdentity);
@@ -57,7 +76,9 @@ final class RelevanceLabelFile {
             question.put("closestSeed", entry.winningSeedPath());
             // Written as an explicit null rather than omitted: an absent key reads as a question
             // nobody thought to ask, where a blank one reads as a question waiting for its answer.
-            question.put("relevant", null);
+            // Where an answer is already recorded for this document (ADR-169 §1), it is written here
+            // instead, so a re-run does not cost the operator their view of what they answered.
+            question.put("relevant", recordedAnswers.get(entry.sampled().occurrenceId()));
             questions.add(question);
         }
         document.put("documents", questions);

@@ -37,9 +37,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@CascadeSliceTest
-@Import(SeedScriptedExtractionBeans.class)
-
 /**
  * The closing line, reached through a real invocation (ADR-098, #136).
  *
@@ -52,6 +49,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * its line belongs with the gate lines it summarises, in the log. {@code label} is a person's own
  * act, and it already answers them on stdout.
  */
+@CascadeSliceTest
+@Import(SeedScriptedExtractionBeans.class)
 @Epic("Pipeline")
 @Feature("The operator is told the next value")
 @Link(name = "ADR-098", url = Adr.FOUR_INVOCATIONS_AND_THE_NEXT_VALUE, type = "adr")
