@@ -20,10 +20,10 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * ask about. Every other entry stays blank.
  *
  * <p>It names the run, the embedder identity and the seed set it was generated under. That is not
- * provenance for its own sake: it is what lets a completed file offered against a different sample,
- * or a different seed set (ADR-169 §4), be refused outright rather than partially matched, which #111
- * does when it ingests one. Sixty answers about documents nobody was asked about is worse than no
- * answers, because nothing about it looks wrong.
+ * provenance for its own sake: it is what lets a completed file offered against a different sample be
+ * refused outright rather than partially matched, which ingestion does (#111, and #354 for the seed
+ * set). Sixty answers about documents nobody was asked about is worse than no answers, because nothing
+ * about it looks wrong.
  *
  * <p>The score and the winning seed travel beside each question as the context that was on screen
  * when the judgement was made. ADR-088 keeps them beside a label and never part of what identifies

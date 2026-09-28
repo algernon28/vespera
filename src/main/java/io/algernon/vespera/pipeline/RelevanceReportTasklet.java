@@ -217,8 +217,8 @@ class RelevanceReportTasklet implements Tasklet {
                 RelevanceLabelFile.render(
                         scoring.value(),
                         relevanceDistribution.anyEmbedderIdentity().orElse(modelName),
-                        // Both seed-usability gates are open by the preamble above, so the seed folder is
-                        // named and this is always present; there is nothing else it could sensibly be
+                        // The preamble's seed-walk gate is open, and SeedGate opens it only for a seed
+                        // folder the profile names and that canonicalises, so this is always present
                         // (ADR-169 §4).
                         seedSet.orElseThrow(),
                         entries,
