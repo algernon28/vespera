@@ -849,6 +849,15 @@ public final class Adr {
     public static final String BMP_IMAGES_ARE_OUT_OF_SCOPE = FILE
             + "0167-bmp-images-are-out-of-scope-and-stage-1-recognises-one-by-its-file-header-and-the-header-after-it.md";
 
+    /**
+     * ADR-170 -- a video is out of scope, whatever its container: stage 1 recognises one from its bytes,
+     * by a container signature in the detection prefix, as its own detected format, and removes it with
+     * the out-of-scope verdict; it is sent to Docling under the neutral name an unrecognised file is sent
+     * under (extends ADR-146).
+     */
+    public static final String VIDEOS_ARE_OUT_OF_SCOPE = FILE
+            + "0170-videos-are-out-of-scope-and-stage-1-recognises-one-by-its-container-signature.md";
+
     private Adr() {
     }
 }
