@@ -23,7 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * How stage 1 tells a video from its bytes, so that it can leave every video out of scope, whatever its
- * container (ADR-170).
+ * container (ADR-168).
  *
  * <p>Every rule is pinned from both sides. A video is recognised under a name that says something else,
  * because the bytes decide (ADR-094). And the files that share a video's container or its opening bytes
@@ -37,7 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 @Epic("Byte-level reduction")
 @Feature("Format detection")
-@Link(name = "ADR-170", url = Adr.VIDEOS_ARE_OUT_OF_SCOPE, type = "adr")
+@Link(name = "ADR-168", url = Adr.VIDEOS_ARE_OUT_OF_SCOPE, type = "adr")
 @Link(name = "ADR-094", url = Adr.FORMAT_IS_DECIDED_FROM_THE_BYTES, type = "adr")
 class VideoDetectionTest {
 
@@ -94,6 +94,9 @@ class VideoDetectionTest {
         Path quickTime = Files.write(dir.resolve("demo.txt"), isoMedia("qt  ", "qt  "));
         Path thirdGeneration = Files.write(dir.resolve("clip.png"), isoMedia("3gp4", "3gp4", "isom"));
         Path iTunesVideo = Files.write(dir.resolve("episode.m4a"), isoMedia("M4V ", "M4V ", "M4A ", "mp42", "isom"));
+        byte[] mp42Box = Arrays.copyOf(isoMedia("mp42", "isom", "mp42"), SMALLEST_FILE_TYPE_BOX + 8);
+        Path stillBrandAfterTheBox = Files.write(
+                dir.resolve("after.mp4"), concat(mp42Box, box(12, "free", ascii("jpeg")), mediaData()));
 
         claim(
                 "an MP4 whose " + (SMALLEST_FILE_TYPE_BOX + 8) + "-byte " + FILE_TYPE_BOX + " box names the"
@@ -104,6 +107,11 @@ class VideoDetectionTest {
                 "and so are one under the general isom brand, a QuickTime movie and a 3GP clip",
                 () -> assertThat(List.of(formatOf(isom), formatOf(quickTime), formatOf(thirdGeneration)))
                         .containsOnly(VIDEO_FORMAT));
+        claim(
+                "an MP4 whose " + (SMALLEST_FILE_TYPE_BOX + 8) + "-byte " + FILE_TYPE_BOX + " box is followed"
+                        + " by bytes spelling jpeg, a still-image brand, is still a video: the brands are read"
+                        + " to the end of the box its size declares, and no further",
+                () -> assertThat(formatOf(stillBrandAfterTheBox)).isEqualTo(VIDEO_FORMAT));
         claim(
                 "an iTunes video is a video although it lists the audio brand M4A among its compatible brands:"
                         + " only the major brand can say a file holds nothing but sound",
@@ -170,15 +178,16 @@ class VideoDetectionTest {
     void aQuickTimeFileWithNoFtypIsAVideoAndTextThatLooksLikeOneIsNot(@TempDir Path dir) throws IOException {
         Path wide = Files.write(dir.resolve("old.mov"), concat(box(BOX_HEADER_LENGTH, "wide", new byte[0]), mediaData()));
         Path movie = Files.write(dir.resolve("old movie.bin"), box(108, "moov", zeros(100)));
+        Path mediaFirst = Files.write(dir.resolve("raw.mov"), mediaData());
         Path preview = Files.write(dir.resolve("preview.dat"), box(20, "pnot", zeros(64)));
         Path padded = Files.write(dir.resolve("padded.mov"), concat(box(BOX_HEADER_LENGTH, "free", new byte[0]), mediaData()));
         Path wideProse = Files.writeString(dir.resolve("range.txt"), "The wide range of terminals is listed below.");
         Path freeProse = Files.writeString(dir.resolve("support.txt"), "Get free support from the help desk.");
 
         claim(
-                "a file opening with a wide, a moov or a pnot atom, as QuickTime wrote them before the ftyp box"
-                        + " existed, is a video",
-                () -> assertThat(List.of(formatOf(wide), formatOf(movie), formatOf(preview)))
+                "a file opening with a wide, a moov, an mdat or a pnot atom, as QuickTime wrote them before the"
+                        + " ftyp box existed, is a video",
+                () -> assertThat(List.of(formatOf(wide), formatOf(movie), formatOf(mediaFirst), formatOf(preview)))
                         .containsOnly(VIDEO_FORMAT));
         claim(
                 "one opening with a free atom stays of no known kind: any writer of this container may lead with"
@@ -244,9 +253,14 @@ class VideoDetectionTest {
                 dir.resolve("tutorial.pdf"),
                 concat(new byte[] {'F', 'L', 'V', 0x01, 0x05, 0x00, 0x00, 0x00, 0x09}, zeros(200)));
 
+        Path prose = Files.writeString(dir.resolve("formats.txt"), "FLV files are what Flash players streamed.");
+
         claim(
                 "a file opening with FLV and the version byte 01 is a video",
                 () -> assertThat(formatOf(flv)).isEqualTo(VIDEO_FORMAT));
+        claim(
+                "and text opening with the three letters FLV is text: the version byte is what makes it a video",
+                () -> assertThat(BrokenCheck.check(prose).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
     }
 
     @Test
@@ -260,10 +274,18 @@ class VideoDetectionTest {
                 dir.resolve("track.bin"),
                 concat(new byte[] {0x00, 0x00, 0x01, (byte) 0xB3, 0x14, 0x00, (byte) 0xF0, 0x13}, zeros(200)));
 
+        Path icon = Files.write(
+                dir.resolve("favicon.ico"),
+                concat(new byte[] {0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x10, 0x10, 0x00, 0x00, 0x01, 0x00, 0x20, 0x00}, zeros(200)));
+
         claim(
                 "a file opening with a pack header, 00 00 01 BA, or a sequence header, 00 00 01 B3, is a video",
                 () -> assertThat(List.of(formatOf(programStream), formatOf(elementaryStream)))
                         .containsOnly(VIDEO_FORMAT));
+        claim(
+                "a Windows icon, which opens 00 00 01 00, shares the first three bytes and stays of no known"
+                        + " kind: the fourth byte is what names an MPEG header",
+                () -> assertThat(BrokenCheck.check(icon).format()).isEqualTo(DetectedFormat.UNRECOGNISED));
     }
 
     @Test

@@ -340,7 +340,7 @@ class ByteLevelReductionTaskletTest {
     }
 
     /**
-     * ADR-170: videos are out of scope, whatever their container, removed in the same pass and under the
+     * ADR-168: videos are out of scope, whatever their container, removed in the same pass and under the
      * same verdict as a spreadsheet and a BMP image, with a reason of their own. The two copies are the
      * duplicate pass's to never see; the CorelDRAW drawing beside them shares a video's {@code RIFF}
      * wrapper with an AVI, and is kept. The detected format is read as the text the ledger stores, so this
@@ -349,7 +349,7 @@ class ByteLevelReductionTaskletTest {
     @Test
     @Story("What stage 1 does over census's survivors")
     @DisplayName("A video is removed as out of scope, never hashed, and counted on the page; a picture and a drawing are kept")
-    @Link(name = "ADR-170", url = Adr.VIDEOS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-168", url = Adr.VIDEOS_ARE_OUT_OF_SCOPE, type = "adr")
     void removesVideosAsOutOfScope(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
         Files.write(root.resolve("Stacco_bianco_e_pressione_tasto_rosso.mp4"), MINIMAL_MP4);
         Files.write(root.resolve("Stacco_bianco copy.mp4"), MINIMAL_MP4);
