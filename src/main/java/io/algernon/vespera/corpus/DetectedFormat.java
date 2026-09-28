@@ -30,7 +30,7 @@ public enum DetectedFormat {
      * AVI's {@code RIFF} form type, ASF's header GUID, FLV, an MPEG program or elementary stream, an
      * MPEG transport or BDAV stream, Ogg carrying Theora, RealMedia or MXF. A format of its own rather
      * than a subtype, for the reason {@link #BMP} is one: the bytes alone decide it. Recognised so
-     * that stage 1 can leave it out of scope, whatever it holds and whatever holds it (ADR-170).
+     * that stage 1 can leave it out of scope, whatever it holds and whatever holds it (ADR-168).
      */
     VIDEO,
 

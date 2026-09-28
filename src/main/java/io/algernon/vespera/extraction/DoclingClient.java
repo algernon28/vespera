@@ -241,7 +241,7 @@ public class DoclingClient {
             // out of scope (ADR-167); a seed's still arrives here.
             // A video is sent under the same neutral name it was posted under while stage 1 called it of
             // no known kind, so Docling's own reading of the bytes still decides. Stage 1 leaves the
-            // corpus's out of scope (ADR-170); a seed's still arrives here.
+            // corpus's out of scope (ADR-168); a seed's still arrives here.
             case IMAGE, BMP, VIDEO, SPREADSHEET, ZIP_CONTAINER, UNRECOGNISED -> NEUTRAL_EXTENSION;
             case WORDPROCESSING -> "docx";
             case OLE_COMPOUND -> subtype == null ? NEUTRAL_EXTENSION : legacyExtension(subtype);

@@ -38,6 +38,12 @@ public final class BrokenCheck {
     private static final byte[] GIF89A_SIGNATURE = "GIF89a".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] BMP_SIGNATURE = {'B', 'M'};
 
+    /**
+     * How many leading bytes are read to decide what a file is (ADR-094). Longer than any
+     * signature because the same buffer is the sample the plain-text branch decodes.
+     */
+    private static final int DETECTION_PREFIX = 512;
+
     /** Where a BMP file header carries the length, little-endian, of the picture header after it (ADR-167). */
     private static final int BMP_HEADER_LENGTH_OFFSET = 14;
 
@@ -59,7 +65,7 @@ public final class BrokenCheck {
     /** Where a RIFF container names its form type, which is what separates a WEBP from any other RIFF. */
     private static final int RIFF_FORM_TYPE_OFFSET = 8;
 
-    /** The RIFF form type an AVI declares, the only one of them that is a video (ADR-170). */
+    /** The RIFF form type an AVI declares, the only one of them that is a video (ADR-168). */
     private static final byte[] AVI_FORM_TYPE = "AVI ".getBytes(StandardCharsets.US_ASCII);
 
     /** The box every ISO base media file opens with, at offset 4, after the box's own size. */
@@ -70,16 +76,16 @@ public final class BrokenCheck {
 
     /**
      * The smallest a {@code ftyp} box can be and still name a major brand: its own header, a major
-     * brand and a minor version (ADR-170).
+     * brand and a minor version (ADR-168).
      */
     private static final int FILE_TYPE_BOX_MINIMUM_SIZE = 16;
 
     /**
-     * The largest a {@code ftyp} box may be for this rule to trust its declared size at all: it must
-     * lie inside the 512-byte detection prefix ({@link #DETECTION_PREFIX}), so a text file whose
-     * first four bytes read as a huge number cannot match (ADR-170).
+     * The largest a {@code ftyp} box may be for this rule to trust its declared size at all: it is
+     * no larger than {@link #DETECTION_PREFIX}, so a text file whose first four bytes read as a huge
+     * number cannot match (ADR-168).
      */
-    private static final int FILE_TYPE_BOX_MAXIMUM_SIZE = 512;
+    private static final int FILE_TYPE_BOX_MAXIMUM_SIZE = DETECTION_PREFIX;
 
     /** Where a {@code ftyp} box names its major brand, four bytes after the box's own header. */
     private static final int MAJOR_BRAND_OFFSET = 8;
@@ -91,14 +97,14 @@ public final class BrokenCheck {
     private static final int COMPATIBLE_BRANDS_OFFSET = 16;
 
     /**
-     * The audio-only major brands (ADR-170): a file naming one of these as its major brand holds
+     * The audio-only major brands (ADR-168): a file naming one of these as its major brand holds
      * sound and no picture, whatever compatible brand it also lists. Only the major brand is checked
      * against this set, because a video lists an audio brand among its compatible ones too.
      */
     private static final Set<String> AUDIO_ONLY_MAJOR_BRANDS = Set.of("M4A ", "M4B ", "M4P ", "F4A ", "F4B ");
 
     /**
-     * The still-image brands (ADR-170): HEIF and its image-sequence variants (ISO/IEC 23008-12,
+     * The still-image brands (ADR-168): HEIF and its image-sequence variants (ISO/IEC 23008-12,
      * registered with the MP4 Registration Authority), AVIF, MIAF and Canon's CR3. A file naming one
      * of these as its major brand, or listing one among its compatible brands, is a picture in an ISO
      * base media box, not a video, whatever else the box says.
@@ -109,27 +115,27 @@ public final class BrokenCheck {
 
     /**
      * The four atoms an older QuickTime writer may open with, with no {@code ftyp} box at all
-     * (ADR-170). {@code free} and {@code skip} are deliberately absent: they are padding any ISO base
+     * (ADR-168). {@code free} and {@code skip} are deliberately absent: they are padding any ISO base
      * media writer, a HEIF file among them, may lead with.
      */
     private static final Set<String> QUICKTIME_ATOMS_WITHOUT_FILE_TYPE_BOX = Set.of("moov", "mdat", "wide", "pnot");
 
-    /** The EBML magic every Matroska and WebM file opens with (ADR-170). */
+    /** The EBML magic every Matroska and WebM file opens with (ADR-168). */
     private static final byte[] EBML_MAGIC = {0x1A, 0x45, (byte) 0xDF, (byte) 0xA3};
 
-    /** The 16-byte GUID an ASF (WMV) file's header object is identified by, at offset 0 (ADR-170). */
+    /** The 16-byte GUID an ASF (WMV) file's header object is identified by, at offset 0 (ADR-168). */
     private static final byte[] ASF_HEADER_GUID = {
         0x30, 0x26, (byte) 0xB2, 0x75, (byte) 0x8E, 0x66, (byte) 0xCF, 0x11,
         (byte) 0xA6, (byte) 0xD9, 0x00, (byte) 0xAA, 0x00, 0x62, (byte) 0xCE, 0x6C
     };
 
-    /** The four bytes an FLV file opens with: the letters {@code FLV} and its version byte (ADR-170). */
+    /** The four bytes an FLV file opens with: the letters {@code FLV} and its version byte (ADR-168). */
     private static final byte[] FLV_SIGNATURE = {'F', 'L', 'V', 0x01};
 
-    /** The four bytes an MPEG program stream (.mpg, .vob) opens with (ADR-170). */
+    /** The four bytes an MPEG program stream (.mpg, .vob) opens with (ADR-168). */
     private static final byte[] MPEG_PROGRAM_STREAM_SIGNATURE = {0x00, 0x00, 0x01, (byte) 0xBA};
 
-    /** The four bytes an MPEG video elementary stream (.m1v, .m2v) opens with (ADR-170). */
+    /** The four bytes an MPEG video elementary stream (.m1v, .m2v) opens with (ADR-168). */
     private static final byte[] MPEG_ELEMENTARY_STREAM_SIGNATURE = {0x00, 0x00, 0x01, (byte) 0xB3};
 
     /** The sync byte every MPEG transport stream and BDAV transport stream packet opens with. */
@@ -147,11 +153,11 @@ public final class BrokenCheck {
     /** The four letters an Ogg file opens with. */
     private static final byte[] OGGS_SIGNATURE = "OggS".getBytes(StandardCharsets.US_ASCII);
 
-    /** The Theora identification header: {@code 0x80} then the six letters {@code theora} (ADR-170). */
+    /** The Theora identification header: {@code 0x80} then the six letters {@code theora} (ADR-168). */
     private static final byte[] THEORA_IDENTIFICATION_HEADER =
             concatBytes(new byte[] {(byte) 0x80}, "theora".getBytes(StandardCharsets.US_ASCII));
 
-    /** The four letters a RealMedia file opens with (ADR-170). */
+    /** The four letters a RealMedia file opens with (ADR-168). */
     private static final byte[] REALMEDIA_SIGNATURE = ".RMF".getBytes(StandardCharsets.US_ASCII);
 
     /**
@@ -160,7 +166,7 @@ public final class BrokenCheck {
      */
     private static final int REALMEDIA_SIZE_FIELD_TOP_OFFSET = 4;
 
-    /** The fourteen fixed bytes of an MXF header partition pack key (SMPTE ST 377-1) (ADR-170). */
+    /** The fourteen fixed bytes of an MXF header partition pack key (SMPTE ST 377-1) (ADR-168). */
     private static final byte[] MXF_HEADER_PARTITION_KEY = {
         0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0D, 0x01, 0x02, 0x01, 0x01, 0x02
     };
@@ -196,12 +202,6 @@ public final class BrokenCheck {
 
     private static final byte[] PDF_HEADER = "%PDF-".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] PDF_TRAILER = "%%EOF".getBytes(StandardCharsets.US_ASCII);
-
-    /**
-     * How many leading bytes are read to decide what a file is (ADR-094). Longer than any
-     * signature because the same buffer is the sample the plain-text branch decodes.
-     */
-    private static final int DETECTION_PREFIX = 512;
 
     /** How many trailing bytes of a PDF are read looking for {@code %%EOF}. */
     private static final int PDF_TRAILER_WINDOW = 32;
@@ -497,7 +497,7 @@ public final class BrokenCheck {
     }
 
     /**
-     * A video, told by the containers ADR-170 covers that need no text condition: ISO base media and
+     * A video, told by the containers ADR-168 covers that need no text condition: ISO base media and
      * QuickTime's {@code ftyp} box, Matroska/WebM, AVI, ASF, FLV, an MPEG program or elementary
      * stream, Ogg carrying Theora, RealMedia and MXF. Checked between {@link #isBmpSignature} and
      * {@link #isImageSignature}: none of these can match an image signature, and a video must be
@@ -521,7 +521,7 @@ public final class BrokenCheck {
     }
 
     /**
-     * A RIFF file whose form type is {@code AVI } (ADR-170). Every other RIFF form — WAVE, CorelDRAW's
+     * A RIFF file whose form type is {@code AVI } (ADR-168). Every other RIFF form — WAVE, CorelDRAW's
      * {@code CDRC}, WEBP among them — is not a video and stays what it was.
      */
     private static boolean isAviSignature(byte[] prefix) {
@@ -530,9 +530,9 @@ public final class BrokenCheck {
 
     /**
      * An ISO base media or QuickTime file (MP4, MOV, M4V, 3GP, 3G2, F4V and the rest): a {@code ftyp}
-     * box at offset 4 whose declared size lies inside the prefix and is large enough to carry a major
+     * box at offset 4 whose declared size is no larger than the detection prefix and is large enough to carry a major
      * brand, whose major brand is not audio-only, and neither whose major brand nor any compatible
-     * brand, read as far as the box or the prefix reaches, is a still-image brand (ADR-170).
+     * brand, read as far as the box or the prefix reaches, is a still-image brand (ADR-168).
      */
     private static boolean isFileTypeBoxVideo(byte[] prefix) {
         if (prefix.length < COMPATIBLE_BRANDS_OFFSET || !matchesAt(prefix, FILE_TYPE_BOX_OFFSET, FILE_TYPE_BOX)) {
@@ -561,7 +561,7 @@ public final class BrokenCheck {
     }
 
     /**
-     * An older QuickTime movie with no {@code ftyp} box (ADR-170): the four bytes at offset 4 are one
+     * An older QuickTime movie with no {@code ftyp} box (ADR-168): the four bytes at offset 4 are one
      * of {@link #QUICKTIME_ATOMS_WITHOUT_FILE_TYPE_BOX}. Reached only once {@link #decodesAsText} has
      * already failed for this prefix (in {@link #check}), which is what keeps text such as
      * <em>"The wide range…"</em> out: its fifth letter starts {@code wide} but the file is text.
@@ -574,7 +574,7 @@ public final class BrokenCheck {
     }
 
     /**
-     * An MPEG transport stream or a BDAV transport stream (ADR-170): the sync byte {@code 0x47} at
+     * An MPEG transport stream or a BDAV transport stream (ADR-168): the sync byte {@code 0x47} at
      * three offsets one packet apart, either from offset 0 (an ordinary 188-byte packet) or from
      * offset 4, after a BDAV packet's 4-byte timestamp (a 192-byte packet). Reached only once {@link
      * #decodesAsText} has already failed (in {@link #check}) — {@code 0x47} is the letter {@code G},
@@ -596,7 +596,7 @@ public final class BrokenCheck {
     }
 
     /**
-     * An Ogg file carrying Theora (ADR-170): {@code OggS} at offset 0, and the Theora identification
+     * An Ogg file carrying Theora (ADR-168): {@code OggS} at offset 0, and the Theora identification
      * header anywhere in the prefix. An Ogg file holding only Vorbis, Opus or FLAC does not carry that
      * header and stays {@link DetectedFormat#UNRECOGNISED}.
      */
@@ -605,7 +605,7 @@ public final class BrokenCheck {
     }
 
     /**
-     * A RealMedia file (ADR-170): {@code .RMF} at offset 0, then two zero bytes — the top of the
+     * A RealMedia file (ADR-168): {@code .RMF} at offset 0, then two zero bytes — the top of the
      * header's size field — at offsets 4 and 5. The zero bytes are what keeps a text file opening with
      * <em>".RMF"</em> out.
      */
