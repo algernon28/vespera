@@ -24,6 +24,16 @@ public enum DetectedFormat {
      */
     BMP,
 
+    /**
+     * A video, recognised from its container's own signature: {@code ftyp} (with a still-image or
+     * audio-only brand excluded), a {@code ftyp}-less QuickTime atom, Matroska/WebM's EBML magic, an
+     * AVI's {@code RIFF} form type, ASF's header GUID, FLV, an MPEG program or elementary stream, an
+     * MPEG transport or BDAV stream, Ogg carrying Theora, RealMedia or MXF. A format of its own rather
+     * than a subtype, for the reason {@link #BMP} is one: the bytes alone decide it. Recognised so
+     * that stage 1 can leave it out of scope, whatever it holds and whatever holds it (ADR-170).
+     */
+    VIDEO,
+
     /** A zip container holding {@code word/document.xml}, the part ECMA-376 fixes for WordprocessingML. */
     WORDPROCESSING,
 

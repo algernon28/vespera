@@ -459,6 +459,9 @@ class GenerationTasklet implements Tasklet {
      *
      * <p><b>An {@code IMAGE} or {@code BMP} survivor shows no pictures</b> (ADR-150 §4, ADR-167): the picture Docling would crop
      * from it is a re-sampled region of the original, not a second document worth carrying alongside it.
+     * No {@code VIDEO} survivor can exist while ADR-170 stands, since stage 1 removes every video as
+     * out of scope, but the filter covers it too, for the same reason a still Docling took from one
+     * would be a re-sampled frame and not a second document (ADR-170).
      * The format is read under the byte-level-reduction run this invocation arrived at (ADR-154), which
      * {@link #execute} resolves once, rather than re-derived from the current implementation version,
      * which would match nothing after that version changes.
@@ -468,7 +471,9 @@ class GenerationTasklet implements Tasklet {
         return occurrenceId -> {
             boolean isImage = detectedFormats
                     .formatFor(occurrenceId, byteLevelReductionRun)
-                    .filter(format -> format == DetectedFormat.IMAGE || format == DetectedFormat.BMP)
+                    .filter(format -> format == DetectedFormat.IMAGE
+                            || format == DetectedFormat.BMP
+                            || format == DetectedFormat.VIDEO)
                     .isPresent();
             if (isImage) {
                 return List.of();

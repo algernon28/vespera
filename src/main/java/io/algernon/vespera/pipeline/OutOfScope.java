@@ -6,8 +6,9 @@ import java.util.Optional;
 
 /**
  * Which kinds of file this tool leaves out, whatever they hold: spreadsheets, both the workbook
- * archive stage 1 recognises from its bytes and the older compound file named as one (ADR-146), and
- * a BMP image, recognised from its two headers (ADR-167).
+ * archive stage 1 recognises from its bytes and the older compound file named as one (ADR-146), a
+ * BMP image, recognised from its two headers (ADR-167), and a video, recognised from its
+ * container's own signature (ADR-170).
  *
  * <p>A code default, and the one place it is written. Making it the operator's to change is a later
  * decision (#278), and a profile key would read this same question; nothing else in the tree names a
@@ -29,6 +30,9 @@ final class OutOfScope {
         }
         if (format == DetectedFormat.BMP) {
             return Optional.of("a BMP image, and BMP images are out of scope");
+        }
+        if (format == DetectedFormat.VIDEO) {
+            return Optional.of("a video, and videos are out of scope");
         }
         return Optional.empty();
     }

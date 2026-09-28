@@ -40,6 +40,7 @@ final class FormatMixReport {
         LABELS.put(DetectedFormat.PDF, "PDF documents");
         LABELS.put(DetectedFormat.IMAGE, "Images");
         LABELS.put(DetectedFormat.BMP, "BMP images");
+        LABELS.put(DetectedFormat.VIDEO, "Videos");
         LABELS.put(DetectedFormat.WORDPROCESSING, "Word processing documents");
         LABELS.put(DetectedFormat.SPREADSHEET, "Spreadsheets");
         LABELS.put(DetectedFormat.ZIP_CONTAINER, "Archives of another kind");
@@ -68,8 +69,8 @@ final class FormatMixReport {
                         + " What follows is what was found. Counting removes nothing: it exists so that a"
                         + " decision about what to leave out has a measurement behind it rather than a"
                         + " guess."))
-                .append(ReportPage.paragraph("Spreadsheets and BMP images are out of scope, whatever they"
-                        + " hold. Files left out as out of scope, and not read any further: "
+                .append(ReportPage.paragraph("Spreadsheets, BMP images and videos are out of scope, whatever"
+                        + " they hold. Files left out as out of scope, and not read any further: "
                         + mix.outOfScope()
                         + ". They are still counted in the table below, with everything else."));
 
