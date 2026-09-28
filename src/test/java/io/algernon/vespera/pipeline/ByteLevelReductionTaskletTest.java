@@ -339,6 +339,100 @@ class ByteLevelReductionTaskletTest {
                 () -> assertThat(countIn(html, "<td>BMP images</td>")).isEqualTo(1));
     }
 
+    /**
+     * ADR-168: videos are out of scope, whatever their container, removed in the same pass and under the
+     * same verdict as a spreadsheet and a BMP image, with a reason of their own. The two copies are the
+     * duplicate pass's to never see; the CorelDRAW drawing beside them shares a video's {@code RIFF}
+     * wrapper with an AVI, and is kept. The detected format is read as the text the ledger stores, so this
+     * compiles before the value exists.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("A video is removed as out of scope, never hashed, and counted on the page; a picture and a drawing are kept")
+    @Link(name = "ADR-168", url = Adr.VIDEOS_ARE_OUT_OF_SCOPE, type = "adr")
+    void removesVideosAsOutOfScope(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        Files.write(root.resolve("Stacco_bianco_e_pressione_tasto_rosso.mp4"), MINIMAL_MP4);
+        Files.write(root.resolve("Stacco_bianco copy.mp4"), MINIMAL_MP4);
+        Files.write(root.resolve("screen.png"), PNG_FILE);
+        Files.write(root.resolve("logo.cdr"), CORELDRAW_FILE);
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
+
+        claim(
+                "the video is recorded as a video, told from everything else by its bytes",
+                () -> assertThat(storedFormatOf(ledger, walkId, "Stacco_bianco_e_pressione_tasto_rosso.mp4"))
+                        .isEqualTo(VIDEO_FORMAT));
+        claim(
+                "and it and its byte-identical copy are each removed as out of scope, the copy on its own"
+                        + " account and not as a duplicate of the other",
+                () -> assertThat(List.of(
+                                verdictKindsFor(ledger, walkId, "Stacco_bianco_e_pressione_tasto_rosso.mp4"),
+                                verdictKindsFor(ledger, walkId, "Stacco_bianco copy.mp4")))
+                        .containsOnly(List.of("OUT_OF_SCOPE")));
+        claim(
+                "with a reason naming the kind of file, so a removal an operator did not expect explains itself",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, "Stacco_bianco_e_pressione_tasto_rosso.mp4"))
+                        .containsExactly(VIDEO_REASON));
+        claim(
+                "the picture and the drawing are kept: a video is what is out of scope, and the drawing's RIFF"
+                        + " wrapper is not a video's",
+                () -> assertThat(List.of(
+                                verdictKindsFor(ledger, walkId, "screen.png"),
+                                verdictKindsFor(ledger, walkId, "logo.cdr")))
+                        .containsOnly(List.of()));
+        claim(
+                "the two identical videos were never hashed, because nothing out of scope reaches the"
+                        + " duplicate pass",
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM content_hash", Integer.class))
+                        .isZero());
+        String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
+        claim(
+                "the page stage 1 writes counts the two files it left out",
+                () -> assertThat(countIn(html, "left out as out of scope")).isEqualTo(2));
+        claim(
+                "gives videos a row of their own, holding the two videos",
+                () -> assertThat(countIn(html, "<td>Videos</td>")).isEqualTo(2));
+        claim(
+                "and says in words that videos are out of scope, beside spreadsheets and BMP images",
+                () -> assertThat(html).contains(OUT_OF_SCOPE_SENTENCE));
+    }
+
+    /** The name the ledger stores for the detected format of a video. */
+    private static final String VIDEO_FORMAT = "VIDEO";
+
+    /** The reason a video's out-of-scope verdict carries, word for word. */
+    private static final String VIDEO_REASON = "a video, and videos are out of scope";
+
+    /** The format-mix page's sentence naming every kind of file this tool leaves out. */
+    private static final String OUT_OF_SCOPE_SENTENCE =
+            "Spreadsheets, BMP images and videos are out of scope, whatever they hold.";
+
+    /**
+     * The smallest MP4 of the kind seven of the eight videos on the measured archive were: a 24-byte
+     * {@code ftyp} box naming {@code mp42} and listing {@code isom} and {@code mp42}, then an {@code mdat}
+     * box holding eight bytes. Big-endian throughout. 40 bytes, a size nothing else here shares.
+     */
+    private static final byte[] MINIMAL_MP4 = {
+        0, 0, 0, 24, 'f', 't', 'y', 'p', 'm', 'p', '4', '2', 0, 0, 0, 0, // box of 24, major brand mp42, minor 0
+        'i', 's', 'o', 'm', 'm', 'p', '4', '2', // compatible brands
+        0, 0, 0, 16, 'm', 'd', 'a', 't', // box of 16
+        0, 0, 0, 1, (byte) 0xB3, (byte) 0xC0, 0, 0 // the coded frames
+    };
+
+    /**
+     * The opening of a CorelDRAW drawing, as the 23 on the measured archive open: a {@code RIFF} wrapper
+     * whose form type is {@code CDRC}, then its version chunk. 30 bytes.
+     */
+    private static final byte[] CORELDRAW_FILE = {
+        'R', 'I', 'F', 'F', 22, 0, 0, 0, 'C', 'D', 'R', 'C', // wrapper, length 22, form type
+        'v', 'r', 's', 'n', 2, 0, 0, 0, 0x4C, 0x04, // version chunk
+        'D', 'I', 'S', 'P', 0, 0, 0, 0 // an empty chunk
+    };
+
     /** The name the ledger stores for the detected format of a BMP image. */
     private static final String BMP_FORMAT = "BMP";
 

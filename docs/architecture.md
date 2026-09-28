@@ -20,7 +20,7 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 | #  | Stage                        | Writes                                    | Notes                                                                                                 |
 |----|------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------------------|
 | 0  | Census                       | *(no verdicts)*                           | Filesystem walk → file occurrence rows. Pure measurement (ADR-006).                                   |
-| 1  | Byte-level reduction         | `broken`, `duplicate-of`, `superseded-by`, `out-of-scope` | Cheapest discriminating filter, runs first. Leaves spreadsheets (ADR-146) and BMP images (ADR-167) out of scope. |
+| 1  | Byte-level reduction         | `broken`, `duplicate-of`, `superseded-by`, `out-of-scope` | Cheapest discriminating filter, runs first. Leaves spreadsheets (ADR-146), BMP images (ADR-167) and videos (ADR-168) out of scope. |
 | 2  | Extraction                   | `extraction-failed`, `degenerate-output`  | Docling, out-of-process, cached; silent about text fidelity, never about failure (ADR-010, ADR-070).  |
 | 3  | Content census               | *(no verdicts)*                           | The corpus-wide pass over what stage 2 stored — document frequency for boilerplate (ADR-038), report distributions. Per-document metrics and shingles are written in stage 2's own pass, under stage 2's run (ADR-019, ADR-073). |
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |

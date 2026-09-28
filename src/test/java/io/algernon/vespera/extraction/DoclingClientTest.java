@@ -453,6 +453,33 @@ class DoclingClientTest {
                 () -> assertThat(DoclingClient.sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
     }
 
+    /**
+     * ADR-168: stage 1 now records a video as a format of its own, and leaves the corpus's out of scope; a
+     * seed's still arrives here. It is posted under the name it was posted under while stage 1 knew no
+     * video signature, the one an unrecognised file is posted under, so no response goes stale and the
+     * naming scheme keeps its version. The value is named by its string, so this compiles before it exists.
+     */
+    @Test
+    @Story("The name sent is the format's, not the path's")
+    @DisplayName("A video is posted under the same name as a file of no known kind, so nothing already converted goes stale")
+    @Link(name = "ADR-168", url = Adr.VIDEOS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    void postsAVideoUnderTheNameAnUnrecognisedFileIsPosted(@TempDir Path dir) throws IOException {
+        Path onDisk = Files.writeString(dir.resolve("clip.mp4"), "bytes that the name lies about");
+
+        claim(
+                "a video is posted as " + NEUTRAL_PART_NAME + ", exactly as it was while stage 1 called it of"
+                        + " no known kind, so Docling's own reading of the bytes decides, as it did before",
+                () -> assertThat(postedName(onDisk, DetectedFormat.valueOf("VIDEO"), Optional.empty()))
+                        .isEqualTo(postedName(onDisk, DetectedFormat.UNRECOGNISED, Optional.empty()))
+                        .isEqualTo(NEUTRAL_PART_NAME));
+        claim(
+                "and so the options the conversion cache is keyed by still name version "
+                        + NAMING_SCHEME_VERSION + " of the naming scheme: no name changed, so no conversion"
+                        + " already cached has to be made again",
+                () -> assertThat(DoclingClient.sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
+    }
+
     @Test
     @Story("The name sent is the format's, not the path's")
     @DisplayName("Every format the bytes can yield is posted under the one name that reaches its pipeline")
