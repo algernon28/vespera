@@ -96,7 +96,9 @@ ajcore.*.txt
 # They describe one moment of work in progress, go stale as soon as it lands, and belong on the
 # machine that wrote them, not in the repository's history. Ignoring the folder does not untrack
 # what is already committed in it: handouts/architecture-simplification.md stays tracked, because
-# ADR-157 cites it by path and the refactor waves it plans are recorded nowhere else.
+# ADR-157 cites it by path and the refactor waves it plans are recorded nowhere else. To commit an
+# edit to it, stage it with `git add -u handouts/` (or `git add -f`): because the folder is ignored,
+# `git add handouts/architecture-simplification.md` refuses the path even though the file is tracked.
 /handouts/
 
 # Working notes kept inside the checkout: probe results, scratch analysis, measurements on one
