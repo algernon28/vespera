@@ -28,8 +28,9 @@ import picocli.CommandLine.Spec;
  * weld a deliberate act onto an unattended pass.
  *
  * <p>{@code run} takes one argument, the corpus root. The root is the argument, and
- * {@code vespera.corpus-root} in {@code application.yaml} answers only an invocation that names none
- * (ADR-066). Where the database and the profile live is operator configuration rather than something
+ * {@code vespera.corpus-root} answers only an invocation that names none (ADR-066). It ships empty in
+ * {@code application.yaml}, which counts as unset; a machine sets it in {@code application-local.yaml},
+ * the environment or on the command line, never in the committed file. Where the database and the profile live is operator configuration rather than something
  * derived from the root (ADR-054), so it is {@code vespera.working-dir} in the same file, overridden
  * per invocation with {@code --db-dir=<path>} — on either command, since each opens that directory
  * ({@link WorkingDirectoryOption}, #310).
@@ -121,7 +122,8 @@ public class VesperaCommand implements Callable<Integer> {
                 arity = "0..1",
                 paramLabel = "<root>",
                 description = "The corpus root to walk. Falls back to " + ROOT_PROPERTY
-                        + " in application.yaml when omitted.")
+                        + " when omitted: set in application-local.yaml, as VESPERA_CORPUS_ROOT, or with"
+                        + " --" + ROOT_PROPERTY + "=<path>.")
         private Path root;
 
         @Mixin
@@ -163,8 +165,10 @@ public class VesperaCommand implements Callable<Integer> {
             Path corpusRoot = rootToWalk();
             if (corpusRoot == null) {
                 System.err.println("vespera run named no root and " + ROOT_PROPERTY + " is not set: give the root"
-                        + " as the argument -- vespera run <root> -- or configure it in application.yaml. A root"
-                        + " is never guessed, because a census of the wrong tree reports success.");
+                        + " as the argument -- vespera run <root> -- or set " + ROOT_PROPERTY + " in"
+                        + " application-local.yaml, as VESPERA_CORPUS_ROOT, or with --" + ROOT_PROPERTY
+                        + "=<path>. A root is never guessed, because a census of the wrong tree reports"
+                        + " success.");
                 return CommandLine.ExitCode.USAGE;
             }
             log.info(

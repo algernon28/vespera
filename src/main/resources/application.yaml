@@ -5,6 +5,13 @@ vespera:
   # property rather than only a CLI option, because the datasource is built from it long before the
   # command line is parsed.
   working-dir: ${db-dir:${user.dir}/.vespera}
+  # The corpus root `vespera run` walks when the command names none (ADR-066): the argument names it,
+  # and this is only the fallback. It ships empty, which the command treats as unset -- it refuses
+  # rather than guess, because a census of the wrong tree reports success. A root is one machine's
+  # archive, and this file is committed and packed into the jar, so set it per machine instead: in
+  # application-local.yaml, as the environment variable VESPERA_CORPUS_ROOT (VESPERA_CORPUSROOT is
+  # read too), or with --vespera.corpus-root=<path>.
+  corpus-root: ""
   docling:
     # docling-serve is a managed sidecar (ADR-011), same as Chroma and Ollama, but unlike them
     # carries no Spring Boot auto-configuration or ServiceConnection support -- there is no
