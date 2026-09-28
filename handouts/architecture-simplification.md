@@ -1,7 +1,7 @@
 # Architecture simplification: a plan
 
 **Date:** 2026-09-25
-**Status (updated 2026-09-27):** Waves 0a, 0b and 1 are done: ADR-153 ([#294](https://github.com/algernon28/vespera/issues/294), merged as #295), ADR-154 ([#290](https://github.com/algernon28/vespera/issues/290) and [#296](https://github.com/algernon28/vespera/issues/296), merged as #299) and ADR-157 ([#303](https://github.com/algernon28/vespera/issues/303)). Wave 2 is open as [#320](https://github.com/algernon28/vespera/issues/320). Waves 3 to 7 have no ticket yet. Wave 3 is still to do, since ADR-151 settled #287 without stage 2 recording its key. Each remaining wave needs its own ADR before any code moves, and follows the usual route: `analyst` → `spec-implementer` → `tester` → `architect`. Everything below the status lines is the plan as reviewed on 2026-09-25: its figures, file and line references date from then, and only the wave headings, §5's table and §9 carry later status.
+**Status (updated 2026-09-28):** Waves 0a, 0b and 1 are done: ADR-153 ([#294](https://github.com/algernon28/vespera/issues/294), merged as #295), ADR-154 ([#290](https://github.com/algernon28/vespera/issues/290) and [#296](https://github.com/algernon28/vespera/issues/296), merged as #299) and ADR-157 ([#303](https://github.com/algernon28/vespera/issues/303)). Wave 2 is open as [#320](https://github.com/algernon28/vespera/issues/320). Waves 3 to 7 are open as [#349](https://github.com/algernon28/vespera/issues/349), [#350](https://github.com/algernon28/vespera/issues/350), [#351](https://github.com/algernon28/vespera/issues/351), [#352](https://github.com/algernon28/vespera/issues/352) and [#353](https://github.com/algernon28/vespera/issues/353) (7 deferred until Wave 2 lands), each with its references re-checked against main at 0b4e009. Wave 3 is still to do, since ADR-151 settled #287 without stage 2 recording its key. Each remaining wave needs its own ADR before any code moves, and follows the usual route: `analyst` → `spec-implementer` → `tester` → `architect`. Everything below the status lines is the plan as reviewed on 2026-09-25: its figures, file and line references date from then, and only the wave headings, §5's table and §9 carry later status.
 **Vocabulary:** a *wave* here is one increment of this refactor. ADR-140 and stage 2's code already use "wave" for one round of eight conversions (`ExtractionJobConfiguration.java:43-54`, `ConversionDispatch.java:46`). The two never meet in a sentence below; a wave's own ADR should say "refactor wave" wherever they could.
 **Scope:** `src/main`, the test base that pins it, and the documentation that describes it. It changes nothing an operator does and removes no capability.
 
@@ -249,11 +249,11 @@ Both are traced by reading, not yet by a test; Wave 0b starts with the tests tha
 | **0b** *(done, ADR-154, #299)* | Stop a second run over a reused walk from stranding the operator, and a stale approval from opening 6b (#290, #296) | amend 099, 058; 107 for #296 | failing tests first: two builds, the confidence floor set, the boilerplate floor retuned, a stale approval | small | yes, once (stages 3–6b) | medium |
 | **1** *(done, ADR-157, #303)* | One way to mint a run, one way to shape a step | amend 131 (its second reason), 099, 080 | golden tests stay green | −1,100 main lines | yes (`pipeline`: stages 3–6b) | medium |
 | **2** *(open, #320)* | Rules move to their modules | amend 110, 040; cites 070, 071, 111, 139, 140 | behaviour tests unchanged; unit tests per moved rule; `ExtractionItemProcessorTest`'s 18 tests ported | −1,000 in `pipeline`, partly moved, not deleted | yes (every stage whose modules it touches) | medium |
-| **3** | Record stage 2's cache key | via ADR-151 (#287) | #287's and #289's tests | removes 7 of the 8 archive re-reads (8 if seed extraction records its key too) | yes, and a schema bump | medium |
-| **4** | `Ledger` and table boundaries | amend 049, 041; weigh 059, 060 | a table-ownership guard; `SchemaVersionDeclarationTest` changes | about −300 | yes: moving `walk_anomaly` deletion to `corpus` re-mints stage 1 and everything downstream | low–medium |
-| **5** | Split `Deliverable` | none new, if the surroundings become one table with a row each (ADR-134, 137, 138); cites 133, 148, 149 | `DeliverableTest` untouched | neutral in lines; the largest class goes | yes (6a/6b) | low |
-| **6** | Hygiene | supersede 142; amend 046, 029, 039; check 034 | delete the dead code's own tests | −500 plus comments | yes, per module touched | low |
-| **7** *(deferred)* | Take `pipeline` out of stages 3–6b's run identity | amend 058 | — | — | yes, once | medium |
+| **3** *(open, #349)* | Record stage 2's cache key | via ADR-151 (#287) | #287's and #289's tests | removes 7 of the 8 archive re-reads (8 if seed extraction records its key too) | yes, and a schema bump | medium |
+| **4** *(open, #350)* | `Ledger` and table boundaries | amend 049, 041; weigh 059, 060 | a table-ownership guard; `SchemaVersionDeclarationTest` changes | about −300 | yes: moving `walk_anomaly` deletion to `corpus` re-mints stage 1 and everything downstream | low–medium |
+| **5** *(open, #351)* | Split `Deliverable` | none new, if the surroundings become one table with a row each (ADR-134, 137, 138); cites 133, 148, 149 | `DeliverableTest` untouched | neutral in lines; the largest class goes | yes (6a/6b) | low |
+| **6** *(open, #352)* | Hygiene | supersede 142; amend 046, 029, 039; check 034 | delete the dead code's own tests | −500 plus comments | yes, per module touched | low |
+| **7** *(deferred, #353)* | Take `pipeline` out of stages 3–6b's run identity | amend 058 | — | — | yes, once | medium |
 
 The size figures are estimates from the classes named, not measurements. A wave's ADR should replace them with the measured diff.
 
@@ -334,14 +334,14 @@ It does not absorb `RunCompletion` or `RedundancyJobConfiguration`'s `SignatureS
 - **What this buys for stages 1 and 2:** they name no `pipeline` version (D2), so these moves version their rules for the first time.
 - **Profile keys:** `GenerationTasklet.java:460-471`'s list comes from `Profile`'s own component order, which it already matches.
 
-### Wave 3 — Record stage 2's cache key
+### Wave 3 — Record stage 2's cache key (open: [#349](https://github.com/algernon28/vespera/issues/349))
 
 Stage 2 records, per occurrence and under its own run, the key it used for the extraction cache. Seven of the eight later sites in D3, the corpus-side ones, look it up instead of reading the archive. The eighth, `RelevanceScoringTasklet.java:177`, hashes seed occurrences, which stage 2 never sees; it goes too only if seed extraction records its key as well (`SeedExtractionItemProcessor.java:92`).
 
 - **Why here:** this is the substance of #287, so it belongs in ADR-151's decision rather than a new one, provided ADR-151, already being written, decides that stage 2 records the key. It also turns ADR-152's (#289) per-step split into a question about one remaining site, since the other four steps stop reading the archive.
 - **Cost:** a schema version bump in `extraction`, so `SchemaVersionGuard` refuses an existing database and the operator starts a fresh working directory. Land it at a corpus boundary, never mid-campaign.
 
-### Wave 4 — `Ledger` and table boundaries
+### Wave 4 — `Ledger` and table boundaries (open: [#350](https://github.com/algernon28/vespera/issues/350))
 
 - **Split `Ledger` inside `ledger`** into walks, occurrences, runs and verdicts/survivors. `ledger` is in no stage's implementation version, so the split itself re-mints nothing. Moving the walk half into `corpus` is *not* proposed; ADR-041 puts identity in `ledger`.
 - **Take `ItemStreamReader` out of the capability APIs without breaking ADR-060.**
@@ -355,7 +355,7 @@ Stage 2 records, per occurrence and under its own run, the key it used for the e
 - **One schema file per module** (`schema/ledger.sql` and so on, via `spring.sql.init.schema-locations`), which makes ADR-049's text true. Add a table-ownership guard test that fails when a module's SQL names another module's table. Amend ADR-049.
 - **One schema-version declaration per module** instead of six classes. They run at start-up by construction (ADR-059), and the replacement must still fail while the context is being built. `SchemaVersionDeclarationTest` changes with it (`analyst`).
 
-### Wave 5 — Split `Deliverable`
+### Wave 5 — Split `Deliverable` (open: [#351](https://github.com/algernon28/vespera/issues/351))
 
 Package-private collaborators inside `synthesis`, each with the rule it carries:
 
@@ -373,7 +373,7 @@ Package-private collaborators inside `synthesis`, each with the rule it carries:
 - one filename stem, shared with `ClusterLabel`;
 - one public cluster key, which absorbs the `Recorded*` wrappers that are only "(winning seed, cluster ordinal) plus X".
 
-### Wave 6 — Hygiene
+### Wave 6 — Hygiene (open: [#352](https://github.com/algernon28/vespera/issues/352))
 
 - **Delete dead code:**
   - the LLM chunking fallback and its interface, injecting the windowed one directly. Its "currently off" seam is ADR-029's recorded shape, so this amends ADR-029;
@@ -389,7 +389,7 @@ Package-private collaborators inside `synthesis`, each with the rule it carries:
 - **Javadoc policy:** a class cites the ADR it implements and states its own contract. It does not restate the ADR's reasoning. Correct the stale javadocs in D7.
 - **Agent files:** move `AGENTS.md`'s defect history (line 23) and status narrative (line 21) out, keeping every sentence `docs/check-claims.mjs` matches. Fix the stale agent definitions.
 
-### Wave 7 — Take `pipeline` out of run identity (deferred)
+### Wave 7 — Take `pipeline` out of run identity (deferred) — [#353](https://github.com/algernon28/vespera/issues/353)
 
 Once Wave 2 leaves `pipeline` holding no rule that shapes output, drop it from stages 3 to 6b's module lists (amend ADR-058). A wiring change then stops re-minting them. Doing it before Wave 2 would make invalidation too lazy, which is exactly the failure ADR-058 exists to prevent, and which D2 shows is already true of stages 1 and 2.
 
@@ -446,7 +446,7 @@ Each belongs in the ADR of the wave that meets it. They are listed here so no wa
 
 ## 9. Tracker shape
 
-*Status 2026-09-27: every ticket this section named on 2026-09-25 is closed (#286, #287, #289, #290, #291, #294, #296). The waves are tracked as plain issues (#294, #303, #320), and no wayfinder map was charted for them.*
+*Status 2026-09-27: every ticket this section named on 2026-09-25 is closed (#286, #287, #289, #290, #291, #294, #296). The waves are tracked as plain issues (#294, #303, #320, and #349 to #353 from 2026-09-28), and no wayfinder map was charted for them.*
 
 - **Bugs now:** [#290](https://github.com/algernon28/vespera/issues/290) (a second run of one stage over a reused walk) and its sibling [#296](https://github.com/algernon28/vespera/issues/296) (a stale approval). They are defects in what ships and should not wait for a map. *Both closed by ADR-154, merged as #299.*
 - **Wave 0a** is [#294](https://github.com/algernon28/vespera/issues/294), merged as #295. *Wave 1 is [#303](https://github.com/algernon28/vespera/issues/303) (ADR-157), closed. Wave 2 is [#320](https://github.com/algernon28/vespera/issues/320), open.*
