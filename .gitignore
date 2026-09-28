@@ -108,3 +108,10 @@ ajcore.*.txt
 # its session goes into docs/research/ or an ADR instead, and a value's own evidence goes beside the
 # profile it justifies, in that run's working directory.
 /notes/
+
+# One machine's paths for the run configurations in .run/, which load this file through ENV_FILES:
+# VESPERA_CORPUS_ROOT (the corpus root, ADR-066's fallback) and VESPERA_WORKING_DIR (where the
+# database and profile.yaml live). They name someone's own archive, so they never belong in a commit;
+# the configurations themselves carry no path. docker compose also reads a .env at the project root,
+# for interpolation only, and compose.yaml interpolates nothing, so these names change nothing there.
+/.env

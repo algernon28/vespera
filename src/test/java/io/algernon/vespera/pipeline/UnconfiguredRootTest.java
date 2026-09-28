@@ -29,12 +29,13 @@ import picocli.CommandLine;
  * point is that no corpus root is bound to the context, and a class that binds one for its other
  * tests cannot also be the class that binds none. {@code ConfiguredRootTest} covers the same refusal
  * by constructing the command by hand, which pins the branch but not the wiring — and the wiring is
- * where the refusal actually lives, because nothing configures this property anywhere. The shipped
- * {@code application.yaml} carries no {@code vespera.corpus-root} key at all, so what makes an
- * unconfigured invocation refuse is the {@code :} default in the command's own {@code @Value}. Drop
- * that colon and Spring hands the command the literal string {@code ${vespera.corpus-root}}, which
- * is not blank, so the run walks a path named after a placeholder and fails as though the disk were
- * at fault. Only an invocation with nothing bound catches it.
+ * where the refusal actually lives, because nothing gives this property a value by default. The
+ * shipped {@code application.yaml} binds {@code vespera.corpus-root} empty, so the key is visible where
+ * an operator looks for configuration, and an empty value refuses because the command checks for
+ * blank. The {@code :} default in the command's own {@code @Value} is the second guard: without the
+ * key and without that colon, Spring would hand the command the literal string
+ * {@code ${vespera.corpus-root}}, which is not blank, so the run would walk a path named after a
+ * placeholder and fail as though the disk were at fault.
  *
  * <p>{@code application-test.yaml} binds {@code vespera.corpus-root} empty so that this context
  * cannot inherit one from the shipped {@code application.yaml} — a profile-specific file layers over
@@ -46,10 +47,10 @@ import picocli.CommandLine;
  * configuration and configuration drifts: the first claim below names the cause, so a root that does
  * reach here fails in seconds against the file that has to change instead of against the exit code.
  *
- * <p>What that binding costs, said plainly: with the key present-but-empty, dropping the {@code :}
- * default from the command's own {@code @Value} would resolve cleanly rather than yielding the
- * literal placeholder, so <b>no test guards that any more</b>. The trade is deliberate — a
- * hypothetical regression against a foot-gun that has already fired.
+ * <p>What that binding costs, said plainly: with the key present-but-empty, here and in the shipped
+ * file, dropping the {@code :} default from the command's own {@code @Value} would resolve cleanly
+ * rather than yielding the literal placeholder, so <b>no test guards that any more</b>. The trade is
+ * deliberate — a hypothetical regression against a foot-gun that has already fired.
  */
 @CascadeSliceTest
 @Import(ExtractionBeans.class)
