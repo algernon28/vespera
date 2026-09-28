@@ -16,6 +16,14 @@ public enum DetectedFormat {
     /** Opens with a recognised image signature, which is itself the whole structural check. */
     IMAGE,
 
+    /**
+     * Opens with {@code BM} and then the length, at offset 14, of one of the headers a BMP carries
+     * after its file header. A new format rather than a subtype of {@link #IMAGE}, because ADR-094
+     * lets a name narrow only within a class the bytes have already fixed, and the bytes alone
+     * decide this one. Recognised so that stage 1 can leave it out of scope (ADR-167).
+     */
+    BMP,
+
     /** A zip container holding {@code word/document.xml}, the part ECMA-376 fixes for WordprocessingML. */
     WORDPROCESSING,
 

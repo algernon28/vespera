@@ -2,6 +2,7 @@ package io.algernon.vespera.corpus;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.CharBuffer;
 import java.nio.charset.CharsetDecoder;
@@ -14,6 +15,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
@@ -35,6 +37,20 @@ public final class BrokenCheck {
     private static final byte[] GIF87A_SIGNATURE = "GIF87a".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] GIF89A_SIGNATURE = "GIF89a".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] BMP_SIGNATURE = {'B', 'M'};
+
+    /** Where a BMP file header carries the length, little-endian, of the picture header after it (ADR-167). */
+    private static final int BMP_HEADER_LENGTH_OFFSET = 14;
+
+    /** How many bytes {@link #BMP_HEADER_LENGTH_OFFSET} needs read to be readable at all. */
+    private static final int BMP_MINIMUM_PREFIX_LENGTH = 18;
+
+    /**
+     * Every length a BMP picture header is known to carry: {@code BITMAPCOREHEADER} (12),
+     * {@code OS22XBITMAPHEADER} short form (16), {@code BITMAPINFOHEADER} (40),
+     * {@code BITMAPV2INFOHEADER} (52), {@code BITMAPV3INFOHEADER} (56), {@code OS22XBITMAPHEADER}
+     * (64), {@code BITMAPV4HEADER} (108) and {@code BITMAPV5HEADER} (124) (ADR-167).
+     */
+    private static final Set<Integer> BMP_HEADER_LENGTHS = Set.of(12, 16, 40, 52, 56, 64, 108, 124);
     private static final byte[] LITTLE_ENDIAN_TIFF_SIGNATURE = {'I', 'I', 0x2A, 0x00};
     private static final byte[] BIG_ENDIAN_TIFF_SIGNATURE = {'M', 'M', 0x00, 0x2A};
     private static final byte[] RIFF_SIGNATURE = "RIFF".getBytes(StandardCharsets.US_ASCII);
@@ -130,6 +146,9 @@ public final class BrokenCheck {
 
         if (startsWith(prefix, PDF_HEADER)) {
             return checkPdf(file, size);
+        }
+        if (isBmpSignature(prefix)) {
+            return Result.ok(DetectedFormat.BMP);
         }
         if (isImageSignature(prefix)) {
             return Result.ok(DetectedFormat.IMAGE);
@@ -320,6 +339,27 @@ public final class BrokenCheck {
         } catch (IOException e) {
             return Result.broken("the pdf could not be read: " + e.getMessage(), DetectedFormat.PDF);
         }
+    }
+
+    /**
+     * {@code BM} alone is two bytes and a weak signature, as {@link #isImageSignature} says. With the
+     * length of the header that follows it at offset 14 it is a signature: a file opening with
+     * {@code BM} but carrying no length a BMP header is known to have stays {@link DetectedFormat#IMAGE}
+     * (ADR-167).
+     *
+     * <p>The weak two bytes were tolerable for {@code IMAGE} because a false reading there loses no
+     * occurrence. A {@link DetectedFormat#BMP} reading does remove one, as out of scope, so this reading
+     * needs the stronger test: the header length is a field any reader must parse to decode the file at
+     * all, where the file-size field at offset 2 is one ADR-094 found unreliable.
+     */
+    private static boolean isBmpSignature(byte[] prefix) {
+        if (!startsWith(prefix, BMP_SIGNATURE) || prefix.length < BMP_MINIMUM_PREFIX_LENGTH) {
+            return false;
+        }
+        int headerLength = ByteBuffer.wrap(prefix, BMP_HEADER_LENGTH_OFFSET, 4)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .getInt();
+        return BMP_HEADER_LENGTHS.contains(headerLength);
     }
 
     /**

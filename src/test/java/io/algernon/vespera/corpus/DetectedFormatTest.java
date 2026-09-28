@@ -11,10 +11,13 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.DisplayName;
@@ -49,6 +52,46 @@ class DetectedFormatTest {
 
     /** The eight bytes every PNG begins with, and the whole of what makes a file a PNG here. */
     private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+
+    /** The three bytes every JPEG begins with: the start-of-image marker and the next marker's lead. */
+    private static final byte[] JPEG_SIGNATURE = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+
+    /** The name of the detected format a BMP image is recorded as, written as text until it exists. */
+    private static final String BMP_FORMAT = "BMP";
+
+    /**
+     * The length of a BMP's file header, which opens with {@code BM}; the header describing the
+     * picture starts right after it, with its own length.
+     */
+    private static final int BMP_FILE_HEADER_LENGTH = 14;
+
+    /** The picture header almost every BMP carries, and the one both files that crashed the converter carry. */
+    private static final int BITMAPINFOHEADER_LENGTH = 40;
+
+    /** The newest and longest picture header a BMP can carry. */
+    private static final int BITMAPV5HEADER_LENGTH = 124;
+
+    /** Shorter than the file header itself, so it ends before the picture header's length begins. */
+    private static final int TOO_SHORT_FOR_A_HEADER_LENGTH = 10;
+
+    /** The 14-byte file header and the 4 bytes of the picture header's length, and nothing after. */
+    private static final int JUST_LONG_ENOUGH_FOR_A_HEADER_LENGTH = BMP_FILE_HEADER_LENGTH + 4;
+
+    /** A length no BMP picture header has, so a file carrying it after {@code BM} is not a BMP. */
+    private static final int NO_BMP_HEADER_LENGTH = 0x2A2A2A2A;
+
+    /** The picture in each BMP below: 2 pixels by 2, 3 bytes a pixel, uncompressed. */
+    private static final int PIXELS_WIDE = 2;
+
+    private static final int PIXELS_HIGH = 2;
+
+    private static final int BITS_PER_PIXEL = 24;
+
+    /** Each row of pixels is padded to a multiple of 4 bytes: 2 pixels of 3 bytes is 6, padded to 8. */
+    private static final int BYTES_PER_ROW = 8;
+
+    /** 3,780 pixels per metre is 96 dots per inch, an ordinary screen resolution. */
+    private static final int PIXELS_PER_METRE = 3780;
 
     /** The four bytes a little-endian TIFF begins with: {@code II}, then 42 as a 16-bit word. */
     private static final byte[] LITTLE_ENDIAN_TIFF_SIGNATURE = {'I', 'I', 0x2A, 0x00};
@@ -225,6 +268,71 @@ class DetectedFormatTest {
                 () -> assertThat(BrokenCheck.check(tiff).format()).isEqualTo(DetectedFormat.IMAGE));
     }
 
+    /**
+     * ADR-167 left BMP images out of scope, so stage 1 has to tell one from every other image, and from
+     * its bytes: 224 of the 634 files named {@code .bmp} on the archive it was measured on are not BMP at
+     * all. The value is named by its string so this compiles before it exists.
+     */
+    @Test
+    @Story("The set of recognised images is what the conversion step can read")
+    @DisplayName("A BMP image is told apart from other images by its two headers, whatever it is named")
+    @Link(name = "ADR-167", url = Adr.BMP_IMAGES_ARE_OUT_OF_SCOPE, type = "adr")
+    void aBmpImageIsRecognisedByItsTwoHeaders(@TempDir Path dir) throws IOException {
+        Path bmp = Files.write(dir.resolve("logo.png"), bmpWithHeaderOf(BITMAPINFOHEADER_LENGTH));
+        Path newestBmp = Files.write(dir.resolve("logo-v5.bmp"), bmpWithHeaderOf(BITMAPV5HEADER_LENGTH));
+        Path png = Files.write(dir.resolve("screen.bmp"), signed(PNG_SIGNATURE, "image data follows"));
+        Path jpeg = Files.write(dir.resolve("photo.bmp"), signed(JPEG_SIGNATURE, "image data follows"));
+        Path bmOnly = Files.write(dir.resolve("notes.bmp"), bmFollowedByNoHeader());
+
+        claim(
+                "a file opening with BM and then the length of the " + BITMAPINFOHEADER_LENGTH + "-byte header"
+                        + " almost every BMP carries is a BMP image, although it is named as a PNG",
+                () -> assertThat(BrokenCheck.check(bmp).format().name()).isEqualTo(BMP_FORMAT));
+        claim(
+                "and so is one carrying the newest, " + BITMAPV5HEADER_LENGTH + "-byte header",
+                () -> assertThat(BrokenCheck.check(newestBmp).format().name()).isEqualTo(BMP_FORMAT));
+        claim(
+                "recognising it removes nothing by itself: an intact BMP image is not damaged",
+                () -> assertThat(BrokenCheck.check(bmp).broken()).isFalse());
+        claim(
+                "and the name is not consulted, so no finer label is taken from it",
+                () -> assertThat(BrokenCheck.check(bmp).subtype()).isEmpty());
+        claim(
+                "a PNG and a JPEG stay ordinary images, although both are named as BMP",
+                () -> assertThat(List.of(BrokenCheck.check(png).format(), BrokenCheck.check(jpeg).format()))
+                        .containsOnly(DetectedFormat.IMAGE));
+        claim(
+                "and a file opening with BM that carries no header a BMP carries stays an ordinary image too:"
+                        + " two letters alone are too weak a marker to single a file out by",
+                () -> assertThat(BrokenCheck.check(bmOnly).format()).isEqualTo(DetectedFormat.IMAGE));
+    }
+
+    /**
+     * ADR-167's length check reads four bytes at offset 14, so a file shorter than 18 bytes cannot carry
+     * it. Such a file must fall back to an ordinary image rather than fail the read, and a file exactly
+     * long enough must be judged on those four bytes alone.
+     */
+    @Test
+    @Story("The set of recognised images is what the conversion step can read")
+    @DisplayName("A file too short to say how long its header is stays an ordinary image, and one just long enough is a BMP image")
+    @Link(name = "ADR-167", url = Adr.BMP_IMAGES_ARE_OUT_OF_SCOPE, type = "adr")
+    void aBmpTooShortToCarryItsHeaderLengthIsAnOrdinaryImage(@TempDir Path dir) throws IOException {
+        Path tooShort = Files.write(
+                dir.resolve("stub.bmp"), Arrays.copyOf(bmpWithHeaderOf(BITMAPINFOHEADER_LENGTH), TOO_SHORT_FOR_A_HEADER_LENGTH));
+        Path justLongEnough = Files.write(
+                dir.resolve("cut.bmp"), Arrays.copyOf(bmpWithHeaderOf(BITMAPINFOHEADER_LENGTH), JUST_LONG_ENOUGH_FOR_A_HEADER_LENGTH));
+
+        claim(
+                "a file of " + TOO_SHORT_FOR_A_HEADER_LENGTH + " bytes opening with BM ends before the four bytes"
+                        + " that give the header's length, so it is judged as an ordinary image, and reading it"
+                        + " fails nothing",
+                () -> assertThat(BrokenCheck.check(tooShort).format()).isEqualTo(DetectedFormat.IMAGE));
+        claim(
+                "a file of " + JUST_LONG_ENOUGH_FOR_A_HEADER_LENGTH + " bytes ends right after those four bytes,"
+                        + " and a length of " + BITMAPINFOHEADER_LENGTH + " there makes it a BMP image",
+                () -> assertThat(BrokenCheck.check(justLongEnough).format().name()).isEqualTo(BMP_FORMAT));
+    }
+
     @Test
     @Story("One marker, both documents and clutter behind it")
     @DisplayName("A legacy Word document and a Windows thumbnail cache open with the same marker, and are separated by their names")
@@ -394,6 +502,44 @@ class DetectedFormatTest {
         bytes.write(signature);
         bytes.write(trailingText.getBytes(StandardCharsets.US_ASCII));
         return bytes.toByteArray();
+    }
+
+    /**
+     * A whole, well-formed BMP of 2 by 2 pixels whose picture header is {@code headerLength} bytes long:
+     * the file header, the picture header, then the rows of pixels. Every number in it is little-endian.
+     * Beyond the fields written here, a longer header is zeros, which is what a writer leaves unused.
+     */
+    private static byte[] bmpWithHeaderOf(int headerLength) {
+        int pixelsAt = BMP_FILE_HEADER_LENGTH + headerLength;
+        int pixelBytes = BYTES_PER_ROW * PIXELS_HIGH;
+        ByteBuffer bmp = ByteBuffer.allocate(pixelsAt + pixelBytes).order(ByteOrder.LITTLE_ENDIAN);
+        bmp.put((byte) 'B').put((byte) 'M');
+        bmp.putInt(pixelsAt + pixelBytes); // the whole file's length
+        bmp.putInt(0); // two reserved fields
+        bmp.putInt(pixelsAt); // where the pixels start
+        bmp.putInt(headerLength);
+        bmp.putInt(PIXELS_WIDE);
+        bmp.putInt(PIXELS_HIGH);
+        bmp.putShort((short) 1); // one colour plane, the only value allowed
+        bmp.putShort((short) BITS_PER_PIXEL);
+        bmp.putInt(0); // uncompressed
+        bmp.putInt(pixelBytes);
+        bmp.putInt(PIXELS_PER_METRE);
+        bmp.putInt(PIXELS_PER_METRE);
+        bmp.position(pixelsAt);
+        for (int i = 0; i < pixelBytes; i++) {
+            bmp.put((byte) 0x7F);
+        }
+        return bmp.array();
+    }
+
+    /** {@code BM}, a file header's worth of bytes, and then a length no BMP picture header has. */
+    private static byte[] bmFollowedByNoHeader() {
+        ByteBuffer bytes = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN);
+        bytes.put((byte) 'B').put((byte) 'M');
+        bytes.position(BMP_FILE_HEADER_LENGTH);
+        bytes.putInt(NO_BMP_HEADER_LENGTH);
+        return bytes.array();
     }
 
     /** A well-formed archive whose single entry is named {@code entryName}. */

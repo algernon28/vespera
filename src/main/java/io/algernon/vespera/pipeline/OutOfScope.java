@@ -5,8 +5,9 @@ import io.algernon.vespera.corpus.DetectedSubtype;
 import java.util.Optional;
 
 /**
- * Which kinds of file this tool leaves out, whatever they hold (ADR-146): spreadsheets, both the
- * workbook archive stage 1 recognises from its bytes and the older compound file named as one.
+ * Which kinds of file this tool leaves out, whatever they hold: spreadsheets, both the workbook
+ * archive stage 1 recognises from its bytes and the older compound file named as one (ADR-146), and
+ * a BMP image, recognised from its two headers (ADR-167).
  *
  * <p>A code default, and the one place it is written. Making it the operator's to change is a later
  * decision (#278), and a profile key would read this same question; nothing else in the tree names a
@@ -23,6 +24,12 @@ final class OutOfScope {
     static Optional<String> reasonFor(DetectedFormat format, Optional<DetectedSubtype> subtype) {
         boolean spreadsheet = format == DetectedFormat.SPREADSHEET
                 || (format == DetectedFormat.OLE_COMPOUND && subtype.equals(Optional.of(DetectedSubtype.LEGACY_SPREADSHEET)));
-        return spreadsheet ? Optional.of("a spreadsheet, and spreadsheets are out of scope") : Optional.empty();
+        if (spreadsheet) {
+            return Optional.of("a spreadsheet, and spreadsheets are out of scope");
+        }
+        if (format == DetectedFormat.BMP) {
+            return Optional.of("a BMP image, and BMP images are out of scope");
+        }
+        return Optional.empty();
     }
 }

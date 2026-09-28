@@ -457,7 +457,7 @@ class GenerationTasklet implements Tasklet {
      * call, so a document's decoded pictures live only for the one call that decodes them, and ADR-149
      * §9's one-document bound on memory holds regardless of how many times a survivor is asked about.
      *
-     * <p><b>An {@code IMAGE} survivor shows no pictures</b> (ADR-150 §4): the picture Docling would crop
+     * <p><b>An {@code IMAGE} or {@code BMP} survivor shows no pictures</b> (ADR-150 §4, ADR-167): the picture Docling would crop
      * from it is a re-sampled region of the original, not a second document worth carrying alongside it.
      * The format is read under the byte-level-reduction run this invocation arrived at (ADR-154), which
      * {@link #execute} resolves once, rather than re-derived from the current implementation version,
@@ -468,7 +468,7 @@ class GenerationTasklet implements Tasklet {
         return occurrenceId -> {
             boolean isImage = detectedFormats
                     .formatFor(occurrenceId, byteLevelReductionRun)
-                    .filter(DetectedFormat.IMAGE::equals)
+                    .filter(format -> format == DetectedFormat.IMAGE || format == DetectedFormat.BMP)
                     .isPresent();
             if (isImage) {
                 return List.of();
