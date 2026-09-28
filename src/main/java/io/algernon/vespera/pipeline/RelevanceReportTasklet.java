@@ -201,8 +201,9 @@ class RelevanceReportTasklet implements Tasklet {
         // The answers already given, re-banded against this run's own scores. That is ADR-088's
         // headline consequence made executable: a label is a fact about a document, so a re-score under
         // a new model re-reads what a person already answered rather than asking them again.
+        Optional<String> seedSet = seedSet();
         Map<OccurrenceId, Boolean> answers =
-                seedSet().map(seedSet -> answersInThisWalk(seedSet, scoring)).orElseGet(Map::of);
+                seedSet.map(set -> answersInThisWalk(set, scoring)).orElseGet(Map::of);
 
         write(
                 RelevanceLabellingReport.FILE_NAME,
@@ -216,6 +217,10 @@ class RelevanceReportTasklet implements Tasklet {
                 RelevanceLabelFile.render(
                         scoring.value(),
                         relevanceDistribution.anyEmbedderIdentity().orElse(modelName),
+                        // Both seed-usability gates are open by the preamble above, so the seed folder is
+                        // named and this is always present; there is nothing else it could sensibly be
+                        // (ADR-169 §4).
+                        seedSet.orElseThrow(),
                         entries,
                         answers));
         pointTheThresholdKeyAtThePage();

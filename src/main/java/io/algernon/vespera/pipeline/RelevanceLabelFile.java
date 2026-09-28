@@ -19,10 +19,11 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * {@code relevance_label}; the page may also count answers to documents the current sample does not
  * ask about. Every other entry stays blank.
  *
- * <p>It names the run and the embedder identity it was generated under. That is not provenance for
- * its own sake: it is what lets a completed file offered against a different sample be refused
- * outright rather than partially matched, which #111 does when it ingests one. Sixty answers about
- * documents nobody was asked about is worse than no answers, because nothing about it looks wrong.
+ * <p>It names the run, the embedder identity and the seed set it was generated under. That is not
+ * provenance for its own sake: it is what lets a completed file offered against a different sample,
+ * or a different seed set (ADR-169 §4), be refused outright rather than partially matched, which #111
+ * does when it ingests one. Sixty answers about documents nobody was asked about is worse than no
+ * answers, because nothing about it looks wrong.
  *
  * <p>The score and the winning seed travel beside each question as the context that was on screen
  * when the judgement was made. ADR-088 keeps them beside a label and never part of what identifies
@@ -50,22 +51,28 @@ final class RelevanceLabelFile {
     record Entry(String path, RelevanceDistribution.Sampled sampled, String winningSeedPath) {}
 
     /** The file's whole text with every entry blank, for a caller with no recorded answers to show. */
-    static String render(String scoringRunId, String embedderIdentity, List<Entry> entries) {
-        return render(scoringRunId, embedderIdentity, entries, Map.of());
+    static String render(String scoringRunId, String embedderIdentity, String seedSet, List<Entry> entries) {
+        return render(scoringRunId, embedderIdentity, seedSet, entries, Map.of());
     }
 
     /**
      * The file's whole text: the stamps, then one entry per sampled document, carrying the answer
      * already recorded for it where {@code recordedAnswers} has one (ADR-169 §1) and blank otherwise.
+     *
+     * @param seedSet the canonical seed set (ADR-097) this run's answers are read against, written as
+     *     {@code generatedUnderSeedSet} so a file offered once the profile names a different seed set
+     *     is refused rather than recorded against a seed set nobody asked about (ADR-169 §4)
      */
     static String render(
             String scoringRunId,
             String embedderIdentity,
+            String seedSet,
             List<Entry> entries,
             Map<OccurrenceId, Boolean> recordedAnswers) {
         Map<String, Object> document = new LinkedHashMap<>();
         document.put("generatedUnderRun", scoringRunId);
         document.put("generatedUnderEmbedder", embedderIdentity);
+        document.put("generatedUnderSeedSet", seedSet);
 
         List<Map<String, Object>> questions = new ArrayList<>();
         for (Entry entry : entries) {

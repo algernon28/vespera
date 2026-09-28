@@ -121,6 +121,19 @@ class LabelIngestion {
                     + " these answers to be about. Nothing was recorded.");
         }
 
+        // The file names the seed set it was generated under (ADR-169 §4). A file with no stamp was
+        // written before that decision and carries only answers the operator typed by hand, so it is
+        // read against whatever seed set the profile names now, as it always was. A file that does name
+        // one is refused outright when it disagrees with the profile, before anything is recorded --
+        // recording it under the new seed set would make every answer it shows an answer to a question
+        // nobody asked.
+        Optional<String> fileSeedSet = LabelFileReader.seedSetNamedBy(offeredYaml);
+        if (fileSeedSet.isPresent() && !fileSeedSet.get().equals(seedSet)) {
+            return Outcome.refused("the label file was generated under the seed set at " + fileSeedSet.get()
+                    + ", but the profile now names the seed set at " + seedSet + "; answers about one seed"
+                    + " set are not answers about another, so nothing in it was recorded");
+        }
+
         // Compared against what was recorded before this answer overwrites it (ADR-169 §2): new,
         // unchanged, or changed, and a changed one is named so a correction is never made silently.
         int newCount = 0;

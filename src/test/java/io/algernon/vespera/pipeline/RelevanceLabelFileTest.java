@@ -42,6 +42,9 @@ class RelevanceLabelFileTest {
     /** The embedder the scores were produced by, which the file also has to name. */
     private static final String EMBEDDER = "nomic-embed-text@1.5/ollama-0.33.2";
 
+    /** The seed set the sample was drawn against, which the file also has to name (ADR-169). */
+    private static final String SEED_SET = "/corpus/seeds";
+
     private static final YAMLMapper YAML = YAMLMapper.builder().build();
 
     /** Three sampled documents is enough to claim one entry each, and to read the file by eye. */
@@ -52,7 +55,7 @@ class RelevanceLabelFileTest {
     @Story("One blank answer per document, and the file says what it was generated against")
     @DisplayName("The label file carries one unanswered entry per sampled document")
     void carriesOneUnansweredEntryPerSampledDocument() {
-        String yaml = RelevanceLabelFile.render(SCORING_RUN, EMBEDDER, threeSampledDocuments());
+        String yaml = RelevanceLabelFile.render(SCORING_RUN, EMBEDDER, SEED_SET, threeSampledDocuments());
 
         claim(
                 "every document that was sampled has an entry waiting for an answer, so the person"
@@ -73,7 +76,7 @@ class RelevanceLabelFileTest {
     @Story("One blank answer per document, and the file says what it was generated against")
     @DisplayName("The file names the run and the embedder it was generated under, so a stale one can be refused")
     void namesTheRunAndEmbedderItWasGeneratedUnder() {
-        String yaml = RelevanceLabelFile.render(SCORING_RUN, EMBEDDER, threeSampledDocuments());
+        String yaml = RelevanceLabelFile.render(SCORING_RUN, EMBEDDER, SEED_SET, threeSampledDocuments());
 
         claim(
                 "the file names the run it was generated under, which is what lets a file offered against"
@@ -97,7 +100,7 @@ class RelevanceLabelFileTest {
                 new RelevanceLabelFile.Entry(SAMPLED_PATHS.get(2), aSampleOf(13, 0.61), "seeds/other.pdf"));
         Map<OccurrenceId, Boolean> recorded = Map.of(new OccurrenceId(11), true, new OccurrenceId(12), false);
 
-        String yaml = RelevanceLabelFile.render(SCORING_RUN, EMBEDDER, entries, recorded);
+        String yaml = RelevanceLabelFile.render(SCORING_RUN, EMBEDDER, SEED_SET, entries, recorded);
 
         claim(
                 "the document recorded as relevant shows that answer, so the person who gave it is not"

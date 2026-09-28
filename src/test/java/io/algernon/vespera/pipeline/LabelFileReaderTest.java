@@ -39,6 +39,9 @@ class LabelFileReaderTest {
 
     private static final String THE_EMBEDDER = "model=all-minilm;digest=abc;dtype=F16;dimension=384;instruction=none";
 
+    /** The seed set the sample was drawn against, which the file also has to name (ADR-169). */
+    private static final String THE_SEED_SET = "/corpus/seeds";
+
     @Test
     @Story("A file about a different sample is refused whole")
     @DisplayName("A file naming a different run is refused, and nothing in it is applied")
@@ -107,7 +110,7 @@ class LabelFileReaderTest {
     @Story("The reader reads what the writer writes")
     @DisplayName("A file this system generated, answered in place, is read back with its stamps intact")
     void readsBackAFileThisSystemGenerated() {
-        String generated = RelevanceLabelFile.render(THE_RUN, THE_EMBEDDER, oneQuestion());
+        String generated = RelevanceLabelFile.render(THE_RUN, THE_EMBEDDER, THE_SEED_SET, oneQuestion());
         String answered = generated.replace("relevant: null", "relevant: true");
 
         LabelFileReader.Outcome outcome = LabelFileReader.read(answered, THE_RUN);
