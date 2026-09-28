@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Local Vespera Label" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="vespera" />
+    <!-- Records the answers in relevance-labels.yaml. The working directory it opens is one
+         machine's path, so it comes from the untracked .env (VESPERA_WORKING_DIR), loaded below. -->
+    <option name="PROGRAM_PARAMETERS" value="label" />
+    <option name="VM_PARAMETERS" value="-Dspring.config.import=optional:classpath:/application-local.yaml" />
+    <option name="ACTIVE_PROFILES" value="local" />
+    <option name="ENV_FILES" value="$PROJECT_DIR$/.env" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="io.algernon.vespera.VesperaApplication" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

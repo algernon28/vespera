@@ -1,11 +1,16 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Local SpringApp" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
     <module name="vespera" />
+    <!-- No root and no working directory here: both are one machine's paths, so they come from the
+         untracked .env beside this project (VESPERA_CORPUS_ROOT, VESPERA_WORKING_DIR), loaded below.
+         Without them, run refuses for want of a root rather than walking a guessed one. -->
     <option name="PROGRAM_PARAMETERS" value="run" />
     <option name="VM_PARAMETERS" value="-Dspring.config.import=optional:classpath:/application-local.yaml" />
     <option name="ACTIVE_PROFILES" value="local" />
+    <option name="ENV_FILES" value="$PROJECT_DIR$/.env" />
     <!-- Explicit, because vespera.working-dir defaults to ${user.dir}/.vespera: this is what keeps
-         the database and profile.yaml at the repo root instead of wherever the IDE last ran from. -->
+         the database and profile.yaml at the repo root instead of wherever the IDE last ran from,
+         when .env names no working directory. -->
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="io.algernon.vespera.VesperaApplication" />
     <method v="2">
