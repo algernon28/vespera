@@ -1,9 +1,26 @@
-# Gives Ollama every NVIDIA GPU Docker can reach. Named with a second -f on every up, beside
-# compose.yaml: `docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build`. Kept
-# out of compose.yaml because a device request the machine cannot satisfy stops up, and
-# compose.yaml's own up line has to succeed on every machine (ADR-165).
+# Gives Ollama and docling-serve every NVIDIA GPU Docker can reach. Named with a second -f on every up,
+# beside compose.yaml: `docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build`.
+# Kept out of compose.yaml because a device request the machine cannot satisfy stops up, and
+# compose.yaml's own up line has to succeed on every machine (ADR-165). An operator on this file must
+# also set VESPERA_DOCLING_IMAGE to the docling-serve tag below, because the sidecar cannot say which
+# image it is (ADR-170).
 services:
   ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+  docling-serve:
+    # The same Containerfile on docling-serve's CUDA 12.8 base (the RTX 50 series needs >= 12.8),
+    # under a tag of its own: its conversions differ from the CPU image's in a few text blocks, so
+    # it is a different extractor and its cache entries must not mix with the CPU image's (ADR-170).
+    image: 'vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0'
+    build:
+      args:
+        DOCLING_SERVE_BASE: 'quay.io/docling-project/docling-serve-cu128:v1.32.0'
     deploy:
       resources:
         reservations:

@@ -12,7 +12,10 @@
 # synthetic PDF (ADR-163). The layer below replaces it with 7.17.0, the release measured clean,
 # pinned so a rebuild can never pick up a different parser unannounced. Keep compose.yaml's tag in
 # step with it (ADR-163 §2).
-FROM quay.io/docling-project/docling-serve-cpu:v1.32.0
+# The CPU base is the default everywhere; compose.gpu.yaml passes the CUDA 12.8 base of the same
+# docling-serve release (ADR-170).
+ARG DOCLING_SERVE_BASE=quay.io/docling-project/docling-serve-cpu:v1.32.0
+FROM ${DOCLING_SERVE_BASE}
 USER 0
 RUN dnf -y install --nodocs --setopt=install_weak_deps=False \
       libreoffice-core libreoffice-writer libreoffice-impress \
