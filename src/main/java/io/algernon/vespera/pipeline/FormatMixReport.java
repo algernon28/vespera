@@ -25,7 +25,7 @@ final class FormatMixReport {
      * What stage 1 found, accumulated over the occurrences it examined, and how many of them it left
      * out as out of scope (ADR-146), of which {@code logs} were logs and {@code tooLarge} were text
      * files over the size ceiling (ADR-171). {@code byTimestampBand} counts the text files of ten or
-     * more lines by their timestamped share, ten percent to a band, the last band being 90% to 100%;
+     * more non-blank lines by their timestamped share, ten percent to a band, the last band being 90% to 100%;
      * {@code fewerThanTenLines} counts the rest. {@code logFloor} is {@code null} where none is set.
      */
     record Mix(
@@ -138,7 +138,7 @@ final class FormatMixReport {
 
         body.append(ReportPage.heading(2, "How much of each text file begins with a timestamp"))
                 .append(ReportPage.paragraph("Each text file was read from its start and its end, and the"
-                        + " lines that begin with a date or a time were counted against all its lines that"
+                        + " lines that begin with a date or a time were counted against the lines read that"
                         + " are not blank. The share is that count in whole percent, rounded down."))
                 .append(ReportPage.paragraph(mix.logFloor() == null
                         ? "No floor is set, so nothing was left out as a log. Setting logTimestampShareFloor"

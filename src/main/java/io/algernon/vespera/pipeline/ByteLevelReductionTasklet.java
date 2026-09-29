@@ -10,23 +10,22 @@ import io.algernon.vespera.corpus.DuplicateResolution;
 import io.algernon.vespera.corpus.DuplicateResolution.Candidate;
 import io.algernon.vespera.corpus.TimestampedLines;
 import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
-import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
-import java.time.Clock;
-import tools.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -44,6 +43,7 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Stage 1: byte-level reduction. Two passes over one run, in order:

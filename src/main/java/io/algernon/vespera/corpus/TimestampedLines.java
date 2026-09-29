@@ -53,7 +53,7 @@ public final class TimestampedLines {
      */
     public record Count(int timestamped, int nonBlank) {
 
-        /** Whether at least ten lines were read and the timestamped share of them reaches {@code floor}. */
+        /** Whether at least ten non-blank lines were read and the timestamped share of them reaches {@code floor}. */
         public boolean isLog(double floor) {
             return nonBlank >= MINIMUM_NON_BLANK_LINES && (double) timestamped / nonBlank >= floor;
         }
