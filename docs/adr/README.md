@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-169.
+One file per architecture decision, ADR-001 through ADR-170.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -188,3 +188,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-167](0167-bmp-images-are-out-of-scope-and-stage-1-recognises-one-by-its-file-header-and-the-header-after-it.md) | 2026-09-28 | BMP images are out of scope, and stage 1 recognises one by its file header and the header after it *(extends ADR-146)* |
 | [ADR-168](0168-videos-are-out-of-scope-and-stage-1-recognises-one-by-its-container-signature.md) | 2026-09-28 | Videos are out of scope, and stage 1 recognises one by its container signature *(extends ADR-146)* |
 | [ADR-169](0169-the-label-file-shows-the-answers-already-recorded-and-a-changed-answer-replaces-the-old-one-and-is-reported.md) | 2026-09-28 | The label file shows the answers already recorded, and a changed answer replaces the old one and is reported *(amends ADR-088)* |
+| [ADR-170](0170-docling-runs-on-the-gpu-under-compose-gpu-yaml-with-an-image-tag-of-its-own.md) | 2026-09-28 | Docling runs on the GPU under compose.gpu.yaml, with an image tag of its own *(amends ADR-165, ADR-147)* |

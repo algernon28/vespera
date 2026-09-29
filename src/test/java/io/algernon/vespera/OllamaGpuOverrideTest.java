@@ -17,21 +17,27 @@ import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * Ollama runs its models on an NVIDIA GPU when the operator names {@code compose.gpu.yaml} beside
- * {@code compose.yaml}, and {@code compose.yaml} on its own asks Docker for no device (ADR-165).
+ * Ollama and the Docling sidecar run on an NVIDIA GPU when the operator names {@code compose.gpu.yaml}
+ * beside {@code compose.yaml}, and {@code compose.yaml} on its own asks Docker for no device (ADR-165,
+ * as ADR-170 amends it).
  *
  * <p>Opt-in rather than the default because a device request the machine cannot satisfy stops
- * {@code docker compose up} with exit 1 and leaves Ollama created and never started; with the request in
- * {@code compose.yaml}, the README's one {@code up} line would fail on every machine without an NVIDIA
- * GPU Docker can reach. The {@code deploy} form rather than {@code gpus:}, and {@code count: all}
- * rather than {@code 1}: both pairs reach the GPU on the machine measured, and ADR-165 says why these.
+ * {@code docker compose up} with exit 1 and leaves the service created and never started; with the
+ * request in {@code compose.yaml}, the README's one {@code up} line would fail on every machine without
+ * an NVIDIA GPU Docker can reach. The {@code deploy} form rather than {@code gpus:}, and
+ * {@code count: all} rather than {@code 1}: both pairs reach the GPU on the machine measured, and
+ * ADR-165 says why these.
  *
- * <p>The override carries the request and nothing else, so the image, the port and the restart policy
- * stay the ones {@code compose.yaml} names, among them the restart policy {@link SidecarRestartPolicyTest}
- * reads.
+ * <p>For Ollama the override carries the request and nothing else, so its image, port and restart
+ * policy stay the ones {@code compose.yaml} names, among them the restart policy
+ * {@link SidecarRestartPolicyTest} reads. For the Docling sidecar it carries the request, an image name
+ * and a build argument, and nothing else: the GPU build converts slightly differently and the sidecar
+ * cannot say which image it is, so it needs a tag of its own (ADR-170), while its build context, its
+ * lockdown, its port and its restart policy stay {@code compose.yaml}'s.
  *
  * <p>Read from the files themselves, with no Docker, as {@link SidecarRestartPolicyTest} reads them.
- * What Docker does with the request is ADR-165's probes, not something a unit test can show.
+ * What Docker does with the request is ADR-165's probes and ADR-170's measurements, not something a
+ * unit test can show.
  */
 @Epic("Pipeline")
 @Feature("The sidecars")
@@ -44,8 +50,14 @@ class OllamaGpuOverrideTest {
     /** The file the operator names with a second {@code -f} to give Ollama the GPU, beside the first. */
     private static final Path GPU_FILE = Path.of("compose.gpu.yaml");
 
-    /** The service that serves the models, and the only one given the GPU. */
+    /** The service that serves the models, and one of the two given the GPU. */
     private static final String OLLAMA = "ollama";
+
+    /** The service that converts documents, and the other one given the GPU (ADR-170). */
+    private static final String DOCLING = "docling-serve";
+
+    /** The build argument the sidecar's {@code Containerfile} takes its base from (ADR-170). */
+    private static final String DOCLING_BASE_ARG = "DOCLING_SERVE_BASE";
 
     /**
      * Service keys through which a Compose service can ask Docker for a GPU on their own: {@code gpus},
@@ -86,32 +98,59 @@ class OllamaGpuOverrideTest {
 
     @Test
     @Story("The GPU is asked for only where the operator asks for it")
-    @DisplayName("The GPU file gives the model server every NVIDIA GPU and changes nothing else")
-    void theOverrideGivesOllamaEveryNvidiaGpu() throws IOException {
+    @DisplayName("The GPU file gives the model server and the document converter every NVIDIA GPU, and nothing else")
+    @Link(name = "ADR-170", url = Adr.DOCLING_RUNS_ON_THE_GPU_WITH_AN_IMAGE_TAG_OF_ITS_OWN, type = "adr")
+    void theOverrideGivesOllamaAndDoclingEveryNvidiaGpu() throws IOException {
         claim(
                 "compose.gpu.yaml sits beside compose.yaml, for an operator with an NVIDIA GPU to name"
                         + " with a second -f",
                 () -> assertThat(GPU_FILE).isRegularFile());
         Map<String, Map<String, Object>> overridden = services(GPU_FILE);
         claim(
-                "it gives a GPU to one service, the model server, and to nothing else",
-                () -> assertThat(overridden).containsOnlyKeys(OLLAMA));
+                "it gives a GPU to two services, the model server and the document converter, and to"
+                        + " nothing else",
+                () -> assertThat(overridden).containsOnlyKeys(OLLAMA, DOCLING));
         claim(
-                "that is a service compose.yaml runs, so the file adds to it rather than starting a"
-                        + " second one",
-                () -> assertThat(services(COMPOSE_FILE)).containsKey(OLLAMA));
+                "both are services compose.yaml runs, so the file adds to them rather than starting"
+                        + " second ones",
+                () -> assertThat(services(COMPOSE_FILE)).containsKeys(OLLAMA, DOCLING));
         Map<String, Object> ollama = overridden.get(OLLAMA);
         claim(
-                "the only thing it adds is the device request, so the image, the port and the restart"
-                        + " policy stay the ones compose.yaml names",
+                "for the model server the only thing it adds is the device request, so the image, the port"
+                        + " and the restart policy stay the ones compose.yaml names",
                 () -> assertThat(ollama).containsOnlyKeys("deploy"));
         claim(
-                "the request is one device request, for every GPU the NVIDIA driver can see, as a GPU",
-                () -> assertThat(devices(ollama))
-                        .containsExactly(Map.of(
-                                "driver", NVIDIA,
-                                "count", EVERY_GPU,
-                                "capabilities", List.of(GPU_CAPABILITY))));
+                "the model server's request is one device request, for every GPU the NVIDIA driver can"
+                        + " see, as a GPU",
+                () -> assertThat(devices(ollama)).containsExactly(everyNvidiaGpu()));
+        Map<String, Object> docling = overridden.get(DOCLING);
+        claim(
+                "for the document converter it adds an image name of its own, a build argument and the"
+                        + " device request, and nothing else, so the build context, the lockdown, the port"
+                        + " and the restart policy stay the ones compose.yaml names",
+                () -> assertThat(docling).containsOnlyKeys("image", "build", "deploy"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> build = (Map<String, Object>) docling.get("build");
+        claim(
+                "its build adds build arguments and nothing else, so the build context and the"
+                        + " Containerfile stay the ones compose.yaml names, and the GPU build is built from"
+                        + " the same file as the processor build",
+                () -> assertThat(build).containsOnlyKeys("args"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> args = (Map<String, Object>) build.get("args");
+        claim(
+                "and the one build argument is the base the Containerfile is built on, so nothing"
+                        + " but the base differs between the two builds",
+                () -> assertThat(args).containsOnlyKeys(DOCLING_BASE_ARG));
+        claim(
+                "the document converter's request is the same one device request, for every GPU the"
+                        + " NVIDIA driver can see, as a GPU",
+                () -> assertThat(devices(docling)).containsExactly(everyNvidiaGpu()));
+    }
+
+    /** The one device request both services carry: every GPU the NVIDIA driver can see, as a GPU. */
+    private static Map<String, Object> everyNvidiaGpu() {
+        return Map.of("driver", NVIDIA, "count", EVERY_GPU, "capabilities", List.of(GPU_CAPABILITY));
     }
 
     /** {@code deploy.resources.reservations.devices} of one service, or {@code null} where any level is missing. */
