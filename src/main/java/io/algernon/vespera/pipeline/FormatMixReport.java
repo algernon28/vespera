@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedSubtype;
+import io.algernon.vespera.extraction.DoclingClient;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -22,13 +23,24 @@ final class FormatMixReport {
 
     /**
      * What stage 1 found, accumulated over the occurrences it examined, and how many of them it left
-     * out as out of scope (ADR-146).
+     * out as out of scope (ADR-146), of which {@code logs} were logs and {@code tooLarge} were text
+     * files over the size ceiling (ADR-171). {@code byTimestampBand} counts the text files of ten or
+     * more non-blank lines by their timestamped share, ten percent to a band, the last band being 90% to 100%;
+     * {@code fewerThanTenLines} counts the rest. {@code logFloor} is {@code null} where none is set.
      */
     record Mix(
             Map<DetectedFormat, Integer> byFormat,
             Map<DetectedFormat, Map<DetectedSubtype, Integer>> bySubtype,
             Map<String, Integer> unrecognisedLeadingBytes,
-            int outOfScope) {}
+            int outOfScope,
+            int logs,
+            int tooLarge,
+            int[] byTimestampBand,
+            int fewerThanTenLines,
+            Double logFloor) {}
+
+    /** How many bands of a tenth the timestamped share is counted in. */
+    static final int BANDS = 10;
 
     /**
      * How each class is named for a reader who has never seen this project (ADR-052): report-visible
@@ -70,8 +82,16 @@ final class FormatMixReport {
                         + " decision about what to leave out has a measurement behind it rather than a"
                         + " guess."))
                 .append(ReportPage.paragraph("Spreadsheets, BMP images and videos are out of scope, whatever"
-                        + " they hold. Files left out as out of scope, and not read any further: "
+                        + " they hold. So is a text file over "
+                        + OutOfScope.grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)
+                        + " bytes, because the converter cannot finish one in time, and so is a log, once"
+                        + " logTimestampShareFloor is set in profile.yaml. Files left out as out of scope,"
+                        + " and not read any further: "
                         + mix.outOfScope()
+                        + ". Of those, logs: "
+                        + mix.logs()
+                        + ", and text files left out for their size: "
+                        + mix.tooLarge()
                         + ". They are still counted in the table below, with everything else."));
 
         StringBuilder formatRows = new StringBuilder();
@@ -116,6 +136,26 @@ final class FormatMixReport {
                     ReportPage.headerRow("Within", "Named as", "Files"), subtypeRows.toString()));
         }
 
+        body.append(ReportPage.heading(2, "How much of each text file begins with a timestamp"))
+                .append(ReportPage.paragraph("Each text file was read from its start and its end, and the"
+                        + " lines that begin with a date or a time were counted against the lines read that"
+                        + " are not blank. The share is that count in whole percent, rounded down."))
+                .append(ReportPage.paragraph(mix.logFloor() == null
+                        ? "No floor is set, so nothing was left out as a log. Setting logTimestampShareFloor"
+                                + " in profile.yaml turns the rule on."
+                        : "The floor is " + floorText(mix.logFloor()) + ": a text file of ten lines or more"
+                                + " at or above it was left out as a log."));
+        StringBuilder bandRows = new StringBuilder();
+        bandRows.append(ReportPage.row(
+                ReportPage.textCell("fewer than ten lines"), ReportPage.numberCell(mix.fewerThanTenLines())));
+        for (int band = 0; band < BANDS; band++) {
+            String label = band == 0
+                    ? "under 10%"
+                    : band == BANDS - 1 ? "90% to 100%" : band * 10 + "% to " + (band * 10 + 9) + "%";
+            bandRows.append(ReportPage.row(ReportPage.textCell(label), ReportPage.numberCell(mix.byTimestampBand()[band])));
+        }
+        body.append(ReportPage.table(ReportPage.headerRow("Share beginning with a timestamp", "Text files"), bandRows.toString()));
+
         body.append(ReportPage.heading(2, "What could not be recognised"));
         if (mix.unrecognisedLeadingBytes().isEmpty()) {
             body.append(ReportPage.paragraph("Every file that was read was recognised."));
@@ -143,6 +183,14 @@ final class FormatMixReport {
                         + " the clutter that is left is the kind this measurement does not reach."));
 
         return ReportPage.render("What the files turned out to be", body.toString());
+    }
+
+    /** The floor as a whole percent where it is one, and as the number otherwise. */
+    private static String floorText(double floor) {
+        double percent = floor * 100;
+        return Math.abs(percent - Math.rint(percent)) < 1e-9
+                ? (long) Math.rint(percent) + "%"
+                : String.valueOf(floor);
     }
 
     /** The remainder within a class: examined, but carrying a name that named no member of it. */

@@ -132,16 +132,26 @@ class RunIdentityGoldenTest {
         cli.run("run", root.toString());
     }
 
+    /**
+     * Stage 1 read no settings until ADR-171, and recorded {@code {}}. It now records the text size
+     * ceiling, a constant in {@code extraction} that its {@code corpus}-only implementation version cannot
+     * see (ADR-058), and the log floor this profile leaves unset. Red until the change lands.
+     */
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("Byte-level reduction is identified by no settings at all, under the corpus code alone")
+    @DisplayName("Byte-level reduction is identified by the text size ceiling and the log floor, under the corpus code alone")
+    @Issue("370")
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
     void byteLevelReduction() {
         Map<String, Object> run = theRunOf("byte-level-reduction");
 
         claim(
-                "the settings it records are the empty object {} -- it reads none -- so the same walk always"
-                        + " names the same piece of work",
-                () -> assertThat(run.get("config_consumed")).isEqualTo("{}"));
+                "the settings it records are the largest text file it lets through, 16,000,000 bytes, then the"
+                        + " share of timestamped lines that makes a text file a log, recorded as null because"
+                        + " this profile sets none -- so a change to either is a new piece of work, and the same"
+                        + " walk under the same two still names the same one",
+                () -> assertThat(run.get("config_consumed"))
+                        .isEqualTo("{\"textSizeCeilingBytes\":16000000,\"logTimestampShareFloor\":null}"));
         claim(
                 "and its code version is the corpus module's alone",
                 () -> assertThat(run.get("implementation_version")).isEqualTo("corpus"));

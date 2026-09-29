@@ -341,7 +341,7 @@ class ContentCensusTaskletTest {
         WalkId walkId = new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource))
                 .walk(root);
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, step);
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, new io.algernon.vespera.profile.ProfileStore(root.resolveSibling("stage1-working")), root, root.resolveSibling("stage1-working")).execute(null, step);
         invocations.put(root, InvocationRecordFixture.recordOf(step));
         RunId extractionRunId = stageRunsOver(ledger, versions, root).extraction();
 

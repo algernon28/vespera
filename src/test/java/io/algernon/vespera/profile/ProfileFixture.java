@@ -43,6 +43,8 @@ public final class ProfileFixture {
 
     private NumericValue generationContextWindow = NumericValue.unset();
 
+    private NumericValue logTimestampShareFloor = NumericValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -62,6 +64,7 @@ public final class ProfileFixture {
         fixture.arrangementApproved = existing.arrangementApproved();
         fixture.generationModel = existing.generationModel();
         fixture.generationContextWindow = existing.generationContextWindow();
+        fixture.logTimestampShareFloor = existing.logTimestampShareFloor();
         return fixture;
     }
 
@@ -154,6 +157,16 @@ public final class ProfileFixture {
         return this;
     }
 
+    public ProfileFixture logTimestampShareFloor(String value, String provenance) {
+        return logTimestampShareFloor(aNumber(value, provenance));
+    }
+
+    /** Stage 1's log floor (ADR-171): the share of a text file's lines that must begin with a timestamp. */
+    public ProfileFixture logTimestampShareFloor(NumericValue value) {
+        this.logTimestampShareFloor = value == null ? NumericValue.unset() : value;
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -164,6 +177,7 @@ public final class ProfileFixture {
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
-                generationContextWindow);
+                generationContextWindow,
+                logTimestampShareFloor);
     }
 }

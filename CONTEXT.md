@@ -39,8 +39,12 @@ A recorded judgement against one file occurrence by one stage, carrying its reas
 _Avoid_: status, state, flag
 
 **Out of scope**:
-Of a kind of file this tool leaves out whatever it holds: a spreadsheet since ADR-146, a BMP image since ADR-167, and a video since ADR-168. A verdict of its own, written by stage 1, because it is a judgement about the kind of file and not about anything in it: an out-of-scope file is not broken, not empty and not irrelevant, and saying any of those would be false.
+Of a kind of file this tool leaves out whatever it holds: a spreadsheet since ADR-146, a BMP image since ADR-167, and a video since ADR-168. Since ADR-171, also a log, and a text file over the size Docling converts before the call gives up. A verdict of its own, written by stage 1, because it is a judgement about the kind of file and not about anything in it: an out-of-scope file is not broken, not empty and not irrelevant, and saying any of those would be false.
 _Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this tool chooses not to read them)
+
+**Log**:
+A text file with at least ten non-blank lines read, reading its first and last 64 KB, where at least the profile's `logTimestampShareFloor` of those lines begin with a timestamp (ADR-171). Decided from the bytes alone, never from the name: most logs here are not named `.log`, and most files named `.log` are not logs by this measure. An operational record, and out of scope once the floor is set.
+_Avoid_: log file (as a name-based kind), trace, journal
 
 **Survivor**:
 A file occurrence carrying no blocking verdict under a given run or any run upstream of it. A question the ledger answers of one run, not a place documents are moved to (ADR-156).

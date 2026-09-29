@@ -714,7 +714,7 @@ class ExtractionItemProcessorTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
         ImplementationVersions versions = new ImplementationVersions();
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, root, root.resolveSibling("stage1-working")).execute(null, step);
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, new io.algernon.vespera.profile.ProfileStore(root.resolveSibling("stage1-working")), root, root.resolveSibling("stage1-working")).execute(null, step);
         ExecutionContext invocation = InvocationRecordFixture.recordOf(step);
         // Stage 2 passes no gate, so the gates and the later stages' collaborators are left out: an
         // accessor that needed one would fail here rather than mint.

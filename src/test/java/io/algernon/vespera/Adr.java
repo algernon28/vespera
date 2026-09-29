@@ -877,6 +877,16 @@ public final class Adr {
     public static final String DOCLING_RUNS_ON_THE_GPU_WITH_AN_IMAGE_TAG_OF_ITS_OWN = FILE
             + "0170-docling-runs-on-the-gpu-under-compose-gpu-yaml-with-an-image-tag-of-its-own.md";
 
+    /**
+     * ADR-171 -- stage 1 leaves out of scope a text file over 16,000,000 bytes, the most Docling
+     * converts inside the call timeout, and, once the profile's logTimestampShareFloor is set, a log:
+     * a text file of ten lines or more whose lines, read from its first and last 64 KB, begin with a
+     * timestamp at least that often. Both are read from the bytes and the size, never from the name
+     * (extends ADR-146).
+     */
+    public static final String LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE = FILE
+            + "0171-a-log-is-out-of-scope-told-from-its-timestamps-and-so-is-text-too-large-for-docling-to-convert-in-time.md";
+
     private Adr() {
     }
 }

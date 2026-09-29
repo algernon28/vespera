@@ -334,6 +334,32 @@ class NextActionTest {
                 () -> assertThat(line).contains(A_MISTYPED_FLOOR));
     }
 
+    /**
+     * ADR-171 §3: an unreadable log floor applies no log rule, and the closing line says so in the words
+     * it uses for the conversion-quality floor.
+     */
+    @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("A non-numeric log floor is reported the same way")
+    @Issue("370")
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
+    void aMistypedLogFloorIsReportedToo() {
+        String line = NextAction.line(
+                theLogFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the log floor is named, with the word that says it is not a number, so an operator who"
+                        + " mistyped it learns that no file was left out as a log rather than assuming the"
+                        + " rule ran",
+                () -> assertThat(line).contains("logTimestampShareFloor").contains("number"));
+        claim(
+                "their own text is quoted back to them",
+                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+        claim(
+                "and it is still one line",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
     @Test
     @Story("The operator is never sent to a file the invocation did not write")
     @DisplayName("With no questions written, the line does not send the operator to the label file")
@@ -505,6 +531,16 @@ class NextActionTest {
                 .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
                 .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
                 .degenerateOutputConfidenceFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
+                .build();
+    }
+
+    /** Every run value answered, with the log floor written in a form no run can read. */
+    private static Profile theLogFloorMistyped() {
+        return ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .logTimestampShareFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
                 .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
                 .build();
     }

@@ -84,6 +84,11 @@ package io.algernon.vespera.profile;
  *     itself. Changing it changes what was read, so it joins the generation run's identity and a
  *     different window is a different run. No {@link Measurement} pointer: what informs it is the
  *     machine, not a pass over the corpus.
+ * @param logTimestampShareFloor stage 1's log rule (ADR-171): a share on a 0-to-1 scale, the
+ *     timestamped share of the non-blank lines read from a text file's start and end, at or above which
+ *     the file is a log and is {@code out-of-scope}. Ships unset, per <b>observe before enforce</b>:
+ *     unset (or unreadable) means no log rule, and stage 1 only reports the distribution. Its
+ *     {@link Measurement} pointer is at the format-mix page.
  */
 public record Profile(
         TextValue seedFolder,
@@ -93,7 +98,8 @@ public record Profile(
         NumericValue relevanceScoreFloor,
         TextValue arrangementApproved,
         TextValue generationModel,
-        NumericValue generationContextWindow) {
+        NumericValue generationContextWindow,
+        NumericValue logTimestampShareFloor) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -107,11 +113,12 @@ public record Profile(
         generationModel = generationModel == null ? TextValue.unset() : generationModel;
         generationContextWindow =
                 generationContextWindow == null ? NumericValue.unset() : generationContextWindow;
+        logTimestampShareFloor = logTimestampShareFloor == null ? NumericValue.unset() : logTimestampShareFloor;
     }
 
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null, null, null, null, null);
+        return new Profile(null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -124,7 +131,8 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
-                generationContextWindow);
+                generationContextWindow,
+                logTimestampShareFloor);
     }
 
     /**
@@ -141,7 +149,8 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
-                generationContextWindow);
+                generationContextWindow,
+                logTimestampShareFloor);
     }
 
     /**
@@ -162,6 +171,21 @@ public record Profile(
                 relevanceScoreFloor.measuredBy(measurement),
                 arrangementApproved,
                 generationModel,
-                generationContextWindow);
+                generationContextWindow,
+                logTimestampShareFloor);
+    }
+
+    /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
+    public Profile withLogTimestampShareFloorMeasurement(Measurement measurement) {
+        return new Profile(
+                seedFolder,
+                degenerateOutputConfidenceFloor,
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel,
+                relevanceScoreFloor,
+                arrangementApproved,
+                generationModel,
+                generationContextWindow,
+                logTimestampShareFloor.measuredBy(measurement));
     }
 }

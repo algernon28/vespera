@@ -71,7 +71,8 @@ class ClusteringInvocationTest {
             "arrangementApproved",
             "relevanceScoreFloor",
             "generationModel",
-            "generationContextWindow");
+            "generationContextWindow",
+            "logTimestampShareFloor");
 
     @TempDir
     static Path workingDirectory;

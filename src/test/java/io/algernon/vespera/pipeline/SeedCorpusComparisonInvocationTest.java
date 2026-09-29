@@ -79,7 +79,8 @@ class SeedCorpusComparisonInvocationTest {
             "arrangementApproved",
             "relevanceScoreFloor",
             "generationModel",
-            "generationContextWindow");
+            "generationContextWindow",
+            "logTimestampShareFloor");
 
     /**
      * What census writes against the seed-folder key: the walk it took of that folder. It answers

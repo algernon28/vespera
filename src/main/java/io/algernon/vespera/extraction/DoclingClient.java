@@ -52,6 +52,23 @@ public class DoclingClient {
     static final Duration CALL_TIMEOUT = Duration.ofMinutes(5);
 
     /**
+     * The largest text file stage 1 lets through to conversion, in bytes (ADR-171): a text file over
+     * this is out of scope, because the converter cannot finish one in time.
+     *
+     * <p>Measured one call at a time, posted as {@code convert} posts it (a file named
+     * {@code document.md}, {@code to_formats=json}): 16,000,000 bytes took 51.7 s on the GPU image and
+     * 49.5 s on the CPU image; 300 s ({@link #CALL_TIMEOUT}) is crossed between 40 MB and 48 MB, and
+     * 120 s (docling-serve's default sync wait) between 24 MB and 32 MB. docling-serve does not abort a
+     * job whose caller has gone, so an oversized file holds a worker long after Vespera gave up.
+     *
+     * <p><b>Re-measure, with the procedure in ADR-171, and update this value and this comment whenever
+     * the Docling image, {@link #CALL_TIMEOUT}, docling-serve's sync wait or ADR-140's width
+     * changes.</b> The value is part of stage 1's configuration consumed, so changing it mints a new
+     * stage-1 run.
+     */
+    public static final long TEXT_SIZE_CEILING_BYTES = 16_000_000L;
+
+    /**
      * A local/managed sidecar either accepts a TCP connection almost immediately or is not coming
      * up at all — ADR-071 only fixed the read budget, so this is a separate, short connect budget
      * rather than a reuse of {@link #CALL_TIMEOUT}, which would otherwise let one call occupy up to

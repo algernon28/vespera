@@ -378,7 +378,22 @@ class NextAction {
                     + " a score on the scale " + RelevanceLabellingReport.FILE_NAME + " reports into"
                     + " relevanceScoreFloor in " + PROFILE + ", and run again.");
         }
-        return theConfidenceFloorUnreadable(profile);
+        Optional<String> confidenceFloor = theConfidenceFloorUnreadable(profile);
+        return confidenceFloor.isPresent() ? confidenceFloor : theLogFloorUnreadable(profile);
+    }
+
+    /**
+     * The line for the log floor (ADR-171), where it holds something no number can be read from --
+     * empty otherwise. An unset floor is not reported: it ships unset, and unset means no log rule.
+     */
+    private static Optional<String> theLogFloorUnreadable(Profile profile) {
+        if (profile.logTimestampShareFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but logTimestampShareFloor reads "
+                    + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and"
+                    + " removed no logs. Next: write a share between 0 and 1 into logTimestampShareFloor in "
+                    + PROFILE + ", and run again.");
+        }
+        return Optional.empty();
     }
 
     /**

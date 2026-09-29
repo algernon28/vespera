@@ -56,10 +56,11 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `arrangementApproved` | whether the groups the tool formed are worth writing over | `arrangement.html` |
 | `generationModel` | whichever model you can serve locally, if you want a different one | — |
 | `generationContextWindow` | how much your own machine can read in one go | — |
+| `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
 
-Three of these are **optional** and none of them is one of the five stops; all three are here so that you know they exist.
+Four of these are **optional** and none of them is one of the five stops; all four are here so that you know they exist.
 
-`degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `generationModel` and `generationContextWindow`, left unset, write the connecting text with the model and the reading window Vespera ships with — they are the values that already have answers, and setting one only replaces the answer it already had.
+`degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `logTimestampShareFloor`, left unset, removes no logs: set it, as a share between 0 and 1, to leave out as a log every text file of ten lines or more in which at least that share of the lines read begin with a date or a time. `generationModel` and `generationContextWindow`, left unset, write the connecting text with the model and the reading window Vespera ships with — they are the values that already have answers, and setting one only replaces the answer it already had.
 
 The reading window is how much of a group goes into one request. Set it larger and more of each group is read in one go; leave it alone and Vespera uses a size any machine can serve. Groups too large to fit are still written about, from the documents nearest your exemplar, and the finished page says how many of them it was written from.
 
