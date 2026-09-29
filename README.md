@@ -168,7 +168,7 @@ docker compose -p vespera exec docling-serve python -c "import torch;print(torch
 To check that Vespera recorded the card's image, run this from the directory you run `vespera` from, once a run has converted something, with Python on your machine. It prints what the newest conversion run in the ledger was keyed on, and the image is the part after `image=`. After your first run on the card, that is `vespera/docling-serve-cu128-libreoffice`:
 
 ```
-python -c "import sqlite3;print(sqlite3.connect('.vespera/vespera.db').execute('select config_consumed from run where stage=? order by rowid desc limit 1',['extraction']).fetchone())"
+python -c "import sqlite3;print(sqlite3.connect('file:.vespera/vespera.db?mode=ro',uri=True).execute('select config_consumed from run where stage=? order by rowid desc limit 1',['extraction']).fetchone())"
 ```
 
 If you moved the working directory, put its `vespera.db` in place of `.vespera/vespera.db`.
