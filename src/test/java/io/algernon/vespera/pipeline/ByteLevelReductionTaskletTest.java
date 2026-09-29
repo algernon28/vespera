@@ -401,6 +401,174 @@ class ByteLevelReductionTaskletTest {
                 () -> assertThat(html).contains(OUT_OF_SCOPE_SENTENCE));
     }
 
+    /**
+     * ADR-171: a text file over 16,000,000 bytes is out of scope, whatever its subtype, because Docling
+     * keeps converting it long after the call has given up. Two byte-identical copies are the duplicate
+     * pass's to never see; the third is named as a comma-separated file, so the rule is shown to read no
+     * subtype. None of them is shaped like a log, so the log rule cannot be what removes them. Red until
+     * the change lands.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("A text file over 16,000,000 bytes is removed as out of scope, never hashed, and counted on the page")
+    @Issue("370")
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
+    void removesATextFileOverTheSizeCeilingAsOutOfScope(@TempDir Path root, @TempDir Path workingDirectory)
+            throws Exception {
+        writeTextOfExactly(root.resolve("export.txt"), TEXT_SIZE_CEILING_BYTES + 1);
+        writeTextOfExactly(root.resolve("export copy.txt"), TEXT_SIZE_CEILING_BYTES + 1);
+        writeTextOfExactly(root.resolve("terminals.csv"), TEXT_SIZE_CEILING_BYTES + 2);
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
+
+        claim(
+                "each text file one byte or more over the 16,000,000-byte ceiling is removed as out of scope --"
+                        + " the copy on its own account, not as a duplicate, and the comma-separated file too",
+                () -> assertThat(List.of(
+                                verdictKindsFor(ledger, walkId, "export.txt"),
+                                verdictKindsFor(ledger, walkId, "export copy.txt"),
+                                verdictKindsFor(ledger, walkId, "terminals.csv")))
+                        .containsOnly(List.of("OUT_OF_SCOPE")));
+        claim(
+                "with a reason giving the file's size and the ceiling, both in bytes, and why the ceiling exists",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, "export.txt")).containsExactly(SIZE_REASON));
+        claim(
+                "the two identical files were never hashed, because nothing out of scope reaches the duplicate pass",
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM content_hash", Integer.class))
+                        .isZero());
+        String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
+        claim(
+                "the page stage 1 writes counts the three files it left out",
+                () -> assertThat(countIn(html, "left out as out of scope")).isEqualTo(3));
+        claim(
+                "counts all three as text left out for its size, and none as a log",
+                () -> {
+                    assertThat(countIn(html, "text files left out for their size")).isEqualTo(3);
+                    assertThat(countIn(html, "Of those, logs")).isZero();
+                });
+        claim(
+                "and says in words that text over the ceiling is out of scope, and why",
+                () -> assertThat(html).contains(SIZE_SENTENCE));
+    }
+
+    /**
+     * ADR-171's boundary and its scope: a text file of exactly the ceiling is converted as before, and a
+     * PDF over it is not text, so the rule does not reach it. Passes today, and must keep passing.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("A text file of exactly 16,000,000 bytes and a larger PDF are both kept")
+    @Issue("370")
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
+    void keepsATextFileAtTheCeilingAndAPdfOverIt(@TempDir Path root, @TempDir Path workingDirectory)
+            throws Exception {
+        writeTextOfExactly(root.resolve("notes.txt"), TEXT_SIZE_CEILING_BYTES);
+        writePdfOfExactly(root.resolve("manual.pdf"), TEXT_SIZE_CEILING_BYTES + 1);
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
+
+        claim(
+                "the PDF is recognised as an intact PDF, so what keeps it is the rule's scope and not damage",
+                () -> assertThat(storedFormatOf(ledger, walkId, "manual.pdf")).isEqualTo("PDF"));
+        claim(
+                "a text file of exactly 16,000,000 bytes is kept: only a file over the ceiling is left out",
+                () -> assertThat(verdictKindsFor(ledger, walkId, "notes.txt")).isEmpty());
+        claim(
+                "and a PDF one byte over it is kept too: the ceiling is about text, which Docling converts on"
+                        + " a path whose cost grows faster than the file",
+                () -> assertThat(verdictKindsFor(ledger, walkId, "manual.pdf")).isEmpty());
+    }
+
+    /**
+     * ADR-171's log rule ships unset, per observe before enforce: until the profile says how much of a
+     * file must begin with timestamps, nothing is removed as a log. This step is built with no profile at
+     * all, which is that state. Passes today, and must keep passing.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("While no log floor is set, a file of timestamped lines is kept")
+    @Issue("370")
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
+    void keepsALogWhileNoLogFloorIsSet(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        StringBuilder log = new StringBuilder();
+        for (int line = 0; line < LOG_LINES; line++) {
+            log.append("[2023-02-08 12:00:").append(String.format(java.util.Locale.ROOT, "%02d", line))
+                    .append(",096] DEBUG -- operazioneOnline -- a transaction was handled\n");
+        }
+        Files.writeString(root.resolve("server-output"), log.toString());
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
+
+        claim(
+                "a file whose every one of its " + LOG_LINES + " lines begins with a timestamp carries no verdict:"
+                        + " with no floor set, the share is measured and nothing is removed for it",
+                () -> assertThat(verdictKindsFor(ledger, walkId, "server-output")).isEmpty());
+    }
+
+    /**
+     * The largest text file Docling converts inside the call timeout, in bytes (ADR-171): 51.7 s on the
+     * pinned image at exactly this size, where 32 MB took 166 s and 48 MB did not finish in 300 s.
+     * Written out here rather than read from the code, so the test pins the number.
+     */
+    private static final long TEXT_SIZE_CEILING_BYTES = 16_000_000L;
+
+    /** How many timestamped lines the log-shaped file carries: more than the ten a share needs. */
+    private static final int LOG_LINES = 12;
+
+    /** The reason a text file of 16,000,001 bytes is left out with, word for word. */
+    private static final String SIZE_REASON = "a text file of 16,000,001 bytes, and text files over 16,000,000 bytes"
+            + " are out of scope, because the converter cannot finish one in time";
+
+    /** The format-mix page's sentence naming text over the ceiling as out of scope. */
+    private static final String SIZE_SENTENCE =
+            "So is a text file over 16,000,000 bytes, because the converter cannot finish one in time";
+
+    /**
+     * Writes a text file of exactly {@code size} bytes: rows of semicolon-separated values, none
+     * beginning with anything a timestamp could be read from, cut at the last byte.
+     */
+    private static void writeTextOfExactly(Path file, long size) throws java.io.IOException {
+        byte[] row = "TID-0001;ACME RETAIL;terminal row of an export\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        try (var out = new java.io.BufferedOutputStream(Files.newOutputStream(file), 1 << 16)) {
+            long written = 0;
+            while (written + row.length <= size) {
+                out.write(row);
+                written += row.length;
+            }
+            out.write(row, 0, (int) (size - written));
+        }
+    }
+
+    /** Writes an intact PDF of exactly {@code size} bytes: its header, padding, and its end marker. */
+    private static void writePdfOfExactly(Path file, long size) throws java.io.IOException {
+        byte[] header = "%PDF-1.4\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        byte[] trailer = "\n%%EOF\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        byte[] padding = new byte[1 << 16];
+        java.util.Arrays.fill(padding, (byte) ' ');
+        try (var out = new java.io.BufferedOutputStream(Files.newOutputStream(file), 1 << 16)) {
+            out.write(header);
+            long remaining = size - header.length - trailer.length;
+            while (remaining > 0) {
+                int chunk = (int) Math.min(padding.length, remaining);
+                out.write(padding, 0, chunk);
+                remaining -= chunk;
+            }
+            out.write(trailer);
+        }
+    }
+
     /** The name the ledger stores for the detected format of a video. */
     private static final String VIDEO_FORMAT = "VIDEO";
 
