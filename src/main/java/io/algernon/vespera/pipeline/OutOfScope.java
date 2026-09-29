@@ -2,6 +2,9 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedSubtype;
+import io.algernon.vespera.corpus.TimestampedLines;
+import io.algernon.vespera.extraction.DoclingClient;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -21,7 +24,7 @@ final class OutOfScope {
 
     private OutOfScope() {}
 
-    /** Why a file of this kind is left out, or empty where it is in scope. */
+    /** A file left out for what it is. */
     static Optional<String> reasonFor(DetectedFormat format, Optional<DetectedSubtype> subtype) {
         boolean spreadsheet = format == DetectedFormat.SPREADSHEET
                 || (format == DetectedFormat.OLE_COMPOUND && subtype.equals(Optional.of(DetectedSubtype.LEGACY_SPREADSHEET)));
@@ -35,5 +38,32 @@ final class OutOfScope {
             return Optional.of("a video, and videos are out of scope");
         }
         return Optional.empty();
+    }
+
+    /** Why a text file is a log under {@code floor}, or empty where it is not, or no floor is set (ADR-171). */
+    static Optional<String> logReason(TimestampedLines.Count count, Double floor) {
+        if (floor == null || !count.isLog(floor)) {
+            return Optional.empty();
+        }
+        return Optional.of("a log, and logs are out of scope: " + count.wholePercent()
+                + "% of the lines read from its start and end begin with a timestamp");
+    }
+
+    /** Why a text file of {@code sizeBytes} is too large, or empty where it is within the ceiling (ADR-171). */
+    static Optional<String> sizeReason(long sizeBytes) {
+        if (sizeBytes <= DoclingClient.TEXT_SIZE_CEILING_BYTES) {
+            return Optional.empty();
+        }
+        return Optional.of(String.format(
+                Locale.ROOT,
+                "a text file of %s bytes, and text files over %s bytes are out of scope, because the converter"
+                        + " cannot finish one in time",
+                grouped(sizeBytes),
+                grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)));
+    }
+
+    /** A number with {@code ,} as the grouping separator, whatever the locale. */
+    static String grouped(long number) {
+        return String.format(Locale.ROOT, "%,d", number);
     }
 }

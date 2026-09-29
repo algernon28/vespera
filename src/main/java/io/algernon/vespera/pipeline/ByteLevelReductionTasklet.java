@@ -8,6 +8,7 @@ import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.corpus.DuplicateResolution;
 import io.algernon.vespera.corpus.DuplicateResolution.Candidate;
+import io.algernon.vespera.corpus.TimestampedLines;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
@@ -15,6 +16,13 @@ import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
+import io.algernon.vespera.extraction.DoclingClient;
+import io.algernon.vespera.profile.Measurement;
+import io.algernon.vespera.profile.NumericValue;
+import io.algernon.vespera.profile.Profile;
+import io.algernon.vespera.profile.ProfileStore;
+import java.time.Clock;
+import tools.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -59,14 +67,21 @@ import org.springframework.stereotype.Component;
 @StepScope
 public class ByteLevelReductionTasklet implements Tasklet {
 
-    /** Stage 1 is fully deterministic — no profile value shapes it, so a run's config is empty. */
-    static final String CONFIG_CONSUMED = "{}";
+    /**
+     * What stage 1 consumes (ADR-171 §4): the size ceiling, which lives in {@code extraction}, and the
+     * log floor, which is the profile's. Stage 1's implementation version is {@code corpus}'s alone
+     * (ADR-058), so a change to either has to be visible here to mint a new run. The floor is {@code
+     * null} where the key is unset or unreadable.
+     */
+    record ConfigConsumed(long textSizeCeilingBytes, Double logTimestampShareFloor) {}
 
     /** The page stage 1 leaves beside the database: what its detection found across the corpus (ADR-095). */
     static final String FORMAT_MIX_FILE_NAME = "format-mix.html";
 
     /** How many leading bytes group the unrecognised branch, so one kind arriving in bulk is visible. */
     private static final int LEADING_BYTES_REPORTED = 4;
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private static final Logger log = LoggerFactory.getLogger(ByteLevelReductionTasklet.class);
 
@@ -75,6 +90,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
     private final DetectedFormats detectedFormats;
     private final Path workingDirectory;
     private final ImplementationVersions implementationVersions;
+    private final ProfileStore profileStore;
     private final Path root;
 
     public ByteLevelReductionTasklet(
@@ -82,12 +98,14 @@ public class ByteLevelReductionTasklet implements Tasklet {
             ContentIdentity contentIdentity,
             DetectedFormats detectedFormats,
             ImplementationVersions implementationVersions,
+            ProfileStore profileStore,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
         this.detectedFormats = detectedFormats;
         this.implementationVersions = implementationVersions;
+        this.profileStore = profileStore;
         this.root = root;
         this.workingDirectory = workingDirectory;
     }
@@ -105,7 +123,13 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 new InvocationRuns(
                         chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext()));
         var walk = runMint.finishedWalk(canonicalRoot, "stage 1");
-        RunId runId = runMint.mint(StageModules.BYTE_LEVEL_REDUCTION, CONFIG_CONSUMED, walk, Optional.empty());
+        Profile profile = profileStore.load();
+        Double logFloor = logFloorOf(profile);
+        RunId runId = runMint.mint(
+                StageModules.BYTE_LEVEL_REDUCTION,
+                configConsumed(logFloor),
+                walk,
+                Optional.empty());
 
         return TaskletSteps.once(
                 ledger,
@@ -126,19 +150,23 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 },
                 () -> {
                     log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
-                    verdictBrokenSurvivors(runId, canonicalRoot);
+                    verdictBrokenSurvivors(runId, canonicalRoot, logFloor);
                     resolveDuplicates(runId, canonicalRoot);
                     log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
                     return true;
                 });
     }
 
-    private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot) throws Exception {
+    private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot, Double logFloor) throws Exception {
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", ledger.survivorCount(runId));
         Map<DetectedFormat, Integer> byFormat = new LinkedHashMap<>();
         Map<DetectedFormat, Map<DetectedSubtype, Integer>> bySubtype = new LinkedHashMap<>();
         Map<String, Integer> unrecognisedLeadingBytes = new LinkedHashMap<>();
+        int[] byTimestampBand = new int[FormatMixReport.BANDS];
+        int fewerThanTenLines = 0;
         int outOfScope = 0;
+        int logs = 0;
+        int tooLarge = 0;
         for (OccurrenceId occurrenceId : drain(ledger.survivors(runId))) {
             OccurrenceFacts facts = factsFor(occurrenceId);
             BrokenCheck.Result result = BrokenCheck.check(canonicalRoot.resolve(facts.path().value()));
@@ -147,14 +175,37 @@ public class ByteLevelReductionTasklet implements Tasklet {
             // fail most (ADR-095).
             detectedFormats.record(occurrenceId, runId, result.format(), result.subtype().orElse(null));
             countInTheMix(byFormat, bySubtype, unrecognisedLeadingBytes, result, canonicalRoot.resolve(facts.path().value()));
-            Optional<String> leftOut = result.broken()
-                    ? Optional.empty()
-                    : OutOfScope.reasonFor(result.format(), result.subtype());
+            Optional<String> leftOut = Optional.empty();
+            boolean isLog = false;
+            if (!result.broken()) {
+                leftOut = OutOfScope.reasonFor(result.format(), result.subtype());
+                if (leftOut.isEmpty() && result.format() == DetectedFormat.PLAIN_TEXT) {
+                    Optional<TimestampedLines.Count> count =
+                            countTimestamps(canonicalRoot.resolve(facts.path().value()), occurrenceId);
+                    if (count.isPresent()) {
+                        if (count.get().nonBlank() < TimestampedLines.MINIMUM_NON_BLANK_LINES) {
+                            fewerThanTenLines++;
+                        } else {
+                            byTimestampBand[Math.min(FormatMixReport.BANDS - 1, count.get().wholePercent() / 10)]++;
+                        }
+                    }
+                    leftOut = count.flatMap(counted -> OutOfScope.logReason(counted, logFloor));
+                    isLog = leftOut.isPresent();
+                    if (leftOut.isEmpty()) {
+                        leftOut = OutOfScope.sizeReason(facts.sizeBytes());
+                    }
+                }
+            }
             if (result.broken()) {
                 ledger.verdict(occurrenceId, runId, VerdictKind.BROKEN, result.reason());
             } else if (leftOut.isPresent()) {
                 ledger.verdict(occurrenceId, runId, VerdictKind.OUT_OF_SCOPE, leftOut.get());
                 outOfScope++;
+                if (isLog) {
+                    logs++;
+                } else if (result.format() == DetectedFormat.PLAIN_TEXT) {
+                    tooLarge++;
+                }
             }
             log.info(
                     "[byte-level-reduction] checked {} for damage -> {}",
@@ -162,7 +213,45 @@ public class ByteLevelReductionTasklet implements Tasklet {
                     result.broken() ? "broken: " + result.reason() : leftOut.map(reason -> "out of scope: " + reason).orElse("kept"));
             progress.itemDone();
         }
-        writeFormatMix(new FormatMixReport.Mix(byFormat, bySubtype, unrecognisedLeadingBytes, outOfScope));
+        writeFormatMix(new FormatMixReport.Mix(
+                byFormat,
+                bySubtype,
+                unrecognisedLeadingBytes,
+                outOfScope,
+                logs,
+                tooLarge,
+                byTimestampBand,
+                fewerThanTenLines,
+                logFloor));
+        // The floor's measurement is this page (ADR-171 §3), pointed at the way stage 3 points its own.
+        profileStore.save(profileStore
+                .load()
+                .withLogTimestampShareFloorMeasurement(new Measurement(
+                        workingDirectory.resolve(FORMAT_MIX_FILE_NAME).toString(), Clock.systemUTC().instant())));
+    }
+
+    /** An Answered floor is the floor; an unset or unreadable one means no log rule (ADR-171 section 3). */
+    private static Double logFloorOf(Profile profile) {
+        return profile.logTimestampShareFloor().reading() instanceof NumericValue.Answered answered
+                ? answered.number()
+                : null;
+    }
+
+    private static String configConsumed(Double logFloor) {
+        return JSON.writeValueAsString(new ConfigConsumed(DoclingClient.TEXT_SIZE_CEILING_BYTES, logFloor));
+    }
+
+    /** The count for a text file, or empty, with a warning, where it cannot be read: not a log, and not a failed step. */
+    private Optional<TimestampedLines.Count> countTimestamps(Path file, OccurrenceId occurrenceId) {
+        try {
+            return Optional.of(TimestampedLines.count(file));
+        } catch (IOException | RuntimeException e) {
+            log.warn(
+                    "[byte-level-reduction] could not read {} to see whether it is a log, so it is not one: {}",
+                    occurrenceId.value(),
+                    e.toString());
+            return Optional.empty();
+        }
     }
 
     /**
