@@ -14,6 +14,7 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -80,7 +81,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
@@ -101,7 +102,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
@@ -127,7 +128,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         List<String> aVerdicts = verdictKindsFor(ledger, walkId, "copy-a.txt");
@@ -162,7 +163,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
@@ -210,7 +211,7 @@ class ByteLevelReductionTaskletTest {
         walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
@@ -258,7 +259,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
@@ -312,7 +313,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
@@ -359,7 +360,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
@@ -422,7 +423,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
@@ -472,7 +473,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
@@ -508,7 +509,7 @@ class ByteLevelReductionTaskletTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
 
         new ByteLevelReductionTasklet(
-                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), root, workingDirectory)
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
