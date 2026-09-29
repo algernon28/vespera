@@ -99,7 +99,7 @@ On a machine running `compose.gpu.yaml`, `vespera.docling.image` must name the G
 VESPERA_DOCLING_IMAGE=vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0
 ```
 
-`@Value("${vespera.docling.image}")` resolves it through Spring's environment-variable relaxed binding. The documented place for the line is the untracked `.env` at the repository root, which the run configurations in `.run/` load. `java -jar` does not read `.env`, so an operator who starts the jar from a shell sets the same variable in that shell.
+`@Value("${vespera.docling.image}")` resolves it through Spring's environment-variable relaxed binding. The README's own way to start Vespera is `java -jar`, which does not read `.env`, so the README leads with setting the variable in the shell the jar is started from. The untracked `.env` at the repository root serves the IDE: the `Local SpringApp` and `Local Vespera Label` run configurations in `.run/` load it, and the Maven `vespera [clean,verify]` configuration does not.
 
 **This step is load-bearing.** `/version` cannot tell the images apart, so nothing Vespera reads from the sidecar can catch a mistake. An operator who runs the GPU sidecar and forgets it caches GPU output under the CPU image's name: every conversion from then on is recorded as the CPU image's, and later mixes with conversions the CPU image did make, which is the failure ADR-147 put the image in the key to prevent. The README says so plainly, next to where it documents `compose.gpu.yaml`.
 
@@ -118,7 +118,12 @@ VESPERA_DOCLING_IMAGE=vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-pa
 ## Consequences
 
 - **Switching costs one full re-conversion.** The ~4,600 conversions cached under the CPU identity are not reused under the GPU identity, so all 10,469 are redone, once. At the measured speed that is still roughly 3–4 hours, against 7–9 hours to finish on the CPU. Switching back to the CPU image finds its own cache entries again, since nothing deletes the CPU identity's rows.
-- **Only docling-serve's container is replaced when the new `compose.gpu.yaml` is first used.** Ollama's part of the override does not change, so its container, and the models inside it, stay (ADR-165's C).
+- **A switch mints new runs from stage 2 onwards, not only new cache keys.** The extractor identity is in stage 2's `config_consumed` (`StageRuns.extraction`), so a switch mints a new stage-2 run, and every later stage mints a new run of its own, because each names the run before it upstream (ADR-089). What follows from that:
+  - The labelling sample is drawn again under the new scoring run (ADR-088), so a label file written before the switch is refused as one generated under another run.
+  - The answers already given survive, because they are keyed by the document's path and the seed set, not by a run (ADR-097), and the new file shows them (ADR-169).
+  - An approved arrangement names a 6a run (ADR-107, ADR-118), and the new 6a run is not the one approved, so the approval no longer applies and the arrangement is asked about again.
+- **Only docling-serve's container is replaced, for an operator already on `compose.gpu.yaml`, when this file's new version is first used.** Ollama's part of the override does not change, so its container, and the models inside it, stay (ADR-165's C). An operator coming to `compose.gpu.yaml` from `compose.yaml` alone has both containers replaced, and loses Ollama's models once, as ADR-165 already says.
+- **Every integration-test run logs a harmless warning.** Testcontainers 2.0.5 builds the sidecar from the `Containerfile` and pre-fetches its base, but it fills in only the values given with `withBuildArg`, not an `ARG`'s default. It therefore logs `WARN ImageFromDockerfile - Unable to pre-fetch an image (${DOCLING_SERVE_BASE})`, and Docker pulls the base during the build instead. The image built is the same.
 - **The GPU build is not exercised in CI.** `DoclingSidecarImageTest` pins what can be read from the files: the `ARG` and its CPU default, that the GPU tag differs from the CPU tag and ends with the same suffix, and that the GPU build argument names `docling-serve-cu128` at the CPU default's docling-serve release. That the GPU build converts on the card is the measurement above and the operator's check with `torch.cuda.is_available()`, not a test.
 - **`compose.yaml` changes no key.** Its `docling-serve` comment, which says that Ollama is the one service that can be given a GPU, stops being true and is corrected to name docling-serve too; that is a comment-only change.
 - **Nothing under `src/main` changes.**
@@ -128,7 +133,7 @@ VESPERA_DOCLING_IMAGE=vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-pa
 `OllamaGpuOverrideTest` (unit, no Docker, reads the compose files with SnakeYAML), as amended here:
 
 - **`composeYamlAloneAsksForNoDevice`**: unchanged.
-- **`theOverrideGivesOllamaAndDoclingEveryNvidiaGpu`**: `compose.gpu.yaml` exists; its services are exactly `ollama` and `docling-serve`, both of which `compose.yaml` runs; `ollama` carries `deploy` and nothing else; `docling-serve` carries exactly `image`, `build` and `deploy`; and each one's `deploy.resources.reservations.devices` is one request, for driver `nvidia`, count `all`, capability `gpu`.
+- **`theOverrideGivesOllamaAndDoclingEveryNvidiaGpu`**: `compose.gpu.yaml` exists; its services are exactly `ollama` and `docling-serve`, both of which `compose.yaml` runs; `ollama` carries `deploy` and nothing else; `docling-serve` carries exactly `image`, `build` and `deploy`, its `build` carries `args` and nothing else, and `args` carries `DOCLING_SERVE_BASE` and nothing else, so the override cannot name a second `Containerfile` or a different build context; and each one's `deploy.resources.reservations.devices` is one request, for driver `nvidia`, count `all`, capability `gpu`.
 
 `DoclingSidecarImageTest`, new claims:
 

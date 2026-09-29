@@ -129,27 +129,49 @@ docker compose -p vespera up -d --build
 
 `-p vespera` names the Compose project `vespera`, whatever your checkout's directory is called. Give it on every `docker compose` command here, so that each one finds the same containers. Without it, Docker Compose names the project after the directory, and a second checkout starts a second set that fights the first for the same ports.
 
-If your machine has an NVIDIA graphics card that Docker can use, let Ollama and the document converter run on it. Ollama runs its models several times faster there than on the processor, and the converter converts a file two to three times faster. Docker Desktop on Windows can use one through WSL 2; on Linux, Docker needs NVIDIA's Container Toolkit. Start the sidecars with a second file, `compose.gpu.yaml`, named after the first:
+If your machine has an NVIDIA graphics card that Docker can use, let Ollama and the document converter run on it. Ollama runs its models several times faster there than on the processor, and the converter got through a sample of the archive two to two and a half times faster. Docker Desktop on Windows can use one through WSL 2; on Linux, Docker needs NVIDIA's Container Toolkit. Start the sidecars with a second file, `compose.gpu.yaml`, named after the first:
 
 ```
 docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build
 ```
 
-Name both files every time you run `up`, this time and every time after. An `up` without `compose.gpu.yaml` replaces Ollama with one that runs on the processor, and the models you gave it go with it. It replaces the document converter with the processor build too. `stop`, `exec` and `down` need only `-p vespera`. Without such a card, leave `compose.gpu.yaml` out: with it, `up` stops with an error and Ollama does not start. Once a model has answered, `docker compose -p vespera exec ollama ollama ps` shows under `PROCESSOR` `100% GPU` when the model is wholly on the card, a split such as `30%/70% CPU/GPU` when only part of it fits, and `100% CPU` when Ollama is not using the card.
+Name both files every time you run `up`, this time and every time after. An `up` without `compose.gpu.yaml` replaces Ollama with one that runs on the processor, and the models you gave it go with it. It replaces the document converter with the processor build too. `stop`, `exec` and `down` need only `-p vespera`. Without such a card, leave `compose.gpu.yaml` out: with it, `up` stops with an error, and neither Ollama nor the document converter starts. Once a model has answered, `docker compose -p vespera exec ollama ollama ps` shows under `PROCESSOR` `100% GPU` when the model is wholly on the card, a split such as `30%/70% CPU/GPU` when only part of it fits, and `100% CPU` when Ollama is not using the card.
 
-With `compose.gpu.yaml`, the document converter is built from the same `Containerfile` on a base that can use the card, under a name of its own. Its output differs from the processor build's in a few places, and Vespera records beside every conversion the name of the image that made it. The converter cannot say which image it is, so you have to tell Vespera. Add this line to the file `.env` at the root of this repository, creating it if it is not there. The run configurations in `.run/` read it:
+With `compose.gpu.yaml`, the document converter is built from the same `Containerfile` on a base that can use the card, under a name of its own. Its output differs from the processor build's in a few places, and Vespera records beside every conversion the name of the image that made it. The converter cannot say which image it is, so you have to tell Vespera. Set `VESPERA_DOCLING_IMAGE` in the shell you run `vespera` from, before you run it. In PowerShell:
+
+```
+$env:VESPERA_DOCLING_IMAGE = 'vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0'
+```
+
+In a POSIX shell:
+
+```
+export VESPERA_DOCLING_IMAGE='vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0'
+```
+
+If you run Vespera from the IDE instead, add this line to the file `.env` at the root of this repository, creating it if it is not there. The `Local SpringApp` and `Local Vespera Label` run configurations in `.run/` read it, and `java -jar` does not:
 
 ```
 VESPERA_DOCLING_IMAGE=vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0
 ```
 
-`java -jar` does not read `.env`, so if you start Vespera from a shell, set `VESPERA_DOCLING_IMAGE` to the same value in that shell. If you forget, every conversion made on the card is recorded under the name of the processor build, and nothing will tell you. If you go back to `compose.yaml` alone, take the line out again, or the processor build's conversions are recorded under the card's name.
+If you forget, every conversion made on the card is recorded under the name of the processor build, and nothing will tell you. If you go back to `compose.yaml` alone, unset the variable and take the line out again, or the processor build's conversions are recorded under the card's name.
 
-The first run after you switch to the card converts every file again, once, because conversions recorded under the processor build's name are not reused under the card's. On the card that is still quicker than finishing on the processor. If you switch back, the processor build finds its own conversions where it left them. To check that the converter is using the card, run this; it prints `True` when it is:
+The first run after you switch to the card converts every file again, once, because conversions recorded under the processor build's name are not reused under the card's. On the card that is still quicker than finishing on the processor. Every step after the conversion runs again too. The answers you already wrote into the label file are kept, but the label file is written anew, and you are asked to approve the arrangement again. If you switch back, the processor build finds its own conversions where it left them.
+
+To check that the converter is using the card, run this. It prints `True` when it is:
 
 ```
 docker compose -p vespera exec docling-serve python -c "import torch;print(torch.cuda.is_available())"
 ```
+
+To check that Vespera recorded the card's image, run this from the directory you run `vespera` from, once a run has converted something, with Python on your machine. It prints what the newest conversion run in the ledger was keyed on, and the image is the part after `image=`. After your first run on the card, that is `vespera/docling-serve-cu128-libreoffice`:
+
+```
+python -c "import sqlite3;print(sqlite3.connect('.vespera/vespera.db').execute('select config_consumed from run where stage=? order by rowid desc limit 1',['extraction']).fetchone())"
+```
+
+If you moved the working directory, put its `vespera.db` in place of `.vespera/vespera.db`.
 
 The document converter's image is not pulled. It is built on your machine from `docker/docling-serve`, because it adds LibreOffice to the published image, so that `.doc` and `.ppt` files convert. `--build` builds it the first time and rebuilds it if its `Containerfile` has changed. The first build is the slow one. After that, Docker reuses what it built.
 

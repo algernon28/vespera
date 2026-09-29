@@ -56,6 +56,9 @@ class OllamaGpuOverrideTest {
     /** The service that converts documents, and the other one given the GPU (ADR-170). */
     private static final String DOCLING = "docling-serve";
 
+    /** The build argument the sidecar's {@code Containerfile} takes its base from (ADR-170). */
+    private static final String DOCLING_BASE_ARG = "DOCLING_SERVE_BASE";
+
     /**
      * Service keys through which a Compose service can ask Docker for a GPU on their own: {@code gpus},
      * {@code runtime: nvidia}, and a device name such as {@code nvidia.com/gpu=all} under {@code devices}.
@@ -126,6 +129,19 @@ class OllamaGpuOverrideTest {
                         + " device request, and nothing else, so the build context, the lockdown, the port"
                         + " and the restart policy stay the ones compose.yaml names",
                 () -> assertThat(docling).containsOnlyKeys("image", "build", "deploy"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> build = (Map<String, Object>) docling.get("build");
+        claim(
+                "its build adds build arguments and nothing else, so the build context and the"
+                        + " Containerfile stay the ones compose.yaml names, and the GPU build is built from"
+                        + " the same file as the processor build",
+                () -> assertThat(build).containsOnlyKeys("args"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> args = (Map<String, Object>) build.get("args");
+        claim(
+                "and the one build argument is the base the Containerfile is built on, so nothing"
+                        + " but the base differs between the two builds",
+                () -> assertThat(args).containsOnlyKeys(DOCLING_BASE_ARG));
         claim(
                 "the document converter's request is the same one device request, for every GPU the"
                         + " NVIDIA driver can see, as a GPU",
