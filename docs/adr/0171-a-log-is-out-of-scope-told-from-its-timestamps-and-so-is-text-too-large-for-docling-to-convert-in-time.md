@@ -150,11 +150,12 @@ A file is **a log** when at least **ten** of the lines read are non-blank, and t
 
 ### 3. The log floor is a profile key, and it ships unset
 
-`logTimestampShareFloor`, a new numeric key, on a 0-to-1 scale. It sits beside `relevanceScoreFloor` in `Profile`, and its measurement pointer is at `format-mix.html`.
+`logTimestampShareFloor`, a new numeric key, on a 0-to-1 scale. It is the last component of `Profile`, and its measurement pointer is at `format-mix.html`.
 
 - **Unset** means no log rule. Stage 1 measures every text file and reports the distribution (§5), and removes nothing as a log. This is **observe before enforce**: the share at which a corpus's logs separate from its documents is not known until it has been measured. It is 90% here because this archive's documents score under 10% and its logs over 90%. An archive of timestamped meeting minutes or changelogs could need a different floor, or none.
 - **Answered** means the rule applies at that floor.
 - **Unreadable** (ADR-120) is treated as unset, and the closing line says so, in the words it already uses for `degenerateOutputConfidenceFloor`.
+- **A number outside 0 to 1 is not range-checked**, as no numeric key is under ADR-120, which asks only whether a number can be read. A floor above 1 removes nothing, and a floor of 0 or below removes every text file with ten or more non-blank lines.
 
 **Why the profile and not a constant.** The size ceiling (§4) is a property of the pinned Docling image and the call timeout: the same number on every corpus, so it is code. The log floor is a property of the corpus: of how its logs are written and how its documents are written. A threshold of that kind lives in the profile, with its provenance beside it, and ships unset. That is what the profile is for (ADR-061), and it is the operator's standing rule for every corpus threshold. A constant would be silently wrong on the next archive.
 
@@ -245,4 +246,9 @@ Red until the change lands, except the claims that pin what must not change. The
   - stage 1's run records `"logTimestampShareFloor":0.9`;
   - the page counts the four logs and shows 4 in the *"90% to 100%"* row;
   - `profile.yaml` points the key's measurement at `format-mix.html`.
+- Added at the gate, each passing against the change:
+  - `ByteLevelReductionTaskletTest.anUnreadableLogFloorRemovesNothingAndIsRecordedAsNone`: a floor of `0,9` is recorded as `null` and removes nothing.
+  - `ByteLevelReductionTaskletTest.aLargeLogIsReportedAsALog`: a timestamped text file of 16,000,001 bytes, under a floor of 0.9, gets the log reason and is counted among the logs, not for its size.
+  - `NextActionTest.aMistypedLogFloorIsReportedToo`: the closing line names the unreadable floor and quotes it back.
+  - `TimestampedLinesTest`: UTF-16 and UTF-32 files with their byte-order marks; a large UTF-16 file whose last window begins half-way through a character; ten lines make a log and nine do not.
 - `RunIdentityGoldenTest.byteLevelReduction`: stage 1's configuration consumed is exactly `{"textSizeCeilingBytes":16000000,"logTimestampShareFloor":null}` under a profile that sets no floor.

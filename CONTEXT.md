@@ -43,7 +43,7 @@ Of a kind of file this tool leaves out whatever it holds: a spreadsheet since AD
 _Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this tool chooses not to read them)
 
 **Log**:
-A text file at least ten of whose lines are read and at least the profile's `logTimestampShareFloor` of them begin with a timestamp, reading its first and last 64 KB (ADR-171). Decided from the bytes alone, never from the name: most logs here are not named `.log`, and most files named `.log` are not logs by this measure. An operational record, and out of scope once the floor is set.
+A text file with at least ten non-blank lines read, reading its first and last 64 KB, where at least the profile's `logTimestampShareFloor` of those lines begin with a timestamp (ADR-171). Decided from the bytes alone, never from the name: most logs here are not named `.log`, and most files named `.log` are not logs by this measure. An operational record, and out of scope once the floor is set.
 _Avoid_: log file (as a name-based kind), trace, journal
 
 **Survivor**:

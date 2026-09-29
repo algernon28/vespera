@@ -14,6 +14,7 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -516,6 +517,108 @@ class ByteLevelReductionTaskletTest {
                 "a file whose every one of its " + LOG_LINES + " lines begins with a timestamp carries no verdict:"
                         + " with no floor set, the share is measured and nothing is removed for it",
                 () -> assertThat(verdictKindsFor(ledger, walkId, "server-output")).isEmpty());
+    }
+
+    /**
+     * ADR-171 §3: a log floor no number can be read from is treated as unset. Stage 1 records no floor
+     * among its settings and removes nothing as a log.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("With a log floor no number can be read from, nothing is removed as a log and no floor is recorded")
+    @Issue("370")
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
+    void anUnreadableLogFloorRemovesNothingAndIsRecordedAsNone(@TempDir Path root, @TempDir Path workingDirectory)
+            throws Exception {
+        new ProfileStore(workingDirectory).save(ProfileFixture.profile()
+                .logTimestampShareFloor(AN_UNREADABLE_FLOOR, "written by this test with a decimal comma")
+                .build());
+        Files.writeString(root.resolve("server-output"), timestampedLines(LOG_LINES));
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
+
+        claim(
+                "the settings stage 1 records carry no floor, as though none were set, so the run is the one"
+                        + " an unset floor would have named",
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT config_consumed FROM run", String.class))
+                        .contains("\"logTimestampShareFloor\":null"));
+        claim(
+                "and a file whose every line begins with a timestamp carries no verdict",
+                () -> assertThat(verdictKindsFor(ledger, walkId, "server-output")).isEmpty());
+    }
+
+    /**
+     * ADR-171 §1: the log rule is applied before the size rule, so a text file over the ceiling that is
+     * also a log is removed with the log's reason and counted among the logs.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("A log over 16,000,000 bytes is removed as a log, not for its size")
+    @Issue("370")
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
+    void aLargeLogIsReportedAsALog(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        new ProfileStore(workingDirectory).save(ProfileFixture.profile()
+                .logTimestampShareFloor(A_FLOOR, "set by this test")
+                .build());
+        writeLogOfExactly(root.resolve("server.txt"), TEXT_SIZE_CEILING_BYTES + 1);
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
+
+        claim(
+                "the file is removed once, as out of scope, with the reason that calls it a log",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, "server.txt")).containsExactly(
+                        "a log, and logs are out of scope: 100% of the lines read from its start and end begin"
+                                + " with a timestamp"));
+        String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
+        claim(
+                "and the page counts it among the logs, not among the text files left out for their size",
+                () -> {
+                    assertThat(countIn(html, "Of those, logs")).isEqualTo(1);
+                    assertThat(countIn(html, "text files left out for their size")).isZero();
+                });
+    }
+
+    /** A log floor as an operator writes it: 90%. */
+    private static final String A_FLOOR = "0.9";
+
+    /** A log floor with a decimal comma, which no number can be read from. */
+    private static final String AN_UNREADABLE_FLOOR = "0,9";
+
+    /** {@code lines} lines, each beginning with a timestamp of its own. */
+    private static String timestampedLines(int lines) {
+        StringBuilder log = new StringBuilder();
+        for (int line = 0; line < lines; line++) {
+            log.append("[2023-02-08 12:00:").append(String.format(java.util.Locale.ROOT, "%02d", line % 60))
+                    .append(",096] DEBUG -- operazioneOnline -- a transaction was handled\n");
+        }
+        return log.toString();
+    }
+
+    /**
+     * Writes a text file of exactly {@code size} bytes: whole lines each beginning with a timestamp, then
+     * spaces to make up the size, which read as a blank line and count for nothing.
+     */
+    private static void writeLogOfExactly(Path file, long size) throws java.io.IOException {
+        byte[] row = "2023-02-08 12:00:00,096 DEBUG a transaction was handled\n"
+                .getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        try (var out = new java.io.BufferedOutputStream(Files.newOutputStream(file), 1 << 16)) {
+            long written = 0;
+            while (written + row.length <= size) {
+                out.write(row);
+                written += row.length;
+            }
+            for (; written < size; written++) {
+                out.write(' ');
+            }
+        }
     }
 
     /**
