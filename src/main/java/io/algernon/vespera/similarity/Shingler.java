@@ -28,6 +28,7 @@ import org.springframework.stereotype.Component;
 public class Shingler {
 
     private final JdbcTemplate jdbcTemplate;
+    private static final int SHINGLE_INSERT_BATCH = 5000;
 
     public Shingler(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -51,14 +52,34 @@ public class Shingler {
 
     /** As {@link #write(OccurrenceId, RunId, String)}, under an explicitly named granularity. */
     void write(OccurrenceId occurrenceId, RunId runId, String text, ShingleParameters parameters) {
-        for (long hash : hashesOf(text, parameters)) {
-            jdbcTemplate.update(
-                    "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"
-                            + " VALUES (?, ?, ?, ?)",
+        List<Long> hashes = hashesOf(text, parameters);
+        if (hashes.isEmpty()) {
+            return;
+        }
+
+        // Write hashes in batches
+        List<Object[]> batchArgs = new ArrayList<>();
+        for (int i = 0; i < hashes.size(); i += SHINGLE_INSERT_BATCH) {
+            int end = Math.min(i + SHINGLE_INSERT_BATCH, hashes.size());
+            List<Long> batchHashes = hashes.subList(i, end);
+            
+            for (long hash : batchHashes) {
+                batchArgs.add(new Object[] {
                     occurrenceId.value(),
                     runId.value(),
                     parameters.identity(),
-                    hash);
+                    hash
+                });
+            }
+            
+            if (!batchArgs.isEmpty()) {
+                jdbcTemplate.batchUpdate(
+                    "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash) VALUES (?, ?, ?, ?)",
+                    batchArgs,
+                    batchArgs.size()
+                );
+                batchArgs.clear();
+            }
         }
     }
 
