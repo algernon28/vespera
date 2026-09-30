@@ -887,6 +887,15 @@ public final class Adr {
     public static final String LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE = FILE
             + "0171-a-log-is-out-of-scope-told-from-its-timestamps-and-so-is-text-too-large-for-docling-to-convert-in-time.md";
 
+    /**
+     * ADR-173 -- every column that references file_occurrence, walk or run is the first column of an
+     * index on its own table, named table_by_column and added in the same change as the column, because
+     * under foreign_keys=on SQLite reads the whole child table for each parent row deleted where none
+     * is (rests on ADR-008, ADR-009, ADR-115).
+     */
+    public static final String EVERY_COLUMN_REFERENCING_AN_OCCURRENCE_A_WALK_OR_A_RUN_IS_INDEXED = FILE
+            + "0173-every-column-that-references-a-file-occurrence-a-walk-or-a-run-carries-an-index.md";
+
     private Adr() {
     }
 }
