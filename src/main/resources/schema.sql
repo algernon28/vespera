@@ -142,6 +142,8 @@ CREATE TABLE IF NOT EXISTS superseded_by (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
+CREATE INDEX IF NOT EXISTS superseded_by_by_representative_occurrence ON superseded_by (representative_occurrence_id);
+
 -- corpus's own table (ADR-094, ADR-095): what stage 1 found each file to be, from its leading bytes.
 -- Keyed by run rather than held on the occurrence because a format is derived and not observed: add
 -- one signature to the rule and the same bytes yield a different answer, so a changed rule is a
@@ -157,6 +159,8 @@ CREATE TABLE IF NOT EXISTS detected_format (
     subtype TEXT,
     PRIMARY KEY (occurrence_id, run_id)
 );
+
+CREATE INDEX IF NOT EXISTS detected_format_by_run ON detected_format (run_id);
 
 -- extraction's own table (ADR-010, ADR-012, ADR-070, ADR-071): a cached Docling response, keyed on
 -- content hash plus full extractor identity, so re-running the same content under the same engine
@@ -396,6 +400,8 @@ CREATE TABLE IF NOT EXISTS redundant_with (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
+CREATE INDEX IF NOT EXISTS redundant_with_by_redundant_with_occurrence ON redundant_with (redundant_with_occurrence_id);
+
 -- embedding's own table (ADR-083): a seed document that produced no text, recorded as data rather
 -- than judged. The bar is stage 2's tier 1 exactly -- no alphanumeric content at all after
 -- whitespace normalisation (ADR-070) -- and deliberately no stricter, since a confidence threshold
@@ -501,6 +507,8 @@ CREATE TABLE IF NOT EXISTS relevance_score (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
+CREATE INDEX IF NOT EXISTS relevance_score_by_winning_seed_occurrence ON relevance_score (winning_seed_occurrence_id);
+
 -- embedding's own table (ADR-087, ADR-045): which cluster each survivor landed in, inside the seed
 -- partition its winning seed defines. A cluster has no row of its own -- it is the set of rows
 -- carrying the same run, winning seed and ordinal -- so there is nothing for membership to fall out
@@ -519,6 +527,8 @@ CREATE TABLE IF NOT EXISTS document_cluster (
     cluster_ordinal INTEGER NOT NULL,
     PRIMARY KEY (occurrence_id, run_id)
 );
+
+CREATE INDEX IF NOT EXISTS document_cluster_by_winning_seed_occurrence ON document_cluster (winning_seed_occurrence_id);
 
 -- embedding's own table (ADR-088, ADR-097): a person's recorded answer about one document -- relevant
 -- to this seed set, or not. Keyed by the path relative to the corpus root (ADR-051) and the seed set,
@@ -562,6 +572,8 @@ CREATE TABLE IF NOT EXISTS relevance_label (
     PRIMARY KEY (path, seed_set)
 );
 
+CREATE INDEX IF NOT EXISTS relevance_label_by_run ON relevance_label (run_id);
+
 -- synthesis's own table (ADR-105, ADR-110, ADR-112, #175): one row per cluster, which is the level
 -- stage 5 left unbuilt. document_cluster above says which documents share a cluster; it says so
 -- without the cluster having a row anywhere, which is what keeps membership from falling out of step
@@ -604,6 +616,8 @@ CREATE TABLE IF NOT EXISTS cluster (
     PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
 );
 
+CREATE INDEX IF NOT EXISTS cluster_by_winning_seed_occurrence ON cluster (winning_seed_occurrence_id);
+
 -- synthesis's second table (ADR-108, ADR-110): what one call produced for one cluster, keyed by the
 -- 6b run plus the cluster's own natural key -- document_cluster's vocabulary again, so the join
 -- needs no translation, and no surrogate id for the reason the row above carries none.
@@ -644,6 +658,8 @@ CREATE TABLE IF NOT EXISTS synthesis_doc (
     PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
 );
 
+CREATE INDEX IF NOT EXISTS synthesis_doc_by_winning_seed_occurrence ON synthesis_doc (winning_seed_occurrence_id);
+
 -- synthesis's fourth table (ADR-108, ADR-109, ADR-133): which documents one call carried, and under
 -- which number the model was shown each of them. Keyed the same, under the same GENERATION run,
 -- with the citation ordinal beneath that key.
@@ -677,6 +693,9 @@ CREATE TABLE IF NOT EXISTS call_exemplar (
     UNIQUE (run_id, winning_seed_occurrence_id, cluster_ordinal, occurrence_id)
 );
 
+CREATE INDEX IF NOT EXISTS call_exemplar_by_winning_seed_occurrence ON call_exemplar (winning_seed_occurrence_id);
+CREATE INDEX IF NOT EXISTS call_exemplar_by_occurrence ON call_exemplar (occurrence_id);
+
 -- synthesis's third table (ADR-108, ADR-109, ADR-110, ADR-111): why a call that came back was
 -- rejected, for a cluster synthesis_doc has no row for. Keyed the same, under the same GENERATION
 -- run. A cluster lands in exactly one of those two tables, and never in both. A cluster turned down once is
@@ -709,3 +728,5 @@ CREATE TABLE IF NOT EXISTS cluster_fault (
     detail TEXT NOT NULL,
     PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
 );
+
+CREATE INDEX IF NOT EXISTS cluster_fault_by_winning_seed_occurrence ON cluster_fault (winning_seed_occurrence_id);
