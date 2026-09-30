@@ -2,6 +2,7 @@ package io.algernon.vespera.similarity;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.Ledger;
@@ -16,7 +17,12 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +35,8 @@ import org.springframework.test.context.ActiveProfiles;
  * {@code similarity}'s shingling function and its table (ADR-038, ADR-073): raw shingle hashes over
  * extracted text, computed standalone against plain text — independent of Docling entirely, per the
  * stage-2 hand-off spec's testing decision — and, separately, that a stored row is filed under the
- * granularity that produced it.
+ * granularity that produced it, and (issue #367) that writing the rows in JDBC batches stores exactly
+ * the rows one insert per hash used to.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -40,6 +47,19 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-038", url = Adr.SHINGLING_MOVES_TO_STAGE_3, type = "adr")
 @Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
 class ShinglerTest {
+
+    /**
+     * The most rows {@link Shingler#write} sends in one JDBC batch, as issue #367 fixes it. It mirrors
+     * {@code Shingler.SHINGLE_INSERT_BATCH}, which the spec makes {@code private}, so the test states the
+     * value rather than reading it.
+     */
+    private static final int ROWS_PER_BATCH = 5_000;
+
+    /**
+     * Distinct words in the long text: under the five-word default it gives 11,996 shingles, more than
+     * two full batches, so the write crosses at least two batch boundaries and ends on a partial batch.
+     */
+    private static final int LONG_TEXT_WORDS = 12_000;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -97,67 +117,93 @@ class ShinglerTest {
     }
 
     @Test
-    @Story("Shingle insertion uses JDBC batch updates")
-    @DisplayName("The write method uses JDBC batch updates with SHINGLE_INSERT_BATCH size")
-    void writeUsesJdbcBatchUpdates() {
+    @Story("What a stored shingle row is filed under")
+    @DisplayName("A stored shingle set is read back under the run and granularity it was written with")
+    void storesTheComputedHashesUnderTheirRunAndGranularity() {
         Shingler shingler = new Shingler(jdbcTemplate);
         OccurrenceId occurrenceId = anOccurrence();
         RunId runId = aRun(occurrenceId);
-        String text = "one two three four five six seven eight nine ten";
-        
+        String text = "the quick brown fox jumps over the lazy dog again";
+
         shingler.write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
-        
-        // Verify that rows were inserted by checking count
-        Integer count = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM shingle WHERE occurrence_id = ? AND run_id = ?",
-            Integer.class,
-            occurrenceId.value(),
-            runId.value());
-        
+
         claim(
-                "the write method should have inserted rows using batch updates",
-                () -> assertThat(count).isGreaterThan(0));
+                "every hash the function computed for this text is present among the rows stored for"
+                        + " this occurrence, run and granularity",
+                () -> assertThat(storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
+                        .containsExactlyInAnyOrderElementsOf(
+                                shingler.hashesOf(text, ShingleParameters.DEFAULT)));
     }
 
     @Test
-    @Story("Shingle insertion handles repeated hashes")
-    @DisplayName("Repeated hashes are preserved during batch insertion")
-    void repeatedHashesArePreserved() {
+    @Issue("367")
+    @Story("A document's shingle set keeps every repetition")
+    @DisplayName("A passage repeated within one document is stored as many times as it occurs")
+    void aRepeatedHashIsStoredOncePerOccurrence() {
         Shingler shingler = new Shingler(jdbcTemplate);
         OccurrenceId occurrenceId = anOccurrence();
         RunId runId = aRun(occurrenceId);
-        String text = "hello world hello world"; // This should produce repeated hashes
-        
+        String text = "alpha beta gamma delta epsilon ".repeat(3);
+        List<Long> computed = shingler.hashesOf(text, ShingleParameters.DEFAULT);
+
         shingler.write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
-        
-        // Check that the hash function recognizes repeated content
-        List<Long> hashes = shingler.hashesOf(text, ShingleParameters.DEFAULT);
-        
+
         claim(
-                "the hash function should produce the same result for identical text",
-                () -> assertThat(hashes).hasSize(1)); // Two occurrences should give same hash count
+                "the text is one five-word passage written out three times back to back, so its shingle"
+                        + " set holds the same hash more than once",
+                () -> assertThat(new HashSet<>(computed)).hasSizeLessThan(computed.size()));
+        claim(
+                "counted hash by hash, the rows stored for this occurrence and run occur exactly as often"
+                        + " as the function computed them, so no repetition was folded into a single row",
+                () -> assertThat(countedPerHash(
+                                storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity())))
+                        .isEqualTo(countedPerHash(computed)));
     }
 
     @Test
-    @Story("Shingle insertion handles empty text")
-    @DisplayName("Writing empty text produces no rows")
-    void emptyTextProducesNoRows() {
+    @Issue("367")
+    @Story("A document with no shingles stores nothing")
+    @DisplayName("Writing an empty text stores no shingle rows and does not fail")
+    void anEmptyTextStoresNoRows() {
         Shingler shingler = new Shingler(jdbcTemplate);
         OccurrenceId occurrenceId = anOccurrence();
         RunId runId = aRun(occurrenceId);
-        String text = "";
-        
-        shingler.write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
-        
-        Integer count = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM shingle WHERE occurrence_id = ? AND run_id = ?",
-            Integer.class,
-            occurrenceId.value(),
-            runId.value());
-        
+
         claim(
-                "writing empty text should not insert any rows",
-                () -> assertThat(count).isEqualTo(0));
+                "writing an empty text completes without an error",
+                () -> assertThatCode(() -> shingler.write(occurrenceId, runId, "", ShingleParameters.DEFAULT))
+                        .doesNotThrowAnyException());
+        claim(
+                "no shingle row is stored for this occurrence and run",
+                () -> assertThat(storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
+                        .isEmpty());
+    }
+
+    @Test
+    @Issue("367")
+    @Story("A long document's shingle set is stored whole")
+    @DisplayName("A document with more shingles than one database batch holds has every one of them stored")
+    void aShingleSetLargerThanOneBatchIsStoredWhole() {
+        Shingler shingler = new Shingler(jdbcTemplate);
+        OccurrenceId occurrenceId = anOccurrence();
+        RunId runId = aRun(occurrenceId);
+        String text = IntStream.range(0, LONG_TEXT_WORDS)
+                .mapToObj(index -> "word" + index)
+                .collect(Collectors.joining(" "));
+        List<Long> computed = shingler.hashesOf(text, ShingleParameters.DEFAULT);
+
+        shingler.write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
+
+        claim(
+                "a text of " + LONG_TEXT_WORDS + " distinct words gives more shingles than two full"
+                        + " database batches of " + ROWS_PER_BATCH + " rows each, so the write crosses at"
+                        + " least two batch boundaries",
+                () -> assertThat(computed).hasSizeGreaterThan(2 * ROWS_PER_BATCH));
+        claim(
+                "as many rows are stored for this occurrence and run as the function computed shingles,"
+                        + " none lost or repeated at a batch boundary",
+                () -> assertThat(storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
+                        .hasSameSizeAs(computed));
     }
 
     @Test
@@ -194,6 +240,10 @@ class ShinglerTest {
                 occurrenceId.value(),
                 runId.value(),
                 parameterIdentity);
+    }
+
+    private static Map<Long, Long> countedPerHash(List<Long> hashes) {
+        return hashes.stream().collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
     }
 
     private OccurrenceId anOccurrence() {
