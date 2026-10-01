@@ -27,6 +27,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class Shingler {
 
+    /** Only bounds the size of one JDBC batch; every row of the shingle set is still written. */
+    private static final int SHINGLE_INSERT_BATCH = 5_000;
+
     private final JdbcTemplate jdbcTemplate;
 
     public Shingler(JdbcTemplate jdbcTemplate) {
@@ -51,14 +54,20 @@ public class Shingler {
 
     /** As {@link #write(OccurrenceId, RunId, String)}, under an explicitly named granularity. */
     void write(OccurrenceId occurrenceId, RunId runId, String text, ShingleParameters parameters) {
-        for (long hash : hashesOf(text, parameters)) {
-            jdbcTemplate.update(
+        List<Long> hashes = hashesOf(text, parameters);
+        if (hashes.isEmpty()) {
+            return;
+        }
+
+        for (int from = 0; from < hashes.size(); from += SHINGLE_INSERT_BATCH) {
+            List<Object[]> rows = new ArrayList<>();
+            for (long hash : hashes.subList(from, Math.min(from + SHINGLE_INSERT_BATCH, hashes.size()))) {
+                rows.add(new Object[] {occurrenceId.value(), runId.value(), parameters.identity(), hash});
+            }
+            jdbcTemplate.batchUpdate(
                     "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"
                             + " VALUES (?, ?, ?, ?)",
-                    occurrenceId.value(),
-                    runId.value(),
-                    parameters.identity(),
-                    hash);
+                    rows);
         }
     }
 
