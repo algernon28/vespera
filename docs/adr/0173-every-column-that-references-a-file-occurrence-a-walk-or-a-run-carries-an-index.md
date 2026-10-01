@@ -11,7 +11,7 @@
 
 ### What happened
 
-Every invocation over the whole archive spent about four and a half minutes in stage 0 after the walk itself had finished: 22:31:56 to 22:36:30 and 22:39:49 to 22:44:15 on 2026-09-28, and 10:33:05 to 10:37:40 on 2026-09-29. `jstack` showed the `main` thread in `Ledger.discardWalk`, on `DELETE FROM file_occurrence WHERE walk_id = ?`. The walk had observed exactly what an earlier walk had recorded, so ADR-115 discarded it, which deleted its 43,101 duplicate occurrence rows. The walk's own log line reports 52,938 entries walked, but that count includes the 9,838 directories it entered, and a directory is not an occurrence; the earlier walk it matched, walk 5, holds 43,101.
+Every invocation over the whole archive spent about four and a half minutes in stage 0 after the walk itself had finished: 22:31:56 to 22:36:30 and 22:39:49 to 22:44:15 on 2026-09-28, and 10:33:05 to 10:37:40 on 2026-09-29. `jstack` showed the `main` thread in `Ledger.discardWalk`, on `DELETE FROM file_occurrence WHERE walk_id = ?`. The walk had observed exactly what an earlier walk had recorded, so ADR-115 discarded it, which deleted its 43,101 duplicate occurrence rows. The walk's own log line reports 52,938 entries walked and 9,838 directories entered. By ADR-056's accounting identity, entries walked count the occurrences, the anomalies and every directory beneath the root, the root being entered but not an entry beneath itself: 43,101 + 0 + 9,838 − 1 = 52,938. A directory is not an occurrence; the earlier walk it matched, walk 5, holds 43,101.
 
 ### Why
 
@@ -48,7 +48,7 @@ Two reference `walk`, and the delete of the walk row pays for these:
 - `run.walk_id`
 - `walk_anomaly.walk_id`, which `discardWalk` also deletes from directly, with a full read of the table
 
-Thirteen reference `run`. Nothing deletes a run row today, so no foreign key check reads them yet. Eleven of them, though, are the column that a stage's own per-run delete filters on when it discards an unfinished run's rows before redoing it, for example `DELETE FROM verdict WHERE run_id = ?` in `Ledger` and `DELETE FROM extraction_metric WHERE run_id = ?` in `ExtractionMetrics`, and without an index that delete reads the whole table:
+Thirteen reference `run`. Nothing deletes a run row today, so no foreign key check reads them yet. Eleven of them, though, are the column that a stage's own per-run delete filters on when it discards an unfinished run's rows before redoing it, for example `DELETE FROM verdict WHERE run_id = ? AND kind IN (…)` in `Ledger` and `DELETE FROM extraction_metric WHERE run_id = ?` in `ExtractionMetrics`, and without an index that delete reads the whole table:
 
 - `run_upstream.upstream_run_id`
 - `run_id` of `verdict`, `content_hash`, `superseded_by`, `detected_format`, `extraction_metric`, `extraction_fault`, `minhash_signature`, `redundant_with`, `unusable_seed`, `relevance_score`, `document_cluster` and `relevance_label`
@@ -91,7 +91,7 @@ The index is on the one column. A composite index would satisfy the rule too, bu
 
 ### 3. No schema version moves
 
-`spring.sql.init.mode: always` runs `schema.sql` at every start, and `CREATE INDEX IF NOT EXISTS` builds each missing index on an existing ledger at its next start. `SchemaVersionGuard` compares a version recorded per module with a version compiled into that module. Most modules' `*Schema` Javadoc says to bump the version in the same commit that changes that module's tables in `schema.sql`, and `EmbeddingSchema`'s says only when a table's shape changes; `SimilaritySchema` lists the by-hash index on `shingle` among version 3's contents, because that index came with version 3's tables. What decides it is why the version exists. `schema.sql`'s header says the version exists because `IF NOT EXISTS` never alters a table that already exists, so an old ledger would silently lack what the code expects. An index alters no table, and `IF NOT EXISTS` applies it to an old ledger all the same, so there is nothing for a version to catch.
+`spring.sql.init.mode: always` runs `schema.sql` at every start, and `CREATE INDEX IF NOT EXISTS` builds each missing index on an existing ledger at its next start. `SchemaVersionGuard` compares a version recorded per module with a version compiled into that module. Most modules' `*Schema` Javadoc says to bump the version in the same commit that changes that module's tables in `schema.sql`, and `EmbeddingSchema`'s says a shape change is a bump whether or not a table arrives with it; `SimilaritySchema` lists the by-hash index on `shingle` among version 3's contents, because that index came with version 3's tables. What decides it is why the version exists. `schema.sql`'s header says the version exists because `IF NOT EXISTS` never alters a table that already exists, so an old ledger would silently lack what the code expects. An index alters no table, and `IF NOT EXISTS` applies it to an old ledger all the same, so there is nothing for a version to catch.
 
 There is no precedent either way. Each of the four indexes already in the schema arrived in a change that also added a table. `shingle_by_hash` arrived on an existing table, but in the change that added stage 4's tables and moved `SimilaritySchema` to version 3. This is the first change that adds only indexes, and for the reason above it bumps no guard.
 
