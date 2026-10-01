@@ -200,10 +200,15 @@ class ShinglerTest {
                         + " least two batch boundaries",
                 () -> assertThat(computed).hasSizeGreaterThan(2 * ROWS_PER_BATCH));
         claim(
-                "as many rows are stored for this occurrence and run as the function computed shingles,"
+                "every shingle the function computed is stored for this occurrence and run, exactly once,"
                         + " none lost or repeated at a batch boundary",
                 () -> assertThat(storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
-                        .hasSameSizeAs(computed));
+                        .containsExactlyInAnyOrderElementsOf(computed));
+        claim(
+                "the rows were inserted in the order the function computed the shingles, across every"
+                        + " batch boundary",
+                () -> assertThat(hashesInInsertionOrder(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
+                        .isEqualTo(computed));
     }
 
     @Test
@@ -236,6 +241,16 @@ class ShinglerTest {
         return jdbcTemplate.queryForList(
                 "SELECT shingle_hash FROM shingle WHERE occurrence_id = ? AND run_id = ?"
                         + " AND shingle_parameter_identity = ?",
+                Long.class,
+                occurrenceId.value(),
+                runId.value(),
+                parameterIdentity);
+    }
+
+    private List<Long> hashesInInsertionOrder(OccurrenceId occurrenceId, RunId runId, String parameterIdentity) {
+        return jdbcTemplate.queryForList(
+                "SELECT shingle_hash FROM shingle WHERE occurrence_id = ? AND run_id = ?"
+                        + " AND shingle_parameter_identity = ? ORDER BY rowid",
                 Long.class,
                 occurrenceId.value(),
                 runId.value(),
