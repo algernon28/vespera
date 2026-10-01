@@ -46,7 +46,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Issue("368")
 class DiscardingAWalkSearchesEveryReferenceTest {
 
-    /** A few thousand, as the discarded walk is on a real archive, where it was 52,938. */
+    /** A few thousand stands in for the real archive's discarded walk, which held 43,101 occurrences. */
     private static final int OCCURRENCES_PER_WALK = 3_000;
 
     /** The parents {@code discardWalk} deletes rows of: its occurrences, and the walk itself. */

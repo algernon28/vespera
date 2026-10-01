@@ -11,7 +11,7 @@
 
 ### What happened
 
-Every invocation over the whole archive spent about four and a half minutes in stage 0 after the walk itself had finished: 22:31:56 to 22:36:30 and 22:39:49 to 22:44:15 on 2026-09-28, and 10:33:05 to 10:37:40 on 2026-09-29. `jstack` showed the `main` thread in `Ledger.discardWalk`, on `DELETE FROM file_occurrence WHERE walk_id = ?`. The walk had observed exactly what an earlier walk had recorded, so ADR-115 discarded it, which deleted its 52,938 duplicate occurrence rows.
+Every invocation over the whole archive spent about four and a half minutes in stage 0 after the walk itself had finished: 22:31:56 to 22:36:30 and 22:39:49 to 22:44:15 on 2026-09-28, and 10:33:05 to 10:37:40 on 2026-09-29. `jstack` showed the `main` thread in `Ledger.discardWalk`, on `DELETE FROM file_occurrence WHERE walk_id = ?`. The walk had observed exactly what an earlier walk had recorded, so ADR-115 discarded it, which deleted its 43,101 duplicate occurrence rows. The walk's own log line reports 52,938 entries walked, but that count includes the 9,838 directories it entered, and a directory is not an occurrence; the earlier walk it matched, walk 5, holds 43,101.
 
 ### Why
 
@@ -30,7 +30,7 @@ The copy held four walks. Two of them, walks 5 and 22, were observations of the 
 | Before | **434.8 s** | 0.000 s | 0.000 s |
 | After the indexes below | **0.182 s** | 0.000 s | 0.000 s |
 
-That is 7¼ minutes for 43,101 rows on a 10.5 GB ledger. The invocations above spent 4½ minutes on 52,938 rows when the ledger was smaller. The cost grows with the derived tables, not with the walk alone.
+That is 7¼ minutes for 43,101 rows on a 10.5 GB ledger. The invocations above spent 4½ minutes deleting the same 43,101 rows when the ledger was smaller: #368 recorded it at about 2.4 GB. The cost grows with the derived tables, not with the walk alone.
 
 `EXPLAIN QUERY PLAN` of the documented lookup, `SELECT 1 FROM <child> WHERE <column> = ?`, reported `SCAN` for 24 referencing columns. Nine reference `file_occurrence`, and every delete of an occurrence paid for these:
 
@@ -48,7 +48,7 @@ Two reference `walk`, and the delete of the walk row pays for these:
 - `run.walk_id`
 - `walk_anomaly.walk_id`, which `discardWalk` also deletes from directly, with a full read of the table
 
-Thirteen reference `run`. Nothing deletes a run today, so these cost nothing yet:
+Thirteen reference `run`. Nothing deletes a run row today, so no foreign key check reads them yet. Eleven of them, though, are the column that a stage's own per-run delete filters on when it discards an unfinished run's rows before redoing it, for example `DELETE FROM verdict WHERE run_id = ?` in `Ledger` and `DELETE FROM extraction_metric WHERE run_id = ?` in `ExtractionMetrics`, and without an index that delete reads the whole table:
 
 - `run_upstream.upstream_run_id`
 - `run_id` of `verdict`, `content_hash`, `superseded_by`, `detected_format`, `extraction_metric`, `extraction_fault`, `minhash_signature`, `redundant_with`, `unusable_seed`, `relevance_score`, `document_cluster` and `relevance_label`
@@ -69,10 +69,17 @@ The rule covers `run` as well as the two tables that `discardWalk` deletes from.
 
 ### 2. The shape of an index added under it
 
-Where the rule finds no index, `schema.sql` adds one, directly after that table's `CREATE TABLE`:
+Where the rule finds no index, `schema.sql` adds one, directly after that table's `CREATE TABLE`. On a column that references `file_occurrence`, the comment names the cost that was measured:
 
 ```sql
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+CREATE INDEX IF NOT EXISTS <table>_by_<column> ON <table> (<column>);
+```
+
+On a column that references `walk` or `run`, where no such cost was measured, it names the rule instead:
+
+```sql
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS <table>_by_<column> ON <table> (<column>);
 ```
 
@@ -84,7 +91,7 @@ The index is on the one column. A composite index would satisfy the rule too, bu
 
 ### 3. No schema version moves
 
-`spring.sql.init.mode: always` runs `schema.sql` at every start, and `CREATE INDEX IF NOT EXISTS` builds each missing index on an existing ledger at its next start. `SchemaVersionGuard` compares a version recorded per module with a version compiled into that module. By each module's own `*Schema` Javadoc, the version counts changes to its tables' shape, meaning a table added or re-keyed. `schema.sql`'s header says the version exists because `IF NOT EXISTS` never alters a table that already exists, so an old ledger would silently lack what the code expects. An index alters no table, and `IF NOT EXISTS` applies it to an old ledger all the same, so there is nothing for a version to catch.
+`spring.sql.init.mode: always` runs `schema.sql` at every start, and `CREATE INDEX IF NOT EXISTS` builds each missing index on an existing ledger at its next start. `SchemaVersionGuard` compares a version recorded per module with a version compiled into that module. Most modules' `*Schema` Javadoc says to bump the version in the same commit that changes that module's tables in `schema.sql`, and `EmbeddingSchema`'s says only when a table's shape changes; `SimilaritySchema` lists the by-hash index on `shingle` among version 3's contents, because that index came with version 3's tables. What decides it is why the version exists. `schema.sql`'s header says the version exists because `IF NOT EXISTS` never alters a table that already exists, so an old ledger would silently lack what the code expects. An index alters no table, and `IF NOT EXISTS` applies it to an old ledger all the same, so there is nothing for a version to catch.
 
 There is no precedent either way. Each of the four indexes already in the schema arrived in a change that also added a table. `shingle_by_hash` arrived on an existing table, but in the change that added stage 4's tables and moved `SimilaritySchema` to version 3. This is the first change that adds only indexes, and for the reason above it bumps no guard.
 
@@ -92,8 +99,9 @@ There is no precedent either way. Each of the four indexes already in the schema
 
 - **The discard of a duplicate walk costs a fraction of a second**, where it cost 7¼ minutes on the ledger measured.
 - **The first start after this change builds the indexes on the existing ledger, once.** It took 0.6 s on the 10.5 GB copy. The build happens during schema initialisation, before any step runs, and has no output of its own. Each later start finds the indexes already there.
-- **Each write to a referencing table also maintains one or two more indexes.** The largest such table is `superseded_by`, at 185,690 rows, which gains two. The indexes on `run_id` add a small cost to every stage's writes and buy nothing until a run is deleted. That is accepted in exchange for a rule with no exceptions to remember.
-- **The ledger grows a little.** Each index holds one integer or one run id per row of its table. The largest, on `superseded_by`, is small next to `shingle`'s 24,910,924 rows and its two indexes.
+- **Each write to a referencing table also maintains one or two more indexes.** `superseded_by`, for example, at 185,690 rows in the copy, gains two. The cost is small next to what the indexes save.
+- **A stage that discards an unfinished run's rows before redoing it finds them through an index.** Eleven per-run deletes, in `Ledger`, `ContentIdentity` (two), `DetectedFormats`, `ExtractionMetrics`, `ExtractionFaults`, `RedundancySignatures`, `RedundancyResolution`, `UnusableSeeds`, `RelevanceScoreCache` and `DocumentClusters`, read only that run's rows instead of the whole table.
+- **The ledger grows a little.** Each index holds one integer or one run id per row of its table, which is small next to `shingle`'s 24,910,924 rows and its two indexes.
 - **Nothing is re-keyed and no row changes.** Every primary key, constraint and table shape stays as it is.
 
 ## Tests

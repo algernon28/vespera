@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS run (
     walk_id INTEGER NOT NULL REFERENCES walk (id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS run_by_walk_id ON run (walk_id);
 
 -- A run's upstream runs, as rows rather than a delimited column so the chain stays queryable.
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS run_upstream (
     PRIMARY KEY (run_id, upstream_run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS run_upstream_by_upstream_run_id ON run_upstream (upstream_run_id);
 
 -- One row per (run, step) means that step's work under that run is all recorded (ADR-116, re-keying
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS verdict (
     reason TEXT
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS verdict_by_run_id ON verdict (run_id);
 
 -- The survivors query is an anti-join over this column (ADR-060), and it is the one query in the
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS walk_anomaly (
     detail TEXT
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS walk_anomaly_by_walk_id ON walk_anomaly (walk_id);
 
 -- corpus's own table (ADR-067): the SHA-256 of an occurrence's content, computed only for
@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS content_hash (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS content_hash_by_run_id ON content_hash (run_id);
 
 -- corpus's own table (ADR-069): which occurrence a superseded occurrence's content identity
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS superseded_by (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS superseded_by_by_run_id ON superseded_by (run_id);
 
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS detected_format (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS detected_format_by_run_id ON detected_format (run_id);
 
 -- extraction's own table (ADR-010, ADR-012, ADR-070, ADR-071): a cached Docling response, keyed on
@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS extraction_metric (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS extraction_metric_by_run_id ON extraction_metric (run_id);
 
 -- extraction's own table (ADR-075): stage 3's corpus-wide distribution of extraction_metric's
@@ -288,7 +288,7 @@ CREATE TABLE IF NOT EXISTS extraction_fault (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS extraction_fault_by_run_id ON extraction_fault (run_id);
 
 -- extraction's own table (ADR-029, ADR-044, ADR-091): one row per chunk, keyed by content hash plus
@@ -387,7 +387,7 @@ CREATE TABLE IF NOT EXISTS minhash_signature (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS minhash_signature_by_run_id ON minhash_signature (run_id);
 
 -- similarity's own table (ADR-081): the LSH banding index -- 16 rows per signature, one per band of
@@ -429,7 +429,7 @@ CREATE TABLE IF NOT EXISTS redundant_with (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS redundant_with_by_run_id ON redundant_with (run_id);
 
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
@@ -456,7 +456,7 @@ CREATE TABLE IF NOT EXISTS unusable_seed (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS unusable_seed_by_run_id ON unusable_seed (run_id);
 
 -- embedding's own table (ADR-086, ADR-092): how far the seed set resembles the survivors it will be
@@ -543,7 +543,7 @@ CREATE TABLE IF NOT EXISTS relevance_score (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS relevance_score_by_run_id ON relevance_score (run_id);
 
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
@@ -568,7 +568,7 @@ CREATE TABLE IF NOT EXISTS document_cluster (
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS document_cluster_by_run_id ON document_cluster (run_id);
 
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
@@ -616,7 +616,7 @@ CREATE TABLE IF NOT EXISTS relevance_label (
     PRIMARY KEY (path, seed_set)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS relevance_label_by_run_id ON relevance_label (run_id);
 
 -- synthesis's own table (ADR-105, ADR-110, ADR-112, #175): one row per cluster, which is the level
@@ -742,6 +742,7 @@ CREATE TABLE IF NOT EXISTS call_exemplar (
 
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
 CREATE INDEX IF NOT EXISTS call_exemplar_by_winning_seed_occurrence_id ON call_exemplar (winning_seed_occurrence_id);
+
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
 CREATE INDEX IF NOT EXISTS call_exemplar_by_occurrence_id ON call_exemplar (occurrence_id);
 
