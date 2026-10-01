@@ -27,8 +27,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class Shingler {
 
+    /** Only bounds the size of one JDBC batch; every row of the shingle set is still written. */
+    private static final int SHINGLE_INSERT_BATCH = 5_000;
+
     private final JdbcTemplate jdbcTemplate;
-    private static final int SHINGLE_INSERT_BATCH = 5000;
 
     public Shingler(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -57,29 +59,15 @@ public class Shingler {
             return;
         }
 
-        // Write hashes in batches
-        List<Object[]> batchArgs = new ArrayList<>();
-        for (int i = 0; i < hashes.size(); i += SHINGLE_INSERT_BATCH) {
-            int end = Math.min(i + SHINGLE_INSERT_BATCH, hashes.size());
-            List<Long> batchHashes = hashes.subList(i, end);
-            
-            for (long hash : batchHashes) {
-                batchArgs.add(new Object[] {
-                    occurrenceId.value(),
-                    runId.value(),
-                    parameters.identity(),
-                    hash
-                });
+        for (int from = 0; from < hashes.size(); from += SHINGLE_INSERT_BATCH) {
+            List<Object[]> rows = new ArrayList<>();
+            for (long hash : hashes.subList(from, Math.min(from + SHINGLE_INSERT_BATCH, hashes.size()))) {
+                rows.add(new Object[] {occurrenceId.value(), runId.value(), parameters.identity(), hash});
             }
-            
-            if (!batchArgs.isEmpty()) {
-                jdbcTemplate.batchUpdate(
-                    "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash) VALUES (?, ?, ?, ?)",
-                    batchArgs,
-                    batchArgs.size()
-                );
-                batchArgs.clear();
-            }
+            jdbcTemplate.batchUpdate(
+                    "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"
+                            + " VALUES (?, ?, ?, ?)",
+                    rows);
         }
     }
 
