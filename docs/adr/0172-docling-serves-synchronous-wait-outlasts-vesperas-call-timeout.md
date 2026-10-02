@@ -31,7 +31,7 @@ Taken on 2026-09-28 on a 16-CPU, 30 GB machine, with the request Vespera sends (
 | The same 16, 2 workers, wait 600 | wall time 230 s; every call HTTP 200; call times 12–189 s, queue wait included |
 | The same 16, 4 workers (`DOCLING_SERVE_ENG_LOC_NUM_WORKERS=4`), wait 600 | wall time 228 s, no faster; every call HTTP 200; the slowest call 222 s |
 
-Conversion is CPU-bound: each worker runs with `OMP_NUM_THREADS=4`, so four workers share the processor that two already fill. They finish the batch no sooner and make each call slower, which brings calls closer to the 300 s client timeout.
+Conversion is CPU-bound (each worker runs with `OMP_NUM_THREADS=4`). Measured, four workers finish the batch no sooner than two and make each call slower, which brings calls closer to the 300 s client timeout.
 
 ## Decision
 

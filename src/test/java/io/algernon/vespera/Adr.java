@@ -898,7 +898,7 @@ public final class Adr {
 
     /**
      * ADR-172 -- docling-serve's max sync wait is pushed above Vespera's own call timeout, so a slow
-     * document is decided by the extraction stage (as a timeout) rather than aborting over a 504.
+     * file occurrence is decided by stage 2 as a timeout (ADR-071) rather than failing stage 2 over a 504.
      */
     public static final String DOCLING_SERVES_SYNCHRONOUS_WAIT_OUTLASTS_VESPERAS_CALL_TIMEOUT = FILE
             + "0172-docling-serves-synchronous-wait-outlasts-vesperas-call-timeout.md";
