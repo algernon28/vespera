@@ -157,20 +157,30 @@ class RunIdentityGoldenTest {
                 () -> assertThat(run.get("implementation_version")).isEqualTo("corpus"));
     }
 
+    /**
+     * The image is the revision-2 build, which reports its own name in {@code /version} (ADR-179), so
+     * the name appears twice: once as configured, once among the versions the sidecar reported. Red
+     * until {@code vespera.docling.image} names that build.
+     */
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
     @DisplayName("Extraction is identified by the converter it used and the confidence floor, in that order")
+    @Issue("373")
+    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
     void extraction() {
         Map<String, Object> run = theRunOf("extraction");
 
         claim(
                 "the settings it records are the converter's full identity -- its image, its reported"
-                        + " versions sorted by name, and the options sent with every conversion -- then the"
-                        + " confidence floor, recorded as null because this profile sets none",
+                        + " versions sorted by name, which include the image it says it was built as, and the"
+                        + " options sent with every conversion -- then the confidence floor, recorded as null"
+                        + " because this profile sets none",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
                         "{\"extractorIdentity\":\"docling-serve;"
-                                + "image=vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0;"
-                                + "docling=2.124.0;docling-serve=1.32.0;to_formats=json;ocr_preset=rapidocr;"
+                                + "image=vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2;"
+                                + "docling=2.124.0;docling-serve=1.32.0;"
+                                + "vespera-image=vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2;"
+                                + "to_formats=json;ocr_preset=rapidocr;"
                                 + "image_export_mode=embedded;naming=1\","
                                 + "\"degenerateOutputConfidenceFloor\":null}"));
         claim(

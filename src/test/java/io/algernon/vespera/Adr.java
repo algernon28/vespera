@@ -903,6 +903,16 @@ public final class Adr {
     public static final String DOCLING_SERVES_SYNCHRONOUS_WAIT_OUTLASTS_VESPERAS_CALL_TIMEOUT = FILE
             + "0172-docling-serves-synchronous-wait-outlasts-vesperas-call-timeout.md";
 
+    /**
+     * ADR-179 -- no entry point starts or stops a sidecar, because both compose artifacts leave the pom;
+     * the Docling image reports the name it was built as in /version, as vespera-image, and a step
+     * composing the extractor identity stops when that differs from vespera.docling.image; both Docling
+     * tags move to -r2; and Ollama's models live in a named volume (amends ADR-158, ADR-011, ADR-170,
+     * ADR-147, ADR-165; extends ADR-163).
+     */
+    public static final String NO_ENTRY_POINT_STARTS_THE_SIDECARS = FILE
+            + "0179-no-entry-point-starts-the-sidecars-the-docling-sidecar-reports-the-image-it-runs-and-ollamas-models-live-in-a-volume.md";
+
     private Adr() {
     }
 }

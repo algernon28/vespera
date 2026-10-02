@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -39,7 +40,7 @@ public class CountingDoclingBeans {
             "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"stubbed but real content\"}]}}}";
 
     @Bean
-    DoclingClient doclingClient() {
+    DoclingClient doclingClient(@Value("${vespera.docling.image}") String configuredImage) {
         CONVERSIONS.set(0);
         return new DoclingClient("unused") {
 
@@ -48,7 +49,7 @@ public class CountingDoclingBeans {
 
             @Override
             public Map<String, String> version() {
-                return Map.of("docling-serve", "1.32.0", "docling", "2.124.0");
+                return SidecarVersionReport.runningImage(configuredImage);
             }
 
             @Override
