@@ -896,6 +896,13 @@ public final class Adr {
     public static final String EVERY_COLUMN_REFERENCING_AN_OCCURRENCE_A_WALK_OR_A_RUN_IS_INDEXED = FILE
             + "0173-every-column-that-references-a-file-occurrence-a-walk-or-a-run-carries-an-index.md";
 
+    /**
+     * ADR-172 -- docling-serve's max sync wait is pushed above Vespera's own call timeout, so a slow
+     * file occurrence is decided by stage 2 as a timeout (ADR-071) rather than failing stage 2 over a 504.
+     */
+    public static final String DOCLING_SERVES_SYNCHRONOUS_WAIT_OUTLASTS_VESPERAS_CALL_TIMEOUT = FILE
+            + "0172-docling-serves-synchronous-wait-outlasts-vesperas-call-timeout.md";
+
     private Adr() {
     }
 }
