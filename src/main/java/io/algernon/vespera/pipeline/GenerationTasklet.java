@@ -25,6 +25,7 @@ import io.algernon.vespera.synthesis.ClusterCall;
 import io.algernon.vespera.synthesis.ClusterFault;
 import io.algernon.vespera.synthesis.ClusterFaultException;
 import io.algernon.vespera.synthesis.ClusterFaults;
+import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.Deliverable;
@@ -35,13 +36,17 @@ import io.algernon.vespera.synthesis.ListedPicturePlace;
 import io.algernon.vespera.synthesis.ListedSurvivor;
 import io.algernon.vespera.synthesis.NamedValue;
 import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.RecordedClusterFault;
+import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
 import io.algernon.vespera.synthesis.SurvivorPictures;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
+import io.algernon.vespera.synthesis.Unwritten;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -249,6 +254,10 @@ class GenerationTasklet implements Tasklet {
                     // pass of one loop. The faults themselves are kept rather than a count, because what
                     // the operator has to act on is which checks the run of answers failed.
                     List<ClusterFault> turnedDownInARow = new ArrayList<>();
+                    // What this invocation itself found about a cluster it could send nothing for
+                    // (ADR-121), so its page can say why (ADR-174). Fault rows are read when the tree
+                    // is written, since a repair invocation meets an earlier one's too.
+                    Map<ClusterSlot, Unwritten> foundThisRun = new LinkedHashMap<>();
                     for (RecordedCluster recorded : recordedClusters) {
                         ClusterKey key = ClusterKey.of(recorded);
                         if (alreadyWritten.contains(key)) {
@@ -264,6 +273,7 @@ class GenerationTasklet implements Tasklet {
                                             + " read -- so no synthesis doc was written for it",
                                     recorded.cluster().ordinal(),
                                     recorded.cluster().partitionOrder());
+                            foundThisRun.put(ClusterSlot.of(recorded), Unwritten.NO_SENDABLE_DOCUMENT);
                             unsendable++;
                             continue;
                         }
@@ -276,6 +286,7 @@ class GenerationTasklet implements Tasklet {
                                     recorded.cluster().partitionOrder(),
                                     exemplars.size(),
                                     contextWindow);
+                            foundThisRun.put(ClusterSlot.of(recorded), Unwritten.NOTHING_FITS_THE_WINDOW);
                             unsendable++;
                             continue;
                         }
@@ -333,7 +344,7 @@ class GenerationTasklet implements Tasklet {
                                     stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
                                     writeDeliverable(
                                             generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                                            recordedClusters, membership, scores);
+                                            recordedClusters, membership, scores, foundThisRun);
                                     return false;
                                 }
                             }
@@ -383,13 +394,13 @@ class GenerationTasklet implements Tasklet {
                                 generation.value());
                         writeDeliverable(
                                 generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters,
-                                membership, scores);
+                                membership, scores, foundThisRun);
                         return false;
                     }
 
                     Path tree = writeDeliverable(
                             generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters,
-                            membership, scores);
+                            membership, scores, foundThisRun);
                     LOG.info(
                             "The generation step finished under {}, over the arrangement approved as {}:"
                                     + " {} synthesis doc(s) written under model {} in a window of {}, {}"
@@ -429,17 +440,53 @@ class GenerationTasklet implements Tasklet {
             Path canonicalRoot,
             List<RecordedCluster> recordedClusters,
             List<DocumentCluster> membership,
-            Map<OccurrenceId, Double> scores) {
+            Map<OccurrenceId, Double> scores,
+            Map<ClusterSlot, Unwritten> foundThisRun) {
         Map<OccurrenceId, Optional<String>> hashes = new HashMap<>();
+        List<RecordedSynthesisDoc> written = synthesisDocs.forRun(generation);
         DeliverableProvenance provenance = new DeliverableProvenance(
                 generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
         return Deliverable.writeTo(
                 workingDirectory,
                 provenance,
                 recordedClusters,
-                synthesisDocs.forRun(generation),
+                written,
                 survivorsFor(membership, scores, canonicalRoot, hashes),
-                survivorPictures(canonicalRoot, byteLevelReductionRun, hashes));
+                survivorPictures(canonicalRoot, byteLevelReductionRun, hashes),
+                whyUnwritten(generation, recordedClusters, written, foundThisRun));
+    }
+
+    /**
+     * Why each cluster without a synthesis doc went unwritten, for its page to say (ADR-174 §4).
+     *
+     * <p><b>What this invocation found wins over a stored fault row.</b> A row an earlier invocation
+     * kept stands until an answer is believed (ADR-111), but if this invocation could send nothing for
+     * the cluster at all, that is why it is unwritten now, and a page naming the old answer's reason
+     * would have the reader expect a re-run to help. A cluster with neither, and no doc, was never
+     * reached: the step stopped after five turned-down answers before it.
+     */
+    private Map<ClusterSlot, Unwritten> whyUnwritten(
+            RunId generation,
+            List<RecordedCluster> recordedClusters,
+            List<RecordedSynthesisDoc> written,
+            Map<ClusterSlot, Unwritten> foundThisRun) {
+        Map<ClusterSlot, Unwritten> why = new LinkedHashMap<>();
+        for (RecordedClusterFault fault : clusterFaults.forRun(generation)) {
+            why.put(new ClusterSlot(fault.winningSeed(), fault.clusterOrdinal()), Unwritten.of(fault.fault().kind()));
+        }
+        why.putAll(foundThisRun);
+        Set<ClusterSlot> hasWriting = written.stream()
+                .map(doc -> new ClusterSlot(doc.winningSeed(), doc.clusterOrdinal()))
+                .collect(Collectors.toSet());
+        for (RecordedCluster recorded : recordedClusters) {
+            ClusterSlot slot = ClusterSlot.of(recorded);
+            if (!hasWriting.contains(slot)) {
+                why.putIfAbsent(slot, Unwritten.NOT_REACHED);
+            } else {
+                why.remove(slot);
+            }
+        }
+        return why;
     }
 
     /**

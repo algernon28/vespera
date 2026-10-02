@@ -16,11 +16,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * The tree stage 6b leaves on disk (ADR-103, ADR-104, ADR-112, #186): where it lands, what its
@@ -571,6 +574,48 @@ class DeliverableTest {
                                 .indexOf(THE_LABEL))
                         .isLessThan(Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME))
                                 .indexOf(THE_NAME_THAT_SORTS_FIRST)));
+    }
+
+    @ParameterizedTest
+    @EnumSource(Unwritten.class)
+    @Story("A group nothing was written over is a hole a reader can see")
+    @DisplayName("A group left unwritten says why on its own page, and nothing else in the tree changes")
+    @Issue("325")
+    @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
+    void saysWhyOnTheUnwrittenGroupsPageAndNowhereElse(Unwritten why, @TempDir Path plain, @TempDir Path withReason)
+            throws IOException {
+        RecordedCluster unwritten = aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE);
+        RecordedCluster written = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
+        List<RecordedCluster> arrangement = List.of(unwritten, written);
+        List<RecordedSynthesisDoc> writing = List.of(writingFor(A_LATER_ORDINAL, 12L));
+
+        Path plainTree = Deliverable.writeTo(
+                plain, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),
+                SurvivorPictures.none(), Map.of());
+        Path treeWithReason = Deliverable.writeTo(
+                withReason, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),
+                SurvivorPictures.none(), Map.of(ClusterSlot.of(unwritten), why));
+
+        Path page = Path.of(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED, THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".md");
+        claim(
+                "the group's own page carries the sentence saying why, in place of the plain line",
+                () -> assertThat(Files.readString(treeWithReason.resolve(page)))
+                        .contains(why.sentence())
+                        .doesNotContain(THE_HOLE));
+        claim(
+                "with no reason given, the page keeps the plain line, as every tree before this did",
+                () -> assertThat(Files.readString(plainTree.resolve(page)))
+                        .contains(THE_HOLE)
+                        .doesNotContain(why.sentence()));
+        claim(
+                "the index is byte for byte the same either way: its cell still says only that nothing"
+                        + " was written, and still carries no link",
+                () -> assertThat(Files.readAllBytes(treeWithReason.resolve(Deliverable.INDEX_FILE_NAME)))
+                        .isEqualTo(Files.readAllBytes(plainTree.resolve(Deliverable.INDEX_FILE_NAME))));
+        claim(
+                "and so is the listing of documents beside it, which is read by machine",
+                () -> assertThat(Files.readAllBytes(treeWithReason.resolve(Deliverable.MANIFEST_FILE_NAME)))
+                        .isEqualTo(Files.readAllBytes(plainTree.resolve(Deliverable.MANIFEST_FILE_NAME))));
     }
 
     @Test

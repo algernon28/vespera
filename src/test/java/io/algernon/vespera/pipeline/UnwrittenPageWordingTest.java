@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
+import io.algernon.vespera.synthesis.Unwritten;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -61,6 +62,32 @@ class UnwrittenPageWordingTest {
                 () -> assertThat(Arrays.stream(ClusterFaultKind.values()).map(UnwrittenPage::forKind))
                         .doesNotHaveDuplicates()
                         .allSatisfy(sentence -> assertThat(UnwrittenPage.EVERY_SENTENCE).contains(sentence)));
+    }
+
+    @Test
+    @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
+    @DisplayName("The code gives each case exactly the sentence the record gives it")
+    void theCodeSaysWhatTheRecordSays() {
+        claim(
+                "the code's sentence for every way an answer can be turned down is the record's, word for"
+                        + " word, and a new way of turning one down cannot be added without one",
+                () -> assertThat(ClusterFaultKind.values()).allSatisfy(kind -> assertThat(
+                                Unwritten.of(kind).sentence())
+                        .isEqualTo(UnwrittenPage.forKind(kind))));
+        claim(
+                "and so is its sentence for each of the three cases no reason is recorded for",
+                () -> {
+                    assertThat(Unwritten.NO_SENDABLE_DOCUMENT.sentence())
+                            .isEqualTo(UnwrittenPage.NO_DOCUMENT_COULD_BE_SENT);
+                    assertThat(Unwritten.NOTHING_FITS_THE_WINDOW.sentence())
+                            .isEqualTo(UnwrittenPage.NO_DOCUMENT_FITS_THE_ROOM);
+                    assertThat(Unwritten.NOT_REACHED.sentence())
+                            .isEqualTo(UnwrittenPage.WRITING_STOPPED_BEFORE_IT);
+                });
+        claim(
+                "and the code has no sentence the record does not",
+                () -> assertThat(Arrays.stream(Unwritten.values()).map(Unwritten::sentence))
+                        .containsExactlyInAnyOrderElementsOf(UnwrittenPage.EVERY_SENTENCE));
     }
 
     @Test

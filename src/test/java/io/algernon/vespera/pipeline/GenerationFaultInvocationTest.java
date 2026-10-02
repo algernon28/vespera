@@ -11,6 +11,7 @@ import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
+import io.algernon.vespera.synthesis.Deliverable;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.RecordedClusterFault;
 import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
@@ -24,11 +25,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Arrays;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.Named;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -142,6 +148,12 @@ class GenerationFaultInvocationTest {
 
     /** The title scripted alongside prose whose numbers are under test. */
     private static final String A_TITLE = "What The Two Stubbed Documents Have In Common";
+
+    /** The plain line a page carried before it said why, and which the index cell still carries (ADR-174 §3). */
+    private static final String THE_LINE_THE_REASON_REPLACES = "*nothing was written over this group*";
+
+    /** The heading the membership list sits under on every group's page, written or not (ADR-104). */
+    private static final String THE_MEMBERSHIP_HEADING = "## The documents in this group";
 
     /**
      * An answer that reads back perfectly well and carries no writing: a title arrived, and the
