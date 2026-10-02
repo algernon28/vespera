@@ -1159,6 +1159,182 @@ class GenerationFaultInvocationTest {
     }
 
     /**
+     * One answer turned down for each of the four reasons, and the page it leaves behind (ADR-174 §2,
+     * §3). The reason kept is claimed first, so a fixture that failed the wrong check is told apart
+     * from a page that says the wrong thing.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("everyWayAnAnswerIsTurnedDown")
+    @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
+    @DisplayName("A group whose answer was turned down says on its own page why, and the index is unchanged")
+    @Issue("325")
+    @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
+    void saysOnTheClustersPageWhyItsAnswerWasTurnedDown(
+            ClusterFaultKind kind, @TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), anAnswerTurnedDownAs(kind));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the answer was turned down for the reason this case is about, so what follows is a"
+                        + " claim about that reason's page and no other",
+                () -> assertThat(reasonsKept(root))
+                        .singleElement()
+                        .satisfies(kept -> assertThat(kept.fault().kind()).isEqualTo(kind)));
+        Path tree = theLatestTree(root);
+        Path page = UnwrittenPage.pageHeadedBy(tree, theOnlyCluster());
+        claim(
+                "the group's own page says, under its heading and where the writing would have stood,"
+                        + " exactly why nothing was written over it: a reader of the tree has no database"
+                        + " to look the reason up in, so the page is the only place it can reach them",
+                () -> assertThat(UnwrittenPage.lineUnderTheHeadingOf(page)).isEqualTo(UnwrittenPage.forKind(kind)));
+        claim(
+                "and the line it replaces is gone from the page, so the page does not say the same thing"
+                        + " twice in two ways",
+                () -> assertThat(UnwrittenPage.textOf(page)).doesNotContain(THE_LINE_THE_REASON_REPLACES));
+        claim(
+                "the page shows no name the code gives a reason and none of the figures kept with it:"
+                        + " those are for whoever runs the tool, and mean nothing to a reader of the tree",
+                () -> assertThat(UnwrittenPage.textOf(page))
+                        .doesNotContain(ClusterFaultKind.PROMPT_EVALUATION_CEILING.name())
+                        .doesNotContain(ClusterFaultKind.ANSWER_RAN_OUT_OF_ROOM.name())
+                        .doesNotContain(ClusterFaultKind.SCHEMA_VIOLATION.name())
+                        .doesNotContain(ClusterFaultKind.CITATION_NOT_IN_RANGE.name())
+                        .doesNotContain(reasonsKept(root).getFirst().fault().detail()));
+        claim(
+                "the page still lists every document in the group, as it did before it said why",
+                () -> assertThat(UnwrittenPage.textOf(page)).contains(THE_MEMBERSHIP_HEADING));
+        claim(
+                "the index row is unchanged: it still says nothing was written over the group, and still"
+                        + " carries no link",
+                () -> assertThat(UnwrittenPage.indexRowFor(tree, theOnlyCluster()))
+                        .contains(THE_LINE_THE_REASON_REPLACES)
+                        .doesNotContain("]("));
+        claim(
+                "and the listing of documents beside the index carries none of the sentences: it is read"
+                        + " by machine, and its columns are what they were",
+                () -> assertThat(UnwrittenPage.textOf(tree.resolve(Deliverable.MANIFEST_FILE_NAME)))
+                        .doesNotContain(UnwrittenPage.EVERY_SENTENCE)
+                        .doesNotContain(THE_LINE_THE_REASON_REPLACES));
+    }
+
+    @Test
+    @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
+    @DisplayName("A group the engine counts too long for the window at any length says on its page that its documents came to more than the room")
+    @Issue("325")
+    @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
+    void saysOnTheClustersPageThatTheEngineFoundNoRoomForAnyOfItsDocuments(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds);
+        GenerationScriptedBeans.answerFor(
+                theOnlyCluster(), anOrdinaryAnswer().countedAt(COUNTED_AT_THE_CEILING));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the page says the group's documents came to more than the writing model was given room"
+                        + " for: the same words as a question cut down in the asking, because to a reader"
+                        + " of the tree it is the same thing, found out before an answer was asked for"
+                        + " rather than after",
+                () -> assertThat(UnwrittenPage.lineUnderTheHeadingOf(
+                                UnwrittenPage.pageHeadedBy(theLatestTree(root), theOnlyCluster())))
+                        .isEqualTo(UnwrittenPage.DOCUMENTS_CAME_TO_MORE_THAN_THE_ROOM));
+    }
+
+    @Test
+    @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
+    @DisplayName("A group with room for none of its documents says so on its page, though no reason was recorded")
+    @Issue("325")
+    @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
+    void saysOnTheClustersPageThatNoneOfItsDocumentsFitTheRoom(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+        setTheReadingWindowTo(A_WINDOW_WITH_ROOM_FOR_A_SINGLE_WORD);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "no reason was recorded for the group, so the page below is told what happened by the"
+                        + " run itself and not by a stored reason",
+                () -> assertThat(reasonsKept(root)).isEmpty());
+        claim(
+                "and the page says each of its documents that could be read was judged too long for the"
+                        + " room, so none was sent: without its own sentence this group would read exactly"
+                        + " like one whose answer was turned down, and running again changes nothing for it"
+                        + " where it might for that one",
+                () -> assertThat(UnwrittenPage.lineUnderTheHeadingOf(
+                                UnwrittenPage.pageHeadedBy(theLatestTree(root), theOnlyCluster())))
+                        .isEqualTo(UnwrittenPage.NO_DOCUMENT_FITS_THE_ROOM));
+    }
+
+    @Test
+    @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
+    @DisplayName("A group nothing could be sent for this time says so, though an earlier answer for it was turned down")
+    @Issue("325")
+    @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
+    void saysWhatThisInvocationFoundOverTheReasonAnEarlierOneKept(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+        GenerationScriptedBeans.answerFor(
+                theOnlyCluster(), anOrdinaryAnswer().stoppedForRoomAfter(THE_WHOLE_ANSWER_ALLOWANCE));
+        cli.run("run", root.toString());
+        UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("corpus.txt"));
+        UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("another-corpus-document.txt"));
+        GenerationScriptedBeans.forgetScriptedAnswers();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "both invocations wrote under one run, and the reason the first kept is still standing:"
+                        + " the second asked nothing, so nothing it did could replace or remove it",
+                () -> assertThat(reasonsKept(root))
+                        .singleElement()
+                        .satisfies(kept -> assertThat(kept.fault().kind())
+                                .isEqualTo(ClusterFaultKind.ANSWER_RAN_OUT_OF_ROOM)));
+        claim(
+                "and no answer was asked for the second time, since none of the group's documents could be"
+                        + " read",
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(NOTHING_WAS_ASKED));
+        claim(
+                "the page says what this run found, that nothing in the group could be read and sent, and"
+                        + " not the reason the earlier answer was turned down for: that answer is not why"
+                        + " the group is still unwritten, and a reader told it was would expect running"
+                        + " again to help",
+                () -> assertThat(UnwrittenPage.lineUnderTheHeadingOf(
+                                UnwrittenPage.pageHeadedBy(theLatestTree(root), theOnlyCluster())))
+                        .isEqualTo(UnwrittenPage.NO_DOCUMENT_COULD_BE_SENT));
+    }
+
+    /** Each of the four reasons, under a name a reader of the report can follow. */
+    static Stream<Named<ClusterFaultKind>> everyWayAnAnswerIsTurnedDown() {
+        return Arrays.stream(ClusterFaultKind.values()).map(kind -> Named.of(switch (kind) {
+            case PROMPT_EVALUATION_CEILING -> "an answer that read more of the question than the window holds";
+            case ANSWER_RAN_OUT_OF_ROOM -> "an answer that ran out of room";
+            case SCHEMA_VIOLATION -> "an answer nothing can read";
+            case CITATION_NOT_IN_RANGE -> "writing that points at a number the call never sent";
+        }, kind));
+    }
+
+    /**
+     * An answer that fails exactly the check {@code kind} names, each scripted the way this class's own
+     * test of that check scripts it.
+     */
+    private static ScriptedAnswer anAnswerTurnedDownAs(ClusterFaultKind kind) {
+        return switch (kind) {
+            case PROMPT_EVALUATION_CEILING -> anOrdinaryAnswer().havingRead(A_COUNT_PAST_THE_CEILING);
+            case ANSWER_RAN_OUT_OF_ROOM -> anOrdinaryAnswer().stoppedForRoomAfter(THE_WHOLE_ANSWER_ALLOWANCE);
+            case SCHEMA_VIOLATION -> ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ);
+            case CITATION_NOT_IN_RANGE -> ScriptedAnswer.saying(A_TITLE, PROSE_POINTING_AT_NOTHING);
+        };
+    }
+
+    /** The tree the most recent invocation over {@code root} wrote, under its latest generation run. */
+    private Path theLatestTree(Path root) {
+        return UnwrittenPage.treeOf(workingDirectory, generationRuns(root).getLast());
+    }
+
+    /**
      * Drops what was scripted and what was counted before each test as well as after it, so that what
      * ran before this class cannot be read as this class's own calls.
      *
