@@ -32,8 +32,9 @@ import java.util.regex.Pattern;
  *
  * <p><b>Plain values only.</b> This class learns no step, no stage and no {@code Profile} (ADR-110):
  * everything it needs arrives as {@link DeliverableProvenance}, {@link RecordedCluster}, {@link
- * RecordedSynthesisDoc} and {@link ListedSurvivor}, which is why {@code pipeline} is the only module
- * that gathers them.
+ * RecordedSynthesisDoc}, {@link ListedSurvivor}, {@link SurvivorPictures} and, per {@link ClusterSlot},
+ * the {@link Unwritten} reason a cluster got no writing, which is why {@code pipeline} is the only
+ * module that gathers them.
  *
  * <p><b>The cluster files are a rendering of what 6b kept.</b> A stored answer's raw {@code [n]}
  * markers are rewritten into links to that cluster's numbered membership, and the membership is

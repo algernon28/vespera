@@ -38,7 +38,7 @@ Each case has one sentence, in italics on a line of its own, written under the h
 
 Three of these differ from the wording #325 proposed, and the record's wording is the one that holds:
 
-- **"was given room to read" rather than "can read".** The limit is the reading window the operator set in `generationContextWindow`, not a property of the model, and the same model given a larger window reads more.
+- **"its documents came to more than the writing model was given room to read" rather than "its documents were longer than the writing model can read".** The ceiling is on the question as a whole, not on any one document, so "came to more than" is what was measured. And the limit is the reading window the operator set in `generationContextWindow`, not a property of the model: the same model given a larger window reads more.
 - **"each of its documents that could be read was judged longer … so none was sent".** A member that could not be read at all was not judged long; and the judgement is the estimate ADR-121 makes before any call, which is a judgement, not a measurement.
 - **"carries the writing on" rather than "continues from here".** "Here" is a place on a page the reader may reach from anywhere in the tree.
 
@@ -52,7 +52,7 @@ The sentence replaces `*nothing was written over this group*` on the page. Nothi
 
 6b gives the reason in this order:
 
-1. **What this invocation found wins.** If this invocation could send nothing for the cluster (ADR-121), that is why it is unwritten now, even where a row an earlier invocation kept is still standing; a page naming that old answer's reason would have the reader expect a re-run to help, and for this cluster it does not.
+1. **What this invocation found wins.** If this invocation could send nothing for the cluster (ADR-121), that is why it is unwritten now, even where a row an earlier invocation kept is still standing; a page naming that old answer's reason would have the reader expect a re-run to help, and for this cluster it does not. This departs from #325's implementation instructions, which had a fault row override this invocation's finding on the ground that "a faulted group was sendable". That holds within one invocation but not across two: a cluster sendable when an earlier invocation faulted it can be unsendable now, if a file of it has since been edited or cannot be read.
 2. **Otherwise, a standing fault row**, under its kind's sentence. A repair invocation that did not reach the cluster still meets the earlier invocation's row, and the page says why that answer was turned down.
 3. **Otherwise, not reached.** A cluster with no synthesis doc, no finding this invocation and no row was never asked about: the step stopped after five turned-down answers before it.
 
@@ -73,5 +73,5 @@ No sentence says *permanent*, *never* or *always*. Each describes what happened 
 
 - **`UnwrittenPageWordingTest`**: seven sentences, none shared; none says *permanent*, *never* or *always*; none names a `ClusterFaultKind` or says *cluster*; each is one line of emphasis with nothing a renderer reads as a link; and `Unwritten`'s sentence for every case is the record's, word for word.
 - **`DeliverableTest.saysWhyOnTheUnwrittenGroupsPageAndNowhereElse`**, over every `Unwritten`: the page carries the sentence and not the plain line; with no reason, the page keeps the plain line; `index.md` and `documents.csv` are byte for byte the same either way.
-- **`GenerationFaultInvocationTest`**: for each of the four fault kinds, the page carries its sentence, shows no kind name and no `detail`, keeps its membership, and the index row and the manifest are unchanged; a cluster the engine counts too long carries the first sentence; one with room for none of its documents carries the window sentence with no row recorded; and one an earlier invocation kept a row for, but which this invocation could send nothing for, carries what this invocation found.
+- **`GenerationFaultInvocationTest`**: for each of the four fault kinds, the page carries its sentence, shows no kind name and no `detail`, keeps its membership, the index row still carries the plain line and no link, and the manifest carries none of the sentences; a cluster the engine counts too long carries the first sentence; one with room for none of its documents carries the window sentence with no row recorded; and one an earlier invocation kept a row for, but which this invocation could send nothing for, carries what this invocation found.
 - **`GenerationBreakerInvocationTest.saysOnEveryPageWhyNothingWasWrittenWhenTheStepStops`**: when five turned-down answers stop the step, each of those five pages carries its kind's sentence, and the cluster after them carries the not-reached sentence.
