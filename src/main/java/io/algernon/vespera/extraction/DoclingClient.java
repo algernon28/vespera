@@ -48,8 +48,11 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public class DoclingClient {
 
-    /** ADR-071: generous enough for a large scanned PDF, short enough a wedged sidecar doesn't stall a run. */
-    static final Duration CALL_TIMEOUT = Duration.ofMinutes(5);
+    /**
+     * ADR-071: generous enough for a large scanned PDF, short enough a wedged sidecar doesn't stall a run.
+     * Made public so it can be compared against docling-serve's sync wait configuration in tests.
+     */
+    public static final Duration CALL_TIMEOUT = Duration.ofMinutes(5);
 
     /**
      * The largest text file stage 1 lets through to conversion, in bytes (ADR-171): a text file over

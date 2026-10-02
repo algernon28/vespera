@@ -58,5 +58,11 @@ services:
     # This is the sidecar measured to crash (ADR-164): after a segmentation fault it answers /health
     # again about 17 seconds later, with no operator having to notice and run `docker start`.
     restart: unless-stopped
+    # docling-serve answers 504 once a conversion has waited this long, queue time included, and
+    # keeps converting anyway. Set well above Vespera's own 5-minute call timeout (ADR-071) so
+    # that a slow file is Vespera's timeout to decide -- marked extraction-failed and the run goes
+    # on -- rather than a 504 that stops stage 2 (ADR-172).
+    environment:
+      DOCLING_SERVE_MAX_SYNC_WAIT: '600'
     ports:
       - '5001:5001'

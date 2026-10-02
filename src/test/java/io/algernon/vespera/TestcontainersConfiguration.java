@@ -69,6 +69,11 @@ public class TestcontainersConfiguration {
      * which the extractor identity carries.
      */
     static final String DOCLING_SERVE_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0";
+    /**
+     * The wait docling-serve applies before returning a 504. Set well above Vespera's own call timeout
+     * so that a slow file falls to Vespera's timeout to decide (ADR-172).
+     */
+    public static final String DOCLING_SERVE_MAX_SYNC_WAIT = "600";
 
     /** Where that image is built from, relative to the repository root Maven runs the tests in. */
     private static final Path DOCLING_SERVE_CONTAINERFILE = Path.of("docker/docling-serve/Containerfile");
@@ -106,6 +111,7 @@ public class TestcontainersConfiguration {
                         .withInit(true)
                         .withCapDrop(Capability.ALL)
                         .withSecurityOpts(List.of("no-new-privileges:true")))
+                .withEnv("DOCLING_SERVE_MAX_SYNC_WAIT", DOCLING_SERVE_MAX_SYNC_WAIT)
                 .waitingFor(Wait.forHttp("/health").forStatusCode(200));
     }
 
