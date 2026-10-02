@@ -903,6 +903,13 @@ public final class Adr {
     public static final String DOCLING_SERVES_SYNCHRONOUS_WAIT_OUTLASTS_VESPERAS_CALL_TIMEOUT = FILE
             + "0172-docling-serves-synchronous-wait-outlasts-vesperas-call-timeout.md";
 
+    /**
+     * ADR-174 -- the page of a group nothing was written over says why, in one fixed sentence per case,
+     * in words for a reader of the tree (amends ADR-161).
+     */
+    public static final String A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY = FILE
+            + "0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md";
+
     private Adr() {
     }
 }

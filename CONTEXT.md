@@ -97,6 +97,11 @@ Documents within one seed partition that belong together by subject, and one of 
 _Avoid_: group, theme, cluster of duplicates
 _Renders as_: **group**, and only in prose written for a reader outside this project; ADR-122 enumerates the audiences. Everything we name ourselves says cluster, the header of `documents.csv` included. This line is the rendering, not the rule: ADR-122 states the rule once and enumerates what is bound and what is not, and is the place to read it. The rendering exists because the everyday sense of "cluster" is the one this entry spends a sentence refusing, and that reader cannot reach the entry.
 
+**Unwritten cluster**:
+A cluster that ends an invocation with no synthesis doc: it carries a fault row of one of the four kinds, nothing of it could be sent (ADR-121), or the step stopped before reaching it (ADR-111). Its page says which, and the index says only that nothing was written (ADR-174).
+_Avoid_: failed cluster, empty cluster
+_Renders as_: the one sentence ADR-174 gives its case, in italics under the group's heading, and nowhere else.
+
 ### Measurement
 
 **Census**:
