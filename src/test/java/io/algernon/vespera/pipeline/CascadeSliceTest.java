@@ -118,6 +118,7 @@ import org.springframework.transaction.annotation.Transactional;
     ExtractionTimeoutStreak.class,
     ExtractionCircuitBreaker.class,
     ExtractionHealthCheckListener.class,
+    SidecarRecovery.class,
     ExtractionMetrics.class,
     LanguageDetection.class,
     HybridChunkerBeans.class,

@@ -86,6 +86,7 @@ profile.yaml                     the values you set, and how you arrived at them
 vespera.db                       the ledger: every file seen, every verdict, every measurement
 vespera.lock                     held by the command running now, so a second one is refused
 format-mix.html                  what kinds of file the archive holds
+extraction-failures.html         the files that could not be read, and why
 confidence-distribution.html     how well the text came out
 seed-corpus-comparison.html      how far your exemplars resemble the archive
 relevance-labelling.html         the report you read to choose the threshold
@@ -185,7 +186,7 @@ The services listen on ports `8000`, `11434` and `5001`, which is where Vespera 
 
 Leave the sidecars up for all five invocations. They can be days apart.
 
-If a sidecar stops on its own, Docker starts it again, and it does the same after your machine restarts, as long as Docker itself starts. So when a command stops because the document converter went away, you can run the same command again without starting anything by hand. The converter usually comes back within half a minute, and a command run before then stops again, so wait a moment and run it once more. A sidecar you stop with `docker compose -p vespera stop` stays stopped, even across a restart of your machine.
+If a sidecar stops on its own, Docker starts it again, and it does the same after your machine restarts, as long as Docker itself starts. When the document converter goes away while documents are being converted, Vespera waits up to three minutes for it to come back and then asks again about the document it was converting, so a restart of the converter does not stop the command. A document that makes the converter go away twice, or that the converter answers with an error, is marked, skipped and listed in `extraction-failures.html`, and the command carries on with the rest. If five documents in a row make it go away twice, Vespera takes the converter to be the problem and not the documents: the command stops and says so. If the converter is fine and five documents that sit next to each other in your archive really do each bring it down, the command stops at them every time; move them out of the archive, and run it again. One of your exemplars failing that way does stop the command, and the message names the file. If the converter is not back within three minutes the command stops and says so, and you can run the same command again once it is back. A sidecar you stop with `docker compose -p vespera stop` stays stopped, even across a restart of your machine.
 
 **Give Ollama its models.** Ollama serves only the models it has been given, and Vespera does not fetch them for you:
 

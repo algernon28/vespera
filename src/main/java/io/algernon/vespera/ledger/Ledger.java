@@ -444,6 +444,25 @@ public class Ledger {
     }
 
     /**
+     * Every occurrence carrying {@code extraction-failed} under {@code runId}, with its path and the
+     * verdict's reason, in path order (ADR-175): what stage 2 lists for review once it ends. Read under
+     * the run, so after a resume it covers what earlier invocations of that run recorded too (ADR-181
+     * section 5).
+     */
+    public List<RemovedOccurrence> extractionFailures(RunId runId) {
+        return jdbcTemplate.query(
+                "SELECT v.occurrence_id, o.path, v.reason FROM verdict v"
+                        + " JOIN file_occurrence o ON o.id = v.occurrence_id"
+                        + " WHERE v.run_id = ? AND v.kind = ? ORDER BY o.path",
+                (resultSet, rowNumber) -> new RemovedOccurrence(
+                        new OccurrenceId(resultSet.getLong("occurrence_id")),
+                        resultSet.getString("path"),
+                        resultSet.getString("reason")),
+                runId.value(),
+                VerdictKind.EXTRACTION_FAILED.name());
+    }
+
+    /**
      * How many occurrences {@link #survivors} would hand out for {@code runId} — the denominator a
      * stage's progress line needs before it starts (ADR-093).
      *

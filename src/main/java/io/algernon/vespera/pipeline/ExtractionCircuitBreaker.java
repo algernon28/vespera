@@ -17,8 +17,12 @@ import org.springframework.stereotype.Component;
  * <p>One object plays two listener roles, deliberately: {@link SkipListener#onSkipInProcess} is the
  * only place a service-scope skip is observable, and {@link ItemProcessListener#afterProcess} is the
  * only place a completed, non-skipped item is — whether it turned out {@code EXTRACTION_FAILED} or
- * passed through toward the degeneracy floor, either is evidence the sidecar answered, which is what
- * resets the streak.
+ * passed through toward the degeneracy floor, the step went on past it, which is what resets the
+ * streak. It is not always evidence the sidecar answered: an isolated timeout (ADR-071) and a
+ * connection dropped twice (ADR-175) are {@code EXTRACTION_FAILED} with no answer behind them, and an
+ * occurrence answered from the extraction cache, or one with no detected format, completes with no
+ * call made at all. A run of connections dropped twice is stopped by the processor's own count, not
+ * by this one.
  *
  * <p>Step-scoped for the same reason {@link ExtractionTimeoutStreak} is: the streak has to survive a chunk
  * boundary.

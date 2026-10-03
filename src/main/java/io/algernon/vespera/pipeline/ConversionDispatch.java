@@ -48,7 +48,10 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
  * been dispatched and up to the width are converting at once. That bounds what is in flight and in
  * memory to one chunk, lets verdicts commit chunk by chunk as they always have, and means a sidecar
  * that stops answering fails its in-flight wave as a block that the processor then observes
- * consecutively -- which is the order ADR-140 section 2 defines both streaks over.
+ * consecutively -- which is the order ADR-140 section 2 defines both streaks over. That holds for a
+ * sidecar that answers with failures or answers nothing in time. A wave whose connections were dropped
+ * is not counted by either streak: the processor waits for the sidecar and places each of those calls
+ * once more, itself, on the step thread (ADR-175).
  *
  * <p>The worker threads are named and daemon. {@link #close} does run on every path a step takes, failed
  * or not ({@code AbstractStep.execute} reaches it in a {@code finally}); what it cannot reach is a JVM

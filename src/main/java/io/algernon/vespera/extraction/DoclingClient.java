@@ -18,6 +18,7 @@ import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -81,6 +82,14 @@ public class DoclingClient {
      * 10 minutes (5 to connect plus 5 to read) instead of the intended 5.
      */
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+
+    /**
+     * How long {@link #isHealthy} waits for an answer (ADR-175). A health check answers at once or the
+     * sidecar is not up: asked through the conversion client it would wait {@link #CALL_TIMEOUT} on a
+     * sidecar that accepts the connection and says nothing, and a wait for the sidecar to come back
+     * would overrun its own bound by five minutes on one question.
+     */
+    static final Duration HEALTH_CHECK_TIMEOUT = Duration.ofSeconds(5);
 
     /** The shape {@code /version} answers with: component name to version, every entry a string. */
     private static final ParameterizedTypeReference<Map<String, String>> VERSION_MAP =
@@ -150,17 +159,48 @@ public class DoclingClient {
      */
     private static final String PICTURE_EXPORT_MODE = "embedded";
 
+    /** The status docling-serve answers with when its synchronous wait runs out (ADR-172). */
+    private static final int SYNC_WAIT_EXPIRED_STATUS = 504;
+
+    /**
+     * What docling-serve 1.32.0 says beside that status. The status alone is not enough: a proxy in front
+     * of the sidecar answers 504 for reasons of its own, and those are rejections (ADR-175).
+     */
+    private static final String SYNC_WAIT_EXPIRED_WORDS = "taking too long";
+
     private final RestClient restClient;
+
+    /** The client {@link #isHealthy} asks through: the same sidecar, on a short clock of its own. */
+    private final RestClient healthClient;
+
     private final JsonMapper jsonMapper;
 
     @Autowired
     public DoclingClient(@Value("${vespera.docling.base-url}") String baseUrl) {
-        this(RestClient.builder().baseUrl(baseUrl).requestFactory(requestFactory()).build());
+        this(baseUrl, HEALTH_CHECK_TIMEOUT);
+    }
+
+    /** The seam a test needs to ask a sidecar that never answers, on a clock short enough to run. */
+    DoclingClient(String baseUrl, Duration healthCheckTimeout) {
+        this(
+                RestClient.builder()
+                        .baseUrl(baseUrl)
+                        .requestFactory(requestFactory(CONNECT_TIMEOUT, CALL_TIMEOUT))
+                        .build(),
+                RestClient.builder()
+                        .baseUrl(baseUrl)
+                        .requestFactory(requestFactory(healthCheckTimeout, healthCheckTimeout))
+                        .build());
     }
 
     /** The seam a test needs: a {@link RestClient} pointed at a stub, or at a real Testcontainers sidecar. */
     DoclingClient(RestClient restClient) {
+        this(restClient, restClient);
+    }
+
+    private DoclingClient(RestClient restClient, RestClient healthClient) {
         this.restClient = restClient;
+        this.healthClient = healthClient;
         // Unlike ProfileStore's strict reader (a person-edited file, where an unknown key is a typo
         // worth failing on): this is an external service's response, most of which this module does
         // not model at all (the exported document, timings) — reading only the fields it needs and
@@ -171,10 +211,10 @@ public class DoclingClient {
                 .build();
     }
 
-    private static ClientHttpRequestFactory requestFactory() {
+    private static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout) {
         return ClientHttpRequestFactoryBuilder.jdk()
                 .withHttpClientCustomizer(builder -> builder.version(HttpClient.Version.HTTP_1_1))
-                .build(HttpClientSettings.defaults().withTimeouts(CONNECT_TIMEOUT, CALL_TIMEOUT));
+                .build(HttpClientSettings.defaults().withTimeouts(connectTimeout, readTimeout));
     }
 
     /**
@@ -189,6 +229,21 @@ public class DoclingClient {
      */
     public void checkHealth() {
         restClient.get().uri("/health").retrieve().toBodilessEntity();
+    }
+
+    /**
+     * Whether {@code docling-serve} answers its health check right now (ADR-175): {@link #checkHealth}
+     * as a question, for a caller waiting for a sidecar that dropped a connection to come back. It
+     * waits {@link #HEALTH_CHECK_TIMEOUT} for the answer and no longer, so a sidecar that accepts the
+     * connection and says nothing reads as not healthy.
+     */
+    public boolean isHealthy() {
+        try {
+            healthClient.get().uri("/health").retrieve().toBodilessEntity();
+            return true;
+        } catch (RuntimeException notAnswering) {
+            return false;
+        }
     }
 
     /**
@@ -230,7 +285,10 @@ public class DoclingClient {
      * reads the leading bytes and consults the name only where those are silent — so the name is the
      * one lever there is, and it is spent saying what the bytes already said.
      *
-     * @throws DoclingCallTimeoutException if 5 minutes pass with no response at all
+     * @throws DoclingCallTimeoutException if 5 minutes pass with no response at all, or the sidecar
+     *     answers that its own synchronous wait ran out (ADR-172, ADR-175)
+     * @throws DoclingCallRejectedException if the sidecar answers with any other HTTP error status
+     * @throws DoclingConnectionLostException if the connection is refused, reset or closed unanswered
      */
     DoclingResponse convert(Path file, DetectedFormat format, DetectedSubtype subtype) {
         return convert(file, partName(format, subtype));
@@ -329,11 +387,20 @@ public class DoclingClient {
                     .body(body.build())
                     .retrieve()
                     .body(String.class);
+        } catch (RestClientResponseException e) {
+            int status = e.getStatusCode().value();
+            String answer = e.getResponseBodyAsString();
+            if (status == SYNC_WAIT_EXPIRED_STATUS && answer.contains(SYNC_WAIT_EXPIRED_WORDS)) {
+                // docling-serve's own synchronous wait ran out before this client's did (ADR-172): the
+                // same fact as silence, reached from the other side, so it is read the same way (ADR-175).
+                throw DoclingCallTimeoutException.sidecarGaveUp(file, e);
+            }
+            throw new DoclingCallRejectedException(file, status, answer);
         } catch (ResourceAccessException e) {
             if (isTimeout(e)) {
                 throw new DoclingCallTimeoutException(file, e);
             }
-            throw e;
+            throw new DoclingConnectionLostException(file, e);
         }
         return parse(rawResponse);
     }

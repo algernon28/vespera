@@ -46,6 +46,8 @@ class PendingConversions {
      *
      * @throws DoclingCallTimeoutException if that is how the dispatched call ended, unwrapped so it
      *     reads exactly as it would have from a direct, synchronous call to {@code convert}
+     * @throws RuntimeException whatever else the dispatched call threw, unwrapped for the same reason:
+     *     the processor tells a rejected call and a lost connection apart by type (ADR-175)
      */
     Optional<DoclingResponse> take(OccurrenceId occurrenceId) {
         Entry entry = pending.remove(occurrenceId.value());

@@ -967,6 +967,17 @@ public final class Adr {
             + "0183-the-extraction-cache-keeps-only-answers-about-the-document-and-a-refusal-the-converter-blamed-on-itself-is-asked-again.md";
 
     /**
+     * ADR-175 -- a file whose call fails is marked extraction-failed and skipped, and only a sidecar that
+     * stays gone stops the step: an HTTP error status is a rejection of that file, a dropped connection
+     * waits for the health check and retries the file once, a sidecar not back within the bound or one
+     * that drops the connection twice on five files in a row fails the step, and stage 2 writes the
+     * review list of files it could not read (amends ADR-071, ADR-139, ADR-140; rests on ADR-155,
+     * ADR-164, ADR-172, ADR-181, ADR-183).
+     */
+    public static final String A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED = FILE
+            + "0175-a-file-that-fails-is-marked-and-skipped-and-only-a-sidecar-that-stays-gone-stops-stage-2.md";
+
+    /**
      * ADR-177 -- an invocation holds an operating-system lock on vespera.lock in the working
      * directory until its process ends, so a second one is refused before it opens the database file;
      * a database file SQLite reports locked is named, and said to be held by another process (extends

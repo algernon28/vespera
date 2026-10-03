@@ -6,7 +6,7 @@ One file per architecture decision, ADR-001 through ADR-183.
 
 **The digest remains the fuller record.** For most of these decisions the architecture sections (§1, §2) say more than the ledger row does, and each file links to the sections that mention it.
 
-Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. New decisions continue from ADR-050 and carry their own full text — the reconstitution rule applies only to the records restored here.
+Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. A record's note on which tests hold it is not a decision: when a later change makes such a note false, by adding a test it said was missing or renaming one it names, the note is corrected in place, in that change, and cites the ticket. New decisions continue from ADR-050 and carry their own full text — the reconstitution rule applies only to the records restored here.
 
 The vocabulary these decisions are written in is defined in [`CONTEXT.md`](../../CONTEXT.md) and is binding.
 
@@ -193,6 +193,7 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-172](0172-docling-serves-synchronous-wait-outlasts-vesperas-call-timeout.md) | 2026-10-01 | docling-serve's synchronous wait outlasts Vespera's call timeout *(amends ADR-071, rests on ADR-140, ADR-164)* |
 | [ADR-173](0173-every-column-that-references-a-file-occurrence-a-walk-or-a-run-carries-an-index.md) | 2026-09-30 | Every column that references a file occurrence, a walk or a run carries an index *(rests on ADR-008, ADR-009, ADR-115)* |
 | [ADR-174](0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md) | 2026-10-02 | A page nothing was written over says why, in words for a reader *(amends ADR-161)* |
+| [ADR-175](0175-a-file-that-fails-is-marked-and-skipped-and-only-a-sidecar-that-stays-gone-stops-stage-2.md) | 2026-10-03 | A file that fails is marked and skipped, and only a sidecar that stays gone stops stage 2 *(amends ADR-071, ADR-139, ADR-140; rests on ADR-155, ADR-164, ADR-172, ADR-181, ADR-183)* |
 | [ADR-177](0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md) | 2026-10-03 | One invocation per working directory, and a locked database file is named *(extends ADR-050, ADR-054; rests on ADR-127, ADR-180)* |
 | [ADR-178](0178-text-over-the-docling-ceiling-is-converted-in-parts-and-merged-into-one-answer.md) | 2026-10-03 | Text over the Docling ceiling is converted in parts and merged into one answer *(amends ADR-171, ADR-090)* |
 | [ADR-179](0179-no-entry-point-starts-the-sidecars-the-docling-sidecar-reports-the-image-it-runs-and-ollamas-models-live-in-a-volume.md) | 2026-10-03 | No entry point starts the sidecars, the Docling sidecar reports the image it runs, and Ollama's models live in a volume *(amends ADR-158, ADR-011, ADR-170, ADR-147, ADR-165, extends ADR-163)* |

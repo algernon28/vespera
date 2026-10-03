@@ -1,5 +1,7 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.extraction.DoclingCallRejectedException;
+import io.algernon.vespera.extraction.DoclingConnectionLostException;
 import io.algernon.vespera.extraction.DoclingDocumentTexts;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
@@ -44,7 +46,8 @@ import org.springframework.stereotype.Component;
  * <p><b>A file that will not open is a different fact from an unusable seed (ADR-155).</b> Hashing the
  * file is the one archive access {@link #doProcess} makes before any conversion is attempted, and only
  * the {@link UncheckedIOException} it can throw there is caught. Anything else the step meets — a
- * conversion the converter refuses, a fault the converter reports — still fails it, exactly as before.
+ * conversion the converter refuses, a fault the converter reports — still fails it, exactly as before,
+ * except that a dropped connection is first waited out and the seed asked about once more (ADR-175).
  * A file that hashes but vanishes before the converter reads it is not this case, and is not decided
  * here. No conversion is attempted and no measurement is taken for a seed whose file would not open:
  * without the file's bytes there is nothing to key a cache lookup with and nothing to measure.
@@ -60,6 +63,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
     private final ExtractorIdentity extractorIdentity;
     private final ExtractionMetrics extractionMetrics;
     private final SeedGate.SeedWalk seedWalk;
+    private final SidecarRecovery sidecarRecovery;
 
     /**
      * Stage 5a's progress line (ADR-093). The denominator is the seed walk's occurrence count and not a
@@ -73,7 +77,9 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
             ExtractionMetrics extractionMetrics,
-            SeedGate seedGate) {
+            SeedGate seedGate,
+            SidecarRecovery sidecarRecovery) {
+        this.sidecarRecovery = sidecarRecovery;
         this.ledger = ledger;
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
@@ -113,7 +119,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
                     fileCouldNotBeOpened.getMessage());
             return SeedExtractionOutcome.couldNotOpen(occurrenceId);
         }
-        DoclingResponse response = SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
+        DoclingResponse response = convert(file, contentHash);
         // Measured here, while the document is open, and carried out as columns rather than as the
         // document itself: the row cannot be written until the whole folder has been converted
         // (ADR-092), and a seed folder's worth of extracted text is not a thing to hold until then.
@@ -127,6 +133,26 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
             return SeedExtractionOutcome.unusable(occurrenceId, measurement, UsableText.NO_ALPHANUMERIC_CONTENT);
         }
         return SeedExtractionOutcome.usable(occurrenceId, measurement);
+    }
+
+    /**
+     * Converts one seed, waiting for a sidecar that dropped the connection and asking once more, as
+     * stage 2 does (ADR-175 section 6). What differs is what a seed still failing earns. A seed is an
+     * input the operator chose, and no verdict is ever written against one, so a seed the converter
+     * rejects, or drops the connection under twice, stops the step, with the seed named.
+     */
+    private DoclingResponse convert(Path file, String contentHash) {
+        try {
+            try {
+                return SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
+            } catch (DoclingConnectionLostException lost) {
+                sidecarRecovery.awaitHealthy();
+                return SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
+            }
+        } catch (DoclingConnectionLostException | DoclingCallRejectedException failed) {
+            throw new IllegalStateException(
+                    "seed " + file + " could not be converted: " + failed.getMessage(), failed);
+        }
     }
 
     private Path resolvePath(OccurrenceId occurrenceId) {
