@@ -911,9 +911,19 @@ public final class Adr {
             + "0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md";
 
     /**
+     * ADR-180 -- the shipped datasource opens vespera.db in SQLite's write-ahead-log mode with
+     * synchronous=NORMAL, left to SQLite's automatic WAL checkpoint with the emptied write-ahead log cut
+     * back to 512 MiB, and the working directory stays on a local disk; measured, the journal is not what
+     * makes stage 2 slow (amends ADR-127, extends ADR-054, rests on ADR-008, ADR-009).
+     */
+    public static final String THE_DATABASE_USES_SQLITES_WRITE_AHEAD_LOG = FILE
+            + "0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md";
+
+    /**
      * ADR-181 -- a stopped stage 2 keeps what its committed chunks recorded under its own run id and
      * reads only the occurrences none of them recorded; the place is found in the ledger, never in a
-     * saved reader position (amends ADR-115, ADR-116 for stage 2).
+     * saved reader position (amends ADR-115, ADR-116 for stage 2, ADR-139 section 2, ADR-180 section 2;
+     * rests on ADR-036, ADR-140).
      */
     public static final String A_STOPPED_STAGE_2_RESUMES_FROM_WHAT_ITS_COMMITTED_CHUNKS_RECORDED = FILE
             + "0181-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md";

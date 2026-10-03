@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.ConverterStopsPartwayBeans;
+import io.algernon.vespera.ledger.SuccessiveBuildsBeans;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -33,13 +34,20 @@ import org.springframework.test.context.DynamicPropertySource;
  * A stage 2 that stopped partway resumes under its own run id from what its committed chunks recorded,
  * and does only the rest (ADR-181, #379).
  *
- * <p>Each test stops stage 2 the way the sidecar going away stops it: {@link ConverterStopsPartwayBeans}
+ * <p>Most tests stop stage 2 the way the sidecar going away stops it: {@link ConverterStopsPartwayBeans}
  * answers {@link #ANSWERED_BEFORE_THE_STOP} conversions and refuses every later one with the connection
  * failure the real client lets through. That failure is not a skip, so the chunk it lands in rolls back
  * and the step fails. Today's chunk loop reads one chunk ahead and no further, so the first two chunks
- * commit and the third does not. Nothing here depends on that: every claim is phrased over what the
- * ledger holds after the stop, so it stays true if #369 widens the read-ahead across chunks, or if the
- * walk orders the corpus differently on another file system.
+ * commit and the third does not. The claims are phrased over what the ledger holds after the stop, so
+ * they stay true if #369 widens the read-ahead across chunks. The scripted outcomes are placed by the
+ * order documents are first asked about, not by name, so they do not move with the order a file
+ * system lists a folder in; where a test needs an outcome to have been reached before the stop, it
+ * claims so before going on, and an order that defeats the script fails there rather than passing an
+ * untested path.
+ *
+ * <p>{@link #aStageWhoseEndOfStepWasLostDoesTheFaultAgainAndRecordsItOnce} stops nothing. It plays the
+ * one state no stop by the converter reaches: the end of the step recorded and resolved its faults,
+ * and the completion record written after it was lost.
  *
  * <p><b>How a test sees which occurrences a later invocation asked about.</b> Conversions are cached
  * outside the run (ADR-070), so an invocation that redid the whole stage and one that resumed would ask
@@ -49,11 +57,14 @@ import org.springframework.test.context.DynamicPropertySource;
  * invocation reads.
  *
  * <p>Fail today: every test that resumes claims the second invocation converts only what no committed
- * chunk recorded, and today's ADR-115/ADR-116 discard makes it convert the whole corpus. The changed-run
- * test passes today, and has to go on passing.
+ * chunk recorded, and today's ADR-115/ADR-116 discard makes it convert the whole corpus. The
+ * changed-run test passes today, because today's code redoes everything, and has to go on passing.
+ *
+ * <p>{@link SuccessiveBuildsBeans} stands in for the build's implementation versions in every test, so
+ * the changed-run test can play a second build over the same walk; the others never move it.
  */
 @CascadeSliceTest
-@Import(ConverterStopsPartwayBeans.class)
+@Import({ConverterStopsPartwayBeans.class, SuccessiveBuildsBeans.class})
 @Epic("Extraction")
 @Feature("Stage 2 step")
 @Issue("379")
@@ -69,26 +80,35 @@ class ExtractionResumeInvocationTest {
     /** Two whole chunks and half of the third: the stop lands inside a chunk, never on its edge. */
     private static final int ANSWERED_BEFORE_THE_STOP = 2 * CHUNK + CHUNK / 2;
 
-    /** Positions in the corpus whose conversion carries no text; spread over the first two chunks. */
+    /**
+     * Positions, in the order documents are first asked about, whose conversion carries no text; spread
+     * over the first two chunks, so they are reached before the stop.
+     */
     private static final List<Integer> WITHOUT_TEXT_AT = List.of(3, 11, 19);
 
-    /** Positions in the corpus the converter refuses as a property of the document. */
-    private static final List<Integer> REFUSED_AT = List.of(7, 25);
+    /** Positions the converter cannot convert, as a property of the document; one in each of the first two chunks. */
+    private static final List<Integer> UNCONVERTIBLE_AT = List.of(7, 25);
 
-    /** The one position the converter fails on while blaming itself, early enough to be reached before the stop. */
+    /** The one position the converter fails on while blaming itself, inside the first chunk. */
     private static final List<Integer> CONVERTER_FAULT_AT = List.of(5);
 
     /** None of the positions above: every occurrence converts and carries text. */
     private static final List<Integer> NOWHERE = List.of();
 
-    /** Survivors with a score: the corpus less what has no text and what was refused. */
-    private static final long SCORED_SURVIVORS = CORPUS_SIZE - WITHOUT_TEXT_AT.size() - REFUSED_AT.size();
+    /** Survivors with a score: the corpus less what has no text and what could not be converted. */
+    private static final long SCORED_SURVIVORS = CORPUS_SIZE - WITHOUT_TEXT_AT.size() - UNCONVERTIBLE_AT.size();
 
     /** No row at all. */
     private static final long NONE = 0;
 
-    /** One file added between the two invocations, which is enough to make it a different observation. */
-    private static final int ADDED = 1;
+    /** Exactly one row: the count a once-only record has. */
+    private static final long ONCE = 1;
+
+    /** The two builds the changed-run test plays: before and after a commit to stage 2's code. */
+    private static final int TWO_BUILDS = 2;
+
+    /** One walk: an unchanged archive walked again is the walk it already was (ADR-115). */
+    private static final int ONE_WALK = 1;
 
     @TempDir
     static Path workingDirectory;
@@ -108,21 +128,23 @@ class ExtractionResumeInvocationTest {
     private JdbcTemplate jdbcTemplate;
 
     /**
-     * The converter answers, its count starts at zero, the cache holds nothing from another test, and
-     * the profile names nothing: stage 4's gate stays shut, so each invocation ends after stage 3,
-     * which is as far as these claims reach. Before each test rather than only after one, because class
-     * order differs between machines.
+     * The converter answers with nothing scripted, its count starts at zero, the cache holds nothing
+     * from another test, every module is at the first build, and the profile names nothing: stage 4's
+     * gate stays shut, so each invocation ends after stage 3, which is as far as these claims reach.
+     * Before each test rather than only after one, because class order differs between machines.
      */
     @BeforeEach
     void startClean() {
-        ConverterStopsPartwayBeans.keepAnswering();
+        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
+        SuccessiveBuildsBeans.theFirstBuild();
         emptyTheExtractionCache();
         profileStore.save(ProfileFixture.profile().build());
     }
 
     @AfterEach
-    void bringTheConverterBack() {
+    void bringTheConverterAndTheFirstBuildBack() {
         ConverterStopsPartwayBeans.keepAnswering();
+        SuccessiveBuildsBeans.theFirstBuild();
     }
 
     @Test
@@ -130,8 +152,9 @@ class ExtractionResumeInvocationTest {
     @DisplayName("A resumed extraction converts only what the stopped one had not saved, and ends where an uninterrupted one ends")
     void aResumedStageReadsOnlyWhatNoCommittedChunkRecordedAndEndsAsAnUninterruptedOne(
             @TempDir Path root, @TempDir Path uninterrupted) throws IOException {
-        writeCorpus(root, "resumed", WITHOUT_TEXT_AT, REFUSED_AT, CONVERTER_FAULT_AT);
-        writeCorpus(uninterrupted, "resumed", WITHOUT_TEXT_AT, REFUSED_AT, CONVERTER_FAULT_AT);
+        ConverterStopsPartwayBeans.script(WITHOUT_TEXT_AT, UNCONVERTIBLE_AT, CONVERTER_FAULT_AT);
+        writeCorpus(root, "resumed");
+        writeCorpus(uninterrupted, "resumed");
 
         ConverterStopsPartwayBeans.stopAnsweringAfter(ANSWERED_BEFORE_THE_STOP);
         cli.run("run", root.toString());
@@ -145,16 +168,25 @@ class ExtractionResumeInvocationTest {
                 "and by then some of the corpus of " + CORPUS_SIZE + " was saved and some was not, so the"
                         + " second invocation has something to keep and something left to do",
                 () -> assertThat(notRecorded).isBetween(1L, (long) CORPUS_SIZE - 1));
+        claim(
+                "before it stopped, the converter had failed on " + CONVERTER_FAULT_AT.size() + " document"
+                        + " while blaming itself, and that is recorded as a fault awaiting a stage that"
+                        + " completes, so the second invocation has a fault to take up again",
+                () -> assertThat(faultRowsUnder(run)).isEqualTo(CONVERTER_FAULT_AT.size()));
+        claim(
+                "and the saved part already holds a removal for no text and a removal for a failed"
+                        + " conversion, so the second invocation has removals to keep rather than repeat",
+                () -> assertThat(verdictKindsUnder(run)).contains("DEGENERATE_OUTPUT", "EXTRACTION_FAILED"));
 
         emptyTheExtractionCache();
         ConverterStopsPartwayBeans.keepAnswering();
         cli.run("run", root.toString());
 
         claim(
-                "the second invocation asks the converter only about the " + notRecorded + " documents the"
-                        + " first one had not saved. A document that was saved is not converted, measured or"
-                        + " judged a second time, and the one the converter had blamed on itself is among"
-                        + " those asked about again, because a fault is only settled when the stage completes",
+                "the second invocation reads again only the " + notRecorded + " documents the first one"
+                        + " had not saved. A document that was saved is not converted, measured or judged a"
+                        + " second time, and the one the converter had blamed on itself is among those it reads"
+                        + " again, because a fault is only settled when the stage completes",
                 () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo((int) notRecorded));
         claim(
                 "and it finishes the stage under the same run, recording it as complete",
@@ -173,8 +205,8 @@ class ExtractionResumeInvocationTest {
                 () -> assertThat(shingleRowsUnder(run)).isEqualTo(shingleRowsUnder(reference)));
         claim(
                 "the removals, " + WITHOUT_TEXT_AT.size() + " for no text and "
-                        + (REFUSED_AT.size() + CONVERTER_FAULT_AT.size()) + " for a failed conversion, are the"
-                        + " ones the same corpus gets in one go, one each, with none lost and none doubled",
+                        + (UNCONVERTIBLE_AT.size() + CONVERTER_FAULT_AT.size()) + " for a failed conversion, are"
+                        + " the ones the same corpus gets in one go, one each, with none lost and none doubled",
                 () -> assertThat(verdictKindsUnder(run)).containsExactlyElementsOf(verdictKindsUnder(reference)));
         claim(
                 "and the document the converter blamed on itself is recorded once, as in one go, rather than"
@@ -182,11 +214,17 @@ class ExtractionResumeInvocationTest {
                 () -> assertThat(faultRowsUnder(run)).isEqualTo(faultRowsUnder(reference)));
     }
 
+    /**
+     * The conversion count after the resume is what this test discriminates on. The claims about what
+     * the stop left -- a whole number of chunks, shingles only beside a metric row, the run ending with
+     * one metric row per document -- pass today as well: they guard the chunk atomicity ADR-181 rests
+     * on, and would fail only if a change broke it.
+     */
     @Test
     @Story("Stage 2 interrupted partway")
     @DisplayName("A stop in the middle of a batch leaves no part of that batch saved, and the resumed extraction does it whole")
     void aStopInsideAChunkLeavesNoPartOfItAndTheResumeDoesItWhole(@TempDir Path root) throws IOException {
-        writeCorpus(root, "inside a chunk", NOWHERE, NOWHERE, NOWHERE);
+        writeCorpus(root, "inside a chunk");
 
         ConverterStopsPartwayBeans.stopAnsweringAfter(ANSWERED_BEFORE_THE_STOP);
         cli.run("run", root.toString());
@@ -222,24 +260,34 @@ class ExtractionResumeInvocationTest {
     }
 
     /**
-     * Within one test context the profile-borne inputs of stage 2's identity are read once (the floor
-     * bean and the extractor identity are both built once per application context), so the lever a test
-     * has on the run id is the corpus: a file added between the invocations is a different observation,
-     * hence a different walk and a different run (ADR-115). Any change to the id is the same case to
-     * ADR-181's rule.
+     * A commit to {@code extraction} moves stage 2's implementation version (ADR-058), so the next
+     * invocation mints another stage-2 run over the <b>same</b> walk: the archive is unchanged, so the
+     * walk and every occurrence id are the ones the stopped run recorded against (ADR-115). That is what
+     * makes this test discriminate. An implementation that left out "occurrences with a metric row"
+     * without asking under which run would skip the stopped run's saved documents here and convert
+     * only the rest; one that asks under the run reads them all. Any other change to the run id is the
+     * same case to ADR-181's rule.
+     *
+     * <p>Passes today, because today's code redoes the whole stage under any run it starts; it has to
+     * go on passing once a resume keeps what a run committed.
      */
     @Test
     @Story("Stage 2 interrupted partway")
-    @DisplayName("When anything the extraction depends on has changed, the next invocation converts everything again")
+    @DisplayName("When the extraction's code has changed, the next invocation converts every document again, the same files included")
     void aDifferentRunIdReadsEveryOccurrenceAndLeavesTheStoppedRunAlone(@TempDir Path root) throws IOException {
-        writeCorpus(root, "changed between invocations", NOWHERE, NOWHERE, NOWHERE);
+        writeCorpus(root, "changed between invocations");
 
         ConverterStopsPartwayBeans.stopAnsweringAfter(ANSWERED_BEFORE_THE_STOP);
         cli.run("run", root.toString());
         String stopped = onlyExtractionRunOf(root);
         long savedUnderTheStoppedRun = metricRowsUnder(stopped);
 
-        Files.writeString(root.resolve("99-added-later.txt"), "A document added after the first invocation stopped.");
+        claim(
+                "the first invocation saved part of the corpus of " + CORPUS_SIZE + " before it stopped, so"
+                        + " there is something a careless resume could wrongly keep",
+                () -> assertThat(savedUnderTheStoppedRun).isBetween(1L, (long) CORPUS_SIZE - 1));
+
+        SuccessiveBuildsBeans.aCommitTo("extraction");
         emptyTheExtractionCache();
         ConverterStopsPartwayBeans.keepAnswering();
         cli.run("run", root.toString());
@@ -247,27 +295,37 @@ class ExtractionResumeInvocationTest {
         String changed = runs.getLast();
 
         claim(
-                "the second invocation is under a different run, because the corpus it reads is not the one"
-                        + " the first read",
-                () -> assertThat(runs).hasSize(2).doesNotHaveDuplicates());
+                "the second invocation, under a new build of the extraction code, is under a different run",
+                () -> assertThat(runs).hasSize(TWO_BUILDS).doesNotHaveDuplicates());
         claim(
-                "so it converts every one of the " + (CORPUS_SIZE + ADDED) + " documents, keeping nothing the"
-                        + " stopped run saved, because that was saved under different conditions",
-                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo(CORPUS_SIZE + ADDED));
+                "over the same observation of the same files, so the documents the stopped run saved are"
+                        + " the very ones the new run reads",
+                () -> assertThat(walksOf(runs)).isEqualTo(ONE_WALK));
+        claim(
+                "so it converts every one of the " + CORPUS_SIZE + " documents, keeping nothing the stopped"
+                        + " run saved, because that was saved by different code",
+                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo(CORPUS_SIZE));
         claim(
                 "and measures every one of them under its own run",
-                () -> assertThat(metricRowsUnder(changed)).isEqualTo(CORPUS_SIZE + ADDED));
+                () -> assertThat(metricRowsUnder(changed)).isEqualTo(CORPUS_SIZE));
         claim(
                 "while the " + savedUnderTheStoppedRun + " measurements saved under the stopped run are left as"
                         + " they were: a different run never rewrites or removes another run's rows",
                 () -> assertThat(metricRowsUnder(stopped)).isEqualTo(savedUnderTheStoppedRun));
     }
 
+    /**
+     * The conversion count is what this test discriminates on. The confidence-distribution total
+     * passes today too, because today's full redo also covers every document; it guards ADR-181 §5's
+     * rule that a report about stage 2 reads the ledger under the run rather than one invocation's
+     * counts.
+     */
     @Test
     @Story("Stage 2 interrupted partway")
     @DisplayName("After a resumed extraction, the confidence report counts every document of the stage, not only the resumed ones")
     void theConfidenceDistributionAfterAResumeCountsTheWholeStage(@TempDir Path root) throws IOException {
-        writeCorpus(root, "reported", WITHOUT_TEXT_AT, REFUSED_AT, NOWHERE);
+        ConverterStopsPartwayBeans.script(WITHOUT_TEXT_AT, UNCONVERTIBLE_AT, NOWHERE);
+        writeCorpus(root, "reported");
 
         ConverterStopsPartwayBeans.stopAnsweringAfter(ANSWERED_BEFORE_THE_STOP);
         cli.run("run", root.toString());
@@ -285,27 +343,82 @@ class ExtractionResumeInvocationTest {
         claim(
                 "and the confidence report written after it counts all " + SCORED_SURVIVORS + " documents"
                         + " that kept a score (the corpus of " + CORPUS_SIZE + " less "
-                        + WITHOUT_TEXT_AT.size() + " with no text and " + REFUSED_AT.size() + " refused),"
-                        + " the ones saved before the stop included",
+                        + WITHOUT_TEXT_AT.size() + " with no text and " + UNCONVERTIBLE_AT.size() + " that could"
+                        + " not be converted), the ones saved before the stop included",
                 () -> assertThat(confidenceDistributionTotalFor(root)).isEqualTo(SCORED_SURVIVORS));
     }
 
     /**
-     * Writes {@link #CORPUS_SIZE} files whose names sort in position order, each with bytes of its own,
-     * so stage 1 removes none as a copy of another. The name carries the outcome the scripted converter
-     * gives it. {@code salt} keeps one test's corpus from sharing content with another's.
+     * ADR-181 §1's one kept deletion. The end of the step writes its fault rows and the
+     * extraction-failed verdicts resolving them in one transaction, and the completion record after
+     * it in another (ADR-139 §4); a stop between the two, or a power cut that loses only the later
+     * commit (ADR-180 §2), leaves a run whose faults are resolved and whose step is not finished.
+     * Deleting the completion record plays that state. The faulted document carries no metric row, so
+     * the resume reads it again; the verdict that resolved it has to go before that, or the end of
+     * this invocation's step resolves it a second time, and {@code verdict} has no unique key to stop
+     * it.
+     *
+     * <p>The conversion count stands for what the resume read only because the cache was emptied:
+     * with it in place, the faulted document would be judged again from its cached refusal and reach
+     * the converter not at all. The claims on its verdict and its fault row discriminate with or
+     * without the cache.
      */
-    private static void writeCorpus(
-            Path root, String salt, List<Integer> withoutText, List<Integer> refused, List<Integer> converterFault)
-            throws IOException {
+    @Test
+    @Story("Stage 2 interrupted partway")
+    @DisplayName("When only the record that extraction finished was lost, the next invocation redoes only the document the converter failed on, and records its removal once")
+    void aStageWhoseEndOfStepWasLostDoesTheFaultAgainAndRecordsItOnce(@TempDir Path root) throws IOException {
+        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, CONVERTER_FAULT_AT);
+        writeCorpus(root, "end of step lost");
+
+        cli.run("run", root.toString());
+        String run = onlyExtractionRunOf(root);
+        List<Long> faulted = faultedOccurrencesUnder(run);
+
+        claim(
+                "the first invocation completes the stage, recording it as finished",
+                () -> assertThat(stageTwoFinished(run)).isTrue());
+        claim(
+                "with the " + CONVERTER_FAULT_AT.size() + " document the converter blamed on itself recorded"
+                        + " as a fault and removed as a failed conversion, since the stage completed",
+                () -> {
+                    assertThat(faulted).hasSize(CONVERTER_FAULT_AT.size());
+                    assertThat(extractionFailedVerdictsAgainst(faulted.getFirst(), run)).isEqualTo(ONCE);
+                });
+
+        jdbcTemplate.update(
+                "DELETE FROM finished_step WHERE run_id = ? AND step = ?", run, StepNames.EXTRACTION);
+        emptyTheExtractionCache();
+        ConverterStopsPartwayBeans.keepAnswering();
+        cli.run("run", root.toString());
+
+        claim(
+                "with only the record that the stage finished lost, the next invocation reads again the "
+                        + CONVERTER_FAULT_AT.size() + " document the converter failed on and none of the "
+                        + (CORPUS_SIZE - CONVERTER_FAULT_AT.size()) + " it had converted",
+                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo(CONVERTER_FAULT_AT.size()));
+        claim(
+                "that document is removed as a failed conversion exactly once, not once per invocation that"
+                        + " completed the stage",
+                () -> assertThat(extractionFailedVerdictsAgainst(faulted.getFirst(), run)).isEqualTo(ONCE));
+        claim(
+                "and its fault is recorded exactly once",
+                () -> assertThat(faultRowsAgainst(faulted.getFirst(), run)).isEqualTo(ONCE));
+        claim(
+                "and the stage is recorded as finished again",
+                () -> assertThat(stageTwoFinished(run)).isTrue());
+    }
+
+    /**
+     * Writes {@link #CORPUS_SIZE} files, each with bytes of its own, so stage 1 removes none as a copy
+     * of another. What the converter answers about each is scripted by the order it is first asked
+     * about (see {@link ConverterStopsPartwayBeans}), not by its name. {@code salt} keeps one test's
+     * corpus from sharing content with another's; two folders written with one salt hold the same
+     * documents.
+     */
+    private static void writeCorpus(Path root, String salt) throws IOException {
         for (int position = 1; position <= CORPUS_SIZE; position++) {
-            String outcome = withoutText.contains(position)
-                    ? ConverterStopsPartwayBeans.WITHOUT_TEXT
-                    : refused.contains(position)
-                            ? ConverterStopsPartwayBeans.REFUSED
-                            : converterFault.contains(position) ? ConverterStopsPartwayBeans.CONVERTER_FAULT : "plain";
             Files.writeString(
-                    root.resolve(String.format("%02d-%s.txt", position, outcome)),
+                    root.resolve(String.format("document-%02d.txt", position)),
                     "Document " + position + " of the " + salt + " corpus describes harbour cranes, tide tables"
                             + " and the order in which ships were unloaded during the winter of year " + position
                             + ", with notes on weather and cargo.");
@@ -321,11 +434,11 @@ class ExtractionResumeInvocationTest {
         return Walk.canonicalRoot(root).toString();
     }
 
-    /** Every stage-2 run over {@code root}, oldest walk first. */
+    /** Every stage-2 run over {@code root}, oldest walk first, then in the order the runs were minted. */
     private List<String> extractionRunsOf(Path root) {
         return jdbcTemplate.queryForList(
                 "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE w.root = ? AND r.stage = ? ORDER BY w.id",
+                        + " WHERE w.root = ? AND r.stage = ? ORDER BY w.id, r.rowid",
                 String.class,
                 walkRoot(root),
                 StageModules.EXTRACTION.stage());
@@ -337,6 +450,14 @@ class ExtractionResumeInvocationTest {
                 "the extraction over this corpus has one run so far, so every count below is about that run",
                 () -> assertThat(runs).hasSize(1));
         return runs.getFirst();
+    }
+
+    /** How many distinct walks {@code runs} were recorded over. */
+    private int walksOf(List<String> runs) {
+        return (int) runs.stream()
+                .map(run -> jdbcTemplate.queryForObject("SELECT walk_id FROM run WHERE id = ?", Long.class, run))
+                .distinct()
+                .count();
     }
 
     /**
@@ -383,6 +504,30 @@ class ExtractionResumeInvocationTest {
 
     private long faultRowsUnder(String run) {
         return countUnder("SELECT COUNT(*) FROM extraction_fault WHERE run_id = ?", run);
+    }
+
+    /** The occurrences carrying an extraction fault row under {@code run}. */
+    private List<Long> faultedOccurrencesUnder(String run) {
+        return jdbcTemplate.queryForList(
+                "SELECT occurrence_id FROM extraction_fault WHERE run_id = ? ORDER BY occurrence_id", Long.class, run);
+    }
+
+    private long faultRowsAgainst(long occurrence, String run) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM extraction_fault WHERE occurrence_id = ? AND run_id = ?",
+                Long.class,
+                occurrence,
+                run);
+        return count == null ? NONE : count;
+    }
+
+    private long extractionFailedVerdictsAgainst(long occurrence, String run) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE occurrence_id = ? AND run_id = ? AND kind = 'EXTRACTION_FAILED'",
+                Long.class,
+                occurrence,
+                run);
+        return count == null ? NONE : count;
     }
 
     private List<String> verdictKindsUnder(String run) {
