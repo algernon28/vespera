@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -63,6 +64,12 @@ class WorkingDirectoryInUseIT {
 
     /** What a launch returned: whether it ended within the bound, its code, and everything it printed. */
     private record Launched(boolean finished, int exitCode, List<String> printed) {
+    }
+
+    /** Whatever an earlier test class in this JVM left held is handed back before this one takes its own. */
+    @BeforeEach
+    void startWithNothingHeld() {
+        WorkingDirectoryLock.release();
     }
 
     @AfterEach

@@ -71,6 +71,9 @@ public class WorkingDirectoryLock implements ApplicationListener<ApplicationEnvi
         } catch (OverlappingFileLockException heldByThisProcess) {
             // Kept open rather than closed: on some systems closing a channel releases every lock this
             // JVM holds on the file, the holder's included. Held for the life of the JVM, as it is.
+            // This path is reached only when one JVM starts the application twice (tests). The risk is
+            // the one java.nio.channels.FileLock's javadoc names: closing a channel may release all
+            // locks held by the Java virtual machine on the underlying file.
             HELD.add(new Held(channel, null));
             throw new WorkingDirectoryInUseException(workingDirectory, holderLine(lockFile));
         } catch (IOException e) {

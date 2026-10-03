@@ -7,15 +7,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.support.SQLExceptionSubclassTranslator;
 import org.springframework.jdbc.support.SQLExceptionTranslator;
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 /**
  * Names the database file when SQLite reports it locked, wherever a statement meets the lock (ADR-177
  * §2.1, #364).
  *
- * <p>Spring Boot hands the one {@code JdbcTemplate} every statement goes through the application's
- * {@link SQLExceptionTranslator} bean, when there is exactly one. This is that bean. A failure with an
+ * <p>Spring Boot hands the {@code JdbcTemplate} it builds, which every {@code JdbcTemplate} statement
+ * uses, the application's {@link SQLExceptionTranslator} bean, when there is exactly one. This is that
+ * bean. Ledger's two {@code JdbcPagingItemReader} reads ({@code survivors}, {@code occurrencesOf}) build
+ * their own template inside Spring Batch, so they are not translated (ADR-177 §2.1). A failure with an
  * {@link SQLiteException} anywhere in its causes whose primary result code is {@code SQLITE_BUSY} (5) or
  * {@code SQLITE_LOCKED} (6) becomes a {@link DatabaseFileLockedException}, which covers the extended
  * codes too, {@code SQLITE_BUSY_SNAPSHOT} (517) among them. Anything else is translated as the template

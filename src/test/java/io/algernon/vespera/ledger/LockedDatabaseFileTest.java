@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 import java.sql.Statement;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +29,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.SQLExceptionSubclassTranslator;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -37,8 +39,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * statement meets the lock (ADR-177 §2, #364).
  *
  * <p>On 2026-09-28 stage 2's closing line named an SQL statement and {@code [SQLITE_BUSY] The database
- * file is locked}, and no file. The translator sits under the one {@code JdbcTemplate} every statement
- * goes through, so the sentence is the same in every step.
+ * file is locked}, and no file. The translator sits under the {@code JdbcTemplate} Spring Boot builds,
+ * which every {@code JdbcTemplate} statement in every step goes through, so the sentence is the same in
+ * every step. Spring Batch's paging readers build a template of their own and are not translated; under
+ * the write-ahead log a reader is not blocked by a writer.
  *
  * <p><b>Profile-free on purpose</b>, like {@code WriteAheadDatabaseTest}: the {@code test} profile's
  * in-memory database on a pool of one cannot be locked by a second connection, so this slice builds the
@@ -128,7 +132,7 @@ class LockedDatabaseFileTest {
 
     @Test
     @Story("A locked database file says which file, and that another process holds it")
-    @DisplayName("Busy, busy-snapshot and locked are all a locked database file, and a constraint failure is not")
+    @DisplayName("Busy, busy-snapshot and locked are all a locked database file, and a constraint failure or a pool timeout is not")
     void everyLockCodeIsALockedDatabaseFile() {
         LockedDatabaseFileTranslator translator = new LockedDatabaseFileTranslator(workingDirectory);
         Path databaseFile = workingDirectory.resolve(DATABASE_FILE);
@@ -145,6 +149,11 @@ class LockedDatabaseFileTest {
         DataAccessException fromWrapped = translator.translate("an insert", "INSERT", new SQLException("wrapped", busy));
         DataAccessException fromConstraint = translator.translate("an insert", "INSERT", new SQLiteException(
                 "[SQLITE_CONSTRAINT] Abort due to constraint violation", SQLiteErrorCode.SQLITE_CONSTRAINT));
+        SQLTransientConnectionException poolTimedOut = new SQLTransientConnectionException(
+                "Connection is not available, request timed out after 30000ms.");
+        DataAccessException fromPool = translator.translate("a query", "SELECT", poolTimedOut);
+        DataAccessException fromPoolWithNoTranslatorOfOurs =
+                new SQLExceptionSubclassTranslator().translate("a query", "SELECT", poolTimedOut);
 
         claim("a busy database file is a locked one, and the sentence names the file, says another process"
                         + " holds it, and keeps what SQLite said",
@@ -157,7 +166,17 @@ class LockedDatabaseFileTest {
         claim("and a locked table", () -> assertThat(fromLocked).isInstanceOf(DatabaseFileLockedException.class));
         claim("and a busy database file found beneath another SQL failure",
                 () -> assertThat(fromWrapped).isInstanceOf(DatabaseFileLockedException.class));
-        claim("a constraint failure is not a locked database file",
-                () -> assertThat(fromConstraint instanceof DatabaseFileLockedException).isFalse());
+        claim("a constraint failure is not a locked database file, and is left to the template, which"
+                        + " reports it as before",
+                () -> assertThat(fromConstraint)
+                        .as("what the translator made of a constraint failure")
+                        .isNull());
+        claim("a connection the pool could not hand out in time keeps the kind of failure it had without"
+                        + " this translator, and is not mistaken for a locked database file",
+                () -> assertThat(fromPool)
+                        .as("what the translator made of a pool that timed out")
+                        .isNotNull()
+                        .isNotInstanceOf(DatabaseFileLockedException.class)
+                        .hasSameClassAs(fromPoolWithNoTranslatorOfOurs));
     }
 }

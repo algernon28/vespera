@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -63,6 +64,12 @@ class WorkingDirectoryLockTest {
 
     /** How long the second process gets to end once killed. */
     private static final long HOLDER_END_BOUND_SECONDS = 30;
+
+    /** Whatever an earlier test class in this JVM left held is handed back before this one takes its own. */
+    @BeforeEach
+    void startWithNothingHeld() {
+        WorkingDirectoryLock.release();
+    }
 
     @AfterEach
     void handBackTheLock() {
@@ -215,20 +222,27 @@ class WorkingDirectoryLockTest {
                 .redirectErrorStream(true)
                 .start();
         BufferedReader printed = new BufferedReader(new InputStreamReader(holder.getInputStream(), StandardCharsets.UTF_8));
-        String first = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        String line;
-                        while ((line = printed.readLine()) != null) {
-                            if (line.strip().equals(HoldsTheWorkingDirectory.HOLDING)) {
-                                return line.strip();
+        String first;
+        try {
+            first = CompletableFuture.supplyAsync(() -> {
+                        try {
+                            String line;
+                            while ((line = printed.readLine()) != null) {
+                                if (line.strip().equals(HoldsTheWorkingDirectory.HOLDING)) {
+                                    return line.strip();
+                                }
                             }
+                            return null;
+                        } catch (IOException e) {
+                            return null;
                         }
-                        return null;
-                    } catch (IOException e) {
-                        return null;
-                    }
-                })
-                .get(HOLDER_START_BOUND_SECONDS, TimeUnit.SECONDS);
+                    })
+                    .get(HOLDER_START_BOUND_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception notHeldInTime) {
+            // A second process left running would keep the directory locked past this test.
+            holder.destroyForcibly();
+            throw notHeldInTime;
+        }
         if (first == null) {
             holder.destroyForcibly();
             throw new IllegalStateException("the second process ended without holding " + workingDirectory);
