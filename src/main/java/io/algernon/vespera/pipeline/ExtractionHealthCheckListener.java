@@ -50,15 +50,19 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
             // RunCompletion makes, so this line says failed only when the step did not complete, and a
             // step that did not complete records no completion; the next invocation redoes this run's
             // work under the same id (ADR-115, ADR-116).
+            // A locked database file is not the sidecar's doing, so the line stops pointing at it (ADR-177).
             log.error(
                     "Stage 2 (extraction) failed and is not recorded as finished (read={}, written={},"
-                            + " skipped={}, filtered={}): {}. Fix what that names -- if docling-serve stopped"
-                            + " answering, bring it back -- and run the same command again.",
+                            + " skipped={}, filtered={}): {}. {}",
                     stepExecution.getReadCount(),
                     stepExecution.getWriteCount(),
                     stepExecution.getSkipCount(),
                     stepExecution.getFilterCount(),
-                    StepFailure.named(stepExecution));
+                    StepFailure.named(stepExecution),
+                    StepFailure.lockedDatabaseFile(stepExecution)
+                            ? "Close whatever else has the database file open and run the same command again."
+                            : "Fix what that names -- if docling-serve stopped answering, bring it back -- and run"
+                                    + " the same command again.");
             return stepExecution.getExitStatus();
         }
         log.info(

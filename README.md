@@ -84,6 +84,7 @@ Everything the tool writes goes in one working directory, never inside your arch
 ```
 profile.yaml                     the values you set, and how you arrived at them
 vespera.db                       the ledger: every file seen, every verdict, every measurement
+vespera.lock                     held by the command running now, so a second one is refused
 format-mix.html                  what kinds of file the archive holds
 confidence-distribution.html     how well the text came out
 seed-corpus-comparison.html      how far your exemplars resemble the archive
@@ -96,6 +97,8 @@ deliverable/<run>/documents.csv  every surviving document, with its place in the
 ```
 
 Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration. Both commands take `--db-dir=<path>`, so if you moved the working directory, name it on `vespera label` as well as on `vespera run`. A command given a `--db-dir` other than the directory it actually opened refuses and records nothing.
+
+One command at a time uses a working directory. A second command started on it while the first is still running, from a second terminal or from an IDE, refuses at once with one line naming the command that holds it, its process id and when it started, and exits 1; the first carries on. Wait for the first to finish, or stop it, and run the second again. `vespera.lock` stays in the working directory after every command and is harmless: a command that crashed or was killed releases it as its process ends. Do not delete it while a command is running, because that lets a second one start. If a step fails saying the database file is held by another process, something other than Vespera, such as a database browser, has `vespera.db` open; close it and run the same command again.
 
 While a command is running, two more files sit beside `vespera.db`: `vespera.db-wal`, SQLite's write-ahead log, which holds the most recent changes, and `vespera.db-shm`, its index. When the command ends they are folded back into `vespera.db` and deleted, unless something else, such as a database browser, still has the database open. To copy the working directory, copy it after the command has ended and `vespera.db-wal` is gone. If `vespera.db-wal` is still there, or you have to copy while a command is running, copy all three files together, or the copy is missing the latest changes. Keep the working directory on a disk attached to the machine that runs Vespera, not on a network share: the database relies on shared memory that only works on a local disk.
 

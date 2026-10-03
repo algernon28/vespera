@@ -44,7 +44,26 @@ public class SchemaVersionGuard {
             return;
         }
         if (recorded != expectedVersion) {
-            throw new SchemaVersionMismatchException(module, recorded, expectedVersion);
+            throw new SchemaVersionMismatchException(module, recorded, expectedVersion, mainDatabaseFile());
         }
+    }
+
+    /**
+     * The file this connection has open, as SQLite reports it, or empty for a database held in memory
+     * (ADR-177 §2.4). Asked of the connection rather than rebuilt from configuration, so it names the
+     * file actually opened, even under an overridden {@code spring.datasource.url}.
+     */
+    private String mainDatabaseFile() {
+        String file = jdbcTemplate.query(
+                "PRAGMA database_list",
+                resultSet -> {
+                    while (resultSet.next()) {
+                        if ("main".equals(resultSet.getString("name"))) {
+                            return resultSet.getString("file");
+                        }
+                    }
+                    return null;
+                });
+        return file == null ? "" : file;
     }
 }
