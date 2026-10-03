@@ -163,7 +163,7 @@ The scripted converter places its outcomes by the order documents are first aske
 
 **It is not closed by adding `pipeline` to stage 2's module list.** `pipeline` is the composition root, and nearly every commit touches it. Naming it would move the stage-2 run id on every such commit, so stage 2, and every stage after it, would replay on nearly every build, not once. It is closed by moving the judging code into `extraction`, which stage 2's id already names, with every `StageModules` list unchanged. That is [#320](https://github.com/algernon28/vespera/issues/320) (Wave 2, "stage 2's classification and identity to extraction"), which moves ADR-070's classification, ADR-071's timeout streak and the extractor identity's composition. **`ExtractionFaultRecorder`'s resolution and `ConversionDispatch` are not in #320's table, and they belong with it**, since each decides what stage 2 records.
 
-**Whether a service-scope answer belongs in the extraction cache.** It is cached today, so neither a resume nor ADR-140 §5's retune path asks the sidecar again about a cached `capacity` or `internal` refusal. That is older than this record, and needs a ticket of its own.
+**Whether a service-scope answer belongs in the extraction cache.** It is cached today, so neither a resume nor ADR-140 §5's retune path asks the sidecar again about a cached `capacity` or `internal` refusal. That is older than this record, and is [#383](https://github.com/algernon28/vespera/issues/383).
 
 **Stages 3 to 6b.** §6 states the position, and each step needs its own ticket.
 

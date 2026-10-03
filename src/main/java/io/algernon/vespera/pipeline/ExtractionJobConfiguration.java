@@ -7,7 +7,6 @@ import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.ExtractionFaults;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.similarity.Shingler;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -16,7 +15,10 @@ import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
@@ -40,6 +42,8 @@ import org.springframework.transaction.PlatformTransactionManager;
  */
 @Configuration
 public class ExtractionJobConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(ExtractionJobConfiguration.class);
 
     /**
      * The step's chunk size. That it is a whole number of {@link #CONVERSION_CONCURRENCY} waves is
@@ -135,9 +139,10 @@ public class ExtractionJobConfiguration {
      *
      * <p>Wraps {@link #extractionReader} rather than folding into it, because the two decide separate
      * things: {@link #extractionReader} decides which occurrences this run reads at all -- the
-     * already-finished check and the discard (ADR-115, ADR-116) -- and this class only adds the
-     * concurrent dispatch ADR-140 asks for on top of whatever it yields, without duplicating that
-     * decision.
+     * already-finished check, the deletion of the fault rows and their resolving verdicts, and the
+     * leaving out of what committed chunks already recorded (ADR-115, ADR-116, ADR-181) -- and this
+     * class only adds the concurrent dispatch ADR-140 asks for on top of whatever it yields, without
+     * duplicating that decision.
      */
     @Bean
     @StepScope
@@ -215,7 +220,6 @@ public class ExtractionJobConfiguration {
             Ledger ledger,
             StageRuns stageRuns,
             ExtractionMetrics extractionMetrics,
-            Shingler shingler,
             JdbcTemplate jdbcTemplate) {
         RunId extractionRun = stageRuns.extraction();
         // This step's own work under this run is already recorded, so it runs in its usual place and
@@ -226,27 +230,43 @@ public class ExtractionJobConfiguration {
         }
 
         // Not finished: an invocation that stopped partway may have left rows behind under this same
-        // run id -- extraction_metric and extraction_fault are keyed (occurrence_id, run_id), so a
-        // second write would collide on the first; shingle carries no such key at all and would
-        // otherwise silently double stage 3's document-frequency count. The two
-        // DEGENERATE_OUTPUT/EXTRACTION_FAILED verdict kinds are this run's own too (ADR-115's discard
-        // half, ADR-116, extended by ADR-139 to extraction_fault). One discard, one list, done here and
-        // nowhere else: splitting it across two classes would let the next table added beside these
-        // read this list as complete when it is not, and the stepFinished guard above is the same
-        // expression that decides whether this reader yields anything at all -- duplicating it
-        // elsewhere would be two readings of one fact with nothing keeping them in agreement.
+        // run id, and a resume keeps most of them (ADR-181 section 1, amending ADR-115's discard half,
+        // ADR-116 and ADR-139 section 2). A committed chunk is final within its run: every
+        // extraction_metric row, every shingle and every verdict the processor's chunks wrote stays,
+        // and those occurrences are not read again.
+        //
+        // What is deleted is the end of the step's work, not a chunk's: the extraction_fault rows and
+        // the EXTRACTION_FAILED verdicts that resolved them (ADR-139). Every faulted occurrence is read
+        // again, so this invocation's end of step records every fault of the stage afresh. The verdicts
+        // go first, because the fault rows are how they are found; verdict has no unique key, so a
+        // resolving verdict left behind would resolve the same fault twice. A faulted occurrence
+        // carries no metric row (a fault leaves none of stage 2's own rows in its chunk), so the read
+        // filter below does not hide it.
         //
         // Here rather than in ExtractionItemProcessor's constructor, which is where it sat and was
         // wrong: that bean is step-scoped, so its constructor first runs inside the first chunk's
-        // transaction, and this step is fault-tolerant. A skip in that chunk rolls the transaction
-        // back, restoring the rows just deleted, and step scope survives the rollback -- so the
-        // discard never runs again and the collision it exists to prevent comes back. A reader is
+        // transaction, and a chunk that fails rolls its transaction back while step scope survives it.
+        // Under spring-batch-core 6.0.5 a skip in processing does not roll the chunk back (processItem
+        // drops the item and the chunk goes on); a non-skippable failure or a tripped circuit breaker
+        // does, restoring the rows just deleted, and the delete would never run again. A reader is
         // opened outside the chunk transaction, which is the only place a delete can be made to stick.
-        ledger.discardVerdicts(extractionRun, VerdictKind.EXTRACTION_FAILED, VerdictKind.DEGENERATE_OUTPUT);
-        extractionMetrics.discardForRun(extractionRun);
-        shingler.discardForRun(extractionRun);
-        new ExtractionFaults(jdbcTemplate).discardForRun(extractionRun);
+        //
+        // The queries are extraction's (ADR-041); the one delete against verdict is the ledger's.
+        ExtractionFaults extractionFaults = new ExtractionFaults(jdbcTemplate);
+        Set<OccurrenceId> faulted = extractionFaults.occurrencesForRun(extractionRun);
+        ledger.discardVerdictsAgainst(extractionRun, faulted, VerdictKind.EXTRACTION_FAILED);
+        extractionFaults.discardForRun(extractionRun);
 
+        Set<OccurrenceId> recorded = extractionMetrics.occurrencesForRun(extractionRun);
+        if (!recorded.isEmpty()) {
+            log.info(
+                    "Stage 2 (extraction) resumes run {}: {} occurrences already measured by committed chunks,"
+                            + " {} faulted occurrences read again",
+                    extractionRun.value(),
+                    recorded.size(),
+                    faulted.size());
+            return new OccurrenceReader(new UnrecordedOccurrences(ledger.survivors(extractionRun), recorded));
+        }
         return new OccurrenceReader(ledger.survivors(extractionRun));
     }
 

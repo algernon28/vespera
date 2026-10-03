@@ -139,10 +139,16 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.confidenceFloor = confidenceFloor;
         this.shingler = shingler;
         this.pending = pending;
-        // Nothing is discarded here. ExtractionJobConfiguration's reader does it, where a delete is
-        // outside the chunk transaction and so cannot be rolled back under this step's fault tolerance
-        // (ADR-115's discard half, ADR-116).
-        this.progress = StageProgress.over("Stage 2 (extraction)", ledger.survivorCount(stageRuns.extraction()));
+        // Nothing is deleted here. ExtractionJobConfiguration's reader deletes the fault rows and the
+        // verdicts that resolved them, where a delete is outside the chunk transaction and so cannot be
+        // rolled back by a chunk that fails (ADR-181 section 1, amending ADR-115's discard half and
+        // ADR-116). Every metric, shingle and verdict a committed chunk wrote is kept, so the progress
+        // denominator is what the reader yields this invocation (ADR-093), not the whole survivor set.
+        RunId extractionRun = stageRuns.extraction();
+        this.progress = StageProgress.over(
+                "Stage 2 (extraction)",
+                UnrecordedOccurrences.countOver(
+                        ledger, extractionRun, extractionMetrics.occurrencesForRun(extractionRun)));
     }
 
     @Override
