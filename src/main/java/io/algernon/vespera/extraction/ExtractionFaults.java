@@ -2,6 +2,8 @@ package io.algernon.vespera.extraction;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -51,6 +53,17 @@ public class ExtractionFaults {
      */
     public void discardForRun(RunId runId) {
         jdbcTemplate.update("DELETE FROM extraction_fault WHERE run_id = ?", runId.value());
+    }
+
+    /**
+     * The occurrences carrying a fault row under {@code runId} (ADR-181 section 1): the ones a resumed
+     * step reads again, and the ones whose resolving verdicts it deletes first.
+     */
+    public Set<OccurrenceId> occurrencesForRun(RunId runId) {
+        return new HashSet<>(jdbcTemplate.query(
+                "SELECT occurrence_id FROM extraction_fault WHERE run_id = ?",
+                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
+                runId.value()));
     }
 
     /** How many occurrences {@code runId}'s step refused to open -- the count section 7 puts on a page. */
