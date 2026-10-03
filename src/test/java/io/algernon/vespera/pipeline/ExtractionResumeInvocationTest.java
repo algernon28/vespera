@@ -402,10 +402,12 @@ class ExtractionResumeInvocationTest {
      * this invocation's step resolves it a second time, and {@code verdict} has no unique key to stop
      * it.
      *
-     * <p>The conversion count stands for what the resume read only because the cache was emptied:
-     * with it in place, the faulted document would be judged again from its cached refusal and reach
-     * the converter not at all. The claims on its verdict and its fault row discriminate with or
-     * without the cache.
+     * <p>The cache is emptied here as in every test of this class, and here it no longer matters. Before
+     * ADR-183 it did: the faulted document would have been judged again from its cached refusal and
+     * reached the converter not at all. A failure the converter blamed on itself is now never kept, so
+     * the resume asks the converter about it either way, and every other document is left out by its
+     * metric row, not by the cache. The count and the claims on its verdict and its fault row read the
+     * same with or without the cache.
      */
     @Test
     @Story("Stage 2 interrupted partway")

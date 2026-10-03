@@ -4,7 +4,6 @@ import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.DetectedSubtype;
-import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DegeneracyVerdict;
 import io.algernon.vespera.extraction.DoclingCallTimeoutException;
 import io.algernon.vespera.extraction.DoclingDocumentTexts;
@@ -14,6 +13,7 @@ import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.FailureCategory;
+import io.algernon.vespera.extraction.ResponseScope;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -21,7 +21,6 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.similarity.Shingler;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -178,24 +177,29 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         }
         DoclingResponse response = conversion.response();
 
-        if (response.status() == ConversionStatus.SUCCESS || response.status() == ConversionStatus.PARTIAL_SUCCESS) {
-            // ADR-070: partial_success never earns extraction-failed on its own, whatever errors it
-            // carries — degenerate-output is the only verdict reachable from here.
-            timeoutStreak.reset();
-            ExtractionOutcome outcome = judgeConverted(occurrenceId, response);
-            shingler.write(occurrenceId, stageRuns.extraction(), DoclingDocumentTexts.lines(response.rawResponse()));
-            return outcome;
-        }
-
-        Optional<DoclingError> reportedTimeout = response.errors().stream()
-                .filter(error -> error.category() == FailureCategory.TIMEOUT)
-                .findFirst();
-        if (reportedTimeout.isPresent()) {
-            return resolveTimeout(occurrenceId, reportedTimeout.get().errorMessage(), response);
-        }
-        timeoutStreak.reset();
-
-        return categorizeFailure(occurrenceId, response);
+        // ADR-183 section 1: the reading of a response by scope is extraction's, the one the cache keeps
+        // its rows by too. The branches are decided here: what each reading earns this occurrence.
+        return switch (ResponseScope.of(response)) {
+            case ResponseScope.Conversion conversionRead -> {
+                // ADR-070: partial_success never earns extraction-failed on its own, whatever errors it
+                // carries -- degenerate-output is the only verdict reachable from here.
+                timeoutStreak.reset();
+                ExtractionOutcome outcome = judgeConverted(occurrenceId, response);
+                shingler.write(occurrenceId, stageRuns.extraction(), DoclingDocumentTexts.lines(response.rawResponse()));
+                yield outcome;
+            }
+            case ResponseScope.ReportedTimeout timeout ->
+                resolveTimeout(occurrenceId, timeout.error().errorMessage(), response);
+            case ResponseScope.DocumentScope documentScope -> {
+                timeoutStreak.reset();
+                yield judgeDocumentScope(occurrenceId, response, documentScope);
+            }
+            case ResponseScope.ServiceScope serviceScope -> {
+                timeoutStreak.reset();
+                throw new ServiceScopeFailureException(
+                        occurrenceId, serviceScope.category(), serviceScope.error().errorMessage());
+            }
+        };
     }
 
     private Conversion convert(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
@@ -284,103 +288,26 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     }
 
     /**
-     * ADR-070's {@code status} of {@code failure}/{@code skipped}, with any reported {@code timeout}
-     * already handled above: a document/page-scope category writes {@code extraction-failed} and earns
-     * a metrics row (#48); anything else is service scope and skips the occurrence, faulted rather than
-     * judged here (ADR-139) -- the fault becomes {@code extraction-failed} only later, and only if the
-     * step it happened under goes on to complete.
+     * ADR-070's {@code status} of {@code failure}/{@code skipped}, read as a failure the converter
+     * blamed on the document (ADR-183 section 1: {@link ResponseScope} decides that, with any reported
+     * {@code timeout} and any service-scope failure already handled): it writes
+     * {@code extraction-failed} and earns a metrics row (#48). A failure read as service scope is not
+     * judged here but skipped, faulted (ADR-139) -- the fault becomes {@code extraction-failed} only
+     * later, and only if the step it happened under goes on to complete.
      *
-     * <p>{@code policy} and {@code source_unavailable} read document scope only conditionally: ADR-070
-     * resolves them "per occurrence", and a genuine task/service-scope category ({@code capacity},
-     * {@code target_unavailable}, {@code internal}) sitting anywhere else in the same response's
-     * {@code errors[]} is evidence the whole response is about the sidecar's own state, not about this
-     * document, so it overrides the otherwise-document-scope reading and the occurrence is skipped as
-     * service scope instead, exactly as above. {@code unknown} co-occurring does not trigger this
-     * override — an uncategorised error is not itself evidence of anything. {@code backend_failure}
-     * and {@code inference_failure} carry no such conditional: they are document scope unconditionally.
-     *
-     * <p>{@code unknown}, and a failure reporting no error at all, are document scope on the same
-     * conditional (ADR-143): Docling answered about this file and could not convert it, which is a
-     * verdict unless the same response blames the sidecar. A refusal of the same file repeats on every
-     * run, so setting it aside only fed ADR-071's breaker, and five in a row stopped the step.
+     * <p>The reason names the error that decided the reading, or says none was reported (ADR-143):
+     * Docling answered about this file and could not convert it, which is a verdict unless the same
+     * response blames the sidecar. A refusal of the same file repeats on every run, so setting it aside
+     * only fed ADR-071's breaker, and five in a row stopped the step.
      */
-    private ExtractionOutcome categorizeFailure(OccurrenceId occurrenceId, DoclingResponse response) {
-        List<DoclingError> errors = response.errors();
-
-        Optional<DoclingError> unconditional =
-                errors.stream().filter(error -> isUnconditionalDocumentScope(error.category())).findFirst();
-        if (unconditional.isPresent()) {
-            extractionMetrics.write(occurrenceId, stageRuns.extraction(), response);
-            return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reasonFor(unconditional.get()));
-        }
-
-        if (errors.stream().noneMatch(error -> isServiceScope(error.category()))) {
-            // Every category left is conditional, and nothing overrides it. A named refusal is the
-            // better reason than an unexplained error beside it, so it is preferred.
-            String reason = errors.stream()
-                    .filter(error -> isConditionalDocumentScope(error.category()))
-                    .findFirst()
-                    .or(() -> errors.stream().findFirst())
-                    .map(ExtractionItemProcessor::reasonFor)
-                    .orElse(UNCATEGORISED + ": " + NO_CATEGORIZED_ERROR);
-            extractionMetrics.write(occurrenceId, stageRuns.extraction(), response);
-            return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
-        }
-
-        // Prefer the error that is actually evidence of service scope -- when a conditional category
-        // is overridden by a co-occurring genuine service-scope category, errors.get(0) may be the
-        // overridden entry rather than the one that caused this reading.
-        DoclingError serviceScoped = errors.stream()
-                .filter(error -> isServiceScope(error.category()))
-                .findFirst()
-                .orElseThrow();
-        throw new ServiceScopeFailureException(
-                occurrenceId, serviceScoped.category().name().toLowerCase(Locale.ROOT), serviceScoped.errorMessage());
-    }
-
-    /**
-     * ADR-070's document/page-scope categories that carry no service-scope conditional: under this
-     * client's call shape (ADR-071 — one uploaded file per call, {@code /v1/convert/file}, never
-     * {@code /source}), a backend or inference failure can only be a property of the uploaded document
-     * itself.
-     */
-    private static boolean isUnconditionalDocumentScope(FailureCategory category) {
-        return switch (category) {
-            case BACKEND_FAILURE, INFERENCE_FAILURE -> true;
-            case POLICY, SOURCE_UNAVAILABLE, CAPACITY, TARGET_UNAVAILABLE, INTERNAL, UNKNOWN -> false;
-            // TIMEOUT is handled before categorizeFailure is ever reached (process() resolves it via
-            // resolveTimeout); listed here, not defaulted, so a tenth category can't fall through unseen.
-            case TIMEOUT -> false;
-        };
-    }
-
-    /**
-     * {@code policy} and {@code source_unavailable}: document scope when they are properties of this
-     * file, which is the reading unless {@link #isServiceScope} finds a genuine service-scope category
-     * co-occurring in the same response and overrides it.
-     */
-    private static boolean isConditionalDocumentScope(FailureCategory category) {
-        return switch (category) {
-            case POLICY, SOURCE_UNAVAILABLE -> true;
-            case BACKEND_FAILURE, INFERENCE_FAILURE, CAPACITY, TARGET_UNAVAILABLE, INTERNAL, UNKNOWN -> false;
-            // TIMEOUT is handled before categorizeFailure is ever reached (process() resolves it via
-            // resolveTimeout); listed here, not defaulted, so a tenth category can't fall through unseen.
-            case TIMEOUT -> false;
-        };
-    }
-
-    /**
-     * The categories that are unambiguous evidence of a task/service-scope cause. {@code unknown} is
-     * deliberately excluded — ADR-070 treats it as no evidence at all, not as evidence of service scope.
-     */
-    private static boolean isServiceScope(FailureCategory category) {
-        return switch (category) {
-            case CAPACITY, TARGET_UNAVAILABLE, INTERNAL -> true;
-            case POLICY, SOURCE_UNAVAILABLE, BACKEND_FAILURE, INFERENCE_FAILURE, UNKNOWN -> false;
-            // TIMEOUT is handled before categorizeFailure is ever reached (process() resolves it via
-            // resolveTimeout); listed here, not defaulted, so a tenth category can't fall through unseen.
-            case TIMEOUT -> false;
-        };
+    private ExtractionOutcome judgeDocumentScope(
+            OccurrenceId occurrenceId, DoclingResponse response, ResponseScope.DocumentScope documentScope) {
+        String reason = documentScope
+                .blamed()
+                .map(ExtractionItemProcessor::reasonFor)
+                .orElse(UNCATEGORISED + ": " + NO_CATEGORIZED_ERROR);
+        extractionMetrics.write(occurrenceId, stageRuns.extraction(), response);
+        return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
     }
 
     private static String reasonFor(DoclingError error) {

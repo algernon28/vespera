@@ -946,6 +946,15 @@ public final class Adr {
     public static final String STAGE_4B_BUILDS_THE_BY_HASH_INDEX_STAGE_2_WRITES_WITHOUT = FILE
             + "0182-stage-2-writes-shingles-without-the-by-hash-index-and-stage-4b-builds-it-before-containment-retrieval-reads-it.md";
 
+    /**
+     * ADR-183 -- the extraction cache keeps a conversion or a document-scope failure and never an
+     * answer the converter blamed on itself or a Docling-reported timeout; a row an earlier build wrote
+     * is passed over on read and replaced, and the change ships with ADR-181 and ADR-182 so stage 2
+     * replays once (amends ADR-140 section 5, ADR-139 section 3, ADR-181).
+     */
+    public static final String THE_EXTRACTION_CACHE_KEEPS_ONLY_ANSWERS_ABOUT_THE_DOCUMENT = FILE
+            + "0183-the-extraction-cache-keeps-only-answers-about-the-document-and-a-refusal-the-converter-blamed-on-itself-is-asked-again.md";
+
     private Adr() {
     }
 }

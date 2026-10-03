@@ -9,8 +9,9 @@ import java.util.Locale;
  * {@code /v1/convert/file} response (ADR-070) — confirmed against a live sidecar, where a corrupt
  * PDF came back {@code backend_failure}.
  *
- * <p>ADR-070 already split these by scope, which is repeated here only as a comment, not as behaviour
- * this module enforces — deciding what a category means for a verdict is {@code pipeline}'s job:
+ * <p>ADR-070 already split these by scope, which is repeated here only as a comment; {@link
+ * ResponseScope} is the behaviour that reads a response by it (ADR-183), and deciding what a reading
+ * means for a verdict is {@code pipeline}'s job:
  *
  * <ul>
  *   <li><b>Task/service scope only</b> — {@link #CAPACITY}, {@link #TARGET_UNAVAILABLE},
