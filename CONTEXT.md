@@ -39,7 +39,7 @@ A recorded judgement against one file occurrence by one stage, carrying its reas
 _Avoid_: status, state, flag
 
 **Out of scope**:
-Of a kind of file this tool leaves out whatever it holds: a spreadsheet since ADR-146, a BMP image since ADR-167, and a video since ADR-168. Since ADR-171, also a log, and a text file over the size Docling converts before the call gives up. A verdict of its own, written by stage 1, because it is a judgement about the kind of file and not about anything in it: an out-of-scope file is not broken, not empty and not irrelevant, and saying any of those would be false.
+Of a kind of file this tool leaves out whatever it holds: a spreadsheet since ADR-146, a BMP image since ADR-167, and a video since ADR-168. Since ADR-171, also a log. Since ADR-178, a text file over the size Docling converts before the call gives up is converted in parts instead, unless it is HTML, CSV or AsciiDoc, or written in UTF-16 or UTF-32, which stay out of scope over that size; and any text file over the largest size converted in parts is out of scope too. A verdict of its own, written by stage 1, because it is a judgement about the kind of file and not about anything in it: an out-of-scope file is not broken, not empty and not irrelevant, and saying any of those would be false.
 _Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this tool chooses not to read them)
 
 **Log**:

@@ -920,6 +920,17 @@ public final class Adr {
             + "0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md";
 
     /**
+     * ADR-178 -- a text file over the Docling ceiling with no subtype or a Markdown one, up to
+     * 64,000,000 bytes, is cut into parts of at most 8,000,000 bytes after a blank line outside a fence,
+     * or else at a line end, each part converted in turn on one worker and the answers merged into one
+     * DoclingDocument; one failing part fails the file and is named; the rule joins the extractor
+     * identity; HTML, CSV, AsciiDoc, UTF-16 and UTF-32 text over the ceiling and any text over the bound
+     * stay out of scope (amends ADR-171, ADR-090's options).
+     */
+    public static final String TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS = FILE
+            + "0178-text-over-the-docling-ceiling-is-converted-in-parts-and-merged-into-one-answer.md";
+
+    /**
      * ADR-179 -- no entry point starts or stops a sidecar, because both compose artifacts leave the pom;
      * the Docling image reports the name it was built as in /version, as vespera-image, and a step
      * composing the extractor identity stops when that differs from vespera.docling.image; both Docling

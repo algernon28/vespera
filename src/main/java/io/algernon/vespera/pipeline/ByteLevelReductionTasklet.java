@@ -11,6 +11,7 @@ import io.algernon.vespera.corpus.DuplicateResolution.Candidate;
 import io.algernon.vespera.corpus.TimestampedLines;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.DoclingClient;
+import io.algernon.vespera.extraction.TextParts;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
@@ -68,12 +69,13 @@ import tools.jackson.databind.json.JsonMapper;
 public class ByteLevelReductionTasklet implements Tasklet {
 
     /**
-     * What stage 1 consumes (ADR-171 §4): the size ceiling, which lives in {@code extraction}, and the
-     * log floor, which is the profile's. Stage 1's implementation version is {@code corpus}'s alone
-     * (ADR-058), so a change to either has to be visible here to mint a new run. The floor is {@code
-     * null} where the key is unset or unreadable.
+     * What stage 1 consumes (ADR-171 §4, ADR-178 §3): the size ceiling and the rule for converting text
+     * over it in parts, both of which live in {@code extraction}, and the log floor, which is the
+     * profile's. Stage 1's implementation version is {@code corpus}'s alone (ADR-058), so a change to any
+     * of them has to be visible here to mint a new run. The floor is {@code null} where the key is unset
+     * or unreadable.
      */
-    record ConfigConsumed(long textSizeCeilingBytes, Double logTimestampShareFloor) {}
+    record ConfigConsumed(long textSizeCeilingBytes, String textParts, Double logTimestampShareFloor) {}
 
     /** The page stage 1 leaves beside the database: what its detection found across the corpus (ADR-095). */
     static final String FORMAT_MIX_FILE_NAME = "format-mix.html";
@@ -192,7 +194,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
                     leftOut = count.flatMap(counted -> OutOfScope.logReason(counted, logFloor));
                     isLog = leftOut.isPresent();
                     if (leftOut.isEmpty()) {
-                        leftOut = OutOfScope.sizeReason(facts.sizeBytes());
+                        leftOut = OutOfScope.sizeReason(
+                                canonicalRoot.resolve(facts.path().value()), facts.sizeBytes(), result.subtype());
                     }
                 }
             }
@@ -238,7 +241,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
     }
 
     private static String configConsumed(Double logFloor) {
-        return JSON.writeValueAsString(new ConfigConsumed(DoclingClient.TEXT_SIZE_CEILING_BYTES, logFloor));
+        return JSON.writeValueAsString(
+                new ConfigConsumed(DoclingClient.TEXT_SIZE_CEILING_BYTES, TextParts.RULE, logFloor));
     }
 
     /** The count for a text file, or empty, with a warning, where it cannot be read: not a log, and not a failed step. */

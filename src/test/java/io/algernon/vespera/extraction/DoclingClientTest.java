@@ -550,6 +550,8 @@ class DoclingClientTest {
     @DisplayName("The options the identity is built from name the naming scheme, because the name changes what comes back")
     @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
     @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
+    @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
+    @Issue("371")
     void namesTheNamingSchemeAmongTheOptionsItSends() {
         claim(
                 "the filename is an option this client chooses, not a property of the corpus, and it"
@@ -559,12 +561,14 @@ class DoclingClientTest {
                         + " make differently, and nothing in the key notices",
                 () -> assertThat(DoclingClient.sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
         claim(
-                "and the options are stated whole rather than summarised, so an option added to the"
-                        + " request without being added here fails this claim rather than silently keying"
-                        + " new responses under an identity that predates it",
+                "and the options are stated whole rather than summarised, the rule for cutting a large text"
+                        + " into parts last among them, so an option added to the request without being added"
+                        + " here fails this claim rather than silently keying new responses under an identity"
+                        + " that predates it",
                 () -> assertThat(DoclingClient.sentOptions())
                         .isEqualTo("to_formats=json;ocr_preset=" + PINNED_OCR_PRESET + ";image_export_mode="
-                                + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION));
+                                + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION
+                                + ";text_parts=v1,over=16000000,upto=64000000,part=8000000"));
     }
 
     /**
