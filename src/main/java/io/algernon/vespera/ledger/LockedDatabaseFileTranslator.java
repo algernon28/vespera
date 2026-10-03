@@ -2,12 +2,12 @@ package io.algernon.vespera.ledger;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
+import org.jspecify.annotations.Nullable;
 import org.sqlite.SQLiteException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.support.SQLExceptionSubclassTranslator;
 import org.springframework.jdbc.support.SQLExceptionTranslator;
-import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 /**
