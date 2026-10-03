@@ -919,6 +919,15 @@ public final class Adr {
     public static final String THE_DATABASE_USES_SQLITES_WRITE_AHEAD_LOG = FILE
             + "0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md";
 
+    /**
+     * ADR-182 -- shingle_by_hash does not exist while stage 2 writes shingles: schema.sql stops creating
+     * it and indexes shingle.run_id alone instead, stage 2 drops it when it has work to do, and stage 4b,
+     * its only reader, builds it once before its first read and says so (amends ADR-081; rests on
+     * ADR-173, ADR-115, ADR-116, ADR-058).
+     */
+    public static final String STAGE_2_WRITES_SHINGLES_WITHOUT_THE_LOOKUP_BY_HASH = FILE
+            + "0182-stage-2-writes-shingles-without-the-lookup-by-hash-and-stage-4b-builds-it-before-reading-it.md";
+
     private Adr() {
     }
 }

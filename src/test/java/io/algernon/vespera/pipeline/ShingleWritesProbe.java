@@ -34,15 +34,15 @@ class ShingleWritesProbe {
     static final String LOOKUP_BY_HASH = "shingle_by_hash";
 
     /**
-     * One entry per document whose shingles stage 2 wrote, {@code true} where the lookup by hash stood
+     * One entry per file occurrence whose shingles stage 2 wrote, {@code true} where the lookup by hash stood
      * at that moment. Static because the bean is built per application context and read per test
      * method; {@link #forget()} keeps one method's writes from being read as another's.
      */
-    static final List<Boolean> LOOKUP_STOOD_WHEN_A_DOCUMENT_WAS_WRITTEN = new ArrayList<>();
+    static final List<Boolean> LOOKUP_STOOD_WHEN_AN_OCCURRENCE_WAS_WRITTEN = new ArrayList<>();
 
     /** Drops everything observed so far. Called before each test, never only after one. */
     static void forget() {
-        LOOKUP_STOOD_WHEN_A_DOCUMENT_WAS_WRITTEN.clear();
+        LOOKUP_STOOD_WHEN_AN_OCCURRENCE_WAS_WRITTEN.clear();
     }
 
     @Bean
@@ -56,7 +56,7 @@ class ShingleWritesProbe {
                         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?",
                         Long.class,
                         LOOKUP_BY_HASH);
-                LOOKUP_STOOD_WHEN_A_DOCUMENT_WAS_WRITTEN.add(lookups != null && lookups > 0);
+                LOOKUP_STOOD_WHEN_AN_OCCURRENCE_WAS_WRITTEN.add(lookups != null && lookups > 0);
                 super.write(occurrenceId, runId, text);
             }
         };

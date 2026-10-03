@@ -65,7 +65,7 @@ Candidates are then scored exactly, like every other candidate: `|A ∩ B| / |A|
 
 **The two thresholds are recorded here as values, not as profile keys.** Whether either is operator-overridable, and what a calibration report over them shows, is [#69](https://github.com/algernon28/vespera/issues/69)'s — and it now has two distributions to show rather than one, cutting on different measures. Per ADR-078, if a key is added it names the one measure it reads.
 
-**Stage 4's cost is now legible.** One pass to sign every survivor (128 hashes per shingle), one pass to band and bucket, one rare-shingle index pass, then exact scoring of a candidate list. Nothing here is N², and the only large stored artifact is the signature table.
+**Stage 4's cost is now legible.** One pass to sign every survivor (128 hashes per shingle), one pass to band and bucket, one rare-shingle index pass, then exact scoring of a candidate list. Nothing here is N², and the only large stored artifact is the signature table. *(Amended [ADR-182](0182-stage-2-writes-shingles-without-the-lookup-by-hash-and-stage-4b-builds-it-before-reading-it.md): the rare-shingle lookup is `shingle_by_hash`, and it does not exist while stage 2 writes shingles, because keeping it up to date row by row was most of what a stage-2 chunk cost. Stage 4b builds it, once, before its first read, and says so. That build is one more cost of stage 4.)*
 
 **Retuning either threshold does not re-sign the corpus, but retuning the boilerplate floor does** (ADR-080). The thresholds are applied at scoring time, over signatures and shingle sets that do not depend on them; the floor is applied before signing and sits in the signature's identity. Worth knowing which knob is expensive.
 

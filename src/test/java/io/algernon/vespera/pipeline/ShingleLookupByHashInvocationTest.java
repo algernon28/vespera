@@ -85,11 +85,21 @@ class ShingleLookupByHashInvocationTest {
     /** What stage 4b says once it is built. */
     private static final String BUILT = "built the shingle lookup by hash in ";
 
+    /** What stage 2 says before it drops a lookup it finds standing. */
+    private static final String DROPPING = "dropping the shingle lookup by hash";
+
+    /** What stage 2 says once it is dropped. */
+    private static final String DROPPED = "dropped the shingle lookup by hash in ";
+
+    /** The lookup as every start built it before ADR-182, and as stage 4b builds it now. */
+    private static final String BUILD_THE_LOOKUP =
+            "CREATE INDEX IF NOT EXISTS shingle_by_hash ON shingle (run_id, shingle_parameter_identity, shingle_hash)";
+
     /** One whole stage-2 chunk is answered and committed, then two documents of the next. */
     private static final int ANSWERED_BEFORE_THE_CONVERTER_STOPS = ExtractionJobConfiguration.CHUNK_SIZE + 2;
 
     /** Three chunks of documents, so the converter stops with a whole chunk still unread. */
-    private static final int DOCUMENTS = 3 * ExtractionJobConfiguration.CHUNK_SIZE;
+    private static final int CORPUS_SIZE = 3 * ExtractionJobConfiguration.CHUNK_SIZE;
 
     @TempDir
     static Path workingDirectory;
@@ -161,7 +171,7 @@ class ShingleLookupByHashInvocationTest {
         claim(
                 "every document stage 2 wrote shingles for was written while no lookup by hash stood, so no"
                         + " write paid for keeping it up to date",
-                () -> assertThat(ShingleWritesProbe.LOOKUP_STOOD_WHEN_A_DOCUMENT_WAS_WRITTEN)
+                () -> assertThat(ShingleWritesProbe.LOOKUP_STOOD_WHEN_AN_OCCURRENCE_WAS_WRITTEN)
                         .isNotEmpty()
                         .containsOnly(false));
         claim(
@@ -199,7 +209,7 @@ class ShingleLookupByHashInvocationTest {
         claim(
                 "every document the resumed stage 2 wrote shingles for was written while no lookup by hash"
                         + " stood",
-                () -> assertThat(ShingleWritesProbe.LOOKUP_STOOD_WHEN_A_DOCUMENT_WAS_WRITTEN)
+                () -> assertThat(ShingleWritesProbe.LOOKUP_STOOD_WHEN_AN_OCCURRENCE_WAS_WRITTEN)
                         .isNotEmpty()
                         .containsOnly(false));
         claim(
@@ -242,7 +252,7 @@ class ShingleLookupByHashInvocationTest {
                 });
         claim(
                 "every document stage 2 wrote shingles for was written while no lookup by hash stood",
-                () -> assertThat(ShingleWritesProbe.LOOKUP_STOOD_WHEN_A_DOCUMENT_WAS_WRITTEN)
+                () -> assertThat(ShingleWritesProbe.LOOKUP_STOOD_WHEN_AN_OCCURRENCE_WAS_WRITTEN)
                         .isNotEmpty()
                         .containsOnly(false));
         claim(
@@ -254,12 +264,50 @@ class ShingleLookupByHashInvocationTest {
                 () -> assertThat(operatorLines()).noneMatch(line -> line.contains(BUILDING)));
     }
 
-    /** {@code DOCUMENTS} corpus files, each with bytes of its own so none is a cache hit or a duplicate. */
+    /**
+     * A database written before ADR-182 carries the lookup, built by every start, and so does one where
+     * stage 4b has built it since. Either way, the next stage 2 with work to do finds it standing.
+     */
+    @Test
+    @Story("Stage 2 writes shingles without keeping the lookup by hash up to date")
+    @DisplayName("A lookup by hash left standing is dropped before stage 2 writes, and the operator is told while it happens")
+    void aLookupLeftStandingIsDroppedBeforeStage2Writes(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        writeCorpus(root, "fourth");
+        profile(seeds, null);
+        jdbcTemplate.execute(BUILD_THE_LOOKUP);
+        claim("the lookup by hash stands before the invocation starts", () -> assertThat(lookupByHashStands()).isTrue());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "stage 2 is recorded as finished",
+                () -> assertThat(ledger.stepFinished(theOnlyRunOver(root, "extraction"), EXTRACTION_STEP)).isTrue());
+        claim(
+                "every file occurrence stage 2 wrote shingles for was written after the lookup was gone",
+                () -> assertThat(ShingleWritesProbe.LOOKUP_STOOD_WHEN_AN_OCCURRENCE_WAS_WRITTEN)
+                        .isNotEmpty()
+                        .containsOnly(false));
+        claim(
+                "the operator is told the lookup is being dropped and then that it was, since on a large"
+                        + " archive dropping it takes a while of its own",
+                () -> {
+                    List<String> lines = operatorLines();
+                    int dropping = indexOfLineContaining(lines, DROPPING);
+                    int dropped = indexOfLineContaining(lines, DROPPED);
+                    assertThat(dropping).isNotNegative();
+                    assertThat(dropped).isGreaterThan(dropping);
+                });
+        claim(
+                "and with the redundancy gate shut nothing builds it again",
+                () -> assertThat(lookupByHashStands()).isFalse());
+    }
+
+    /** {@code CORPUS_SIZE} corpus files, each with bytes of its own so none is a cache hit or a duplicate. */
     private static void writeCorpus(Path root, String test) throws IOException {
-        for (int document = 1; document <= DOCUMENTS; document++) {
+        for (int ordinal = 1; ordinal <= CORPUS_SIZE; ordinal++) {
             Files.writeString(
-                    root.resolve("document-%02d.txt".formatted(document)),
-                    "corpus document " + document + " of " + DOCUMENTS + ", for #381's " + test + " test");
+                    root.resolve("document-%02d.txt".formatted(ordinal)),
+                    "corpus document " + ordinal + " of " + CORPUS_SIZE + ", for #381's " + test + " test");
         }
     }
 

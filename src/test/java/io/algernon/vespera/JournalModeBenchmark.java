@@ -143,7 +143,7 @@ public final class JournalModeBenchmark {
             try (Statement statement = connection.createStatement()) {
                 statement.execute("PRAGMA wal_autocheckpoint = " + autocheckpoint);
                 if (dropHashIndex) {
-                    statement.executeUpdate("DROP INDEX shingle_by_hash");
+                    statement.executeUpdate("DROP INDEX IF EXISTS shingle_by_hash");
                     if (runIdOnly) {
                         statement.executeUpdate("CREATE INDEX shingle_by_run ON shingle (run_id)");
                     }
@@ -249,6 +249,10 @@ public final class JournalModeBenchmark {
             for (String ddl : schemaStatements()) {
                 statement.executeUpdate(ddl);
             }
+            // Since ADR-182 schema.sql no longer creates the lookup by hash, so the base builds it itself,
+            // to stay the database this benchmark measured stage 2 against.
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS shingle_by_hash"
+                    + " ON shingle (run_id, shingle_parameter_identity, shingle_hash)");
             statement.executeUpdate("INSERT INTO walk (id, root) VALUES (1, 'bench')");
             statement.executeUpdate("INSERT INTO run (id, stage, implementation_version, config_consumed, walk_id)"
                     + " VALUES ('" + RUN_ID + "', 'extraction', 'bench', 'bench', 1)");
