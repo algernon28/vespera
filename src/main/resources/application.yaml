@@ -36,7 +36,12 @@ spring:
     # references would silently accept orphans without it. busy_timeout is a wait on a contended
     # database lock, and it is the knob that actually buys one: Hikari's connection-timeout times the
     # wait for a connection from the pool, which a contended write never engages (ADR-127).
-    url: "jdbc:sqlite:${vespera.working-dir}/vespera.db?foreign_keys=on&busy_timeout=300000"
+    # journal_mode=WAL appends commits to a log beside the database file instead of journalling each
+    # page first, and synchronous=NORMAL syncs that log at a checkpoint rather than at every commit;
+    # both are per connection, so they ride on the URL for every connection the pool opens, and
+    # journal_size_limit cuts an emptied log back to 512 MiB (536870912 bytes) so one very large
+    # transaction does not leave a log that size on disk (ADR-180).
+    url: "jdbc:sqlite:${vespera.working-dir}/vespera.db?foreign_keys=on&busy_timeout=300000&journal_mode=WAL&synchronous=NORMAL&journal_size_limit=536870912"
     driver-class-name: org.sqlite.JDBC
     hikari:
       # SQLite locks the database file for a write, so a pooled connection that sits on one turns the
