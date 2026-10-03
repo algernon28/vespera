@@ -3,6 +3,8 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -43,9 +45,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>{@code @DirtiesContext} after the class, because the cached context keeps the database file open
  * and Windows refuses to delete a directory holding an open file.
  *
- * <p>The two tests that open their own connection read the shipped URL from the environment, resolved
- * the way the pool resolves it, and point it at a directory of their own, so neither competes with
- * the pool for the slice's database file.
+ * <p>Of the four tests, the three that open their own connection or pool read the shipped URL from the
+ * environment, resolved the way the pool resolves it, and point it at a directory of their own, so none
+ * competes with the pool for the slice's database file.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -81,8 +83,8 @@ class WriteAheadDatabaseTest {
     private static final long LOCK_WAIT_MILLIS = 300_000L;
 
     /**
-     * SQLite's own automatic WAL checkpoint interval, in pages: a commit that leaves the write-ahead log
-     * longer than this copies it back into the database file. Left at the default rather than raised or
+     * SQLite's own automatic WAL checkpoint interval, in pages: a commit at which the write-ahead log
+     * reaches this copies it back into the database file. Left at the default rather than raised or
      * turned off.
      */
     private static final long WAL_CHECKPOINT_PAGES = 1_000L;
@@ -140,7 +142,7 @@ class WriteAheadDatabaseTest {
                         () -> assertThat(numberPragma(connection, "synchronous"))
                                 .isEqualTo(SYNCED_AT_WAL_CHECKPOINTS));
                 claim(
-                        "and copies the write-ahead log back into the database file by itself once it passes "
+                        "and copies the write-ahead log back into the database file by itself once it reaches "
                                 + WAL_CHECKPOINT_PAGES + " pages, SQLite's own interval, and cuts the emptied"
                                 + " write-ahead log file back to " + WRITE_AHEAD_LOG_SIZE_LIMIT_BYTES
                                 + " bytes (512 MiB), so it stays bounded through a long stage with nothing in"
@@ -221,9 +223,10 @@ class WriteAheadDatabaseTest {
         }
 
         claim(
-                "once the last connection closes, the write-ahead log has been copied into the database file"
-                        + " and both companions are gone, so a working directory an invocation left cleanly"
-                        + " holds one database file that can be copied on its own",
+                "once the last connection closes, with no other connection in any process still holding the"
+                        + " database open, the write-ahead log has been copied into the database file and both"
+                        + " companions are gone, so a working directory an invocation left cleanly, with nothing"
+                        + " else holding the database open, holds one database file that can be copied on its own",
                 () -> {
                     assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).doesNotExist();
                     assertThat(ownWorkingDirectory.resolve(SHARED_MEMORY_FILE)).doesNotExist();
@@ -242,6 +245,51 @@ class WriteAheadDatabaseTest {
                             + " a URL that names no journal -- an older build of the application, a database"
                             + " browser -- writes ahead too rather than switching it back",
                     () -> assertThat(textPragma(plain, "journal_mode")).isEqualTo(WRITE_AHEAD));
+        }
+    }
+
+    /**
+     * What an invocation's end does to the database is close the pool, not one connection:
+     * {@code SpringApplication.exit} closes the context, and the context closes the Hikari pool it
+     * built. So this builds a second pool with every setting of the shipped one, pointed at a directory
+     * of its own -- the slice's own pool cannot be closed without breaking the other tests -- writes
+     * through it, closes it, and looks at what is left.
+     */
+    @Test
+    @Story("The database is synced at WAL checkpoints rather than at every commit")
+    @DisplayName("Closing the shipped connection pool folds the write-ahead log back, so a command that has ended leaves the database file alone")
+    void closingTheShippedPoolFoldsTheWriteAheadLogBack(@TempDir Path ownWorkingDirectory) throws SQLException {
+        HikariConfig shipped = new HikariConfig();
+        dataSource.unwrap(HikariDataSource.class).copyStateTo(shipped);
+        shipped.setJdbcUrl(urlIn(ownWorkingDirectory));
+        shipped.setPoolName("closed-at-the-end");
+        try (HikariDataSource pool = new HikariDataSource(shipped)) {
+            try (Connection connection = pool.getConnection();
+                    Statement statement = connection.createStatement()) {
+                statement.executeUpdate("CREATE TABLE kept (value TEXT)");
+                statement.executeUpdate("INSERT INTO kept VALUES ('committed')");
+            }
+            claim(
+                    "while the pool is open, the commit sits in the write-ahead log beside the database file",
+                    () -> assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).exists());
+        }
+
+        claim(
+                "once the pool is closed, as it is when a command ends, the write-ahead log has been copied into the"
+                        + " database file and both companions are gone",
+                () -> {
+                    assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).doesNotExist();
+                    assertThat(ownWorkingDirectory.resolve(SHARED_MEMORY_FILE)).doesNotExist();
+                });
+        try (Connection plain = DriverManager.getConnection("jdbc:sqlite:" + ownWorkingDirectory.resolve(DATABASE_FILE));
+                Statement statement = plain.createStatement();
+                ResultSet kept = statement.executeQuery("SELECT count(*) FROM kept")) {
+            claim(
+                    "and the database file alone holds the commit",
+                    () -> {
+                        assertThat(kept.next()).isTrue();
+                        assertThat(kept.getLong(1)).isEqualTo(1L);
+                    });
         }
     }
 
