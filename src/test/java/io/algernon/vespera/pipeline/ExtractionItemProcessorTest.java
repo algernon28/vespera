@@ -692,7 +692,12 @@ class ExtractionItemProcessorTest {
                 corpus.stage2(),
                 new ExtractionMetrics(jdbcTemplate, new LanguageDetection()),
                 new DegenerateOutputConfidenceFloor(null),
-                new Shingler(jdbcTemplate));
+                new Shingler(jdbcTemplate),
+                // Nothing here drops a connection, so nothing is waited for: there is no sidecar to ask.
+                new SidecarRecovery(null) {
+                    @Override
+                    void awaitHealthy() {}
+                });
     }
 
     /**

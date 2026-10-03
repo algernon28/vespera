@@ -15,6 +15,7 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -69,7 +70,10 @@ public class ExtractionJobConfiguration {
      * sidecar over a very long run, deliberately not the circuit breaker (ADR-071's own distinction).
      * An implementer's default: large enough that it is not what fires during a healthy run, however
      * long, since {@link ExtractionCircuitBreaker}'s consecutive-streak count is the mechanism that
-     * actually protects a run against a dead sidecar.
+     * actually protects a run against a sidecar that answers only with failures. A sidecar that drops
+     * connections is stopped by {@link SidecarRecovery}'s bound when it is gone, and by {@link
+     * ExtractionItemProcessor#CONSECUTIVE_DROPPED_TWICE_COUNT} when it is up and converts nothing
+     * (ADR-175).
      */
     static final long SKIP_LIMIT = 10_000;
 
@@ -114,6 +118,7 @@ public class ExtractionJobConfiguration {
             ExtractionCircuitBreaker extractionCircuitBreaker,
             ExtractionHealthCheckListener extractionHealthCheckListener,
             ExtractionFaultRecorder extractionFaultRecorder,
+            ReviewListListener reviewListListener,
             Ledger ledger) {
         return new StepBuilder(StepNames.EXTRACTION, jobRepository)
                 .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
@@ -125,6 +130,9 @@ public class ExtractionJobConfiguration {
                 .skip(ServiceScopeFailureException.class)
                 .skipLimit(SKIP_LIMIT)
                 .listener(extractionCircuitBreaker)
+                // Before the health check listener, so that its afterStep runs after the fault recorder's
+                // below: afterStep runs in the reverse of this order (ADR-175 section 7).
+                .listener(reviewListListener)
                 .listener(extractionHealthCheckListener)
                 // Built inline rather than as a bean of its own (ADR-157 §6): it needs nothing scoped,
                 // and a plain object is what the class itself is built to be handed as.
@@ -215,6 +223,17 @@ public class ExtractionJobConfiguration {
             PlatformTransactionManager transactionManager) {
         return new ExtractionFaultRecorder(
                 new ExtractionFaults(jdbcTemplate), ledger, stageRuns, transactionManager);
+    }
+
+    /**
+     * {@link ReviewListListener}, step-scoped as {@link #extractionFaultRecorder} is and for the
+     * same reason: it is built only when the step first calls it, and asks for the run only then.
+     */
+    @Bean
+    @StepScope
+    ReviewListListener reviewListListener(
+            Ledger ledger, StageRuns stageRuns, @Value("${vespera.working-dir}") Path workingDirectory) {
+        return new ReviewListListener(ledger, stageRuns, workingDirectory);
     }
 
     /**
