@@ -98,6 +98,12 @@ public class ExtractionJobConfiguration {
      */
     static final int CONVERSION_CONCURRENCY = 8;
 
+    /**
+     * The entry the Docling image adds to the sidecar's {@code /version}, naming the image it was built
+     * as (ADR-179 §2). Prefixed so that no docling component can report under the same key.
+     */
+    static final String IMAGE_ENTRY = "vespera-image";
+
     @Bean
     Step extractionStep(
             JobRepository jobRepository,
@@ -318,14 +324,28 @@ public class ExtractionJobConfiguration {
      * <p><b>The image is in it too</b> (ADR-147). The stock image and the one with LibreOffice report
      * the same versions, and 5 of 14 PDFs were measured to convert differently between them; keyed by
      * the versions alone, a cache would serve one image's conversions as the other's. The image is the
-     * one {@code compose.yaml} runs, named in {@code vespera.docling.image}; the sidecar does not report
-     * it, so it is taken as configured, the one fact here not read back from the sidecar.
+     * one {@code compose.yaml} runs, named in {@code vespera.docling.image}.
+     *
+     * <p><b>The sidecar says which image it runs, and this checks it first</b> (ADR-179). Our image adds
+     * its own name to {@code /version} as {@code vespera-image}, and that name is compared, character for
+     * character, with the configured one before anything is composed. A sidecar running another image, or
+     * not saying which, throws {@link DoclingRunsAnotherImageException} rather than have its conversions
+     * recorded under a name that is not its own. The identity still carries the whole map, that entry
+     * included.
      */
     @Bean
     @Lazy
     ExtractorIdentity extractorIdentity(
             DoclingClient doclingClient, @Value("${vespera.docling.image}") String image) {
-        String versions = doclingClient.version().entrySet().stream()
+        Map<String, String> reported = doclingClient.version();
+        String running = reported.get(IMAGE_ENTRY);
+        if (running == null) {
+            throw DoclingRunsAnotherImageException.notReporting(image);
+        }
+        if (!running.equals(image)) {
+            throw DoclingRunsAnotherImageException.running(running, image);
+        }
+        String versions = reported.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(component -> component.getKey() + "=" + component.getValue())
                 .collect(Collectors.joining(";"));

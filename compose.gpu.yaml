@@ -2,8 +2,9 @@
 # beside compose.yaml: `docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build`.
 # Kept out of compose.yaml because a device request the machine cannot satisfy stops up, and
 # compose.yaml's own up line has to succeed on every machine (ADR-165). An operator on this file must
-# also set VESPERA_DOCLING_IMAGE to the docling-serve tag below, because the sidecar cannot say which
-# image it is (ADR-170).
+# also set VESPERA_DOCLING_IMAGE to the docling-serve tag below. The image reports its own name and an
+# invocation stops, naming both images, when it differs from the one configured; without that setting
+# every step that converts would stop (ADR-179).
 services:
   ollama:
     deploy:
@@ -17,10 +18,14 @@ services:
     # The same Containerfile on docling-serve's CUDA 12.8 base (the RTX 50 series needs >= 12.8),
     # under a tag of its own: its conversions differ from the CPU image's in a few text blocks, so
     # it is a different extractor and its cache entries must not mix with the CPU image's (ADR-170).
-    image: 'vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0'
+    # The -r2 is the revision of Vespera's own layers on that base and parser (ADR-179 §4).
+    image: &docling-image 'vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2'
     build:
+      # VESPERA_IMAGE replaces compose.yaml's, key by key; the image bakes in the name it is built
+      # under and reports it in /version (ADR-179 §2).
       args:
         DOCLING_SERVE_BASE: 'quay.io/docling-project/docling-serve-cu128:v1.32.0'
+        VESPERA_IMAGE: *docling-image
     deploy:
       resources:
         reservations:

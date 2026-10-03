@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -161,7 +162,7 @@ public class ConverterStopsPartwayBeans {
     }
 
     @Bean
-    DoclingClient doclingClient() {
+    DoclingClient doclingClient(@Value("${vespera.docling.image}") String configuredImage) {
         return new DoclingClient("unused") {
 
             @Override
@@ -169,7 +170,7 @@ public class ConverterStopsPartwayBeans {
 
             @Override
             public Map<String, String> version() {
-                return Map.of("docling-serve", "1.32.0", "docling", "2.124.0");
+                return SidecarVersionReport.runningImage(configuredImage);
             }
 
             @Override
