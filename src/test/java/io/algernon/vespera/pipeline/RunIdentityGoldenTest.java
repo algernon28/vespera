@@ -159,8 +159,7 @@ class RunIdentityGoldenTest {
 
     /**
      * The image is the revision-2 build, which reports its own name in {@code /version} (ADR-179), so
-     * the name appears twice: once as configured, once among the versions the sidecar reported. Red
-     * until {@code vespera.docling.image} names that build.
+     * the name appears twice: once as configured, once among the versions the sidecar reported.
      */
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")

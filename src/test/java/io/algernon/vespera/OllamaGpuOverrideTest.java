@@ -61,7 +61,7 @@ class OllamaGpuOverrideTest {
 
     /**
      * The build argument naming the image the build is tagged as, which the image reports in its
-     * {@code /version} (ADR-179). Red until the GPU file passes it.
+     * {@code /version} (ADR-179).
      */
     private static final String DOCLING_IMAGE_NAME_ARG = "VESPERA_IMAGE";
 

@@ -24,12 +24,12 @@ import org.junit.jupiter.api.Test;
  * holds only while Spring Boot's Docker Compose support stays out of the jar. Two settings of the
  * Boot plugin's {@code repackage} goal keep it out, each on its own. {@code excludeDockerCompose},
  * {@code true} by default, strips {@code spring-boot-docker-compose} whatever its scope.
- * {@code includeOptional}, {@code false} by default, leaves out every {@code <optional>} dependency,
- * and both {@code spring-boot-docker-compose} and {@code spring-ai-spring-boot-docker-compose} are
- * {@code <optional>} in {@code pom.xml}. Only both changes together, {@code excludeDockerCompose}
- * at {@code false} and {@code spring-boot-docker-compose} let through, give the jar a compose
- * support that looks for a {@code compose.yaml} wherever it is launched from, and starts or stops
- * containers on every command. That reverses the decision without a word.
+ * {@code includeOptional}, {@code false} by default, leaves out every {@code <optional>} dependency.
+ * Since ADR-179 neither {@code spring-boot-docker-compose} nor {@code spring-ai-spring-boot-docker-compose}
+ * is in {@code pom.xml} at all, so no entry point starts a sidecar; this test guards against either
+ * coming back into the jar. A compose support in the jar looks for a {@code compose.yaml} wherever it
+ * is launched from, and starts or stops containers on every command. That reverses the decision
+ * without a word.
  *
  * <p>This test fails whenever either compose artifact is nested, which is stricter than that. Spring
  * AI's artifact holds only connection-details factories and starts nothing, so letting it in alone
@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Test;
 @Issue("304")
 @Link(name = "ADR-158", url = Adr.THE_PACKAGED_JAR_STARTS_NO_SIDECAR, type = "adr")
 @Link(name = "ADR-011", url = Adr.THE_TOOL_OWNS_ITS_SIDECARS, type = "adr")
+@Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
 class PackagedJarIT {
 
     /** The packaged, executable jar the operator runs, at the path README.md names. */
