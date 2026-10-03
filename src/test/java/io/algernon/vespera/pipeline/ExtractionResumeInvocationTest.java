@@ -31,7 +31,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * A stage 2 that stopped partway resumes under its own run id from what its committed chunks recorded,
- * and does only the rest (ADR-180, #379).
+ * and does only the rest (ADR-181, #379).
  *
  * <p>Each test stops stage 2 the way the sidecar going away stops it: {@link ConverterStopsPartwayBeans}
  * answers {@link #ANSWERED_BEFORE_THE_STOP} conversions and refuses every later one with the connection
@@ -57,7 +57,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Extraction")
 @Feature("Stage 2 step")
 @Issue("379")
-@Link(name = "ADR-180", url = Adr.A_STOPPED_STAGE_2_RESUMES_FROM_WHAT_ITS_COMMITTED_CHUNKS_RECORDED, type = "adr")
+@Link(name = "ADR-181", url = Adr.A_STOPPED_STAGE_2_RESUMES_FROM_WHAT_ITS_COMMITTED_CHUNKS_RECORDED, type = "adr")
 class ExtractionResumeInvocationTest {
 
     /** How many occurrences one commit of stage 2 holds. */
@@ -226,7 +226,7 @@ class ExtractionResumeInvocationTest {
      * bean and the extractor identity are both built once per application context), so the lever a test
      * has on the run id is the corpus: a file added between the invocations is a different observation,
      * hence a different walk and a different run (ADR-115). Any change to the id is the same case to
-     * ADR-180's rule.
+     * ADR-181's rule.
      */
     @Test
     @Story("Stage 2 interrupted partway")
@@ -341,7 +341,7 @@ class ExtractionResumeInvocationTest {
 
     /**
      * The occurrences of the run's walk that stage 1 let through and stage 2 has not recorded: no metric
-     * row and no stage-2 verdict under the run. A faulted occurrence carries neither (ADR-180 §1).
+     * row and no stage-2 verdict under the run. A faulted occurrence carries neither (ADR-181 §1).
      */
     private long occurrencesNotRecordedUnder(String run) {
         Long count = jdbcTemplate.queryForObject(

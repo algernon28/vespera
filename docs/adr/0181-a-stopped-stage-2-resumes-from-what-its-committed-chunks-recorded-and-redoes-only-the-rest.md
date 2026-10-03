@@ -1,4 +1,4 @@
-# ADR-180 — A stopped stage 2 resumes from what its committed chunks recorded, and redoes only the rest
+# ADR-181 — A stopped stage 2 resumes from what its committed chunks recorded, and redoes only the rest
 
 - **Date**: 2026-10-03
 - **Status**: accepted

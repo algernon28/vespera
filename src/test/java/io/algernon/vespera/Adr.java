@@ -911,12 +911,12 @@ public final class Adr {
             + "0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md";
 
     /**
-     * ADR-180 -- a stopped stage 2 keeps what its committed chunks recorded under its own run id and
+     * ADR-181 -- a stopped stage 2 keeps what its committed chunks recorded under its own run id and
      * reads only the occurrences none of them recorded; the place is found in the ledger, never in a
      * saved reader position (amends ADR-115, ADR-116 for stage 2).
      */
     public static final String A_STOPPED_STAGE_2_RESUMES_FROM_WHAT_ITS_COMMITTED_CHUNKS_RECORDED = FILE
-            + "0180-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md";
+            + "0181-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md";
 
     private Adr() {
     }

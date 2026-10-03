@@ -19,7 +19,7 @@ import org.springframework.web.client.ResourceAccessException;
  * The <b>real</b> {@link DoclingExtractor} over the <b>real</b> {@link ExtractionCache}, with a client
  * that counts every conversion it is asked for and can be told to stop answering after a number of
  * them, wherever in the corpus that falls -- the way {@code docling-serve} goes away partway through
- * stage 2 (ADR-180, #379).
+ * stage 2 (ADR-181, #379).
  *
  * <p>{@link ConverterStopsAnsweringBeans} stops answering inside one named folder, so that the corpus
  * pass ahead of seed extraction cannot use up its count. This one counts the corpus itself, because
