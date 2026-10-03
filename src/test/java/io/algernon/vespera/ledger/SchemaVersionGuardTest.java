@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -11,8 +12,11 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.sqlite.SQLiteDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -124,5 +128,46 @@ class SchemaVersionGuardTest {
                 "and the stale module still refuses",
                 () -> assertThatThrownBy(() -> guard.require("stale-module", EXPECTED))
                         .isInstanceOf(SchemaVersionMismatchException.class));
+    }
+
+    @Test
+    @Issue("364")
+    @Link(name = "ADR-177", url = Adr.ONE_INVOCATION_PER_WORKING_DIRECTORY, type = "adr")
+    @Story("A module states the schema it was built against")
+    @DisplayName("A mismatch names the database file it read, and how to name another working directory")
+    void aMismatchNamesTheDatabaseFile(@TempDir Path workingDirectory) {
+        Path databaseFile = workingDirectory.resolve("vespera.db");
+        SQLiteDataSource onFile = new SQLiteDataSource();
+        onFile.setUrl("jdbc:sqlite:" + databaseFile);
+        JdbcTemplate overTheFile = new JdbcTemplate(onFile);
+        overTheFile.execute("CREATE TABLE schema_version (module TEXT PRIMARY KEY, version INTEGER NOT NULL)");
+        overTheFile.update("INSERT INTO schema_version (module, version) VALUES (?, ?)", "fictional", STALE);
+
+        Throwable refused = catchThrowable(() -> new SchemaVersionGuard(overTheFile).require("fictional", EXPECTED));
+
+        claim(
+                "the refusal names the database file that recorded the other version, so an operator can see"
+                        + " whether it is the one they meant",
+                () -> assertThat(refused)
+                        .isInstanceOf(SchemaVersionMismatchException.class)
+                        .hasMessage("module fictional expects schema version " + EXPECTED + ", but the database file "
+                                + databaseFile + " records version " + STALE + "; delete and recreate fictional's"
+                                + " tables, then re-run census. If that is not the working directory you meant,"
+                                + " name it with --db-dir=<path> or vespera.working-dir"));
+    }
+
+    @Test
+    @Issue("364")
+    @Link(name = "ADR-177", url = Adr.ONE_INVOCATION_PER_WORKING_DIRECTORY, type = "adr")
+    @Story("A module states the schema it was built against")
+    @DisplayName("A mismatch in a database held only in memory says so in place of a file")
+    void aMismatchInMemorySaysSo() {
+        jdbcTemplate.update("INSERT INTO schema_version (module, version) VALUES (?, ?)", "in-memory", STALE);
+
+        claim(
+                "a database with no file is named as an in-memory database",
+                () -> assertThatThrownBy(() -> new SchemaVersionGuard(jdbcTemplate).require("in-memory", EXPECTED))
+                        .isInstanceOf(SchemaVersionMismatchException.class)
+                        .hasMessageContaining("but an in-memory database records version " + STALE));
     }
 }

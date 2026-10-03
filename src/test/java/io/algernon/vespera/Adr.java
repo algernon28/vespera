@@ -955,6 +955,15 @@ public final class Adr {
     public static final String THE_EXTRACTION_CACHE_KEEPS_ONLY_ANSWERS_ABOUT_THE_DOCUMENT = FILE
             + "0183-the-extraction-cache-keeps-only-answers-about-the-document-and-a-refusal-the-converter-blamed-on-itself-is-asked-again.md";
 
+    /**
+     * ADR-177 -- an invocation holds an operating-system lock on vespera.lock in the working
+     * directory until its process ends, so a second one is refused before it opens the database file;
+     * a database file SQLite reports locked is named, and said to be held by another process (extends
+     * ADR-050, ADR-054; rests on ADR-127, ADR-180).
+     */
+    public static final String ONE_INVOCATION_PER_WORKING_DIRECTORY = FILE
+            + "0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md";
+
     private Adr() {
     }
 }

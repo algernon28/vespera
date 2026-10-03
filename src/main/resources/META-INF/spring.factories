@@ -1,4 +1,6 @@
 # A profile.yaml that does not load is said in one line, in place of Spring's account of a failed
-# start (#321). Spring Boot finds its failure reporters here and nowhere else.
+# start (#321), and so is a working directory another invocation already holds (ADR-177, #364).
+# Spring Boot finds its failure reporters here and nowhere else.
 org.springframework.boot.SpringBootExceptionReporter=\
-io.algernon.vespera.pipeline.MisshapenProfileRefusal
+io.algernon.vespera.pipeline.MisshapenProfileRefusal,\
+io.algernon.vespera.pipeline.WorkingDirectoryInUseRefusal

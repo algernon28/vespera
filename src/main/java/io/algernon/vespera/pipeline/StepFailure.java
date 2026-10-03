@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.ledger.DatabaseFileLockedException;
 import java.util.List;
 import org.springframework.batch.core.step.StepExecution;
 
@@ -27,10 +28,31 @@ final class StepFailure {
         if (failures.isEmpty()) {
             return "the step ended " + stepExecution.getExitStatus().getExitCode();
         }
-        Throwable failure = failures.getFirst();
+        Throwable failure = firstBeneathTheFramework(failures.getFirst());
+        return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
+    }
+
+    /**
+     * Whether the failure {@link #named} reads is a database file another process holds (ADR-177 §2.3),
+     * for a closing line to say to close what holds it in place of advice about the sidecar.
+     */
+    static boolean lockedDatabaseFile(StepExecution stepExecution) {
+        List<Throwable> failures = stepExecution.getFailureExceptions();
+        if (failures.isEmpty()) {
+            return false;
+        }
+        for (Throwable cause = firstBeneathTheFramework(failures.getFirst()); cause != null; cause = cause.getCause()) {
+            if (cause instanceof DatabaseFileLockedException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Throwable firstBeneathTheFramework(Throwable failure) {
         while (failure.getCause() != null && failure.getClass().getName().startsWith("org.springframework.batch.")) {
             failure = failure.getCause();
         }
-        return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
+        return failure;
     }
 }
