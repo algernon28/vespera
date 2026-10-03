@@ -6,7 +6,7 @@ One file per architecture decision, ADR-001 through ADR-183.
 
 **The digest remains the fuller record.** For most of these decisions the architecture sections (§1, §2) say more than the ledger row does, and each file links to the sections that mention it.
 
-Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. New decisions continue from ADR-050 and carry their own full text — the reconstitution rule applies only to the records restored here.
+Decisions are append-only. A decision is reopened only by a later ADR that explicitly references and amends it; several summaries note exactly that. A record's note on which tests hold it is not a decision: when a later change makes such a note false, by adding a test it said was missing or renaming one it names, the note is corrected in place, in that change, and cites the ticket. New decisions continue from ADR-050 and carry their own full text — the reconstitution rule applies only to the records restored here.
 
 The vocabulary these decisions are written in is defined in [`CONTEXT.md`](../../CONTEXT.md) and is binding.
 

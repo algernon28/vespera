@@ -144,7 +144,8 @@ When stage 2 ends, `ReviewListListener` writes `extraction-failures.html` beside
 - **`PendingConversionsTest`**: a dispatched call that was rejected, or lost its connection, reaches the step as that same exception, and nothing is handed on to be stored.
 - **ADR-071's breaker tests are untouched and pass.**
 
-Not pinned by a test: the ERROR line for a page that cannot be written, and `Ledger.extractionFailures` at the ledger's own seam. Its query is held through the invocation tests above.
+- **`ReviewListThatCannotBeWrittenTest`**: with the page's name taken by a folder, one ERROR line says how many files could not be read and where the page should have gone, nothing is thrown from the end of the step, and the step completes ([#392](https://github.com/algernon28/vespera/issues/392)).
+- **`ExtractionFailuresOfARunTest`**: `Ledger.extractionFailures` at the ledger's own seam returns a run's failed conversions in path order, and none of another kind or another run (#392).
 
 ## What this does not decide
 
