@@ -109,9 +109,6 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     /** The one document, of a corpus where every other drops, that is answered: which one does not matter there. */
     private static final int THE_ONE_THAT_CONVERTS = FIVE_IN_A_ROW;
 
-    /** The document read just before the one a test scripts a failure for. */
-    private static final int THE_ONE_BEFORE = THE_FAILING_DOCUMENT - 1;
-
     /** How many timeouts in a row stop being about the file and start being about the converter. */
     private static final int THREE_IN_A_ROW = 3;
 
@@ -555,24 +552,31 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     @DisplayName("When the retry after a dropped connection runs out of time, the document is removed as a timeout, once, and extraction goes on")
     void aRetryThatTimesOutRemovesTheDocumentAsATimeout(@TempDir Path root) throws IOException {
         writeTheCorpus(root);
-        sidecar.rejecting(THE_ONE_BEFORE, GATEWAY_TIMEOUT, CONVERSION_IS_TAKING_TOO_LONG);
-        sidecar.dropping(THE_FAILING_DOCUMENT, 1);
-        sidecar.rejecting(THE_FAILING_DOCUMENT, GATEWAY_TIMEOUT, CONVERSION_IS_TAKING_TOO_LONG);
+        List<Integer> asRead = theOrderTheStageReadsIn(root);
+        int readFirst = asRead.get(0);
+        int readNext = asRead.get(1);
+        sidecar.rejecting(readFirst, GATEWAY_TIMEOUT, CONVERSION_IS_TAKING_TOO_LONG);
+        sidecar.dropping(readNext, 1);
+        sidecar.rejecting(readNext, GATEWAY_TIMEOUT, CONVERSION_IS_TAKING_TOO_LONG);
 
         cli.run("run", root.toString());
 
         claim(
-                "extraction completed with nothing set aside. Document " + THE_ONE_BEFORE + " timed out,"
-                        + " then document " + THE_FAILING_DOCUMENT + " was dropped once and timed out on its"
-                        + " retry: two timeouts in a row. Had the dropped call been counted as a timeout"
-                        + " there would be " + THREE_IN_A_ROW + ", and the third is set aside",
+                "extraction completed with nothing set aside. The first document read timed out, then the"
+                        + " one read next was dropped once and timed out on its retry: two timeouts in a"
+                        + " row. Had the dropped call been counted as a timeout there would be "
+                        + THREE_IN_A_ROW + ", and the third is set aside",
                 () -> assertThat(lines())
                         .anyMatch(line -> line.startsWith(STAGE_2_FINISHED) && line.contains(NOTHING_SKIPPED)));
+        claim(
+                "the second of them was posted " + TWICE + " times, the dropped call and the retry that"
+                        + " timed out",
+                () -> assertThat(sidecar.callsPerDocument()).containsEntry(readNext, TWICE));
         claim(
                 "both documents were removed as timeouts, and the reason says the converter gave up on"
                         + " each, which is what happened",
                 () -> assertThat(extractionFailedReasons(root))
-                        .containsOnlyKeys(nameOf(THE_ONE_BEFORE), nameOf(THE_FAILING_DOCUMENT))
+                        .containsOnlyKeys(nameOf(readFirst), nameOf(readNext))
                         .allSatisfy((document, reason) ->
                                 assertThat(reason).startsWith("timeout: docling-serve gave up on ")));
     }
