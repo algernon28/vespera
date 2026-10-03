@@ -30,8 +30,10 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
  * <p><b>What a worker is allowed to do is the whole of the design.</b> A worker runs {@link
  * DoclingExtractor#convertUncached} and nothing else -- the HTTP call, with no cache read or write
  * around it (ADR-140 section 3). The cache lookup happens here, on the step thread, before anything is
- * dispatched (a hit is filed already complete and no worker is involved); the cache write happens in
- * {@link PendingConversions#take}, on the step thread, once the answer is in hand. So a worker holds no
+ * dispatched (a hit is filed already complete and no worker is involved; a row that is not an answer about the
+ * document, ADR-183, is no hit, so that occurrence is dispatched like any miss); the cache write happens
+ * in {@link PendingConversions#take}, on the step thread, once the answer is in hand, and the cache
+ * keeps it only if it is an answer about the document. So a worker holds no
  * connection and touches no Spring Batch object, no {@code JdbcTemplate}, no {@code Ledger} and neither
  * streak bean, which is what keeps the drain single-threaded by construction. This matters more than it
  * looks: {@link #read} runs inside the chunk's transaction, which holds this thread's connection for as

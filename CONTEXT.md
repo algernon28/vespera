@@ -229,7 +229,7 @@ Anything whose version changes what a cached artifact means: the extractor, the 
 _Avoid_: engine, tool, model (each names one instrument at most, and "model" now names two different things — the embedding model and the generation model — so it never travels alone)
 
 **Extraction cache**:
-Stored extractor output, keyed so that an engine swap can never silently serve output produced by a different model.
+Stored extractor output, keyed so that an engine swap can never silently serve output produced by a different model. It keeps answers about the content only: a conversion, or a failure the converter blamed on the document. An answer the converter blamed on itself, or a timeout it reported, is never kept and never served, so the next read asks again (ADR-183).
 _Avoid_: extraction results, parsed store
 
 **Chunk cache**:
