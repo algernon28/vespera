@@ -130,6 +130,11 @@ final class LoopbackSidecar implements AutoCloseable {
         dropsLeft.put(document, new AtomicInteger(times));
     }
 
+    /** Whether the sidecar answers its health check from now on. */
+    void answeringItsHealthCheck(boolean answering) {
+        healthy.set(answering);
+    }
+
     /** From the first connection it drops, the sidecar stops answering its health check. */
     void stoppingItsHealthCheckWithADrop() {
         healthDiesWithADrop.set(true);

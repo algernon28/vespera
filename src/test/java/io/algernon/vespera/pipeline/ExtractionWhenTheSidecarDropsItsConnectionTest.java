@@ -106,7 +106,7 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     /** Four documents that drop the connection twice, one that converts, and four more that drop. */
     private static final int FOUR_ONE_FOUR = 2 * (FIVE_IN_A_ROW - 1) + 1;
 
-    /** The fifth document of such a corpus: the one between the two fours. */
+    /** The one document, of a corpus where every other drops, that is answered: which one does not matter there. */
     private static final int THE_ONE_THAT_CONVERTS = FIVE_IN_A_ROW;
 
     /** The document read just before the one a test scripts a failure for. */
@@ -454,14 +454,16 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
                                         + FIVE_IN_A_ROW + " files in a row while still answering its health check")
                                 && line.contains(RUN_THE_SAME_COMMAND_AGAIN)));
         claim(
-                "a line names the " + FIVE_IN_A_ROW + " documents by their paths under the folder that was"
-                        + " read, so they can be found and moved, and does not name document "
-                        + MORE_THAN_FIVE + ", which was never reached",
+                "a line names " + FIVE_IN_A_ROW + " of the " + MORE_THAN_FIVE + " documents by their paths"
+                        + " under the folder that was read, so they can be found and moved: the "
+                        + FIVE_IN_A_ROW + " that were read, and not the one that was never reached",
                 () -> assertThat(lines())
-                        .anyMatch(line -> line.contains("each dropped the connection twice")
-                                && IntStream.rangeClosed(1, FIVE_IN_A_ROW)
-                                        .allMatch(document -> line.contains(nameOf(document)))
-                                && !line.contains(nameOf(MORE_THAN_FIVE))));
+                        .filteredOn(line -> line.contains("each dropped the connection twice"))
+                        .singleElement()
+                        .satisfies(line -> assertThat(IntStream.rangeClosed(1, MORE_THAN_FIVE)
+                                        .filter(document -> line.contains(nameOf(document)))
+                                        .count())
+                                .isEqualTo(FIVE_IN_A_ROW)));
         claim(
                 "none of the " + MORE_THAN_FIVE + " documents was removed: the " + (FIVE_IN_A_ROW - 1)
                         + " before the one that stopped the stage were given back with it",
@@ -473,8 +475,10 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     @DisplayName("Four documents in a row that drop the connection twice, a document that converts, and four more do not stop extraction: only five in a row do")
     void anAnswerBetweenThemEndsTheRunOfDroppedDocuments(@TempDir Path root) throws IOException {
         writeTheCorpus(root, FOUR_ONE_FOUR);
-        for (int document = 1; document <= FOUR_ONE_FOUR; document++) {
-            if (document != THE_ONE_THAT_CONVERTS) {
+        List<Integer> asRead = theOrderTheStageReadsIn(root);
+        int theOneThatConverts = asRead.get(FIVE_IN_A_ROW - 1);
+        for (int document : asRead) {
+            if (document != theOneThatConverts) {
                 sidecar.dropping(document, LoopbackSidecar.EVERY_CALL);
             }
         }
@@ -483,14 +487,14 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
 
         claim(
                 "extraction completed: " + (FIVE_IN_A_ROW - 1) + " documents dropped the connection twice,"
-                        + " document " + THE_ONE_THAT_CONVERTS + " was converted, and " + (FIVE_IN_A_ROW - 1)
+                        + " the fifth to be read was converted, and " + (FIVE_IN_A_ROW - 1)
                         + " more dropped it twice, which is never " + FIVE_IN_A_ROW + " in a row",
                 () -> assertThat(lines()).anyMatch(line -> line.startsWith(STAGE_2_FINISHED)));
         claim(
                 "every document but the one that converted was removed as one that crashed the converter",
                 () -> assertThat(extractionFailedReasons(root))
                         .hasSize(FOUR_ONE_FOUR - 1)
-                        .doesNotContainKey(nameOf(THE_ONE_THAT_CONVERTS))
+                        .doesNotContainKey(nameOf(theOneThatConverts))
                         .allSatisfy((document, reason) -> assertThat(reason).startsWith("crashed the converter:")));
     }
 
@@ -510,8 +514,8 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
 
         claim(
                 "the invocation failed: document " + THE_ONE_THAT_CONVERTS + " ran out of time in place of"
-                        + " converting, which brought no conversion back, so the document after it was the"
-                        + " fifth in a row to drop the connection twice",
+                        + " converting, which brought no conversion back, so wherever it was read among them,"
+                        + " the other " + FIVE_IN_A_ROW + " dropped the connection twice in a row",
                 () -> assertThat(cli.getExitCode()).isNotZero());
         claim(
                 "and the closing line says extraction stopped for " + FIVE_IN_A_ROW + " files in a row",
@@ -654,6 +658,29 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     /** {@link #DOCUMENTS} files, each with text of its own so that none is a cache hit for another. */
     private static void writeTheCorpus(Path root) throws IOException {
         writeTheCorpus(root, DOCUMENTS);
+    }
+
+    /**
+     * The documents of {@code root}, by number, in the order extraction reads them. That is the order
+     * the folder was listed in when it was first walked, which is the file system's and not the names':
+     * sorted on one, arbitrary on another. A test about documents "in a row" has to learn it, and learns
+     * it from an invocation that walks the folder and stops before it converts anything, because the
+     * converter is not answering its health check.
+     */
+    private List<Integer> theOrderTheStageReadsIn(Path root) {
+        sidecar.answeringItsHealthCheck(false);
+        cli.run("run", root.toString());
+        sidecar.answeringItsHealthCheck(true);
+        logged.list.clear();
+        return jdbcTemplate
+                .queryForList(
+                        "SELECT o.path FROM file_occurrence o JOIN walk w ON w.id = o.walk_id WHERE w.root = ?"
+                                + " ORDER BY o.id",
+                        String.class,
+                        Walk.canonicalRoot(root).toString())
+                .stream()
+                .map(path -> Integer.parseInt(path.replaceAll("\\D", "")))
+                .toList();
     }
 
     private static void writeTheCorpus(Path root, int documents) throws IOException {
