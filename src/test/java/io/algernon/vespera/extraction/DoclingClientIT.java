@@ -241,6 +241,28 @@ class DoclingClientIT {
                         .isNotBlank()));
     }
 
+    /**
+     * ADR-179 §2: the image adds its own name to {@code /version}, through a launcher that reaches into
+     * docling-serve's module-level version dict. That dict is not docling-serve's public API, so this is
+     * the test that fails on the base bump that moves or renames it, rather than stage 2 stopping on every
+     * machine that rebuilt.
+     */
+    @Test
+    @Story("The sidecar says what it is built from")
+    @DisplayName("The running document service reports the name of the image it runs, which is the image the tests built")
+    @Issue("373")
+    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
+    void reportsTheImageItRuns() {
+        Map<String, String> version = client.version();
+
+        claim(
+                "the running service names, among the versions it reports, the image it was built as, which is"
+                        + " the name the tests built it under, so the image the configuration names can be"
+                        + " checked against the one actually running",
+                () -> assertThat(version)
+                        .containsEntry(SidecarVersionReport.IMAGE_ENTRY, TestcontainersConfiguration.DOCLING_SERVE_IMAGE));
+    }
+
     @Test
     @Story("The conversion pins what it asks for")
     @DisplayName("The running document service accepts the OCR engine this client names, rather than refusing it")

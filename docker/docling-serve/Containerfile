@@ -22,3 +22,18 @@ RUN dnf -y install --nodocs --setopt=install_weak_deps=False \
  && dnf -y clean all && rm -rf /var/cache/dnf
 USER 1001
 RUN pip install --no-cache-dir --no-deps docling-parse==7.17.0 && pip check
+
+# The image says which image it is (ADR-179). docling-serve's /version has no setting that adds a
+# key, so the name this is built under is kept in the image and a launcher adds it to the report
+# before serving. All of this follows the layers above so that they stay cached, and shared between
+# the CPU and GPU builds. The name has no default: whoever builds the image passes it (compose.yaml
+# and compose.gpu.yaml pass their own image tag), and a build without one fails rather than make an
+# image that reports none.
+ARG VESPERA_IMAGE
+RUN test -n "${VESPERA_IMAGE}"
+ENV VESPERA_IMAGE=${VESPERA_IMAGE}
+COPY report_image.py /opt/app-root/src/report_image.py
+# The base's ENTRYPOINT is left alone. Its command was `docling-serve run`; the launcher calls the
+# same function, so `run` is passed to it the same way. UVICORN_WORKERS and UVICORN_RELOAD must stay
+# unset, or uvicorn serves from another process that never saw the added entry.
+CMD ["python", "/opt/app-root/src/report_image.py", "run"]

@@ -124,7 +124,7 @@ You need Java 26 and a Docker daemon. Run every command below from the root of t
 - Ollama, which serves the models;
 - docling-serve, the document converter.
 
-The jar does not start them or stop them. You start them yourself from `compose.yaml`:
+Nothing in Vespera starts them or stops them. That holds for the jar, for a run from your IDE and for `./mvnw spring-boot:run` alike. If your `.env` sets `SPRING_DOCKER_COMPOSE_ENABLED`, that line no longer does anything, and you can take it out. You start them yourself from `compose.yaml`:
 
 ```
 docker compose -p vespera up -d --build
@@ -138,27 +138,27 @@ If your machine has an NVIDIA graphics card that Docker can use, let Ollama and 
 docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build
 ```
 
-Name both files every time you run `up`, this time and every time after. An `up` without `compose.gpu.yaml` replaces Ollama with one that runs on the processor, and the models you gave it go with it. It replaces the document converter with the processor build too. `stop`, `exec` and `down` need only `-p vespera`. Without such a card, leave `compose.gpu.yaml` out: with it, `up` stops with an error, and neither Ollama nor the document converter starts. Once a model has answered, `docker compose -p vespera exec ollama ollama ps` shows under `PROCESSOR` `100% GPU` when the model is wholly on the card, a split such as `30%/70% CPU/GPU` when only part of it fits, and `100% CPU` when Ollama is not using the card.
+Name both files every time you run `up`, this time and every time after. An `up` without `compose.gpu.yaml` replaces Ollama with one that runs on the processor. The models you gave it are kept, because they live in a volume of their own rather than in the container. It replaces the document converter with the processor build too. `stop`, `exec` and `down` need only `-p vespera`. Without such a card, leave `compose.gpu.yaml` out: with it, `up` stops with an error, and neither Ollama nor the document converter starts. Once a model has answered, `docker compose -p vespera exec ollama ollama ps` shows under `PROCESSOR` `100% GPU` when the model is wholly on the card, a split such as `30%/70% CPU/GPU` when only part of it fits, and `100% CPU` when Ollama is not using the card.
 
-With `compose.gpu.yaml`, the document converter is built from the same `Containerfile` on a base that can use the card, under a name of its own. Its output differs from the processor build's in a few places, and Vespera records beside every conversion the name of the image that made it. The converter cannot say which image it is, so you have to tell Vespera. Set `VESPERA_DOCLING_IMAGE` in the shell you run `vespera` from, before you run it. In PowerShell:
+With `compose.gpu.yaml`, the document converter is built from the same `Containerfile` on a base that can use the card, under a name of its own. Its output differs from the processor build's in a few places, and Vespera records beside every conversion the name of the image that made it. That name is the one you give Vespera, so you have to tell it which image you started. Set `VESPERA_DOCLING_IMAGE` in the shell you run `vespera` from, before you run it. In PowerShell:
 
 ```
-$env:VESPERA_DOCLING_IMAGE = 'vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0'
+$env:VESPERA_DOCLING_IMAGE = 'vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2'
 ```
 
 In a POSIX shell:
 
 ```
-export VESPERA_DOCLING_IMAGE='vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0'
+export VESPERA_DOCLING_IMAGE='vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2'
 ```
 
 If you run Vespera from the IDE instead, add this line to the file `.env` at the root of this repository, creating it if it is not there. The `Local SpringApp` and `Local Vespera Label` run configurations in `.run/` read it, and `java -jar` does not:
 
 ```
-VESPERA_DOCLING_IMAGE=vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0
+VESPERA_DOCLING_IMAGE=vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2
 ```
 
-If you forget, every conversion made on the card is recorded under the name of the processor build, and nothing will tell you. If you go back to `compose.yaml` alone, unset the variable and take the line out again, or the processor build's conversions are recorded under the card's name.
+The converter reports which image it runs, and Vespera checks that against the name you gave it before it converts anything. If you forget, or if you go back to `compose.yaml` alone and leave the variable set, the two do not match. The command then stops before converting a single file, and its last line names both images: the one the converter runs and the one Vespera was told. Set the variable to the image you meant to run, or start the sidecars again with the files that build the other one, and run the same command again. If you go back to `compose.yaml` alone, unset the variable and take the line out of `.env` again.
 
 The first run after you switch to the card converts every file again, once, because conversions recorded under the processor build's name are not reused under the card's. On the card that is still quicker than finishing on the processor. Every step after the conversion runs again too. The answers you already wrote into the label file are kept, but the label file is written anew, and you are asked to approve the arrangement again. If you switch back, the processor build finds its own conversions where it left them.
 
@@ -208,9 +208,9 @@ So `vespera run <root>` is `java -jar target/vespera-0.0.1-SNAPSHOT.jar run <roo
 docker compose -p vespera stop
 ```
 
-This keeps the models you gave Ollama. `docker compose -p vespera down` removes the containers, and the models inside them go too.
+This keeps the models you gave Ollama. `docker compose -p vespera down` removes the containers and keeps the models too, because they live in a volume of their own. `docker compose -p vespera down -v` removes that volume as well, and the models with it. After that, the same `ollama pull` lines as above give them back.
 
-The same happens when `compose.yaml` has changed since you started the sidecars, for example after you update your checkout. `docker compose -p vespera up -d --build`, or the `up` line above that names both files if you started them with both, then replaces the container of each service whose part of `compose.yaml` or `compose.gpu.yaml` changed. If Ollama's is one of them, its models go with it: `docker compose -p vespera exec ollama ollama list` shows which it still has, and the same `ollama pull` lines as above give them back. Nothing in your working directory is lost.
+When `compose.yaml` has changed since you started the sidecars, for example after you update your checkout, `docker compose -p vespera up -d --build`, or the `up` line above that names both files if you started them with both, replaces the container of each service whose part of `compose.yaml` or `compose.gpu.yaml` changed. Ollama's models stay. `docker compose -p vespera exec ollama ollama list` shows which it has. Nothing in your working directory is lost.
 
 ## Where the run ends
 
