@@ -966,6 +966,15 @@ public final class Adr {
     public static final String A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED = FILE
             + "0175-a-file-that-fails-is-marked-and-skipped-and-only-a-sidecar-that-stays-gone-stops-stage-2.md";
 
+    /**
+     * ADR-177 -- an invocation holds an operating-system lock on vespera.lock in the working
+     * directory until its process ends, so a second one is refused before it opens the database file;
+     * a database file SQLite reports locked is named, and said to be held by another process (extends
+     * ADR-050, ADR-054; rests on ADR-127, ADR-180).
+     */
+    public static final String ONE_INVOCATION_PER_WORKING_DIRECTORY = FILE
+            + "0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md";
+
     private Adr() {
     }
 }

@@ -122,10 +122,12 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             // no row is written. The job stops at this failed step, so no later step asks the gate.
             log.error(
                     "Stage 5a (seed extraction) failed before it had read the whole seed folder, so stage 5"
-                            + " minted no run and nothing is concluded about the seeds: {}. Fix what that"
-                            + " names -- if docling-serve stopped answering, bring it back -- and run the"
-                            + " same command again.",
-                    StepFailure.named(stepExecution));
+                            + " minted no run and nothing is concluded about the seeds: {}. {}",
+                    StepFailure.named(stepExecution),
+                    StepFailure.lockedDatabaseFile(stepExecution)
+                            ? "Close whatever else has the database file open and run the same command again."
+                            : "Fix what that names -- if docling-serve stopped answering, bring it back -- and run"
+                                    + " the same command again.");
             return stepExecution.getExitStatus();
         }
         long usableSeeds = outcomes.stream().filter(SeedExtractionOutcome::usable).count();

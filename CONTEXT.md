@@ -180,6 +180,10 @@ _Avoid_: parent run, previous run, run chain, ancestry
 One call of the command. It may advance several stages, and therefore span several runs.
 _Avoid_: run, session, job
 
+**Working-directory lock**:
+The operating system's lock on `vespera.lock` in the working directory, taken by an invocation before it opens the database file and held until its process ends, so a second invocation on the same working directory is refused before it reads or writes anything. The process ending releases it, however it ends; the file itself is never deleted, and its existence means nothing (ADR-177).
+_Avoid_: mutex, pidfile
+
 ### Output
 
 **Synthesis doc**:
