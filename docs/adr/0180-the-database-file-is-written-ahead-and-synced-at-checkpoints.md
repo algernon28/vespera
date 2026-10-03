@@ -119,7 +119,9 @@ Write-ahead logging keeps an index into the log in shared memory, backed by `ves
 
 `shingle_by_hash`, on `shingle (run_id, shingle_parameter_identity, shingle_hash)`, takes each new row at a random place in an index far larger than any page cache. Each insert reaches a different leaf page. Without that index, a stage-2 chunk costs 96 ms where it costs 3,906 ms. With an index on `run_id` alone in its place, which still serves ADR-173's per-run discard, it costs 154 ms. Building `shingle_by_hash` once afterwards over 10,000,000 rows took 13.7 s.
 
-Over the archive's 10,406 occurrences, about 650 chunks, the gap is roughly 40 minutes of index maintenance in stage 2. Against that, a one-time build would cost well under a minute even at the archive's 25 million rows. ADR-081 decided that index, so moving when it is built amends a recorded decision. That decision is not made here. It is the decision the slowdown in #378 is actually waiting on.
+Over the archive's 10,406 occurrences, about 650 chunks, the gap is roughly 40 minutes of index maintenance in stage 2. Against that, a one-time build would cost well under a minute even at the archive's 25 million rows. ADR-081 decided that index, so moving when it is built amends a recorded decision. That decision is not made here. It is the decision the slowdown in #378 is actually waiting on, and [#381](https://github.com/algernon28/vespera/issues/381) carries it.
+
+`README.md`'s "Where things live" says what the operator needs from this decision: the two files beside `vespera.db` while a command runs, how to copy the working directory, and that it belongs on a local disk.
 
 ## Consequences
 
@@ -132,7 +134,6 @@ Over the archive's 10,406 occurrences, about 650 chunks, the gap is roughly 40 m
 ## What `spec-implementer` owes
 
 - `src/main/resources/application.yaml`: the URL in §1. Extend the comment above it with why each new parameter is there, citing this ADR.
-- `README.md`, under "Where things live": a sentence after the file list saying that while a command runs, `vespera.db-wal` and `vespera.db-shm` sit beside `vespera.db`. Say that a copy of the working directory is taken after the command has ended, or takes all three. Say that the working directory belongs on a disk attached to the machine that runs Vespera, not on a network share. Run `node docs/check-claims.mjs` afterwards.
 - No schema change, and no module's schema version moves.
 
 ## Tests
