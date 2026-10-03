@@ -56,9 +56,12 @@ import org.springframework.web.client.ResourceAccessException;
  * order that defeats it fails loudly rather than passing an untested path.
  *
  * <p>Every answer that converts carries a mean confidence of {@link #MEAN_SCORE}, so stage 3's
- * confidence distribution counts it. The answers are also cached (the same production seam {@link
- * CountingDoclingBeans} uses), so a test that wants to see which occurrences a later invocation asked
- * about empties {@code extraction_cache} first. The cache is keyed outside the run, and emptying it
+ * confidence distribution counts it. The answers about the document -- every one but {@link
+ * Outcome#CONVERTER_FAULT} -- are also cached (the same production seam {@link CountingDoclingBeans}
+ * uses); a failure the converter blames on itself is never kept (ADR-183), so it reaches the client
+ * again whenever it is read again. A test that wants to see which occurrences a later invocation asked
+ * about therefore empties {@code extraction_cache} first, unless what the cache kept is what it is
+ * about. The cache is keyed outside the run, and emptying it
  * changes nothing a run id is derived from. A cache hit never reaches the client, so it takes no
  * position.
  *

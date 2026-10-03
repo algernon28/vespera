@@ -22,12 +22,15 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -55,14 +58,16 @@ import org.springframework.web.client.RestClient;
  * ExtractionCache#put}, so an implementation that filters inside {@code put} cannot plant nothing and
  * pass; each such test claims the row is there before it reads.
  *
- * <p>Fail today: every test that expects the sidecar to be asked again, since today's cache keeps and
- * serves every answer. {@link #aDocumentAnswerIsServedFromTheCache} and {@link
- * #aDocumentAnswerHandedOverByTheReaderIsServedFromTheCache} pass today and have to go on passing: they
- * are what stops an implementation from caching nothing.
+ * <p>Fail today: every test that expects the sidecar to be asked again, or an old row to be passed
+ * over, since today's cache keeps and serves every answer. {@link #aDocumentAnswerIsServedFromTheCache},
+ * {@link #aDocumentAnswerHandedOverByTheReaderIsServedFromTheCache} and the cases of {@link
+ * #theReadingOfMixedErrorsIsTheOneStageTwoApplies} that expect one call pass today and have to go on
+ * passing: they are what stops an implementation from caching too little.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
+@ExtendWith(OutputCaptureExtension.class)
 @Epic("Extraction")
 @Feature("Caching a conversion")
 @Issue("383")
@@ -153,6 +158,39 @@ class ServiceScopeAnswersAreNotCachedTest {
                         """
                         {"status": "failure", "errors": [], "processing_time": 0.1, "confidence": null}
                         """));
+    }
+
+    /** One answer whose errors mix categories, and how many calls reading it twice should make. */
+    record MixedErrors(String answer, int callsForTwoReads) {}
+
+    /** Asked again: the second read reaches the converter. */
+    private static final int ASKED_AGAIN = 2;
+
+    /** Served: the second read is answered from storage. */
+    private static final int SERVED = 1;
+
+    /**
+     * The precedence stage 2 reads a failure by: a reported timeout first, then a failure blamed on the
+     * document's bytes, then the converter blaming itself over everything else. Each case is where a
+     * reading written again from the categories alone, rather than moved, would most likely differ.
+     */
+    static Stream<Named<MixedErrors>> mixedErrors() {
+        return Stream.of(
+                Named.of(
+                        "an unexplained failure beside a capacity refusal is the converter's, and asked again",
+                        new MixedErrors(twoErrors("unknown", "capacity"), ASKED_AGAIN)),
+                Named.of(
+                        "a failure blamed on the document's bytes beside a capacity refusal is the document's, and kept",
+                        new MixedErrors(twoErrors("backend_failure", "capacity"), SERVED)),
+                Named.of(
+                        "a failure blamed on the document's bytes beside a reported timeout is a timeout, and asked again",
+                        new MixedErrors(twoErrors("backend_failure", "timeout"), ASKED_AGAIN)),
+                Named.of(
+                        "a source the converter could not reach, with nothing else beside it, is the document's, and kept",
+                        new MixedErrors(failure("source_unavailable", "the source could not be read"), SERVED)),
+                Named.of(
+                        "a failure of the model reading the document is the document's, and kept",
+                        new MixedErrors(failure("inference_failure", "the layout model failed on this page"), SERVED)));
     }
 
     @Autowired
@@ -299,6 +337,83 @@ class ServiceScopeAnswersAreNotCachedTest {
     }
 
     /**
+     * Stage 2's reader meets an old row through {@link DoclingExtractor#cached} on its own thread,
+     * dispatches the call to a worker through {@link DoclingExtractor#convertUncached}, and writes the
+     * answer through {@link DoclingExtractor#remember} (ADR-140 section 3). That write happens inside the
+     * chunk's transaction, where a primary-key violation is not a skip, so a {@code remember} that
+     * cannot replace the old row would fail stage 2 on every invocation over an upgraded working
+     * directory.
+     */
+    @Test
+    @Story("A refusal stored by an earlier version is asked about again")
+    @DisplayName("A refusal an earlier version stored is not found by the extraction step's lookup, and the conversion handed over replaces it")
+    void aRefusalStoredByAnEarlierBuildIsNotFoundByTheReaderAndIsReplacedByWhatItHandsOver(@TempDir Path dir)
+            throws IOException {
+        plantARefusalAsAnEarlierBuildStoredIt();
+        DoclingExtractor extractor = extractorAgainst(answering(CONVERTED, ExpectedCount.once()));
+
+        claim(
+                "an earlier version left a refusal the converter blamed on itself stored for this content",
+                () -> assertThat(storedStatusesFor(CONTENT_HASH)).containsExactly("failure"));
+        claim(
+                "looking the content up before dispatching a call finds nothing, so the call is made",
+                () -> assertThat(extractor.cached(CONTENT_HASH, IDENTITY)).isEmpty());
+
+        DoclingResponse converted = extractor.convertUncached(aDocument(dir), AS_DETECTED, NO_SUBTYPE);
+
+        claim(
+                "handing over the conversion that call returned raises nothing, though a row for the same"
+                        + " content and converter is already stored",
+                () -> assertThatCode(() -> extractor.remember(CONTENT_HASH, IDENTITY, converted))
+                        .doesNotThrowAnyException());
+        claim(
+                "the conversion takes the refusal's place, as the one answer stored for the content, and the"
+                        + " next lookup finds it",
+                () -> {
+                    assertThat(storedStatusesFor(CONTENT_HASH)).containsExactly("success");
+                    assertThat(extractor.cached(CONTENT_HASH, IDENTITY)).contains(converted);
+                });
+    }
+
+    @Test
+    @Story("A refusal stored by an earlier version is asked about again")
+    @DisplayName("Passing over a refusal an earlier version stored is said in the log, naming the content and the reason")
+    void passingOverARefusalStoredByAnEarlierBuildIsLogged(CapturedOutput output) {
+        plantARefusalAsAnEarlierBuildStoredIt();
+        DoclingExtractor extractor = extractorAgainst(answering(CONVERTED, ExpectedCount.never()));
+
+        extractor.cached(CONTENT_HASH, IDENTITY);
+
+        claim(
+                "one line at INFO names the content and the converter's own reason for the refusal it passed"
+                        + " over, so an operator can see it was not served",
+                () -> assertThat(output.getAll().lines()
+                                .filter(line -> line.contains(" INFO "))
+                                .filter(line -> line.contains(CONTENT_HASH))
+                                .filter(line -> line.contains("capacity")))
+                        .hasSize(ONE_ROW));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("mixedErrors")
+    @Story("Which answers are kept follows how the extraction step reads them")
+    @DisplayName("An answer whose errors mix reasons is kept or asked again exactly as the extraction step reads it")
+    void theReadingOfMixedErrorsIsTheOneStageTwoApplies(MixedErrors mixed, @TempDir Path dir) throws IOException {
+        StubbedService stub = answering(mixed.answer(), ExpectedCount.times(mixed.callsForTwoReads()));
+        DoclingExtractor extractor = extractorAgainst(stub);
+        Path document = aDocument(dir);
+
+        extractor.convert(document, CONTENT_HASH, IDENTITY, AS_DETECTED, NO_SUBTYPE);
+        extractor.convert(document, CONTENT_HASH, IDENTITY, AS_DETECTED, NO_SUBTYPE);
+
+        claim(
+                "reading the same content twice reaches the converter " + mixed.callsForTwoReads() + " time(s):"
+                        + " twice where the answer blames the converter or reports a timeout, once where it"
+                        + " blames the document and is kept",
+                () -> assertThatCode(stub.service()::verify).doesNotThrowAnyException());
+    }
+
+    /**
      * A {@code capacity} refusal stored under {@link #CONTENT_HASH} and {@link #IDENTITY} the way the
      * build before ADR-183 stored every answer: the columns {@link ExtractionCache#put} wrote, written
      * here with SQL of its own.
@@ -327,6 +442,19 @@ class ServiceScopeAnswersAreNotCachedTest {
                  "processing_time": 0.1, "confidence": null}
                 """
                 .formatted(message, category);
+    }
+
+    /** A {@code failure} response carrying one error of {@code first} and one of {@code second}, in that order. */
+    private static String twoErrors(String first, String second) {
+        return """
+                {"status": "failure", "errors": [
+                  {"component_type": "document_backend", "module_name": "docling", "error_message":
+                   "the first reason given", "category": "%s", "page_no": null},
+                  {"component_type": "document_backend", "module_name": "docling", "error_message":
+                   "the second reason given", "category": "%s", "page_no": null}],
+                 "processing_time": 0.1, "confidence": null}
+                """
+                .formatted(first, second);
     }
 
     /** A document service answering {@code body} {@code count} times and refusing any request beyond that. */

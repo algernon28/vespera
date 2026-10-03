@@ -9,7 +9,11 @@ import org.springframework.stereotype.Component;
 /**
  * Converts one document through Docling, cached under content hash plus full extractor identity
  * (ADR-010, ADR-012): a cache hit skips the HTTP call entirely, a miss issues exactly one call and
- * records it.
+ * records it -- if the answer is about the document. The cache keeps a conversion and a failure the
+ * converter blamed on the document, and nothing else (ADR-183): a failure it blamed on itself, or a
+ * timeout it reported, is returned to the caller but never written, and a row of that kind an earlier
+ * build wrote is never served, so the content goes to the converter again. {@link ResponseScope} is
+ * the one reading that decides which.
  *
  * <p>The per-occurrence ordering ADR-071/ADR-073's spec eventually wants — cache lookup, convert,
  * {@code extraction-failed} check, then metrics/degeneracy/chunking/shingling — is {@code pipeline}'s
@@ -30,7 +34,9 @@ public class DoclingExtractor {
      * Converts {@code file} as the thing stage 1 found it to be (ADR-100), under
      * {@code extractorIdentity} and keyed on {@code contentHash} — the hash
      * to use when the caller already has one (e.g. stage 1's {@code content_hash}, computed within a
-     * size-matched group, ADR-067).
+     * size-matched group, ADR-067). A hit is returned without a call; a miss, including a row the cache
+     * passes over because it is not an answer about the document, issues one call and records the answer
+     * only if it is one (ADR-183 sections 1 and 2).
      */
     public DoclingResponse convert(
             Path file,
@@ -70,7 +76,9 @@ public class DoclingExtractor {
     /**
      * The response already recorded for {@code contentHash} under {@code extractorIdentity}, without
      * placing a call (ADR-140): the seam a caller uses to check for a hit on its own thread, before
-     * ever dispatching {@link #convertUncached} anywhere. {@code cache} is only ever null for a
+     * ever dispatching {@link #convertUncached} anywhere. Empty for a row that is not an answer about the
+     * document, a service-scope failure or a reported timeout an earlier build wrote, which is passed
+     * over and logged (ADR-183 section 2), so the caller treats it as a miss. {@code cache} is only ever null for a
      * scripted subclass built through the package-private constructor with no real collaborators, and
      * empty is the correct answer for one of those -- it has no cache of its own to consult here.
      */
@@ -81,7 +89,9 @@ public class DoclingExtractor {
     /**
      * Records {@code response} under {@code contentHash} and {@code extractorIdentity} (ADR-140): the
      * write half of {@link #cached}, placed by the same caller on the same thread once a dispatched
-     * call has answered. A no-op where there is no real cache to write into.
+     * call has answered. A no-op where there is no real cache to write into, and where {@code response}
+     * is a failure the converter blamed on itself or a timeout it reported: those are never kept
+     * (ADR-183 section 1). Where it is kept, it replaces any row already there for the key.
      */
     public void remember(String contentHash, ExtractorIdentity extractorIdentity, DoclingResponse response) {
         if (cache != null) {
