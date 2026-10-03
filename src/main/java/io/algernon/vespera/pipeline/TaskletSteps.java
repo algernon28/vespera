@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
+import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -43,6 +44,24 @@ final class TaskletSteps {
             Tasklet tasklet) {
         return new StepBuilder(name, jobRepository)
                 .tasklet(tasklet, transactionManager)
+                .build();
+    }
+
+    /**
+     * As {@link #taskletStep(String, JobRepository, PlatformTransactionManager, Tasklet)}, with a
+     * listener around the step. Spring Batch calls {@code beforeStep} before the step's transaction
+     * opens, so what the listener writes there is committed on its own, ahead of the tasklet's and not
+     * rolled back with it (ADR-182 section 2.3).
+     */
+    static Step taskletStep(
+            String name,
+            JobRepository jobRepository,
+            PlatformTransactionManager transactionManager,
+            Tasklet tasklet,
+            StepExecutionListener listener) {
+        return new StepBuilder(name, jobRepository)
+                .tasklet(tasklet, transactionManager)
+                .listener(listener)
                 .build();
     }
 

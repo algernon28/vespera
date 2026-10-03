@@ -20,6 +20,10 @@ import org.springframework.stereotype.Component;
  * text to {@code extraction}'s metric writer — this class never reaches into Docling's response itself,
  * so it stays usable against any text, extracted or not.
  *
+ * <p>Stage 2 writes these rows with {@code shingle_by_occurrence} and {@code shingle_by_run_id} alone:
+ * {@code shingle_by_hash} is dropped before the first chunk and built by stage 4b before it is read
+ * (ADR-182; {@link ShingleHashIndex}).
+ *
  * <p>Only the raw hashes are written here. Document frequency is a {@code GROUP BY} stage 3 runs later
  * over this table; MinHash signature computation over these hashes is stage 4's own decision (ADR-018),
  * out of scope for this pass.
@@ -39,17 +43,6 @@ public class Shingler {
     /** Computes and stores {@code text}'s shingle hashes under today's default granularity. */
     public void write(OccurrenceId occurrenceId, RunId runId, String text) {
         write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
-    }
-
-    /**
-     * Deletes every shingle row recorded under {@code runId} — the discard half of ADR-115/ADR-116,
-     * for a step whose completion under this run is not recorded. {@code shingle} carries no natural
-     * key of its own (a document's shingle set legitimately repeats a hash), so a second write over a
-     * stopped run's rows would not collide — it would silently double stage 3's document-frequency
-     * count, which is the failure this discard exists to prevent.
-     */
-    public void discardForRun(RunId runId) {
-        jdbcTemplate.update("DELETE FROM shingle WHERE run_id = ?", runId.value());
     }
 
     /** As {@link #write(OccurrenceId, RunId, String)}, under an explicitly named granularity. */

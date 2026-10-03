@@ -256,11 +256,18 @@ class RedundancyResolutionTest {
      * which was twelve minutes of stage 4a and most of stage 4b. The plan is read on this database because
      * nothing here runs {@code ANALYZE}, so the planner decides from the schema alone, the same way here
      * as on a corpus.
+     *
+     * <p>Since ADR-182 the shipped schema no longer creates {@code shingle_by_hash}: stage 4b builds it
+     * before containment retrieval reads it. So this test builds it first, with stage 4b's own statement,
+     * before it reads the plans. Without it the guard could not fail: a {@code DISTINCT} put back would
+     * plan through {@code shingle_by_occurrence} on a database with no by-hash index, and pass, and then
+     * read the whole run in hash order in stage 4b, where the index does exist.
      */
     @Test
     @Story("A redundancy set resolves as a whole, not pair by pair")
     @DisplayName("Every read of one document's shingles is answered from that document's own rows")
     @Issue("277")
+    @Link(name = "ADR-182", url = Adr.STAGE_4B_BUILDS_THE_BY_HASH_INDEX_STAGE_2_WRITES_WITHOUT, type = "adr")
     void readsOneDocumentsShinglesThroughItsOwnIndex() {
         Fixture fixture = fixture();
         fixture.document("scan.pdf", shingles(0, 100), THINNER_TEXT, Instant.parse("2020-01-01T00:00:00Z"));
@@ -273,7 +280,16 @@ class RedundancyResolutionTest {
         CountingJdbcTemplate counting = new CountingJdbcTemplate(jdbcTemplate);
 
         fixture.resolveWith(counting, counting);
+        jdbcTemplate.execute(BUILD_BY_HASH);
 
+        claim(
+                "the index ordered by word-sequence hash is in place, as it is whenever the redundancy check"
+                        + " reads, so the plans below are read against the index a careless query would fall"
+                        + " into, and not against a database where it could not",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'shingle_by_hash'",
+                                Integer.class))
+                        .isEqualTo(1));
         claim(
                 "stage 4 read one document's shingles in two ways -- its set, which a signature and exact"
                         + " scoring both read, and a candidate container's size -- and each was issued",
@@ -285,6 +301,10 @@ class RedundancyResolutionTest {
                     () -> assertThat(planOf(query)).contains("shingle_by_occurrence").doesNotContain("shingle_by_hash"));
         }
     }
+
+    /** The statement stage 4b builds the by-hash index with before it reads it (ADR-182 §2.3). */
+    private static final String BUILD_BY_HASH = "CREATE INDEX IF NOT EXISTS shingle_by_hash"
+            + " ON shingle (run_id, shingle_parameter_identity, shingle_hash)";
 
     /** SQLite's plan for {@code query}, its placeholders bound to values of the right type. */
     private String planOf(String query) {
