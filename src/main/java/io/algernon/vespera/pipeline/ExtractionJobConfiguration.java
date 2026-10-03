@@ -7,6 +7,7 @@ import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.ExtractionFaults;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.similarity.ShingleHashIndex;
 import io.algernon.vespera.similarity.Shingler;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.extraction.ExtractionMetrics;
@@ -246,6 +247,13 @@ public class ExtractionJobConfiguration {
         extractionMetrics.discardForRun(extractionRun);
         shingler.discardForRun(extractionRun);
         new ExtractionFaults(jdbcTemplate).discardForRun(extractionRun);
+
+        // shingle_by_hash is not maintained while shingles are written (ADR-182 section 2.2): every new row
+        // would land at a random place in an index far larger than any page cache, and stage 4b builds it
+        // whole before its first read. Removed here, on the same test as the discard above -- the step is
+        // not finished -- and for the same reason that discard is here: a drop inside a chunk that rolled
+        // back would be restored. It removes no row, says nothing, and finds nothing to do on a resume.
+        new ShingleHashIndex(jdbcTemplate).drop();
 
         return new OccurrenceReader(ledger.survivors(extractionRun));
     }

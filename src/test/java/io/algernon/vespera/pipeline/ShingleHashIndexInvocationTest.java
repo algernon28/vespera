@@ -326,6 +326,12 @@ class ShingleHashIndexInvocationTest {
      * A file added between the invocations makes the second a different observation, hence a different
      * walk and a different stage-2 run (ADR-115); that is the lever a test has on the run id, as in
      * ADR-181's tests.
+     *
+     * <p>The new run has to stop partway, or its stage 4b builds the index again and the drop cannot be
+     * seen. Conversions are cached outside the run (ADR-070), so a second invocation over the same files
+     * would ask the converter only about the added one and never reach the stop. The test empties
+     * {@code extraction_cache} first, as {@link ConverterStopsPartwayBeans} says to, and claims the stop
+     * happened. Emptying the cache changes nothing a run id is derived from.
      */
     @Test
     @Story("When the index on word-sequence hashes exists")
@@ -343,10 +349,15 @@ class ShingleHashIndexInvocationTest {
                 () -> assertThat(indexExists(BY_HASH)).isTrue());
 
         Files.writeString(root.resolve("99-added-later.txt"), "A document added after the first invocation finished.");
+        jdbcTemplate.update("DELETE FROM extraction_cache");
         ConverterStopsPartwayBeans.stopAnsweringAfter(ANSWERED_BEFORE_THE_STOP);
         cli.run("run", root.toString());
         List<String> runs = runsOf(root, StageModules.EXTRACTION);
 
+        claim(
+                "the second invocation stops partway through its extraction, because the converter stopped"
+                        + " answering, so it never reaches the redundancy check that would build the index again",
+                () -> assertThat(cli.getExitCode()).isNotZero());
         claim(
                 "the second invocation extracts its " + (CORPUS_SIZE + ADDED) + " documents under a run of its"
                         + " own, because the corpus it reads is not the one the first read",

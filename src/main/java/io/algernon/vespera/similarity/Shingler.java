@@ -20,6 +20,10 @@ import org.springframework.stereotype.Component;
  * text to {@code extraction}'s metric writer — this class never reaches into Docling's response itself,
  * so it stays usable against any text, extracted or not.
  *
+ * <p>Stage 2 writes these rows with {@code shingle_by_occurrence} and {@code shingle_by_run_id} alone:
+ * {@code shingle_by_hash} is dropped before the first chunk and built by stage 4b before it is read
+ * (ADR-182; {@link ShingleHashIndex}).
+ *
  * <p>Only the raw hashes are written here. Document frequency is a {@code GROUP BY} stage 3 runs later
  * over this table; MinHash signature computation over these hashes is stage 4's own decision (ADR-018),
  * out of scope for this pass.
