@@ -2,8 +2,10 @@ package io.algernon.vespera.extraction;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -48,6 +50,17 @@ public class ExtractionMetrics {
      */
     public void discardForRun(RunId runId) {
         jdbcTemplate.update("DELETE FROM extraction_metric WHERE run_id = ?", runId.value());
+    }
+
+    /**
+     * The occurrences carrying a metrics row under {@code runId} (ADR-181 section 1): what a stopped
+     * stage 2's committed chunks recorded, which a resumed step does not read again.
+     */
+    public Set<OccurrenceId> occurrencesForRun(RunId runId) {
+        return new HashSet<>(jdbcTemplate.query(
+                "SELECT occurrence_id FROM extraction_metric WHERE run_id = ?",
+                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
+                runId.value()));
     }
 
     /**

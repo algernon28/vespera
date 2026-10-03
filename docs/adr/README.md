@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-180.
+One file per architecture decision, ADR-001 through ADR-181.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -194,3 +194,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-173](0173-every-column-that-references-a-file-occurrence-a-walk-or-a-run-carries-an-index.md) | 2026-09-30 | Every column that references a file occurrence, a walk or a run carries an index *(rests on ADR-008, ADR-009, ADR-115)* |
 | [ADR-174](0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md) | 2026-10-02 | A page nothing was written over says why, in words for a reader *(amends ADR-161)* |
 | [ADR-180](0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md) | 2026-10-03 | The database file uses SQLite's write-ahead log, synced at WAL checkpoints *(amends ADR-127, extends ADR-054, rests on ADR-008, ADR-009)* |
+| [ADR-181](0181-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md) | 2026-10-03 | A stopped stage 2 resumes from what its committed chunks recorded, and redoes only the rest *(amends ADR-115, ADR-116 for stage 2, ADR-139 §2, ADR-180 §2; rests on ADR-036, ADR-140)* |
