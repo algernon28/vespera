@@ -17,13 +17,19 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -56,14 +62,16 @@ import org.springframework.test.context.DynamicPropertySource;
  * part of any run id. After that, the converter is asked about exactly the occurrences the resumed
  * invocation reads.
  *
- * <p>Fail today: every test that resumes claims the second invocation converts only what no committed
- * chunk recorded, and today's ADR-115/ADR-116 discard makes it convert the whole corpus. The
- * changed-run test passes today, because today's code redoes everything, and has to go on passing.
+ * <p>Under ADR-115/ADR-116's discard, before ADR-181 was implemented, every test that resumes failed:
+ * each claims the second invocation converts, or counts its progress over, only what no committed
+ * chunk recorded, and the discard made it redo the whole corpus. The changed-run test passed under
+ * the discard too, because that code redid everything, and has to go on passing.
  *
  * <p>{@link SuccessiveBuildsBeans} stands in for the build's implementation versions in every test, so
  * the changed-run test can play a second build over the same walk; the others never move it.
  */
 @CascadeSliceTest
+@ExtendWith(OutputCaptureExtension.class)
 @Import({ConverterStopsPartwayBeans.class, SuccessiveBuildsBeans.class})
 @Epic("Extraction")
 @Feature("Stage 2 step")
@@ -97,6 +105,9 @@ class ExtractionResumeInvocationTest {
 
     /** Survivors with a score: the corpus less what has no text and what could not be converted. */
     private static final long SCORED_SURVIVORS = CORPUS_SIZE - WITHOUT_TEXT_AT.size() - UNCONVERTIBLE_AT.size();
+
+    /** Stage 2's progress line (ADR-093): how many it has done, of how many. */
+    private static final Pattern STAGE_TWO_PROGRESS = Pattern.compile("Stage 2 \\(extraction\\): ([\\d,]+) of ([\\d,]+) \\(");
 
     /** No row at all. */
     private static final long NONE = 0;
@@ -257,6 +268,39 @@ class ExtractionResumeInvocationTest {
         claim(
                 "and the run ends with one measurement for each of the " + CORPUS_SIZE + " documents",
                 () -> assertThat(metricRowsUnder(run)).isEqualTo(CORPUS_SIZE));
+    }
+
+    /**
+     * The progress line's denominator on a resume is what this invocation reads, not the whole survivor
+     * set (ADR-181 §1, ADR-093). Read off the log the second invocation writes, from the point it
+     * starts, so the first invocation's lines over the whole corpus are not counted.
+     */
+    @Test
+    @Story("Stage 2 interrupted partway")
+    @DisplayName("A resumed extraction reports its progress out of what it has left to do, not out of the whole collection")
+    void aResumedStageCountsItsProgressOverWhatItReads(CapturedOutput output, @TempDir Path root) throws IOException {
+        writeCorpus(root, "progress");
+
+        ConverterStopsPartwayBeans.stopAnsweringAfter(ANSWERED_BEFORE_THE_STOP);
+        cli.run("run", root.toString());
+        long notRecorded = occurrencesNotRecordedUnder(onlyExtractionRunOf(root));
+
+        emptyTheExtractionCache();
+        ConverterStopsPartwayBeans.keepAnswering();
+        int before = output.getAll().length();
+        cli.run("run", root.toString());
+        List<String[]> progress = progressLinesIn(output.getAll().substring(before));
+
+        claim(
+                "the second invocation reports its progress",
+                () -> assertThat(progress).isNotEmpty());
+        claim(
+                "and every line of it counts out of the " + notRecorded + " documents the first invocation had"
+                        + " not saved, not out of all " + CORPUS_SIZE,
+                () -> assertThat(progress).allSatisfy(line -> assertThat(line[1]).isEqualTo(String.valueOf(notRecorded))));
+        claim(
+                "and the last line reaches all " + notRecorded + " of them",
+                () -> assertThat(progress.getLast()[0]).isEqualTo(String.valueOf(notRecorded)));
     }
 
     /**
@@ -423,6 +467,16 @@ class ExtractionResumeInvocationTest {
                             + " and the order in which ships were unloaded during the winter of year " + position
                             + ", with notes on weather and cargo.");
         }
+    }
+
+    /** Each stage-2 progress line in {@code log}, as its done count and its total, in order. */
+    private static List<String[]> progressLinesIn(String log) {
+        Matcher matcher = STAGE_TWO_PROGRESS.matcher(log);
+        List<String[]> lines = new ArrayList<>();
+        while (matcher.find()) {
+            lines.add(new String[] {matcher.group(1), matcher.group(2)});
+        }
+        return lines;
     }
 
     private void emptyTheExtractionCache() {
