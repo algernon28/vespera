@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -44,6 +45,9 @@ public class Ledger {
      * the setting that actually matters, and it is a separate number from this one.
      */
     private static final int SURVIVORS_PAGE_SIZE = 1_000;
+
+    /** Occurrences per statement in {@link #discardVerdictsAgainst}: SQLite caps one statement's variables. */
+    private static final int DISCARD_BATCH = 500;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -386,6 +390,32 @@ public class Ledger {
             arguments[i + 1] = kinds[i].name();
         }
         jdbcTemplate.update("DELETE FROM verdict WHERE run_id = ? AND kind IN (" + placeholders + ")", arguments);
+    }
+
+    /**
+     * Deletes the verdicts of {@code kind} recorded under {@code runId} against exactly {@code
+     * occurrences}, leaving every other verdict of that kind where it is (ADR-181 section 1: the
+     * verdicts that resolved a stage-2 fault, which a resumed step deletes before it reads the
+     * faulted occurrence again). {@code verdict} has no unique key, so a verdict left behind would be
+     * written a second time.
+     */
+    public void discardVerdictsAgainst(RunId runId, Collection<OccurrenceId> occurrences, VerdictKind kind) {
+        List<OccurrenceId> remaining = List.copyOf(occurrences);
+        // SQLite caps the variables of one statement, so a long list goes in batches.
+        for (int from = 0; from < remaining.size(); from += DISCARD_BATCH) {
+            List<OccurrenceId> batch = remaining.subList(from, Math.min(from + DISCARD_BATCH, remaining.size()));
+            String occurrencePlaceholders = batch.stream().map(id -> "?").collect(Collectors.joining(", "));
+            Object[] arguments = new Object[2 + batch.size()];
+            arguments[0] = runId.value();
+            arguments[1] = kind.name();
+            for (int i = 0; i < batch.size(); i++) {
+                arguments[2 + i] = batch.get(i).value();
+            }
+            jdbcTemplate.update(
+                    "DELETE FROM verdict WHERE run_id = ? AND kind = ? AND occurrence_id IN ("
+                            + occurrencePlaceholders + ")",
+                    arguments);
+        }
     }
 
     /** The runs {@code runId} read, as a set rather than an order (ADR-048). */

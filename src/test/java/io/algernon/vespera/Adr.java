@@ -929,6 +929,15 @@ public final class Adr {
     public static final String NO_ENTRY_POINT_STARTS_THE_SIDECARS = FILE
             + "0179-no-entry-point-starts-the-sidecars-the-docling-sidecar-reports-the-image-it-runs-and-ollamas-models-live-in-a-volume.md";
 
+    /**
+     * ADR-181 -- a stopped stage 2 keeps what its committed chunks recorded under its own run id and
+     * reads only the occurrences none of them recorded; the place is found in the ledger, never in a
+     * saved reader position (amends ADR-115, ADR-116 for stage 2, ADR-139 section 2, ADR-180 section 2;
+     * rests on ADR-036, ADR-140).
+     */
+    public static final String A_STOPPED_STAGE_2_RESUMES_FROM_WHAT_ITS_COMMITTED_CHUNKS_RECORDED = FILE
+            + "0181-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md";
+
     private Adr() {
     }
 }
