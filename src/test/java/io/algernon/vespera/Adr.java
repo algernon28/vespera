@@ -910,6 +910,15 @@ public final class Adr {
     public static final String A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY = FILE
             + "0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md";
 
+    /**
+     * ADR-180 -- the shipped datasource opens vespera.db in write-ahead-log mode with synchronous=NORMAL,
+     * left to SQLite's automatic checkpoint with the emptied log cut back to 512 MiB, and the working
+     * directory stays on a local disk; measured, the journal is not what makes stage 2 slow (rests on
+     * ADR-127, ADR-054).
+     */
+    public static final String THE_DATABASE_IS_WRITTEN_AHEAD_AND_SYNCED_AT_CHECKPOINTS = FILE
+            + "0180-the-database-file-is-written-ahead-and-synced-at-checkpoints.md";
+
     private Adr() {
     }
 }

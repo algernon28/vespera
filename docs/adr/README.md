@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-174.
+One file per architecture decision, ADR-001 through ADR-180.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -193,3 +193,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-172](0172-docling-serves-synchronous-wait-outlasts-vesperas-call-timeout.md) | 2026-10-01 | docling-serve's synchronous wait outlasts Vespera's call timeout *(amends ADR-071, rests on ADR-140, ADR-164)* |
 | [ADR-173](0173-every-column-that-references-a-file-occurrence-a-walk-or-a-run-carries-an-index.md) | 2026-09-30 | Every column that references a file occurrence, a walk or a run carries an index *(rests on ADR-008, ADR-009, ADR-115)* |
 | [ADR-174](0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md) | 2026-10-02 | A page nothing was written over says why, in words for a reader *(amends ADR-161)* |
+| [ADR-180](0180-the-database-file-is-written-ahead-and-synced-at-checkpoints.md) | 2026-10-03 | The database file is written ahead, and synced at checkpoints *(rests on ADR-127, ADR-054)* |
