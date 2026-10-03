@@ -361,7 +361,9 @@ public class Ledger {
      *
      * <p>False for a step that has never run under this run, failed partway through, or has not been
      * written yet — the same honest answer for all three, which is what makes the discard-and-redo
-     * half of ADR-115/ADR-116 safe: a step meeting {@code false} here owes its own rows a clean start.
+     * half of ADR-115/ADR-116 safe: a step meeting {@code false} here redoes what it has not recorded.
+     * Most steps discard their rows and redo the lot; stage 2 keeps what its committed chunks wrote and
+     * reads only the rest (ADR-181).
      */
     public boolean stepFinished(RunId runId, String step) {
         Integer finished = jdbcTemplate.queryForObject(
