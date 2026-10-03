@@ -45,6 +45,7 @@ _Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this to
 **Log**:
 A text file with at least ten non-blank lines read, reading its first and last 64 KB, where at least the profile's `logTimestampShareFloor` of those lines begin with a timestamp (ADR-171). Decided from the bytes alone, never from the name: most logs here are not named `.log`, and most files named `.log` are not logs by this measure. An operational record, and out of scope once the floor is set.
 _Avoid_: log file (as a name-based kind), trace, journal
+_Not to be confused with_: SQLite's **write-ahead log**, the file `vespera.db-wal` beside the database (ADR-180). Always written "write-ahead log" in our names and records (ADR-122), never bare.
 
 **Survivor**:
 A file occurrence carrying no blocking verdict under a given run or any run upstream of it. A question the ledger answers of one run, not a place documents are moved to (ADR-156).
@@ -97,6 +98,11 @@ Documents within one seed partition that belong together by subject, and one of 
 _Avoid_: group, theme, cluster of duplicates
 _Renders as_: **group**, and only in prose written for a reader outside this project; ADR-122 enumerates the audiences. Everything we name ourselves says cluster, the header of `documents.csv` included. This line is the rendering, not the rule: ADR-122 states the rule once and enumerates what is bound and what is not, and is the place to read it. The rendering exists because the everyday sense of "cluster" is the one this entry spends a sentence refusing, and that reader cannot reach the entry.
 
+**Unwritten cluster**:
+A cluster that ends an invocation with no synthesis doc: it carries a fault row of one of the four kinds, nothing of it could be sent (ADR-121), or the step stopped before reaching it (ADR-111). Its page says which, and the index says only that nothing was written (ADR-174).
+_Avoid_: failed cluster, empty cluster
+_Renders as_: the one sentence ADR-174 gives its case, in italics under the group's heading, and nowhere else.
+
 ### Measurement
 
 **Census**:
@@ -148,6 +154,7 @@ _Avoid_: scan, crawl, import
 **Checkpoint**:
 A point a walk may be continued from: the last directory whose whole subtree was recorded, stored with the counts the walk had reached by then. Not a gate and not a pause — nothing waits at a checkpoint, and a walk that never reaches another one simply repeats the entries since the last. ADR-055 named this, after the Gate entry above had already claimed the word.
 _Avoid_: bookmark, savepoint, offset
+_Not to be confused with_: SQLite's **WAL checkpoint**, which copies its write-ahead log back into the database file (ADR-180). Always written "WAL checkpoint" in our names and records (ADR-122), never bare.
 
 **Walk anomaly**:
 An entry a walk encountered and did not record as a file occurrence, carrying the reason. Not an error — most are not failures — and not a verdict: a verdict needs an occurrence to attach to, and an anomaly is exactly the case where none exists. Kinds are observations rather than policy, which is what makes the first walk of an archive a measurement.

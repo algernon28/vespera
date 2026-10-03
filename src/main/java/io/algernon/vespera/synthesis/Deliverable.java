@@ -32,8 +32,9 @@ import java.util.regex.Pattern;
  *
  * <p><b>Plain values only.</b> This class learns no step, no stage and no {@code Profile} (ADR-110):
  * everything it needs arrives as {@link DeliverableProvenance}, {@link RecordedCluster}, {@link
- * RecordedSynthesisDoc} and {@link ListedSurvivor}, which is why {@code pipeline} is the only module
- * that gathers them.
+ * RecordedSynthesisDoc}, {@link ListedSurvivor}, {@link SurvivorPictures} and, per {@link ClusterSlot},
+ * the {@link Unwritten} reason a cluster got no writing, which is why {@code pipeline} is the only
+ * module that gathers them.
  *
  * <p><b>The cluster files are a rendering of what 6b kept.</b> A stored answer's raw {@code [n]}
  * markers are rewritten into links to that cluster's numbered membership, and the membership is
@@ -208,11 +209,32 @@ public final class Deliverable {
             List<RecordedSynthesisDoc> written,
             List<ListedSurvivor> survivors,
             SurvivorPictures pictures) {
+        return writeTo(workingDirectory, provenance, arrangement, written, survivors, pictures, Map.of());
+    }
+
+    /**
+     * Writes the whole tree, with the page of each cluster nothing was written over saying why (ADR-174),
+     * and returns where it landed.
+     *
+     * @param unwritten why each cluster without a synthesis doc went unwritten. A cluster absent from it
+     *     keeps the plain {@link #NOTHING_WAS_WRITTEN_OVER_IT} line, so an empty map writes exactly the
+     *     tree this class wrote before it knew the reasons. Only the cluster's own page changes: the
+     *     index cell and the manifest read the same either way.
+     */
+    public static Path writeTo(
+            Path workingDirectory,
+            DeliverableProvenance provenance,
+            List<RecordedCluster> arrangement,
+            List<RecordedSynthesisDoc> written,
+            List<ListedSurvivor> survivors,
+            SurvivorPictures pictures,
+            Map<ClusterSlot, Unwritten> unwritten) {
         Path tree = workingDirectory.resolve(DIRECTORY_NAME).resolve(provenance.runId());
         try {
             Files.createDirectories(tree);
             Set<String> furnitureDigests = furnitureDigestsAcrossSurvivors(survivors, pictures);
-            writeIndexAndClusterFiles(tree, provenance, arrangement, written, survivors, pictures, furnitureDigests);
+            writeIndexAndClusterFiles(
+                    tree, provenance, arrangement, written, survivors, pictures, furnitureDigests, unwritten);
             writeManifest(tree, arrangement, survivors);
             return tree;
         } catch (IOException e) {
@@ -390,7 +412,8 @@ public final class Deliverable {
             List<RecordedSynthesisDoc> written,
             List<ListedSurvivor> survivors,
             SurvivorPictures pictures,
-            Set<String> furnitureDigests)
+            Set<String> furnitureDigests,
+            Map<ClusterSlot, Unwritten> unwritten)
             throws IOException {
         Map<ClusterKey, RecordedSynthesisDoc> writtenByCluster = new LinkedHashMap<>();
         for (RecordedSynthesisDoc doc : written) {
@@ -454,7 +477,8 @@ public final class Deliverable {
                         membersByCluster.getOrDefault(ClusterKey.of(recorded), List.of()),
                         provenance.corpusRoot(),
                         pictures,
-                        furnitureDigests);
+                        furnitureDigests,
+                        unwritten.get(ClusterSlot.of(recorded)));
             }
         }
 
@@ -471,7 +495,8 @@ public final class Deliverable {
             List<ListedSurvivor> members,
             String corpusRoot,
             SurvivorPictures pictures,
-            Set<String> furnitureDigests)
+            Set<String> furnitureDigests,
+            Unwritten why)
             throws IOException {
         String label = inACell(recorded.label().value());
         int documentCount = recorded.cluster().documentCount();
@@ -490,6 +515,7 @@ public final class Deliverable {
                     partitionDir.resolve(clusterFileName),
                     recorded.label().value(),
                     null,
+                    why == null ? NOTHING_WAS_WRITTEN_OVER_IT : why.sentence(),
                     documentCount,
                     members,
                     corpusRoot,
@@ -511,6 +537,7 @@ public final class Deliverable {
                 partitionDir.resolve(clusterFileName),
                 recorded.label().value(),
                 doc.doc(),
+                null,
                 documentCount,
                 members,
                 corpusRoot,
@@ -553,12 +580,15 @@ public final class Deliverable {
      *
      * <p><b>The index links to a page only where writing exists</b>, but the page itself is written
      * either way: a cluster keeps its slot in the directory listing so the order the operator approved
-     * and the order on disk stay one order (ADR-112).
+     * and the order on disk stay one order (ADR-112). Where no writing exists, {@code inPlaceOfWriting}
+     * stands under the heading instead: the sentence saying why, or the plain line when no reason was
+     * given (ADR-174).
      */
     private static void writeClusterFile(
             Path file,
             String label,
             SynthesisDoc doc,
+            String inPlaceOfWriting,
             int documentCount,
             List<ListedSurvivor> members,
             String corpusRoot,
@@ -568,7 +598,7 @@ public final class Deliverable {
         StringBuilder page = new StringBuilder();
         page.append("# ").append(inAHeading(doc == null ? label : doc.title())).append("\n\n");
         if (doc == null) {
-            page.append(NOTHING_WAS_WRITTEN_OVER_IT).append('\n');
+            page.append(inPlaceOfWriting).append('\n');
         } else {
             page.append(withCitationLinks(doc.prose())).append('\n');
             if (doc.documentsSent() < documentCount) {

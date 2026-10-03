@@ -323,6 +323,39 @@ class GenerationBreakerInvocationTest {
     }
 
     @Test
+    @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
+    @DisplayName("When five turned-down answers stop the writing, each of those groups says why and the group after them says it was not reached")
+    @Issue("325")
+    @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
+    void saysOnEveryPageWhyNothingWasWrittenWhenTheStepStops(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangementOf(ONE_MORE_CLUSTER_THAN_THE_STREAK, root, seeds);
+        fiveAnswersTurnedDownForFourDifferentReasons();
+
+        cli.run("run", root.toString());
+
+        Path tree = UnwrittenPage.treeOf(workingDirectory, generationRuns(root).getLast());
+        List<RecordedClusterFault> reasons = reasonsKept(root);
+        claim(
+                "the step stopped on " + THE_STREAK_THAT_STOPS_THE_STEP + " reasons, one for each group"
+                        + " whose answer was turned down, so the pages below are the pages of a stopped step",
+                () -> assertThat(reasons).hasSize(THE_STREAK_THAT_STOPS_THE_STEP));
+        claim(
+                "each of those groups says on its own page why its answer was turned down, in the words"
+                        + " its reason is given",
+                () -> assertThat(reasons).allSatisfy(reason -> assertThat(UnwrittenPage.lineUnderTheHeadingOf(
+                                UnwrittenPage.pageHeadedBy(tree, CLUSTER_NAMES.get(reason.clusterOrdinal()))))
+                        .isEqualTo(UnwrittenPage.forKind(reason.fault().kind()))));
+        claim(
+                "and the group after them, which was never asked about, says writing stopped before it and"
+                        + " that running again carries the writing on: it has no reason of its own, and"
+                        + " without this it would read like one whose answer was turned down",
+                () -> assertThat(UnwrittenPage.lineUnderTheHeadingOf(UnwrittenPage.pageHeadedBy(
+                                tree, CLUSTER_NAMES.get(THE_STREAK_THAT_STOPS_THE_STEP))))
+                        .isEqualTo(UnwrittenPage.WRITING_STOPPED_BEFORE_IT));
+    }
+
+    @Test
     @Story("Answers nobody believes, one after another, stop the step")
     @DisplayName("The line written when it stops says how many answers were turned down, and what for")
     void saysWhatHappenedWhenItStops(@TempDir Path root, @TempDir Path seeds) throws IOException {
