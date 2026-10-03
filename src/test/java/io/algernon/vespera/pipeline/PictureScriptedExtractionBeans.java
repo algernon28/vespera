@@ -5,6 +5,7 @@ import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.PathScriptedExtractor;
+import io.algernon.vespera.extraction.SidecarVersionReport;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import javax.imageio.ImageIO;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
@@ -240,14 +242,14 @@ class PictureScriptedExtractionBeans {
 
     /** Never reached over HTTP; the version map is what the extractor identity is composed from. */
     @Bean
-    DoclingClient doclingClient() {
+    DoclingClient doclingClient(@Value("${vespera.docling.image}") String configuredImage) {
         return new DoclingClient("unused") {
             @Override
             public void checkHealth() {}
 
             @Override
             public Map<String, String> version() {
-                return Map.of("docling-serve", "1.32.0", "docling", "2.124.0");
+                return SidecarVersionReport.runningImage(configuredImage);
             }
         };
     }

@@ -463,7 +463,8 @@ function readmeSection(heading, name) {
 // operator copies these lines into a shell, and a stale one fails in a way nothing here would see.
 //
 // compose.yaml is read with patterns, not a YAML parser, so as to keep this file dependency-free.
-// It is a short file of one shape: two-space service keys, and quoted 'host:container' ports.
+// It is a short file of one shape: two-space service keys under services:, quoted 'host:container'
+// ports, and possibly other top-level keys after the services, which are cut off before reading them.
 // DoclingSidecarImageTest reads the same file with a real parser, for what the tests rely on.
 {
   const NAME = "how README says to run it";
@@ -506,7 +507,11 @@ function readmeSection(heading, name) {
     for (const m of section.matchAll(/docker compose (?!-p vespera )[^\n`]*/g)) {
       wrong.push(`${m[0]} does not name the project as -p vespera`);
     }
-    const body = compose.slice(compose.search(/^services:\s*$/m));
+    // From services: to the next top-level key, or the end of the file: compose.yaml also declares a
+    // top-level volumes: block (ADR-179 §5), whose two-space keys are volumes, not services.
+    const fromServices = compose.slice(compose.search(/^services:\s*$/m));
+    const nextTopLevel = fromServices.slice("services:".length).search(/^[\w-]+:/m);
+    const body = nextTopLevel === -1 ? fromServices : fromServices.slice(0, "services:".length + nextTopLevel);
     const services = [...body.matchAll(/^ {2}([\w-]+):\s*$/gm)].map((m) => m[1]);
     const said = { chroma: /\bChroma\b/, ollama: /\bOllama\b/, "docling-serve": /\bdocling-serve\b/ };
     for (const s of services) {

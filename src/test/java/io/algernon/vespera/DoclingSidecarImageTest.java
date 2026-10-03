@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
@@ -38,6 +39,11 @@ import org.yaml.snakeyaml.Yaml;
  * the processor build's. The three places above go on naming the processor build, which is the default
  * everywhere.
  *
+ * <p>Since ADR-179 the image says its own name: each build is passed the name it is built under, keeps
+ * it, and starts through a launcher that adds it to the sidecar's {@code /version} report, where stage 2
+ * compares it with the configured name before recording anything. That change made a different image,
+ * so both tags carry a revision of Vespera's own layers, {@code -r2}, after the base and the parser.
+ *
  * <p>Read from the files themselves, with no Docker: each fact here is a line an operator can edit.
  */
 @Epic("Extraction")
@@ -69,8 +75,21 @@ class DoclingSidecarImageTest {
     /** The repository's own name for the image; the tag after the colon is what says which one. */
     private static final String IMAGE_NAME = "vespera/docling-serve-cpu-libreoffice";
 
-    /** The image with that parser, on the {@code docling-serve} v1.32.0 base, written out. */
-    private static final String THE_IMAGE = IMAGE_NAME + ":v1.32.0-docling-parse-" + MEASURED_PARSER;
+    /**
+     * The revision of Vespera's own layers on an unchanged base and parser (ADR-179 §4). Revision 2 is the
+     * image that reports its own name; any later change to the {@code Containerfile} or a file it copies
+     * that leaves the base and the parser alone raises it.
+     */
+    private static final String REVISION = "-r2";
+
+    /** The image with that parser, on the {@code docling-serve} v1.32.0 base, at that revision, written out. */
+    private static final String THE_IMAGE = IMAGE_NAME + ":v1.32.0-docling-parse-" + MEASURED_PARSER + REVISION;
+
+    /** The build argument that passes an image the name it is built under (ADR-179 §2). */
+    private static final String IMAGE_NAME_ARG = "VESPERA_IMAGE";
+
+    /** The launcher that puts that name into the sidecar's {@code /version} report, beside the {@code Containerfile}. */
+    private static final String LAUNCHER = "report_image.py";
 
     /** The file that gives the sidecar the GPU, and builds it on a GPU base under its own tag (ADR-170). */
     private static final Path GPU_FILE = Path.of("compose.gpu.yaml");
@@ -159,16 +178,20 @@ class DoclingSidecarImageTest {
 
     @Test
     @Story("One image, named the same everywhere")
-    @DisplayName("The image is tagged for the base it is built on and the PDF parser it carries")
+    @DisplayName("The image is tagged for the base it is built on, the PDF parser it carries and the revision of what Vespera adds")
     @Link(name = "ADR-163", url = Adr.THE_DOCLING_SIDECAR_PINS_DOCLING_PARSE, type = "adr")
+    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
+    @Issue("373")
     void tagsTheImageForItsBaseAndItsParser() throws IOException {
         String composed = (String) service().get("image");
 
         claim(
                 "the tag compose.yaml gives the image is the base image's own tag, then the PDF parser"
-                        + " release it carries, so a different parser can never run under the same name",
+                        + " release it carries, so a different parser can never run under the same name, then"
+                        + " the revision of the layers Vespera adds, so a changed image never shares a name"
+                        + " with the one measured before it",
                 () -> assertThat(composed).isEqualTo(
-                        IMAGE_NAME + ":" + baseTag() + "-docling-parse-" + pinnedParserVersion()));
+                        IMAGE_NAME + ":" + baseTag() + "-docling-parse-" + pinnedParserVersion() + REVISION));
         claim(
                 "which, written out, is " + THE_IMAGE + " -- the name recorded beside every conversion"
                         + " this image makes",
@@ -194,31 +217,131 @@ class DoclingSidecarImageTest {
 
     @Test
     @Story("One Containerfile, built for the processor or for the GPU")
-    @DisplayName("The GPU build has a tag of its own, which names the same base release and PDF parser")
+    @DisplayName("The GPU build has a tag of its own, which names the same base release, PDF parser and revision")
     @Link(name = "ADR-170", url = Adr.DOCLING_RUNS_ON_THE_GPU_WITH_AN_IMAGE_TAG_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
+    @Issue("373")
     void tagsTheGpuImageApartWithTheSameSuffix() throws IOException {
         String cpuImage = (String) service().get("image");
         String gpuImage = (String) gpuService().get("image");
-        String suffix = ":" + baseTag() + "-docling-parse-" + pinnedParserVersion();
+        String suffix = ":" + baseTag() + "-docling-parse-" + pinnedParserVersion() + REVISION;
 
         claim(
                 "compose.gpu.yaml names the GPU build by an image name of its own",
                 () -> assertThat(gpuImage).isNotBlank());
         claim(
                 "which is not the processor build's, because the two convert some PDFs differently and"
-                        + " the sidecar cannot say which one it is, so one name for both would record one"
-                        + " extractor's conversions as the other's",
+                        + " report the same versions, so one name for both would record one extractor's"
+                        + " conversions as the other's",
                 () -> assertThat(gpuImage).isNotEqualTo(cpuImage));
         claim(
-                "its tag is the base release, then the PDF parser release the Containerfile pins, as the"
-                        + " processor build's is, so a parser bump cannot update one tag and forget the other",
+                "its tag is the base release, then the PDF parser release the Containerfile pins, then the"
+                        + " revision, as the processor build's is, so a bump cannot update one tag and forget"
+                        + " the other",
                 () -> {
                     assertThat(gpuImage).endsWith(suffix);
                     assertThat(cpuImage).endsWith(suffix);
                 });
         claim(
-                "which, written out, ends both tags with :v1.32.0-docling-parse-" + MEASURED_PARSER,
-                () -> assertThat(gpuImage).endsWith(":v1.32.0-docling-parse-" + MEASURED_PARSER));
+                "which, written out, ends both tags with :v1.32.0-docling-parse-" + MEASURED_PARSER + REVISION,
+                () -> assertThat(gpuImage).endsWith(":v1.32.0-docling-parse-" + MEASURED_PARSER + REVISION));
+    }
+
+    @Test
+    @Story("The image says which image it is")
+    @DisplayName("The Containerfile takes the name the image is built under, refuses to build without one, and keeps it in the image")
+    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
+    @Issue("373")
+    void theContainerfileBakesInTheNameItIsBuiltUnder() throws IOException {
+        List<String> instructions = instructions();
+        int from = indexOfFirst(instructions, "FROM ");
+        int argument = instructions.indexOf("ARG " + IMAGE_NAME_ARG);
+        int kept = instructions.indexOf("ENV " + IMAGE_NAME_ARG + "=${" + IMAGE_NAME_ARG + "}");
+
+        claim(
+                "the Containerfile takes the name as the build argument " + IMAGE_NAME_ARG + ", with no default,"
+                        + " so whoever builds the image says what it is called",
+                () -> assertThat(argument).as("where ARG %s stands", IMAGE_NAME_ARG).isNotNegative());
+        claim(
+                "declared after FROM, where the build can still read it",
+                () -> assertThat(argument).as("ARG %s against FROM", IMAGE_NAME_ARG).isGreaterThan(from));
+        claim(
+                "the build fails when no name is passed, so no image can ever report an empty one",
+                () -> assertThat(instructions)
+                        .anyMatch(instruction -> instruction.startsWith("RUN ")
+                                && instruction.contains("test -n \"${" + IMAGE_NAME_ARG + "}\"")));
+        claim(
+                "and the name is kept in the image, for the sidecar to read each time it starts",
+                () -> assertThat(kept).as("where the ENV carrying the name stands").isGreaterThan(argument));
+    }
+
+    @Test
+    @Story("The image says which image it is")
+    @DisplayName("The image starts through the launcher that adds its name to the versions it reports")
+    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
+    @Issue("373")
+    void theImageStartsThroughTheLauncherThatReportsItsName() throws IOException {
+        List<String> instructions = instructions();
+        String command = instructions.stream()
+                .filter(instruction -> instruction.startsWith("CMD "))
+                .reduce((first, second) -> second)
+                .orElse("");
+
+        claim(
+                "the launcher sits beside the Containerfile, inside what the build is given",
+                () -> assertThat(CONTAINERFILE.resolveSibling(LAUNCHER)).isRegularFile());
+        claim(
+                "the Containerfile copies it into the image",
+                () -> assertThat(instructions)
+                        .anyMatch(instruction -> instruction.startsWith("COPY ") && instruction.contains(LAUNCHER)));
+        claim(
+                "and starts the image through it, serving as the base image's own command did",
+                () -> assertThat(command)
+                        .as("the image's command")
+                        .contains(LAUNCHER)
+                        .matches("(?s).*" + Pattern.quote(LAUNCHER) + "\\W+.*\\brun\\b.*"));
+        claim(
+                "leaving the base image's entry point alone, so whatever the base sets up before serving still"
+                        + " happens",
+                () -> assertThat(instructions).noneMatch(instruction -> instruction.startsWith("ENTRYPOINT ")));
+    }
+
+    @Test
+    @Story("The image says which image it is")
+    @DisplayName("Each compose file passes the image the name it gives it, so the name the image reports is the name it runs under")
+    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
+    @Issue("373")
+    void eachComposeFilePassesTheImageItsOwnName() throws IOException {
+        Map<String, Object> processor = service();
+        Map<String, Object> gpu = gpuService();
+
+        claim(
+                "compose.yaml builds the processor image with " + IMAGE_NAME_ARG + " set to the name it gives"
+                        + " the image",
+                () -> assertThat(buildArgs(processor))
+                        .containsEntry(IMAGE_NAME_ARG, (String) processor.get("image")));
+        claim(
+                "and compose.gpu.yaml builds the GPU image with " + IMAGE_NAME_ARG + " set to the GPU image's own"
+                        + " name, which replaces the processor's when both files are named",
+                () -> assertThat(buildArgs(gpu)).containsEntry(IMAGE_NAME_ARG, (String) gpu.get("image")));
+    }
+
+    /** A service's {@code build.args}, empty where it passes none. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> buildArgs(Map<String, Object> service) {
+        Map<String, Object> build = (Map<String, Object>) service.get("build");
+        Map<String, String> args = build == null ? null : (Map<String, String>) build.get("args");
+        return args == null ? Map.of() : args;
+    }
+
+    /** Where the first instruction starting with {@code prefix} stands, or -1. */
+    private static int indexOfFirst(List<String> instructions, String prefix) {
+        for (int i = 0; i < instructions.size(); i++) {
+            if (instructions.get(i).startsWith(prefix)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     @Test

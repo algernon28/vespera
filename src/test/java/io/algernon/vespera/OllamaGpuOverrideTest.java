@@ -60,6 +60,12 @@ class OllamaGpuOverrideTest {
     private static final String DOCLING_BASE_ARG = "DOCLING_SERVE_BASE";
 
     /**
+     * The build argument naming the image the build is tagged as, which the image reports in its
+     * {@code /version} (ADR-179).
+     */
+    private static final String DOCLING_IMAGE_NAME_ARG = "VESPERA_IMAGE";
+
+    /**
      * Service keys through which a Compose service can ask Docker for a GPU on their own: {@code gpus},
      * {@code runtime: nvidia}, and a device name such as {@code nvidia.com/gpu=all} under {@code devices}.
      * The fourth way, a request under {@code deploy.resources.reservations.devices}, is checked apart,
@@ -100,6 +106,7 @@ class OllamaGpuOverrideTest {
     @Story("The GPU is asked for only where the operator asks for it")
     @DisplayName("The GPU file gives the model server and the document converter every NVIDIA GPU, and nothing else")
     @Link(name = "ADR-170", url = Adr.DOCLING_RUNS_ON_THE_GPU_WITH_AN_IMAGE_TAG_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
     void theOverrideGivesOllamaAndDoclingEveryNvidiaGpu() throws IOException {
         claim(
                 "compose.gpu.yaml sits beside compose.yaml, for an operator with an NVIDIA GPU to name"
@@ -139,9 +146,10 @@ class OllamaGpuOverrideTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> args = (Map<String, Object>) build.get("args");
         claim(
-                "and the one build argument is the base the Containerfile is built on, so nothing"
-                        + " but the base differs between the two builds",
-                () -> assertThat(args).containsOnlyKeys(DOCLING_BASE_ARG));
+                "and its build arguments are the base the Containerfile is built on and the name the image"
+                        + " is built as, which the image reports back, so nothing but the base and the name"
+                        + " differs between the two builds",
+                () -> assertThat(args).containsOnlyKeys(DOCLING_BASE_ARG, DOCLING_IMAGE_NAME_ARG));
         claim(
                 "the document converter's request is the same one device request, for every GPU the"
                         + " NVIDIA driver can see, as a GPU",

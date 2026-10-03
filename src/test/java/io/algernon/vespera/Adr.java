@@ -920,6 +920,16 @@ public final class Adr {
             + "0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md";
 
     /**
+     * ADR-179 -- no entry point starts or stops a sidecar, because both compose artifacts leave the pom;
+     * the Docling image reports the name it was built as in /version, as vespera-image, and a step
+     * composing the extractor identity stops when that differs from vespera.docling.image; both Docling
+     * tags move to -r2; and Ollama's models live in a named volume (amends ADR-158, ADR-011, ADR-170,
+     * ADR-147, ADR-165; extends ADR-163).
+     */
+    public static final String NO_ENTRY_POINT_STARTS_THE_SIDECARS = FILE
+            + "0179-no-entry-point-starts-the-sidecars-the-docling-sidecar-reports-the-image-it-runs-and-ollamas-models-live-in-a-volume.md";
+
+    /**
      * ADR-181 -- a stopped stage 2 keeps what its committed chunks recorded under its own run id and
      * reads only the occurrences none of them recorded; the place is found in the ledger, never in a
      * saved reader position (amends ADR-115, ADR-116 for stage 2, ADR-139 section 2, ADR-180 section 2;

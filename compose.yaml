@@ -4,15 +4,13 @@
 #
 # Every host port is pinned to the container port it serves, and each one is pinned for the same
 # reason: the value an operator's configuration already names has to be the value the container is
-# actually on. Spring AI's ServiceConnection support reads a running container back and needs no
-# help with Chroma or Ollama -- but only when spring-boot-docker-compose is on the classpath, and
-# it is not in the repackaged jar: the Boot plugin's excludeDockerCompose (default true) strips it,
-# and its <optional> in pom.xml would leave it out even without that (ADR-158). Under
-# `./mvnw spring-boot:run` an ephemeral port resolves itself; from `java -jar` nothing reads it
-# back, so the defaults in application.yaml and Spring AI (8000, 11434) are all the invocation has,
-# and a Docker-assigned port makes them wrong. Pinning costs a port collision when something else
-# local already holds one of these -- which is the failure an operator can diagnose from the
-# message, unlike "Connection refused" against a container that is up.
+# actually on. No entry point reads a running container back or starts one: Spring Boot's compose
+# support is not on any classpath, the jar's or the IDE's or spring-boot:run's (ADR-179). The
+# operator starts these services with the `up` line the README gives, from every entry point, and
+# nothing reads a port back, so the defaults in application.yaml and Spring AI (8000, 11434) are all
+# an invocation has, and a Docker-assigned port makes them wrong. Pinning costs a port collision when
+# something else local already holds one of these -- which is the failure an operator can diagnose
+# from the message, unlike "Connection refused" against a container that is up.
 services:
   chroma:
     image: 'chromadb/chroma:1.5.9'
@@ -27,6 +25,11 @@ services:
     restart: unless-stopped
     ports:
       - '11434:11434'
+    # The image declares no volume, so without this its models (and the key pair beside them) live in
+    # the container's own layer and go with any replacement of it. A named volume, not a bind mount,
+    # so it depends on no host path. Only `down -v` removes it (ADR-179 §5).
+    volumes:
+      - 'ollama-models:/root/.ollama'
   docling-serve:
     # -cpu: docling-serve runs its CPU image here, the one that runs anywhere the rest of the stack
     # does. compose.gpu.yaml gives it the GPU too, through a CUDA build of the same Containerfile
@@ -43,11 +46,16 @@ services:
     # some PDFs differently. The tag also names the PDF parser the Containerfile pins in place of the
     # base's own, docling-parse 7.17.0, because a parser change converts PDFs differently too and a
     # tag that did not say so would let a machine keep running the old parser under the new name
-    # (ADR-163).
-    image: 'vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0'
+    # (ADR-163). The -r2 is the revision of Vespera's own layers on that base and parser (ADR-179 §4).
+    image: &docling-image 'vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2'
     build:
       context: docker/docling-serve
       dockerfile: Containerfile
+      # The image bakes in the name it is built under and reports it in /version, which every step
+      # that converts compares with vespera.docling.image before recording anything (ADR-179 §2).
+      # Written once, as the alias of image above.
+      args:
+        VESPERA_IMAGE: *docling-image
     # An init process reaps the soffice each conversion starts; without one they stay behind as
     # zombies, one per file. Converting a file needs no capability and no privilege.
     init: true
@@ -66,3 +74,6 @@ services:
       DOCLING_SERVE_MAX_SYNC_WAIT: '600'
     ports:
       - '5001:5001'
+# Declared with no options: a Docker-managed volume, created by `up` (ADR-179 §5).
+volumes:
+  ollama-models:

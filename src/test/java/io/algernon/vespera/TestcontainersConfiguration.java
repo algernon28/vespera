@@ -66,9 +66,10 @@ public class TestcontainersConfiguration {
      * docling-serve v1.32.0 (CPU image) with LibreOffice and docling-parse 7.17.0, built from the
      * repository's own {@code Containerfile} rather than pulled (ADR-147, ADR-163). Keep in step with
      * {@code compose.yaml}, which builds and tags the same image, and with {@code vespera.docling.image},
-     * which the extractor identity carries.
+     * which the extractor identity carries. Public so that {@code DoclingClientIT} can check the running
+     * sidecar reports this very name (ADR-179).
      */
-    static final String DOCLING_SERVE_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0";
+    public static final String DOCLING_SERVE_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
     /**
      * The wait docling-serve applies before returning a 504. Set well above Vespera's own call timeout
      * so that a slow file falls to Vespera's timeout to decide (ADR-172).
@@ -104,7 +105,8 @@ public class TestcontainersConfiguration {
         // Built under the very tag compose.yaml gives it, and kept, so a machine that already built it
         // for compose -- or for an earlier test run -- reuses the image instead of building it again.
         ImageFromDockerfile image = new ImageFromDockerfile(DOCLING_SERVE_IMAGE, false)
-                .withDockerfile(DOCLING_SERVE_CONTAINERFILE);
+                .withDockerfile(DOCLING_SERVE_CONTAINERFILE)
+                .withBuildArg("VESPERA_IMAGE", DOCLING_SERVE_IMAGE);
         return new GenericContainer<>(image)
                 .withExposedPorts(DOCLING_SERVE_PORT)
                 .withCreateContainerCmdModifier(command -> command.getHostConfig()

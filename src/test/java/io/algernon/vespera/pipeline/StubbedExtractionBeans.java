@@ -5,8 +5,10 @@ import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ScriptedExtractor;
+import io.algernon.vespera.extraction.SidecarVersionReport;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
@@ -49,7 +51,7 @@ class StubbedExtractionBeans {
 
     /** Never actually reached over HTTP: only {@link ExtractionHealthCheckListener} calls it, and this skips that. */
     @Bean
-    DoclingClient doclingClient() {
+    DoclingClient doclingClient(@Value("${vespera.docling.image}") String configuredImage) {
         return new DoclingClient("unused") {
             @Override
             public void checkHealth() {}
@@ -58,11 +60,12 @@ class StubbedExtractionBeans {
              * A version report in the shape a real sidecar answers with, so the extractor identity
              * these tests compose is built the same way the real one is. Stubbed because no socket is
              * ever opened here — and answering nothing would compose a blank identity, which is
-             * exactly the thing an identity must never be.
+             * exactly the thing an identity must never be. It names the configured image, as the
+             * sidecar the operator started does (ADR-179).
              */
             @Override
             public Map<String, String> version() {
-                return Map.of("docling-serve", "1.32.0", "docling", "2.124.0");
+                return SidecarVersionReport.runningImage(configuredImage);
             }
         };
     }
