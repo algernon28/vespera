@@ -97,7 +97,7 @@ deliverable/<run>/documents.csv  every surviving document, with its place in the
 
 Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration. Both commands take `--db-dir=<path>`, so if you moved the working directory, name it on `vespera label` as well as on `vespera run`. A command given a `--db-dir` other than the directory it actually opened refuses and records nothing.
 
-While a command is running, two more files sit beside `vespera.db`: `vespera.db-wal`, which holds the most recent changes, and `vespera.db-shm`, its index. When the command ends they are folded back into `vespera.db` and deleted. To copy the working directory, copy it after the command has ended. If you have to copy it while a command is running, copy all three files together, or the copy is missing the latest changes. Keep the working directory on a disk attached to the machine that runs Vespera, not on a network share: the ledger relies on shared memory that only works on a local disk.
+While a command is running, two more files sit beside `vespera.db`: `vespera.db-wal`, SQLite's write-ahead log, which holds the most recent changes, and `vespera.db-shm`, its index. When the command ends they are folded back into `vespera.db` and deleted. To copy the working directory, copy it after the command has ended. If you have to copy it while a command is running, copy all three files together, or the copy is missing the latest changes. Keep the working directory on a disk attached to the machine that runs Vespera, not on a network share: the database relies on shared memory that only works on a local disk.
 
 ## Commands
 

@@ -27,8 +27,11 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * ADR-180: the database file the application ships with is opened in write-ahead-log mode, synced at
- * checkpoints rather than at every commit, on every connection the pool hands out.
+ * ADR-180: the database file the application ships with is opened in SQLite's write-ahead-log mode,
+ * synced at WAL checkpoints rather than at every commit, on every connection the pool hands out.
+ *
+ * <p>"WAL checkpoint" and "write-ahead log" are SQLite's terms and are always written qualified here:
+ * a bare Checkpoint is a walk's (ADR-055), and a bare Log is a document kind (ADR-171).
  *
  * <p><b>Profile-free on purpose.</b> The {@code test} profile swaps the datasource for an in-memory
  * database on a pool of one, and an in-memory database has no journal to choose: {@code PRAGMA
@@ -50,16 +53,16 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Architecture")
 @Feature("Shipped configuration")
 @Issue("378")
-@Link(name = "ADR-180", url = Adr.THE_DATABASE_IS_WRITTEN_AHEAD_AND_SYNCED_AT_CHECKPOINTS, type = "adr")
+@Link(name = "ADR-180", url = Adr.THE_DATABASE_USES_SQLITES_WRITE_AHEAD_LOG, type = "adr")
 class WriteAheadDatabaseTest {
 
     /** The database file's name, as the shipped URL names it under the working directory. */
     private static final String DATABASE_FILE = "vespera.db";
 
-    /** Where SQLite appends committed pages until a checkpoint copies them into the database file. */
-    private static final String LOG_FILE = DATABASE_FILE + "-wal";
+    /** SQLite's write-ahead log: committed pages are appended here until a WAL checkpoint copies them back. */
+    private static final String WRITE_AHEAD_LOG_FILE = DATABASE_FILE + "-wal";
 
-    /** The index into the log SQLite keeps in shared memory while the database is open. */
+    /** The index into the write-ahead log SQLite keeps in shared memory while the database is open. */
     private static final String SHARED_MEMORY_FILE = DATABASE_FILE + "-shm";
 
     /** What {@code PRAGMA journal_mode} answers in write-ahead-log mode. */
@@ -69,27 +72,29 @@ class WriteAheadDatabaseTest {
     private static final String ROLLBACK_JOURNAL = "delete";
 
     /**
-     * {@code PRAGMA synchronous} as a number: 1 is {@code NORMAL}, which syncs the log at each
-     * checkpoint; 2, {@code FULL}, the default, syncs at every commit.
+     * {@code PRAGMA synchronous} as a number: 1 is {@code NORMAL}, which syncs the write-ahead log at each
+     * WAL checkpoint; 2, {@code FULL}, the default, syncs at every commit.
      */
-    private static final int SYNCED_AT_CHECKPOINTS = 1;
+    private static final int SYNCED_AT_WAL_CHECKPOINTS = 1;
 
     /** The five-minute lock wait the shipped URL already names, which the new parameters must not drop. */
     private static final long LOCK_WAIT_MILLIS = 300_000L;
 
     /**
-     * SQLite's own automatic checkpoint interval, in pages: a commit that leaves the log longer than
-     * this copies it back into the database file. Left at the default rather than raised or turned off.
+     * SQLite's own automatic WAL checkpoint interval, in pages: a commit that leaves the write-ahead log
+     * longer than this copies it back into the database file. Left at the default rather than raised or
+     * turned off.
      */
-    private static final long AUTOMATIC_CHECKPOINT_PAGES = 1_000L;
+    private static final long WAL_CHECKPOINT_PAGES = 1_000L;
 
     /**
-     * 512 MiB, in bytes: the size the log file is cut back to once a checkpoint has emptied it, so one
-     * very large transaction -- a discard of a whole run's rows -- does not leave a log that size on disk
-     * for the rest of the invocation. Above the roughly 230 MB one stage-2 chunk was measured to leave,
-     * so an ordinary chunk's log is reused rather than cut back and grown again every chunk.
+     * 512 MiB, in bytes: the size the write-ahead log file is cut back to once a WAL checkpoint has
+     * emptied it, so one very large transaction -- a discard of a whole run's rows -- does not leave a
+     * file that size on disk for the rest of the invocation. Above the roughly 230 MB one stage-2 chunk
+     * was measured to leave, so an ordinary chunk's write-ahead log is reused rather than cut back and
+     * grown again every chunk.
      */
-    private static final long LOG_SIZE_LIMIT_BYTES = 512L * 1024 * 1024;
+    private static final long WRITE_AHEAD_LOG_SIZE_LIMIT_BYTES = 512L * 1024 * 1024;
 
     /** How many connections the pool is asked for at once: more than one, since the setting is per connection. */
     private static final int CONNECTIONS_HELD_AT_ONCE = 2;
@@ -109,9 +114,9 @@ class WriteAheadDatabaseTest {
     private String shippedUrl;
 
     @Test
-    @Story("The database is synced at checkpoints rather than at every commit")
-    @DisplayName("Every connection the shipped pool hands out writes ahead to a log and syncs it at checkpoints")
-    void everyPooledConnectionWritesAheadAndSyncsAtCheckpoints() throws SQLException {
+    @Story("The database is synced at WAL checkpoints rather than at every commit")
+    @DisplayName("Every connection the shipped pool hands out writes ahead to SQLite's write-ahead log and syncs it at WAL checkpoints")
+    void everyPooledConnectionUsesTheWriteAheadLogAndSyncsAtWalCheckpoints() throws SQLException {
         Connection[] held = new Connection[CONNECTIONS_HELD_AT_ONCE];
         try {
             for (int i = 0; i < held.length; i++) {
@@ -125,24 +130,25 @@ class WriteAheadDatabaseTest {
             for (Connection connection : held) {
                 claim(
                         "each of the " + CONNECTIONS_HELD_AT_ONCE + " connections held at once appends commits"
-                                + " to a log beside the database file instead of copying each page it changes"
-                                + " into a rollback journal first",
+                                + " to SQLite's write-ahead log beside the database file instead of copying each"
+                                + " page it changes into a rollback journal first",
                         () -> assertThat(textPragma(connection, "journal_mode")).isEqualTo(WRITE_AHEAD));
                 claim(
-                        "and syncs that log to disk at a checkpoint rather than at every commit: the sync"
-                                + " level is per connection, so a connection the pool opens later must say so"
-                                + " too, not only the first one",
-                        () -> assertThat(numberPragma(connection, "synchronous")).isEqualTo(SYNCED_AT_CHECKPOINTS));
+                        "and syncs the write-ahead log to disk at a WAL checkpoint rather than at every commit:"
+                                + " the sync level is per connection, so a connection the pool opens later must"
+                                + " say so too, not only the first one",
+                        () -> assertThat(numberPragma(connection, "synchronous"))
+                                .isEqualTo(SYNCED_AT_WAL_CHECKPOINTS));
                 claim(
-                        "and copies the log back into the database file by itself once it passes "
-                                + AUTOMATIC_CHECKPOINT_PAGES + " pages, SQLite's own interval, and cuts the"
-                                + " emptied log file back to " + LOG_SIZE_LIMIT_BYTES + " bytes (512 MiB), so"
-                                + " the log stays bounded through a long stage with nothing in the"
-                                + " application calling a checkpoint",
+                        "and copies the write-ahead log back into the database file by itself once it passes "
+                                + WAL_CHECKPOINT_PAGES + " pages, SQLite's own interval, and cuts the emptied"
+                                + " write-ahead log file back to " + WRITE_AHEAD_LOG_SIZE_LIMIT_BYTES
+                                + " bytes (512 MiB), so it stays bounded through a long stage with nothing in"
+                                + " the application calling a WAL checkpoint",
                         () -> {
-                            assertThat(numberPragma(connection, "wal_autocheckpoint"))
-                                    .isEqualTo(AUTOMATIC_CHECKPOINT_PAGES);
-                            assertThat(numberPragma(connection, "journal_size_limit")).isEqualTo(LOG_SIZE_LIMIT_BYTES);
+                            assertThat(numberPragma(connection, "wal_autocheckpoint")).isEqualTo(WAL_CHECKPOINT_PAGES);
+                            assertThat(numberPragma(connection, "journal_size_limit"))
+                                    .isEqualTo(WRITE_AHEAD_LOG_SIZE_LIMIT_BYTES);
                         });
                 claim(
                         "and still waits five minutes -- " + LOCK_WAIT_MILLIS + " ms -- on a locked database,"
@@ -163,8 +169,8 @@ class WriteAheadDatabaseTest {
     }
 
     @Test
-    @Story("The database is synced at checkpoints rather than at every commit")
-    @DisplayName("A database written before this setting is switched to the log the first time it is opened, rows and all")
+    @Story("The database is synced at WAL checkpoints rather than at every commit")
+    @DisplayName("A database written before this setting is switched to write-ahead-log mode the first time it is opened, rows and all")
     void aDatabaseWrittenUnderTheRollbackJournalIsSwitchedOnFirstOpen(@TempDir Path earlierWorkingDirectory)
             throws SQLException {
         Path earlierDatabase = earlierWorkingDirectory.resolve(DATABASE_FILE);
@@ -182,8 +188,8 @@ class WriteAheadDatabaseTest {
                 Statement statement = opened.createStatement();
                 ResultSet kept = statement.executeQuery("SELECT value FROM kept")) {
             claim(
-                    "opened with the shipped URL it is in log mode, with nothing for the operator to run by"
-                            + " hand first",
+                    "opened with the shipped URL it is in write-ahead-log mode, with nothing for the operator"
+                            + " to run by hand first",
                     () -> assertThat(textPragma(opened, "journal_mode")).isEqualTo(WRITE_AHEAD));
             claim(
                     "and the row written before the switch is still there: the switch changes how the next"
@@ -196,26 +202,30 @@ class WriteAheadDatabaseTest {
     }
 
     @Test
-    @Story("The database is synced at checkpoints rather than at every commit")
-    @DisplayName("While the database is open its log sits beside it, and once the last connection closes the database file stands alone")
-    void theLogIsFoldedBackWhenTheLastConnectionCloses(@TempDir Path ownWorkingDirectory) throws SQLException {
+    @Story("The database is synced at WAL checkpoints rather than at every commit")
+    @DisplayName("While the database is open its write-ahead log sits beside it, and once the last connection closes the database file stands alone")
+    void theWriteAheadLogIsFoldedBackWhenTheLastConnectionCloses(@TempDir Path ownWorkingDirectory)
+            throws SQLException {
         try (Connection connection = DriverManager.getConnection(urlIn(ownWorkingDirectory));
                 Statement statement = connection.createStatement()) {
             statement.executeUpdate("CREATE TABLE kept (value TEXT)");
             statement.executeUpdate("INSERT INTO kept VALUES ('committed')");
             claim(
-                    "with a connection open and a commit made, the log and its shared-memory index sit beside"
-                            + " the database file -- which is why a copy taken while a run is going has to"
-                            + " take all three",
-                    () -> assertThat(ownWorkingDirectory.resolve(LOG_FILE)).exists());
+                    "with a connection open and a commit made, the write-ahead log and its shared-memory index"
+                            + " sit beside the database file -- which is why a copy taken while a run is going"
+                            + " has to take all three",
+                    () -> {
+                        assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).exists();
+                        assertThat(ownWorkingDirectory.resolve(SHARED_MEMORY_FILE)).exists();
+                    });
         }
 
         claim(
-                "once the last connection closes, the log has been copied into the database file and both"
-                        + " companions are gone, so a working directory an invocation left cleanly holds one"
-                        + " database file that can be copied on its own",
+                "once the last connection closes, the write-ahead log has been copied into the database file"
+                        + " and both companions are gone, so a working directory an invocation left cleanly"
+                        + " holds one database file that can be copied on its own",
                 () -> {
-                    assertThat(ownWorkingDirectory.resolve(LOG_FILE)).doesNotExist();
+                    assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).doesNotExist();
                     assertThat(ownWorkingDirectory.resolve(SHARED_MEMORY_FILE)).doesNotExist();
                 });
         try (Connection plain = DriverManager.getConnection("jdbc:sqlite:" + ownWorkingDirectory.resolve(DATABASE_FILE));
@@ -228,9 +238,9 @@ class WriteAheadDatabaseTest {
                         assertThat(kept.getLong(1)).isEqualTo(1L);
                     });
             claim(
-                    "and it still records that it is in log mode, so a connection opened later with a URL that"
-                            + " names no journal -- an older build of the application, a database browser --"
-                            + " writes ahead too rather than switching it back",
+                    "and it still records that it is in write-ahead-log mode, so a connection opened later with"
+                            + " a URL that names no journal -- an older build of the application, a database"
+                            + " browser -- writes ahead too rather than switching it back",
                     () -> assertThat(textPragma(plain, "journal_mode")).isEqualTo(WRITE_AHEAD));
         }
     }

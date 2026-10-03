@@ -21,7 +21,7 @@ import java.util.SplittableRandom;
 /**
  * The measurement behind ADR-180: how long one stage-2 chunk takes to write its shingles into a
  * large database, under the rollback journal ({@code DELETE}/{@code FULL}, what shipped before) and
- * under write-ahead logging ({@code WAL}/{@code NORMAL}), with the page cache and the checkpoint
+ * under write-ahead logging ({@code WAL}/{@code NORMAL}), with the page cache and the WAL checkpoint
  * interval as the other two variables -- the first measurement showed neither journal mode can be
  * judged without them.
  *
@@ -39,7 +39,7 @@ import java.util.SplittableRandom;
  * starts from its own byte-identical copy of the same base database. What is reported per setting:
  * the median transaction and the median commit, and the total over all repeats <i>including a
  * closing {@code wal_checkpoint(TRUNCATE)}</i>, because under WAL a commit that skipped its
- * checkpoint only deferred the write, and a median alone would hide the commit that pays for it.
+ * WAL checkpoint only deferred the write, and a median alone would hide the commit that pays for it.
  *
  * <pre>
  * ./mvnw -q -o test-compile
@@ -51,7 +51,7 @@ import java.util.SplittableRandom;
  * shipped {@code schema.sql}: {@code occurrences} file occurrences with {@code rows-per-document}
  * random shingle rows each, inserted with both indexes in place, so the index pages are as full as
  * an index grown one insert at a time leaves them. (Building the index afterwards packs every leaf
- * full, and then nearly every measured insert splits a page, which no ledger grown by stage 2 does.)
+ * full, and then nearly every measured insert splits a page, which no database grown by stage 2 does.)
  * A base already in the scratch directory is reused.
  */
 public final class JournalModeBenchmark {
@@ -73,7 +73,7 @@ public final class JournalModeBenchmark {
      * cache_size}, {@code wal_autocheckpoint} in pages, and optionally {@code nohash} to drop {@code
      * shingle_by_hash} from the copy first, or {@code runonly} to put an index on {@code run_id} alone in its
      * place and then time building {@code shingle_by_hash} once, over the whole table, afterwards. {@code -2000} is SQLite's default cache, 2,000 KiB, and
-     * {@code 1000} its default checkpoint interval.
+     * {@code 1000} its default WAL checkpoint interval.
      */
     private static final String DEFAULT_SETTINGS = String.join(",",
             "DELETE/FULL/-2000/1000",
@@ -183,7 +183,7 @@ public final class JournalModeBenchmark {
             }
             long allEnd = System.nanoTime();
             totalNanos = allEnd - allStart;
-            System.out.printf(Locale.ROOT, "  closing checkpoint %.1f ms%n", (allEnd - checkpointStart) / 1e6);
+            System.out.printf(Locale.ROOT, "  closing WAL checkpoint %.1f ms%n", (allEnd - checkpointStart) / 1e6);
             if (runIdOnly) {
                 // What building the hash index once, after the stage, costs instead.
                 long buildStart = System.nanoTime();
@@ -196,7 +196,7 @@ public final class JournalModeBenchmark {
             }
         }
         String line = String.format(Locale.ROOT,
-                "%-32s median transaction %8.1f ms, median commit %8.1f ms, total incl. closing checkpoint %9.1f ms"
+                "%-32s median transaction %8.1f ms, median commit %8.1f ms, total incl. closing WAL checkpoint %9.1f ms"
                         + " (%7.1f ms a chunk), largest -wal %,d bytes",
                 label, median(transactionNanos) / 1e6, median(commitNanos) / 1e6, totalNanos / 1e6,
                 totalNanos / 1e6 / repeats, walHighWater);

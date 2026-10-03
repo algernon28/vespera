@@ -45,6 +45,7 @@ _Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this to
 **Log**:
 A text file with at least ten non-blank lines read, reading its first and last 64 KB, where at least the profile's `logTimestampShareFloor` of those lines begin with a timestamp (ADR-171). Decided from the bytes alone, never from the name: most logs here are not named `.log`, and most files named `.log` are not logs by this measure. An operational record, and out of scope once the floor is set.
 _Avoid_: log file (as a name-based kind), trace, journal
+_Not to be confused with_: SQLite's **write-ahead log**, the file `vespera.db-wal` beside the database (ADR-180). Always written "write-ahead log", never bare.
 
 **Survivor**:
 A file occurrence carrying no blocking verdict under a given run or any run upstream of it. A question the ledger answers of one run, not a place documents are moved to (ADR-156).
@@ -153,6 +154,7 @@ _Avoid_: scan, crawl, import
 **Checkpoint**:
 A point a walk may be continued from: the last directory whose whole subtree was recorded, stored with the counts the walk had reached by then. Not a gate and not a pause — nothing waits at a checkpoint, and a walk that never reaches another one simply repeats the entries since the last. ADR-055 named this, after the Gate entry above had already claimed the word.
 _Avoid_: bookmark, savepoint, offset
+_Not to be confused with_: SQLite's **WAL checkpoint**, which copies its write-ahead log back into the database file (ADR-180). Always written "WAL checkpoint", never bare.
 
 **Walk anomaly**:
 An entry a walk encountered and did not record as a file occurrence, carrying the reason. Not an error — most are not failures — and not a verdict: a verdict needs an occurrence to attach to, and an anomaly is exactly the case where none exists. Kinds are observations rather than policy, which is what makes the first walk of an archive a measurement.

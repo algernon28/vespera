@@ -911,13 +911,13 @@ public final class Adr {
             + "0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md";
 
     /**
-     * ADR-180 -- the shipped datasource opens vespera.db in write-ahead-log mode with synchronous=NORMAL,
-     * left to SQLite's automatic checkpoint with the emptied log cut back to 512 MiB, and the working
-     * directory stays on a local disk; measured, the journal is not what makes stage 2 slow (rests on
-     * ADR-127, ADR-054).
+     * ADR-180 -- the shipped datasource opens vespera.db in SQLite's write-ahead-log mode with
+     * synchronous=NORMAL, left to SQLite's automatic WAL checkpoint with the emptied write-ahead log cut
+     * back to 512 MiB, and the working directory stays on a local disk; measured, the journal is not what
+     * makes stage 2 slow (rests on ADR-127, ADR-054, ADR-008, ADR-009).
      */
-    public static final String THE_DATABASE_IS_WRITTEN_AHEAD_AND_SYNCED_AT_CHECKPOINTS = FILE
-            + "0180-the-database-file-is-written-ahead-and-synced-at-checkpoints.md";
+    public static final String THE_DATABASE_USES_SQLITES_WRITE_AHEAD_LOG = FILE
+            + "0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md";
 
     private Adr() {
     }
