@@ -42,7 +42,9 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
  *
  * <p>Fails today on the first three tests: the shipped schema creates {@code shingle_by_hash} and no
  * {@code shingle_by_run_id}, so stage 3's read goes through the by-hash index. The last test passes today
- * and has to go on passing.
+ * and has to go on passing: {@code containmentRetrievalNeedsTheIndexOnTheHash} pins the premise the
+ * whole decision rests on, that containment retrieval reads every row of the run unless the by-hash
+ * index has been built before it.
  */
 @Epic("Redundancy")
 @Feature("Shingling")

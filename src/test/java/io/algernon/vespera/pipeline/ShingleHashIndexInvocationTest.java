@@ -128,9 +128,14 @@ class ShingleHashIndexInvocationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    /** The converter answers and counts from zero, and stage 4's gate is shut until a test opens it. */
+    /**
+     * The converter forgets every scripted and pinned outcome, answers, and counts from zero, and stage
+     * 4's gate is shut until a test opens it. The script, the pins and the count are static and shared
+     * with every other class importing the converter, and class order differs between machines.
+     */
     @BeforeEach
     void startClean() {
+        ConverterStopsPartwayBeans.script(List.of(), List.of(), List.of());
         ConverterStopsPartwayBeans.keepAnswering();
         profileStore.save(ProfileFixture.profile().build());
     }
@@ -263,6 +268,57 @@ class ShingleHashIndexInvocationTest {
                 () -> assertThat(indexExists(BY_HASH)).isTrue());
         claim(
                 "and says nothing about building it, because nothing was built",
+                () -> assertThat(second).doesNotContain(BUILDING).doesNotContain(BUILT));
+    }
+
+    /**
+     * The build is committed in a transaction of its own before resolution's opens (ADR-182 §2.3), so a
+     * resolution that fails keeps it. The failure is made where only the tasklet's own transaction can
+     * reach: recording the step finished, which {@code TaskletSteps.once} does inside it. A trigger refuses
+     * that row, so the whole of the resolution rolls back. A build made inside that transaction would roll
+     * back with it, and leave the next invocation to build again; this is the test that tells the two
+     * apart, since both write the same two lines in the same order.
+     */
+    @Test
+    @Story("When the index on word-sequence hashes exists")
+    @DisplayName("A redundancy check that fails after building the hash index keeps it, and the next invocation finishes without building it again")
+    void aFailedResolutionKeepsTheIndexItsStepBuiltAndTheNextInvocationDoesNotBuildAgain(
+            CapturedOutput output, @TempDir Path root) throws IOException {
+        writeCorpus(root, "resolution fails once");
+        openStageFoursGate();
+        jdbcTemplate.execute("CREATE TRIGGER resolution_fails BEFORE INSERT ON finished_step WHEN NEW.step = '"
+                + StepNames.CONTENT_REDUNDANCY + "' BEGIN SELECT RAISE(ABORT, 'resolution failed'); END");
+        String first;
+        try {
+            int before = output.getAll().length();
+            cli.run("run", root.toString());
+            first = output.getAll().substring(before);
+        } finally {
+            jdbcTemplate.execute("DROP TRIGGER IF EXISTS resolution_fails");
+        }
+
+        claim(
+                "the first invocation fails, because the redundancy check could not record that it had finished,"
+                        + " so everything it resolved was undone",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "yet the hash index it built before resolving is still there, on its three columns: it was"
+                        + " saved on its own, before the work that failed began",
+                () -> assertThat(columnsOf(BY_HASH)).containsExactlyElementsOf(BY_HASH_COLUMNS));
+        claim(
+                "and that invocation said once that it was building the index and once that it had built it",
+                () -> assertThat(first).containsOnlyOnce(BUILDING).containsOnlyOnce(BUILT));
+
+        int before = output.getAll().length();
+        cli.run("run", root.toString());
+        String second = output.getAll().substring(before);
+        String redundancyRun = onlyRunOf(root, StageModules.CONTENT_REDUNDANCY);
+
+        claim(
+                "the next invocation finishes the redundancy check",
+                () -> assertThat(stepFinished(redundancyRun, StepNames.CONTENT_REDUNDANCY)).isTrue());
+        claim(
+                "without building the index again, because it was already there",
                 () -> assertThat(second).doesNotContain(BUILDING).doesNotContain(BUILT));
     }
 
