@@ -448,8 +448,12 @@ class TextInPartsTest {
         RecordingClient client = new RecordingClient((part, number) -> number == 2
                 ? aSuccessWithNoDocument()
                 : answerFor(part, ConversionStatus.SUCCESS, List.of()));
+        DoclingExtractor extractor = new DoclingExtractor(client, new ExtractionCache(jdbcTemplate));
+        ExtractorIdentity identity = new ExtractorIdentity("docling-serve;" + DoclingClient.sentOptions());
+        String contentHash = extractor.contentHashFor(file);
 
-        DoclingResponse answer = new DoclingExtractor(client, null).convertUncached(file, DetectedFormat.PLAIN_TEXT, null);
+        DoclingResponse answer = extractor.convertUncached(file, DetectedFormat.PLAIN_TEXT, null);
+        extractor.remember(contentHash, identity, answer);
 
         claim(
                 "the second of the three parts is the last one sent: a part with nothing to merge ends the file",
@@ -468,6 +472,9 @@ class TextInPartsTest {
         claim(
                 "and it is read as a failure about the document, so stage 2 removes the file",
                 () -> assertThat(ResponseScope.of(answer)).isInstanceOf(ResponseScope.DocumentScope.class));
+        claim(
+                "it is kept: the next read of the same file finds this answer and asks the converter nothing",
+                () -> assertThat(extractor.cached(contentHash, identity)).isPresent());
         claim(
                 "and no part's file is left behind",
                 () -> assertThat(client.posted).allSatisfy(part -> assertThat(part.path()).doesNotExist()));
@@ -601,13 +608,18 @@ class TextInPartsTest {
         DoclingResponse first = pagedAnswer(
                 List.of(1, 2),
                 2,
-                new ConfidenceScores(0.9, null, null, null, null, null, QualityGrade.EXCELLENT, QualityGrade.UNSPECIFIED));
+                new ConfidenceScores(0.9, 0.8, null, null, null, null, QualityGrade.EXCELLENT, QualityGrade.UNSPECIFIED));
         DoclingResponse second = pagedAnswer(
                 List.of(1),
                 1,
-                new ConfidenceScores(0.6, null, null, null, null, null, QualityGrade.UNSPECIFIED, QualityGrade.UNSPECIFIED));
+                new ConfidenceScores(0.6, null, null, null, null, null, QualityGrade.FAIR, QualityGrade.GOOD));
+        DoclingResponse ungraded = pagedAnswer(
+                List.of(1),
+                1,
+                new ConfidenceScores(0.7, null, null, null, null, null, QualityGrade.UNSPECIFIED, QualityGrade.UNSPECIFIED));
 
         DoclingResponse merged = TextParts.merged(List.of(first, second));
+        DoclingResponse mergedWithUngraded = TextParts.merged(List.of(first, ungraded));
 
         JsonNode root = JSON.readTree(merged.rawResponse());
         JsonNode content = root.path("document").path("json_content");
@@ -629,24 +641,36 @@ class TextInPartsTest {
                     assertThat(content.path("texts").path(1).path("prov").path(0).path("page_no").asInt()).isEqualTo(3);
                 });
         claim(
-                "the merged score is the lower of the two parts', and a score neither part reports stays unreported",
+                "the merged score is the lower of the two parts', 0.6 of 0.9 and 0.6, and a score neither part"
+                        + " reports stays unreported",
                 () -> {
                     assertThat(merged.confidence().parseScore()).isEqualTo(0.6);
-                    assertThat(merged.confidence().layoutScore()).isNull();
+                    assertThat(merged.confidence().tableScore()).isNull();
                 });
         claim(
-                "a grade is the worst any part scored, and one part's unspecified does not count against the"
-                        + " other's excellent: a grade is unspecified only where both parts say so",
+                "a score one part reports and the other does not is the one reported: 0.8, not missing",
+                () -> assertThat(merged.confidence().layoutScore()).isEqualTo(0.8));
+        claim(
+                "a grade is the worst of the grades the parts scored: fair, of the first part's excellent and the"
+                        + " second's fair, and good where the first part's is unspecified and the second's good",
                 () -> {
-                    assertThat(merged.confidence().meanGrade()).isEqualTo(QualityGrade.EXCELLENT);
-                    assertThat(merged.confidence().lowGrade()).isEqualTo(QualityGrade.UNSPECIFIED);
+                    assertThat(merged.confidence().meanGrade()).isEqualTo(QualityGrade.FAIR);
+                    assertThat(merged.confidence().lowGrade()).isEqualTo(QualityGrade.GOOD);
+                });
+        claim(
+                "beside a part whose grades are both unspecified, the first part's excellent stands, and a grade is"
+                        + " unspecified only where every part's is",
+                () -> {
+                    assertThat(mergedWithUngraded.confidence().meanGrade()).isEqualTo(QualityGrade.EXCELLENT);
+                    assertThat(mergedWithUngraded.confidence().lowGrade()).isEqualTo(QualityGrade.UNSPECIFIED);
                 });
         claim(
                 "and the body kept in the cache says the same as the answer's own confidence",
                 () -> {
                     JsonNode confidence = root.path("confidence");
                     assertThat(confidence.path("parse_score").asDouble()).isEqualTo(merged.confidence().parseScore());
-                    assertThat(confidence.path("layout_score").isNull()).isTrue();
+                    assertThat(confidence.path("layout_score").asDouble()).isEqualTo(merged.confidence().layoutScore());
+                    assertThat(confidence.path("table_score").isNull()).isTrue();
                     assertThat(confidence.path("mean_grade").asString()).isEqualTo(merged.confidence().meanGrade().toWire());
                     assertThat(confidence.path("low_grade").asString()).isEqualTo(merged.confidence().lowGrade().toWire());
                 });
