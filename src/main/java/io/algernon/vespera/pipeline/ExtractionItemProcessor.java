@@ -5,7 +5,9 @@ import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.extraction.DegeneracyVerdict;
+import io.algernon.vespera.extraction.DoclingCallRejectedException;
 import io.algernon.vespera.extraction.DoclingCallTimeoutException;
+import io.algernon.vespera.extraction.DoclingConnectionLostException;
 import io.algernon.vespera.extraction.DoclingDocumentTexts;
 import io.algernon.vespera.extraction.DoclingError;
 import io.algernon.vespera.extraction.DoclingExtractor;
@@ -21,6 +23,8 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.similarity.Shingler;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -35,6 +39,13 @@ import org.springframework.stereotype.Component;
  * response, in one open-document pass (ADR-070, ADR-071, ADR-073): cache lookup, convert, the
  * {@code extraction-failed} check, then — on {@code success}/{@code partial_success} — the derived
  * metrics and the two-tier degeneracy floor (#48) and the shingle table (#50), in that order.
+ *
+ * <p>Three outcomes come from a call that brought no response to judge (ADR-071, ADR-175): a timeout,
+ * an HTTP error status, and a connection dropped twice. Each is {@code extraction-failed} against that
+ * occurrence, and the step goes on. A connection dropped once is not an outcome: the sidecar is waited
+ * for and the call placed once more. What stops the step from here is a sidecar that does not come
+ * back, or one that drops the connection twice under {@link #CONSECUTIVE_DROPPED_TWICE_COUNT}
+ * occurrences in a row.
  *
  * <p>Nothing is chunked here (ADR-091). Chunk boundaries depend on a budget whose only reader is
  * an embedding model, and none is named: a chunk cut now is work guaranteed to be discarded, so
@@ -57,6 +68,13 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     /** Docling's own category for an error it did not classify, and the reason's for a failure naming none. */
     private static final String UNCATEGORISED = FailureCategory.UNKNOWN.name().toLowerCase(Locale.ROOT);
 
+    /**
+     * How many file occurrences in a row may drop the connection twice before the step stops (ADR-175
+     * section 3a). Five, the count ADR-071's breaker uses for the failures the sidecar answers with, so
+     * that a sidecar that converts nothing stops the step as soon whichever way it fails.
+     */
+    static final int CONSECUTIVE_DROPPED_TWICE_COUNT = 5;
+
     /** What a reason says when the failed response carried no error at all. */
     private static final String NO_CATEGORIZED_ERROR = "no categorized error was reported";
 
@@ -71,6 +89,18 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private final DegenerateOutputConfidenceFloor confidenceFloor;
     private final Shingler shingler;
     private final PendingConversions pending;
+    private final SidecarRecovery sidecarRecovery;
+
+    /**
+     * The file occurrences that have dropped the connection twice in a row, on the drain, by the path
+     * census recorded each under (ADR-175 section 3a). A response the processor judges ends the run of
+     * them, whether a call brought it or the extraction cache did, and so does an error status. A call
+     * that timed out does not. The paths are kept, not only counted, because the stop has to name the
+     * files: the operator is told to move them, and the chunk they are in rolls back, so nothing else
+     * records which they were. Held here and not in a bean of its own because this processor is
+     * step-scoped and only the step thread reads it.
+     */
+    private final List<String> droppedTwiceInARow = new ArrayList<>();
 
     /**
      * Stage 2's progress line (ADR-093), counted here because this is the per-item seam the step has:
@@ -89,7 +119,8 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             StageRuns stageRuns,
             ExtractionMetrics extractionMetrics,
             DegenerateOutputConfidenceFloor confidenceFloor,
-            Shingler shingler) {
+            Shingler shingler,
+            SidecarRecovery sidecarRecovery) {
         this(
                 ledger,
                 contentIdentity,
@@ -101,7 +132,8 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                 extractionMetrics,
                 confidenceFloor,
                 shingler,
-                PendingConversions.none());
+                PendingConversions.none(),
+                sidecarRecovery);
     }
 
     /**
@@ -126,7 +158,8 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             ExtractionMetrics extractionMetrics,
             DegenerateOutputConfidenceFloor confidenceFloor,
             Shingler shingler,
-            PendingConversions pending) {
+            PendingConversions pending,
+            SidecarRecovery sidecarRecovery) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
         this.detectedFormats = detectedFormats;
@@ -138,6 +171,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.confidenceFloor = confidenceFloor;
         this.shingler = shingler;
         this.pending = pending;
+        this.sidecarRecovery = sidecarRecovery;
         // Nothing is deleted here. ExtractionJobConfiguration's reader deletes the fault rows and the
         // verdicts that resolved them, where a delete is outside the chunk transaction and so cannot be
         // rolled back by a chunk that fails (ADR-181 section 1, amending ADR-115's discard half and
@@ -168,15 +202,73 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         if (format.isEmpty()) {
             return unreadableFormat(occurrenceId);
         }
-        Conversion conversion;
         try {
-            conversion = convert(occurrenceId, file, format.get());
+            return judge(occurrenceId, convert(occurrenceId, file, format.get()));
+        } catch (DoclingConnectionLostException lost) {
+            return retryAfterDrop(occurrenceId, file, format.get());
         } catch (DoclingCallTimeoutException timedOut) {
-            // No response at all: nothing here for #48's metrics pass to measure.
+            // No converted document came back, whichever side gave up first: nothing here for #48's
+            // metrics pass to measure.
+            return resolveTimeout(occurrenceId, timedOut.getMessage(), null);
+        } catch (DoclingCallRejectedException rejected) {
+            return rejected(occurrenceId, rejected);
+        }
+    }
+
+    /**
+     * What an error status earns an occurrence (ADR-175 section 1). It is an answer, and about this
+     * file's call: it ends both runs of unanswered calls as any answer does, and it is this file's
+     * verdict, never one the breaker counts as a failure.
+     */
+    private ExtractionOutcome rejected(OccurrenceId occurrenceId, DoclingCallRejectedException rejected) {
+        timeoutStreak.reset();
+        droppedTwiceInARow.clear();
+        return failed(occurrenceId, "rejected: " + rejected.getMessage());
+    }
+
+    /**
+     * What a dropped connection earns an occurrence (ADR-175 section 2): the sidecar is waited for, and
+     * the call is placed once more, here on the step thread. An answer is judged like any other.
+     *
+     * <p>A second drop is read as the file's doing: the sidecar is waited for again, so that the next
+     * occurrences find it up, and this one is removed. It can be wrong. Up to eight calls are in flight
+     * when a sidecar dies (ADR-140), each retries alone, and one retry can overlap the call of the file
+     * that really kills it. That is accepted (ADR-175 section 5): nothing is stored for a call that
+     * failed, so the next run asks about the file again.
+     *
+     * <p>Five such files in a row are read as the sidecar's doing, and stop the step (section 3a): it
+     * answers its health check and converts nothing, which neither the wait nor ADR-071's breaker sees.
+     */
+    private ExtractionOutcome retryAfterDrop(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
+        sidecarRecovery.awaitHealthy();
+        try {
+            return judge(occurrenceId, convertNow(occurrenceId, file, format));
+        } catch (DoclingConnectionLostException again) {
+            sidecarRecovery.awaitHealthy();
+            droppedTwiceInARow.add(recordedPath(occurrenceId));
+            if (droppedTwiceInARow.size() >= CONSECUTIVE_DROPPED_TWICE_COUNT) {
+                // Named here because nothing else will name them: this chunk rolls back, so none of
+                // them reaches the review list, and the closing line carries only the exception.
+                log.error(
+                        "Stage 2 (extraction): these {} files in a row each dropped the connection twice: {}",
+                        droppedTwiceInARow.size(),
+                        String.join(", ", droppedTwiceInARow));
+                throw new DoclingKeepsDroppingConnectionsException(CONSECUTIVE_DROPPED_TWICE_COUNT);
+            }
+            return failed(
+                    occurrenceId,
+                    "crashed the converter: docling-serve dropped the connection twice while converting this"
+                            + " file: " + again.getCause().getMessage());
+        } catch (DoclingCallRejectedException rejected) {
+            return rejected(occurrenceId, rejected);
+        } catch (DoclingCallTimeoutException timedOut) {
             return resolveTimeout(occurrenceId, timedOut.getMessage(), null);
         }
-        DoclingResponse response = conversion.response();
+    }
 
+    /** What one answered call earns its occurrence, by the scope the answer is read as (ADR-183). */
+    private ExtractionOutcome judge(OccurrenceId occurrenceId, DoclingResponse response) {
+        droppedTwiceInARow.clear();
         // ADR-183 section 1: the reading of a response by scope is extraction's, the one the cache keeps
         // its rows by too. The branches are decided here: what each reading earns this occurrence.
         return switch (ResponseScope.of(response)) {
@@ -202,7 +294,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         };
     }
 
-    private Conversion convert(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
+    private DoclingResponse convert(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
         // ADR-140: ConversionDispatch may already have placed this call, ahead of this occurrence's
         // turn, on a worker thread of its own -- pending is where that answer waits, and the hash and
         // subtype that call needed were resolved there, so on that path nothing is looked up or hashed
@@ -210,17 +302,19 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         // for a value nothing reads). Nothing dispatches ahead of a processor built by
         // ExtractionItemProcessorTest's own constructor, so pending is always empty there and this falls
         // back to placing the call itself, exactly as it always has.
-        DoclingResponse response = pending.take(occurrenceId).orElseGet(() -> {
-            RunId byteLevelReductionRunId = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
-            String contentHash = contentIdentity
-                    .hashFor(occurrenceId, byteLevelReductionRunId)
-                    .orElseGet(() -> extractor.contentHashFor(file));
-            DetectedSubtype subtype = detectedFormats
-                    .subtypeFor(occurrenceId, byteLevelReductionRunId)
-                    .orElse(null);
-            return extractor.convert(file, contentHash, extractorIdentity, format, subtype);
-        });
-        return new Conversion(response);
+        return pending.take(occurrenceId).orElseGet(() -> convertNow(occurrenceId, file, format));
+    }
+
+    /** Places the call from this thread, through the cache: the fallback above, and a retry's one call. */
+    private DoclingResponse convertNow(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
+        RunId byteLevelReductionRunId = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
+        String contentHash = contentIdentity
+                .hashFor(occurrenceId, byteLevelReductionRunId)
+                .orElseGet(() -> extractor.contentHashFor(file));
+        DetectedSubtype subtype = detectedFormats
+                .subtypeFor(occurrenceId, byteLevelReductionRunId)
+                .orElse(null);
+        return extractor.convert(file, contentHash, extractorIdentity, format, subtype);
     }
 
     /**
@@ -243,8 +337,16 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
     }
 
-    /** One occurrence's response, however it was obtained. */
-    private record Conversion(DoclingResponse response) {}
+    /**
+     * What an occurrence earns when its call failed with no response to judge (ADR-175): an error status,
+     * or a connection dropped twice. Nothing is measured, because nothing came back, and nothing is
+     * stored, because the failure never reaches {@link DoclingExtractor#remember} -- so a later run asks
+     * the converter again.
+     */
+    private ExtractionOutcome failed(OccurrenceId occurrenceId, String reason) {
+        log.info("[extraction] occurrence {} could not be read: {}", occurrenceId.value(), reason);
+        return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
+    }
 
     /**
      * ADR-070: reachable only from {@code success}/{@code partial_success}. Writes the metrics row and
@@ -315,9 +417,14 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     }
 
     private Path resolvePath(OccurrenceId occurrenceId) {
+        return stageRuns.canonicalRoot().resolve(recordedPath(occurrenceId));
+    }
+
+    /** The path census recorded the occurrence under, relative to the corpus root. */
+    private String recordedPath(OccurrenceId occurrenceId) {
         OccurrenceFacts facts = ledger.factsFor(occurrenceId)
                 .orElseThrow(
                         () -> new IllegalStateException("no facts are recorded for occurrence " + occurrenceId.value()));
-        return stageRuns.canonicalRoot().resolve(facts.path().value());
+        return facts.path().value();
     }
 }

@@ -9,6 +9,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import io.algernon.vespera.Adr;
@@ -20,6 +21,8 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.http.HttpTimeoutException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,8 +37,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -231,6 +236,44 @@ class DoclingClientTest {
             }
             """;
 
+    /** The status docling-serve answers a job that failed inside its worker with (#326). */
+    private static final int NOT_FOUND = 404;
+
+    /** What docling-serve said beside that status, on the whole archive on 2026-09-28. */
+    private static final String TASK_RESULT_NOT_FOUND =
+            "{\"detail\":\"Task result not found. Please wait for a completion status.\"}";
+
+    /** The status docling-serve answers with when its own synchronous wait runs out (ADR-172). */
+    private static final int GATEWAY_TIMEOUT = 504;
+
+    /** What docling-serve 1.32.0 says beside that status, its own misspelling included. */
+    private static final String CONVERSION_IS_TAKING_TOO_LONG = "{\"detail\":\"Conversion is taking too long."
+            + " The maximum wait time is configure as DOCLING_SERVE_MAX_SYNC_WAIT=120.\"}";
+
+    /** A gateway timeout that is not docling-serve's wait running out: a proxy in front of it, say. */
+    private static final String ANOTHER_GATEWAYS_TIMEOUT = "upstream timed out";
+
+    /** What the JDK client says when the sidecar closes the socket before sending a status line. */
+    private static final String NO_BYTES_RECEIVED = "HTTP/1.1 header parser received no bytes";
+
+    /** How long this test lets a health check wait for its answer. */
+    private static final Duration A_SHORT_HEALTH_WAIT = Duration.ofMillis(300);
+
+    /** Far more than that, and far less than a conversion's five minutes: what tells the two clocks apart. */
+    private static final Duration LONGEST_A_HEALTH_CHECK_MAY_TAKE = Duration.ofSeconds(10);
+
+    /** How long the shipped client lets a health check wait. */
+    private static final Duration SHIPPED_HEALTH_WAIT = Duration.ofSeconds(5);
+
+    /** A server error's status. */
+    private static final int INTERNAL_SERVER_ERROR = 500;
+
+    /** How much of an error body a rejection's message keeps. */
+    private static final int BODY_CHARACTERS_KEPT = 300;
+
+    /** An error body longer than a message keeps. */
+    private static final String A_LONG_ERROR_BODY = "x".repeat(BODY_CHARACTERS_KEPT + 50);
+
     @Test
     @Story("One call converts one document")
     @DisplayName("Converting a document issues exactly one call, and reads back every field the response carries")
@@ -341,6 +384,103 @@ class DoclingClientTest {
                 "and the call's own verdict is carried alongside it, so partial output is not read as"
                         + " total failure",
                 () -> assertThat(response.status()).isEqualTo(ConversionStatus.PARTIAL_SUCCESS));
+    }
+
+    @Test
+    @Story("An error status on one document's call is about that document")
+    @DisplayName("A call the service answers with an error status fails as a rejection of that document, carrying the status and what the service said")
+    @Issue("326")
+    @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
+    void reportsAnErrorStatusAsARejectionOfTheDocument(@TempDir Path dir) throws IOException {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
+        service.expect(requestTo(CONVERT_ENDPOINT))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(TASK_RESULT_NOT_FOUND));
+        service.expect(requestTo(CONVERT_ENDPOINT))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).body(A_LONG_ERROR_BODY));
+        DoclingClient client = new DoclingClient(builder.build());
+        Path document = aDocument(dir);
+
+        claim(
+                "an answer of HTTP " + NOT_FOUND + " is a rejection of the document that was posted: it"
+                        + " carries the status and the service's own words, and names the document",
+                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE))
+                        .isInstanceOfSatisfying(DoclingCallRejectedException.class, rejected -> {
+                            assertThat(rejected.status()).isEqualTo(NOT_FOUND);
+                            assertThat(rejected.body()).isEqualTo(TASK_RESULT_NOT_FOUND);
+                        })
+                        .hasMessage("docling-serve answered HTTP " + NOT_FOUND + " for " + document + ": "
+                                + TASK_RESULT_NOT_FOUND));
+        claim(
+                "a server error is a rejection too, and a body longer than " + BODY_CHARACTERS_KEPT
+                        + " characters is cut to that many in the message, so one page of HTML cannot"
+                        + " become one reason",
+                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE))
+                        .isInstanceOfSatisfying(
+                                DoclingCallRejectedException.class,
+                                rejected -> assertThat(rejected.status()).isEqualTo(INTERNAL_SERVER_ERROR))
+                        .hasMessage("docling-serve answered HTTP " + INTERNAL_SERVER_ERROR + " for " + document
+                                + ": " + "x".repeat(BODY_CHARACTERS_KEPT)));
+    }
+
+    @Test
+    @Story("An error status on one document's call is about that document")
+    @DisplayName("A gateway timeout saying the conversion is taking too long is the service running out of time, and any other gateway timeout is a rejection")
+    @Issue("326")
+    @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
+    @Link(name = "ADR-172", url = Adr.DOCLING_SERVES_SYNCHRONOUS_WAIT_OUTLASTS_VESPERAS_CALL_TIMEOUT, type = "adr")
+    void readsTheServicesOwnWaitRunningOutAsATimeout(@TempDir Path dir) throws IOException {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
+        service.expect(requestTo(CONVERT_ENDPOINT))
+                .andRespond(withStatus(HttpStatus.GATEWAY_TIMEOUT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(CONVERSION_IS_TAKING_TOO_LONG));
+        service.expect(requestTo(CONVERT_ENDPOINT))
+                .andRespond(withStatus(HttpStatus.GATEWAY_TIMEOUT).body(ANOTHER_GATEWAYS_TIMEOUT));
+        DoclingClient client = new DoclingClient(builder.build());
+        Path document = aDocument(dir);
+
+        claim(
+                "HTTP " + GATEWAY_TIMEOUT + " with the service's own words for its wait running out is"
+                        + " the same kind of failure as no answer within the call budget, and says that the"
+                        + " service gave up, since it did answer",
+                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE))
+                        .isInstanceOf(DoclingCallTimeoutException.class)
+                        .hasMessage("docling-serve gave up on " + document
+                                + ": its own wait for a conversion ran out before an answer was ready"));
+        claim(
+                "HTTP " + GATEWAY_TIMEOUT + " saying anything else is a rejection like any other error"
+                        + " status: the status alone does not make it a timeout",
+                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE))
+                        .isInstanceOfSatisfying(
+                                DoclingCallRejectedException.class,
+                                rejected -> assertThat(rejected.status()).isEqualTo(GATEWAY_TIMEOUT)));
+    }
+
+    @Test
+    @Story("A connection lost under a call is neither silence nor an answer")
+    @DisplayName("A call whose connection is closed with nothing sent back fails as a lost connection, naming the document and keeping what the transport said")
+    @Issue("326")
+    @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
+    void reportsAConnectionClosedUnderTheCallAsALostConnection(@TempDir Path dir) throws IOException {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
+        service.expect(requestTo(CONVERT_ENDPOINT)).andRespond(withException(new IOException(NO_BYTES_RECEIVED)));
+        DoclingClient client = new DoclingClient(builder.build());
+        Path document = aDocument(dir);
+
+        claim(
+                "a transport failure that is not a timeout is its own failure, apart from waiting out the"
+                        + " call budget and apart from an error status: it names the document, and says"
+                        + " what the transport reported, so the two can be told apart by type",
+                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE))
+                        .isInstanceOf(DoclingConnectionLostException.class)
+                        .hasMessageContaining(document.toString())
+                        .hasMessageContaining(NO_BYTES_RECEIVED)
+                        .hasCauseInstanceOf(ResourceAccessException.class));
     }
 
     /**
@@ -706,6 +846,35 @@ class DoclingClientTest {
                         "name=\"" + Pattern.quote(name) + "\"\\r?\\n(?:[^\\r\\n]+\\r?\\n)*\\r?\\n([^\\r\\n]*)\\r?\\n")
                 .matcher(sentBody(file, format, subtype));
         return part.find() ? Optional.of(part.group(1)) : Optional.empty();
+    }
+
+    @Test
+    @Story("A sidecar that says nothing is not healthy")
+    @DisplayName("Asking whether the service is healthy waits a few seconds for an answer, not the five minutes a conversion may take")
+    @Issue("326")
+    @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
+    void asksAfterHealthOnAShortClockOfItsOwn() throws IOException {
+        try (ServerSocket acceptsAndSaysNothing = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            DoclingClient client = new DoclingClient(
+                    "http://127.0.0.1:" + acceptsAndSaysNothing.getLocalPort(), A_SHORT_HEALTH_WAIT);
+
+            long started = System.nanoTime();
+            boolean healthy = client.isHealthy();
+            Duration waited = Duration.ofNanos(System.nanoTime() - started);
+
+            claim(
+                    "a service that takes the connection and never answers is not healthy",
+                    () -> assertThat(healthy).isFalse());
+            claim(
+                    "and finding that out took about the " + A_SHORT_HEALTH_WAIT.toMillis() + " ms this test"
+                            + " allows a health check, far inside the " + LONGEST_A_HEALTH_CHECK_MAY_TAKE.toSeconds()
+                            + " seconds that would mean it had waited on the conversion clock",
+                    () -> assertThat(waited).isLessThan(LONGEST_A_HEALTH_CHECK_MAY_TAKE));
+        }
+        claim(
+                "as shipped, a health check waits " + SHIPPED_HEALTH_WAIT.toSeconds() + " seconds for its"
+                        + " answer",
+                () -> assertThat(DoclingClient.HEALTH_CHECK_TIMEOUT).isEqualTo(SHIPPED_HEALTH_WAIT));
     }
 
     private static Path aDocument(Path dir) throws IOException {

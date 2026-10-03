@@ -55,6 +55,10 @@ _Avoid_: shortlist, whitelist, the keep pile
 A file occurrence stage 2 got no answer about: the converter blamed the failure on itself, or ran out of time on several files in a row, so nothing was measured and nothing was decided at the time. A file the converter answered about and could not convert is not one — that is `extraction-failed` at once (ADR-143). Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the sidecar answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
 _Avoid_: skip, error, failed document. Also "unreadable" **for this state**: that word names a profile value nobody can act on, under Operation below.
 
+**Review list**:
+The list of files stage 2 could not read: the page it writes beside the database when it ends, `extraction-failures.html`, holding every file occurrence carrying `extraction-failed` under that stage-2 run, by path, with the verdict's reason (ADR-175). It is read from the ledger under the run, so a resumed stage lists what earlier invocations removed too. It exists because a file whose call fails is marked and skipped and the run goes on, so the operator needs one place to see what it went on without.
+_Avoid_: error report, failure log, skipped files. The file's own name is the operator's, not a term: nothing in the code is named for it but the constant that holds it.
+
 **Redundancy set**:
 File occurrences whose text says the same thing, of which exactly one survives and the rest are redundant with it. Distinct from a content identity, whose members are byte-identical; these differ, and which one survives is a judgement rather than a tie-break.
 _Avoid_: duplicate group, cluster (a cluster is an arrangement of relevant documents, not a set of interchangeable ones), near-dupe set
