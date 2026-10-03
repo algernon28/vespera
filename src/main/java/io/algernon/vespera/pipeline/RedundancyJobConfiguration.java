@@ -5,6 +5,9 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.similarity.RedundancySignatures;
+import io.algernon.vespera.similarity.ShingleHashIndex;
+import java.time.Duration;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
@@ -17,6 +20,7 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
@@ -65,13 +69,26 @@ public class RedundancyJobConfiguration {
                 .build();
     }
 
+    /**
+     * Stage 4b, with the build of {@code shingle_by_hash} ahead of it in a {@code beforeStep} listener
+     * (ADR-182 section 2.3): committed on its own before the tasklet's transaction opens, so a
+     * resolution that fails keeps it.
+     */
     @Bean
     Step redundancyResolutionStep(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            RedundancyResolutionTasklet redundancyResolutionTasklet) {
+            RedundancyResolutionTasklet redundancyResolutionTasklet,
+            RedundancyGate redundancyGate,
+            StageRuns stageRuns,
+            Ledger ledger,
+            JdbcTemplate jdbcTemplate) {
         return TaskletSteps.taskletStep(
-                StepNames.CONTENT_REDUNDANCY, jobRepository, transactionManager, redundancyResolutionTasklet);
+                StepNames.CONTENT_REDUNDANCY,
+                jobRepository,
+                transactionManager,
+                redundancyResolutionTasklet,
+                new ShingleHashIndexBuild(redundancyGate, stageRuns, ledger, new ShingleHashIndex(jdbcTemplate)));
     }
 
     /**
@@ -136,6 +153,63 @@ public class RedundancyJobConfiguration {
                         + " (stage 3's measurement) to choose a value, set it in profile.yaml, and re-invoke."
                         + " No stage-4 run was minted.",
                 whyItIsShut);
+    }
+
+    /**
+     * Builds {@code shingle_by_hash} before stage 4b's first read of it (ADR-182 sections 2.3 and 2.4).
+     *
+     * <p>A listener, so that the build is its own transaction and is not inside {@link
+     * RedundancyResolutionTasklet}'s, where a failed resolution would undo it and the next invocation
+     * would pay for it again. It sits behind the gate and the finished-step check the tasklet applies,
+     * so a shut gate mints nothing and writes nothing, and a finished step does nothing and says
+     * nothing. Asking for stage 4's run here mints nothing the tasklet would not mint a moment later:
+     * {@code startRun} is mint-or-continue (ADR-115).
+     *
+     * <p>The index is built whenever it is missing and never when it is present, whoever left it
+     * there, and the two lines are written only when a build is made.
+     */
+    private static final class ShingleHashIndexBuild implements StepExecutionListener {
+
+        private static final Logger log = LoggerFactory.getLogger(ShingleHashIndexBuild.class);
+
+        private static final double NANOS_PER_SECOND = 1_000_000_000.0;
+
+        private final RedundancyGate redundancyGate;
+        private final StageRuns stageRuns;
+        private final Ledger ledger;
+        private final ShingleHashIndex shingleHashIndex;
+
+        ShingleHashIndexBuild(
+                RedundancyGate redundancyGate,
+                StageRuns stageRuns,
+                Ledger ledger,
+                ShingleHashIndex shingleHashIndex) {
+            this.redundancyGate = redundancyGate;
+            this.stageRuns = stageRuns;
+            this.ledger = ledger;
+            this.shingleHashIndex = shingleHashIndex;
+        }
+
+        @Override
+        public void beforeStep(StepExecution stepExecution) {
+            if (redundancyGate.floor().isEmpty()) {
+                return;
+            }
+            if (ledger.stepFinished(stageRuns.contentRedundancy(), StepNames.CONTENT_REDUNDANCY)) {
+                return;
+            }
+            if (shingleHashIndex.exists()) {
+                return;
+            }
+            log.info(
+                    "Stage 4b (redundancy resolution) is building shingle_by_hash over up to {} shingle rows"
+                            + " before it reads it; on a large database this takes minutes",
+                    shingleHashIndex.shingleRowsUpTo());
+            Duration took = shingleHashIndex.build();
+            log.info(
+                    "Stage 4b (redundancy resolution) built shingle_by_hash in {} s",
+                    String.format(Locale.ROOT, "%.1f", took.toNanos() / NANOS_PER_SECOND));
+        }
     }
 
     /**

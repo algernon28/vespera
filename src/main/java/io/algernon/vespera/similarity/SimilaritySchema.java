@@ -12,8 +12,11 @@ import org.springframework.stereotype.Component;
  * <p>Bump {@link #VERSION} in the same commit that changes similarity's tables in {@code schema.sql}.
  * Version 2 adds {@code shingle_document_frequency} and {@code shingle_corpus_size} (ADR-074).
  * Version 3 adds stage 4's {@code minhash_signature}, {@code signature_band} and {@code
- * redundant_with}, plus the by-hash index on {@code shingle} its containment retrieval reads
- * (ADR-079, ADR-081, ADR-082).
+ * redundant_with}, and the by-hash index on {@code shingle} its containment retrieval reads (ADR-079,
+ * ADR-081, ADR-082). That index is no longer in {@code schema.sql} or in this version's tables:
+ * ADR-182 has stage 2 drop it and stage 4b build it (see {@link ShingleHashIndex}), and no version
+ * moved, because an index alters no table (ADR-173 §3). {@code shingle_by_run_id} replaced it as the
+ * index {@code shingle.run_id} leads.
  */
 @Component
 @DependsOnDatabaseInitialization

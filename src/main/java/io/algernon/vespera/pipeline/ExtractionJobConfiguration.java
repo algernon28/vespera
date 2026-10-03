@@ -7,6 +7,7 @@ import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.ExtractionFaults;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.similarity.ShingleHashIndex;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -50,8 +51,9 @@ public class ExtractionJobConfiguration {
      * ADR-140's constraint; that it is two waves rather than one or three is the implementer's choice
      * (unlike the timeout and streak counts ADR-071 pins). Kept small because each item is up to a
      * 5-minute HTTP call:
-     * a small chunk bounds how much already-cached-and-therefore-cheap work a rolled-back chunk would
-     * redo, and keeps verdict commits frequent.
+     * a small chunk bounds how much work a rolled-back chunk loses -- its conversions go back to
+     * Docling, because the extraction-cache rows it wrote roll back with it (ADR-181) -- and keeps
+     * verdict commits frequent.
      *
      * <p>Sixteen rather than ten because a chunk is now the read-ahead (ADR-140): {@link
      * ConversionDispatch} dispatches every occurrence of a chunk before the first is processed, and a
@@ -257,14 +259,26 @@ public class ExtractionJobConfiguration {
         ledger.discardVerdictsAgainst(extractionRun, faulted, VerdictKind.EXTRACTION_FAILED);
         extractionFaults.discardForRun(extractionRun);
 
+        // shingle_by_hash is not maintained while shingles are written (ADR-182 section 2.2): every new row
+        // would land at a random place in an index far larger than any page cache, and stage 4b builds it
+        // whole before its first read. Removed here, on the same test as the discard above -- the step is
+        // not finished -- and for the same reason that discard is here: a drop inside a chunk that rolled
+        // back would be restored. It removes no row, says nothing, and finds nothing to do on a resume.
+        new ShingleHashIndex(jdbcTemplate).drop();
+
         Set<OccurrenceId> recorded = extractionMetrics.occurrencesForRun(extractionRun);
-        if (!recorded.isEmpty()) {
+        if (!recorded.isEmpty() || !faulted.isEmpty()) {
+            // Said when anything was recorded or faulted (ADR-181 section 1): a run whose only leftovers
+            // are fault rows reads those occurrences again, and says so. Counts follow their labels so
+            // that one reads as correctly as many.
             log.info(
-                    "Stage 2 (extraction) resumes run {}: {} occurrences already measured by committed chunks,"
-                            + " {} faulted occurrences read again",
+                    "Stage 2 (extraction) resumes run {}: occurrences already measured by committed chunks: {};"
+                            + " faulted occurrences read again: {}",
                     extractionRun.value(),
                     recorded.size(),
                     faulted.size());
+        }
+        if (!recorded.isEmpty()) {
             return new OccurrenceReader(new UnrecordedOccurrences(ledger.survivors(extractionRun), recorded));
         }
         return new OccurrenceReader(ledger.survivors(extractionRun));

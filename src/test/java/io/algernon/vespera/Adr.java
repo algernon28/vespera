@@ -928,6 +928,14 @@ public final class Adr {
     public static final String A_STOPPED_STAGE_2_RESUMES_FROM_WHAT_ITS_COMMITTED_CHUNKS_RECORDED = FILE
             + "0181-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md";
 
+    /**
+     * ADR-182 -- stage 2 drops shingle_by_hash before it writes, stage 4b builds it before containment
+     * retrieval reads it, and schema.sql indexes shingle on run_id alone instead (amends ADR-081,
+     * ADR-180 section 6; rests on ADR-173, ADR-181).
+     */
+    public static final String STAGE_4B_BUILDS_THE_BY_HASH_INDEX_STAGE_2_WRITES_WITHOUT = FILE
+            + "0182-stage-2-writes-shingles-without-the-by-hash-index-and-stage-4b-builds-it-before-containment-retrieval-reads-it.md";
+
     private Adr() {
     }
 }

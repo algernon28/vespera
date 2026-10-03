@@ -329,9 +329,19 @@ CREATE TABLE IF NOT EXISTS shingle (
 
 CREATE INDEX IF NOT EXISTS shingle_by_occurrence ON shingle (occurrence_id, run_id, shingle_parameter_identity);
 
--- Lookup by hash rather than by occurrence, which is what stage 4's containment retrieval needs: for
--- one document's 32 rarest shared shingles, which other documents hold them (ADR-081).
-CREATE INDEX IF NOT EXISTS shingle_by_hash ON shingle (run_id, shingle_parameter_identity, shingle_hash);
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
+-- This is the index that rule needs on shingle while shingle_by_hash is absent (ADR-182), and stage 3's
+-- read of one run's rows goes through it, in the order they were written.
+CREATE INDEX IF NOT EXISTS shingle_by_run_id ON shingle (run_id);
+
+-- NOT CREATED HERE, on purpose (ADR-182). Containment retrieval -- for one document's 32 rarest shared
+-- shingles, which other documents hold them (ADR-081) -- reads shingle through an index on
+-- (run_id, shingle_parameter_identity, shingle_hash), named shingle_by_hash. Stage 2 does not maintain
+-- it: every new row lands at a random place in an index far larger than any page cache, which cost a
+-- stage-2 chunk 3.9 s against 96 ms. Stage 2 drops it before its first chunk (similarity's
+-- ShingleHashIndex.drop) and stage 4b builds it once, whole, before its first read (ShingleHashIndex.build).
+-- This file runs at every start (ADR-173 §3); creating it here would build the whole index during
+-- start-up only for the next stage 2 to drop it.
 
 -- similarity's own table (ADR-074): stage 3's per-hash document frequency, measured over the shingle
 -- rows belonging to stage-2 survivors only (a footer's prevalence among excluded occurrences is not a

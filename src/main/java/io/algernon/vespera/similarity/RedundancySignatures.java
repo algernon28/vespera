@@ -92,10 +92,13 @@ public class RedundancySignatures {
      * both operate on a set, not on {@code shingle}'s own multiset of repeated phrases.
      *
      * <p>The set is what makes the hashes distinct, not the query (#277). Asked for {@code DISTINCT},
-     * SQLite answers from {@code shingle_by_hash}, which is already ordered by hash, and so reads every
-     * row of the run for each document: about five seconds a document on a 2.2-million-row table,
-     * whatever the document's own size. Without it, the planner uses {@code shingle_by_occurrence} and
-     * reads this document's rows alone.
+     * and <em>when {@code shingle_by_hash} exists</em>, SQLite answers from it, since it is already
+     * ordered by hash, and so reads every row of the run for each document: about five seconds a
+     * document on a 2.2-million-row table, whatever the document's own size. Without it, the planner
+     * uses {@code shingle_by_occurrence} and reads this document's rows alone. Stage 4a runs before stage
+     * 4b builds that index (ADR-182), so there the index is usually absent and a {@code DISTINCT} would
+     * go unnoticed; stage 4b's identical read is where it would be paid, and what keeps both reads
+     * without it is {@code RedundancyResolutionTest}, which builds the index before it reads the plans.
      */
     private Set<Long> distinctiveShingleSet(OccurrenceId occurrenceId, RunId stage2RunId, Set<Long> boilerplateHashes) {
         Set<Long> distinctive = new HashSet<>();
