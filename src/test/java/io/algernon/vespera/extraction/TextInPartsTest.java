@@ -60,8 +60,8 @@ import tools.jackson.databind.node.ObjectNode;
  * ADR-178, under {@code text-in-parts/}: a small Markdown text, each of its three parts' answers, the
  * whole text's answer, and docling-core's own concatenation of the three.
  *
- * <p>Red until the change lands: {@link TextParts} does not exist yet. Once it does, {@link
- * #aTextAtTheCeilingIsSentWhole} and {@link #textThatIsNotCutIsSentWhole} pin what must not change.
+ * <p>{@link #aTextAtTheCeilingIsSentWhole} and {@link #textThatIsNotCutIsSentWhole} pin what must not
+ * change: which files are sent whole, as they always were.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -202,12 +202,14 @@ class TextInPartsTest {
 
     @Test
     @Story("A text over the ceiling is converted in parts")
-    @DisplayName("HTML, CSV and AsciiDoc, text in UTF-16, and text over the largest size cut are sent whole")
+    @DisplayName("HTML, CSV and AsciiDoc, text in UTF-16 or UTF-32, and text over the largest size cut are sent whole")
     void textThatIsNotCutIsSentWhole(@TempDir Path dir) throws IOException {
         Path csv = dir.resolve("terminals.csv");
         writeLinesOfExactly(csv, THREE_PART_TEXT_BYTES);
         Path wide = dir.resolve("wide.txt");
-        writeUtf16LinesOfExactly(wide, THREE_PART_TEXT_BYTES);
+        writeWideLinesOfExactly(wide, THREE_PART_TEXT_BYTES, UTF_16LE_MARK, StandardCharsets.UTF_16LE);
+        Path wider = dir.resolve("wider.txt");
+        writeWideLinesOfExactly(wider, THREE_PART_TEXT_BYTES, UTF_32BE_MARK, java.nio.charset.Charset.forName("UTF-32BE"));
         Path huge = dir.resolve("dump.txt");
         writeLinesOfExactly(huge, LARGEST_TEXT_BYTES + LINE_BYTES);
 
@@ -229,6 +231,12 @@ class TextInPartsTest {
                         + " later part would lack the byte-order mark",
                 () -> assertThat(wideClient.posted).singleElement()
                         .satisfies(part -> assertThat(part.path()).isEqualTo(wide)));
+        RecordingClient widerClient = new RecordingClient((part, number) -> aSmallSuccess());
+        new DoclingExtractor(widerClient, null).convertUncached(wider, DetectedFormat.PLAIN_TEXT, null);
+        claim(
+                "so is a text in UTF-32, big-endian behind its four-byte mark, where a line end is four bytes",
+                () -> assertThat(widerClient.posted).singleElement()
+                        .satisfies(part -> assertThat(part.path()).isEqualTo(wider)));
         RecordingClient hugeClient = new RecordingClient((part, number) -> aSmallSuccess());
         new DoclingExtractor(hugeClient, null).convertUncached(huge, DetectedFormat.PLAIN_TEXT, null);
         claim(
@@ -400,8 +408,12 @@ class TextInPartsTest {
             }
         }
         RecordingClient client = new RecordingClient((part, number) -> aSmallSuccess());
+        DoclingExtractor extractor = new DoclingExtractor(client, new ExtractionCache(jdbcTemplate));
+        ExtractorIdentity identity = new ExtractorIdentity("docling-serve;" + DoclingClient.sentOptions());
+        String contentHash = extractor.contentHashFor(file);
 
-        DoclingResponse answer = new DoclingExtractor(client, null).convertUncached(file, DetectedFormat.PLAIN_TEXT, null);
+        DoclingResponse answer = extractor.convertUncached(file, DetectedFormat.PLAIN_TEXT, null);
+        extractor.remember(contentHash, identity, answer);
 
         claim(
                 "nothing is sent: sending the file whole is the call that holds a converter worker long after"
@@ -420,8 +432,45 @@ class TextInPartsTest {
                     assertThat(answer.processingTimeSeconds()).isZero();
                 });
         claim(
-                "read as a failure about the document, so it is kept and the file is removed",
+                "it is read as a failure about the document, so stage 2 removes the file",
                 () -> assertThat(ResponseScope.of(answer)).isInstanceOf(ResponseScope.DocumentScope.class));
+        claim(
+                "and it is kept: the next read of the same file finds this answer and asks the converter nothing",
+                () -> assertThat(extractor.cached(contentHash, identity)).isPresent());
+    }
+
+    @Test
+    @Story("One part that does not convert fails the whole file")
+    @DisplayName("A part that says it converted but carries no document fails the file, and no later part is sent")
+    void aPartWithNoDocumentEndsTheFile(@TempDir Path dir) throws IOException {
+        Path file = dir.resolve("export.txt");
+        writeLinesOfExactly(file, THREE_PART_TEXT_BYTES);
+        RecordingClient client = new RecordingClient((part, number) -> number == 2
+                ? aSuccessWithNoDocument()
+                : answerFor(part, ConversionStatus.SUCCESS, List.of()));
+
+        DoclingResponse answer = new DoclingExtractor(client, null).convertUncached(file, DetectedFormat.PLAIN_TEXT, null);
+
+        claim(
+                "the second of the three parts is the last one sent: a part with nothing to merge ends the file",
+                () -> assertThat(client.posted).hasSize(2));
+        claim(
+                "the file's answer is a failure, with one uncategorised error naming the part and what was missing",
+                () -> {
+                    assertThat(answer.status()).isEqualTo(ConversionStatus.FAILURE);
+                    assertThat(answer.errors()).singleElement().satisfies(only -> {
+                        assertThat(only.category()).isEqualTo(FailureCategory.UNKNOWN);
+                        assertThat(only.componentType()).isEqualTo("vespera");
+                        assertThat(only.moduleName()).isEqualTo("text-parts");
+                        assertThat(only.errorMessage()).isEqualTo(SECOND_OF_THREE + "the converter answered with no document");
+                    });
+                });
+        claim(
+                "and it is read as a failure about the document, so stage 2 removes the file",
+                () -> assertThat(ResponseScope.of(answer)).isInstanceOf(ResponseScope.DocumentScope.class));
+        claim(
+                "and no part's file is left behind",
+                () -> assertThat(client.posted).allSatisfy(part -> assertThat(part.path()).doesNotExist()));
     }
 
     @Test
@@ -508,6 +557,99 @@ class TextInPartsTest {
         claim(
                 "and the parts cover the text end to end, each no longer than the limit",
                 () -> assertCovers(parts, bytes.length, limit));
+    }
+
+    @Test
+    @Story("Where a part ends")
+    @DisplayName("Whether a line is inside a fenced block is known from the start of the file, not of the part")
+    void aFenceIsTrackedFromTheStartOfTheFileNotOfThePart(@TempDir Path dir) throws IOException {
+        // A fence opens the file and runs past the first window with no blank line in it, so the first
+        // part ends at a line end inside the fence. In the second window, past its midpoint, a blank line
+        // is still inside the fence; the fence then closes and a line end follows.
+        String opening = "```\n" + "code line\n".repeat(8);
+        String blankInsideTheFence = "\n";
+        String rest = "code line\n" + "```\n" + "after fence\n".repeat(2);
+        String text = opening + blankInsideTheFence + rest;
+        long limit = 60;
+        long firstEnd = "```\n".length() + 5 * "code line\n".length();
+        long afterTheBlankLine = opening.length() + blankInsideTheFence.length();
+        long secondEnd = afterTheBlankLine + "code line\n".length() + "```\n".length() + "after fence\n".length();
+        Path file = Files.writeString(dir.resolve("long-fence.md"), text, StandardCharsets.UTF_8);
+
+        List<TextParts.Part> parts = TextParts.cut(file, limit);
+
+        claim(
+                "the first part ends at byte " + firstEnd + ", the last line end in its window, inside the fence",
+                () -> assertThat(parts.getFirst().end()).isEqualTo(firstEnd));
+        claim(
+                "the blank line ending at byte " + afterTheBlankLine + " ends past the second window's midpoint, at byte "
+                        + (firstEnd + limit / 2) + ", so only the fence keeps a part from ending after it",
+                () -> assertThat(afterTheBlankLine).isGreaterThanOrEqualTo(firstEnd + limit / 2));
+        claim(
+                "the second part ends at byte " + secondEnd + ", the last line end in its window, and not after"
+                        + " that blank line: the second part began inside the fence, and the blank line is in it",
+                () -> assertThat(parts.get(1).end()).isEqualTo(secondEnd).isNotEqualTo(afterTheBlankLine));
+        claim(
+                "and the parts cover the text end to end, each no longer than the limit",
+                () -> assertCovers(parts, text.length(), limit));
+    }
+
+    @Test
+    @Story("The answers are merged into one document")
+    @DisplayName("Merged pages follow on from the part before, and the merged confidence is the lowest any part reports")
+    void theMergeShiftsPagesAndKeepsTheLowestConfidence() {
+        DoclingResponse first = pagedAnswer(
+                List.of(1, 2),
+                2,
+                new ConfidenceScores(0.9, null, null, null, null, null, QualityGrade.EXCELLENT, QualityGrade.UNSPECIFIED));
+        DoclingResponse second = pagedAnswer(
+                List.of(1),
+                1,
+                new ConfidenceScores(0.6, null, null, null, null, null, QualityGrade.UNSPECIFIED, QualityGrade.UNSPECIFIED));
+
+        DoclingResponse merged = TextParts.merged(List.of(first, second));
+
+        JsonNode root = JSON.readTree(merged.rawResponse());
+        JsonNode content = root.path("document").path("json_content");
+        JsonNode pages = content.path("pages");
+        claim(
+                "the second part's page 1 follows the first part's pages 1 and 2, as page 3",
+                () -> assertThat(List.copyOf(pages.propertyNames())).containsExactlyInAnyOrder("1", "2", "3"));
+        claim(
+                "and every page says the number it is filed under",
+                () -> {
+                    for (String key : List.of("1", "2", "3")) {
+                        assertThat(pages.path(key).path("page_no").asInt()).as("page " + key).isEqualTo(Integer.parseInt(key));
+                    }
+                });
+        claim(
+                "the first part's text stays on page 2, and the second part's text moves with its page to page 3",
+                () -> {
+                    assertThat(content.path("texts").path(0).path("prov").path(0).path("page_no").asInt()).isEqualTo(2);
+                    assertThat(content.path("texts").path(1).path("prov").path(0).path("page_no").asInt()).isEqualTo(3);
+                });
+        claim(
+                "the merged score is the lower of the two parts', and a score neither part reports stays unreported",
+                () -> {
+                    assertThat(merged.confidence().parseScore()).isEqualTo(0.6);
+                    assertThat(merged.confidence().layoutScore()).isNull();
+                });
+        claim(
+                "a grade is the worst any part scored, and one part's unspecified does not count against the"
+                        + " other's excellent: a grade is unspecified only where both parts say so",
+                () -> {
+                    assertThat(merged.confidence().meanGrade()).isEqualTo(QualityGrade.EXCELLENT);
+                    assertThat(merged.confidence().lowGrade()).isEqualTo(QualityGrade.UNSPECIFIED);
+                });
+        claim(
+                "and the body kept in the cache says the same as the answer's own confidence",
+                () -> {
+                    JsonNode confidence = root.path("confidence");
+                    assertThat(confidence.path("parse_score").asDouble()).isEqualTo(merged.confidence().parseScore());
+                    assertThat(confidence.path("layout_score").isNull()).isTrue();
+                    assertThat(confidence.path("mean_grade").asString()).isEqualTo(merged.confidence().meanGrade().toWire());
+                    assertThat(confidence.path("low_grade").asString()).isEqualTo(merged.confidence().lowGrade().toWire());
+                });
     }
 
     @Test
@@ -642,6 +784,49 @@ class TextInPartsTest {
     /** A small success, for a file the test only needs to see posted. */
     private static DoclingResponse aSmallSuccess() {
         return new DoclingResponse(ConversionStatus.SUCCESS, List.of(), PART_PROCESSING_TIME, null, document(List.of()).toString());
+    }
+
+    /** An answer that says it converted and carries no document under {@code document.json_content}. */
+    private static DoclingResponse aSuccessWithNoDocument() {
+        ObjectNode root = document(List.of());
+        ((ObjectNode) root.get("document")).putNull("json_content");
+        return new DoclingResponse(ConversionStatus.SUCCESS, List.of(), PART_PROCESSING_TIME, null, root.toString());
+    }
+
+    /**
+     * A success whose document has the pages numbered {@code pageNumbers}, each saying its own number,
+     * and one text on page {@code textPage}, with {@code confidence} in the record and in the body alike.
+     */
+    private static DoclingResponse pagedAnswer(List<Integer> pageNumbers, int textPage, ConfidenceScores confidence) {
+        ObjectNode root = document(List.of("a line on page " + textPage));
+        ObjectNode content = (ObjectNode) root.path("document").path("json_content");
+        ObjectNode pages = content.putObject("pages");
+        for (int number : pageNumbers) {
+            ObjectNode page = pages.putObject(String.valueOf(number));
+            page.put("page_no", number);
+            page.putObject("size").put("width", 595.0).put("height", 842.0);
+        }
+        ObjectNode provenance = ((ObjectNode) content.path("texts").path(0)).putArray("prov").addObject();
+        provenance.put("page_no", textPage);
+        provenance.putArray("charspan").add(0).add(1);
+        ObjectNode wire = root.putObject("confidence");
+        putScore(wire, "parse_score", confidence.parseScore());
+        putScore(wire, "layout_score", confidence.layoutScore());
+        putScore(wire, "table_score", confidence.tableScore());
+        putScore(wire, "ocr_score", confidence.ocrScore());
+        putScore(wire, "mean_score", confidence.meanScore());
+        putScore(wire, "low_score", confidence.lowScore());
+        wire.put("mean_grade", confidence.meanGrade().toWire());
+        wire.put("low_grade", confidence.lowGrade().toWire());
+        return new DoclingResponse(ConversionStatus.SUCCESS, List.of(), PART_PROCESSING_TIME, confidence, root.toString());
+    }
+
+    private static void putScore(ObjectNode node, String name, Double score) {
+        if (score == null) {
+            node.putNull(name);
+        } else {
+            node.put(name, score);
+        }
     }
 
     /**
@@ -813,18 +998,32 @@ class TextInPartsTest {
         }
     }
 
-    /** Writes a UTF-16 text, little-endian behind its byte-order mark, of exactly {@code size} bytes. */
-    private static void writeUtf16LinesOfExactly(Path file, long size) throws IOException {
+    /** The byte-order mark of UTF-16, little-endian. */
+    private static final byte[] UTF_16LE_MARK = {(byte) 0xFF, (byte) 0xFE};
+
+    /** The byte-order mark of UTF-32, big-endian. */
+    private static final byte[] UTF_32BE_MARK = {0, 0, (byte) 0xFE, (byte) 0xFF};
+
+    /**
+     * Writes a text in {@code charset} behind its byte-order {@code mark}, of exactly {@code size} bytes,
+     * padded with spaces; {@code size} less the mark is a whole number of that charset's spaces.
+     */
+    private static void writeWideLinesOfExactly(Path file, long size, byte[] mark, java.nio.charset.Charset charset)
+            throws IOException {
+        byte[] space = " ".getBytes(charset);
+        if ((size - mark.length) % space.length != 0) {
+            throw new IllegalArgumentException("a size the mark and whole " + charset + " spaces fill");
+        }
         try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(file), 1 << 16)) {
-            out.write(new byte[] {(byte) 0xFF, (byte) 0xFE});
-            long written = 2;
-            byte[] row = "a line of a wide text\n".getBytes(StandardCharsets.UTF_16LE);
+            out.write(mark);
+            long written = mark.length;
+            byte[] row = "a line of a wide text\n".getBytes(charset);
             while (written + row.length <= size) {
                 out.write(row);
                 written += row.length;
             }
-            for (; written < size; written += 2) {
-                out.write(new byte[] {' ', 0});
+            for (; written < size; written += space.length) {
+                out.write(space);
             }
         }
     }

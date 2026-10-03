@@ -313,6 +313,9 @@ public final class TextParts {
                 if (answer.status() != ConversionStatus.SUCCESS && answer.status() != ConversionStatus.PARTIAL_SUCCESS) {
                     return failedPart(answer, label);
                 }
+                if (!(JSON.readTree(answer.rawResponse()).path("document").path("json_content") instanceof ObjectNode)) {
+                    return noDocument(label);
+                }
                 answers.add(new DoclingResponse(
                         answer.status(),
                         prefixed(answer.errors(), label),
@@ -324,6 +327,23 @@ public final class TextParts {
         } finally {
             deleteQuietly(directory);
         }
+    }
+
+    /**
+     * The answer for a part that said {@code success} or {@code partial_success} and carried no
+     * document: a failure about the document, so that the file fails and the run goes on.
+     */
+    private static DoclingResponse noDocument(String label) {
+        DoclingError error = new DoclingError(
+                "vespera", "text-parts", label + "the converter answered with no document", FailureCategory.UNKNOWN, null);
+        ObjectNode raw = JSON.createObjectNode();
+        raw.putNull("document");
+        raw.put("status", ConversionStatus.FAILURE.toWire());
+        raw.set("errors", errorsOf(List.of(error)));
+        raw.put("processing_time", 0.0);
+        raw.putObject("timings");
+        raw.putNull("confidence");
+        return new DoclingResponse(ConversionStatus.FAILURE, List.of(error), 0.0, null, raw.toString());
     }
 
     /** The answer for a text with a line longer than a part (ADR-178 section 4): a failure, with no document. */
@@ -451,6 +471,7 @@ public final class TextParts {
         if (body.path("document").path("json_content") instanceof ObjectNode content) {
             return content;
         }
+        // Defensive only: convertInParts ends the file on a part with no document before it merges.
         throw new IllegalStateException("a part's answer carries no document to merge");
     }
 
