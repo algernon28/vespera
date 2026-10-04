@@ -123,6 +123,10 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      */
     private final StageProgress progress;
 
+    /**
+     * A seam for unit tests: it sends no control conversion, so a count that reaches five stops as it did
+     * before ADR-184, and it counts a cache hit as a fresh answer.
+     */
     ExtractionItemProcessor(
             Ledger ledger,
             ContentIdentity contentIdentity,
@@ -274,13 +278,13 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             droppedTwiceInARow.add(recordedPath(occurrenceId));
             rowEvidence.noneFromThisOccurrence();
             if (droppedTwiceInARow.size() >= CONSECUTIVE_DROPPED_TWICE_COUNT) {
-                // Named here because nothing else will name them: this chunk rolls back, so none of
-                // them reaches the review list, and the closing line carries only the exception.
-                log.error(
-                        "Stage 2 (extraction): these {} files in a row each dropped the connection twice: {}",
-                        droppedTwiceInARow.size(),
-                        String.join(", ", droppedTwiceInARow));
                 if (!controlConversion.converts()) {
+                    // Named here because nothing else will name them: this chunk rolls back, so none of
+                    // them reaches the review list, and the closing line carries only the exception.
+                    log.error(
+                            "Stage 2 (extraction): these {} files in a row each dropped the connection twice: {}",
+                            droppedTwiceInARow.size(),
+                            String.join(", ", droppedTwiceInARow));
                     throw new DoclingKeepsDroppingConnectionsException(CONSECUTIVE_DROPPED_TWICE_COUNT);
                 }
                 log.warn(

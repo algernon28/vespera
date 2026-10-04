@@ -88,20 +88,18 @@ class ControlConversion {
     boolean converts() {
         pending.awaitAllDispatched();
         sidecarRecovery.awaitHealthy();
-        boolean converted;
-        try {
-            converted = carriesTheSentence(send());
-        } catch (RuntimeException notConverted) {
-            // A rejection, a timeout, a lost connection: the converter did not convert it. Not retried.
-            log.info("Stage 2 (extraction): the control conversion did not come back: {}", notConverted.toString());
-            converted = false;
-        }
+        boolean converted = carriesTheSentence(send());
         if (converted) {
             conversions++;
         }
         return converted;
     }
 
+    /**
+     * Only the converter call's own failures count as not converting, and answer null. A missing
+     * resource or a temporary file that cannot be written is a local fault, not the converter's, and
+     * propagates.
+     */
     private DoclingResponse send() {
         Path file = null;
         try {
@@ -112,7 +110,15 @@ class ControlConversion {
                 }
                 Files.copy(shipped, file, StandardCopyOption.REPLACE_EXISTING);
             }
-            return extractor.convertUncached(file, DetectedFormat.PDF, null);
+            try {
+                return extractor.convertUncached(file, DetectedFormat.PDF, null);
+            } catch (RuntimeException notConverted) {
+                // A rejection, a timeout, a lost connection: the converter did not convert it. Not retried.
+                log.info(
+                        "Stage 2 (extraction): the control conversion did not come back: {}",
+                        notConverted.toString());
+                return null;
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
@@ -127,9 +133,17 @@ class ControlConversion {
     }
 
     private static boolean carriesTheSentence(DoclingResponse response) {
-        if (!(ResponseScope.of(response) instanceof ResponseScope.Conversion)) {
+        if (response == null) {
             return false;
         }
-        return DoclingDocumentTexts.lines(response.rawResponse()).contains(SENTENCE);
+        if (!(ResponseScope.of(response) instanceof ResponseScope.Conversion)) {
+            log.info("Stage 2 (extraction): the control conversion failed because the answer was not a conversion");
+            return false;
+        }
+        boolean carries = DoclingDocumentTexts.lines(response.rawResponse()).contains(SENTENCE);
+        if (!carries) {
+            log.info("Stage 2 (extraction): the control conversion failed because the answer lacks the sentence");
+        }
+        return carries;
     }
 }
