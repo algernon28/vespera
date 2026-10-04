@@ -45,7 +45,12 @@ import org.springframework.stereotype.Component;
  * occurrence, and the step goes on. A connection dropped once is not an outcome: the sidecar is waited
  * for and the call placed once more. What stops the step from here is a sidecar that does not come
  * back, or one that drops the connection twice under {@link #CONSECUTIVE_DROPPED_TWICE_COUNT}
- * occurrences in a row.
+ * occurrences in a row and then does not convert the control conversion either (ADR-184). Which
+ * occurrences are in a row is decided by what ends the row: only an answer about a file given in this
+ * invocation, an error status, or a control conversion that converted. A cache hit, an occurrence with
+ * no detected format, a timeout with no response and a service-scope failure leave it as it is, and the
+ * first three are marked on {@link ExtractionRowEvidence} so that {@link ExtractionCircuitBreaker}'s own
+ * streak is left as it is for them too.
  *
  * <p>Nothing is chunked here (ADR-091). Chunk boundaries depend on a budget whose only reader is
  * an embedding model, and none is named: a chunk cut now is work guaranteed to be discarded, so
@@ -71,7 +76,8 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     /**
      * How many file occurrences in a row may drop the connection twice before the step stops (ADR-175
      * section 3a). Five, the count ADR-071's breaker uses for the failures the sidecar answers with, so
-     * that a sidecar that converts nothing stops the step as soon whichever way it fails.
+     * that a sidecar that converts nothing stops the step as soon whichever way it fails. Reaching it
+     * sends the control conversion; the step stops only if that does not convert either (ADR-184).
      */
     static final int CONSECUTIVE_DROPPED_TWICE_COUNT = 5;
 
@@ -93,14 +99,22 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
 
     /**
      * The file occurrences that have dropped the connection twice in a row, on the drain, by the path
-     * census recorded each under (ADR-175 section 3a). A response the processor judges ends the run of
-     * them, whether a call brought it or the extraction cache did, and so does an error status. A call
-     * that timed out does not. The paths are kept, not only counted, because the stop has to name the
+     * census recorded each under (ADR-175 section 3a). An answer to a call made for an occurrence in this
+     * invocation, which the processor judges, ends the run of them, and so does an error status
+     * (ADR-184 section 4). An answer read from the extraction cache does not, and neither does an
+     * occurrence with no detected format, a call that timed out with no response, or a service-scope
+     * failure. The paths are kept, not only counted, because the stop has to name the
      * files: the operator is told to move them, and the chunk they are in rolls back, so nothing else
      * records which they were. Held here and not in a bean of its own because this processor is
      * step-scoped and only the step thread reads it.
      */
     private final List<String> droppedTwiceInARow = new ArrayList<>();
+
+    private final ControlConversion controlConversion;
+    private final ExtractionRowEvidence rowEvidence;
+
+    /** How many control conversions had converted when the run above was last looked at. */
+    private long controlConversionsSeen;
 
     /**
      * Stage 2's progress line (ADR-093), counted here because this is the per-item seam the step has:
@@ -133,7 +147,9 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                 confidenceFloor,
                 shingler,
                 PendingConversions.none(),
-                sidecarRecovery);
+                sidecarRecovery,
+                ControlConversion.never(),
+                new ExtractionRowEvidence());
     }
 
     /**
@@ -159,7 +175,12 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             DegenerateOutputConfidenceFloor confidenceFloor,
             Shingler shingler,
             PendingConversions pending,
-            SidecarRecovery sidecarRecovery) {
+            SidecarRecovery sidecarRecovery,
+            ControlConversion controlConversion,
+            ExtractionRowEvidence rowEvidence) {
+        this.controlConversion = controlConversion;
+        this.rowEvidence = rowEvidence;
+        this.controlConversionsSeen = controlConversion.conversions();
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
         this.detectedFormats = detectedFormats;
@@ -186,6 +207,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
 
     @Override
     public ExtractionOutcome process(OccurrenceId occurrenceId) {
+        rowEvidence.forget();
         ExtractionOutcome outcome = doProcess(occurrenceId);
         log.info(
                 "[extraction] finished {} -> {}",
@@ -203,7 +225,8 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             return unreadableFormat(occurrenceId);
         }
         try {
-            return judge(occurrenceId, convert(occurrenceId, file, format.get()));
+            boolean fromCache = pending.answeredFromCache(occurrenceId);
+            return judge(occurrenceId, convert(occurrenceId, file, format.get()), fromCache);
         } catch (DoclingConnectionLostException lost) {
             return retryAfterDrop(occurrenceId, file, format.get());
         } catch (DoclingCallTimeoutException timedOut) {
@@ -236,16 +259,20 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      * that really kills it. That is accepted (ADR-175 section 5): nothing is stored for a call that
      * failed, so the next run asks about the file again.
      *
-     * <p>Five such files in a row are read as the sidecar's doing, and stop the step (section 3a): it
-     * answers its health check and converts nothing, which neither the wait nor ADR-071's breaker sees.
+     * <p>Five such files in a row are read as the sidecar's doing only if the control conversion then
+     * fails too (ADR-184 section 2, and section 3a of ADR-175): the sidecar then answers its health check
+     * and converts nothing, which neither the wait nor ADR-071's breaker sees. If it converts, each of
+     * the five keeps its {@code crashed the converter} verdict and the count starts again.
      */
     private ExtractionOutcome retryAfterDrop(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
         sidecarRecovery.awaitHealthy();
         try {
-            return judge(occurrenceId, convertNow(occurrenceId, file, format));
+            return judge(occurrenceId, convertNow(occurrenceId, file, format), false);
         } catch (DoclingConnectionLostException again) {
             sidecarRecovery.awaitHealthy();
+            startAgainIfControlConverted();
             droppedTwiceInARow.add(recordedPath(occurrenceId));
+            rowEvidence.noneFromThisOccurrence();
             if (droppedTwiceInARow.size() >= CONSECUTIVE_DROPPED_TWICE_COUNT) {
                 // Named here because nothing else will name them: this chunk rolls back, so none of
                 // them reaches the review list, and the closing line carries only the exception.
@@ -253,7 +280,15 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                         "Stage 2 (extraction): these {} files in a row each dropped the connection twice: {}",
                         droppedTwiceInARow.size(),
                         String.join(", ", droppedTwiceInARow));
-                throw new DoclingKeepsDroppingConnectionsException(CONSECUTIVE_DROPPED_TWICE_COUNT);
+                if (!controlConversion.converts()) {
+                    throw new DoclingKeepsDroppingConnectionsException(CONSECUTIVE_DROPPED_TWICE_COUNT);
+                }
+                log.warn(
+                        "Stage 2 (extraction): the converter converted the control document after {} files in a"
+                                + " row failed, so each failure is the file's own and the stage goes on",
+                        droppedTwiceInARow.size());
+                controlConversionsSeen = controlConversion.conversions();
+                droppedTwiceInARow.clear();
             }
             return failed(
                     occurrenceId,
@@ -267,22 +302,30 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     }
 
     /** What one answered call earns its occurrence, by the scope the answer is read as (ADR-183). */
-    private ExtractionOutcome judge(OccurrenceId occurrenceId, DoclingResponse response) {
-        droppedTwiceInARow.clear();
+    private ExtractionOutcome judge(OccurrenceId occurrenceId, DoclingResponse response, boolean fromCache) {
         // ADR-183 section 1: the reading of a response by scope is extraction's, the one the cache keeps
         // its rows by too. The branches are decided here: what each reading earns this occurrence.
+        // ADR-184 section 4: an answer given in this invocation ends the run of dropped files; one read
+        // from the cache, or a failure the converter blamed on itself, leaves it as it is.
         return switch (ResponseScope.of(response)) {
             case ResponseScope.Conversion conversionRead -> {
                 // ADR-070: partial_success never earns extraction-failed on its own, whatever errors it
                 // carries -- degenerate-output is the only verdict reachable from here.
+                endTheRun(fromCache);
                 timeoutStreak.reset();
                 ExtractionOutcome outcome = judgeConverted(occurrenceId, response);
                 shingler.write(occurrenceId, stageRuns.extraction(), DoclingDocumentTexts.lines(response.rawResponse()));
                 yield outcome;
             }
-            case ResponseScope.ReportedTimeout timeout ->
-                resolveTimeout(occurrenceId, timeout.error().errorMessage(), response);
+            case ResponseScope.ReportedTimeout timeout -> {
+                // The converter answered about this file, so below the flip the row ends; once the
+                // streak flips this throws and counts as a service-scope failure instead.
+                ExtractionOutcome outcome = resolveTimeout(occurrenceId, timeout.error().errorMessage(), response);
+                endTheRun(fromCache);
+                yield outcome;
+            }
             case ResponseScope.DocumentScope documentScope -> {
+                endTheRun(fromCache);
                 timeoutStreak.reset();
                 yield judgeDocumentScope(occurrenceId, response, documentScope);
             }
@@ -292,6 +335,28 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                         occurrenceId, serviceScope.category(), serviceScope.error().errorMessage());
             }
         };
+    }
+
+    /**
+     * An answer about this occurrence's file ends the run of dropped files if a call made now brought it;
+     * one read from the extraction cache says nothing about the converter now, so it leaves both runs as
+     * they are (ADR-184 section 4).
+     */
+    private void endTheRun(boolean fromCache) {
+        if (fromCache) {
+            rowEvidence.noneFromThisOccurrence();
+        } else {
+            droppedTwiceInARow.clear();
+        }
+    }
+
+    /** A control conversion that converted, asked for by the other count, starts this one again too. */
+    private void startAgainIfControlConverted() {
+        long converted = controlConversion.conversions();
+        if (converted != controlConversionsSeen) {
+            controlConversionsSeen = converted;
+            droppedTwiceInARow.clear();
+        }
     }
 
     private DoclingResponse convert(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
@@ -334,6 +399,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         String reason = "no detected format is recorded for occurrence " + occurrenceId.value() + " under run "
                 + stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION).value();
         log.info("[extraction] {}", reason);
+        rowEvidence.noneFromThisOccurrence();
         return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, reason);
     }
 
@@ -385,6 +451,9 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         }
         if (response != null) {
             extractionMetrics.write(occurrenceId, stageRuns.extraction(), response);
+        } else {
+            // The client's own silence: no response, so nothing about the converter now (ADR-184 section 4).
+            rowEvidence.noneFromThisOccurrence();
         }
         return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, "timeout: " + detail);
     }

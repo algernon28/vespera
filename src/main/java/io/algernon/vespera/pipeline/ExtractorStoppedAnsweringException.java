@@ -2,25 +2,29 @@ package io.algernon.vespera.pipeline;
 
 /**
  * Five consecutive {@link ServiceScopeFailureException} skips, of any mix of categories, have landed in
- * a row (ADR-071): the sidecar is read as dead rather than the occurrences as unlucky, and the whole
- * step fails loudly rather than completing a run that examined nothing.
+ * a row (ADR-071), and the control conversion that followed them did not convert (ADR-184): the sidecar
+ * is read as dead rather than the occurrences as unlucky, and the whole step fails loudly rather than
+ * completing a run that examined nothing. Where the control conversion does convert, the five are the
+ * files' own and this is not thrown.
  *
  * <p>Deliberately a separate mechanism from Spring Batch's own cumulative {@code skipLimit}, which
  * stays configured only as a generous backstop against a slowly-degrading sidecar over a very long
  * run (ADR-071's own distinction). This is thrown by {@link ExtractionCircuitBreaker}, a
- * {@code SkipListener}, once its own consecutive-streak counter — reset on every non-service-scope
- * outcome — crosses the threshold.
+ * {@code SkipListener}, once its own consecutive-streak counter -- ended only by evidence that the
+ * converter answers about files now (ADR-184 section 4) -- reaches the threshold and the control
+ * conversion has failed.
  *
  * <p>The message states the event and nothing else. The reasoning above is why the run stops, not what
  * happened; the categories the extractor actually answered with are on the chained cause, which is the
- * most recent {@link ServiceScopeFailureException} — naming a mix here would claim one that a streak of
+ * most recent {@link ServiceScopeFailureException} -- naming a mix here would claim one that a streak of
  * a single repeated category never had.
  */
 final class ExtractorStoppedAnsweringException extends RuntimeException {
 
     ExtractorStoppedAnsweringException(int streak, Throwable mostRecentCause) {
         super(
-                "the extractor set aside " + streak + " occurrences in a row without converting any of them",
+                "the extractor set aside " + streak + " occurrences in a row without converting any of them"
+                        + ", and did not convert the control document either",
                 mostRecentCause);
     }
 }
