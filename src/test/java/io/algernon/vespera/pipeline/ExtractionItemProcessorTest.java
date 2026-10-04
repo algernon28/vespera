@@ -719,10 +719,14 @@ class ExtractionItemProcessorTest {
         WalkId walkId = walkRecorder(ledger).walk(root);
         ImplementationVersions versions = new ImplementationVersions();
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, new io.algernon.vespera.profile.ProfileStore(root.resolveSibling("stage1-working")), root, root.resolveSibling("stage1-working")).execute(null, step);
+        io.algernon.vespera.profile.ProfileStore profileStore =
+                new io.algernon.vespera.profile.ProfileStore(root.resolveSibling("stage1-working"));
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, profileStore, root, root.resolveSibling("stage1-working")).execute(null, step);
         ExecutionContext invocation = InvocationRecordFixture.recordOf(step);
         // Stage 2 passes no gate, so the gates and the later stages' collaborators are left out: an
-        // accessor that needed one would fail here rather than mint.
+        // accessor that needed one would fail here rather than mint. The profile is the one stage 1
+        // read, because stage 2 reads extractionAttempt from it fresh when its run is minted (ADR-185
+        // §1); nothing here writes that key, so the run minted is the first attempt's.
         StageRuns stageRuns = new StageRuns(
                 ledger,
                 versions,
@@ -732,7 +736,7 @@ class ExtractionItemProcessorTest {
                 null,
                 null,
                 null,
-                null,
+                profileStore,
                 null,
                 null,
                 null,

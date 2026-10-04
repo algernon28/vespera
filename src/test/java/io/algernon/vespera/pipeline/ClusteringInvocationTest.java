@@ -72,7 +72,8 @@ class ClusteringInvocationTest {
             "relevanceScoreFloor",
             "generationModel",
             "generationContextWindow",
-            "logTimestampShareFloor");
+            "logTimestampShareFloor",
+            "extractionAttempt");
 
     @TempDir
     static Path workingDirectory;
