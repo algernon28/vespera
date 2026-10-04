@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-183.
+One file per architecture decision, ADR-001 through ADR-185.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -201,3 +201,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-181](0181-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md) | 2026-10-03 | A stopped stage 2 resumes from what its committed chunks recorded, and redoes only the rest *(amends ADR-115, ADR-116 for stage 2, ADR-139 §2, ADR-180 §2; rests on ADR-036, ADR-140)* |
 | [ADR-182](0182-stage-2-writes-shingles-without-the-by-hash-index-and-stage-4b-builds-it-before-containment-retrieval-reads-it.md) | 2026-10-03 | Stage 2 writes shingles without the by-hash index, and stage 4b builds it before containment retrieval reads it *(amends ADR-081, ADR-180 §6; rests on ADR-173, ADR-181)* |
 | [ADR-183](0183-the-extraction-cache-keeps-only-answers-about-the-document-and-a-refusal-the-converter-blamed-on-itself-is-asked-again.md) | 2026-10-03 | The extraction cache keeps only answers about the document, and a refusal the converter blamed on itself is asked again *(amends ADR-140 §5, ADR-139 §3, ADR-181; rests on ADR-070, ADR-143, ADR-182 §2.5)* |
+| [ADR-185](0185-stage-2-asks-the-converter-again-under-a-run-of-its-own-when-extractionattempt-is-raised-and-nothing-is-discarded.md) | 2026-10-04 | Stage 2 asks the converter again under a run of its own when `extractionAttempt` is raised, and nothing is discarded *(amends ADR-140 §5, ADR-183 §6, ADR-139, ADR-143, ADR-145; rests on ADR-117, ADR-156, ADR-181, ADR-183)* |

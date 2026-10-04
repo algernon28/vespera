@@ -6,14 +6,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
+import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The line an invocation ends on (ADR-098, #136): what is set, what is not, and the single next
@@ -359,6 +362,43 @@ class NextActionTest {
                 "and it is still one line",
                 () -> assertThat(line.lines()).hasSize(1));
     }
+
+    /**
+     * ADR-185 section 1: an unreadable {@code extractionAttempt} is ignored, as ADR-120 ignores every
+     * unreadable number, so stage 2 stays on its first attempt -- and the closing line says so in the
+     * words it uses for the two floors above.
+     *
+     * <p>The profile is written as YAML and loaded through {@link ProfileStore}, not built with {@code
+     * ProfileFixture}, so this compiles before the key exists. Until it does, {@code ProfileStore} refuses
+     * a file carrying it, and this fails there.
+     */
+    @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("A non-numeric extraction attempt is reported the same way")
+    @Issue("386")
+    @Link(name = "ADR-185", url = Adr.RAISING_THE_EXTRACTION_ATTEMPT_ASKS_THE_CONVERTER_AGAIN, type = "adr")
+    void aMistypedExtractionAttemptIsReportedToo(@TempDir Path workingDirectory) {
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(theRunValuesSet());
+        ExtractionAttemptInProfile.write(profileStore, A_MISTYPED_ATTEMPT, RECORDED_BY_THE_OPERATOR);
+
+        String line = NextAction.line(
+                profileStore.load(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the key is named, with the word that says it is not a number, so an operator who meant the"
+                        + " converter to be asked again learns that it was not",
+                () -> assertThat(line).contains(ExtractionAttemptInProfile.KEY).contains("number"));
+        claim(
+                "their own text is quoted back to them",
+                () -> assertThat(line).contains('"' + A_MISTYPED_ATTEMPT + '"'));
+        claim(
+                "and it is still one line",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
+    /** An attempt written as a word, which no number can be read from. */
+    private static final String A_MISTYPED_ATTEMPT = "two";
 
     @Test
     @Story("The operator is never sent to a file the invocation did not write")

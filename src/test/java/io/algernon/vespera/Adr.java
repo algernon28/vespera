@@ -986,6 +986,16 @@ public final class Adr {
     public static final String ONE_INVOCATION_PER_WORKING_DIRECTORY = FILE
             + "0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md";
 
+    /**
+     * ADR-185 -- the profile key extractionAttempt joins stage 2's run identity when it is a number other
+     * than 1, so raising it mints a new stage-2 run that asks the converter again about what the extraction
+     * cache does not keep, and every later stage runs again under a run of its own; nothing is discarded,
+     * and putting the value back arrives at the first attempt's runs (amends ADR-140 section 5, ADR-183
+     * section 6, ADR-139, ADR-143, ADR-145; rests on ADR-117, ADR-156, ADR-181, ADR-183).
+     */
+    public static final String RAISING_THE_EXTRACTION_ATTEMPT_ASKS_THE_CONVERTER_AGAIN = FILE
+            + "0185-stage-2-asks-the-converter-again-under-a-run-of-its-own-when-extractionattempt-is-raised-and-nothing-is-discarded.md";
+
     private Adr() {
     }
 }
