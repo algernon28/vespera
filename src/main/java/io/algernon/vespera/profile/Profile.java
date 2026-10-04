@@ -89,6 +89,13 @@ package io.algernon.vespera.profile;
  *     the file is a log and is {@code out-of-scope}. Ships unset, per <b>observe before enforce</b>:
  *     unset (or unreadable) means no log rule, and stage 1 only reports the distribution. Its
  *     {@link Measurement} pointer is at the format-mix page.
+ * @param extractionAttempt which attempt stage 2 is on (ADR-185): unset or {@code 1} is the first, a
+ *     whole number from 2 up is a later one, and raising it mints a new stage-2 run, so the converter
+ *     is asked again about every occurrence it got no answer about, and every later stage runs again
+ *     under a run of its own. Anything that is not a whole number of 1 or more is ignored, as ADR-120
+ *     ignores an unreadable number. Ships unset and is not a gate: an unset attempt never ends an
+ *     invocation. No {@link Measurement} pointer and no {@code with...Measurement} method: no page's
+ *     measurement informs it, and a pointer would make stage 2 write {@code profile.yaml}.
  */
 public record Profile(
         TextValue seedFolder,
@@ -99,7 +106,8 @@ public record Profile(
         TextValue arrangementApproved,
         TextValue generationModel,
         NumericValue generationContextWindow,
-        NumericValue logTimestampShareFloor) {
+        NumericValue logTimestampShareFloor,
+        NumericValue extractionAttempt) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -114,11 +122,12 @@ public record Profile(
         generationContextWindow =
                 generationContextWindow == null ? NumericValue.unset() : generationContextWindow;
         logTimestampShareFloor = logTimestampShareFloor == null ? NumericValue.unset() : logTimestampShareFloor;
+        extractionAttempt = extractionAttempt == null ? NumericValue.unset() : extractionAttempt;
     }
 
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null, null, null, null, null, null);
+        return new Profile(null, null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -132,7 +141,8 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
-                logTimestampShareFloor);
+                logTimestampShareFloor,
+                extractionAttempt);
     }
 
     /**
@@ -150,7 +160,8 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
-                logTimestampShareFloor);
+                logTimestampShareFloor,
+                extractionAttempt);
     }
 
     /**
@@ -172,7 +183,8 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
-                logTimestampShareFloor);
+                logTimestampShareFloor,
+                extractionAttempt);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
@@ -186,6 +198,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
-                logTimestampShareFloor.measuredBy(measurement));
+                logTimestampShareFloor.measuredBy(measurement),
+                extractionAttempt);
     }
 }

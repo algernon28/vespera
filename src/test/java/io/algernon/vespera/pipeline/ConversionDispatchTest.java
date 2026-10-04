@@ -299,16 +299,20 @@ class ConversionDispatchTest {
         ImplementationVersions versions = new ImplementationVersions();
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
         Path workingDirectory = root.resolveSibling("stage1-working");
+        io.algernon.vespera.profile.ProfileStore profileStore =
+                new io.algernon.vespera.profile.ProfileStore(workingDirectory);
         new ByteLevelReductionTasklet(
                         ledger,
                         new ContentIdentity(jdbcTemplate),
                         new DetectedFormats(jdbcTemplate),
                         versions,
-                        new io.algernon.vespera.profile.ProfileStore(workingDirectory),
+                        profileStore,
                         root,
                         workingDirectory)
                 .execute(null, step);
-        // Stage 2 passes no gate, so the gates and the later stages' collaborators are left out.
+        // Stage 2 passes no gate, so the gates and the later stages' collaborators are left out. The
+        // profile is the one stage 1 read, because stage 2 reads extractionAttempt from it fresh when its
+        // run is minted (ADR-185 §1); nothing here writes that key, so the run minted is the first attempt's.
         StageRuns stageRuns = new StageRuns(
                 ledger,
                 versions,
@@ -318,7 +322,7 @@ class ConversionDispatchTest {
                 null,
                 null,
                 null,
-                null,
+                profileStore,
                 null,
                 null,
                 null,

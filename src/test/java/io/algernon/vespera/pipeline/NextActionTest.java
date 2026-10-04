@@ -6,14 +6,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
+import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * The line an invocation ends on (ADR-098, #136): what is set, what is not, and the single next
@@ -355,6 +360,42 @@ class NextActionTest {
         claim(
                 "their own text is quoted back to them",
                 () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+        claim(
+                "and it is still one line",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
+    /**
+     * ADR-185 section 1: an {@code extractionAttempt} that is not a whole number of 1 or more is ignored,
+     * as ADR-120 ignores every unreadable number, so stage 2 stays on its first attempt -- and the closing
+     * line says so in the words it uses for the two floors above. Text is unreadable to every numeric key;
+     * the other five are numbers {@code Double.parseDouble} accepts that number no attempt.
+     *
+     * <p>The profile is written as YAML and loaded through {@link ProfileStore}, not built with {@code
+     * ProfileFixture}, so this compiles before the key exists. Until it does, {@code ProfileStore} refuses
+     * a file carrying it, and this fails there.
+     */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"two", "1.5", "0", "-1", "NaN", "Infinity", "2147483648"})
+    @Story("An extraction attempt that is not a whole number changes nothing, and the line says so")
+    @DisplayName("An extraction attempt that is not a whole number of 1 or more is reported")
+    @Issue("386")
+    @Link(name = "ADR-185", url = Adr.RAISING_THE_EXTRACTION_ATTEMPT_ASKS_THE_CONVERTER_AGAIN, type = "adr")
+    void anExtractionAttemptThatIsNotAWholeNumberIsReported(String written, @TempDir Path workingDirectory) {
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(theRunValuesSet());
+        ExtractionAttemptInProfile.write(profileStore, written, RECORDED_BY_THE_OPERATOR);
+
+        String line = NextAction.line(
+                profileStore.load(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the key is named, with the words that say what it should hold, so an operator who meant the"
+                        + " converter to be asked again learns that it was not",
+                () -> assertThat(line).contains(ExtractionAttemptInProfile.KEY).contains("whole number"));
+        claim(
+                "their own text is quoted back to them",
+                () -> assertThat(line).contains('"' + written + '"'));
         claim(
                 "and it is still one line",
                 () -> assertThat(line.lines()).hasSize(1));

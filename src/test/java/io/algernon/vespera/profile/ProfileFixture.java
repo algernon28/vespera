@@ -45,6 +45,8 @@ public final class ProfileFixture {
 
     private NumericValue logTimestampShareFloor = NumericValue.unset();
 
+    private NumericValue extractionAttempt = NumericValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -65,6 +67,7 @@ public final class ProfileFixture {
         fixture.generationModel = existing.generationModel();
         fixture.generationContextWindow = existing.generationContextWindow();
         fixture.logTimestampShareFloor = existing.logTimestampShareFloor();
+        fixture.extractionAttempt = existing.extractionAttempt();
         return fixture;
     }
 
@@ -167,6 +170,16 @@ public final class ProfileFixture {
         return this;
     }
 
+    public ProfileFixture extractionAttempt(String value, String provenance) {
+        return extractionAttempt(aNumber(value, provenance));
+    }
+
+    /** Stage 2's attempt (ADR-185): raising it asks the converter again under a run of its own. */
+    public ProfileFixture extractionAttempt(NumericValue value) {
+        this.extractionAttempt = value == null ? NumericValue.unset() : value;
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -178,6 +191,7 @@ public final class ProfileFixture {
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
-                logTimestampShareFloor);
+                logTimestampShareFloor,
+                extractionAttempt);
     }
 }

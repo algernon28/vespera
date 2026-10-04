@@ -303,6 +303,10 @@ class ContentCensusTaskletTest {
      * The holder a stage asks for its run through (ADR-157), over the invocation that took {@code root}
      * through byte-level reduction. Stages 2 and 3 pass no gate, so the gates and the later stages'
      * collaborators are left out: an accessor that needed one would fail here rather than mint.
+     *
+     * <p>The profile is the one in the working directory stage 1 ran in, because stage 2 reads {@code
+     * extractionAttempt} from it fresh when its run is minted (ADR-185 §1). Nothing here writes that
+     * key, so every run this class mints is the first attempt's.
      */
     private StageRuns stageRunsOver(Ledger ledger, ImplementationVersions versions, Path root) {
         return new StageRuns(
@@ -314,7 +318,7 @@ class ContentCensusTaskletTest {
                 null,
                 null,
                 null,
-                null,
+                new ProfileStore(root.resolveSibling("stage1-working")),
                 null,
                 null,
                 null,

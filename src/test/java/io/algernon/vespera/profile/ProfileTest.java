@@ -114,7 +114,7 @@ class ProfileTest {
     private static final int ONE_CONSTRUCTOR = 1;
 
     /** How many keys the profile carries today, and therefore how many the one constructor takes. */
-    private static final int EVERY_KEY = 9;
+    private static final int EVERY_KEY = 10;
 
     @Test
     @Story("The profile record has one way in")
