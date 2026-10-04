@@ -76,6 +76,19 @@ class PendingConversions {
         }
     }
 
+    /**
+     * Drops what was dispatched ahead for {@code occurrenceId} and cancels its call, for an occurrence
+     * the reader dispatched and the step ended without taking (ADR-176). Nothing was written for it: a
+     * response is written only in {@link #take}. A {@link #take} for it afterwards finds nothing
+     * pending, where the entry left in place would be waited on for a call that will never run.
+     */
+    void abandon(OccurrenceId occurrenceId) {
+        Entry entry = pending.remove(occurrenceId.value());
+        if (entry != null) {
+            entry.future().cancel(true);
+        }
+    }
+
     /** One dispatched answer, and what to do with it -- on the taking thread -- once it arrives. */
     private record Entry(Future<DoclingResponse> future, Consumer<DoclingResponse> onResolved) {}
 }

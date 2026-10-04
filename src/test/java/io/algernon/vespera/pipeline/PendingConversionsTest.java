@@ -68,4 +68,29 @@ class PendingConversionsTest {
                 "neither failure was handed on to be stored, so the converter is asked again next time",
                 () -> assertThat(stored).isEmpty());
     }
+
+    @Test
+    @Issue("369")
+    @Link(name = "ADR-176", url = Adr.STAGE_2_READS_AHEAD_ACROSS_CHUNKS, type = "adr")
+    @Story("A conversion placed ahead that the step ends without reaching")
+    @DisplayName("A conversion placed ahead and given up before it answered is cancelled, nothing waits for it afterwards, and nothing is stored for it")
+    void anAbandonedDispatchedCallIsCancelledAndForgotten() {
+        CompletableFuture<DoclingResponse> stillConverting = new CompletableFuture<>();
+        List<DoclingResponse> stored = new ArrayList<>();
+        PendingConversions pending = new PendingConversions();
+        pending.dispatch(OCCURRENCE, stillConverting, stored::add);
+
+        pending.abandon(OCCURRENCE);
+
+        claim(
+                "the conversion was cancelled, so whatever was working on it is told to stop",
+                () -> assertThat(stillConverting).isCancelled());
+        claim(
+                "asking for that document's conversion afterwards finds nothing placed ahead, and returns at"
+                        + " once without waiting for an answer that will never come",
+                () -> assertThat(pending.take(OCCURRENCE)).isEmpty());
+        claim(
+                "and nothing was handed on to be stored for it",
+                () -> assertThat(stored).isEmpty());
+    }
 }

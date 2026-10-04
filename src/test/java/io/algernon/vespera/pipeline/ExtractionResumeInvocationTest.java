@@ -43,9 +43,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>Most tests stop stage 2 the way the sidecar going away stops it: {@link ConverterStopsPartwayBeans}
  * answers {@link #ANSWERED_BEFORE_THE_STOP} conversions and refuses every later one with the connection
  * failure the real client lets through. That failure is not a skip, so the chunk it lands in rolls back
- * and the step fails. Today's chunk loop reads one chunk ahead and no further, so the first two chunks
- * commit and the third does not. The claims are phrased over what the ledger holds after the stop, so
- * they stay true if #369 widens the read-ahead across chunks. The scripted outcomes are placed by the
+ * and the step fails. The reader dispatches sixteen occurrences beyond the chunk being read (ADR-176),
+ * so which chunk the first refusal lands in is not fixed. The claims are phrased over what the ledger
+ * holds after the stop, so they hold wherever it lands. The scripted outcomes are placed by the
  * order documents are first asked about, not by name, so they do not move with the order a file
  * system lists a folder in; where a test needs an outcome to have been reached before the stop, it
  * claims so before going on, and an order that defeats the script fails there rather than passing an

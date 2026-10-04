@@ -987,6 +987,15 @@ public final class Adr {
             + "0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md";
 
     /**
+     * ADR-176 -- stage 2's reader keeps a window of its own, sixteen occurrences beyond the one it hands
+     * over, read and dispatched across chunk boundaries, so the converter is fed while a chunk drains and
+     * commits; the order occurrences are handed over in is unchanged (amends ADR-140, ADR-181's Consequences;
+     * rests on ADR-181).
+     */
+    public static final String STAGE_2_READS_AHEAD_ACROSS_CHUNKS = FILE
+            + "0176-stage-2-reads-ahead-across-chunks-so-the-converter-is-never-left-idle-between-them.md";
+
+    /**
      * ADR-185 -- the profile key extractionAttempt joins stage 2's run identity when it is a number other
      * than 1, so raising it mints a new stage-2 run that asks the converter again about what the extraction
      * cache does not keep, and every later stage runs again under a run of its own; nothing is discarded,
