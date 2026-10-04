@@ -3,8 +3,10 @@
  * same content under the same engine twice.
  *
  * <p>A capability module: it may depend on {@code ledger} and nothing else horizontal (ADR-040). It
- * does not know what a stage is — only {@code pipeline} does, and no verdict is written here (that
- * is {@code pipeline}'s stage-2 step).
+ * does not know what a stage is — only {@code pipeline} does. Stage 2's rules are here: what an answer
+ * earns, the counts of failures in a row and what follows from them, and the resolution of extraction
+ * faults, which writes the verdicts that resolve them (ADR-189). {@code pipeline} holds the step that
+ * calls them and the text that names it.
  *
  * <p><strong>One horizontal dependency is declared beyond that, and it is the only one in the
  * tree</strong>: {@code corpus}, for {@code DetectedFormat} and {@code DetectedSubtype} alone

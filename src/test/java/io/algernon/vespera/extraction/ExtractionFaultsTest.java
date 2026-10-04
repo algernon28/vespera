@@ -36,8 +36,9 @@ import org.springframework.test.context.ActiveProfiles;
  * and the cluster fault, and {@code ClusterFaultsTest} is this class's sibling in shape as well as in
  * subject.
  *
- * <p><b>Nothing here is a judgement.</b> The row alone removes nothing. It is the step-scoped listener
- * in {@code pipeline} that turns one into {@code extraction-failed}, and only where the step it
+ * <p><b>Nothing here is a judgement.</b> The row alone removes nothing. It is {@link
+ * ExtractionFaultResolution}, called at the end of the step by the step-scoped listener in {@code
+ * pipeline}, that turns one into {@code extraction-failed} (ADR-189), and only where the step it
  * happened under went on to complete -- so a class that writes rows and nothing else has to be able to
  * show that it wrote no verdict while doing it.
  *

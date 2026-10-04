@@ -6,6 +6,7 @@ import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.ExtractionFaults;
 import io.algernon.vespera.extraction.ExtractorIdentity;
+import io.algernon.vespera.extraction.FailuresInARow;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.similarity.ShingleHashIndex;
 import io.algernon.vespera.ledger.VerdictKind;
@@ -19,7 +20,6 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -74,7 +74,7 @@ public class ExtractionJobConfiguration {
      * long, since {@link ExtractionCircuitBreaker}'s consecutive-streak count is the mechanism that
      * actually protects a run against a sidecar that answers only with failures. A sidecar that drops
      * connections is stopped by {@link SidecarRecovery}'s bound when it is gone, and by {@link
-     * ExtractionItemProcessor#CONSECUTIVE_DROPPED_TWICE_COUNT} when it is up and converts nothing
+     * FailuresInARow#CONSECUTIVE_DROPPED_TWICE_COUNT} when it is up and converts nothing
      * (ADR-175).
      */
     static final long SKIP_LIMIT = 10_000;
@@ -221,18 +221,24 @@ public class ExtractionJobConfiguration {
      */
     @Bean
     @StepScope
-    ControlConversion extractionControlConversion(
+    DoclingControlConversion extractionControlConversion(
             DoclingExtractor doclingExtractor,
             SidecarRecovery sidecarRecovery,
             PendingConversions extractionPendingConversions) {
-        return new ControlConversion(doclingExtractor, sidecarRecovery, extractionPendingConversions);
+        return new DoclingControlConversion(doclingExtractor, sidecarRecovery, extractionPendingConversions);
     }
 
-    /** What the processor tells the breaker about the occurrence it has just returned (ADR-184 section 4). */
+    /**
+     * The three counts of failures in a row (ADR-189), the one instance {@link ExtractionItemProcessor}
+     * and {@link ExtractionCircuitBreaker} share, so that what either marks the other reads and a control
+     * conversion that converted starts both rows again (ADR-184 section 4). Step-scoped so the counts
+     * survive a chunk boundary and no longer; the class is plain and not final, which is what lets the
+     * scope proxy it (ADR-140 section 3).
+     */
     @Bean
     @StepScope
-    ExtractionRowEvidence extractionRowEvidence() {
-        return new ExtractionRowEvidence();
+    FailuresInARow extractionFailuresInARow(DoclingControlConversion extractionControlConversion) {
+        return new FailuresInARow(extractionControlConversion);
     }
 
     /**
@@ -418,12 +424,7 @@ public class ExtractionJobConfiguration {
         if (!running.equals(image)) {
             throw DoclingRunsAnotherImageException.running(running, image);
         }
-        String versions = reported.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(component -> component.getKey() + "=" + component.getValue())
-                .collect(Collectors.joining(";"));
-        return new ExtractorIdentity(
-                "docling-serve;image=" + image + ";" + versions + ";" + DoclingClient.sentOptions());
+        return ExtractorIdentity.composedOf(image, reported);
     }
 
     /**

@@ -1,12 +1,10 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.extraction.ExtractionFaultResolution;
 import io.algernon.vespera.extraction.ExtractionFaults;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.ledger.VerdictKind;
-import java.util.ArrayList;
-import java.util.List;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.listener.SkipListener;
 import org.springframework.batch.core.listener.StepExecutionListener;
@@ -15,7 +13,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Turns a service-scope skip into a row, once the step is done rather than as it happens (ADR-139).
+ * Turns a service-scope skip into a row, once the step is done rather than as it happens (ADR-139). The
+ * holding of the skips and their resolution into rows and verdicts are {@code extraction}'s
+ * ({@link ExtractionFaultResolution}, ADR-189); this listener is the step's side of it: when to hold, when
+ * to resolve, in which transaction, and under which run.
  *
  * <p>One object playing two listener roles, on {@link ExtractionCircuitBreaker}'s own precedent. As a
  * {@link SkipListener}, {@link #onSkipInProcess} only ever holds a skip in memory — it writes nothing.
@@ -32,13 +33,12 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p><b>Resolution, not just recording, and only on {@code COMPLETED}.</b> In that same transaction,
  * and only where the step's own exit status is {@code COMPLETED}, every fault just written also earns
- * {@link VerdictKind#EXTRACTION_FAILED}, its reason composed from the category and the bare message
- * the fault row carries -- {@code category: message}, the same shape every other extraction-failed
- * reason already has. The discriminator is ADR-071's own breaker and introduces no new number
- * (ADR-139 section 3):
- * a step that completed is a step in which five service-scope failures never landed consecutively, so
- * the sidecar answered for every faulted occurrence's neighbours and each refusal reads as a property
- * of what was uploaded rather than of the sidecar. A step the breaker stopped leaves the fault rows
+ * {@code extraction-failed}, its reason composed from the category and the bare message the fault row
+ * carries -- {@code category: message}, the same shape every other extraction-failed reason already has.
+ * The discriminator is ADR-071's own breaker and introduces no new number (ADR-139 section 3): a step
+ * that completed is a step in which five service-scope failures never landed consecutively, so the
+ * sidecar answered for every faulted occurrence's neighbours and each refusal reads as a property of
+ * what was uploaded rather than of the sidecar. A step the breaker stopped leaves the fault rows
  * standing and writes no verdict at all — there, no occurrence is judged on the strength of a sidecar
  * that had already stopped answering.
  *
@@ -55,11 +55,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOutcome>, StepExecutionListener {
 
-    private final ExtractionFaults extractionFaults;
-    private final Ledger ledger;
+    private final ExtractionFaultResolution resolution;
     private final StageRuns stageRuns;
     private final TransactionTemplate transactions;
-    private final List<PendingFault> held = new ArrayList<>();
 
     /**
      * Holds {@link StageRuns} rather than asking it for the run here (#319). This object is step-scoped,
@@ -75,8 +73,7 @@ class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOu
             Ledger ledger,
             StageRuns stageRuns,
             PlatformTransactionManager transactionManager) {
-        this.extractionFaults = extractionFaults;
-        this.ledger = ledger;
+        this.resolution = new ExtractionFaultResolution(extractionFaults, ledger);
         this.stageRuns = stageRuns;
         this.transactions = new TransactionTemplate(transactionManager);
     }
@@ -84,7 +81,7 @@ class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOu
     @Override
     public void onSkipInProcess(OccurrenceId item, Throwable t) {
         if (t instanceof ServiceScopeFailureException failure) {
-            held.add(new PendingFault(item, failure.category(), failure.detail()));
+            resolution.hold(item, failure.category(), failure.detail());
         }
     }
 
@@ -97,27 +94,13 @@ class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOu
      */
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
-        if (held.isEmpty()) {
+        if (resolution.nothingHeld()) {
             return stepExecution.getExitStatus();
         }
         RunId runId = stageRuns.extraction();
         boolean completed =
                 ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode());
-        transactions.executeWithoutResult(status -> {
-            for (PendingFault fault : held) {
-                extractionFaults.write(fault.occurrenceId(), runId, fault.category(), fault.detail());
-                if (completed) {
-                    ledger.verdict(
-                            fault.occurrenceId(),
-                            runId,
-                            VerdictKind.EXTRACTION_FAILED,
-                            fault.category() + ": " + fault.detail());
-                }
-            }
-        });
+        transactions.executeWithoutResult(status -> resolution.resolve(runId, completed));
         return stepExecution.getExitStatus();
     }
-
-    /** One held skip, exactly as {@link ServiceScopeFailureException} carried it, until {@link #afterStep}. */
-    private record PendingFault(OccurrenceId occurrenceId, String category, String detail) {}
 }
