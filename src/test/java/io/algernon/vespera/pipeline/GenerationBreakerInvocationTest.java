@@ -77,7 +77,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * two by changing either side.
  */
 @CascadeSliceTest
-@Import({ClusterFaults.class, SeedScriptedExtractionBeans.class})
+@Import(SeedScriptedExtractionBeans.class)
 @Epic("Synthesis")
 @Feature("Writing over the groups")
 @Issue("184")

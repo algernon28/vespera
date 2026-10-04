@@ -12,7 +12,7 @@ package io.algernon.vespera.synthesis;
  * <p><b>Not {@link IllegalStateException}</b>, which {@code docFor} already throws where ADR-121
  * says no call is made at all: that is a defect in a caller that forgot to ask {@code nothingFitsIn}
  * first, where this is the ordinary outcome ADR-108 exists to catch. The distinction is what lets
- * {@code GenerationTasklet} record a {@link ClusterFault} for this case and let the other propagate.
+ * {@link ClusterGeneration} record a {@link ClusterFault} for this case and let the other propagate.
  */
 public final class ClusterFaultException extends RuntimeException {
 
@@ -24,10 +24,10 @@ public final class ClusterFaultException extends RuntimeException {
      * came back, or a refusal, but never an answer.
      *
      * <p><b>Read here rather than off {@link ClusterFault#detail}</b>: the detail is prose an operator
-     * reads, and {@code GenerationTasklet} telling this case apart by matching against its wording
-     * would make a change to that wording a silent change of behaviour. What {@code GenerationTasklet}
+     * reads, and {@link ClusterGeneration} telling this case apart by matching against its wording
+     * would make a change to that wording a silent change of behaviour. What {@link ClusterGeneration}
      * does with this fact — leaving ADR-111's consecutive-turned-down-answer streak untouched, neither
-     * added to nor cleared — is that step's policy, described there rather than here.
+     * added to nor cleared — is its policy, described there rather than here.
      */
     private final boolean noAnswerWasAskedFor;
 

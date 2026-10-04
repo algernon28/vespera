@@ -19,11 +19,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * reader here.
  *
  * <p><b>Not {@code @Component}.</b> {@code GenerationTasklet} constructs its own instance from an
- * ambient {@code JdbcTemplate} rather than have Spring inject one, on {@code ClusterFaults}' own
- * precedent (ADR-041 holds either way: only this class queries the table for pictures, and only
- * through here) -- a bean nothing in {@code src/main} would inject would just sit in the context
- * unused. A test that needs one imports this class and gets it the ordinary way {@code @Import}
- * already provides for a plain class.
+ * ambient {@code JdbcTemplate} rather than have Spring inject one (ADR-041 holds either way: only
+ * this class queries the table for pictures, and only through here) -- a bean nothing in
+ * {@code src/main} would inject would just sit in the context unused. A test that needs one imports
+ * this class and gets it the ordinary way {@code @Import} already provides for a plain class.
  */
 public class DocumentPictures {
 

@@ -12,9 +12,11 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.Arrangement;
-import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.ClusteredDocument;
 import io.algernon.vespera.synthesis.Clusters;
+import io.algernon.vespera.synthesis.LabelledCluster;
+import io.algernon.vespera.synthesis.LeadDocument;
 import io.algernon.vespera.synthesis.Partition;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import java.io.IOException;
@@ -23,7 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -152,21 +154,25 @@ class ArrangementTasklet implements Tasklet {
                     write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
                             ArrangementGate.shortNameOf(arrangement),
                             Walk.canonicalRoot(root).toString(),
-                            reportOf(clusters.forRun(arrangement), membership, scores)));
+                            reportOf(clusters.forRun(arrangement), Map.of(), clusteredDocuments(membership, scores))));
                 },
                 () -> clusters.discardForRun(arrangement),
                 () -> {
-                    List<Partition> partitions = Arrangement.partitionsOf(clusteredDocuments(membership, scores));
+                    List<ClusteredDocument> documents = clusteredDocuments(membership, scores);
+                    List<Partition> partitions = Arrangement.partitionsOf(documents);
 
                     List<ArrangedCluster> arranged = Arrangement.order(partitions);
+                    Map<ClusterSlot, OccurrenceId> leads = new HashMap<>();
                     for (ArrangedCluster cluster : arranged) {
-                        ClusterLabel label = labelFor(cluster, membership, scores);
-                        clusters.record(arrangement, cluster, label);
+                        LabelledCluster labelled =
+                                LeadDocument.labelled(cluster, documents, this::titleOf, this::pathObjectOf);
+                        clusters.record(arrangement, cluster, labelled.label());
+                        leads.put(new ClusterSlot(cluster.winningSeed(), cluster.ordinal()), labelled.leadDocument());
                     }
                     write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
                             ArrangementGate.shortNameOf(arrangement),
                             Walk.canonicalRoot(root).toString(),
-                            reportOf(clusters.forRun(arrangement), membership, scores)));
+                            reportOf(clusters.forRun(arrangement), leads, documents)));
                     LOG.info(
                             "The arrangement step finished under {}: {} seed partition(s), {} cluster(s), {}"
                                     + " document(s)",
@@ -183,13 +189,22 @@ class ArrangementTasklet implements Tasklet {
      * ADR-154 §2) rather than off the arithmetic that produced them — so what a reviewer is shown, and
      * an approval then names, is the same whether this invocation just wrote those rows or is only
      * rendering a page for a run an earlier invocation finished (ADR-115, ADR-154 §2).
+     *
+     * <p>Each cluster's lead is the one {@link LeadDocument#labelled} found while the cluster was being
+     * labelled where this invocation arranged it, and {@link LeadDocument#of} where the rows were
+     * recorded earlier (ADR-106, ADR-190).
      */
     private List<ArrangementReport.Partition> reportOf(
-            List<RecordedCluster> recordedClusters, List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
+            List<RecordedCluster> recordedClusters,
+            Map<ClusterSlot, OccurrenceId> kept,
+            List<ClusteredDocument> documents) {
         Map<OccurrenceId, List<ArrangementReport.Cluster>> bySeed = new LinkedHashMap<>();
         for (RecordedCluster recorded : recordedClusters) {
             ArrangedCluster cluster = recorded.cluster();
-            OccurrenceId lead = leadDocumentOf(cluster, membership, scores);
+            OccurrenceId lead = kept.get(ClusterSlot.of(recorded));
+            if (lead == null) {
+                lead = LeadDocument.of(cluster, documents);
+            }
             bySeed.computeIfAbsent(cluster.winningSeed(), seed -> new ArrayList<>())
                     .add(new ArrangementReport.Cluster(
                             recorded.label().value(), cluster.documentCount(), pathOf(lead), linkTo(lead)));
@@ -230,17 +245,6 @@ class ArrangementTasklet implements Tasklet {
     }
 
     /**
-     * The label for one arranged cluster: derived from the cluster's own highest-scoring document
-     * (ADR-106), which is looked up here because only {@code pipeline} may read the scores and the
-     * occurrence facts the rule needs.
-     */
-    private ClusterLabel labelFor(
-            ArrangedCluster cluster, List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
-        OccurrenceId lead = leadDocumentOf(cluster, membership, scores);
-        return ClusterLabel.derivedFrom(titleOf(lead).orElse(null), pathObjectOf(lead), cluster.ordinal());
-    }
-
-    /**
      * The lead document's own title, read out of the conversion {@code extraction} already cached for
      * it (ADR-106).
      *
@@ -251,18 +255,6 @@ class ArrangementTasklet implements Tasklet {
     private Optional<String> titleOf(OccurrenceId occurrenceId) {
         Path file = Walk.canonicalRoot(root).resolve(pathObjectOf(occurrenceId).value());
         return documentTitles.forContentHash(extractor.contentHashFor(file));
-    }
-
-    /** The cluster's highest-scoring document, which is what ADR-106 names it after. */
-    private OccurrenceId leadDocumentOf(
-            ArrangedCluster cluster, List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
-        return membership.stream()
-                .filter(member -> member.winningSeedOccurrenceId().equals(cluster.winningSeed()))
-                .filter(member -> member.clusterOrdinal() == cluster.ordinal())
-                .map(DocumentCluster::occurrenceId)
-                .max(Comparator.comparingDouble(occurrence -> scores.getOrDefault(occurrence, 0.0)))
-                .orElseThrow(() -> new IllegalStateException(
-                        "cluster " + cluster.ordinal() + " was arranged with no members"));
     }
 
     /**

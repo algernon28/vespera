@@ -1066,6 +1066,20 @@ public final class Adr {
     public static final String STAGE_2_RULES_LIVE_IN_EXTRACTION = FILE
             + "0189-stage-2s-judging-rules-and-the-extractor-identitys-composition-live-in-extraction-which-still-knows-no-stage.md";
 
+    /**
+     * ADR-190 -- stage 6b's walk over the clusters, with its stop at five answers turned down in a row,
+     * its completion rule, the repair pass's deletion of a fault row and ADR-166 section 4a's exemption,
+     * lives in {@code synthesis}'s {@code ClusterGeneration}, handed each cluster's documents through a
+     * callback; stage 6a's lead-document rule lives in {@code synthesis}'s {@code LeadDocument}, asked
+     * once per cluster; {@code pipeline} keeps the step, its lines, the deliverable and the record of
+     * completion (amends ADR-110, ADR-121, ADR-166 section 4a and Consequences, ADR-149 section 9,
+     * ADR-153, ADR-139 section 2; records that ADR-186 settled #320's scope 6; rests on ADR-040, ADR-041,
+     * ADR-058, ADR-093, ADR-106, ADR-108, ADR-110, ADR-111, ADR-112, ADR-115, ADR-116, ADR-121, ADR-133,
+     * ADR-149, ADR-154, ADR-157, ADR-166, ADR-174, ADR-186, ADR-188; settles #408).
+     */
+    public static final String STAGE_6_RULES_LIVE_IN_SYNTHESIS = FILE
+            + "0190-stage-6bs-loop-and-6as-lead-document-rule-live-in-synthesis-which-still-knows-no-stage.md";
+
     private Adr() {
     }
 }

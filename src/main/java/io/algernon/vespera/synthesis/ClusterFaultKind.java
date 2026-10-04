@@ -19,7 +19,7 @@ public enum ClusterFaultKind {
      * <p>Also what a cluster none of whose documents the counting call before an answer finds room for
      * is recorded as (ADR-166 §1–§2, §4): the question was counted, or refused, before any answering
      * call was ever made, and what came back — a count too high, or a refusal on length, of every
-     * leading run down to each document alone — did not survive that count. {@code GenerationTasklet}
+     * leading run down to each document alone — did not survive that count. {@link ClusterGeneration}
      * leaves this one case out of ADR-111's consecutive-turned-down streak, neither adding to it nor
      * clearing it (ADR-166 §4a): it is no evidence the writing model, the word budget or the answer's
      * shape are right, because none of them was ever asked.
