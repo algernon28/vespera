@@ -211,8 +211,8 @@ class ExtractionStepTest {
                 () -> assertThat(scripted().mostEverConvertingAtOnce())
                         .isEqualTo(ExtractionJobConfiguration.CONVERSION_CONCURRENCY));
         claim(
-                "and the chunk is a whole number of those waves -- the chunk loop is the read-ahead, so a chunk pays"
-                        + " one tick per wave, and a chunk of ten at a width of eight paid a second tick for two"
+                "and the chunk is a whole number of those waves -- it was sized when a chunk was all that was"
+                        + " dispatched ahead, where a chunk of ten at a width of eight paid a second tick for two"
                         + " documents",
                 () -> assertThat(ExtractionJobConfiguration.CHUNK_SIZE % ExtractionJobConfiguration.CONVERSION_CONCURRENCY)
                         .isZero());

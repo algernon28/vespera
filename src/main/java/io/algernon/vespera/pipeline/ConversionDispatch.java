@@ -12,7 +12,9 @@ import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,17 +43,23 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
  * connection the thread waiting on that worker already holds -- on a pool of one, the test profile's,
  * a deadlock rather than contention. The repair is not a wider pool but a worker that never needs one.
  *
- * <p>The read-ahead is Spring Batch's own, not this class's: {@code ChunkOrientedStep} reads a whole
- * chunk -- {@link ExtractionJobConfiguration#CHUNK_SIZE} calls to {@link #read} -- before it processes
- * the first item of it ({@code processChunkSequentially}, read against {@code spring-batch-core} 6.0.5).
- * So by the time the processor asks for a chunk's first occurrence, every occurrence in that chunk has
- * been dispatched and up to the width are converting at once. That bounds what is in flight and in
- * memory to one chunk, lets verdicts commit chunk by chunk as they always have, and means a sidecar
- * that stops answering fails its in-flight wave as a block that the processor then observes
- * consecutively -- which is the order ADR-140 section 2 defines both streaks over. That holds for a
- * sidecar that answers with failures or answers nothing in time. A wave whose connections were dropped
- * is not counted by either streak: the processor waits for the sidecar and places each of those calls
- * once more, itself, on the step thread (ADR-175).
+ * <p>The read-ahead is this class's own window, and it crosses chunk boundaries (ADR-176, amending
+ * ADR-140). Each {@link #read} first reads from the delegate, dispatching each occurrence as it is
+ * read, until the window holds {@link ExtractionJobConfiguration#LOOKAHEAD} occurrences beyond the one
+ * it is about to return or the delegate has no more, and then returns the oldest. So the occurrences
+ * of the next chunk are already dispatched while this chunk's last ones are taken and while the chunk
+ * commits, and the workers have those to convert at both. Nothing more is dispatched until the next
+ * chunk's reads begin, since this class dispatches only in {@link #read}. Spring Batch's own read-ahead
+ * still sits on top: {@code ChunkOrientedStep} reads a whole chunk -- {@link ExtractionJobConfiguration#CHUNK_SIZE}
+ * calls to {@link #read} -- before it processes the first item of it ({@code processChunkSequentially},
+ * read against {@code spring-batch-core} 6.0.5). What is dispatched and not yet taken is therefore at
+ * most one chunk and the window. Verdicts commit chunk by chunk as they always have, and occurrences
+ * are returned in the delegate's order, so the processor takes them in that order whatever order their
+ * calls finish in. A sidecar that stops answering fails its in-flight calls as a block that the
+ * processor then observes consecutively -- which is the order ADR-140 section 2 defines both streaks
+ * over. That holds for a sidecar that answers with failures or answers nothing in time. A wave whose
+ * connections were dropped is not counted by either streak: the processor waits for the sidecar and
+ * places each of those calls once more, itself, on the step thread (ADR-175).
  *
  * <p>The worker threads are named and daemon. {@link #close} does run on every path a step takes, failed
  * or not ({@code AbstractStep.execute} reaches it in a {@code finally}); what it cannot reach is a JVM
@@ -97,6 +105,16 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
      */
     private boolean opened;
 
+    /**
+     * The occurrences already read from the delegate and already dispatched, in the order read, the
+     * next one to hand over first (ADR-176). Holds up to {@link ExtractionJobConfiguration#LOOKAHEAD}
+     * beyond the one {@link #read} is about to return.
+     */
+    private final Queue<OccurrenceId> readAhead = new ArrayDeque<>();
+
+    /** Raised when the delegate first returns {@code null}, so it is never read again. */
+    private boolean delegateExhausted;
+
     ConversionDispatch(
             ItemStreamReader<OccurrenceId> delegate,
             Ledger ledger,
@@ -125,11 +143,16 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
 
     @Override
     public OccurrenceId read() throws Exception {
-        OccurrenceId occurrenceId = delegate.read();
-        if (occurrenceId != null) {
-            dispatchIfConvertible(occurrenceId);
+        while (!delegateExhausted && readAhead.size() <= ExtractionJobConfiguration.LOOKAHEAD) {
+            OccurrenceId occurrenceId = delegate.read();
+            if (occurrenceId == null) {
+                delegateExhausted = true;
+            } else {
+                dispatchIfConvertible(occurrenceId);
+                readAhead.add(occurrenceId);
+            }
         }
-        return occurrenceId;
+        return readAhead.poll();
     }
 
     private void dispatchIfConvertible(OccurrenceId occurrenceId) {
@@ -173,11 +196,25 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
         extractorIdentity = extractorIdentitySource.get();
     }
 
+    /**
+     * Delegates, although the position the delegate saves may be up to {@link
+     * ExtractionJobConfiguration#LOOKAHEAD} occurrences past the last one processed: those were read
+     * ahead and not yet handed over. That is harmless because nothing restarts this step from a saved
+     * position. The job repository is resourceless, so the saved context does not outlive the process,
+     * and a stopped stage 2 finds its place in the ledger (ADR-181 section 2): an occurrence read ahead
+     * and never committed is unrecorded, and the next invocation reads it again.
+     */
     @Override
     public void update(ExecutionContext executionContext) {
         delegate.update(executionContext);
     }
 
+    /**
+     * Ends the workers, and drops what was read ahead and never handed over (ADR-176): the window is
+     * emptied and each of its calls is cancelled and removed from {@link PendingConversions}. Nothing
+     * was written for those occurrences, because a response is written only in {@link
+     * PendingConversions#take}.
+     */
     @Override
     public void close() {
         try {
@@ -186,6 +223,8 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
             }
         } finally {
             workers.shutdownNow();
+            readAhead.forEach(pending::abandon);
+            readAhead.clear();
         }
     }
 }
