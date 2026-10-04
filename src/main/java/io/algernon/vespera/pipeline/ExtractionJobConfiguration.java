@@ -16,6 +16,7 @@ import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -119,6 +120,9 @@ public class ExtractionJobConfiguration {
      * as (ADR-179 §2). Prefixed so that no docling component can report under the same key.
      */
     static final String IMAGE_ENTRY = "vespera-image";
+
+    /** For the seconds the removal of {@code shingle_by_hash} took, as its closing line states them (ADR-187). */
+    private static final double NANOS_PER_SECOND = 1_000_000_000.0;
 
     @Bean
     Step extractionStep(
@@ -323,8 +327,23 @@ public class ExtractionJobConfiguration {
         // would land at a random place in an index far larger than any page cache, and stage 4b builds it
         // whole before its first read. Removed here, on the same test as the discard above -- the step is
         // not finished -- and for the same reason that discard is here: a drop inside a chunk that rolled
-        // back would be restored. It removes no row, says nothing, and finds nothing to do on a resume.
-        new ShingleHashIndex(jdbcTemplate).drop();
+        // back would be restored. It removes no row and finds nothing to do on a resume. SQLite reads every
+        // page of the index to remove it, which took two hours on a 16 GB database (ADR-187 section 1), so
+        // where the index is there the drop has two lines of its own, and where it is not, nothing is said.
+        ShingleHashIndex shingleHashIndex = new ShingleHashIndex(jdbcTemplate);
+        if (shingleHashIndex.exists()) {
+            log.info(
+                    "Stage 2 (extraction) is removing shingle_by_hash, over up to {} shingle rows, before it writes"
+                            + " any; SQLite reads the whole index to remove it, which took two hours on a 16 GB database"
+                            + " for an index grown row by row or built into the pages one had freed, and stopping before"
+                            + " it ends undoes it",
+                    shingleHashIndex.shingleRowsUpTo());
+            long dropStarted = System.nanoTime();
+            shingleHashIndex.drop();
+            log.info(
+                    "Stage 2 (extraction) removed shingle_by_hash in {} s",
+                    String.format(Locale.ROOT, "%.1f", (System.nanoTime() - dropStarted) / NANOS_PER_SECOND));
+        }
 
         Set<OccurrenceId> recorded = extractionMetrics.occurrencesForRun(extractionRun);
         if (!recorded.isEmpty() || !faulted.isEmpty()) {
