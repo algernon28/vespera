@@ -305,7 +305,8 @@ class ContentCensusTaskletTest {
                 ledger,
                 profileStore,
                 clock,
-                workingDirectory);
+                workingDirectory,
+                jdbcTemplate);
     }
 
     /**
