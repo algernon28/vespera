@@ -253,7 +253,8 @@ class ExtractionAttemptInvocationTest {
     @Story("Raising the extraction attempt asks the converter again")
     @DisplayName("An extraction attempt written as 2.0 is the same attempt as 2, and nothing is done again")
     void twoPointZeroIsTheSameAttemptAsTwo(@TempDir Path root) throws IOException {
-        theFirstAttemptThenTheSecond(root, "two point zero");
+        Attempts attempts = theFirstAttemptThenTheSecond(root, "two point zero");
+        String refusedName = fileNameOf(attempts.refused());
 
         ExtractionAttemptInProfile.write(profileStore, THE_SECOND_ATTEMPT_WRITTEN_WITH_A_FRACTION, WHY);
         ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
@@ -267,8 +268,12 @@ class ExtractionAttemptInvocationTest {
                     assertThat(extractionRunsOf(root)).hasSize(TWO_RUNS);
                 });
         claim(
-                "and asks the converter nothing, because the second attempt's work is all recorded",
+                "it asks the converter nothing, because the second attempt's work is all recorded",
                 () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo((int) NONE));
+        claim(
+                "and it is the second attempt it arrived at, not the first: the list of what could not be read"
+                        + " still leaves out the one the converter converted when asked again",
+                () -> assertThat(reviewList()).doesNotContain(refusedName));
     }
 
     @Test

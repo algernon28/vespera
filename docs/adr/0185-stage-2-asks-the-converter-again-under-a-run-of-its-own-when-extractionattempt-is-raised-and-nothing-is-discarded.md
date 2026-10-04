@@ -148,7 +148,7 @@ ADR-183's "What this does not decide" names one case it leaves: five or more ref
 3. **Putting the value back arrives at the first attempt again.** After the same two invocations, `extractionAttempt` is removed. The third invocation mints no run of either stage and asks the converter nothing. The review list it writes names the refused occurrence again, as the first attempt removed it.
 4. **An attempt of `1` is the first attempt.** Written after the first invocation, it mints no run and asks the converter nothing.
 5. **An attempt that is not a whole number of 1 or more is ignored.** Run once for each of `two`, `1.5`, `0`, `-1`, `NaN`, `Infinity` and `2147483648`. Each, written after the first invocation, mints no run and asks the converter nothing, and the invocation completes.
-6. **`2.0` is the same attempt as `2`.** After the same two invocations as test 1, `extractionAttempt` is rewritten as `2.0`. The third invocation mints no run and asks the converter nothing.
+6. **`2.0` is the same attempt as `2`.** After the same two invocations as test 1, `extractionAttempt` is rewritten as `2.0`. The third invocation mints no run and asks the converter nothing. It arrives at the second attempt, not the first: the review list it writes still leaves out the occurrence the converter converted when asked again. An implementation that ignored `2.0` would arrive at the first attempt's run, and its list would name that occurrence.
 
 **`NextActionTest.anExtractionAttemptThatIsNotAWholeNumberIsReported`**: run once for each of the same seven values. With every run value set and `extractionAttempt` holding the value, loaded from YAML through `ProfileStore`, the closing line names the key, says "whole number", quotes the value, and is one line.
 
