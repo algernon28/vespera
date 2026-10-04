@@ -2,9 +2,11 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedSubtype;
+import io.algernon.vespera.corpus.FormatMix;
 import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.TextParts;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -41,7 +43,7 @@ final class FormatMixReport {
             Double logFloor) {}
 
     /** How many bands of a tenth the timestamped share is counted in. */
-    static final int BANDS = 10;
+    static final int BANDS = FormatMix.TIMESTAMP_BANDS;
 
     /**
      * How each class is named for a reader who has never seen this project (ADR-052): report-visible
@@ -84,14 +86,14 @@ final class FormatMixReport {
                         + " guess."))
                 .append(ReportPage.paragraph("Spreadsheets, BMP images and videos are out of scope, whatever"
                         + " they hold. So is a text file over "
-                        + OutOfScope.grouped(TextParts.LARGEST_TEXT_BYTES)
+                        + grouped(TextParts.LARGEST_TEXT_BYTES)
                         + " bytes, because the converter's answer for one would be too large to keep, and so is"
                         + " an HTML, CSV or AsciiDoc file, or a text file written in UTF-16 or UTF-32, over "
-                        + OutOfScope.grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)
+                        + grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)
                         + " bytes, because the converter cannot finish one in time and such a file is not cut"
                         + " into parts, and so is a log, once logTimestampShareFloor is set in profile.yaml."
                         + " Any other text file over "
-                        + OutOfScope.grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)
+                        + grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)
                         + " bytes is converted in parts. Files left out as out of scope,"
                         + " and not read any further: "
                         + mix.outOfScope()
@@ -190,6 +192,11 @@ final class FormatMixReport {
                         + " the clutter that is left is the kind this measurement does not reach."));
 
         return ReportPage.render("What the files turned out to be", body.toString());
+    }
+
+    /** A number with {@code ,} as the grouping separator, whatever the locale. */
+    private static String grouped(long number) {
+        return String.format(Locale.ROOT, "%,d", number);
     }
 
     /** The floor as a whole percent where it is one, and as the number otherwise. */
