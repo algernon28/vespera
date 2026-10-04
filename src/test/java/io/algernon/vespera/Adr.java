@@ -1053,6 +1053,19 @@ public final class Adr {
     public static final String STAGE_1_RULES_LIVE_IN_CORPUS = FILE
             + "0188-stage-1s-verdict-rules-and-content-identity-live-in-corpus-which-still-knows-no-stage.md";
 
+    /**
+     * ADR-189 -- every rule that decides a stage-2 verdict, an extraction fault or a stop lives in
+     * {@code extraction}: the reading of each answer, the three counts of failures in a row and what
+     * follows from each, the reading of the control conversion, the end-of-step resolution of extraction
+     * faults and the extractor identity's composition; {@code pipeline} keeps the Batch shells, the
+     * sending of the control conversion, the exceptions and the image check (amends ADR-139 section 3,
+     * ADR-140 section 3, ADR-143, ADR-154 section 3, ADR-178 section 4, ADR-179 section 3, ADR-181, ADR-184
+     * section 3; rests on ADR-012, ADR-040, ADR-058, ADR-070, ADR-071, ADR-090, ADR-100, ADR-110, ADR-140,
+     * ADR-143, ADR-147, ADR-175, ADR-183, ADR-184).
+     */
+    public static final String STAGE_2_RULES_LIVE_IN_EXTRACTION = FILE
+            + "0189-stage-2s-judging-rules-and-the-extractor-identitys-composition-live-in-extraction-which-still-knows-no-stage.md";
+
     private Adr() {
     }
 }

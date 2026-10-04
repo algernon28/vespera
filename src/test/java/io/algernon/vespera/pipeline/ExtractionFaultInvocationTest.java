@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.extraction.FailuresInARow;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
@@ -184,7 +185,7 @@ class ExtractionFaultInvocationTest {
         claim(
                 "the invocation reports success -- " + REFUSED_ONE_AFTER_ANOTHER.size() + " files the"
                         + " converter would not open, one after another, are more in a row than the "
-                        + ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + " that stop the"
+                        + FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + " that stop the"
                         + " step when the converter itself stops answering, and none of them is that",
                 () -> assertThat(cli.getExitCode()).isZero());
         for (String name : REFUSED_ONE_AFTER_ANOTHER) {

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.extraction.FailureCategory;
+import io.algernon.vespera.extraction.FailuresInARow;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.qameta.allure.Epic;
@@ -30,7 +31,7 @@ import org.junit.jupiter.api.Test;
  * what would fail if the counter were ever changed to a cumulative one.
  *
  * <p>Both listener roles are called directly rather than driven through a running step: what a
- * service-scope response earns is {@link ExtractionItemProcessorTest}'s question, and what a streak of
+ * service-scope response earns is {@code extraction.OccurrenceJudgeTest}'s question, and what a streak of
  * those earns is this class's. No context and no database — the counter reads nothing but the
  * sequence of calls made to it.
  */
@@ -45,7 +46,7 @@ class ExtractionCircuitBreakerTest {
      * counter rather than repeated, so this class cannot disagree with the rule it is claiming.
      */
     private static final int SET_ASIDE_IN_A_ROW_THAT_STOPS_THE_RUN =
-            ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
+            FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
 
     /** One fewer than that: a run this long is not yet evidence of anything. */
     private static final int SET_ASIDE_IN_A_ROW_THAT_DOES_NOT = SET_ASIDE_IN_A_ROW_THAT_STOPS_THE_RUN - 1;

@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.extraction.FailureCategory;
+import io.algernon.vespera.extraction.FailuresInARow;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.qameta.allure.Epic;
@@ -70,7 +71,7 @@ class ExtractionConcurrencyTest {
 
     /** How many set-asides read as a broken converter, off the breaker rather than repeated. */
     private static final int SET_ASIDE_IN_A_ROW_THAT_STOPS_THE_RUN =
-            ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
+            FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
 
     /** Stands in for the occurrence a listener is told about; the counter never reads it. */
     private static final OccurrenceId AN_OCCURRENCE = new OccurrenceId(1L);

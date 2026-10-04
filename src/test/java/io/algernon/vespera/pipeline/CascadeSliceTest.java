@@ -115,7 +115,6 @@ import org.springframework.transaction.annotation.Transactional;
     ExtractionJobConfiguration.class,
     ExtractionItemProcessor.class,
     ExtractionItemWriter.class,
-    ExtractionTimeoutStreak.class,
     ExtractionCircuitBreaker.class,
     ExtractionHealthCheckListener.class,
     SidecarRecovery.class,

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.ConverterStopsPartwayBeans;
+import io.algernon.vespera.extraction.FailuresInARow;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.ledger.SuccessiveBuildsBeans;
 import io.algernon.vespera.profile.ProfileFixture;
@@ -84,7 +85,7 @@ class ServiceScopeRefusalInvocationTest {
     private static final List<Integer> SPREAD_CONVERTER_FAULTS_AT = List.of(4, 12, 20, 28, 40);
 
     /** The number of consecutive refusals that stops stage 2's step. */
-    private static final int REFUSALS_THAT_STOP_THE_STEP = ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
+    private static final int REFUSALS_THAT_STOP_THE_STEP = FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
 
     /** No row at all. */
     private static final long NONE = 0;

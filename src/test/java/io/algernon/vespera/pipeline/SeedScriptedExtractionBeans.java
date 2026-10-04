@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.DoclingError;
+import io.algernon.vespera.extraction.FailuresInARow;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.FailureCategory;
@@ -65,7 +66,7 @@ class SeedScriptedExtractionBeans {
      * step (ADR-143).
      */
     static final List<String> REFUSED_ONE_AFTER_ANOTHER = IntStream.rangeClosed(
-                    1, ExtractionCircuitBreaker.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + 1)
+                    1, FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + 1)
             .mapToObj(i -> "unopenable-legacy-spreadsheet-" + i + ".xls")
             .toList();
 
