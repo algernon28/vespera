@@ -49,7 +49,7 @@ class PendingConversionsTest {
     /** A second document, dispatched beside the first. */
     private static final OccurrenceId ANOTHER_OCCURRENCE = new OccurrenceId(8);
 
-    /** A third, whose call failed before the wait began. */
+    /** A third, whose call answered before the wait began. */
     private static final OccurrenceId A_THIRD_OCCURRENCE = new OccurrenceId(9);
 
     /** How long the wait is watched for returning early while a dispatched call is still open. */
