@@ -8,12 +8,14 @@ import org.springframework.stereotype.Component;
 
 /**
  * Converts one document through Docling, cached under content hash plus full extractor identity
- * (ADR-010, ADR-012): a cache hit skips the HTTP call entirely, a miss issues exactly one call and
- * records it -- if the answer is about the document. The cache keeps a conversion and a failure the
- * converter blamed on the document, and nothing else (ADR-183): a failure it blamed on itself, or a
- * timeout it reported, is returned to the caller but never written, and a row of that kind an earlier
- * build wrote is never served, so the content goes to the converter again. {@link ResponseScope} is
- * the one reading that decides which.
+ * (ADR-010, ADR-012): a cache hit skips the HTTP call entirely, a miss issues one call and records it
+ * -- if the answer is about the document. A text over {@link DoclingClient#TEXT_SIZE_CEILING_BYTES}
+ * that {@link TextParts} cuts is the exception: a miss issues one call for each of its parts, and
+ * records the one answer they merge into, under the file's content hash (ADR-178). The cache keeps a
+ * conversion and a failure the converter blamed on the document, and nothing else (ADR-183): a failure
+ * it blamed on itself, or a timeout it reported, is returned to the caller but never written, and a
+ * row of that kind an earlier build wrote is never served, so the content goes to the converter
+ * again. {@link ResponseScope} is the one reading that decides which.
  *
  * <p>The per-occurrence ordering ADR-071/ADR-073's spec eventually wants — cache lookup, convert,
  * {@code extraction-failed} check, then metrics/degeneracy/chunking/shingling — is {@code pipeline}'s
@@ -103,8 +105,16 @@ public class DoclingExtractor {
      * The Docling call alone, with no cache read or write around it (ADR-140 section 3): what a worker
      * thread may safely place, since it touches nothing but {@link DoclingClient}. Never called where
      * {@link #cached} already answered.
+     *
+     * <p>One call for the file, except a text over the converter's ceiling that {@link TextParts} cuts:
+     * its parts are posted one after another, here, on the calling worker and not through any pool, and
+     * the answer is one merged response (ADR-178 section 7). The first part that does not convert ends
+     * the file, and whatever a call throws is rethrown as it is.
      */
     public DoclingResponse convertUncached(Path file, DetectedFormat format, DetectedSubtype subtype) {
+        if (TextParts.convertedInParts(file, format, subtype)) {
+            return TextParts.convertInParts(client, file, format, subtype);
+        }
         return client.convert(file, format, subtype);
     }
 }

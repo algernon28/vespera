@@ -404,22 +404,25 @@ class ByteLevelReductionTaskletTest {
     }
 
     /**
-     * ADR-171: a text file over 16,000,000 bytes is out of scope, whatever its subtype, because Docling
-     * keeps converting it long after the call has given up. Two byte-identical copies are the duplicate
-     * pass's to never see; the third is named as a comma-separated file, so the rule is shown to read no
-     * subtype. None of them is shaped like a log, so the log rule cannot be what removes them. Red until
-     * the change lands.
+     * ADR-178, amending ADR-171's size rule: over the 16,000,000-byte ceiling, plain text and Markdown
+     * are converted in parts and so kept, while HTML, CSV and AsciiDoc, whose structure a cut can break,
+     * and text in UTF-16, whose line ends are two bytes, stay out of scope. None of them is shaped like a
+     * log, and no log floor is set, so the log rule cannot be what removes them. Red until the change
+     * lands: today the plain text and the Markdown are removed too.
      */
     @Test
     @Story("What stage 1 does over census's survivors")
-    @DisplayName("A text file over 16,000,000 bytes is removed as out of scope, never hashed, and counted on the page")
-    @Issue("370")
-    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
-    void removesATextFileOverTheSizeCeilingAsOutOfScope(@TempDir Path root, @TempDir Path workingDirectory)
+    @DisplayName("Over 16,000,000 bytes, HTML, CSV, AsciiDoc and UTF-16 text are removed, and other text is kept to be converted in parts")
+    @Issue("371")
+    @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
+    void removesTextThatIsNotCutAndKeepsTextConvertedInParts(@TempDir Path root, @TempDir Path workingDirectory)
             throws Exception {
         writeTextOfExactly(root.resolve("export.txt"), TEXT_SIZE_CEILING_BYTES + 1);
-        writeTextOfExactly(root.resolve("export copy.txt"), TEXT_SIZE_CEILING_BYTES + 1);
+        writeTextOfExactly(root.resolve("readme.md"), TEXT_SIZE_CEILING_BYTES + 5);
         writeTextOfExactly(root.resolve("terminals.csv"), TEXT_SIZE_CEILING_BYTES + 2);
+        writeTextOfExactly(root.resolve("page.html"), TEXT_SIZE_CEILING_BYTES + 3);
+        writeTextOfExactly(root.resolve("notes.adoc"), TEXT_SIZE_CEILING_BYTES + 4);
+        writeUtf16TextOfExactly(root.resolve("wide.txt"), TEXT_SIZE_CEILING_BYTES + 2);
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = walkRecorder(ledger).walk(root);
 
@@ -428,33 +431,75 @@ class ByteLevelReductionTaskletTest {
                 .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
 
         claim(
-                "each text file one byte or more over the 16,000,000-byte ceiling is removed as out of scope --"
-                        + " the copy on its own account, not as a duplicate, and the comma-separated file too",
-                () -> assertThat(List.of(
-                                verdictKindsFor(ledger, walkId, "export.txt"),
-                                verdictKindsFor(ledger, walkId, "export copy.txt"),
-                                verdictKindsFor(ledger, walkId, "terminals.csv")))
-                        .containsOnly(List.of("OUT_OF_SCOPE")));
+                "plain text and Markdown over the ceiling carry no verdict: they reach extraction, which converts"
+                        + " them in parts",
+                () -> {
+                    assertThat(verdictKindsFor(ledger, walkId, "export.txt")).isEmpty();
+                    assertThat(verdictKindsFor(ledger, walkId, "readme.md")).isEmpty();
+                });
         claim(
-                "with a reason giving the file's size and the ceiling, both in bytes, and why the ceiling exists",
-                () -> assertThat(verdictReasonsFor(ledger, walkId, "export.txt")).containsExactly(SIZE_REASON));
+                "a CSV, an HTML and an AsciiDoc file over the ceiling are each removed as out of scope, with a"
+                        + " reason naming its kind, its size and the ceiling, and saying why a part of one will not do",
+                () -> {
+                    assertThat(verdictReasonsFor(ledger, walkId, "terminals.csv")).containsExactly(String.format(
+                            STRUCTURED_REASON, "a CSV file", "16,000,002"));
+                    assertThat(verdictReasonsFor(ledger, walkId, "page.html")).containsExactly(String.format(
+                            STRUCTURED_REASON, "an HTML file", "16,000,003"));
+                    assertThat(verdictReasonsFor(ledger, walkId, "notes.adoc")).containsExactly(String.format(
+                            STRUCTURED_REASON, "an AsciiDoc file", "16,000,004"));
+                });
         claim(
-                "the two identical files were never hashed, because nothing out of scope reaches the duplicate pass",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM content_hash", Integer.class))
-                        .isZero());
+                "and a text in UTF-16 over the ceiling is removed, with a reason saying it is not cut into parts",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, "wide.txt")).containsExactly(WIDE_REASON));
         String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
         claim(
-                "the page stage 1 writes counts the three files it left out",
-                () -> assertThat(countIn(html, "left out as out of scope")).isEqualTo(3));
-        claim(
-                "counts all three as text left out for its size, and none as a log",
+                "the page stage 1 writes counts the four files it left out, all four for their size and none as a"
+                        + " log",
                 () -> {
-                    assertThat(countIn(html, "text files left out for their size")).isEqualTo(3);
+                    assertThat(countIn(html, "left out as out of scope")).isEqualTo(4);
+                    assertThat(countIn(html, "text files left out for their size")).isEqualTo(4);
                     assertThat(countIn(html, "Of those, logs")).isZero();
                 });
         claim(
-                "and says in words that text over the ceiling is out of scope, and why",
-                () -> assertThat(html).contains(SIZE_SENTENCE));
+                "and says in words that any other text file over the ceiling is converted in parts",
+                () -> assertThat(html).contains(IN_PARTS_SENTENCE));
+    }
+
+    /**
+     * ADR-178 section 6: text is converted in parts up to 64,000,000 bytes, eight parts, and a text file
+     * over that is still out of scope, because the converter's answer for it would be too large to keep.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("A text file over 64,000,000 bytes is removed as out of scope, and one of exactly 64,000,000 bytes is kept")
+    @Issue("371")
+    @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
+    void removesATextFileOverTheLargestSizeConvertedInParts(@TempDir Path root, @TempDir Path workingDirectory)
+            throws Exception {
+        writeTextOfExactly(root.resolve("dump.txt"), LARGEST_TEXT_IN_PARTS_BYTES + 1);
+        writeTextOfExactly(root.resolve("dump at the bound.txt"), LARGEST_TEXT_IN_PARTS_BYTES);
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
+
+        claim(
+                "a text file one byte over 64,000,000 bytes is removed as out of scope, with a reason giving its"
+                        + " size, the bound and why the bound exists",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, "dump.txt")).containsExactly(LARGEST_REASON));
+        claim(
+                "and one of exactly 64,000,000 bytes is kept, to be converted in eight parts",
+                () -> assertThat(verdictKindsFor(ledger, walkId, "dump at the bound.txt")).isEmpty());
+        String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
+        claim(
+                "the page counts the one file left out for its size, and says in words that text over the bound"
+                        + " is out of scope",
+                () -> {
+                    assertThat(countIn(html, "text files left out for their size")).isEqualTo(1);
+                    assertThat(html).contains(LARGEST_SENTENCE);
+                });
     }
 
     /**
@@ -631,13 +676,52 @@ class ByteLevelReductionTaskletTest {
     /** How many timestamped lines the log-shaped file carries: more than the ten a share needs. */
     private static final int LOG_LINES = 12;
 
-    /** The reason a text file of 16,000,001 bytes is left out with, word for word. */
-    private static final String SIZE_REASON = "a text file of 16,000,001 bytes, and text files over 16,000,000 bytes"
-            + " are out of scope, because the converter cannot finish one in time";
+    /** The largest text file converted in parts, in bytes (ADR-178): eight parts of 8,000,000 bytes. */
+    private static final long LARGEST_TEXT_IN_PARTS_BYTES = 64_000_000L;
 
-    /** The format-mix page's sentence naming text over the ceiling as out of scope. */
-    private static final String SIZE_SENTENCE =
-            "So is a text file over 16,000,000 bytes, because the converter cannot finish one in time";
+    /**
+     * The reason an HTML, CSV or AsciiDoc file over the ceiling is left out with, word for word, with its
+     * kind and its size to fill in.
+     */
+    private static final String STRUCTURED_REASON = "%s of %s bytes, and HTML, CSV and AsciiDoc files over"
+            + " 16,000,000 bytes are out of scope, because the converter cannot finish one in time and cutting one"
+            + " into parts breaks its structure";
+
+    /** The reason a UTF-16 text of 16,000,002 bytes is left out with, word for word. */
+    private static final String WIDE_REASON = "a text file of 16,000,002 bytes in UTF-16 or UTF-32, and such text"
+            + " files over 16,000,000 bytes are out of scope, because the converter cannot finish one in time and one"
+            + " is not cut into parts";
+
+    /** The reason a text file of 64,000,001 bytes is left out with, word for word. */
+    private static final String LARGEST_REASON = "a text file of 64,000,001 bytes, and text files over 64,000,000"
+            + " bytes are out of scope, because the converter's answer for one would be too large to keep";
+
+    /** The format-mix page's sentence naming text that is converted in parts. */
+    private static final String IN_PARTS_SENTENCE = "Any other text file over 16,000,000 bytes is converted in parts.";
+
+    /** The format-mix page's words naming text over the largest size converted in parts as out of scope. */
+    private static final String LARGEST_SENTENCE = "So is a text file over 64,000,000 bytes, because the converter's"
+            + " answer for one would be too large to keep";
+
+    /**
+     * Writes a UTF-16 text of exactly {@code size} bytes, an even number: the little-endian byte-order
+     * mark, then rows of the same export as {@link #writeTextOfExactly}, then spaces to make up the size.
+     */
+    private static void writeUtf16TextOfExactly(Path file, long size) throws java.io.IOException {
+        byte[] row = "TID-0001;ACME RETAIL;terminal row of an export\n".getBytes(java.nio.charset.StandardCharsets.UTF_16LE);
+        byte[] space = " ".getBytes(java.nio.charset.StandardCharsets.UTF_16LE);
+        try (var out = new java.io.BufferedOutputStream(Files.newOutputStream(file), 1 << 16)) {
+            out.write(new byte[] {(byte) 0xFF, (byte) 0xFE});
+            long written = 2;
+            while (written + row.length <= size) {
+                out.write(row);
+                written += row.length;
+            }
+            for (; written < size; written += space.length) {
+                out.write(space);
+            }
+        }
+    }
 
     /**
      * Writes a text file of exactly {@code size} bytes: rows of semicolon-separated values, none

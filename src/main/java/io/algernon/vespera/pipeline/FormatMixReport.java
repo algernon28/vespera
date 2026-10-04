@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.extraction.DoclingClient;
+import io.algernon.vespera.extraction.TextParts;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -24,7 +25,7 @@ final class FormatMixReport {
     /**
      * What stage 1 found, accumulated over the occurrences it examined, and how many of them it left
      * out as out of scope (ADR-146), of which {@code logs} were logs and {@code tooLarge} were text
-     * files over the size ceiling (ADR-171). {@code byTimestampBand} counts the text files of ten or
+     * files left out for their size, by any of ADR-178's three rules (ADR-171). {@code byTimestampBand} counts the text files of ten or
      * more non-blank lines by their timestamped share, ten percent to a band, the last band being 90% to 100%;
      * {@code fewerThanTenLines} counts the rest. {@code logFloor} is {@code null} where none is set.
      */
@@ -83,9 +84,15 @@ final class FormatMixReport {
                         + " guess."))
                 .append(ReportPage.paragraph("Spreadsheets, BMP images and videos are out of scope, whatever"
                         + " they hold. So is a text file over "
+                        + OutOfScope.grouped(TextParts.LARGEST_TEXT_BYTES)
+                        + " bytes, because the converter's answer for one would be too large to keep, and so is"
+                        + " an HTML, CSV or AsciiDoc file, or a text file written in UTF-16 or UTF-32, over "
                         + OutOfScope.grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)
-                        + " bytes, because the converter cannot finish one in time, and so is a log, once"
-                        + " logTimestampShareFloor is set in profile.yaml. Files left out as out of scope,"
+                        + " bytes, because the converter cannot finish one in time and such a file is not cut"
+                        + " into parts, and so is a log, once logTimestampShareFloor is set in profile.yaml."
+                        + " Any other text file over "
+                        + OutOfScope.grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)
+                        + " bytes is converted in parts. Files left out as out of scope,"
                         + " and not read any further: "
                         + mix.outOfScope()
                         + ". Of those, logs: "
