@@ -19,7 +19,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -142,6 +145,15 @@ class ControlConversionInvocationTest {
     private static final String REFUSED_FOR_CAPACITY = "{\"status\":\"failure\",\"errors\":[{"
             + "\"component_type\":\"pipeline\",\"module_name\":\"docling.pipeline\","
             + "\"error_message\":\"" + NO_CAPACITY + "\",\"category\":\"capacity\"}],"
+            + "\"processing_time\":0.1}";
+
+    /** What the converter says when it reports that a file took too long. */
+    private static final String TOOK_TOO_LONG = "the conversion took too long";
+
+    /** A timeout the converter reported about one file, in the wire shape it answers with. */
+    private static final String REPORTED_TIMEOUT = "{\"status\":\"failure\",\"errors\":[{"
+            + "\"component_type\":\"pipeline\",\"module_name\":\"docling.pipeline\","
+            + "\"error_message\":\"" + TOOK_TOO_LONG + "\",\"category\":\"timeout\"}],"
             + "\"processing_time\":0.1}";
 
     /** Where the control conversion's PDF is shipped. */
@@ -434,6 +446,90 @@ class ControlConversionInvocationTest {
                 "and its one line of text, \"" + LoopbackSidecar.CONTROL_SENTENCE + "\", is written uncompressed,"
                         + " as a literal string, so the bytes sent carry it",
                 () -> assertThat(bytes).contains("(" + LoopbackSidecar.CONTROL_SENTENCE + ")"));
+    }
+
+    @Test
+    @Issue("393")
+    @Story("Vespera's own control PDF")
+    @DisplayName("Vespera's own control PDF, converted, leaves nothing in the store of converted documents")
+    void aControlConversionThatConvertedLeavesNothingInTheExtractionCache(@TempDir Path root) throws IOException {
+        writeTheCorpus(root, MORE_THAN_FIVE);
+        List<Integer> asRead = theOrderTheStageReadsIn(root);
+        asRead.subList(0, FIVE_IN_A_ROW).forEach(file -> sidecar.dropping(file, LoopbackSidecar.EVERY_CALL));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "extraction completed, having sent the control PDF " + ONCE + " time after the first "
+                        + FIVE_IN_A_ROW + " files in a row crashed the converter, and the converter converted it",
+                () -> {
+                    assertThat(lines()).anyMatch(line -> line.startsWith(STAGE_2_FINISHED));
+                    assertThat(sidecar.controlConversions()).isEqualTo(ONCE);
+                    assertThat(lines()).contains(THE_CONTROL_CONVERTED);
+                });
+        String controlHash = sha256OfTheControlPdf();
+        claim(
+                "nothing is stored under the control PDF's content",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM extraction_cache WHERE content_hash = ?", Long.class, controlHash))
+                        .as("rows stored under the control PDF's content hash %s", controlHash)
+                        .isZero());
+        claim(
+                "and no stored answer carries the control PDF's sentence, under whatever key",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM extraction_cache WHERE response_json LIKE ?",
+                                Long.class,
+                                "%" + LoopbackSidecar.CONTROL_SENTENCE + "%"))
+                        .as("stored answers carrying \"%s\"", LoopbackSidecar.CONTROL_SENTENCE)
+                        .isZero());
+    }
+
+    @Test
+    @Issue("393")
+    @Story("Files side by side that each crash the converter")
+    @DisplayName("A timeout the converter reports about a file, between files that crash it, ends their row: the converter answered about that file, so no row reaches five and the control PDF is never sent")
+    void aTimeoutTheConverterReportedEndsARowOfDroppedConnections(@TempDir Path root) throws IOException {
+        writeTheCorpus(root, FOUR_ONE_FOUR);
+        List<Integer> asRead = theOrderTheStageReadsIn(root);
+        int timedOut = asRead.get(THE_MIDDLE);
+        List<Integer> crashing = asRead.stream().filter(file -> file != timedOut).toList();
+        crashing.forEach(file -> sidecar.dropping(file, LoopbackSidecar.EVERY_CALL));
+        sidecar.answering(timedOut, REPORTED_TIMEOUT);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the control PDF was never sent: " + (FIVE_IN_A_ROW - 1) + " files crashed the converter, the one"
+                        + " read next was answered with a timeout the converter reported about it, which ends the"
+                        + " row, and " + (FIVE_IN_A_ROW - 1) + " more crashed it after that",
+                () -> assertThat(sidecar.controlConversions()).isEqualTo(NOT_AT_ALL));
+        claim(
+                "extraction completed",
+                () -> assertThat(lines()).anyMatch(line -> line.startsWith(STAGE_2_FINISHED)));
+        claim(
+                "the " + crashing.size() + " files that crashed the converter were removed with that as their"
+                        + " reason, and the one that timed out was removed for the timeout",
+                () -> {
+                    Map<String, String> reasons = extractionFailedReasons(root);
+                    assertThat(reasons).hasSize(FOUR_ONE_FOUR);
+                    crashing.forEach(file ->
+                            assertThat(reasons.get(nameOf(file))).startsWith("crashed the converter:"));
+                    assertThat(reasons.get(nameOf(timedOut))).isEqualTo("timeout: " + TOOK_TOO_LONG);
+                });
+    }
+
+    /**
+     * The control PDF's content hash, as the extraction cache would key it: SHA-256 over the shipped
+     * bytes, in lowercase hex.
+     */
+    private static String sha256OfTheControlPdf() throws IOException {
+        try (InputStream shipped =
+                ControlConversionInvocationTest.class.getClassLoader().getResourceAsStream(THE_CONTROL_PDF)) {
+            claim("the control PDF is on the classpath at " + THE_CONTROL_PDF, () -> assertThat(shipped).isNotNull());
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(shipped.readAllBytes()));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required of every JVM", e);
+        }
     }
 
     /**

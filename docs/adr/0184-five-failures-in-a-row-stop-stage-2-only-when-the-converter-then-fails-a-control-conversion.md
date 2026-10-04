@@ -6,7 +6,7 @@
 - **Amends**: [ADR-175](0175-a-file-that-fails-is-marked-and-skipped-and-only-a-sidecar-that-stays-gone-stops-stage-2.md) §3a, the same way for its count of file occurrences that drop the connection twice (§2, §4). Two of its accepted consequences are replaced by §5 and §6: *"A cache hit ends the run of them"* and *"Five adjacent files that each really kill the sidecar stop the step on every invocation"*. Two of its "What this does not decide" entries are settled here: #385, and telling five such files from a sidecar that converts nothing.
 - **Amends**: [ADR-181](0181-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md) §4, third bullet. It says the faulted occurrences a resume reads again reach the breaker *"in read order … as it would have done in an uninterrupted invocation"*. They do not: they reach it back to back (Context). §5 replaces that bullet. The first two bullets of ADR-181 §4 stand, and so does ADR-181 §1's read order.
 - **Amends**: [ADR-140](0140-stage-2-converts-eight-file-occurrences-at-a-time-and-consecutive-means-consecutive-on-the-drain.md) §2, first bullet. *"A dead sidecar still trips, and fast"*: it still trips, after the wait and the one call §2 adds (§6).
-- **Rests on**: [ADR-139](0139-a-refused-conversion-leaves-a-fault-row-and-a-step-that-completed-resolves-it-into-a-verdict.md) §3 (a fault is resolved because the converter answered for others), ADR-140 §2 and §3 (the drain, and the one thread the step runs on), [ADR-143](0143-an-uncategorised-conversion-failure-is-a-verdict-against-the-file.md), [ADR-183](0183-the-extraction-cache-keeps-only-answers-about-the-document-and-a-refusal-the-converter-blamed-on-itself-is-asked-again.md) (what the cache keeps, and that a refusal is asked again), ADR-181 §2 (a resume finds its place in the ledger).
+- **Rests on**: [ADR-139](0139-a-refused-conversion-leaves-a-fault-row-and-a-step-that-completed-resolves-it-into-a-verdict.md) §3 (a fault is resolved because the converter answered for others), ADR-140 §2 and §3 (the drain, and the one thread the step runs on), [ADR-143](0143-an-uncategorised-conversion-failure-is-a-verdict-against-the-file.md), [ADR-183](0183-the-extraction-cache-keeps-only-answers-about-the-document-and-a-refusal-the-converter-blamed-on-itself-is-asked-again.md) (what the cache keeps, and that a refusal is asked again), ADR-181 §2 (a resume finds its place in the ledger), [ADR-176](0176-stage-2-reads-ahead-across-chunks-so-the-converter-is-never-left-idle-between-them.md) §1 (the read-ahead window: what is dispatched and not yet taken, and that only `read()` dispatches).
 - **Settles** [#385](https://github.com/algernon28/vespera/issues/385) and [#393](https://github.com/algernon28/vespera/issues/393). They are one question, so they get one record: two counts read "five in a row" as the sidecar's doing when it can be the files' doing.
 
 ## Context
@@ -39,12 +39,12 @@ Five in a row is a fact about adjacency. Whether the converter still converts is
 
 ## Decision
 
-### 1. What "in a row" means, now and once #369 lands
+### 1. What "in a row" means, with ADR-176's read-ahead
 
 Both counts are over occurrences **on the drain** (ADR-140 §2). That is the order `ExtractionItemProcessor` takes occurrences in, one at a time, on the step thread. It is the order `ConversionDispatch.read` returns them, which is the order the survivors reader yields them (occurrence id), which is the order the walk recorded them, which is the file system's listing order. **Two occurrences are in a row when the processor takes the second directly after the first in the same invocation.**
 
 - A chunk boundary does not break a row. An invocation boundary does, because both counts start at zero in each invocation (ADR-181 §4).
-- [#369](https://github.com/algernon28/vespera/issues/369) dispatches calls up to `LOOKAHEAD` = 16 ids ahead of the one being returned, across chunk boundaries. Its `read()` still returns ids in the delegate's order, and the processor still takes them one at a time on the step thread. So the order and what is counted do not change. What changes is how many calls are already out when the sidecar fails: up to 17 dispatched calls can fail together, so a row of failures can be longer than one chunk before the processor reaches its end.
+- ADR-176, which has landed ([#369](https://github.com/algernon28/vespera/issues/369)), dispatches calls up to `LOOKAHEAD` = 16 ids ahead of the one being returned, across chunk boundaries. Its `read()` still returns ids in the delegate's order, and the processor still takes them one at a time on the step thread. So the order and what is counted do not change. What changes is how many calls are already out when the sidecar fails: up to 32 dispatched calls, a chunk plus `LOOKAHEAD` (ADR-176 §1 and Consequences), can fail together, so a row of failures can be longer than one chunk before the processor reaches its end.
 - Nothing in this record depends on `CHUNK_SIZE`, or on how far ahead calls are dispatched.
 
 ### 2. On the fifth, a control conversion decides
@@ -133,22 +133,22 @@ This replaces ADR-181 §4's third bullet. **ADR-139 §3's inference** rests on t
   - the review list shows the files with their categories, and a run of identical categories is visible there.
 - **Stopping a dead converter takes longer.** It costs the wait in §2 step 1 plus one call.
   - A converter that refuses or drops at once: seconds.
-  - One that answers nothing within the 5-minute call timeout: the dispatched calls are waited out, at most 8 at a time (ADR-140). Today that is up to two waves of the open chunk. Under #369's window of 17 it is up to three waves. Then the control conversion waits its own call timeout. That is roughly 15 to 20 minutes before the step stops, where today it stops at the fifth failure. Against a run measured in days, and a case this rare, that is accepted.
+  - One that answers nothing within the 5-minute call timeout: the dispatched calls are waited out, at most 8 at a time (ADR-140). Under ADR-176 up to 32 are dispatched and not yet taken, so that is up to four waves of 8: roughly 20 minutes of waiting. Then up to 3 minutes for `/health` (ADR-175 §2), and the control conversion waits its own call timeout, 5 more. That is up to roughly 28 minutes before the step stops, where before this record it stopped at the fifth failure. Against a run measured in days, and a case this rare, that is accepted.
 - **More control conversions on a partly cached corpus**, because cached answers no longer end a row. That is one small call per five failures.
 - **A test whose scripted converter is asked about the control PDF** sees one more call when a count reaches five. A converter scripted to refuse or drop everything refuses or drops the control conversion too, so those tests keep stopping. A converter that answers a generic conversion does not echo the sentence, so the control conversion does not count as converting there.
 
-### 7. What the #369 implementation must keep
+### 7. What ADR-176's read-ahead keeps, and must go on keeping
 
-Facts from the #369 session, 2026-10-04:
+ADR-176 has landed ([#369](https://github.com/algernon28/vespera/issues/369)). This record rests on three facts of it:
 
 - `ConversionDispatch.read()` returns ids in the delegate's order, and the processor takes them one at a time on the step thread.
-- `ExtractionCircuitBreaker`, `ExtractionTimeoutStreak`, `ExtractionItemProcessor` and `PendingConversions.take` are not edited.
+- ADR-176 left `ExtractionCircuitBreaker`, `ExtractionTimeoutStreak`, `ExtractionItemProcessor` and `PendingConversions.take` as they were; what they count is what §1 says.
 - ADR-181 §2 holds: ids read ahead and never committed are read again.
 
-This record relies on those facts, and adds three constraints:
+It also holds three constraints, which ADR-176 meets and no later change to the read-ahead may break:
 
-1. **Every dispatched call can be waited for without being taken**, until it is taken or the reader is closed. §2 step 1 needs one place that can say "every dispatched call has finished". `PendingConversions` holds them today, and the implementer of this record adds that wait there. #369 must not hold dispatched calls anywhere that place cannot see.
-2. **Calls are dispatched only by the step thread, inside `read()`.** No worker and no completion callback may dispatch a call, for example to top up the window when a call finishes. While the step thread runs §2, nothing new then goes out, and the wait in step 1 is bounded by what was already dispatched. A self-refilling window breaks that.
+1. **Every dispatched call can be waited for without being taken**, until it is taken or the reader is closed. §2 step 1 needs one place that can say "every dispatched call has finished". `PendingConversions` holds every one of them, the open chunk's and the window's, and the wait is there (`awaitAllDispatched`). Dispatched calls must not be held anywhere that place cannot see.
+2. **Calls are dispatched only by the step thread, inside `read()`** (ADR-176 §1). No worker and no completion callback may dispatch a call, for example to top up the window when a call finishes. While the step thread runs §2, nothing new then goes out, and the wait in step 1 is bounded by what was already dispatched. A self-refilling window breaks that.
 3. **Neither count moves off the step thread** (ADR-140 §2, §3).
 
 ## Consequences
@@ -178,6 +178,10 @@ This record relies on those facts, and adds three constraints:
 6. **A file that dropped the connection twice does not end a row of refusals.** Six files refused for `capacity`, every call and the control conversion included, except the third in read order, whose every call drops. The step stops with the breaker's message. *Red today: the dropped file reset the breaker, so the step completes.*
 7. **A control conversion answered with a conversion that lacks the sentence counts as not converting.** Five files in a row each drop twice, and the control conversion is answered with a generic conversion. The step stops. *Red today on the control conversion's count.*
 8. **The control PDF is shipped**: the classpath resource exists, opens with `%PDF-`, and carries `(Vespera control document)` uncompressed. *Red today: there is no such resource.*
+9. **The control conversion leaves no extraction cache row** (§3). Five files in a row drop every call, a sixth converts, and the control conversion converts. The step completes, and no `extraction_cache` row is keyed by the control PDF's content hash or carries its sentence. *Added at the gate; green against the implementation.*
+10. **A timeout the converter reported, below the flip, ends a row of dropped files** (§4). Nine files: the fifth in read order is answered with a reported `timeout`, every call for the others drops. No control conversion is posted, the step completes, the eight are removed as `crashed the converter` and the fifth as `timeout`. *Added at the gate; green against the implementation.*
+
+**`PendingConversionsTest`** pins §2 step 1: with a dispatched call still open, `awaitAllDispatched` does not return until it finishes; the answer is not taken, so `take` still returns it afterwards; and a cancelled or failed call does not throw from the wait, while its failure still reaches `take`.
 
 **`ExtractionWhenTheSidecarDropsItsConnectionTest.aTimeoutBetweenThemDoesNotEndTheRunOfDroppedDocuments`** now also drops the control conversion. Its subject is that a timeout does not end the row, and the stop it expects needs a converter that converts nothing. It is green before this change and after it. Every other test in that class is untouched.
 
@@ -190,4 +194,4 @@ This record relies on those facts, and adds three constraints:
 - **Whether a cache hit should reset ADR-071's timeout streak** (§4).
 - **A control conversion of the failing files' own kind.** One PDF answers whether the converter converts at all, which is the question both counts were written to ask (§6).
 - **Seed extraction.** It is unchanged: the first seed that drops twice still stops it (ADR-175 §6), and it has no breaker.
-- **How an operator asks again about the files on the review list**: [#386](https://github.com/algernon28/vespera/issues/386).
+- **How an operator asks again about the files on the review list.** Settled by [ADR-185](0185-stage-2-asks-the-converter-again-under-a-run-of-its-own-when-extractionattempt-is-raised-and-nothing-is-discarded.md) ([#386](https://github.com/algernon28/vespera/issues/386)): raising `extractionAttempt` gives stage 2 a run of its own, which asks the converter again.
