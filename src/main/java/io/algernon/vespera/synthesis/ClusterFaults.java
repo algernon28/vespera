@@ -4,6 +4,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
 
 /**
  * Stage 6b's record of a cluster whose answer it turned down (ADR-108, ADR-109, ADR-111), behind this
@@ -22,12 +23,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>Rows are keyed by the 6b run, so a second generation writes beside the first rather than over
  * it (ADR-077), the rule {@link SynthesisDocs} already follows.
  *
- * <p><b>Not {@code @Component}.</b> {@code GenerationTasklet} constructs its own instance from an
- * ambient {@code JdbcTemplate} rather than have Spring inject one (ADR-041 holds either way: only
- * this class touches {@code cluster_fault}, and only through here) — a bean nothing in {@code
- * src/main} would inject would just sit in the context unused. A test that needs one imports this
- * class and gets it the ordinary way {@code @Import} already provides for a plain class.
+ * <p><b>A bean</b>, handed both to {@code GenerationTasklet}, which reads the rows to say why a cluster
+ * went unwritten, and to {@link ClusterGeneration}, which writes them. ADR-041 holds as before: only
+ * this class touches {@code cluster_fault}, and only through here (ADR-190).
  */
+@Component
 public class ClusterFaults {
 
     private final JdbcTemplate jdbcTemplate;

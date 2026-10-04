@@ -21,16 +21,17 @@ import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
-import io.algernon.vespera.synthesis.ClusterCall;
 import io.algernon.vespera.synthesis.ClusterFault;
-import io.algernon.vespera.synthesis.ClusterFaultException;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.ClusterSlot;
-import io.algernon.vespera.synthesis.ClusterSynthesis;
+import io.algernon.vespera.synthesis.ClusterGeneration;
+import io.algernon.vespera.synthesis.ClusterMaterial;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.Deliverable;
 import io.algernon.vespera.synthesis.DeliverableProvenance;
 import io.algernon.vespera.synthesis.Exemplar;
+import io.algernon.vespera.synthesis.GenerationOutcome;
+import io.algernon.vespera.synthesis.GenerationProgress;
 import io.algernon.vespera.synthesis.ListedPicture;
 import io.algernon.vespera.synthesis.ListedPicturePlace;
 import io.algernon.vespera.synthesis.ListedSurvivor;
@@ -39,7 +40,6 @@ import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.RecordedClusterFault;
 import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
 import io.algernon.vespera.synthesis.SurvivorPictures;
-import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.algernon.vespera.synthesis.Unwritten;
 import java.io.UncheckedIOException;
@@ -88,7 +88,8 @@ import org.springframework.stereotype.Component;
  * <p><b>It writes no verdict.</b> Generation removes nothing: its one way of failing is a fault
  * recorded against a cluster (ADR-111), where a verdict removes a document.
  *
- * <p><b>Completion needs two things, not one</b> (ADR-116): every sendable cluster carries a
+ * <p><b>Completion needs two things, not one</b> (ADR-116), and the rule is {@link ClusterGeneration}'s
+ * (ADR-190), which returns how the walk ended and leaves this step to act on it: every sendable cluster carries a
  * {@code synthesis_doc} row, <em>and</em> no {@code cluster_fault} row stands under this run. A
  * turned-down cluster carries no {@code synthesis_doc} row, so the next invocation of this run asks
  * about it again, and its fault row is deleted the moment that answer is believed (ADR-111, #185) —
@@ -101,7 +102,8 @@ import org.springframework.stereotype.Component;
  * settled in the negative that such a cluster earns no {@code cluster_fault} row of its own: the 6a
  * {@code cluster} row is the denominator, and the missing {@code synthesis_doc} row is the hole.
  *
- * <p><b>Five turned down in a row stop the step</b> (ADR-111, #184), and any answer that is believed
+ * <p><b>Five turned down in a row stop the step</b> (ADR-111, #184), the count being {@link
+ * ClusterGeneration}'s and the stop this step's own, and any answer that is believed
  * drops the count to nothing. One rejected answer costs its own cluster, which is the paragraph
  * above; five consecutive ones are not five unlucky clusters but the model, the word budget or the
  * imposed schema being wrong for this corpus, and every call after the fifth buys another copy of
@@ -113,13 +115,6 @@ import org.springframework.stereotype.Component;
 class GenerationTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(GenerationTasklet.class);
-
-    /**
-     * How many answers turned down one after another stop the step (ADR-111). Five, matching ADR-071's
-     * service-scope count rather than its lower timeout count, because like that one this fires on a
-     * mix of kinds.
-     */
-    static final int CONSECUTIVE_TURNED_DOWN_ANSWERS = 5;
 
     private final ArrangementGate arrangementGate;
     private final StageRuns stageRuns;
@@ -133,7 +128,7 @@ class GenerationTasklet implements Tasklet {
     private final DocumentPictures documentPictures;
     private final ExtractorIdentity extractorIdentity;
     private final DetectedFormats detectedFormats;
-    private final ClusterSynthesis clusterSynthesis;
+    private final ClusterGeneration clusterGeneration;
     private final SynthesisDocs synthesisDocs;
     private final ClusterFaults clusterFaults;
     private final Ledger ledger;
@@ -153,8 +148,9 @@ class GenerationTasklet implements Tasklet {
             DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
             DetectedFormats detectedFormats,
-            ClusterSynthesis clusterSynthesis,
+            ClusterGeneration clusterGeneration,
             SynthesisDocs synthesisDocs,
+            ClusterFaults clusterFaults,
             JdbcTemplate jdbcTemplate,
             Ledger ledger,
             ProfileStore profileStore,
@@ -171,16 +167,12 @@ class GenerationTasklet implements Tasklet {
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
         this.detectedFormats = detectedFormats;
-        this.clusterSynthesis = clusterSynthesis;
+        this.clusterGeneration = clusterGeneration;
         this.synthesisDocs = synthesisDocs;
-        // Constructed rather than injected as its own bean (ADR-041 holds: only this class touches
-        // cluster_fault, and only through here). A Spring-managed bean would force every invocation
-        // test in this cascade to name it, not just the ones this ticket is about; the JdbcTemplate
-        // it is built from is already ambient wherever Ledger and SynthesisDocs are.
-        this.clusterFaults = new ClusterFaults(jdbcTemplate);
-        // Built the same way (ADR-041 holds: only a picture's own reader touches extraction_cache for
-        // it). A Spring-managed bean would force every invocation test that already @Imports this
-        // class to name it too; the JdbcTemplate it is built from is already ambient here.
+        this.clusterFaults = clusterFaults;
+        // Built from the JdbcTemplate rather than injected (ADR-041 holds: only a picture's own reader
+        // touches extraction_cache for it). A Spring-managed bean would force every invocation test that
+        // already @Imports this class to name it too.
         this.documentPictures = new DocumentPictures(jdbcTemplate);
         this.ledger = ledger;
         this.profileStore = profileStore;
@@ -238,148 +230,30 @@ class GenerationTasklet implements Tasklet {
                     int contextWindow = generationContextWindow.size();
                     List<RecordedCluster> recordedClusters = clusters.forRun(arrangement);
 
-                    // Rows an earlier invocation of this run already wrote (ADR-115, ADR-116): those
-                    // clusters are skipped rather than written again.
-                    Set<ClusterKey> alreadyWritten = synthesisDocs.forRun(generation).stream()
-                            .map(recordedDoc -> new ClusterKey(recordedDoc.winningSeed(), recordedDoc.clusterOrdinal()))
-                            .collect(Collectors.toSet());
+                    GenerationOutcome outcome = clusterGeneration.write(
+                            generation,
+                            recordedClusters,
+                            recorded -> {
+                                List<Exemplar> exemplars = exemplarsOf(
+                                        byCluster.getOrDefault(ClusterKey.of(recorded), List.of()),
+                                        scores,
+                                        canonicalRoot);
+                                return new ClusterMaterial(pathOf(recorded.cluster().winningSeed()), exemplars);
+                            },
+                            modelName,
+                            contextWindow,
+                            progressLines());
 
-                    int written = 0;
-                    int skipped = 0;
-                    int unsendable = 0;
-                    int faulted = 0;
-                    // The consecutive-fault streak (ADR-111), held here rather than in a class of its
-                    // own the way ExtractionCircuitBreaker's is: that one counts across chunk boundaries
-                    // and so has to outlive the call that increments it, where this whole step is one
-                    // pass of one loop. The faults themselves are kept rather than a count, because what
-                    // the operator has to act on is which checks the run of answers failed.
-                    List<ClusterFault> turnedDownInARow = new ArrayList<>();
-                    // What this invocation itself found about a cluster it could send nothing for
-                    // (ADR-121), so its page can say why (ADR-174). Fault rows are read when the tree
-                    // is written, since a repair invocation meets an earlier one's too.
-                    Map<ClusterSlot, Unwritten> foundThisRun = new LinkedHashMap<>();
-                    for (RecordedCluster recorded : recordedClusters) {
-                        ClusterKey key = ClusterKey.of(recorded);
-                        if (alreadyWritten.contains(key)) {
-                            skipped++;
-                            continue;
-                        }
-                        List<Exemplar> exemplars = exemplarsOf(
-                                byCluster.getOrDefault(key, List.of()), scores, canonicalRoot);
-                        if (exemplars.isEmpty()) {
-                            LOG.warn(
-                                    "cluster {} of partition {} has no document this run can send --"
-                                            + " nothing it holds was ever chunked, or none of it could be"
-                                            + " read -- so no synthesis doc was written for it",
-                                    recorded.cluster().ordinal(),
-                                    recorded.cluster().partitionOrder());
-                            foundThisRun.put(ClusterSlot.of(recorded), Unwritten.NO_SENDABLE_DOCUMENT);
-                            unsendable++;
-                            continue;
-                        }
-                        if (ClusterSynthesis.nothingFitsIn(contextWindow, exemplars)) {
-                            LOG.warn(
-                                    "cluster {} of partition {} has {} document(s) this run could open but"
-                                            + " a reading window of {} leaves room for none of them -- so"
-                                            + " no call was made and no synthesis doc was written for it",
-                                    recorded.cluster().ordinal(),
-                                    recorded.cluster().partitionOrder(),
-                                    exemplars.size(),
-                                    contextWindow);
-                            foundThisRun.put(ClusterSlot.of(recorded), Unwritten.NOTHING_FITS_THE_WINDOW);
-                            unsendable++;
-                            continue;
-                        }
-                        SynthesisDoc doc;
-                        try {
-                            doc = clusterSynthesis.docFor(
-                                    new ClusterCall(
-                                            recorded.label().value(),
-                                            pathOf(recorded.cluster().winningSeed()),
-                                            exemplars),
-                                    modelName,
-                                    contextWindow);
-                        } catch (ClusterFaultException e) {
-                            // A call came back and failed one of ADR-108's/ADR-109's four checks
-                            // (ADR-111), or -- per ADR-166 §4 -- the answering call was refused as
-                            // longer than the window after the counting call before it found the same
-                            // question to fit (#332), or no document of the cluster fit the room by
-                            // the counting call's own count and no answering call was ever made.
-                            // Recorded against the cluster, never a document -- nothing here removes
-                            // anything -- and the run carries straight on.
-                            if (e.noAnswerWasAskedFor()) {
-                                LOG.warn(
-                                        "cluster {} of partition {} has no document the serving engine"
-                                                + " counts inside the room for a question -- no answer was"
-                                                + " asked for -- {}: {}",
-                                        recorded.cluster().ordinal(),
-                                        recorded.cluster().partitionOrder(),
-                                        e.fault().kind(),
-                                        e.fault().detail());
-                            } else {
-                                LOG.warn(
-                                        "cluster {} of partition {} had its answer turned down -- {}: {} --"
-                                                + " so no synthesis doc was written for it",
-                                        recorded.cluster().ordinal(),
-                                        recorded.cluster().partitionOrder(),
-                                        e.fault().kind(),
-                                        e.fault().detail());
-                            }
-                            clusterFaults.record(
-                                    generation,
-                                    recorded.cluster().winningSeed(),
-                                    recorded.cluster().ordinal(),
-                                    e.fault());
-                            faulted++;
-                            // The third of the three cases above never asked for an answer, so it is no
-                            // evidence the writing model, the word budget or the answer's shape are
-                            // right -- and none that they are wrong either (ADR-166 §4a, ADR-111's
-                            // consequences as #184 settled them for a cluster no call could be made
-                            // for). It is left out of the streak below, neither dropping the count to
-                            // nothing the way a believed answer does nor adding to it the way every
-                            // other turned-down answer does.
-                            if (!e.noAnswerWasAskedFor()) {
-                                turnedDownInARow.add(e.fault());
-                                if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
-                                    stopTheStep(contribution, chunkContext, turnedDownInARow, generation);
-                                    writeDeliverable(
-                                            generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                                            recordedClusters, membership, scores, foundThisRun);
-                                    return false;
-                                }
-                            }
-                            continue;
-                        }
-                        synthesisDocs.record(
-                                generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal(), doc);
-                        // A repair pass re-attempts a cluster that already carries a fault row from an
-                        // earlier invocation of this run (ADR-111, #185). It just succeeded, so that row
-                        // would now say the cluster both failed and succeeded under one run -- which the
-                        // ledger must never say -- and is deleted. A no-op for the ordinary cluster that
-                        // never faulted.
-                        clusterFaults.delete(
-                                generation, recorded.cluster().winningSeed(), recorded.cluster().ordinal());
-                        written++;
-                        // An answer that was believed is the only thing that drops the streak. A cluster
-                        // skipped because an earlier invocation already wrote it, and one nothing could
-                        // be sent for, both reach neither this line nor the one above: no call was made,
-                        // so neither is evidence that the model, the budget and the schema are right --
-                        // and neither is evidence they are wrong.
-                        turnedDownInARow.clear();
+                    // The step acts on the outcome (ADR-190): the walk, the stop and the completion
+                    // rule (ADR-111, ADR-116) are ClusterGeneration's.
+                    if (outcome instanceof GenerationOutcome.Stopped stopped) {
+                        stopTheStep(contribution, chunkContext, stopped.turnedDownInARow(), generation);
+                        writeDeliverable(
+                                generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                                recordedClusters, membership, scores, outcome.unsendable());
+                        return false;
                     }
-
-                    // Completion needs two things, not one (ADR-116): every sendable cluster carries a
-                    // synthesis doc -- written just now or by an earlier invocation of this run
-                    // (ADR-115) -- and no cluster_fault row stands under this run. A turned-down cluster
-                    // leaves the step unfinished until the next invocation asks about it again and the
-                    // answer is believed, which deletes the fault row above and lets this finish
-                    // (ADR-111, #185). An unsendable one leaves it unfinished with nothing to repair it:
-                    // no call is ever made for a cluster nothing fits into (ADR-121), so no later
-                    // invocation can turn that into a synthesis doc. Recording the step finished in
-                    // either case would short-circuit every later invocation and leave the hole
-                    // permanent and unannounced.
-                    int standingFaults = clusterFaults.forRun(generation).size();
-                    if (unsendable > 0 || standingFaults > 0) {
+                    if (outcome instanceof GenerationOutcome.LeftUnfinished unfinished) {
                         // The standing count, not this invocation's -- a repair invocation that turned
                         // nothing down itself still meets an earlier one's reason, and reporting its own
                         // two zeroes would say nothing went wrong and then refuse to finish.
@@ -388,19 +262,20 @@ class GenerationTasklet implements Tasklet {
                                         + " standing with a fault ({} of them this invocation) under run"
                                         + " {}, so it is not recorded as finished and the next invocation"
                                         + " will attempt what is missing again",
-                                unsendable,
-                                standingFaults,
-                                faulted,
+                                unfinished.unsendable().size(),
+                                unfinished.standingFaults(),
+                                unfinished.faultedThisInvocation(),
                                 generation.value());
                         writeDeliverable(
                                 generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters,
-                                membership, scores, foundThisRun);
+                                membership, scores, outcome.unsendable());
                         return false;
                     }
 
+                    GenerationOutcome.Finished finished = (GenerationOutcome.Finished) outcome;
                     Path tree = writeDeliverable(
                             generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters,
-                            membership, scores, foundThisRun);
+                            membership, scores, outcome.unsendable());
                     LOG.info(
                             "The generation step finished under {}, over the arrangement approved as {}:"
                                     + " {} synthesis doc(s) written under model {} in a window of {}, {}"
@@ -408,13 +283,66 @@ class GenerationTasklet implements Tasklet {
                                     + " they were -- the deliverable tree is at {}",
                             generation.value(),
                             ArrangementGate.shortNameOf(arrangement),
-                            written,
+                            finished.written(),
                             modelName,
                             contextWindow,
-                            skipped,
+                            finished.alreadyWritten(),
                             tree);
                     return true;
                 });
+    }
+
+    /**
+     * The four lines the walk's progress earns, each about one cluster, written under this class's own
+     * logger so that what the operator reads is unchanged by where the walk lives (ADR-093, ADR-190).
+     */
+    private static GenerationProgress progressLines() {
+        return new GenerationProgress() {
+            @Override
+            public void noSendableDocument(RecordedCluster cluster) {
+                LOG.warn(
+                        "cluster {} of partition {} has no document this run can send --"
+                                + " nothing it holds was ever chunked, or none of it could be"
+                                + " read -- so no synthesis doc was written for it",
+                        cluster.cluster().ordinal(),
+                        cluster.cluster().partitionOrder());
+            }
+
+            @Override
+            public void nothingFitsTheWindow(RecordedCluster cluster, int documents, int contextWindow) {
+                LOG.warn(
+                        "cluster {} of partition {} has {} document(s) this run could open but"
+                                + " a reading window of {} leaves room for none of them -- so"
+                                + " no call was made and no synthesis doc was written for it",
+                        cluster.cluster().ordinal(),
+                        cluster.cluster().partitionOrder(),
+                        documents,
+                        contextWindow);
+            }
+
+            @Override
+            public void noDocumentCountedInsideTheRoom(RecordedCluster cluster, ClusterFault fault) {
+                LOG.warn(
+                        "cluster {} of partition {} has no document the serving engine"
+                                + " counts inside the room for a question -- no answer was"
+                                + " asked for -- {}: {}",
+                        cluster.cluster().ordinal(),
+                        cluster.cluster().partitionOrder(),
+                        fault.kind(),
+                        fault.detail());
+            }
+
+            @Override
+            public void answerTurnedDown(RecordedCluster cluster, ClusterFault fault) {
+                LOG.warn(
+                        "cluster {} of partition {} had its answer turned down -- {}: {} --"
+                                + " so no synthesis doc was written for it",
+                        cluster.cluster().ordinal(),
+                        cluster.cluster().partitionOrder(),
+                        fault.kind(),
+                        fault.detail());
+            }
+        };
     }
 
     /**

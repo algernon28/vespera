@@ -684,7 +684,7 @@ public class ClusterSynthesis {
      * Whether nothing among {@code exemplars} fits {@code contextWindow} at all (ADR-121): every one
      * is larger than the room, so the fill would be empty before a call is even made.
      *
-     * <p>Read by the tasklet before {@link #docFor} is reached, so a cluster of unusually large
+     * <p>Read by {@link ClusterGeneration} before {@link #docFor} is reached, so a cluster of unusually large
      * documents never costs a call — the other route to an empty fill ADR-121 names, where the window
      * itself is reasonable but one outsized cluster still gets nothing while its neighbours write fine.
      */

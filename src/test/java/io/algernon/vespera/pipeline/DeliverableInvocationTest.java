@@ -12,7 +12,6 @@ import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileKeys;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.Deliverable;
 import io.qameta.allure.Epic;
@@ -68,7 +67,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * one of that record's outside-facing surfaces, and so is every word of this report.
  */
 @CascadeSliceTest
-@Import({ClusterFaults.class, SeedScriptedExtractionBeans.class})
+@Import(SeedScriptedExtractionBeans.class)
 @Epic("Synthesis")
 @Feature("The tree the operator is handed")
 @Issue("186")

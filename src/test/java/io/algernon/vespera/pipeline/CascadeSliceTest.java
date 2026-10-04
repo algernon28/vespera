@@ -26,6 +26,8 @@ import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.RedundancyResolution;
 import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.Shingler;
+import io.algernon.vespera.synthesis.ClusterFaults;
+import io.algernon.vespera.synthesis.ClusterGeneration;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.SynthesisDocs;
@@ -171,6 +173,9 @@ import org.springframework.transaction.annotation.Transactional;
     GenerationScriptedBeans.class,
     ClusterSynthesis.class,
     SynthesisDocs.class,
+    // The loop over the clusters, and the faults it records, are beans GenerationTasklet is handed (ADR-190).
+    ClusterGeneration.class,
+    ClusterFaults.class,
     LeadingChunks.class,
     // The ledger and the profile every stage reads and writes through.
     Ledger.class,

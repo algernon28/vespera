@@ -9,7 +9,6 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.Deliverable;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -65,7 +64,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122).
  */
 @CascadeSliceTest
-@Import({ClusterFaults.class, PictureScriptedExtractionBeans.class})
+@Import(PictureScriptedExtractionBeans.class)
 @Epic("Synthesis")
 @Feature("The pictures a document carries")
 @Issue("285")
