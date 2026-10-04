@@ -74,9 +74,12 @@ class ServiceScopeRefusalInvocationTest {
 
     /**
      * Five positions the converter refuses while blaming itself: two in each of the first two chunks
-     * and one in the third, so no more than four can reach the drain in a row however a chunk's
-     * workers reach the converter, and the first invocation completes. Five is the number of
-     * consecutive refusals that stops the step.
+     * and one in the third. Five of them cannot reach the drain in a row, in whatever order the workers
+     * reach the converter, so the first invocation completes. The first position falls to one of the
+     * first eleven occurrences read, because at most seven other workers can be holding an earlier
+     * one. The last falls to none of the first sixteen, because the reader has dispatched only
+     * thirty-two occurrences until the first chunk has been processed whole (ADR-176). Five is the
+     * number of consecutive refusals that stops the step.
      */
     private static final List<Integer> SPREAD_CONVERTER_FAULTS_AT = List.of(4, 12, 20, 28, 40);
 

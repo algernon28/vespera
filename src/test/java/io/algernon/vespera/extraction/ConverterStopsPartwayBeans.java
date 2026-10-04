@@ -50,11 +50,12 @@ import org.springframework.web.client.ResourceAccessException;
  *       the occurrence's own bytes, so each one's shingles differ and a count of them says something.
  * </ul>
  *
- * <p>Positions within one chunk's worth of reads are asked about in whatever order the worker threads
- * reach the client (ADR-140), so which occurrence of a chunk takes a position may differ from run to
- * run; which chunk it falls in does not, because the next chunk is read only after this one is
- * processed. A test that needs an outcome reached before a stop says so in a claim of its own, so an
- * order that defeats it fails loudly rather than passing an untested path.
+ * <p>Positions are asked about in whatever order the worker threads reach the client (ADR-140), so
+ * which occurrence takes a position may differ from run to run. Since ADR-176 the reader dispatches
+ * sixteen occurrences beyond the chunk being read, so a position near a chunk's edge may fall to an
+ * occurrence of the chunk on either side of it. A test that needs an outcome reached before a stop
+ * says so in a claim of its own, so an order that defeats it fails loudly rather than passing an
+ * untested path.
  *
  * <p>Every answer that converts carries a mean confidence of {@link #MEAN_SCORE}, so stage 3's
  * confidence distribution counts it. The answers about the document -- every one but {@link

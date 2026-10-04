@@ -173,7 +173,10 @@ class FailedStepSaysItFailedTest {
         for (int i = 0; i < STAGE_2_DOCUMENTS; i++) {
             Files.writeString(root.resolve("document-" + i + ".txt"), "content of document " + i);
         }
+        // In read order: the reader dispatches documents of the second batch while the first is still
+        // being read (ADR-176), so by arrival one of those could take the first batch's last answer.
         scripted()
+                .answeringInTheOrderDocumentsAreRead()
                 .answering(ANSWERED_BEFORE_THE_CONVERTER_STOPS, withText("stubbed but real content"))
                 .timingOut(STAGE_2_DOCUMENTS);
 

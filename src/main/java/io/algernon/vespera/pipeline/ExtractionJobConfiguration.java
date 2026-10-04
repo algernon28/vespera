@@ -56,12 +56,13 @@ public class ExtractionJobConfiguration {
      * Docling, because the extraction-cache rows it wrote roll back with it (ADR-181) -- and keeps
      * verdict commits frequent.
      *
-     * <p>Sixteen rather than ten because a chunk is now the read-ahead (ADR-140): {@link
-     * ConversionDispatch} dispatches every occurrence of a chunk before the first is processed, and a
-     * chunk pays one 2-second tick per <em>wave</em> of {@link #CONVERSION_CONCURRENCY}. A chunk of ten
-     * at a width of eight paid a second tick for two documents — fivefold, not eightfold. Two whole
-     * waves deliver the width the record claims, and {@code ExtractionStepTest} pins that this stays a
-     * multiple of the width.
+     * <p>Sixteen rather than ten because a chunk was the read-ahead when this was chosen (ADR-140):
+     * {@link ConversionDispatch} dispatches every occurrence of a chunk before the first is processed,
+     * and a chunk pays one 2-second tick per <em>wave</em> of {@link #CONVERSION_CONCURRENCY}. A chunk
+     * of ten at a width of eight paid a second tick for two documents — fivefold, not eightfold. Two
+     * whole waves deliver the width the record claims, and {@code ExtractionStepTest} pins that this
+     * stays a multiple of the width. The reader now also keeps {@link #LOOKAHEAD} occurrences
+     * dispatched beyond the chunk (ADR-176), and this number is unchanged by that.
      */
     static final int CHUNK_SIZE = 16;
 
@@ -101,6 +102,17 @@ public class ExtractionJobConfiguration {
      * the timeout it is measured against.
      */
     static final int CONVERSION_CONCURRENCY = 8;
+
+    /**
+     * How many occurrences beyond the one it is handing over {@link ConversionDispatch} has already
+     * read and dispatched (ADR-176): two waves of {@link #CONVERSION_CONCURRENCY}. The window crosses
+     * chunk boundaries, so up to this many calls beyond the chunk are there to convert while a chunk's
+     * last occurrences are taken and while the chunk commits. Two waves rather than one, so that a wave
+     * is queued behind the one converting when the chunk's own calls are done. That it equals {@link
+     * #CHUNK_SIZE} today is a coincidence: the two are independent, and what is dispatched and not yet
+     * taken is at most a chunk plus this many.
+     */
+    static final int LOOKAHEAD = 2 * CONVERSION_CONCURRENCY;
 
     /**
      * The entry the Docling image adds to the sidecar's {@code /version}, naming the image it was built
@@ -149,9 +161,10 @@ public class ExtractionJobConfiguration {
      *
      * <p>Dispatch happens from {@code read()}, and a worker runs only the Docling call: the cache
      * lookup before it and the write after it both stay on this thread (ADR-140 section 3), so no
-     * worker ever needs a connection. Spring Batch reads a whole chunk before it processes any of it,
-     * which is what puts up to the width in flight at once without anything holding more than one
-     * chunk ahead -- see {@link ConversionDispatch}'s own javadoc.
+     * worker ever needs a connection. Each {@code read()} keeps {@link #LOOKAHEAD} occurrences
+     * dispatched beyond the one it returns, across chunk boundaries (ADR-176), and Spring Batch reads a
+     * whole chunk before it processes any of it, so up to the width are in flight at once and nothing
+     * holds more than a chunk and that window ahead -- see {@link ConversionDispatch}'s own javadoc.
      *
      * <p>Wraps {@link #extractionReader} rather than folding into it, because the two decide separate
      * things: {@link #extractionReader} decides which occurrences this run reads at all -- the

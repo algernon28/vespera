@@ -6,6 +6,7 @@ import java.net.SocketTimeoutException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
@@ -62,6 +63,10 @@ public final class ScriptedExtractor extends DoclingExtractor {
     private volatile CyclicBarrier wave;
 
     private volatile long waitForTheWaveMillis;
+
+    private volatile boolean inTheOrderRead;
+
+    private final Map<String, Queue<Supplier<DoclingResponse>>> setAsideByContentHash = new ConcurrentHashMap<>();
 
     public ScriptedExtractor() {
         super(null, null);
@@ -127,6 +132,23 @@ public final class ScriptedExtractor extends DoclingExtractor {
         return this;
     }
 
+    /**
+     * Gives the queued answers to documents in the order stage 2 reads them, not in the order its
+     * worker threads happen to reach this extractor (ADR-176).
+     *
+     * <p>Stage 2's reader asks {@link #cached} once for each document it is about to dispatch, on the
+     * one thread the step runs on, in read order. With this set, each such lookup sets the next queued
+     * answer aside for that document's content, and the conversion a worker then places for the same
+     * content gets that answer. Without it, answers go to conversions in the order they arrive, and
+     * since the reader dispatches documents beyond the chunk being read, a document of the next chunk
+     * can arrive before the last one of this chunk and take its answer. A conversion nothing was set
+     * aside for, placed without a lookup first, still takes the next queued answer.
+     */
+    public ScriptedExtractor answeringInTheOrderDocumentsAreRead() {
+        inTheOrderRead = true;
+        return this;
+    }
+
     /** What each conversion was asked to convert the document as (ADR-100), in the order asked. */
     public List<DetectedFormat> formatsAsked() {
         return List.copyOf(formatsAsked);
@@ -179,10 +201,37 @@ public final class ScriptedExtractor extends DoclingExtractor {
     /** The seam a worker thread reaches (ADR-140 section 3): the same scripted answer, on that thread. */
     @Override
     public DoclingResponse convertUncached(Path file, DetectedFormat format, DetectedSubtype subtype) {
-        return convertOne(format, subtype);
+        return convertOne(format, subtype, inTheOrderRead ? setAsideFor(contentHashFor(file)) : null);
+    }
+
+    /**
+     * Never a hit, since this extractor holds no cache. Under {@link
+     * #answeringInTheOrderDocumentsAreRead} it also sets the next queued answer aside for this content.
+     */
+    @Override
+    public Optional<DoclingResponse> cached(String contentHash, ExtractorIdentity extractorIdentity) {
+        if (inTheOrderRead) {
+            Supplier<DoclingResponse> next = answers.poll();
+            if (next != null) {
+                setAsideByContentHash
+                        .computeIfAbsent(contentHash, hash -> new ConcurrentLinkedQueue<>())
+                        .add(next);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Supplier<DoclingResponse> setAsideFor(String contentHash) {
+        Queue<Supplier<DoclingResponse>> setAside = setAsideByContentHash.get(contentHash);
+        return setAside == null ? null : setAside.poll();
     }
 
     private DoclingResponse convertOne(DetectedFormat format, DetectedSubtype subtype) {
+        return convertOne(format, subtype, null);
+    }
+
+    private DoclingResponse convertOne(
+            DetectedFormat format, DetectedSubtype subtype, Supplier<DoclingResponse> setAside) {
         formatsAsked.add(format);
         subtypesAsked.add(Optional.ofNullable(subtype));
         convertingThreads.add(Thread.currentThread().getName());
@@ -190,7 +239,7 @@ public final class ScriptedExtractor extends DoclingExtractor {
         mostEverConvertingAtOnce.accumulateAndGet(nowConverting, Math::max);
         try {
             holdForTheRestOfTheWave();
-            return nextAnswer();
+            return nextAnswer(setAside);
         } finally {
             converting.decrementAndGet();
         }
@@ -211,9 +260,9 @@ public final class ScriptedExtractor extends DoclingExtractor {
         }
     }
 
-    private DoclingResponse nextAnswer() {
+    private DoclingResponse nextAnswer(Supplier<DoclingResponse> setAside) {
         int conversion = conversions.incrementAndGet();
-        Supplier<DoclingResponse> answer = answers.poll();
+        Supplier<DoclingResponse> answer = setAside != null ? setAside : answers.poll();
         if (answer == null && defaultAnswer != null) {
             return defaultAnswer.get();
         }
