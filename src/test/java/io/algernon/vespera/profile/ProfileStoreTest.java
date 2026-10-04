@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -178,10 +177,16 @@ class ProfileStoreTest {
             generationModel:
               value: "a-generation-model:8b"
               provenance: "overriding what is configured"
+            generationContextWindow:
+              value: "4097"
+              provenance: "what this machine serves"
+            logTimestampShareFloor:
+              value: "0.54"
+              provenance: "read off the format mix"
+            extractionAttempt:
+              value: "3"
+              provenance: "the converter was busy twice"
             """;
-
-    /** How many keys the profile carries, and therefore how many the file above answers. */
-    private static final int SEVEN_KEYS = 7;
 
     @Test
     @Story("What census writes to the profile")
@@ -194,26 +199,23 @@ class ProfileStoreTest {
         Profile loaded = new ProfileStore(workingDirectory).load();
 
         claim(
-                "all 7 answers are present, which no reader that built the record any other way than"
-                        + " through its one whole-record constructor could produce -- a shorter one has no"
-                        + " parameter for the last key, and a strict reader would refuse the file over it",
-                () -> assertThat(List.of(
-                                loaded.seedFolder().value(),
-                                loaded.degenerateOutputConfidenceFloor().value(),
-                                loaded.boilerplateDocumentFrequencyFloor().value(),
-                                loaded.embeddingModel().value(),
-                                loaded.relevanceScoreFloor().value(),
-                                loaded.arrangementApproved().value(),
-                                loaded.generationModel().value()))
-                        .hasSize(SEVEN_KEYS)
-                        .doesNotContainNull());
+                "every one of the " + ProfileKeys.everyKey().size() + " keys the profile carries is"
+                        + " answered, which no reader that built the record any other way than through its"
+                        + " one whole-record constructor could produce -- a shorter one has no parameter"
+                        + " for the last key, and a strict reader would refuse the file over it. The keys"
+                        + " are read off the record, so a key added later and missing from the file above"
+                        + " fails here by name",
+                () -> assertThat(ProfileKeys.valuesOf(loaded))
+                        .allSatisfy((key, value) -> assertThat(value.isSet())
+                                .as("%s is answered", key)
+                                .isTrue()));
         claim(
                 "and each one sits on the key the file wrote it under, so no reader silently shifted the"
                         + " values along by a position",
                 () -> assertThat(loaded.relevanceScoreFloor().value()).isEqualTo("0.53"));
         claim(
                 "including the last key, which is the one a shorter way in could not have filled",
-                () -> assertThat(loaded.generationModel().value()).isEqualTo("a-generation-model:8b"));
+                () -> assertThat(loaded.extractionAttempt().value()).isEqualTo("3"));
     }
 
     @Test

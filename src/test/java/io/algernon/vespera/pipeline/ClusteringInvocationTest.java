@@ -7,6 +7,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
+import io.algernon.vespera.profile.ProfileKeys;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
@@ -60,20 +61,11 @@ class ClusteringInvocationTest {
 
     /**
      * Every key the profile is allowed to carry after this step has run — the same set it had before,
-     * which is the claim. The list grows when a <em>later</em> stage adds a key of its own, as the
-     * arrangement's approval did (ADR-107, #175); it must never grow because of this step.
+     * which is the claim. The set grows when a <em>later</em> stage adds a key of its own, as the
+     * arrangement's approval did (ADR-107, #175); it must never grow because of this step. Read off the
+     * profile record rather than spelled out, so it is the one list every test compares with (ADR-186).
      */
-    private static final List<String> THE_KNOWN_PROFILE_KEYS = List.of(
-            "seedFolder",
-            "degenerateOutputConfidenceFloor",
-            "boilerplateDocumentFrequencyFloor",
-            "embeddingModel",
-            "arrangementApproved",
-            "relevanceScoreFloor",
-            "generationModel",
-            "generationContextWindow",
-            "logTimestampShareFloor",
-            "extractionAttempt");
+    private static final List<String> THE_KNOWN_PROFILE_KEYS = ProfileKeys.everyKey();
 
     @TempDir
     static Path workingDirectory;

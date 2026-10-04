@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-185.
+One file per architecture decision, ADR-001 through ADR-186.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -204,3 +204,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-183](0183-the-extraction-cache-keeps-only-answers-about-the-document-and-a-refusal-the-converter-blamed-on-itself-is-asked-again.md) | 2026-10-03 | The extraction cache keeps only answers about the document, and a refusal the converter blamed on itself is asked again *(amends ADR-140 §5, ADR-139 §3, ADR-181; rests on ADR-070, ADR-143, ADR-182 §2.5)* |
 | [ADR-184](0184-five-failures-in-a-row-stop-stage-2-only-when-the-converter-then-fails-a-control-conversion.md) | 2026-10-04 | Five failures in a row stop stage 2 only when the converter then fails a control conversion *(amends ADR-071, ADR-175 §3a, ADR-181 §4, ADR-140 §2; rests on ADR-139, ADR-143, ADR-183, ADR-176)* |
 | [ADR-185](0185-stage-2-asks-the-converter-again-under-a-run-of-its-own-when-extractionattempt-is-raised-and-nothing-is-discarded.md) | 2026-10-04 | Stage 2 asks the converter again under a run of its own when `extractionAttempt` is raised, and nothing is discarded *(amends ADR-140 §5, ADR-183 §6, ADR-139, ADR-143, ADR-145; rests on ADR-117, ADR-156, ADR-181, ADR-183)* |
+| [ADR-186](0186-the-deliverables-index-states-every-profile-key-read-off-the-profile-record.md) | 2026-10-04 | The deliverable's index states every profile key, read off the profile record *(answers ADR-103; rests on ADR-048, ADR-058, ADR-061, ADR-110, ADR-120, ADR-171, ADR-185)* |

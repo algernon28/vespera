@@ -11,6 +11,7 @@ import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
+import io.algernon.vespera.profile.ProfileKeys;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
@@ -70,18 +71,12 @@ class SeedCorpusComparisonInvocationTest {
      */
     private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The keys {@code profile.yaml} carries, and every one of them predates this measurement. */
-    private static final List<String> THE_PROFILE_KEYS = List.of(
-            "seedFolder",
-            "degenerateOutputConfidenceFloor",
-            "boilerplateDocumentFrequencyFloor",
-            "embeddingModel",
-            "arrangementApproved",
-            "relevanceScoreFloor",
-            "generationModel",
-            "generationContextWindow",
-            "logTimestampShareFloor",
-            "extractionAttempt");
+    /**
+     * The keys {@code profile.yaml} carries, and every one of them predates this measurement. Read off
+     * the profile record rather than spelled out, so it is the one list every test compares with
+     * (ADR-186).
+     */
+    private static final List<String> THE_PROFILE_KEYS = ProfileKeys.everyKey();
 
     /**
      * What census writes against the seed-folder key: the walk it took of that folder. It answers
