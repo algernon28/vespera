@@ -27,8 +27,11 @@ import org.slf4j.LoggerFactory;
  * it gets no row, no verdict, no metric, no shingle and no fault, and it does not touch the extractor
  * identity. It is materialised outside the corpus root, as a temporary file removed afterwards.
  *
- * <p>It converted when the answer is a conversion whose text carries {@link #SENTENCE}. Anything else,
- * including a dropped connection, which is not retried, is a converter that did not convert it.
+ * <p>It converted when the answer is a conversion whose text carries {@link #SENTENCE}. The converter's
+ * own answers and failures otherwise count as not converting: an answer that is not a conversion or
+ * lacks the sentence, a rejection, a timeout, a dropped connection, which is not retried. A local fault
+ * (the shipped PDF missing, the temporary file unwritable) says nothing about the converter and
+ * propagates as itself.
  *
  * <p>Each count that stops the step keeps its own tally; {@link #conversions} is how both learn that a
  * control conversion converted since they last looked, so that both start again at zero (section 2).
