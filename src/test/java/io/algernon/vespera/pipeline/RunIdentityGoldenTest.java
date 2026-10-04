@@ -139,19 +139,25 @@ class RunIdentityGoldenTest {
      */
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("Byte-level reduction is identified by the text size ceiling and the log floor, under the corpus code alone")
+    @DisplayName("Byte-level reduction is identified by the text size ceiling, the rule for text converted in parts and the log floor, under the corpus code alone")
     @Issue("370")
+    @Issue("371")
     @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
     void byteLevelReduction() {
         Map<String, Object> run = theRunOf("byte-level-reduction");
 
         claim(
-                "the settings it records are the largest text file it lets through, 16,000,000 bytes, then the"
+                "the settings it records are the size over which a text file is not sent whole, 16,000,000"
+                        + " bytes, then the rule for converting text in parts -- its version, that ceiling, the"
+                        + " largest text cut, 64,000,000 bytes, and the largest part, 8,000,000 bytes -- then the"
                         + " share of timestamped lines that makes a text file a log, recorded as null because"
-                        + " this profile sets none -- so a change to either is a new piece of work, and the same"
-                        + " walk under the same two still names the same one",
+                        + " this profile sets none -- so a change to any of them is a new piece of work, and the"
+                        + " same walk under the same three still names the same one",
                 () -> assertThat(run.get("config_consumed"))
-                        .isEqualTo("{\"textSizeCeilingBytes\":16000000,\"logTimestampShareFloor\":null}"));
+                        .isEqualTo("{\"textSizeCeilingBytes\":16000000,"
+                                + "\"textParts\":\"v1,over=16000000,upto=64000000,part=8000000\","
+                                + "\"logTimestampShareFloor\":null}"));
         claim(
                 "and its code version is the corpus module's alone",
                 () -> assertThat(run.get("implementation_version")).isEqualTo("corpus"));
@@ -165,14 +171,17 @@ class RunIdentityGoldenTest {
     @Story("A stage's piece of work is identified by exactly what identified it before")
     @DisplayName("Extraction is identified by the converter it used and the confidence floor, in that order")
     @Issue("373")
+    @Issue("371")
     @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
+    @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
     void extraction() {
         Map<String, Object> run = theRunOf("extraction");
 
         claim(
                 "the settings it records are the converter's full identity -- its image, its reported"
                         + " versions sorted by name, which include the image it says it was built as, and the"
-                        + " options sent with every conversion -- then the confidence floor, recorded as null"
+                        + " options sent with every conversion, the rule for cutting a large text into parts"
+                        + " among them -- then the confidence floor, recorded as null"
                         + " because this profile sets none",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
                         "{\"extractorIdentity\":\"docling-serve;"
@@ -180,7 +189,8 @@ class RunIdentityGoldenTest {
                                 + "docling=2.124.0;docling-serve=1.32.0;"
                                 + "vespera-image=vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2;"
                                 + "to_formats=json;ocr_preset=rapidocr;"
-                                + "image_export_mode=embedded;naming=1\","
+                                + "image_export_mode=embedded;naming=1;"
+                                + "text_parts=v1,over=16000000,upto=64000000,part=8000000\","
                                 + "\"degenerateOutputConfidenceFloor\":null}"));
         claim(
                 "and its code version is the extraction module's, then the similarity module's",

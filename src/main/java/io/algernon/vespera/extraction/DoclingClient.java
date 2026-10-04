@@ -56,8 +56,10 @@ public class DoclingClient {
     public static final Duration CALL_TIMEOUT = Duration.ofMinutes(5);
 
     /**
-     * The largest text file stage 1 lets through to conversion, in bytes (ADR-171): a text file over
-     * this is out of scope, because the converter cannot finish one in time.
+     * The largest text file sent to the converter whole, in bytes (ADR-171, ADR-178): the converter
+     * cannot finish a larger one in time. Text with no subtype or a Markdown one over this is converted
+     * in parts, up to {@link TextParts#LARGEST_TEXT_BYTES}; a log, HTML, CSV or AsciiDoc file, text in
+     * UTF-16 or UTF-32, and any text over that bound are out of scope.
      *
      * <p>Measured one call at a time, posted as {@code convert} posts it (a file named
      * {@code document.md}, {@code to_formats=json}): 16,000,000 bytes took 51.7 s on the GPU image and
@@ -67,8 +69,9 @@ public class DoclingClient {
      *
      * <p><b>Re-measure, with the procedure in ADR-171, and update this value and this comment whenever
      * the Docling image, {@link #CALL_TIMEOUT}, docling-serve's sync wait or ADR-140's width
-     * changes.</b> The value is part of stage 1's configuration consumed, so changing it mints a new
-     * stage-1 run.
+     * changes.</b> Re-measure the part size beside it (ADR-178). The value is part of stage 1's
+     * configuration consumed, so changing it mints a new stage-1 run, and it is in {@link
+     * TextParts#RULE}, so it changes the extractor identity too.
      */
     public static final long TEXT_SIZE_CEILING_BYTES = 16_000_000L;
 
@@ -263,10 +266,14 @@ public class DoclingClient {
      * <p>Lives here rather than at the composing site so that it cannot drift from {@link #convert}:
      * an identity naming an option this client does not send, or silent about one it does, would be a
      * key that claims something untrue about the rows under it.
+     *
+     * <p>Ends with the rule for cutting a large text into parts (ADR-178): how a file is sent changes
+     * what comes back, though no request carries it.
      */
     public static String sentOptions() {
         return "to_formats=" + REQUESTED_EXPORT_FORMAT + ";ocr_preset=" + PINNED_OCR_PRESET
-                + ";image_export_mode=" + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION;
+                + ";image_export_mode=" + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION
+                + ";text_parts=" + TextParts.RULE;
     }
 
     /**
