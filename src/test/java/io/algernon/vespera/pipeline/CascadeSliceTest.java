@@ -176,6 +176,8 @@ import org.springframework.transaction.annotation.Transactional;
     // The ledger and the profile every stage reads and writes through.
     Ledger.class,
     ImplementationVersions.class,
-    ProfileStore.class
+    ProfileStore.class,
+    // What applies schema.sql in place of Boot's own initializer, and says which index it builds (ADR-187).
+    StartUpIndexAnnouncement.class
 })
 @interface CascadeSliceTest {}

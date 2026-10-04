@@ -1006,6 +1006,16 @@ public final class Adr {
             + "0185-stage-2-asks-the-converter-again-under-a-run-of-its-own-when-extractionattempt-is-raised-and-nothing-is-discarded.md";
 
     /**
+     * ADR-187 -- a database statement that can take minutes is announced before it starts and when it
+     * ends: stage 2 says so around its drop of shingle_by_hash, which it goes on making, and start-up
+     * says so around each index schema.sql builds on a table that already holds rows, which stays in
+     * schema.sql (amends ADR-182 sections 2.2 and 4 and its Consequences, ADR-173 Consequences; extends
+     * ADR-093; rests on ADR-177; settles #401, #402).
+     */
+    public static final String A_DATABASE_STATEMENT_THAT_CAN_TAKE_MINUTES_IS_ANNOUNCED = FILE
+            + "0187-a-database-statement-that-can-take-minutes-says-so-before-it-starts-and-when-it-ends.md";
+
+    /**
      * ADR-184 -- five service-scope failures, or five occurrences that each drop the connection twice,
      * in a row on the drain stop stage 2 only when the converter, with nothing else in flight, then fails
      * to convert the shipped control PDF; only an answer about a file given in this invocation ends a
