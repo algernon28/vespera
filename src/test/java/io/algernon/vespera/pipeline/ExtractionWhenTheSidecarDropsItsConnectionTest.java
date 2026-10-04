@@ -506,6 +506,10 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
             }
         }
         sidecar.rejecting(THE_ONE_THAT_CONVERTS, GATEWAY_TIMEOUT, CONVERSION_IS_TAKING_TOO_LONG);
+        // The stop this test expects is for a converter that converts nothing, so the control conversion
+        // sent on the fifth is dropped too (ADR-184). What it is about is only that the timeout did not end
+        // the row; with the control conversion converted, the five would be the files' own and removed.
+        sidecar.droppingTheControlConversion();
 
         cli.run("run", root.toString());
 
