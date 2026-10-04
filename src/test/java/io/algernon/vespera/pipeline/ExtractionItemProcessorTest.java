@@ -95,6 +95,15 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
 class ExtractionItemProcessorTest {
 
+    /**
+     * Stage 1's working directory, where its {@code profile.yaml} is written: a temporary folder of
+     * this test's own, outside the corpus root so the walk never reads it, and shared with no other
+     * test, class, run or branch. A shared one let a stale {@code profile.yaml} from elsewhere change
+     * what stages 1 and 2 do here.
+     */
+    @TempDir
+    Path stage1Working;
+
     /** The engine every response in this class is attributed to; which engine it is does not matter here. */
     private static final ExtractorIdentity IDENTITY = new ExtractorIdentity("docling-serve;scripted");
 
@@ -720,8 +729,8 @@ class ExtractionItemProcessorTest {
         ImplementationVersions versions = new ImplementationVersions();
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
         io.algernon.vespera.profile.ProfileStore profileStore =
-                new io.algernon.vespera.profile.ProfileStore(root.resolveSibling("stage1-working"));
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, profileStore, root, root.resolveSibling("stage1-working")).execute(null, step);
+                new io.algernon.vespera.profile.ProfileStore(stage1Working);
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, profileStore, root, stage1Working).execute(null, step);
         ExecutionContext invocation = InvocationRecordFixture.recordOf(step);
         // Stage 2 passes no gate, so the gates and the later stages' collaborators are left out: an
         // accessor that needed one would fail here rather than mint. The profile is the one stage 1

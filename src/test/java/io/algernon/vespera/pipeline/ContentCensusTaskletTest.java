@@ -75,6 +75,15 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-077", url = Adr.A_REGENERATED_MEASUREMENT_IS_KEYED_PER_RUN, type = "adr")
 class ContentCensusTaskletTest {
 
+    /**
+     * Stage 1's working directory, where its {@code profile.yaml} is written: a temporary folder of
+     * this test's own, outside every corpus root so no walk reads it, and shared with no other test,
+     * class, run or branch. A shared one let a stale {@code profile.yaml} from elsewhere change what
+     * stages 1 and 2 do here. It is not the census's working directory, which each test names itself.
+     */
+    @TempDir
+    Path stage1Working;
+
     private static final ExtractorIdentity IDENTITY = new ExtractorIdentity("docling-serve;base-url=http://example");
 
     /**
@@ -318,7 +327,7 @@ class ContentCensusTaskletTest {
                 null,
                 null,
                 null,
-                new ProfileStore(root.resolveSibling("stage1-working")),
+                new ProfileStore(stage1Working),
                 null,
                 null,
                 null,
@@ -345,7 +354,7 @@ class ContentCensusTaskletTest {
         WalkId walkId = new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource))
                 .walk(root);
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
-        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, new io.algernon.vespera.profile.ProfileStore(root.resolveSibling("stage1-working")), root, root.resolveSibling("stage1-working")).execute(null, step);
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, new io.algernon.vespera.profile.ProfileStore(stage1Working), root, stage1Working).execute(null, step);
         invocations.put(root, InvocationRecordFixture.recordOf(step));
         RunId extractionRunId = stageRunsOver(ledger, versions, root).extraction();
 

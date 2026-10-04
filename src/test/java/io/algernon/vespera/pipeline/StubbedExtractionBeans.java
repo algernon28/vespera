@@ -49,12 +49,22 @@ class StubbedExtractionBeans {
                         "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"stubbed but real content\"}]}}}"));
     }
 
-    /** Never actually reached over HTTP: only {@link ExtractionHealthCheckListener} calls it, and this skips that. */
+    /**
+     * Never actually reached over HTTP. It stands for a sidecar that answers its health check, both
+     * the readiness check {@link ExtractionHealthCheckListener} makes and the one {@link
+     * SidecarRecovery} waits on before a control conversion (ADR-184 §2). Left to the real {@code
+     * isHealthy}, the {@code "unused"} URL would never answer, and that wait would run its full bound.
+     */
     @Bean
     DoclingClient doclingClient(@Value("${vespera.docling.image}") String configuredImage) {
         return new DoclingClient("unused") {
             @Override
             public void checkHealth() {}
+
+            @Override
+            public boolean isHealthy() {
+                return true;
+            }
 
             /**
              * A version report in the shape a real sidecar answers with, so the extractor identity
