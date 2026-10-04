@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -37,6 +38,11 @@ import java.util.stream.Collectors;
  * <p>It tells which document it was sent by reading the request's body, since the posted filename
  * carries nothing of the path (ADR-100): a test's documents each say {@code document N of} in their
  * text. Anything else is document {@link #UNNUMBERED}, and is converted.
+ *
+ * <p>The control conversion (ADR-184) is told apart the same way: the PDF stage 2 ships for it carries
+ * {@link #CONTROL_SENTENCE} uncompressed, so its posted bytes say so. It is counted under {@link #CONTROL}
+ * and, unless a test scripts otherwise, converted with that sentence in its text, which is what a
+ * converter that read it would answer.
  *
  * <p>One instance per test, holding its own script, so nothing is left for the next test or class.
  */
@@ -60,6 +66,17 @@ final class LoopbackSidecar implements AutoCloseable {
     /** The number a posted document is counted under when its text names none. */
     static final int UNNUMBERED = -1;
 
+    /** The sentence the control conversion's PDF carries, uncompressed, and a converter that read it returns. */
+    static final String CONTROL_SENTENCE = "Vespera control document";
+
+    /** The number the control conversion is counted under. */
+    static final int CONTROL = -2;
+
+    /** The control conversion converted, in the wire shape the sidecar answers with, its sentence in the text. */
+    static final String CONVERTED_CONTROL = "{\"status\":\"success\",\"errors\":[],\"processing_time\":0.1,"
+            + "\"document\":{\"json_content\":{\"texts\":["
+            + "{\"text\":\"" + CONTROL_SENTENCE + "\"}]}}}";
+
     /** How a test's document says which one it is. */
     private static final Pattern DOCUMENT_NUMBER = Pattern.compile("document (\\d+) of");
 
@@ -73,6 +90,9 @@ final class LoopbackSidecar implements AutoCloseable {
     private final List<Integer> calls = Collections.synchronizedList(new ArrayList<>());
     private final AtomicBoolean healthy = new AtomicBoolean(true);
     private final AtomicBoolean healthDiesWithADrop = new AtomicBoolean();
+    private final AtomicReference<String> everyCallAnsweredWith = new AtomicReference<>();
+    private final AtomicBoolean controlDropped = new AtomicBoolean();
+    private final AtomicReference<String> controlAnsweredWith = new AtomicReference<>();
 
     private LoopbackSidecar(HttpServer server, ExecutorService threads) {
         this.server = server;
@@ -120,6 +140,29 @@ final class LoopbackSidecar implements AutoCloseable {
         droppingEveryCall.set(true);
     }
 
+    /**
+     * Every call for every document, the control conversion included, is answered with {@code json} in
+     * place of a conversion, unless a document's own script says otherwise.
+     */
+    void answeringEveryCall(String json) {
+        everyCallAnsweredWith.set(json);
+    }
+
+    /** Every control conversion is read and then dropped unanswered, while health goes on answering. */
+    void droppingTheControlConversion() {
+        controlDropped.set(true);
+    }
+
+    /** Every control conversion is answered with {@code json}. */
+    void answeringTheControlConversion(String json) {
+        controlAnsweredWith.set(json);
+    }
+
+    /** How often the control conversion has been posted, answered or not. */
+    long controlConversions() {
+        return callsPerDocument().getOrDefault(CONTROL, 0L);
+    }
+
     /** Every call for {@code document} is answered with {@code json} in place of a conversion. */
     void answering(int document, String json) {
         answeredWith.put(document, json);
@@ -158,6 +201,11 @@ final class LoopbackSidecar implements AutoCloseable {
 
     private void convert(HttpExchange exchange) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.ISO_8859_1);
+        if (body.contains(CONTROL_SENTENCE)) {
+            calls.add(CONTROL);
+            control(exchange);
+            return;
+        }
         Matcher matcher = DOCUMENT_NUMBER.matcher(body);
         int document = matcher.find() ? Integer.parseInt(matcher.group(1)) : UNNUMBERED;
         calls.add(document);
@@ -171,8 +219,19 @@ final class LoopbackSidecar implements AutoCloseable {
         } else if (rejection != null) {
             answer(exchange, rejection, wordsBesideTheStatus.getOrDefault(document, WORDS_BESIDE_AN_ERROR_STATUS));
         } else {
-            answer(exchange, 200, answeredWith.getOrDefault(document, CONVERTED));
+            String everyCall = everyCallAnsweredWith.get();
+            answer(exchange, 200, answeredWith.getOrDefault(document, everyCall != null ? everyCall : CONVERTED));
         }
+    }
+
+    private void control(HttpExchange exchange) throws IOException {
+        if (droppingEveryCall.get() || controlDropped.get()) {
+            exchange.close();
+            return;
+        }
+        String scripted = controlAnsweredWith.get();
+        String everyCall = everyCallAnsweredWith.get();
+        answer(exchange, 200, scripted != null ? scripted : everyCall != null ? everyCall : CONVERTED_CONTROL);
     }
 
     private static void answer(HttpExchange exchange, int status, String json) throws IOException {

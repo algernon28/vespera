@@ -5,6 +5,8 @@ import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.ledger.OccurrenceId;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -35,7 +37,44 @@ class PendingConversions {
      * decided on its own thread (ADR-140 section 3), placed once the answer is in hand.
      */
     void dispatch(OccurrenceId occurrenceId, Future<DoclingResponse> future, Consumer<DoclingResponse> onResolved) {
-        pending.put(occurrenceId.value(), new Entry(future, onResolved));
+        pending.put(occurrenceId.value(), new Entry(future, onResolved, false));
+    }
+
+    /**
+     * Files {@code response}, which the extraction cache already held, as the answer for {@code
+     * occurrenceId}: complete at once, and told apart by {@link #answeredFromCache}, because an answer
+     * read from the cache says nothing about whether the converter answers now (ADR-184 section 4).
+     */
+    void dispatchCached(OccurrenceId occurrenceId, DoclingResponse response) {
+        pending.put(
+                occurrenceId.value(),
+                new Entry(CompletableFuture.completedFuture(response), cached -> { }, true));
+    }
+
+    /** Whether the answer held for {@code occurrenceId} came from the cache. False if nothing is held. */
+    boolean answeredFromCache(OccurrenceId occurrenceId) {
+        Entry entry = pending.get(occurrenceId.value());
+        return entry != null && entry.fromCache();
+    }
+
+    /**
+     * Returns once every call dispatched and not yet taken has finished, however it ended, and takes
+     * none of them (ADR-184 section 2): each stays held and is taken in read order afterwards. It covers
+     * every entry in the map, so the current chunk's untaken occurrences as well as the read-ahead
+     * window's. It relies on nothing being dispatched meanwhile, which holds because only the step
+     * thread dispatches, inside {@code read()}, and it is this thread that waits.
+     */
+    void awaitAllDispatched() {
+        for (Entry entry : pending.values()) {
+            try {
+                entry.future().get();
+            } catch (ExecutionException | CancellationException ended) {
+                // Ended unanswered or abandoned; that is an answer for take() to unwrap, not for here.
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("interrupted while awaiting the dispatched conversions", e);
+            }
+        }
     }
 
     /**
@@ -90,5 +129,6 @@ class PendingConversions {
     }
 
     /** One dispatched answer, and what to do with it -- on the taking thread -- once it arrives. */
-    private record Entry(Future<DoclingResponse> future, Consumer<DoclingResponse> onResolved) {}
+    private record Entry(
+            Future<DoclingResponse> future, Consumer<DoclingResponse> onResolved, boolean fromCache) {}
 }

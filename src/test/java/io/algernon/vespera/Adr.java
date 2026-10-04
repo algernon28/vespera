@@ -1005,6 +1005,15 @@ public final class Adr {
     public static final String RAISING_THE_EXTRACTION_ATTEMPT_ASKS_THE_CONVERTER_AGAIN = FILE
             + "0185-stage-2-asks-the-converter-again-under-a-run-of-its-own-when-extractionattempt-is-raised-and-nothing-is-discarded.md";
 
+    /**
+     * ADR-184 -- five service-scope failures, or five occurrences that each drop the connection twice,
+     * in a row on the drain stop stage 2 only when the converter, with nothing else in flight, then fails
+     * to convert the shipped control PDF; only an answer about a file given in this invocation ends a
+     * row (amends ADR-071, ADR-175 section 3a, ADR-181 section 4, ADR-140 section 2; settles #385, #393).
+     */
+    public static final String FIVE_FAILURES_IN_A_ROW_STOP_STAGE_2_ONLY_AFTER_A_FAILED_CONTROL_CONVERSION = FILE
+            + "0184-five-failures-in-a-row-stop-stage-2-only-when-the-converter-then-fails-a-control-conversion.md";
+
     private Adr() {
     }
 }

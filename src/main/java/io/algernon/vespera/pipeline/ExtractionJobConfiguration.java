@@ -210,6 +210,28 @@ public class ExtractionJobConfiguration {
     }
 
     /**
+     * The control conversion both counts ask for when they reach five (ADR-184), step-scoped so the two
+     * share one, and so that its wait covers the same {@link PendingConversions} the reader dispatches
+     * into. Declared here and not as a component of its own: it is part of what stage 2's step is built
+     * from, with the pending conversions it waits on.
+     */
+    @Bean
+    @StepScope
+    ControlConversion extractionControlConversion(
+            DoclingExtractor doclingExtractor,
+            SidecarRecovery sidecarRecovery,
+            PendingConversions extractionPendingConversions) {
+        return new ControlConversion(doclingExtractor, sidecarRecovery, extractionPendingConversions);
+    }
+
+    /** What the processor tells the breaker about the occurrence it has just returned (ADR-184 section 4). */
+    @Bean
+    @StepScope
+    ExtractionRowEvidence extractionRowEvidence() {
+        return new ExtractionRowEvidence();
+    }
+
+    /**
      * {@link ExtractionFaultRecorder}, wired here rather than made {@code @Component} because {@link
      * ExtractionFaults} is not one (ADR-139, on {@code ClusterFaults}' own precedent) — the same reason
      * {@code extractionStep} builds its {@code RunCompletion} listener inline, by hand, from an ambient

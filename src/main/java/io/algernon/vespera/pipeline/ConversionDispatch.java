@@ -15,7 +15,6 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Optional;
 import java.util.Queue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -172,7 +171,7 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
 
         Optional<DoclingResponse> hit = extractor.cached(contentHash, extractorIdentity);
         if (hit.isPresent()) {
-            pending.dispatch(occurrenceId, CompletableFuture.completedFuture(hit.get()), response -> { });
+            pending.dispatchCached(occurrenceId, hit.get());
             return;
         }
         pending.dispatch(

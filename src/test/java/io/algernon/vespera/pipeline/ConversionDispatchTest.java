@@ -73,6 +73,15 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-140", url = Adr.STAGE_2_CONVERTS_EIGHT_AT_A_TIME, type = "adr")
 class ConversionDispatchTest {
 
+    /**
+     * Stage 1's working directory, where its {@code profile.yaml} is written: a temporary folder of
+     * this test's own, outside the corpus root so the walk never reads it, and shared with no other
+     * test, class, run or branch. A shared one let a stale {@code profile.yaml} from elsewhere change
+     * what stages 1 and 2 do here.
+     */
+    @TempDir
+    Path stage1Working;
+
     /** The engine every dispatched call is attributed to; which engine it is does not matter here. */
     private static final ExtractorIdentity IDENTITY = new ExtractorIdentity("docling-serve;held");
 
@@ -298,7 +307,7 @@ class ConversionDispatchTest {
                 .walk(root);
         ImplementationVersions versions = new ImplementationVersions();
         ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
-        Path workingDirectory = root.resolveSibling("stage1-working");
+        Path workingDirectory = stage1Working;
         io.algernon.vespera.profile.ProfileStore profileStore =
                 new io.algernon.vespera.profile.ProfileStore(workingDirectory);
         new ByteLevelReductionTasklet(

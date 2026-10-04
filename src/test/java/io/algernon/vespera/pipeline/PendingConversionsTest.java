@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.extraction.ConversionStatus;
 import io.algernon.vespera.extraction.DoclingCallRejectedException;
 import io.algernon.vespera.extraction.DoclingConnectionLostException;
 import io.algernon.vespera.extraction.DoclingResponse;
@@ -18,6 +19,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.ResourceAccessException;
@@ -42,6 +45,22 @@ class PendingConversionsTest {
 
     /** An error status the converter answered with. */
     private static final int NOT_FOUND = 404;
+
+    /** A second document, dispatched beside the first. */
+    private static final OccurrenceId ANOTHER_OCCURRENCE = new OccurrenceId(8);
+
+    /** A third, whose call answered before the wait began. */
+    private static final OccurrenceId A_THIRD_OCCURRENCE = new OccurrenceId(9);
+
+    /** How long the wait is watched for returning early while a dispatched call is still open. */
+    private static final long WATCHED_FOR_MILLIS = 300;
+
+    /** How long the wait is given to return once nothing dispatched is still open. */
+    private static final long GIVEN_SECONDS = 5;
+
+    /** A conversion the converter answered; nothing here reads its contents. */
+    private static final DoclingResponse CONVERTED =
+            new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 0d, null, "{}");
 
     @Test
     @Story("A conversion placed ahead of its turn fails as it would have in its turn")
@@ -92,5 +111,71 @@ class PendingConversionsTest {
         claim(
                 "and nothing was handed on to be stored for it",
                 () -> assertThat(stored).isEmpty());
+    }
+
+    @Test
+    @Issue("393")
+    @Link(name = "ADR-184", url = Adr.FIVE_FAILURES_IN_A_ROW_STOP_STAGE_2_ONLY_AFTER_A_FAILED_CONTROL_CONVERSION, type = "adr")
+    @Story("The control conversion is sent only once nothing dispatched is still open")
+    @DisplayName("Waiting for every conversion placed ahead does not return while one is still open, and takes none of them: each is still there for the step to take afterwards")
+    void theWaitForEveryDispatchedCallReturnsOnlyOnceEachHasFinishedAndTakesNone() throws Exception {
+        CompletableFuture<DoclingResponse> stillConverting = new CompletableFuture<>();
+        List<DoclingResponse> stored = new ArrayList<>();
+        PendingConversions pending = new PendingConversions();
+        pending.dispatch(OCCURRENCE, stillConverting, stored::add);
+
+        CompletableFuture<Void> waited = CompletableFuture.runAsync(pending::awaitAllDispatched);
+
+        claim(
+                "while the conversion placed ahead is still open, the wait has not returned",
+                () -> assertThat(waited)
+                        .as("the wait returned after %d ms with a conversion still open", WATCHED_FOR_MILLIS)
+                        .failsWithin(WATCHED_FOR_MILLIS, TimeUnit.MILLISECONDS)
+                        .withThrowableThat()
+                        .isInstanceOf(TimeoutException.class));
+
+        stillConverting.complete(CONVERTED);
+
+        claim(
+                "once that conversion has answered, the wait returns",
+                () -> assertThat(waited).succeedsWithin(GIVEN_SECONDS, TimeUnit.SECONDS));
+        claim(
+                "and nothing was taken by the wait: nothing was handed on to be stored",
+                () -> assertThat(stored).isEmpty());
+        claim(
+                "the step still takes that document's answer afterwards, in its turn, and only then is it handed"
+                        + " on to be stored",
+                () -> {
+                    assertThat(pending.take(OCCURRENCE)).contains(CONVERTED);
+                    assertThat(stored).containsExactly(CONVERTED);
+                });
+    }
+
+    @Test
+    @Issue("393")
+    @Link(name = "ADR-184", url = Adr.FIVE_FAILURES_IN_A_ROW_STOP_STAGE_2_ONLY_AFTER_A_FAILED_CONTROL_CONVERSION, type = "adr")
+    @Story("The control conversion is sent only once nothing dispatched is still open")
+    @DisplayName("Waiting for every conversion placed ahead returns without throwing when one of them was cancelled and another failed, and each failure still reaches the step when it takes that document")
+    void theWaitForEveryDispatchedCallDoesNotThrowForACancelledOrFailedOne() {
+        DoclingConnectionLostException lost =
+                new DoclingConnectionLostException(FILE, new ResourceAccessException("connection reset"));
+        CompletableFuture<DoclingResponse> cancelled = new CompletableFuture<>();
+        cancelled.cancel(true);
+        PendingConversions pending = new PendingConversions();
+        pending.dispatch(OCCURRENCE, cancelled, answer -> { });
+        pending.dispatch(ANOTHER_OCCURRENCE, CompletableFuture.failedFuture(lost), answer -> { });
+        pending.dispatch(A_THIRD_OCCURRENCE, CompletableFuture.completedFuture(CONVERTED), answer -> { });
+
+        claim(
+                "the wait returns, and does not throw: how a conversion ended is for the step to read when it"
+                        + " takes that document, not for the wait",
+                () -> assertThat(CompletableFuture.runAsync(pending::awaitAllDispatched))
+                        .succeedsWithin(GIVEN_SECONDS, TimeUnit.SECONDS));
+        claim(
+                "the failed conversion is still there, and reaches the step as the failure it was",
+                () -> assertThatThrownBy(() -> pending.take(ANOTHER_OCCURRENCE)).isSameAs(lost));
+        claim(
+                "and the answered one is still there too",
+                () -> assertThat(pending.take(A_THIRD_OCCURRENCE)).contains(CONVERTED));
     }
 }
