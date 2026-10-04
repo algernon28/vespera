@@ -10,6 +10,7 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
+import io.algernon.vespera.profile.ProfileKeys;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.Clusters;
@@ -158,16 +159,24 @@ class DeliverableInvocationTest {
     private static final Pattern A_MEMBERSHIP_DESTINATION =
             Pattern.compile("\\d+\\. <a id=\"document-\\d+\"></a>\\[(?:\\\\.|[^\\]])*\\]\\(([^)]*)\\)");
 
-    /** Every key the profile carries, each of which the index states beside the value it held. */
-    private static final List<String> EVERY_PROFILE_KEY = List.of(
-            "seedFolder",
-            "degenerateOutputConfidenceFloor",
-            "boilerplateDocumentFrequencyFloor",
-            "embeddingModel",
-            "relevanceScoreFloor",
-            "arrangementApproved",
-            "generationModel",
-            "generationContextWindow");
+    /**
+     * Every key the profile carries, each of which the index states beside the value it held — read
+     * off the profile record rather than spelled out here, because a list spelled out here is how two
+     * keys went missing from the index with this test passing (ADR-186, #398).
+     */
+    private static final List<String> EVERY_PROFILE_KEY = ProfileKeys.everyKey();
+
+    /** The key naming which attempt at reading the archive this is. */
+    private static final String THE_ATTEMPT_KEY = "extractionAttempt";
+
+    /**
+     * An attempt no attempt is numbered by, which the run ignores and reads as the first: the index
+     * states it as written all the same, as it states an unreadable floor (ADR-186 §2).
+     */
+    private static final String AN_ATTEMPT_THAT_IS_IGNORED = "1.5";
+
+    /** What the index's provenance lines open with before the profile's own keys begin. */
+    private static final List<String> THE_LINES_ABOUT_THE_WORK = List.of("Run", "Walk", "Archive root");
 
     @TempDir
     static Path workingDirectory;
@@ -349,6 +358,8 @@ class DeliverableInvocationTest {
     @Test
     @Story("The tree can be read years later with nothing beside it")
     @DisplayName("The index opens with the work, the reading of the archive, the archive itself and every value that was set")
+    @Issue("398")
+    @Link(name = "ADR-186", url = Adr.THE_INDEX_STATES_EVERY_PROFILE_KEY_READ_OFF_THE_RECORD, type = "adr")
     void opensTheIndexWithWhatProducedTheTree(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
 
@@ -375,10 +386,51 @@ class DeliverableInvocationTest {
                         + " that could answer them is not going with it",
                 () -> assertThat(theIndexOf(root)).contains(EVERY_PROFILE_KEY.toArray(new CharSequence[0])));
         claim(
+                "each on a line of its own, and those lines are exactly the " + EVERY_PROFILE_KEY.size()
+                        + " values the operator's file can carry, no more and no fewer, in the order the"
+                        + " file is written in -- so a value added to the file later cannot be left off"
+                        + " this page without this check saying which",
+                () -> assertThat(theValuesTheIndexStates(root)).containsExactlyElementsOf(EVERY_PROFILE_KEY));
+        claim(
                 "with the values themselves beside them, so the file says what was set rather than only"
                         + " what could have been",
                 () -> assertThat(theIndexOf(root))
                         .contains(seeds.toString(), EMBEDDING_MODEL_NAME, THE_READING_WINDOW));
+        claim(
+                "and a value nobody set is stated with nothing beside it, the way every unanswered value"
+                        + " is: the attempt at reading the archive was left unset here, so this was the"
+                        + " first attempt",
+                () -> assertThat(theIndexLineNaming(root, "- " + THE_ATTEMPT_KEY + ":").strip())
+                        .isEqualTo("- " + THE_ATTEMPT_KEY + ":"));
+    }
+
+    @Test
+    @Story("The tree can be read years later with nothing beside it")
+    @DisplayName("The index states an attempt number the run ignored exactly as the operator wrote it")
+    @Issue("398")
+    @Link(name = "ADR-186", url = Adr.THE_INDEX_STATES_EVERY_PROFILE_KEY_READ_OFF_THE_RECORD, type = "adr")
+    @Link(name = "ADR-185", url = Adr.RAISING_THE_EXTRACTION_ATTEMPT_ASKS_THE_CONVERTER_AGAIN, type = "adr")
+    void statesAnIgnoredAttemptAsWritten(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .extractionAttempt(AN_ATTEMPT_THAT_IS_IGNORED, "written by this test, and not a whole number")
+                .build());
+        cli.run("run", root.toString());
+        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success: a number no attempt is counted by is set aside, not"
+                        + " refused, so the archive was read as a first attempt",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and the index states the attempt as \"" + AN_ATTEMPT_THAT_IS_IGNORED + "\", the text"
+                        + " the operator wrote, rather than leaving it off or putting a number of its own"
+                        + " in its place -- what the file said is what a reader of this tree needs, the"
+                        + " way a misspelt threshold is shown as it was misspelt",
+                () -> assertThat(theIndexLineNaming(root, "- " + THE_ATTEMPT_KEY + ":").strip())
+                        .isEqualTo("- " + THE_ATTEMPT_KEY + ": " + AN_ATTEMPT_THAT_IS_IGNORED));
     }
 
     @Test
@@ -858,6 +910,29 @@ class DeliverableInvocationTest {
     /** The index of the tree this corpus's work wrote, read at the moment a claim asks for it. */
     private String theIndexOf(Path root) throws IOException {
         return Files.readString(theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME));
+    }
+
+    /**
+     * The keys the index's provenance block states, in the order it states them: every {@code - key:}
+     * line from the run's own line to the first blank one, less the three lines about the work itself.
+     */
+    private List<String> theValuesTheIndexStates(Path root) throws IOException {
+        List<String> lines = Files.readAllLines(theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME));
+        Pattern aStatedValue = Pattern.compile("^- ([^:]+):");
+        List<String> keys = new ArrayList<>();
+        boolean inTheBlock = false;
+        for (String line : lines) {
+            if (line.startsWith("- Run: ")) {
+                inTheBlock = true;
+            } else if (inTheBlock && line.isBlank()) {
+                break;
+            }
+            Matcher stated = aStatedValue.matcher(line);
+            if (inTheBlock && stated.find() && !THE_LINES_ABOUT_THE_WORK.contains(stated.group(1))) {
+                keys.add(stated.group(1));
+            }
+        }
+        return keys;
     }
 
     /** The one line of the index mentioning {@code name}, so a claim is about an entry and not a page. */

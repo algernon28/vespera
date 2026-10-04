@@ -1014,6 +1014,15 @@ public final class Adr {
     public static final String FIVE_FAILURES_IN_A_ROW_STOP_STAGE_2_ONLY_AFTER_A_FAILED_CONTROL_CONVERSION = FILE
             + "0184-five-failures-in-a-row-stop-stage-2-only-when-the-converter-then-fails-a-control-conversion.md";
 
+    /**
+     * ADR-186 -- the deliverable's index states every key the profile record declares, as the operator
+     * wrote it and in the record's order, read off the record's components rather than listed by hand;
+     * every test claim about every key reads the same components (answers ADR-103; rests on ADR-061,
+     * ADR-110, ADR-120, ADR-185).
+     */
+    public static final String THE_INDEX_STATES_EVERY_PROFILE_KEY_READ_OFF_THE_RECORD = FILE
+            + "0186-the-deliverables-index-states-every-profile-key-read-off-the-profile-record.md";
+
     private Adr() {
     }
 }
