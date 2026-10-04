@@ -1016,6 +1016,16 @@ public final class Adr {
             + "0187-a-database-statement-that-can-take-minutes-says-so-before-it-starts-and-when-it-ends.md";
 
     /**
+     * ADR-191 -- stage 3 says how many shingle rows it is about to read, at most, before its one read of
+     * stage 2's run, and its measured line states how long the measurement took; the bound is the span of
+     * the run's own rowids, answered by similarity, the lines are written by pipeline, and nothing shortens
+     * the read (extends ADR-187 section 1 and ADR-093; rests on ADR-182 section 2.1 and ADR-188; keeps
+     * ADR-041; settles #410).
+     */
+    public static final String STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ = FILE
+            + "0191-stage-3-says-how-many-shingle-rows-it-is-about-to-read-and-how-long-measuring-them-took.md";
+
+    /**
      * ADR-184 -- five service-scope failures, or five occurrences that each drop the connection twice,
      * in a row on the drain stop stage 2 only when the converter, with nothing else in flight, then fails
      * to convert the shipped control PDF; only an answer about a file given in this invocation ends a

@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-188.
+One file per architecture decision, ADR-001 through ADR-191. Two numbers below ADR-191 are reserved by open tickets and have no file yet.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -207,3 +207,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-186](0186-the-deliverables-index-states-every-profile-key-read-off-the-profile-record.md) | 2026-10-04 | The deliverable's index states every profile key, read off the profile record *(answers ADR-103; rests on ADR-048, ADR-058, ADR-061, ADR-110, ADR-120, ADR-171, ADR-185)* |
 | [ADR-187](0187-a-database-statement-that-can-take-minutes-says-so-before-it-starts-and-when-it-ends.md) | 2026-10-04 | A database statement that can take minutes says so before it starts and when it ends *(amends ADR-182 §2.2, §4 and Consequences, ADR-173 Consequences; extends ADR-093; rests on ADR-177)* |
 | [ADR-188](0188-stage-1s-verdict-rules-and-content-identity-live-in-corpus-which-still-knows-no-stage.md) | 2026-10-04 | Stage 1's verdict rules and content identity live in `corpus`, which still knows no stage *(amends ADR-040, ADR-146, ADR-167, ADR-168, ADR-171; answers ADR-167; rests on ADR-058, ADR-067, ADR-068, ADR-069, ADR-093, ADR-095, ADR-100, ADR-110, ADR-171, ADR-178)* |
+| [ADR-191](0191-stage-3-says-how-many-shingle-rows-it-is-about-to-read-and-how-long-measuring-them-took.md) | 2026-10-04 | Stage 3 says how many shingle rows it is about to read, and how long measuring them took *(extends ADR-187 §1, ADR-093; adds a measurement to ADR-182, ADR-187 §2; rests on ADR-182 §2.1, ADR-188; keeps ADR-041)* |

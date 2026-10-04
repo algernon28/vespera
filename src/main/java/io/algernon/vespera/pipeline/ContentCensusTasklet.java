@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -46,6 +47,9 @@ class ContentCensusTasklet implements Tasklet {
 
     /** The confidence-distribution report's fixed name in the working directory (ADR-075). */
     static final String CONFIDENCE_DISTRIBUTION_FILE_NAME = "confidence-distribution.html";
+
+    /** For the seconds the measurement of shingle document frequency took, as its line states them (ADR-191). */
+    private static final double NANOS_PER_SECOND = 1_000_000_000.0;
 
     private static final Logger log = LoggerFactory.getLogger(ContentCensusTasklet.class);
 
@@ -94,8 +98,17 @@ class ContentCensusTasklet implements Tasklet {
                 () -> {
                     log.info("Stage 3 (content census) starting under run {}", runId.value());
 
+                    // The one statement inside DocumentFrequency.measure that reads every shingle row of
+                    // stage 2's run took half an hour on a 16.7 GB database on a USB spinning disk and said
+                    // nothing, so the read has a line before it where there is something to read, and the
+                    // measurement has its time after it whether or not there is (ADR-191). The time is the
+                    // whole call's: this class cannot time the one statement apart from the rest.
+                    announceReadOf(extractionRunId);
+                    long measureStarted = System.nanoTime();
                     documentFrequency.measure(runId, extractionRunId);
-                    log.info("Stage 3 (content census) measured shingle document frequency");
+                    log.info(
+                            "Stage 3 (content census) measured shingle document frequency in {} s",
+                            String.format(Locale.ROOT, "%.1f", (System.nanoTime() - measureStarted) / NANOS_PER_SECOND));
 
                     ConfidenceDistribution.Distribution distribution =
                             confidenceDistribution.measure(runId, extractionRunId);
@@ -112,6 +125,21 @@ class ContentCensusTasklet implements Tasklet {
                             reportFile);
                     return true;
                 });
+    }
+
+    /**
+     * Says how many shingle rows of stage 2's run the measurement is about to read at most, and that
+     * stopping loses only the time spent (ADR-191 section 1). Says nothing where the run holds none.
+     * The bound is {@code similarity}'s to answer ({@link DocumentFrequency#shingleRowsUpTo}); what is
+     * said about it is this class's.
+     */
+    private void announceReadOf(RunId extractionRunId) {
+        documentFrequency.shingleRowsUpTo(extractionRunId).ifPresent(rows -> log.info(
+                "Stage 3 (content census) is reading up to {} shingle rows of stage 2's run before it measures"
+                        + " anything; SQLite reads them a page at a time, from wherever in the file stage 2 wrote"
+                        + " them, which took half an hour on a USB spinning disk for one run in a 16.7 GB database,"
+                        + " and stopping before it ends loses only the time spent",
+                rows));
     }
 
     /**
