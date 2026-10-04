@@ -22,7 +22,6 @@ import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -61,7 +60,6 @@ class ContentCensusTasklet implements Tasklet {
     private final ProfileStore profileStore;
     private final Clock clock;
     private final Path workingDirectory;
-    private final JdbcTemplate jdbcTemplate;
 
     ContentCensusTasklet(
             DocumentFrequency documentFrequency,
@@ -70,8 +68,7 @@ class ContentCensusTasklet implements Tasklet {
             Ledger ledger,
             ProfileStore profileStore,
             Clock clock,
-            @Value("${vespera.working-dir}") Path workingDirectory,
-            JdbcTemplate jdbcTemplate) {
+            @Value("${vespera.working-dir}") Path workingDirectory) {
         this.documentFrequency = documentFrequency;
         this.confidenceDistribution = confidenceDistribution;
         this.stageRuns = stageRuns;
@@ -79,7 +76,6 @@ class ContentCensusTasklet implements Tasklet {
         this.profileStore = profileStore;
         this.clock = clock;
         this.workingDirectory = workingDirectory;
-        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
@@ -106,8 +102,7 @@ class ContentCensusTasklet implements Tasklet {
                     // stage 2's run took half an hour on a 16.7 GB database on a USB spinning disk and said
                     // nothing, so the read has a line before it where there is something to read, and the
                     // measurement has its time after it whether or not there is (ADR-191). The time is the
-                    // whole call's: this class cannot time the one statement apart from the rest, and
-                    // similarity is not touched for it.
+                    // whole call's: this class cannot time the one statement apart from the rest.
                     announceReadOf(extractionRunId);
                     long measureStarted = System.nanoTime();
                     documentFrequency.measure(runId, extractionRunId);
@@ -135,32 +130,16 @@ class ContentCensusTasklet implements Tasklet {
     /**
      * Says how many shingle rows of stage 2's run the measurement is about to read at most, and that
      * stopping loses only the time spent (ADR-191 section 1). Says nothing where the run holds none.
-     *
-     * <p>The bound is the span of the run's own rowids, greatest less least plus one (ADR-191 section 2).
-     * It is asked as two statements on purpose. Each is one descent of {@code shingle_by_run_id}: 2 ms and
-     * 40 KB for the pair with the file cache emptied. One statement asking for {@code MIN(rowid),
-     * MAX(rowid)} together, or {@code COUNT(*)}, reads the run's whole part of the index instead: about
-     * 2.9 s and 209 MB, measured for a run of 2,500,000 rows, with the cache emptied, on a solid-state
-     * disk. On the disk where the announced read took half an hour, the same walk would be minutes more:
-     * an estimate, not a measurement, from ADR-191's arithmetic of 51,092 pages at 100 pages a second,
-     * about eight and a half minutes. No test can tell the two forms apart, so no test holds the
-     * two-statement form in place; ADR-191 section 2 and this comment do.
-     * The table's own {@code MAX(rowid)} is not used: it counts every run's rows, and the table keeps them.
+     * The bound is {@code similarity}'s to answer ({@link DocumentFrequency#shingleRowsUpTo}); what is
+     * said about it is this class's.
      */
     private void announceReadOf(RunId extractionRunId) {
-        Long least = jdbcTemplate.queryForObject(
-                "SELECT MIN(rowid) FROM shingle WHERE run_id = ?", Long.class, extractionRunId.value());
-        Long greatest = jdbcTemplate.queryForObject(
-                "SELECT MAX(rowid) FROM shingle WHERE run_id = ?", Long.class, extractionRunId.value());
-        if (least == null || greatest == null) {
-            return;
-        }
-        log.info(
+        documentFrequency.shingleRowsUpTo(extractionRunId).ifPresent(rows -> log.info(
                 "Stage 3 (content census) is reading up to {} shingle rows of stage 2's run before it measures"
                         + " anything; SQLite reads them a page at a time, from wherever in the file stage 2 wrote"
                         + " them, which took half an hour on a USB spinning disk for one run in a 16.7 GB database,"
                         + " and stopping before it ends loses only the time spent",
-                greatest - least + 1);
+                rows));
     }
 
     /**

@@ -288,6 +288,36 @@ class ContentCensusTaskletTest {
     }
 
     /**
+     * Stage 3 states how many shingle rows it is about to read, and the two statements that find that
+     * out are {@code similarity}'s, beside the table it owns (ADR-191 section 3). The first version of
+     * that record had the tasklet hold a {@link JdbcTemplate} and name the table itself.
+     *
+     * <p>What is checked is the declared type of each field the tasklet declares: none is in a package
+     * under {@code org.springframework.jdbc} or {@code javax.sql}, which takes in {@code JdbcTemplate},
+     * {@code NamedParameterJdbcTemplate}, {@code JdbcClient} and {@code DataSource}. That stops the
+     * tasklet keeping such a handle. It does not check what a method body does with one a collaborator
+     * hands it, or with a field declared under a wider type.
+     */
+    @Test
+    @Story("The content census asks the module that owns a table about it")
+    @DisplayName("The content census step keeps no database handle of its own")
+    @Issue("410")
+    @Link(name = "ADR-191", url = Adr.STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ, type = "adr")
+    void theTaskletDeclaresNoFieldOfADatabaseHandleType() {
+        claim(
+                "no field the content census step declares has a type from the database packages "
+                        + DATABASE_HANDLE_PACKAGES + ", so it keeps no handle of its own to run a statement with",
+                () -> assertThat(ContentCensusTasklet.class.getDeclaredFields())
+                        .extracting(field -> field.getType().getPackageName())
+                        .noneMatch(declared -> DATABASE_HANDLE_PACKAGES.stream()
+                                .anyMatch(handles -> declared.equals(handles) || declared.startsWith(handles + "."))));
+    }
+
+    /** The packages whose types are database handles: Spring's JDBC classes, and the JDK's {@code DataSource}. */
+    private static final java.util.List<String> DATABASE_HANDLE_PACKAGES =
+            java.util.List.of("org.springframework.jdbc", "javax.sql");
+
+    /**
      * Stage 3's tasklet as the step builds it, over the content-census run this invocation of {@code
      * root} mints: the one place this class says how that run comes to exist.
      */
@@ -305,8 +335,7 @@ class ContentCensusTaskletTest {
                 ledger,
                 profileStore,
                 clock,
-                workingDirectory,
-                jdbcTemplate);
+                workingDirectory);
     }
 
     /**

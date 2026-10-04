@@ -57,10 +57,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * first. The other two passed then and have to go on passing: they are what stops an implementation from
  * announcing a read that is not made.
  *
- * <p>Stage 3's two statements name {@code shingle} and its {@code run_id} in SQL written in {@code
- * pipeline}. If {@code similarity} renames either, nothing fails at compile time or in {@code
- * ModuleBoundariesTest}; every test that runs stage 3 against the real schema fails at run time with a
- * SQL error, this class among them (ADR-191 section 3, ADR-041's recorded gap).
+ * <p>The number comes from {@code similarity}, which owns the table: stage 3 asks {@code
+ * DocumentFrequency.shingleRowsUpTo} for it and writes the line (ADR-191 section 3). What that method
+ * answers is pinned beside it, in {@code DocumentFrequencyTest}; what is pinned here is the line.
  */
 @CascadeSliceTest
 @Import(ConverterStopsPartwayBeans.class)

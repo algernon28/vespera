@@ -6,7 +6,8 @@
 - **Extends**: [ADR-093](0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md). One of stage 3's lines gains the time it took, and one line is added before it.
 - **Adds a measurement to**: [ADR-182](0182-stage-2-writes-shingles-without-the-by-hash-index-and-stage-4b-builds-it-before-containment-retrieval-reads-it.md) and [ADR-187](0187-a-database-statement-that-can-take-minutes-says-so-before-it-starts-and-when-it-ends.md) §2 — **an effect of the drop that neither looked at, and no change to what either decided.** ADR-182's Consequences say stage 3 *"reads the run's shingles in the order they were written"*. That is the order of their rowids. In the probe here it is not the order of their pages in the file once stage 2 has written into pages a dropped index freed (Measurements). ADR-187 §2 weighed the drop against the minutes it saves stage 2 and the minutes stage 4b's rebuild costs. It did not look at where the drop leaves the next run's rows. This record measures where, on a solid-state disk. What that costs a read on a spinning disk is a prediction, not a measurement, and §2 is left as it is (What this does not decide).
 - **Rests on**: [ADR-182](0182-stage-2-writes-shingles-without-the-by-hash-index-and-stage-4b-builds-it-before-containment-retrieval-reads-it.md) §2.1. `shingle_by_run_id` is the index this read goes through, and the one §2 here asks its two questions of.
-- **Uses the gap recorded by**: [ADR-041](0041-ledger-owns-identity-and-verdicts-capabilities-own-their-own-tables.md). `pipeline` names `similarity`'s table and column in SQL of its own (§3).
+- **Keeps**: [ADR-041](0041-ledger-owns-identity-and-verdicts-capabilities-own-their-own-tables.md). `similarity` owns `shingle`, and the two statements that ask it for the bound are written in `similarity` (§3). No SQL in `pipeline` names that table.
+- **Rests on**: [ADR-188](0188-stage-1s-verdict-rules-and-content-identity-live-in-corpus-which-still-knows-no-stage.md), for what this change costs in run ids. ADR-188 moves stage 1's run id and every later stage's with it, so a database upgraded across it replays stage 2 whether or not this record ships (§3, Consequences).
 - **Keeps**: [ADR-059](0059-schema-version-is-one-row-per-module-checked-and-refused-independently.md). No schema version moves: no table changes and no index is added, removed or renamed.
 - **Settles** [#410](https://github.com/algernon28/vespera/issues/410).
 
@@ -99,9 +100,9 @@ Stage 3 (content census) measured shingle document frequency in <S> s
 ```
 
 - **The first line is new.** It is written after `Stage 3 (content census) starting under run <id>` and before the read, and only when stage 2's run holds at least one shingle row. A run with none has nothing to wait for, and stage 3 says nothing about reading it. A stage 3 already recorded under its run reads nothing and says nothing about reading: it writes `was already recorded under run <id>`, as before, and neither of these two lines.
-- **The second line is the one stage 3 already wrote, with the time added.** It is written whenever stage 3 measures, whether or not the first was. `<S>` is the wall clock of `DocumentFrequency.measure`, in seconds with one decimal: the read of stage 2's survivors, the read of the shingle rows, the counting, and the writing of the frequency rows. `pipeline` cannot time the one statement apart from the rest without a change in `similarity` (§3). Both samples on `H:` found the thread in the read.
+- **The second line is the one stage 3 already wrote, with the time added.** It is written whenever stage 3 measures, whether or not the first was. `<S>` is the wall clock of `DocumentFrequency.measure`, in seconds with one decimal: the read of stage 2's survivors, the read of the shingle rows, the counting, and the writing of the frequency rows. `pipeline` times the call it makes. Timing the one statement apart from the rest would need `measure` to report it, and this record does not ask for that. Both samples on `H:` found the thread in the read.
 - **The first line says the worst that has been measured and what a stop costs**, as ADR-187's does, because those are what the operator needs when deciding whether to wait. `measure` writes its first row only after the read has ended, so a process stopped during the read loses the read and none of stage 3's measurement, and the next invocation begins stage 3 again.
-- **Nothing is written between the two lines.** ADR-187 §1 refused a line on a timer, because it reports the clock and would go on being written if SQLite had hung. Progress over `<N>` is a different thing, and it is possible for a read. It is not taken here, for the reason in §3.
+- **Nothing is written between the two lines.** ADR-187 §1 refused a line on a timer, because it reports the clock and would go on being written if SQLite had hung. Progress over `<N>` is a different thing, and it is possible for a read. It is not decided here (What this does not decide).
 
 ### 2. `<N>` is the span of the run's own rowids, asked as two statements
 
@@ -117,24 +118,30 @@ SELECT MAX(rowid) FROM shingle WHERE run_id = ?;
 - **It is exact when the run's rows are one unbroken stretch of rowids**, which they are when one stage 2 wrote them with no other run writing in between. It is too high when a run was stopped, another run wrote, and a value put back resumed the first (ADR-156, ADR-181): the span then takes in the other run's rows. Nothing deletes a shingle row. So the line says "up to", as ADR-187's do.
 - **A run with no shingle row answers `NULL` to both**, and that is the test for writing no line.
 
-### 3. `pipeline` writes both lines and asks `similarity`'s table itself, and `similarity` is not touched
+### 3. `pipeline` writes both lines, and `similarity` answers the bound
 
-**The change is in `ContentCensusTasklet` and nowhere else in `src/main`.** It asks §2's two questions, writes the first line, times the call it already makes, and adds the time to the line it already writes. `DocumentFrequency` goes on saying nothing and is not edited.
+**`similarity` owns `shingle` (ADR-041), so the two statements of §2 are written there, and `pipeline` asks for their answer.** The method is on `DocumentFrequency`:
 
-**The two statements are the first SQL literals in `pipeline`'s main tree that name another module's table and column**: `shingle`, `run_id` and its rowid, which are `similarity`'s (ADR-041). They are in `ContentCensusTasklet.announceReadOf`. No earlier record is a precedent for them. ADR-187 §3's class names no table itself: every name it uses is read out of `schema.sql`. Stage 2's `<N>` under ADR-187 §1 comes through `similarity`'s own `ShingleHashIndex.shingleRowsUpTo()`.
+```java
+public OptionalLong shingleRowsUpTo(RunId stage2RunId)
+```
 
-**This is the raw-SQL gap ADR-041 records, and `ModuleBoundariesTest` cannot see it.** That test checks which types a module names. A table named inside a string is not a type. If `similarity` renames `shingle` or `run_id`, nothing fails at compile time and no boundary test fails. What fails is every test that runs stage 3 against the real schema, at run time, with a SQL error: `ContentCensusSaysHowManyShingleRowsItReadsInvocationTest` among them, and `ContentCensusTaskletTest`, which calls the tasklet itself.
+It answers the span of the rowids `stage2RunId` wrote in `shingle`, greatest less least plus one, and an empty value for a run with no shingle row. It runs §2's two statements, `MIN` and then `MAX`, and the comment beside them says why they are two (§2, Measurements).
 
-**It is accepted, for one reason.** The alternative is a method in `similarity` beside `shingleRowsUpTo()`. A commit under `similarity/` moves every stage-2 run id (ADR-058, ADR-182 §2.5), and on the archive that is a whole stage 2 under a new run, with a drop before it and a rebuild after it. The next change made under `similarity/` for a reason of its own should move the two statements there, at no further cost in run ids (What this does not decide).
+- **On `DocumentFrequency`, because the bound is a bound on that class's own read.** `measure(stage3RunId, stage2RunId)` is the read being announced, and this is how many rows of the same run it will read at most. `ContentCensusTasklet` already holds a `DocumentFrequency`, so its constructor takes nothing new.
+- **Not on `ShingleHashIndex`**, where `shingleRowsUpTo()` is. That class is about one index, `shingle_by_hash`, which this read does not use, and its method is over the whole table. The name is the same on purpose: both answer "shingle rows, up to", one of the table and one of a run.
+- **It writes no line.** `ContentCensusTasklet` asks for the bound, writes the first line where a value comes back, times the call to `measure` it already makes, and adds the time to the line it already writes. `similarity` knows no stage and logs nothing here, as `ShingleHashIndex` logs nothing for ADR-187.
 
-**That is also why there is no progress line.** A count of rows read, against `<N>`, can only be taken where the rows are read, which is the row callback inside `DocumentFrequency.measure`, and it would cost the same replay, in order to say how far a read has got.
+**No SQL in `pipeline`'s main tree names `similarity`'s table.** A rename of `shingle` or of `run_id` is a change inside `similarity`, beside the other statements that name them, and `pipeline` reaches the bound through a method the compiler checks.
+
+**The first version of this record decided otherwise, and its reason fell away before it merged.** It had `ContentCensusTasklet` run the two statements itself, the first SQL literals in `pipeline`'s main tree to name another module's table, under the raw-SQL gap ADR-041 records, which `ModuleBoundariesTest` cannot see. It accepted that for one reason: a commit under `similarity/` moves every stage-2 run id (ADR-058, ADR-182 §2.5), and on the archive that is a whole stage 2 under a new run. ADR-188 then reached main. It moves stage 1's run id through `corpus`, and *"Every later stage's run id moves with it"*. A database upgraded across that change replays stage 2 under a new run whatever this record does. So keeping `similarity` untouched no longer spares the archive anything, and the operator chose on 2026-10-04 to put the statements where the table is.
 
 ### 4. Nothing here shortens the read
 
 **The half hour is most likely the price of where stage 2's rows lie, and this record does not move them.** That the layout is the cause is a prediction from the probe, not something measured on `H:` (Measurements). The routes considered:
 
 - **Read the database file from end to end before the read**, so that the read finds its pages in the file cache. It can be done from `pipeline`. Not taken. It is unmeasured on `H:`. It needs the machine to keep a file of 16.7 GB and growing in memory, where 8.7 GB were free that evening. ADR-187 left the same idea undecided for the drop, and gave both of those reasons.
-- **Read the table without the index**, by rowid range or with `NOT INDEXED`. Two fifths of the pages are index pages, and in run *a* the steps longer than 64 pages number two for each index leaf. Not taken. The statement is in `similarity`, so it costs §3's replay. The table's own leaves were still met mostly backwards in runs *c* and *d* (56.6% and 79.2% of steps). And nothing here measured it on a spinning disk.
+- **Read the table without the index**, by rowid range or with `NOT INDEXED`. Two fifths of the pages are index pages, and in run *a* the steps longer than 64 pages number two for each index leaf. Not taken. It reads more for every stage-2 run the table keeps (Measurements). The table's own leaves were still met mostly backwards in runs *c* and *d* (56.6% and 79.2% of steps). And nothing here measured it on a spinning disk.
 - **Keep stage 2's rows in file order**, by not freeing pages into the file it writes to. That is ADR-187 §2, which keeps the drop, or ADR-009, which keeps one database file. This record measures a layout neither looked at and reopens neither.
 
 ### 5. No line about the drive beyond these
@@ -143,7 +150,7 @@ SELECT MAX(rowid) FROM shingle WHERE run_id = ?;
 
 ## Why this shape, and what the others cost
 
-- **One line before, with the table's `MAX(rowid)`**, reusing `ShingleHashIndex.shingleRowsUpTo()`. Refused. It states every run's rows. In a table that holds several runs that is several times what the read covers, and it grows with every run kept. It would have named no table from `pipeline`, and §3 accepts naming one in order to state the run's own figure.
+- **One line before, with the table's `MAX(rowid)`**, reusing `ShingleHashIndex.shingleRowsUpTo()`. Refused. It states every run's rows. In a table that holds several runs that is several times what the read covers, and it grows with every run kept.
 - **`COUNT(*)` for an exact figure.** Refused in §2: it reads the run's part of the index, which by the arithmetic under Measurements is minutes at the rate `H:` was sampled at.
 - **Stage 2's own record of how many rows it wrote.** There is none. `extraction_metric` holds no shingle count, and adding one is a schema change and a change under `extraction/`.
 - **A new line after the read, and the old line left alone.** Refused. The two would be written one after the other about the same call. One line that states the time says both.
@@ -152,11 +159,12 @@ SELECT MAX(rowid) FROM shingle WHERE run_id = ?;
 ## Consequences
 
 - **A stage 3 with rows to read says so, and says how many at most.** The wait of 2026-10-04 would have begun with a line that named it, and ended with a line that timed it.
-- **Stage 2's run id does not move. The run ids of stages 3 to 6b do, once.** The change is in `pipeline` and in tests. Stage 2's implementation version spans `extraction` and `similarity`, so stage 2 is not replayed and nothing is dropped on account of this change. Every stage from 3 on spans `pipeline` (ADR-058), so each runs again under a new run id at the first invocation after upgrading.
-- **So shipping this costs the archive one more of the reads it announces.** The first stage 3 after the upgrade reads the same stage-2 run's rows again, from the same pages. On `H:` that is expected to be another half hour, less whatever the file cache still holds. It will be the first one announced and the first one timed.
+- **This change moves the run ids of stages 2 to 6b.** It touches `similarity` and `pipeline`. Stage 2's implementation version spans `extraction` and `similarity` (ADR-058, `StageModules.EXTRACTION`), so, taken alone, this change replays stage 2 under a new run id. Stages 3 and 4 span `similarity` and `pipeline`, stages 5 to 6b span `pipeline`, and each names its upstream run (ADR-048), so every stage after stage 2 runs again under a new run id too.
+- **On a database upgraded across ADR-188 it adds no replay to the one that upgrade already costs.** ADR-188 is on main. It moves stage 1's run id, and every later stage's with it, at the first invocation on a build that has it. This change's moves fall in the same invocation, provided this change is in the build the database is first run on after that upgrade. If it lands after that run, it costs a replay of stage 2 and of every later stage of its own. #320 plans no corpus run until ADR-188, ADR-189 and ADR-190 are all on main, so that their re-mints are paid once. That is the window this change has to land in.
+- **The first stage 3 after the upgrade reads a new stage-2 run's rows, not the ones read on 2026-10-04.** Stage 2 runs again first, under its new run id, over cached conversions (ADR-070). Where `shingle_by_hash` is there, it drops it, with ADR-187's two lines, and it writes its rows into whatever pages that frees. Stage 3 then reads those rows. On `H:` that read is expected to be slow for the reason the one of 2026-10-04 most likely was, and how slow is not known. It will be the first one announced and the first one timed.
 - **Every stage 3 after a stage 2 that dropped the index is expected to be slow on a spinning disk**, not only the one of 2026-10-04. In the probe, the runs written after a built index was dropped, *c* and *d*, lie further out of read order than the one before them, and the archive's later runs are written the same way. The layout is measured, off `H:`. The cost is predicted from it and measured nowhere. Either way the read is announced.
 - **A new working directory is expected not to be affected, and that is not measured either.** Its first run is written into a new file, and its read never stepped more than 64 pages in the probe. It is still read one page at a time, with 78.5% of steps not to the next page and 19.5% backwards, and nothing was run on a spinning disk.
-- **`pipeline` now names `similarity`'s table in SQL of its own**, in two statements, under ADR-041's recorded gap (§3). A rename in `similarity` fails nothing at compile time and nothing in `ModuleBoundariesTest`. It fails every test that runs stage 3 against the real schema, at run time, with a SQL error.
+- **`pipeline` names no table of `similarity`'s** (§3). ADR-041's raw-SQL gap is not used by this record. `ModuleBoundariesTest` holds nothing more than it did: `pipeline` may already depend on `similarity`, and a string is still invisible to it.
 - **No schema version moves** (ADR-059). No table changes and no index is added.
 - **Text that states the old lines must change with the code**: before this record nothing in `src/test`, `README.md` or `docs/` quoted `measured shingle document frequency`, so the only text is the tasklet's own.
 - **`AGENTS.md` says no defect is known and open against what ships**, and the change that ships this record adds #410 to that paragraph as closed by it, the thirty-third.
@@ -170,9 +178,15 @@ SELECT MAX(rowid) FROM shingle WHERE run_id = ?;
 2. A stage 3 already recorded under its run writes `was already recorded under run` and neither of the two lines. Passed before and has to go on passing.
 3. A stage 3 over a run with no shingle row, each text being shorter than one shingle, starts and measures and writes no reading line. Passed before and has to go on passing.
 
-**`ContentCensusTaskletTest` builds the tasklet by hand.** The tasklet's constructor gained a `JdbcTemplate`, and that test's `contentCensusOver` passes it. No claim there changed. No class was added, so `CascadeSliceTest`'s `@Import` list is as it was.
+**`DocumentFrequencyTest`** (`src/test/java/io/algernon/vespera/similarity/`) gains three tests of `shingleRowsUpTo(RunId)`, on that class's own `@JdbcTest` slice, with shingle rows written by hand:
 
-Nothing here tests the two-statement form of §2. A test cannot tell one statement from two by what is logged, and the test profile's database is in memory. The second probe is the evidence, and the comment beside the statements says why there are two.
+1. For the second of two runs, each written in one unbroken stretch, the bound is that run's own row count, and less than the table's greatest rowid.
+2. For a run with no shingle row, the bound is empty.
+3. For a run another run wrote in between, the bound is more than the run's row count: the span takes in the other run's rows, which is why the line says "up to".
+
+**`ContentCensusTaskletTest` builds the tasklet by hand**, through the constructor the tasklet had before this record: `DocumentFrequency`, `ConfidenceDistribution`, `StageRuns`, `Ledger`, `ProfileStore`, `Clock` and the working directory. It gains one test: no field the tasklet declares has a type in a package under `org.springframework.jdbc` or `javax.sql`, so it keeps no database handle of its own. The test checks declared field types and nothing in a method body. No class is added, so `CascadeSliceTest`'s `@Import` list is as it was.
+
+Nothing here tests the two-statement form of §2. A test cannot tell one statement from two by what it answers, and the test profile's database is in memory. The second probe is the evidence, and the comment beside the statements has to say why there are two.
 
 ## Not known
 
@@ -187,7 +201,7 @@ Nothing here tests the two-statement form of §2. A test cannot tell one stateme
 
 ## What this does not decide
 
-- **Shortening the read** (§4). Two of the three routes are measured off `H:`, and none on it. The first needs a measurement on `H:` while no run is using it, and a rule for a machine that cannot cache the file. The second and third belong with whatever next changes `similarity` or reopens where `shingle_by_hash` lives.
+- **Shortening the read** (§4). Two of the three routes are measured off `H:`, and none on it. The first needs a measurement on `H:` while no run is using it, and a rule for a machine that cannot cache the file. The second is a change to `measure`'s statement and the third reopens where `shingle_by_hash` lives. Neither has been measured on a spinning disk.
 - **Whether ADR-187 §2's arithmetic should be redone with the next stage 3 in it.** The drop saves stage 2 an estimated 15 to 41 minutes on the disks measured. On `H:` the stage 3 after it took 31 minutes 40 seconds. How much of that the drop caused is not known: how long that read takes over a run laid out in order is not measured there.
-- **Moving §2's two statements into `similarity`, and progress during the read** (§3). The next change under `similarity/` made for a reason of its own could carry both at no further cost in run ids.
+- **Progress during the read.** A count of rows read, against `<N>`, can only be taken where the rows are read, which is the row callback inside `DocumentFrequency.measure`. This record now changes `similarity`, so run ids no longer argue against it. It still needs a decision on cadence under ADR-093 and a way for `similarity`, which logs nothing and knows no stage, to hand the count to `pipeline`. Nobody has decided either. A ticket of its own if the two lines prove too little.
 - **Where a working directory should be kept**, and whether `README.md` should say that a portable spinning disk makes these three waits long. That is the operator's.

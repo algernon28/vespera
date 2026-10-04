@@ -1018,8 +1018,9 @@ public final class Adr {
     /**
      * ADR-191 -- stage 3 says how many shingle rows it is about to read, at most, before its one read of
      * stage 2's run, and its measured line states how long the measurement took; the bound is the span of
-     * the run's own rowids, the lines are written by pipeline, and nothing shortens the read (extends
-     * ADR-187 section 1 and ADR-093; rests on ADR-182 section 2.1; settles #410).
+     * the run's own rowids, answered by similarity, the lines are written by pipeline, and nothing shortens
+     * the read (extends ADR-187 section 1 and ADR-093; rests on ADR-182 section 2.1 and ADR-188; keeps
+     * ADR-041; settles #410).
      */
     public static final String STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ = FILE
             + "0191-stage-3-says-how-many-shingle-rows-it-is-about-to-read-and-how-long-measuring-them-took.md";

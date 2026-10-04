@@ -6,6 +6,7 @@ import io.algernon.vespera.ledger.RunId;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
@@ -85,6 +86,37 @@ public class DocumentFrequency {
                 stage3RunId.value(),
                 parameterIdentity,
                 occurrenceIds.size()));
+    }
+
+    /**
+     * How many shingle rows {@link #measure} reads at most from {@code stage2RunId}: the span of the
+     * rowids that run wrote in {@code shingle}, greatest less least plus one (ADR-191 sections 2 and 3).
+     * Empty for a run with no shingle row, which has nothing to read.
+     *
+     * <p>Exact where the run's rows are one unbroken stretch of rowids; too high where another run wrote
+     * between them, because the span then takes in that run's rows. Hence "up to", not "exactly".
+     * Writes nothing and logs nothing: {@code similarity} knows no stage, and what is said about the
+     * bound, and when, is the caller's.
+     */
+    public OptionalLong shingleRowsUpTo(RunId stage2RunId) {
+        // Two statements on purpose, never one. Each is one descent of shingle_by_run_id: 2 ms and
+        // 40 KB for the pair, with the file cache emptied. One statement asking for MIN(rowid) and
+        // MAX(rowid) together, or COUNT(*), reads the run's whole part of the index instead: about
+        // 2.9 s and 209 MB, measured for a run of 2,500,000 rows, with the cache emptied, on a
+        // solid-state disk. On the disk where the read this bound is stated before took half an
+        // hour, the same walk would be minutes more: an estimate, not a measurement, from ADR-191's
+        // arithmetic of 51,092 pages at 100 pages a second, about eight and a half minutes. No test
+        // can tell the two forms apart, so no test holds the two-statement form in place; ADR-191
+        // section 2 and this comment do. The table's own MAX(rowid) is not used: it counts every
+        // run's rows, and the table keeps them.
+        Long least = jdbcTemplate.queryForObject(
+                "SELECT MIN(rowid) FROM shingle WHERE run_id = ?", Long.class, stage2RunId.value());
+        Long greatest = jdbcTemplate.queryForObject(
+                "SELECT MAX(rowid) FROM shingle WHERE run_id = ?", Long.class, stage2RunId.value());
+        if (least == null || greatest == null) {
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(greatest - least + 1);
     }
 
     /**
