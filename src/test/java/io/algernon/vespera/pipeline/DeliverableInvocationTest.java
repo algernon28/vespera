@@ -392,6 +392,13 @@ class DeliverableInvocationTest {
                         + " this page without this check saying which",
                 () -> assertThat(theValuesTheIndexStates(root)).containsExactlyElementsOf(EVERY_PROFILE_KEY));
         claim(
+                "and each of those lines carries the value the operator's file held for that key, as"
+                        + " written, with nothing after the name where the file holds nothing -- so a"
+                        + " value shown beside the wrong name, or one shown differently from the file,"
+                        + " is caught here and not only a name left off",
+                () -> assertThat(theProfileLinesOfTheIndex(root))
+                        .containsExactlyElementsOf(theLinesTheProfileMakes()));
+        claim(
                 "with the values themselves beside them, so the file says what was set rather than only"
                         + " what could have been",
                 () -> assertThat(theIndexOf(root))
@@ -917,9 +924,27 @@ class DeliverableInvocationTest {
      * line from the run's own line to the first blank one, less the three lines about the work itself.
      */
     private List<String> theValuesTheIndexStates(Path root) throws IOException {
-        List<String> lines = Files.readAllLines(theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME));
-        Pattern aStatedValue = Pattern.compile("^- ([^:]+):");
         List<String> keys = new ArrayList<>();
+        for (String line : theProfileLinesOfTheIndex(root)) {
+            Matcher stated = A_STATED_VALUE.matcher(line);
+            if (stated.find()) {
+                keys.add(stated.group(1));
+            }
+        }
+        return keys;
+    }
+
+    /** How a provenance line names its key: everything between the dash and the first colon. */
+    private static final Pattern A_STATED_VALUE = Pattern.compile("^- ([^:]+):");
+
+    /**
+     * The profile's own lines of the index's provenance block, whole and stripped, in the order the
+     * index states them: every {@code - key:} line from the run's own line to the first blank one,
+     * less the three lines about the work itself.
+     */
+    private List<String> theProfileLinesOfTheIndex(Path root) throws IOException {
+        List<String> lines = Files.readAllLines(theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME));
+        List<String> profileLines = new ArrayList<>();
         boolean inTheBlock = false;
         for (String line : lines) {
             if (line.startsWith("- Run: ")) {
@@ -927,12 +952,24 @@ class DeliverableInvocationTest {
             } else if (inTheBlock && line.isBlank()) {
                 break;
             }
-            Matcher stated = aStatedValue.matcher(line);
+            Matcher stated = A_STATED_VALUE.matcher(line);
             if (inTheBlock && stated.find() && !THE_LINES_ABOUT_THE_WORK.contains(stated.group(1))) {
-                keys.add(stated.group(1));
+                profileLines.add(line.strip());
             }
         }
-        return keys;
+        return profileLines;
+    }
+
+    /**
+     * The lines the profile on disk should make on the index, one per key in the record's order: the
+     * key, a colon, and the value as written where the key holds one (ADR-186 §2), stripped as the
+     * index's lines are.
+     */
+    private List<String> theLinesTheProfileMakes() {
+        List<String> expected = new ArrayList<>();
+        ProfileKeys.valuesOf(profileStore.load()).forEach((key, value) -> expected.add(
+                ("- " + key + ":" + (value.value() == null ? "" : " " + value.value())).strip()));
+        return expected;
     }
 
     /** The one line of the index mentioning {@code name}, so a claim is about an entry and not a page. */
