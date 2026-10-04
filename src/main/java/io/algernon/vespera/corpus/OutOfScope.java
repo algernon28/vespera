@@ -1,10 +1,5 @@
-package io.algernon.vespera.pipeline;
+package io.algernon.vespera.corpus;
 
-import io.algernon.vespera.corpus.DetectedFormat;
-import io.algernon.vespera.corpus.DetectedSubtype;
-import io.algernon.vespera.corpus.TimestampedLines;
-import io.algernon.vespera.extraction.DoclingClient;
-import io.algernon.vespera.extraction.TextParts;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Optional;
@@ -21,6 +16,10 @@ import java.util.Optional;
  *
  * <p>A comma-separated file is not a spreadsheet here. It is text, it is cheap, and on the corpus
  * ADR-146 was measured on its 73 files came to 2.6 MB between them.
+ *
+ * <p>Moved from {@code pipeline} into {@code corpus} unchanged (ADR-188). The three facts about text
+ * size that belong to {@code extraction} arrive as {@link TextSizeLimits}; this holds no number of its
+ * own for them.
  */
 final class OutOfScope {
 
@@ -56,27 +55,28 @@ final class OutOfScope {
      * it is not (ADR-171, amended by ADR-178). Three rules, in this order:
      *
      * <ol>
-     *   <li>over {@link TextParts#LARGEST_TEXT_BYTES}, any text: the converter's answer would be too
+     *   <li>over {@link TextSizeLimits#largestBytes()}, any text: the converter's answer would be too
      *       large to keep;
-     *   <li>over {@link DoclingClient#TEXT_SIZE_CEILING_BYTES}, HTML, CSV or AsciiDoc: the converter
-     *       cannot finish one in time, and a cut breaks its structure;
-     *   <li>over the ceiling, any other text that {@link TextParts} does not cut, which is text in
-     *       UTF-16 or UTF-32.
+     *   <li>over {@link TextSizeLimits#ceilingBytes()}, HTML, CSV or AsciiDoc: the converter cannot
+     *       finish one in time, and a cut breaks its structure;
+     *   <li>over the ceiling, any other text that {@link TextSizeLimits.InParts} does not cut, which is
+     *       text in UTF-16 or UTF-32.
      * </ol>
      *
      * Any other text over the ceiling is converted in parts, and has no reason here. Whether it is cut is
-     * {@link TextParts#convertedInParts}'s to say, so that this and stage 2 cannot disagree.
+     * the limits' {@code inParts} to say, so that this and stage 2 cannot disagree.
      */
-    static Optional<String> sizeReason(Path file, long sizeBytes, Optional<DetectedSubtype> subtype) {
-        if (sizeBytes > TextParts.LARGEST_TEXT_BYTES) {
+    static Optional<String> sizeReason(
+            Path file, long sizeBytes, Optional<DetectedSubtype> subtype, TextSizeLimits limits) {
+        if (sizeBytes > limits.largestBytes()) {
             return Optional.of(String.format(
                     Locale.ROOT,
                     "a text file of %s bytes, and text files over %s bytes are out of scope, because the converter's"
                             + " answer for one would be too large to keep",
                     grouped(sizeBytes),
-                    grouped(TextParts.LARGEST_TEXT_BYTES)));
+                    grouped(limits.largestBytes())));
         }
-        if (sizeBytes <= DoclingClient.TEXT_SIZE_CEILING_BYTES) {
+        if (sizeBytes <= limits.ceilingBytes()) {
             return Optional.empty();
         }
         Optional<String> structured = subtype.flatMap(OutOfScope::structuredKind);
@@ -87,9 +87,9 @@ final class OutOfScope {
                             + " converter cannot finish one in time and cutting one into parts breaks its structure",
                     structured.get(),
                     grouped(sizeBytes),
-                    grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)));
+                    grouped(limits.ceilingBytes())));
         }
-        if (TextParts.convertedInParts(file, DetectedFormat.PLAIN_TEXT, subtype.orElse(null), sizeBytes)) {
+        if (limits.inParts().convertedInParts(file, subtype, sizeBytes)) {
             return Optional.empty();
         }
         return Optional.of(String.format(
@@ -97,7 +97,7 @@ final class OutOfScope {
                 "a text file of %s bytes in UTF-16 or UTF-32, and such text files over %s bytes are out of scope,"
                         + " because the converter cannot finish one in time and one is not cut into parts",
                 grouped(sizeBytes),
-                grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)));
+                grouped(limits.ceilingBytes())));
     }
 
     /** How a text file of a kind that is never cut is named in its reason, or empty for any other. */
@@ -111,7 +111,7 @@ final class OutOfScope {
     }
 
     /** A number with {@code ,} as the grouping separator, whatever the locale. */
-    static String grouped(long number) {
+    private static String grouped(long number) {
         return String.format(Locale.ROOT, "%,d", number);
     }
 }

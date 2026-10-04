@@ -1042,6 +1042,16 @@ public final class Adr {
     public static final String THE_INDEX_STATES_EVERY_PROFILE_KEY_READ_OFF_THE_RECORD = FILE
             + "0186-the-deliverables-index-states-every-profile-key-read-off-the-profile-record.md";
 
+    /**
+     * ADR-188 -- stage 1's broken and out-of-scope rules and its content-identity pass live in
+     * {@code corpus}, handed extraction's text limits and reporting progress through callbacks, so
+     * {@code corpus} still knows no stage (amends ADR-040, ADR-146, ADR-167, ADR-168, ADR-171; answers
+     * ADR-167; rests on ADR-058, ADR-067, ADR-068, ADR-069, ADR-093, ADR-095, ADR-100, ADR-110, ADR-171,
+     * ADR-178).
+     */
+    public static final String STAGE_1_RULES_LIVE_IN_CORPUS = FILE
+            + "0188-stage-1s-verdict-rules-and-content-identity-live-in-corpus-which-still-knows-no-stage.md";
+
     private Adr() {
     }
 }
