@@ -379,7 +379,27 @@ class NextAction {
                     + " relevanceScoreFloor in " + PROFILE + ", and run again.");
         }
         Optional<String> confidenceFloor = theConfidenceFloorUnreadable(profile);
-        return confidenceFloor.isPresent() ? confidenceFloor : theLogFloorUnreadable(profile);
+        if (confidenceFloor.isPresent()) {
+            return confidenceFloor;
+        }
+        Optional<String> logFloor = theLogFloorUnreadable(profile);
+        return logFloor.isPresent() ? logFloor : theExtractionAttemptIgnored(profile);
+    }
+
+    /**
+     * The line for {@code extractionAttempt} (ADR-185 §1), where it holds something no attempt is
+     * numbered by -- empty otherwise. Unset, {@code 1} and a numbered attempt are all read, so none is
+     * reported. The reading is {@link ExtractionAttempt}'s, the one stage 2's identity uses.
+     */
+    private static Optional<String> theExtractionAttemptIgnored(Profile profile) {
+        if (ExtractionAttempt.of(profile.extractionAttempt()) instanceof ExtractionAttempt.Ignored ignored) {
+            return Optional.of("Every run value is set, but " + ExtractionAttempt.KEY + " reads "
+                    + quoted(ignored.text()) + ", which is not a whole number of 1 or more, so this run"
+                    + " ignored it and extracted under the first attempt. Next: write a whole number of 1"
+                    + " or more into " + ExtractionAttempt.KEY + " in " + PROFILE + ", or remove it, and run"
+                    + " again.");
+        }
+        return Optional.empty();
     }
 
     /**

@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.OllamaClient;
 import io.algernon.vespera.extraction.ExtractorIdentity;
@@ -123,7 +124,13 @@ class StageRuns {
             RunId byteLevelReductionRunId = upstream(StageModules.BYTE_LEVEL_REDUCTION);
             extraction = runMint.mint(
                     StageModules.EXTRACTION,
-                    new ExtractionConfigConsumed(extractorIdentity.getObject().value(), confidenceFloor.value()),
+                    new ExtractionConfigConsumed(
+                            extractorIdentity.getObject().value(),
+                            confidenceFloor.value(),
+                            // Read here, fresh on every mint (ADR-185 §1), as embeddingScoring() reads
+                            // the relevance floor -- never a bean built at start-up.
+                            ExtractionAttempt.of(profileStore.load().extractionAttempt())
+                                    .identityMember()),
                     walk,
                     Optional.of(byteLevelReductionRunId));
         }
@@ -287,7 +294,11 @@ class StageRuns {
     }
 
     /** Stage 2's own {@code ConfigConsumed}, unchanged from the run class this replaces (ADR-157 §2). */
-    private record ExtractionConfigConsumed(String extractorIdentity, Double degenerateOutputConfidenceFloor) {}
+    private record ExtractionConfigConsumed(
+            String extractorIdentity,
+            Double degenerateOutputConfidenceFloor,
+            // Per component, never per class: the floor must keep serialising as null (ADR-185 §1).
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer extractionAttempt) {}
 
     /** Stage 3's own {@code ConfigConsumed}, unchanged. */
     private record ContentCensusConfigConsumed(String root, String extractionRunId) {}

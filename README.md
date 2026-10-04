@@ -53,14 +53,17 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `embeddingModel` | whichever model you can serve locally | — |
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
+| `extractionAttempt` | whether the files the converter did not answer about are worth asking again | `extraction-failures.html` |
 | `arrangementApproved` | whether the groups the tool formed are worth writing over | `arrangement.html` |
 | `generationModel` | whichever model you can serve locally, if you want a different one | — |
 | `generationContextWindow` | how much your own machine can read in one go | — |
 | `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
 
-Four of these are **optional** and none of them is one of the five stops; all four are here so that you know they exist.
+Five of these are **optional** and none of them is one of the five stops; all five are here so that you know they exist.
 
 `degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `logTimestampShareFloor`, left unset, removes no logs: set it, as a share between 0 and 1, to leave out as a log every text file of ten lines or more in which at least that share of the lines read begin with a date or a time. `generationModel` and `generationContextWindow`, left unset, write the connecting text with the model and the reading window Vespera ships with — they are the values that already have answers, and setting one only replaces the answer it already had.
+
+`extractionAttempt`, left unset, is the first attempt at extracting text from your archive. Some files may not have been read because the converter was busy, failing or too slow at the time. `extraction-failures.html` lists those files beside the ones it could not convert. To have the converter asked about them again, write `2` into `extractionAttempt`, with why in `provenance`, and run again. Files it already answered about are not converted again. Everything after extraction is redone, because what was read may have changed: deduplication, scoring, grouping and the connecting text. The groups are new, so you approve the arrangement again before anything is written. Nothing from the first attempt is deleted. Remove the value, or write `1`, and the next run is back on the first attempt, with nothing redone. If you had approved the second attempt's arrangement, write the first one's name back into `arrangementApproved` before the connecting text is written again; the last line of the output names it. Next time, write `3`. Do not delete rows from `vespera.db` to make a stage run again.
 
 The reading window is how much of a group goes into one request. Set it larger and more of each group is read in one go; leave it alone and Vespera uses a size any machine can serve. Groups too large to fit are still written about, from the documents nearest your exemplar, and the finished page says how many of them it was written from.
 
