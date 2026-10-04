@@ -376,7 +376,7 @@ class NextActionTest {
      * a file carrying it, and this fails there.
      */
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"two", "1.5", "0", "-1", "NaN", "Infinity"})
+    @ValueSource(strings = {"two", "1.5", "0", "-1", "NaN", "Infinity", "2147483648"})
     @Story("An extraction attempt that is not a whole number changes nothing, and the line says so")
     @DisplayName("An extraction attempt that is not a whole number of 1 or more is reported")
     @Issue("386")

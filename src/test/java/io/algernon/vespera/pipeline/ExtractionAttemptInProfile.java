@@ -50,7 +50,7 @@ final class ExtractionAttemptInProfile {
         save(profileStore, profile);
     }
 
-    /** The pointer census keeps beside the key, or {@code null} where the key carries none or is absent. */
+    /** The pointer a step keeps beside the key, or {@code null} where the key carries none or is absent. */
     @SuppressWarnings("unchecked")
     static Object measurement(ProfileStore profileStore) {
         Object answer = read(profileStore).get(KEY);

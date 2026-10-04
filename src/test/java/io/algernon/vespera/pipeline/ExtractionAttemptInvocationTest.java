@@ -79,6 +79,9 @@ class ExtractionAttemptInvocationTest {
     /** The attempt an operator writes to have the converter asked again. */
     private static final String THE_SECOND_ATTEMPT = "2";
 
+    /** The second attempt, written with a fraction that is zero: the same number. */
+    private static final String THE_SECOND_ATTEMPT_WRITTEN_WITH_A_FRACTION = "2.0";
+
     /** The attempt that is the first one, written out: the same as leaving the key unset. */
     private static final String THE_FIRST_ATTEMPT = "1";
 
@@ -247,6 +250,28 @@ class ExtractionAttemptInvocationTest {
     }
 
     @Test
+    @Story("Raising the extraction attempt asks the converter again")
+    @DisplayName("An extraction attempt written as 2.0 is the same attempt as 2, and nothing is done again")
+    void twoPointZeroIsTheSameAttemptAsTwo(@TempDir Path root) throws IOException {
+        theFirstAttemptThenTheSecond(root, "two point zero");
+
+        ExtractionAttemptInProfile.write(profileStore, THE_SECOND_ATTEMPT_WRITTEN_WITH_A_FRACTION, WHY);
+        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
+        cli.run("run", root.toString());
+
+        claim(
+                "the next invocation completes, and mints no new run of the extraction: 2.0 is the number 2,"
+                        + " so it is the second attempt again",
+                () -> {
+                    assertThat(cli.getExitCode()).isEqualTo(COMPLETED);
+                    assertThat(extractionRunsOf(root)).hasSize(TWO_RUNS);
+                });
+        claim(
+                "and asks the converter nothing, because the second attempt's work is all recorded",
+                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo((int) NONE));
+    }
+
+    @Test
     @Story("Putting the extraction attempt back goes back to the first one")
     @DisplayName("An extraction attempt of 1 is the first attempt, and nothing is done again")
     void anAttemptOfOneIsTheFirstAttempt(@TempDir Path root) throws IOException {
@@ -268,12 +293,13 @@ class ExtractionAttemptInvocationTest {
     }
 
     /**
-     * Text, a fraction, zero, a negative number, and the two values {@code Double.parseDouble} reads
-     * that are not numbers anyone counts with: none of them numbers an attempt, so each is ignored and
+     * Text, a fraction, zero, a negative number, the two values {@code Double.parseDouble} reads that
+     * are not numbers anyone counts with, and a whole number one past the largest attempt: none of them
+     * numbers an attempt, so each is ignored and
      * stage 2 stays on its first attempt.
      */
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"two", "1.5", "0", "-1", "NaN", "Infinity"})
+    @ValueSource(strings = {"two", "1.5", "0", "-1", "NaN", "Infinity", "2147483648"})
     @Story("An extraction attempt that is not a whole number changes nothing")
     @DisplayName("An extraction attempt that is not a whole number of 1 or more is ignored, and nothing is done again")
     void anAttemptThatIsNotAWholeNumberIsIgnored(String written, @TempDir Path root) throws IOException {
