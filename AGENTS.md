@@ -32,7 +32,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 - Prose written for a reader outside this project is free of the lists altogether; ADR-122 enumerates the audiences, and this is deliberately not a second copy of that list. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
 - **Cluster** renders as *group*.
 
-**`docs/adr/`** holds 183 decisions, ADR-001 to ADR-185 (ADR-176 is reserved by an open ticket and ADR-184 by an open branch, and neither is written yet), and two things about it are invisible from the files:
+**`docs/adr/`** holds 183 decisions, ADR-001 to ADR-185 (ADR-176 is reserved by an open ticket, [#369](https://github.com/algernon28/vespera/issues/369), with [PR #396](https://github.com/algernon28/vespera/pull/396) open, and ADR-184 is written on a branch not yet merged), and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.

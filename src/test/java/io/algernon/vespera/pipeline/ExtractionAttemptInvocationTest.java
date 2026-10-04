@@ -26,6 +26,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -47,7 +49,8 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p>The key is written through {@link ExtractionAttemptInProfile}, as YAML, so this compiles before
  * the key exists. Every test fails until it does: {@code ProfileStore} refuses a profile carrying a key
- * it does not know (#321), so the invocation after the key is written runs no stage.
+ * it does not know (the record is the schema, ADR-061, read with {@code FAIL_ON_UNKNOWN_PROPERTIES}), so
+ * the invocation after the key is written runs no stage.
  */
 @CascadeSliceTest
 @Import({ConverterStopsPartwayBeans.class, SuccessiveBuildsBeans.class})
@@ -70,7 +73,7 @@ class ExtractionAttemptInvocationTest {
     /** The one position the converter cannot convert, as a property of what it was sent. */
     private static final List<Integer> UNCONVERTIBLE_AT = List.of(7);
 
-    /** The one position the converter refuses while blaming itself: it had no worker free. */
+    /** The one position the converter refuses while blaming itself: it reports an internal fault. */
     private static final List<Integer> CONVERTER_FAULT_AT = List.of(5);
 
     /** The attempt an operator writes to have the converter asked again. */
@@ -79,14 +82,11 @@ class ExtractionAttemptInvocationTest {
     /** The attempt that is the first one, written out: the same as leaving the key unset. */
     private static final String THE_FIRST_ATTEMPT = "1";
 
-    /** An attempt written as a word, which no number can be read from. */
-    private static final String A_MISTYPED_ATTEMPT = "two";
-
     /** Why a test wrote the value, in the place an operator would explain themselves. */
     private static final String WHY = "set by this test";
 
     /** The settings the second attempt's run records after everything the first attempt's run recorded. */
-    private static final String THE_SECOND_ATTEMPT_RECORDED = ",\"extractionAttempt\":2.0}";
+    private static final String THE_SECOND_ATTEMPT_RECORDED = ",\"extractionAttempt\":2}";
 
     /** No row at all, or no call. */
     private static final long NONE = 0;
@@ -178,8 +178,12 @@ class ExtractionAttemptInvocationTest {
                         + " fragments, its removals and its faults are exactly as they were",
                 () -> assertThat(rowsUnder(attempts.first())).isEqualTo(attempts.firstRowsBefore()));
         claim(
-                "and storage gains exactly one answer, the conversion the converter has now given, and loses none",
+                "storage gains exactly one answer, the conversion the converter has now given, and loses none",
                 () -> assertThat(storedAnswers()).isEqualTo(attempts.storedAnswersBefore() + ONCE));
+        claim(
+                "and nothing has pointed the attempt at a report: the operator chooses it, and no measurement"
+                        + " informs it",
+                () -> assertThat(ExtractionAttemptInProfile.measurement(profileStore)).isNull());
     }
 
     @Test
@@ -263,13 +267,19 @@ class ExtractionAttemptInvocationTest {
                 () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo((int) NONE));
     }
 
-    @Test
-    @Story("A threshold nobody can parse is not a threshold, and the line says so")
-    @DisplayName("An extraction attempt that is not a number is ignored, and nothing is done again")
-    void anUnreadableAttemptIsIgnored(@TempDir Path root) throws IOException {
-        theFirstAttempt(root, "unreadable");
+    /**
+     * Text, a fraction, zero, a negative number, and the two values {@code Double.parseDouble} reads
+     * that are not numbers anyone counts with: none of them numbers an attempt, so each is ignored and
+     * stage 2 stays on its first attempt.
+     */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"two", "1.5", "0", "-1", "NaN", "Infinity"})
+    @Story("An extraction attempt that is not a whole number changes nothing")
+    @DisplayName("An extraction attempt that is not a whole number of 1 or more is ignored, and nothing is done again")
+    void anAttemptThatIsNotAWholeNumberIsIgnored(String written, @TempDir Path root) throws IOException {
+        theFirstAttempt(root, "ignored " + written);
 
-        ExtractionAttemptInProfile.write(profileStore, A_MISTYPED_ATTEMPT, WHY);
+        ExtractionAttemptInProfile.write(profileStore, written, WHY);
         ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
         cli.run("run", root.toString());
 

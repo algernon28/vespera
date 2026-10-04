@@ -16,8 +16,9 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * <p><b>Through the tree on purpose.</b> {@code ProfileFixture} builds a {@code Profile}
  * positionally, so a builder method for a key the record does not have yet would not compile, and a test
  * tree that does not compile fails every test, not only the ones about this key. Edited as YAML, the file
- * carries the key whether or not the code knows it. Until it does, {@code ProfileStore} refuses the file
- * (#321), which is how the tests that use this fail before the key is built.
+ * carries the key whether or not the code knows it. Until it does, {@code ProfileStore} refuses the file,
+ * because the record is the schema (ADR-061) and it is read with {@code FAIL_ON_UNKNOWN_PROPERTIES}; that
+ * is how the tests that use this fail before the key is built.
  *
  * <p>The rest of the file is read and written back as it stands, so every other answer, and census's
  * pointers beside them, are kept.
@@ -47,6 +48,13 @@ final class ExtractionAttemptInProfile {
         Map<String, Object> profile = read(profileStore);
         profile.remove(KEY);
         save(profileStore, profile);
+    }
+
+    /** The pointer census keeps beside the key, or {@code null} where the key carries none or is absent. */
+    @SuppressWarnings("unchecked")
+    static Object measurement(ProfileStore profileStore) {
+        Object answer = read(profileStore).get(KEY);
+        return answer instanceof Map<?, ?> fields ? ((Map<String, Object>) fields).get("measurement") : null;
     }
 
     @SuppressWarnings("unchecked")
