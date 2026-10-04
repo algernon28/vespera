@@ -579,18 +579,23 @@ class GenerationTasklet implements Tasklet {
         return new ListedPicturePlace(place.page(), place.left(), place.top(), place.right(), place.bottom());
     }
 
-    /** Every {@link Profile} key the run consumed, named as the operator names them (ADR-103). */
+    /**
+     * Every {@link Profile} key, one {@link NamedValue} per record component in declaration order, the component's
+     * name being the key as {@code profile.yaml} names it and its value passed through {@link #textOf}. No key is
+     * named here, so a key the record gains is on the index with no change to this method (ADR-103, ADR-186).
+     */
     private static List<NamedValue> profileValues(Profile profile) {
-        return List.of(
-                new NamedValue("seedFolder", textOf(profile.seedFolder())),
-                new NamedValue("degenerateOutputConfidenceFloor", textOf(profile.degenerateOutputConfidenceFloor())),
-                new NamedValue(
-                        "boilerplateDocumentFrequencyFloor", textOf(profile.boilerplateDocumentFrequencyFloor())),
-                new NamedValue("embeddingModel", textOf(profile.embeddingModel())),
-                new NamedValue("relevanceScoreFloor", textOf(profile.relevanceScoreFloor())),
-                new NamedValue("arrangementApproved", textOf(profile.arrangementApproved())),
-                new NamedValue("generationModel", textOf(profile.generationModel())),
-                new NamedValue("generationContextWindow", textOf(profile.generationContextWindow())));
+        var values = new ArrayList<NamedValue>();
+        for (var component : Profile.class.getRecordComponents()) {
+            try {
+                values.add(new NamedValue(
+                        component.getName(), textOf((ProfileValue) component.getAccessor().invoke(profile))));
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(
+                        "Could not read profile key '" + component.getName() + "' for the deliverable's index", e);
+            }
+        }
+        return List.copyOf(values);
     }
 
     /** What the operator wrote, or nothing where the key is unset -- never {@code null} on the page. */
