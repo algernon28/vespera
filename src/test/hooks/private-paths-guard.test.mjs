@@ -123,6 +123,23 @@ const WIDE = `${H}/.jdks`;
 const MORE_FOLDERS_THAN_THE_WALK_LOOKS_AT = 10_050;
 mkdirSync(WIDE, { recursive: true });
 for (let i = 0; i < MORE_FOLDERS_THAN_THE_WALK_LOOKS_AT; i++) mkdirSync(`${WIDE}/f${i}`);
+// The guard reads a command's relative paths against no more than 32 folders, the current directory
+// among them, and in no more than 20,000 readings: one reading is one relative token against one folder.
+const FOLDERS_READ_AGAINST = 32;
+const READINGS_AT_MOST = 20_000;
+const NAMED_FOLDERS = Array.from({ length: FOLDERS_READ_AGAINST }, (_, i) => `many/d${String(i).padStart(2, "0")}`);
+for (const folder of NAMED_FOLDERS) mkdirSync(`${C}/${folder}`, { recursive: true });
+// The current directory and these make 32, the most that is read against.
+const AS_MANY_FOLDERS_AS_ARE_READ = NAMED_FOLDERS.slice(0, FOLDERS_READ_AGAINST - 1).join(" ");
+const ONE_FOLDER_TOO_MANY = NAMED_FOLDERS.join(" ");
+const plainWords = (count) => Array.from({ length: count }, (_, i) => `w${i}`).join(" ");
+// echo, 31 folders and 630 words are 662 relative tokens, and against 32 folders that is 21,184 readings.
+const WORDS_PAST_THE_READINGS = 630;
+// With 100 words it is 132 tokens and 4,224 readings.
+const WORDS_WITHIN_THE_READINGS = 100;
+if ((1 + FOLDERS_READ_AGAINST - 1 + WORDS_PAST_THE_READINGS) * FOLDERS_READ_AGAINST <= READINGS_AT_MOST) {
+  throw new Error("the fixture no longer passes the bound on readings it is there to pass");
+}
 mkdirSync(`${base}/empty-bin`, { recursive: true });
 mkdirSync(LINKS, { recursive: true });
 
@@ -431,6 +448,12 @@ const cases = [
   ["N508", "Grep of a folder whose only working directories are inside .git, node_modules and target", "Grep", { pattern: "x", path: `${T}/built` }, ALLOWED],
   ["N509", "Grep of an allowed folder with more folders beneath it than the walk down looks at", "Grep", { pattern: "x", path: WIDE }, REFUSED],
   ["N510", "Grep of an allowed folder with few folders beneath it and no working directory", "Grep", { pattern: "x", path: `${H}/.m2` }, ALLOWED],
+
+  /* N6. The bounds on reading relative paths against the folders a command names. */
+  ["N601", "a command naming as many folders as relative paths are read against, the current directory among them", "Bash", { command: `ls ${AS_MANY_FOLDERS_AS_ARE_READ}` }, ALLOWED],
+  ["N602", "a command naming one folder more than relative paths are read against", "Bash", { command: `ls ${ONE_FOLDER_TOO_MANY}` }, REFUSED],
+  ["N603", "a command whose relative tokens need more readings against its folders than the guard makes", "Bash", { command: `echo ${AS_MANY_FOLDERS_AS_ARE_READ} ${plainWords(WORDS_PAST_THE_READINGS)}` }, REFUSED],
+  ["N604", "a command with the same folders and few enough words to stay within the readings", "Bash", { command: `echo ${AS_MANY_FOLDERS_AS_ARE_READ} ${plainWords(WORDS_WITHIN_THE_READINGS)}` }, ALLOWED],
 ];
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {

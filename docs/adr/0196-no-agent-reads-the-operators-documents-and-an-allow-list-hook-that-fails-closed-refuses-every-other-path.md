@@ -91,9 +91,15 @@ On Windows only, it also reads:
 
 **A relative path is read against every directory the command names, and is refused if any of those readings is refused.** A command can change directory before it reads a path: `cd <folder> && cat wd/report.html`, `git -C <folder> show wd/report.html`, `pushd`, `Set-Location`, `env -C`, `make -C`, a subshell. Read against the current directory alone, the relative path lands somewhere harmless, and the command reads a working directory.
 
-- The directories a command names are its current directory and every token of it, in any form §4 reads, that is a folder that exists. No list of verbs is kept: a list is dodged by the verb it leaves out.
+- The directories a command names are its current directory and every token of it, in any form §4 reads, that is a folder that exists. An absolute one counts as a relative one does: `cd D:/checkout/docs && cat adr/x.md` names `D:/checkout/docs`, and `cd docs && cat adr/x.md` names `docs`. No list of verbs is kept: a list is dodged by the verb it leaves out.
 - A relative token is read against each of them. A token that is a folder under one of them is a directory the command names too, so `cd a && cd b` is followed. This is repeated until it finds no new folder.
 - The call is refused if any reading of any token is outside the allow list or inside a working directory.
+
+**The rule is bounded, and refuses at its bounds.** Relative paths are read against no more than 32 folders, the current directory among them, so a command that names 32 folders besides its current directory is refused. One reading is one relative token against one folder, a token that is written twice being counted once, and a command that needs more than 20,000 readings is refused. Each refusal says to split the command. Past either bound there are readings the hook did not make, so it cannot let the call through. Both bounds have a case.
+
+One reading is not made: a token that is a plain name, with no separator in it, and that does not exist in a folder. That reading is a path directly in the folder, the folder was itself checked, and nothing is there to follow, so the answer is the folder's own.
+
+The rule knows only the directories written in the command. A directory the command reaches without naming it is §5's.
 
 The cost is refusals of harmless commands, and it is small beyond what the rule before it already cost. A relative path that climbs with `..` was already refused when it left the allow list from the current directory, as `cd src/main && cat ../../README.md` does from the repository. What is new is a refusal when a command names an allowed folder and, separately, a relative name that happens to be a working directory under that folder.
 
@@ -109,7 +115,11 @@ These are stated so nobody takes the hook for the whole of the protection. For e
 - **A variable that is not at the head of a token**, as in `x/$NAME/y` or `${NAME}suffix`. It is read as the text it is written as.
 - **An option with its value attached and no `=`**, as in `-I../x`. The token starts with `-` and is not read. A drive path written straight after a letter, as in `-IQ:/x`, is not read either.
 - **Another user's home**, `~name/x`. Only `~` alone or before a separator is the home folder; `~name/x` is read as a relative path of that spelling.
-- **A path from the root of the current drive, written without its letter**, as PowerShell's `Get-Content \archive\x` or `/archive/x`. It is one of the rooted paths this record does not decide, and on Windows it is a real path on whatever drive the command runs on.
+- **A path from the root of the current drive, written without its letter**, as PowerShell's `Get-Content \archive\x` or `/archive/x`. On Windows it is a real path on whatever drive the command runs on. It was left uncovered, with no rule and no case, on the operator's word of 2026-10-05: it has the same shape as `'\s'` in a pattern, which §4 lets through, and the hook cannot tell the two apart.
+- **A path on another drive written without a separator after the colon**, `Q:folder\x`. It is a path relative to that drive's own current directory, which is its root unless something changed it. The hook reads it as a relative name under the call's current directory.
+- **A directory the command changes to without naming it.** `cd` with no argument goes to the home folder, and `cd -` to the one before. The relative paths after it are read against the directories §4 knows, and this is not one.
+- **A directory named in a form §4 does not read**, such as `cd /tmp`. Relative paths are not read against it.
+- **A quoted string inside a quoted string**, as in `bash -c "cat 'my runs/x'"`. The outer string is read whole and the inner one is not, so the inner path is cut at its space.
 - **A shell wildcard.** `cat */vespera.log` names no folder the hook can check.
 - **A working directory the walk down does not reach** (§3): one inside a folder named `.git`, `node_modules` or `target`, behind a link, or in a folder that cannot be listed.
 - **A recursive shell command started above a working directory.** §3.4 holds for Grep and Glob. `grep -r`, `rg` and `find` in a shell command are read only for the paths written in them.
@@ -149,7 +159,9 @@ Claude Code blocks a call only on exit 2. Any other non-zero exit is a hook that
   - `echo $SHELL`, and any other variable alone whose value is a path outside the allow list;
   - on Windows, a one-letter switch written with a slash, as in `cmd /c`, which reads as the drive `C:`;
   - on Windows, a regular expression literal with one letter between its slashes, `/a/g`, which reads as a folder on drive `A:`;
-  - a command that names an allowed folder and a relative name that is a working directory under it (§4).
+  - a command that names an allowed folder and a relative name that is a working directory under it (§4);
+  - a commit message, or any other quoted text, that quotes a relative path reaching outside the allow list or into a working directory. Every word of it is a token, and the whole of it is one more;
+  - a command that names 32 folders besides its current directory, or whose words and folders need more than 20,000 readings, as a very long quoted text beside many folders does. It has to be split.
 - **A shell command whose current directory is a working directory is refused**, `ls` included. A session cannot work from inside one.
 - **Nothing under `src/main` changes, and no run id moves.**
 
