@@ -1,12 +1,15 @@
 package io.algernon.vespera.pipeline;
 
+import java.nio.file.Path;
 import java.time.Clock;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
@@ -36,8 +39,15 @@ public class VesperaJobConfiguration {
     /** The job's name, and the only name a later slice's stages are added to. */
     static final String JOB_NAME = "vespera";
 
+    /** The folder the invocation account is written to; unset means no account (ADR-198 section 1). */
+    static final String ACCOUNT_DIRECTORY_PROPERTY = "vespera.account-dir";
+
     @Bean
     Job vesperaJob(
+            @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
+            @Value("${" + ACCOUNT_DIRECTORY_PROPERTY + ":}") String accountDirectory,
+            JdbcTemplate jdbcTemplate,
+            Clock clock,
             JobRepository jobRepository,
             Step censusStep,
             Step byteLevelReductionStep,
@@ -70,6 +80,11 @@ public class VesperaJobConfiguration {
                 .next(relevanceReportStep)
                 .next(arrangementStep)
                 .next(generationStep)
+                .listener(new InvocationAccount(
+                        workingDirectory,
+                        accountDirectory == null || accountDirectory.isBlank() ? null : Path.of(accountDirectory.strip()),
+                        jdbcTemplate,
+                        clock))
                 .build();
     }
 

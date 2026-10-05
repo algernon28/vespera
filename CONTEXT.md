@@ -202,6 +202,10 @@ _Avoid_: run, session, job
 The operating system's lock on `vespera.lock` in the working directory, taken by an invocation before it opens the database file and held until its process ends, so a second invocation on the same working directory is refused before it reads or writes anything. The process ending releases it, however it ends; the file itself is never deleted, and its existence means nothing (ADR-177).
 _Avoid_: mutex, pidfile
 
+**Invocation account**:
+The one file an invocation that starts the job writes for a hosted model to read, in a folder outside every working directory: each step and how it ended, durations, counts, progress lines, and a failed step's exception types. It is built from typed values and an allow-list, so it names no path, file name, title or document text, and it keeps no exception message (ADR-198).
+_Avoid_: run summary, summary
+
 ### Output
 
 **Synthesis doc**:

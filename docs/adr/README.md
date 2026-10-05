@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-196.
+One file per architecture decision, ADR-001 through ADR-198. One number below ADR-198 is reserved by an open ticket and has no file yet.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -215,3 +215,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-194](0194-what-a-test-writes-goes-to-a-file-per-class-not-to-the-builds-console.md) | 2026-10-05 | What a test writes goes to a file per class, not to the build's console *(extends ADR-093 in the test JVM; rests on ADR-065)* |
 | [ADR-195](0195-the-reference-model-and-every-bake-off-candidate-are-served-locally.md) | 2026-10-05 | The reference model and every bake-off candidate are served locally, never hosted *(amends ADR-072, ADR-046's additions list; extends ADR-033; clarifies ADR-034)* |
 | [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md) | 2026-10-05 | No agent reads the operator's documents, and an allow-list hook that fails closed refuses every other path *(rests on ADR-054, ADR-177)* |
+| [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md) | 2026-10-05 | Every invocation writes an account built from an allow-list, and the account names no document *(extends ADR-093; makes a narrow exception to ADR-041; rests on ADR-192)* |
