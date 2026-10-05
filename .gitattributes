@@ -2,3 +2,4 @@
 *.cmd text eol=crlf
 /docker/**/Containerfile text eol=lf
 *.pdf binary
+/.claude/hooks/*.sh text eol=lf
