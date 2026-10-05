@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-198.
+One file per architecture decision, ADR-001 through ADR-199.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -217,3 +217,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md) | 2026-10-05 | No agent reads the operator's documents, and an allow-list hook that fails closed refuses every other path *(rests on ADR-054, ADR-177)* |
 | [ADR-197](0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md) | 2026-10-05 | A local model answers the relevance questions and the floor is a rule over the labels, so no document reaches a hosted model *(amends ADR-088, ADR-028, ADR-059, ADR-049; extends ADR-169; rests on ADR-097; keeps ADR-047)* |
 | [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md) | 2026-10-05 | Every invocation writes an account built from an allow-list, and the account names no document *(extends ADR-093; makes a narrow exception to ADR-041; rests on ADR-192)* |
+| [ADR-199](0199-the-private-paths-guard-reads-a-climb-out-of-a-link-both-ways-and-refuses-a-name-it-cannot-follow.md) | 2026-10-05 | The private-paths guard reads a climb out of a link both ways, and refuses a name it cannot follow *(amends ADR-196)* |

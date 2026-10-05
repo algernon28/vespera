@@ -1,5 +1,7 @@
 # ADR-196 — No agent reads the operator's documents, and an allow-list hook that fails closed refuses every other path
 
+> **Partly amended — see [ADR-199](0199-the-private-paths-guard-reads-a-climb-out-of-a-link-both-ways-and-refuses-a-name-it-cannot-follow.md).** Six passages below are no longer the whole of the decision, and that record says what replaces each: §3's "A link is followed before the check", which was false of a `..` after a link; §4's cut at `,`, `{` and `}`, its clause on a path headed by `@`, and its "Three things in it count more than a shell would"; §5's list, which gains two forms; §6's "about 0.36 s" and "At a third of a second it costs nothing to keep", which hold only for tokens that do not exist; and Consequences. §7's count of cases is also behind: the table holds more, and that record names them. Everything else in this record stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Rests on**: [ADR-054](0054-a-corpus-is-its-root-path-the-database-lives-in-a-configured-working-directory.md), for the two places the rule names: the corpus root, and the working directory kept apart from it. [ADR-177](0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md), for `vespera.lock`, one of the two files a working directory is recognised by.
