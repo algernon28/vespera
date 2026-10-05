@@ -6,6 +6,7 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.embedding.RelevanceScoring;
+import io.algernon.vespera.embedding.ScoringProgress;
 import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DocumentPictures;
@@ -28,6 +29,7 @@ import io.algernon.vespera.synthesis.ClusterGeneration;
 import io.algernon.vespera.synthesis.ClusterMaterial;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.Deliverable;
+import io.algernon.vespera.synthesis.DeliverableProgress;
 import io.algernon.vespera.synthesis.DeliverableProvenance;
 import io.algernon.vespera.synthesis.Exemplar;
 import io.algernon.vespera.synthesis.GenerationOutcome;
@@ -223,12 +225,17 @@ class GenerationTasklet implements Tasklet {
                     RunId scoring = scoringRunBehind(arrangement);
                     List<DocumentCluster> membership = documentClusters.forRun(scoring);
                     Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
-                            scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
+                            scoring,
+                            membership.stream().map(DocumentCluster::occurrenceId).toList(),
+                            scoresReadProgress());
                     Map<ClusterKey, List<DocumentCluster>> byCluster = membership.stream()
                             .collect(Collectors.groupingBy(ClusterKey::of));
                     String modelName = generationModel.name();
                     int contextWindow = generationContextWindow.size();
                     List<RecordedCluster> recordedClusters = clusters.forRun(arrangement);
+                    // A running counter: how many members a cluster has is known only as it is reached.
+                    StageProgress documentsOpened =
+                            StageProgress.running("Stage 6b (generation, cluster documents opened)");
 
                     GenerationOutcome outcome = clusterGeneration.write(
                             generation,
@@ -237,7 +244,8 @@ class GenerationTasklet implements Tasklet {
                                 List<Exemplar> exemplars = exemplarsOf(
                                         byCluster.getOrDefault(ClusterKey.of(recorded), List.of()),
                                         scores,
-                                        canonicalRoot);
+                                        canonicalRoot,
+                                        documentsOpened);
                                 return new ClusterMaterial(pathOf(recorded.cluster().winningSeed()), exemplars);
                             },
                             modelName,
@@ -294,10 +302,24 @@ class GenerationTasklet implements Tasklet {
 
     /**
      * The four lines the walk's progress earns, each about one cluster, written under this class's own
-     * logger so that what the operator reads is unchanged by where the walk lives (ADR-093, ADR-190).
+     * logger so that what the operator reads is unchanged by where the walk lives (ADR-093, ADR-190). It also
+     * opens the {@code Stage 6b (generation, clusters)} counter when the walk announces its total, and ticks it
+     * once at the end of each cluster's path (ADR-192 section 5).
      */
     private static GenerationProgress progressLines() {
         return new GenerationProgress() {
+            private StageProgress gone;
+
+            @Override
+            public void toGoThrough(long clusters) {
+                gone = StageProgress.over("Stage 6b (generation, clusters)", clusters);
+            }
+
+            @Override
+            public void clusterGoneThrough() {
+                gone.itemDone();
+            }
+
             @Override
             public void noSendableDocument(RecordedCluster cluster) {
                 LOG.warn(
@@ -345,6 +367,73 @@ class GenerationTasklet implements Tasklet {
         };
     }
 
+    /** The counter for the scores 6b reads over the membership, through {@code embedding}'s callback (ADR-192). */
+    private static ScoringProgress scoresReadProgress() {
+        return new ScoringProgress() {
+            private StageProgress read;
+
+            @Override
+            public void toReadScores(long occurrences) {
+                read = StageProgress.over("Stage 6b (generation, scores read)", occurrences);
+            }
+
+            @Override
+            public void scoreRead() {
+                read.itemDone();
+            }
+        };
+    }
+
+    /** The four counters of the tree, told by {@code synthesis} what each loop's total is (ADR-192 section 5). */
+    private static DeliverableProgress treeProgress() {
+        return new DeliverableProgress() {
+            private StageProgress pictures;
+            private StageProgress partitions;
+            private StageProgress files;
+            private StageProgress entries;
+
+            @Override
+            public void toListPictures(long survivors) {
+                pictures = StageProgress.over("Stage 6b (generation, pictures listed)", survivors);
+            }
+
+            @Override
+            public void picturesListed() {
+                pictures.itemDone();
+            }
+
+            @Override
+            public void toWritePartitions(long total) {
+                partitions = StageProgress.over("Stage 6b (generation, partitions written)", total);
+            }
+
+            @Override
+            public void partitionWritten() {
+                partitions.itemDone();
+            }
+
+            @Override
+            public void toWriteClusterFiles(long total) {
+                files = StageProgress.over("Stage 6b (generation, cluster files written)", total);
+            }
+
+            @Override
+            public void clusterFileWritten() {
+                files.itemDone();
+            }
+
+            @Override
+            public void toWriteMembershipEntries(long total) {
+                entries = StageProgress.over("Stage 6b (generation, membership entries)", total);
+            }
+
+            @Override
+            public void membershipEntryWritten() {
+                entries.itemDone();
+            }
+        };
+    }
+
     /**
      * Writes the tree the operator is handed, over the whole arrangement as it stands now — every
      * invocation that reached this point writes one, faulted and unsendable clusters included, because
@@ -381,7 +470,8 @@ class GenerationTasklet implements Tasklet {
                 written,
                 survivorsFor(membership, scores, canonicalRoot, hashes),
                 survivorPictures(canonicalRoot, byteLevelReductionRun, hashes),
-                whyUnwritten(generation, recordedClusters, written, foundThisRun));
+                whyUnwritten(generation, recordedClusters, written, foundThisRun),
+                treeProgress());
     }
 
     /**
@@ -542,6 +632,7 @@ class GenerationTasklet implements Tasklet {
             Path canonicalRoot,
             Map<OccurrenceId, Optional<String>> hashes) {
         List<ListedSurvivor> survivors = new ArrayList<>();
+        StageProgress listed = StageProgress.over("Stage 6b (generation, survivors listed)", membership.size());
         for (DocumentCluster member : membership) {
             OccurrencePath path = ledger.factsFor(member.occurrenceId())
                     .map(OccurrenceFacts::path)
@@ -561,6 +652,7 @@ class GenerationTasklet implements Tasklet {
                     seedPath.value(),
                     member.clusterOrdinal(),
                     score));
+            listed.itemDone();
         }
         return survivors;
     }
@@ -664,7 +756,10 @@ class GenerationTasklet implements Tasklet {
      * though it had been measured and found least relevant, which is a claim nobody made.
      */
     private List<Exemplar> exemplarsOf(
-            List<DocumentCluster> members, Map<OccurrenceId, Double> scores, Path canonicalRoot) {
+            List<DocumentCluster> members,
+            Map<OccurrenceId, Double> scores,
+            Path canonicalRoot,
+            StageProgress documentsOpened) {
         List<Exemplar> exemplars = new ArrayList<>();
         for (DocumentCluster member : members) {
             Double score = scores.get(member.occurrenceId());
@@ -674,6 +769,7 @@ class GenerationTasklet implements Tasklet {
                         + " documents of that cluster cannot be put in order");
             }
             Optional<Chunk> opening = openingChunkOf(member.occurrenceId(), canonicalRoot);
+            documentsOpened.itemDone();
             if (opening.isEmpty()) {
                 continue;
             }
