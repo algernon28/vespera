@@ -41,6 +41,15 @@ public class DocumentFrequency {
      * survivors, and writes the result under {@code stage3RunId}.
      */
     public void measure(RunId stage3RunId, RunId stage2RunId) {
+        measure(stage3RunId, stage2RunId, FrequencyProgress.NONE);
+    }
+
+    /**
+     * As {@link #measure(RunId, RunId)}, and tells {@code progress} the number of distinct (granularity,
+     * hash) pairs counted in memory once, before the first is gone through (zero included), and each one
+     * gone through, a row written for it or not (ADR-192 section 5).
+     */
+    public void measure(RunId stage3RunId, RunId stage2RunId, FrequencyProgress progress) {
         Set<Long> survivorIds = drainSurvivors(stage2RunId);
 
         Map<Hash, Counts> byHash = new HashMap<>();
@@ -63,21 +72,22 @@ public class DocumentFrequency {
                 },
                 stage2RunId.value());
 
+        progress.toGoThrough(byHash.size());
         byHash.forEach((hash, counts) -> {
             // The omission rule schema.sql's own comment states: only a hash seen in two or more
             // surviving documents earns a row (ADR-074) -- an absent hash means exactly one, never zero.
-            if (counts.documentCount() < 2) {
-                return;
+            if (counts.documentCount() >= 2) {
+                jdbcTemplate.update(
+                        "INSERT INTO shingle_document_frequency"
+                                + " (run_id, shingle_parameter_identity, shingle_hash, document_count, total_count)"
+                                + " VALUES (?, ?, ?, ?, ?)",
+                        stage3RunId.value(),
+                        hash.parameterIdentity(),
+                        hash.shingleHash(),
+                        counts.documentCount(),
+                        counts.totalCount());
             }
-            jdbcTemplate.update(
-                    "INSERT INTO shingle_document_frequency"
-                            + " (run_id, shingle_parameter_identity, shingle_hash, document_count, total_count)"
-                            + " VALUES (?, ?, ?, ?, ?)",
-                    stage3RunId.value(),
-                    hash.parameterIdentity(),
-                    hash.shingleHash(),
-                    counts.documentCount(),
-                    counts.totalCount());
+            progress.hashGoneThrough();
         });
 
         shingledOccurrencesByParameter.forEach((parameterIdentity, occurrenceIds) -> jdbcTemplate.update(
