@@ -1,5 +1,5 @@
 // The private-paths guard, held to its record: docs/adr/0196. No agent reads the operator's documents,
-// and a PreToolUse hook refuses any path outside an allow list and fails closed. docs/adr/0199 amends
+// and a PreToolUse hook refuses any path outside an allow list and fails closed. docs/adr/0201 amends
 // that record, and the L and G cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs

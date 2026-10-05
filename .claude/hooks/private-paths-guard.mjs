@@ -2,7 +2,7 @@
 // (plus .claude/allowed-paths.local.txt on this machine), or a path inside a Vespera working directory
 // wherever it is, or a recursive Grep or Glob that begins above one. The operator's archives can hold
 // sensitive documents, and nothing that reads a document may reach a hosted model: a document is read
-// only by local models. ADR-196 (docs/adr/0196) is the record and ADR-199 (docs/adr/0199) amends it, and
+// only by local models. ADR-196 (docs/adr/0196) is the record and ADR-201 (docs/adr/0201) amends it, and
 // src/test/hooks/private-paths-guard.test.mjs holds this file to both.
 //
 // It is registered for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell.

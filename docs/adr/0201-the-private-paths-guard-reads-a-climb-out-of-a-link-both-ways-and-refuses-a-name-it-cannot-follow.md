@@ -1,8 +1,8 @@
-# ADR-199 — The private-paths guard reads a climb out of a link both ways, and refuses a name it cannot follow
+# ADR-201 — The private-paths guard reads a climb out of a link both ways, and refuses a name it cannot follow
 
 - **Date**: 2026-10-05
 - **Status**: accepted
-- **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others: §3's sentence "A link is followed before the check"; §4's cut at `,`, `{` and `}`, its clause on a path headed by `@`, and its paragraph "How the count is kept, and where it counts too much"; §5's list of what the hook does not cover; §6's two measurements and its paragraph on the bound on readings; and Consequences. ADR-196's rule (§1), its allow list (§2), its bounds and how it fails closed stand as written.
+- **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others: §3's sentence "A link is followed before the check"; §4's cut at `,`, `{` and `}`, its clause on a path headed by `@`, and its paragraph "How the count is kept, and where it counts too much"; §5's list of what the hook does not cover; §6's sentence "A hook that runs out of time is not known to fail closed", its two measurements and its paragraph on the bound on readings; and Consequences. ADR-196's rule (§1), its allow list (§2), its bounds and every way §6 makes the hook fail closed stand as written.
 - **Settles**: [#432](https://github.com/algernon28/vespera/issues/432), and the five follow-ups the fourth gate of [#426](https://github.com/algernon28/vespera/pull/426) left.
 
 ## Context
@@ -36,7 +36,7 @@ This holds for every path of a call (ADR-196 §3): a file tool's field, a search
 **It is decided for every tool, and not for Bash alone.** The text of a call does not say which program will read the path: a PowerShell command can start an MSYS program, and what Read does with `..` on a system that is not Windows is not known.
 
 - **What it lets through**: nothing that was refused before.
-- **What it costs**: one more `realpath` for each folder a `..` is taken from, asked once per call and kept. Where no link is on the way the second reading is the first, and is answered from what is kept. One reading against §4's bound is still one token against one folder. A path that climbs out of a link is also refused where the program reading it would fold it as text and find nothing.
+- **What it costs**: one more `realpath` for each folder a `..` is taken from, asked once per call and kept. Where no link is on the way the second reading is the first, and is answered from what is kept. One reading against §4's bound is still one token against one folder. A path that climbs out of a link is also refused where the program reading it would fold it as text and find nothing. §7 gives the time.
 
 ### 2. A name that is there and cannot be followed to where it leads is refused
 
@@ -46,6 +46,8 @@ The guard asks about the name itself before it follows it, so a name that is not
 
 - **What it lets through**: nothing.
 - **What it costs**: a refusal of a command that names a broken link, or a path the guard is denied or finds locked. Nothing can read through such a name, so no document was exposed by the old behaviour. It is refused because ADR-196 §6 fails closed wherever the guard cannot reach a decision, and because on a system that is not Windows a Write through a link to nothing creates the name it leads to.
+
+**A broken link followed at once by `..`, as in `links/nowhere/..`, is not refused.** Neither reading asks about the link. The text reading folds `nowhere` away against the `..`. The walked reading reaches `nowhere`, cannot follow it, puts the name back as text as §1 does for a name it cannot resolve, and the `..` takes it off again. Both readings land on the folder the link is in, which is checked like any other path. Nothing is read through the link: a program that walks the path cannot pass the broken link either. This is the rule as it stands, and no case holds it.
 
 ADR-196 §3's walk down from a search root still passes over a folder it cannot list. That is a different doubt, and its reason stands.
 
@@ -70,7 +72,7 @@ No shell makes a list inside quotes, which is why the rule stops at the quotes. 
 
 - **A token, or a piece of a comma list, headed by `${NAME}` or `${env:NAME}` that is replaced by its value is read whole.** What follows the closing brace is not read apart from it: `"${TMPDIR}/x"` is `x` under the temp folder and not the drive `X:`.
 - **One that is not replaced keeps the readings it had**: a variable with no value, one whose value is a list, one that is not at the head, one with no separator after it. What stands before it and after it is read as a piece.
-- **In a Bash command only, `${NAME-word}`, `${NAME=word}`, `${NAME+word}` and `${NAME?word}`, each with or without a colon before the sign, is a variable with a word for when it has no value.** The name is not read. The word is read as a token of its own. In a PowerShell command `${Q:-x}` is what a name on drive `Q:` holds, and is read as before.
+- **In a Bash command only, `${NAME-word}`, `${NAME=word}`, `${NAME+word}` and `${NAME?word}`, each with or without a colon before the sign, is a variable with a word for when it has no value.** The name is not read. The word is read as a token of its own. Such a variable is not replaced, so what follows its closing brace is read as a piece, as the bullet above says. In a PowerShell command `${Q:-x}` is what a name on drive `Q:` holds, and is read as before.
 
 - **What it lets through**: `${NAME}/q/x` where `NAME` has a value in the hook's environment and none in the command's shell, which is then a Git Bash drive path. That is ADR-196 §5's variable set in the same command.
 - **What it closes**: `cat ${OUT:-../wd/report.html}` was let through on every platform unless the name was one letter.
@@ -79,22 +81,30 @@ No shell makes a list inside quotes, which is why the rule stops at the quotes. 
 
 ADR-196 §4 reads a token headed by `@` also without the `@`. The `@` comes off before any punctuation is trimmed from the token's end, so what is left is told a drive, or not, as it is written. It lets nothing through.
 
-### 7. The bound on readings stays at 20,000, and its worst case is about three seconds
+### 7. The bound on readings stays at 20,000, and its worst case is about seven seconds
 
-ADR-196 §6 concludes that at a third of a second the bound "costs nothing to keep". The figure is true of tokens that do not exist. Measured on the operator's machine at `58e4466`, the guard started with `node` and no wrapper, five times each:
+ADR-196 §6 concludes that at a third of a second the bound "costs nothing to keep". The figure is true of tokens that do not exist. A path that exists gets no help from what is kept, and §1 makes a path that climbs out of a link cost a second check.
 
-- a command naming 31 folders with 588 tokens of the form `./fN` that exist in every folder, 19,840 readings, let through: 2.9 to 3.3 s. The fourth gate measured 2.5 s for the same command. A path that exists gets no help from what is kept;
-- the same count of plain words: 0.26 to 0.30 s;
-- an ordinary `ls`: 36 ms.
+**Spec-implementer measured, on the operator's machine, after the change that built §1 to §6**, with the guard started directly with `node` and no wrapper, five runs of each. The command names 31 folders and 588 tokens of the form `./g/../fN`, each `fN` a file that exists in every folder: 19,840 readings, just under the bound, and every run let through.
 
-The bound stays. Its worst case needs a command that names 31 folders and several hundred paths present in every one of them. A lower bound would refuse a long quoted text beside a few folders, which is an everyday command.
+| Form | This record's guard | ADR-196's guard |
+| --- | --- | --- |
+| ADR-196's form, `./fN`, with no `..` | 3.15–3.20 s | 2.90–2.99 s |
+| the `..` form, no link on the way | 3.36–3.45 s | 2.88–2.93 s |
+| the `..` form, every folder reached through a link | 6.74–6.87 s | 3.49–4.04 s |
+| plain words that do not exist | 0.44–0.46 s | 0.28–0.31 s |
 
-§1 adds about 32 `realpath` calls to that worst case where no link is on the way. Where every folder is reached through a link it makes one more check per reading, so at most about twice the time. **That is derived and not measured**: the change that builds §1 measures it and puts the figure here.
+An ordinary `ls` takes 30 to 40 ms, and a Grep of the repository root 0.03 s. The fourth gate had measured 2.5 s for ADR-196's form on ADR-196's guard.
+
+**The worst case is about seven seconds, and the bound stays at 20,000.** That case needs a command that names 31 folders, each reached through a link, and several hundred paths that climb and exist in every one of them. A lower bound would refuse a long quoted text beside a few folders, which is an everyday command. Halving it would halve the worst case and refuse a 600-word message beside 16 folders.
+
+**What a hook that runs out of time does is now documented, and it does not fail closed.** ADR-196 §6 said it was not known. Claude Code's documentation, read on 2026-10-05 and not executed here, says a command hook's default timeout is 600 s, and that "a timed-out `command`, `http`, or `mcp_tool` hook doesn't block the tool call". `settings.json` sets no timeout for this hook, so the default applies. That is why the worst case is weighed at all. Seven seconds is under the default by a factor of more than eighty. A timeout set in `settings.json` would not help: a hook that times out lets the call through whatever the timeout is. The bound is what keeps the guard well inside it.
 
 ### 8. What the hook does not cover, added to ADR-196 §5
 
 - **A member of a list inside quotes that is a path on a drive with no separator after the colon** (§4 above).
 - **A link that only Git Bash's runtime follows.** A symlink written as a file for Cygwin is a plain file to Node, so `realpath` does not see where it leads. Whether Git Bash follows one was not probed.
+- **A guard that runs out of time.** Claude Code's documentation says the call goes through (§7). No command within the bounds comes near the default.
 
 ### 9. The test
 
@@ -105,7 +115,7 @@ The bound stays. Its worst case needs a command that names 31 folders and severa
 - **L301 to L306**: §2, with a path two folders that do not exist yet down an allowed one, and a quoted sentence longer than any name a file system holds, both let through.
 - **G101 to G107**: §3. **G201 to G220**: §4 and §5, each allowed spelling beside the refusals the rule must leave standing. **G401 to G404**: §6.
 
-On Windows at `58e4466`, 229 hold and 29 do not, and those 29 are what the guard is to be brought to. Linux was not run.
+On Windows, ADR-196's guard held 229 of the 258 and not the other 29, which were written first as what the guard was to be brought to. This record's guard holds all 258. Linux was not run.
 
 ## Decided here, open to the operator's overruling
 
@@ -113,16 +123,21 @@ On Windows at `58e4466`, 229 hold and 29 do not, and those 29 are what the guard
 2. §2 refuses a name that cannot be followed, where the old behaviour could have been kept with its reason recorded.
 3. §4 opens a small, named way through so that `gh --jq` and `node -e` with an object are not refused. Without the rule, G201 to G203 are refused and a line in Consequences says so.
 4. §5's word for a variable with no value is read in a Bash command only.
-5. The bound on readings stays at 20,000 with a worst case of about three seconds.
+5. The bound on readings stays at 20,000 with a worst case of about seven seconds.
 6. Nothing is ruled for the space escaped with a backslash. The gate named it beside the cut, every refusal it executed came from the cut, and no false refusal from the join was reproduced.
 
 ## Consequences
 
 - **A path that climbs out of a link is refused when either reading of it is refused**, in a PowerShell command and a file tool's field too, where the program may fold it as text.
 - **A command that names a broken link, or a path the guard is denied, is refused.**
-- **Still refused on Windows, and to be reworded**: an object outside quotes, `echo {a:1}`; a key with a space after its colon, `{ t: .title }`, where `t:` is a token of its own and a bare drive; a one-letter name before a colon inside `${…}` in a form §5 does not name, such as `${f:0:3}`.
+- **Still refused on Windows, and to be reworded**:
+  - an object outside quotes, `echo {a:1}`;
+  - a key with a space after its colon, `{ t: .title }`, where `t:` is a token of its own and a bare drive;
+  - a one-letter name before a colon inside `${…}` in a form §5 does not name, such as `${f:0:3}`;
+  - a variable with a word for when it has no value, followed by a one-letter folder, `echo ${HOME:-x}/y`. What follows the closing brace is read on its own (§5), and `/y` is a Git Bash drive. `${DIR:-.}/file` is let through, because a rooted path of more than one letter is not read.
 - **`Get-ChildItem .., main`, `--jq '{t:.title}'`, `node -e` with an object, `"${TMPDIR}/x"` and `${f:-none}` are let through.**
 - **ADR-196 Consequences' line on `cd ".."` stands**: a quoted token is still counted for the piece and for the string.
+- **A command at the bound on readings can take about seven seconds** (§7).
 - **Nothing under `src/main` changes, and no run id moves.**
 
 ## Alternatives weighed
@@ -133,9 +148,11 @@ On Windows at `58e4466`, 229 hold and 29 do not, and those 29 are what the guard
 - **A piece of a cut never read as a drive.** Rejected: `ls x,Q:..` and an unquoted brace list are lists a shell does make, and must stay refused.
 - **A Consequences line for the object keys and no rule.** Weighed against §4's way through. Rejected because a hook that refuses the commands this repository's notes recommend is a hook that gets removed, which is ADR-196's own argument.
 - **A lower bound on readings.** Rejected in §7.
+- **A timeout for the hook in `settings.json`.** Rejected in §7: a hook that times out lets the call through, so a timeout moves nothing.
 
 ## What this does not decide
 
 - **`InvocationAccount.refusalToWrite`**, which #432 also names. It is Java under ADR-198, compares paths as text, and is raised as its own ticket.
 - **What Claude Code's Read does with `..` on a system that is not Windows.** §1 does not depend on it.
 - **Whether Git Bash follows a symlink written as a file** (§8).
+- **Whether a timed-out hook lets the call through, by execution.** §7 rests on the documentation.
