@@ -274,6 +274,9 @@ const ONLY_WINDOWS = {
 };
 
 const NO_DRIVE = "Q:/no-such-folder/x";
+// The letter and colon of the drive the fixture is on, as C: is. T.slice(3) is then the temp folder's
+// path from that drive's root. Only the cases marked for Windows use either.
+const ON_THE_FIXTURES_DRIVE = base.slice(0, 2);
 
 // id, what the call is, the tool, its input, and the exit code claimed. cwd is the checkout unless given.
 const cases = [
@@ -454,6 +457,17 @@ const cases = [
   ["N602", "a command naming one folder more than relative paths are read against", "Bash", { command: `ls ${ONE_FOLDER_TOO_MANY}` }, REFUSED],
   ["N603", "a command whose relative tokens need more readings against its folders than the guard makes", "Bash", { command: `echo ${AS_MANY_FOLDERS_AS_ARE_READ} ${plainWords(WORDS_PAST_THE_READINGS)}` }, REFUSED],
   ["N604", "a command with the same folders and few enough words to stay within the readings", "Bash", { command: `echo ${AS_MANY_FOLDERS_AS_ARE_READ} ${plainWords(WORDS_WITHIN_THE_READINGS)}` }, ALLOWED],
+
+  /* N7. One letter and a colon at the head of a token is that drive, whatever follows. */
+  ["N701", "cat of a path on another drive with no separator after the colon", "Bash", { command: "cat Q:no-such-folder/x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["N702", "Get-Content of such a path, written with a backslash", "PowerShell", { command: String.raw`Get-Content Q:no-such-folder\x` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
+  ["N703", "cat of such a path in quotes, with a space in it", "Bash", { command: "cat 'Q:no such/x'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["N704", "an option whose value after = is such a path", "Bash", { command: "sort --file=Q:x README.md" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["N705", "such a path on the fixture's own drive, in a folder the allow list does not name", "Bash", { command: `cat ${ON_THE_FIXTURES_DRIVE}no-such-folder-of-the-fixture/x` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["N706", "such a path on the fixture's own drive that lands under the temp folder", "Bash", { command: `cat ${ON_THE_FIXTURES_DRIVE}${T.slice(3)}/scratch/note.txt` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["N707", "curl of a host and a port with no scheme", "Bash", { command: "curl -s localhost:5001/health" }, ALLOWED],
+  ["N708", "git commit with a quoted sentence that opens with a word and a colon", "Bash", { command: 'git commit -m "Note: the guard reads one letter and a colon as a drive, and a word and a colon as a word."' }, ALLOWED],
+  ["N709", "sed with colons for delimiters, whose expression is headed by one letter and a colon", "Bash", { command: "sed -e s:a:b: README.md" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
 ];
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {

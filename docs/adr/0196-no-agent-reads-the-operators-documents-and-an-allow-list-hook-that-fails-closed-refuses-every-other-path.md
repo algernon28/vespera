@@ -84,6 +84,7 @@ It reads:
 
 On Windows only, it also reads:
 
+- **a path on a drive with no separator after the colon**, `Q:folder\x`. To the shell it is a path from that drive's own current directory, which is the drive's root unless something changed it. A token headed by exactly one letter, a colon, and then anything but a separator is a path on that drive, and it is checked as the drive's root joined with the rest. Only that reading is judged. So such a token on the current directory's own drive is checked from that drive's root and not as a relative path, which can refuse a path the shell would have found under the current directory, and never lets one through. A word and a colon, `HEAD:README.md` or `localhost:5001`, is not one.
 - **a Git Bash drive path**, `/q/x`, and its `/proc/cygdrive/q/x` and `/cygdrive/q/x` forms. It is one only when written with forward slashes.
 - **a UNC path**, `//host/share/x` or `\\host\share\x`: two slashes or two backslashes at the head of the token, and not one of each.
 
@@ -116,7 +117,6 @@ These are stated so nobody takes the hook for the whole of the protection. For e
 - **An option with its value attached and no `=`**, as in `-I../x`. The token starts with `-` and is not read. A drive path written straight after a letter, as in `-IQ:/x`, is not read either.
 - **Another user's home**, `~name/x`. Only `~` alone or before a separator is the home folder; `~name/x` is read as a relative path of that spelling.
 - **A path from the root of the current drive, written without its letter**, as PowerShell's `Get-Content \archive\x` or `/archive/x`. On Windows it is a real path on whatever drive the command runs on. It was left uncovered, with no rule and no case, on the operator's word of 2026-10-05: it has the same shape as `'\s'` in a pattern, which §4 lets through, and the hook cannot tell the two apart.
-- **A path on another drive written without a separator after the colon**, `Q:folder\x`. It is a path relative to that drive's own current directory, which is its root unless something changed it. The hook reads it as a relative name under the call's current directory.
 - **A directory the command changes to without naming it.** `cd` with no argument goes to the home folder, and `cd -` to the one before. The relative paths after it are read against the directories §4 knows, and this is not one.
 - **A directory named in a form §4 does not read**, such as `cd /tmp`. Relative paths are not read against it.
 - **A quoted string inside a quoted string**, as in `bash -c "cat 'my runs/x'"`. The outer string is read whole and the inner one is not, so the inner path is cut at its space.
@@ -156,6 +156,7 @@ Claude Code blocks a call only on exit 2. Any other non-zero exit is a hook that
   - a commit message that quotes `../x`, or a `sed` expression that reads as a relative path out of the repository;
   - an unquoted path with a space in it, cut short at the space. Quoted, it is read whole (§4);
   - a token that is one letter and a colon, as in a commit message that lists `A:` and `B:`;
+  - on Windows, a token headed by one letter and a colon, whatever follows: a `sed` expression with colons for delimiters, `s:a:b:`, a refspec between one-letter names, `a:b`, or a one-letter host before a path;
   - `echo $SHELL`, and any other variable alone whose value is a path outside the allow list;
   - on Windows, a one-letter switch written with a slash, as in `cmd /c`, which reads as the drive `C:`;
   - on Windows, a regular expression literal with one letter between its slashes, `/a/g`, which reads as a folder on drive `A:`;
