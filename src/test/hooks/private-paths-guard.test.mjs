@@ -108,15 +108,21 @@ put(`${O}/doc.txt`, "fixture\n");
 mkdirSync(`${base}/empty-bin`, { recursive: true });
 mkdirSync(LINKS, { recursive: true });
 
-// A junction needs no privilege on Windows; a symlink needs none elsewhere.
+// A junction needs no privilege on Windows; a symlink needs none elsewhere. The backslash separates
+// folders on Windows only: anywhere else it is a character of a name, and a link made from such a path
+// is one oddly named file in the current directory, pointing nowhere, made without complaint.
+const native = (p) => (windows ? back(p) : p);
 let linkable = true;
 try {
-  symlinkSync(back(O), back(`${LINKS}/out`), windows ? "junction" : "dir");
-  symlinkSync(back(WD), back(`${LINKS}/to-working-directory`), windows ? "junction" : "dir");
+  symlinkSync(native(O), native(`${LINKS}/out`), windows ? "junction" : "dir");
+  symlinkSync(native(WD), native(`${LINKS}/to-working-directory`), windows ? "junction" : "dir");
 } catch {
   linkable = false;
 }
-const NO_LINK = "this platform would not create a junction or a symlink without privilege";
+// A link that was made and does not lead where it should is no fixture: the cases that need it are
+// not started, so none of them holds or fails for a reason that is not the guard's.
+if (!existsSync(`${LINKS}/out/doc.txt`) || !existsSync(`${LINKS}/to-working-directory/vespera.db`)) linkable = false;
+const NO_LINK = "this platform would not create a junction or a symlink that leads where it should";
 
 // A wrapper that ends with a given exit code before it reaches its own mapping of exit codes.
 function checkoutWhoseWrapperExits(code) {
