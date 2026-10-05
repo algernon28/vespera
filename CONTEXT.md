@@ -167,7 +167,7 @@ _Avoid_: archive root, archive (the files, where this is the path), input direct
 **Working directory**:
 The one directory an invocation writes into, kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, `vespera.log`, `profile.yaml`, the pages the stages write for the operator, the label file and the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-196).
 _Avoid_: db dir (the option's spelling, not the term), output directory, data directory, workspace
-_Not to be confused with_: the directory a process or a shell command is started in. That is the **current directory** in our names and records (ADR-122), never the working directory.
+_Not to be confused with_: the directory a process or a shell command is started in. That is the **current directory**, as ADR-066 writes it, in every name and record of ours, never the working directory.
 
 **Walk**:
 One observation of a filesystem, producing file occurrences. Carries the root it observed and whether it finished, because a partial walk that looks complete curates a fraction of the archive and reports success.
