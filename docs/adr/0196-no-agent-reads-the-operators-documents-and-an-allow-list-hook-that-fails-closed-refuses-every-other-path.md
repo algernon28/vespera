@@ -46,30 +46,36 @@ It is an allow list and not a list of archives, so an archive on a new path is r
 
 The hook reads every place a call can carry a path:
 
-1. **A file tool's own field**: `file_path`, `path`, `notebook_path`. A relative one is read against the call's `cwd`.
-2. **A search tool's pattern fields**: Grep's `glob` and Glob's `pattern`. An absolute one is checked as written. A relative one is read against `path`, or against `cwd` when there is no `path`. A pattern that climbs out with `..` is checked where it lands.
-3. **The directory a call starts in.** A Grep or Glob with no `path` searches `cwd`, so `cwd` is a path of that call. A shell command runs in `cwd`, so `cwd` is a path of that call too. A call whose `cwd` is outside the allow list, or inside a working directory, is refused whatever else it names.
-4. **A search that starts above a working directory.** A Grep or Glob whose root (`path`, or `cwd` without one) holds a working directory at any depth is refused, because a recursive search reaches into it.
+1. **A file tool's own field**: `file_path`, `path`, `notebook_path`. A relative one is read against the call's `cwd`. A call that carries no `cwd` is read as starting in the checkout.
+2. **A search tool's pattern fields**: Grep's `glob` and Glob's `pattern`. What is checked is the part of the pattern before its first wildcard, which is the folder the search starts in. An absolute one is checked as written. A relative one is read against `path`, or against `cwd` when there is no `path`. A pattern that climbs out with `..` is checked where it lands.
+3. **The directory a call starts in.** A Grep or Glob with no `path` searches `cwd`, so `cwd` is a path of that call. A shell command runs in `cwd`, so `cwd` is a path of that call too. Such a call is refused when its `cwd` is outside the allow list or inside a working directory, whatever else it names. A file tool, or a search that names a `path`, is checked on the paths it names and not on its `cwd`.
+4. **A search that starts above a working directory.** A Grep or Glob whose root (`path`, or `cwd` without one) or whose pattern's folder holds a working directory at any depth is refused, because a recursive search reaches into it.
 5. **A shell command's text**, in §4's forms.
 
 A link is followed before the check: a junction or symlink under an allowed root that leads outside the allow list is outside it.
+
+**The walk down from a search root is bounded, and refuses when it reaches its bound.** It goes breadth-first and stops at the first folder holding `vespera.db` or `vespera.lock`. It looks at no more than 10,000 folders. It never enters a folder named `.git`, `node_modules` or `target`, and never follows a symlink or a junction. A root with more folders than the bound is refused, with a line saying to search a narrower folder, because a working directory beneath it cannot be ruled out. Two things follow from the bound and are accepted: a working directory inside one of the three folders it does not enter is not found, and a folder it cannot list is passed over.
 
 The checkout's own path may hold a space, and the hook still finds its allow list.
 
 ### 4. What is read in a shell command
 
-A command is text, and the hook reads paths out of it. It must read:
+A command is text, and the hook reads paths out of it. It cuts the text into tokens at white space, quotes, and `;`, `|`, `&`, `<`, `>`, `(` and `)`, and reads each token. It reads:
 
 - **a drive path**, `Q:/x` or `Q:\x`, with one separator after the colon or several (`Q://x`, `Q:\\x`). The `//` after a URL's scheme is not one: `https://example.com/x` is let through.
-- **a bare drive**, as in `cd Q:`.
-- **a Git Bash drive path**, `/q/x`, and its `/proc/cygdrive/q/x` form.
-- **a UNC path**, `//host/share/x` or `\\host\share\x`.
+- **a bare drive**: a token that is one letter and a colon, as in `cd Q:`. It is the root of that drive, which no allowed root is, so it is refused whatever the letter.
 - **a home path**: `~`, `$HOME`, `${HOME}`.
-- **a path headed by a variable of the environment**: `$USERPROFILE/x`, `${USERPROFILE}/x`, `$env:USERPROFILE\x`. The variable is replaced by its value in the hook's own environment and the result is checked like any other path, so `$USERPROFILE/.m2` is let through and `$USERPROFILE/Documents` is refused. A variable with no value there is a path built at run time (§5).
-- **a relative path**, read against `cwd`: `../../x` is refused when it lands outside the allow list, and `working-directory/report.html` when it lands in a working directory. A relative path to a repository file is let through.
+- **a variable of the environment at the head of a token**: `$USERPROFILE/x`, `${USERPROFILE}/x`, `$env:USERPROFILE\x`, and the variable alone, as in `echo $USERPROFILE`. It is replaced by its value in the hook's own environment and the result is checked like any other path, so `$USERPROFILE/.m2` is let through and `$USERPROFILE/Documents` is refused. A variable with no value there is not read: it is a path built at run time (§5). Neither is one whose value is a list of paths, such as `PATH`.
+- **a relative path**, read against `cwd`. Every token that is none of the other forms is read as one, a command's own name included. `../../x` is refused when it lands outside the allow list, and `working-directory/report.html` when it lands in a working directory. A relative path to a repository file is let through.
 - **a path that ends in dots**: `<repository>/..` is the repository's parent. The punctuation that ends a sentence is trimmed from a path (`see <path>, and <path>.`), and `..` is not punctuation.
+- **the value after `=`**, read as a token of its own: `--file=../x` and `OUT=../x`. A token that starts with `-` is an option and is not itself read as a path.
 
-`/dev/null` is let through.
+On Windows only, it also reads:
+
+- **a Git Bash drive path**, `/q/x`, and its `/proc/cygdrive/q/x` and `/cygdrive/q/x` forms.
+- **a UNC path**, `//host/share/x` or `\\host\share\x`.
+
+`/dev/null` is let through, and so is a token that is a URL.
 
 ### 5. What the hook does not cover
 
@@ -78,7 +84,10 @@ These are stated so nobody takes the hook for the whole of the protection. For e
 - **`mcp__*` tools.** A file tool an MCP server offers is not one of the eight, and the hook never sees its call.
 - **Monitor**, which runs a shell command and is not one of the eight.
 - **A path a script builds at run time.** `cat "$(some-command)"`, a variable set earlier in the same command, a loop over a listing, a program that opens a path it computed. The hook reads text, and the path is not in it.
+- **A variable that is not at the head of a token**, as in `x/$NAME/y` or `${NAME}suffix`. It is read as the text it is written as.
+- **An option with its value attached and no `=`**, as in `-I../x`. The token starts with `-` and is not read. A drive path written straight after a letter, as in `-IQ:/x`, is not read either.
 - **A shell wildcard.** `cat */vespera.log` names no folder the hook can check.
+- **A working directory the walk down does not reach** (§3): one inside a folder named `.git`, `node_modules` or `target`, behind a link, or in a folder that cannot be listed.
 - **A recursive shell command started above a working directory.** §3.4 holds for Grep and Glob. `grep -r`, `rg` and `find` in a shell command are read only for the paths written in them.
 - **A session started inside a worktree whose own `.claude/settings.json` registers no hook.** The fallback in §6 is for a worktree that has the registration and lacks the hook's files. A worktree cut from a commit older than the registration has neither, and Claude Code reads that worktree's settings.
 - **Other rooted paths in a shell command.** `/tmp/x`, `/etc/x` and `/usr/bin/x` under Git Bash are not decided here (see "What this does not decide").
@@ -101,15 +110,20 @@ Claude Code blocks a call only on exit 2. Any other non-zero exit is a hook that
 - **It names no path of the operator's.** It copies the hook's files into a checkout it builds under the temp folder and starts that copy, with a temp folder and a home folder of its own, so a machine's local allow list cannot change a result. A working directory is a fixture folder holding an empty `vespera.db`.
 - **Windows forms are not started elsewhere.** A case about a drive letter, a Git Bash path, a UNC path or PowerShell is marked as not started on another platform, with the reason in its name. The rest run on both.
 
-**CI is to run it in both jobs of `build.yml`**, on NTFS because the forms are Windows forms, and on Linux for the cases that are portable. That step is owed with the fix and is not in the change that adds this record, because the cases in §3 and §4 that the first version fails would turn the build red until the hook is fixed.
+**CI runs it in both jobs of `build.yml`**, on NTFS because the forms are Windows forms, and on Linux for the cases that are portable. Each job sets up Node 22 and starts the test before its Maven step.
 
 ## Consequences
 
 - **A search of a folder that holds a working directory is refused.** With the default `vespera.working-dir`, a run started from this checkout writes `.vespera` in it, and from then on a Grep or Glob of the repository root is refused on that machine. The search has to name `src`, `docs` or another folder. This is the largest cost in this record, and it is paid on purpose: a Glob of the root lists the deliverable's pages by name.
-- **Some harmless commands are refused.** A commit message that quotes `../x`, a `sed` expression that reads as a relative path out of the repository, a path with a space in it cut short at the space. Each costs a refusal and a rewording.
+- **A search of a folder with more than 10,000 folders beneath it is refused**, whether or not it holds a working directory. The search has to name a narrower folder.
+- **Some harmless commands are refused.** Each costs a refusal and a rewording:
+  - a commit message that quotes `../x`, or a `sed` expression that reads as a relative path out of the repository;
+  - a path with a space in it, cut short at the space;
+  - a token that is one letter and a colon, as in a commit message that lists `A:` and `B:`;
+  - `echo $SHELL`, and any other variable alone whose value is a path outside the allow list;
+  - on Windows, a one-letter switch written with a slash, as in `cmd /c`, which reads as the drive `C:`.
 - **A shell command started in a working directory is refused**, `ls` included. A session cannot work from inside one.
 - **Nothing under `src/main` changes, and no run id moves.**
-- **`AGENTS.md` and the hook's own comments say more than this record does.** "Every file and search tool" is eight tools, and "a mistake costs a refusal, never an exposed document" holds only inside what §3 and §4 cover. They are to be narrowed to §5 when the hook is fixed.
 
 ## Alternatives weighed
 
@@ -122,6 +136,5 @@ Claude Code blocks a call only on exit 2. Any other non-zero exit is a hook that
 
 - **`/tmp/x`, `/etc/x`, `/usr/bin/x` and other rooted paths in a shell command.** Under Git Bash `/tmp` is the temp folder, which is allowed, and `/etc` and `/usr` are Git's own install, which is not. Refusing them all breaks `> /tmp/x.log`. Mapping them needs the mount table. Today they are not read, and no case pins them either way.
 - **What a shell command's absolute path is on a machine that is not Windows.** The operator's machine is Windows, and so are the forms in §4.
-- **A single letter and a colon that is not a drive**, as in `x: 1` inside a quoted YAML snippet. Whether the bare-drive rule in §4 refuses it is left to the fix. A refusal there is a cost, not an exposure.
 - **A wrapper that is present and empty.** It ends with exit 0 having checked nothing. No case pins it.
 - **Whether the `mcp__*` file tools and Monitor join the matcher.** They are uncovered today (§5).
