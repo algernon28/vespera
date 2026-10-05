@@ -51,9 +51,8 @@ class ShippedConfigurationTest {
     private static final String SHIPPED = "application.yaml";
 
     /**
-     * The engines that must stay switched off. Each is a Spring AI starter on the classpath for a
-     * reason other than being used by default; left unnamed, its auto-configuration activates and the
-     * OpenAI ones ask for credentials nobody has configured.
+     * Model kinds no starter on the classpath serves today (ADR-195). Each stays named and set to none
+     * so that a starter added later is not switched on by default and does not ask for credentials.
      */
     private static final List<String> SWITCHED_OFF = List.of(
             "spring.ai.model.image",
