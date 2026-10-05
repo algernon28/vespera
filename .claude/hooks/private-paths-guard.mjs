@@ -13,7 +13,9 @@
 // What it reads of a call: a file tool's own path fields; Grep's glob and Glob's pattern; the current
 // directory (the call's cwd, or this checkout when the call gives none) of a Grep or Glob without a path
 // and of a Bash or PowerShell command; and the text of that command. In the text it reads drive paths,
-// a bare drive, ~ and a variable at the head of a token (replaced by its value in this process's
+// a bare drive, and on Windows a drive-relative path such as Q:folder/x (a single letter and a colon at
+// the head of a token is that drive, whatever follows, and is read as that drive's root joined with the
+// rest), ~ and a variable at the head of a token (replaced by its value in this process's
 // environment), the value after =, a token headed by @ also without the @, and relative paths. Each
 // quoted string is read whole as well as in its pieces. A link is followed before the check, and the
 // allow-list decision is made from a path's text before the file system is asked about it, so a refused
@@ -23,20 +25,25 @@
 // A relative path in a command is read against the current directory and against every folder the
 // command names: a token, in any form read above, that is a folder that exists, and a relative token that
 // is a folder under one of those, repeated until nothing is new. A command can change directory before
-// it reads a path (cd, git -C, pushd, Set-Location, env -C), and no list of such words is kept. The call
-// is refused if any reading of any token is outside the allow list or inside a working directory. The
-// folders named are bounded: more than DIRECTORY_LIMIT of them, or more than READING_LIMIT readings,
-// refuses the call, because what is left cannot be ruled out.
+// it reads a path (cd to a folder it names, git -C, pushd, Set-Location, env -C), and no list of such
+// words is kept. A bare cd, which goes to the home folder, and cd -, which goes back, name no folder
+// in the text and are not followed. The call is refused if any reading of any token is outside the
+// allow list or inside a working directory. The folders read against, the current directory among
+// them, are bounded at DIRECTORY_LIMIT, and so are the readings at READING_LIMIT: a command that names
+// one folder too many, or needs more readings, is refused, because what is left cannot be ruled out.
 //
 // What it does not read, so that this is not taken for the whole of the protection (ADR-196 section 5
 // is the full list): a path a command builds at run time (a command substitution, a variable set in the
 // same command, a loop, a program's own computing); a variable that is not at the head of a token; an
 // option with its value attached and no =, as in -I../x; ~name/x; a path from the root of the drive
 // without its letter, such as \archive\x; a shell wildcard; a recursive shell command (grep -r, rg,
-// find) that begins above a working directory; a rooted POSIX path such as /tmp/x; a working directory
-// that the walk down from a search root does not reach (below); and any tool outside the eight, among
-// them every mcp__* tool and Monitor. A session whose own .claude/settings.json registers no hook never
-// runs this file. For all of those the written rule in AGENTS.md is the only protection.
+// find) that begins above a working directory; a rooted POSIX path such as /tmp/x, so that
+// cd /tmp && cat run/x reads run/x against the current directory only; a bare cd or cd -; a quoted
+// string inside a quoted string, as in bash -c "cat 'my runs/x'", which is read whole only as the
+// outer one; a working directory that the walk down from a search root does not reach (below); and
+// any tool outside the eight, among them every mcp__* tool and Monitor. A session whose own
+// .claude/settings.json registers no hook never runs this file. For all of those the written rule in
+// AGENTS.md is the only protection.
 //
 // A Grep or Glob root that holds a working directory at any depth is refused, because a recursive
 // search reaches into it. That walk down is breadth-first, looks at no more than WALK_LIMIT folders,
@@ -230,7 +237,11 @@ function pathsInCommand(command, cwd) {
     if (/^[A-Za-z][A-Za-z0-9+.-]+:\/\//.test(t)) return;
     const driven = /^([A-Za-z]):[\\/]+([\s\S]*)$/.exec(t);
     if (driven) return addAbsolute(t, absoluteOf(drive(driven[1], trimSentence(driven[2])), cwd));
-    const s = t.replace(/\\/g, "/");
+    // Q:folder/x, with no separator after the colon, is a path on drive Q too. One letter and a colon
+    // at the head: HEAD:README.md, localhost:5001 and $env:NAME have more before the colon or none.
+    const driveRelative = windows ? /^([A-Za-z]):([^\\/][\s\S]*)$/.exec(t) : null;
+    if (driveRelative) return addAbsolute(t, absoluteOf(drive(driveRelative[1], driveRelative[2]), cwd));
+    const s =t.replace(/\\/g, "/");
     if (/^~(?=$|\/)/.test(s)) return addAbsolute(t, absoluteOf(homedir() + s.slice(1), cwd));
     const variable = /^\$(?:(?:\{env:|env:)(\w+)\}?|(\w+)|\{(\w+)\})(?=$|\/)/i.exec(s);
     if (variable) {
@@ -337,7 +348,7 @@ function refusalsOf(call) {
       const text = norm(abs);
       if (named.has(text) || !within(text, roots) || !isDirectory(abs)) return;
       if (directories.length >= DIRECTORY_LIMIT) {
-        if (!tooMany) refused.push(`the command names more than ${DIRECTORY_LIMIT} folders, so what its relative paths are read against cannot be ruled out; split it`);
+        if (!tooMany) refused.push(`the command names more than ${DIRECTORY_LIMIT - 1} folders besides the current directory, so what its relative paths are read against cannot be ruled out; split it`);
         tooMany = true;
         return;
       }
