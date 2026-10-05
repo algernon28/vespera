@@ -10,6 +10,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -19,11 +20,16 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.sqlite.SQLiteConnection;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -50,7 +56,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>The database is on disk, and is older than the context.</b> The {@code test} profile's datasource
  * is in memory and empty at every start, so nothing a start-up does there can meet existing rows. This
  * class points the same slice at a file in a directory of its own, and makes that file before the context
- * starts: the shipped schema, rows in two tables, and four indexes removed, three on the tables that hold
+ * starts: the shipped schema, rows in two tables (enough in one that SQLite calls back while the start
+ * builds its index, ADR-193), and four indexes removed, three on the tables that hold
  * rows and one on a table that holds none. The rows are written on a connection that does not enforce
  * foreign keys, so they need no walk, occurrence or run behind them; start-up reads none of those.
  *
@@ -84,8 +91,12 @@ class StartUpSaysWhichIndexItBuildsTest {
     /** How many verdict rows the database holds before the start. */
     private static final int VERDICTS_ALREADY_THERE = 2;
 
-    /** How many shingle rows it holds: a different number, so each line's row count is its own table's. */
-    private static final int SHINGLES_ALREADY_THERE = 3;
+    /**
+     * How many shingle rows it holds: a different number, so each line's row count is its own table's, and
+     * enough that SQLite calls back several times while it builds the one-column {@code shingle_by_run_id}
+     * over them: nine steps a row is 450,000 steps, four callbacks of 100,000 (ADR-193 sections 2 and 3).
+     */
+    private static final int SHINGLES_ALREADY_THERE = 50_000;
 
     /** The two tables that hold rows, in the order {@code schema.sql} creates them. */
     private static final String VERDICT = "verdict";
@@ -117,6 +128,18 @@ class StartUpSaysWhichIndexItBuildsTest {
     /** What each line before a build says about stopping part-way. */
     private static final String STOPPING_UNDOES_IT = "stopping before it ends undoes it";
 
+    /** The start of a start-up build's progress label; the index and a closing bracket follow (ADR-193 section 4.1). */
+    private static final String PROGRESS_LABEL = "Start-up (building index ";
+
+    /** What the line that a build's rows are gone through says after its total (ADR-193 section 4.2). */
+    private static final String SAYS_NOTHING_MORE = "rows gone through; writing the index says nothing more until it ends";
+
+    /** A progress line's percentage and total. */
+    private static final Pattern ABOUT = Pattern.compile("about (\\d+)% of ([\\d,]+) rows");
+
+    /** The most progress lines one statement may write (ADR-193 section 5). */
+    private static final int AT_MOST_A_HUNDRED_LINES = 100;
+
     /** A line after a build, with the time it took: seconds to one decimal place. */
     private static final String BUILT_IN_SECONDS_TO_ONE_DECIMAL =
             "Start-up built index verdict_by_run_id in \\d+\\.\\d s";
@@ -145,14 +168,18 @@ class StartUpSaysWhichIndexItBuildsTest {
                     insert.executeUpdate();
                 }
             }
+            connection.setAutoCommit(false);
             try (PreparedStatement insert = connection.prepareStatement("INSERT INTO shingle"
                     + " (occurrence_id, run_id, shingle_parameter_identity, shingle_hash) VALUES (1, 'an-earlier-run',"
                     + " 'a-granularity', ?)")) {
                 for (int hash = 1; hash <= SHINGLES_ALREADY_THERE; hash++) {
                     insert.setLong(1, hash);
-                    insert.executeUpdate();
+                    insert.addBatch();
                 }
+                insert.executeBatch();
             }
+            connection.commit();
+            connection.setAutoCommit(true);
             try (Statement statement = connection.createStatement()) {
                 for (String index : List.of(VERDICT_BY_RUN, VERDICT_BY_OCCURRENCE, SHINGLE_BY_RUN, MISSING_OVER_NOTHING)) {
                     statement.executeUpdate("DROP INDEX " + index);
@@ -167,6 +194,9 @@ class StartUpSaysWhichIndexItBuildsTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private DataSource dataSource;
 
     @Test
     @Story("A long wait inside the database is announced")
@@ -263,6 +293,114 @@ class StartUpSaysWhichIndexItBuildsTest {
                 () -> assertThat(sinceTheStart)
                         .doesNotContain(BUILDING + ALREADY_THERE)
                         .doesNotContain(BUILT + ALREADY_THERE));
+    }
+
+    /**
+     * A build over enough rows reports how far it has gone between ADR-187's two lines (ADR-193, #411).
+     * Its claims about the progress lines and the line that the rows are gone through failed before part (a)
+     * of ADR-193 was built, and have passed since. The claim that no handler is left on the connection passed
+     * before it too, and is what stops an implementation from leaving one on the pooled connection.
+     */
+    @Test
+    @Story("A long statement inside the database reports how far it has gone")
+    @DisplayName("Start-up says how far it has gone while it builds an index over many rows, and when only writing the index is left")
+    void startUpSaysHowFarItHasGoneWhileItBuilds(CapturedOutput output) throws SQLException {
+        List<String> lines = List.of(output.getAll().split("\\R"));
+        int buildingAt = indexOf(lines, BUILDING + SHINGLE_BY_RUN);
+        int builtAt = indexOf(lines, built(SHINGLE_BY_RUN));
+        String label = PROGRESS_LABEL + SHINGLE_BY_RUN + ")";
+        List<String> progress = between(lines, buildingAt, builtAt, label + ": about ");
+        List<String> goneThrough = between(lines, buildingAt, builtAt, SAYS_NOTHING_MORE);
+
+        claim(
+                "the start says it is building " + SHINGLE_BY_RUN + " and then that it has built it",
+                () -> assertThat(buildingAt).isNotNegative().isLessThan(builtAt));
+        claim(
+                "between those two lines it writes progress lines, because SQLite calls back while it goes"
+                        + " through the " + SHINGLES_ALREADY_THERE + " rows",
+                () -> assertThat(progress).isNotEmpty());
+        claim(
+                "each states about what share of " + grouped(SHINGLES_ALREADY_THERE) + " rows it has gone"
+                        + " through, the shares rising and below a hundred, and no more than "
+                        + AT_MOST_A_HUNDRED_LINES + " of them",
+                () -> {
+                    assertThat(progress).allSatisfy(line ->
+                            assertThat(line).contains(" of " + grouped(SHINGLES_ALREADY_THERE) + " rows"));
+                    assertThat(percentagesOf(progress)).isSorted().doesNotHaveDuplicates()
+                            .allSatisfy(percentage -> assertThat(percentage).isLessThan(100));
+                    assertThat(progress).hasSizeLessThanOrEqualTo(AT_MOST_A_HUNDRED_LINES);
+                });
+        claim(
+                "once the rows are gone through, one line says so, after the last progress line and before the"
+                        + " line that the index is built",
+                () -> {
+                    assertThat(goneThrough).singleElement().asString()
+                            .contains(label + ": all " + grouped(SHINGLES_ALREADY_THERE) + " " + SAYS_NOTHING_MORE);
+                    assertThat(indexOf(lines, SAYS_NOTHING_MORE))
+                            .isGreaterThan(lastIndexOf(lines, label + ": about "))
+                            .isLessThan(builtAt);
+                });
+        boolean handlerLeft = aHandlerIsLeftOnTheConnection();
+        claim(
+                "and the start leaves no progress handler on the connection the pool hands out afterwards",
+                () -> assertThat(handlerLeft).isFalse());
+    }
+
+    private boolean aHandlerIsLeftOnTheConnection() throws SQLException {
+        try (Connection connection = dataSource.getConnection()) {
+            Object database = connection.unwrap(SQLiteConnection.class).getDatabase();
+            Method handler = database.getClass().getDeclaredMethod("getProgressHandler");
+            handler.setAccessible(true);
+            return ((Long) handler.invoke(database)) != 0L;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("the driver no longer says whether a progress handler is set", e);
+        }
+    }
+
+    private static int indexOf(List<String> lines, String fragment) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).contains(fragment)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int lastIndexOf(List<String> lines, String fragment) {
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            if (lines.get(i).contains(fragment)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static List<String> between(List<String> lines, int after, int before, String fragment) {
+        List<String> found = new ArrayList<>();
+        if (after < 0 || before < 0) {
+            return found;
+        }
+        for (int i = after + 1; i < before; i++) {
+            if (lines.get(i).contains(fragment)) {
+                found.add(lines.get(i));
+            }
+        }
+        return found;
+    }
+
+    private static List<Integer> percentagesOf(List<String> lines) {
+        List<Integer> percentages = new ArrayList<>();
+        for (String line : lines) {
+            Matcher about = ABOUT.matcher(line);
+            if (about.find()) {
+                percentages.add(Integer.parseInt(about.group(1)));
+            }
+        }
+        return percentages;
+    }
+
+    private static String grouped(long value) {
+        return String.format(Locale.ROOT, "%,d", value);
     }
 
     /** The line before a build, up to and including the number of rows. */

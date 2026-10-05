@@ -9,7 +9,7 @@ package io.algernon.vespera.similarity;
  * hash) pairs counted in memory, zero included; {@link #hashGoneThrough} once after each, whether or not a
  * row was written for it.
  */
-public interface FrequencyProgress {
+public interface FrequencyProgress extends SimilarityStatementProgress {
 
     /** A progress that does nothing, for the callers that want no report. */
     FrequencyProgress NONE = new FrequencyProgress() {

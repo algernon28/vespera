@@ -1,8 +1,10 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.ledger.StatementSteps;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Statement;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,8 +33,9 @@ import org.springframework.util.StreamUtils;
  *
  * <p><b>What it announces is read from {@code schema.sql}.</b> Each {@code CREATE INDEX IF NOT EXISTS}
  * statement in the file, in file order, whose index the database lacks and whose table exists and holds a
- * row, gets a line before and a line after that statement, which it runs itself. The script then runs as
- * it always did, and finds those indexes in place. There is no second list of indexes.
+ * row, gets a line before and a line after that statement, which it runs itself, and, between them, the
+ * progress lines of ADR-193 while SQLite goes through the rows. The script then runs as it always did, and
+ * finds those indexes in place. There is no second list of indexes.
  */
 @Component
 class StartUpIndexAnnouncement extends ApplicationDataSourceScriptDatabaseInitializer {
@@ -43,10 +46,20 @@ class StartUpIndexAnnouncement extends ApplicationDataSourceScriptDatabaseInitia
 
     private static final double NANOS_PER_SECOND = 1_000_000_000.0;
 
-    /** An index statement: the whole of it up to its semicolon, with the index and its table captured. */
+    /**
+     * An index statement: the whole of it up to its semicolon, with the index, its table and the
+     * parenthesised list of its columns captured, so that the columns can be counted (ADR-193 section 3).
+     */
     private static final Pattern INDEX_STATEMENT = Pattern.compile(
-            "^[ \\t]*(CREATE[ \\t]+INDEX[ \\t]+IF[ \\t]+NOT[ \\t]+EXISTS\\s+(\\w+)\\s+ON\\s+(\\w+)[^;]*);",
+            "^[ \\t]*(CREATE[ \\t]+INDEX[ \\t]+IF[ \\t]+NOT[ \\t]+EXISTS\\s+(\\w+)\\s+ON\\s+(\\w+)\\s*\\(([^)]*)\\)[^;]*);",
             Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
+
+    /**
+     * The steps SQLite takes for each row of a whole-table index build beyond one for each column the index
+     * holds: 8 plus c, measured against the bundled SQLite and pinned by {@code StatementStepsPerRowTest}
+     * (ADR-193 section 3).
+     */
+    static final int INDEX_BUILD_STEPS_BEYOND_COLUMNS = 8;
 
     private final DataSource dataSource;
 
@@ -85,8 +98,18 @@ class StartUpIndexAnnouncement extends ApplicationDataSourceScriptDatabaseInitia
                     index,
                     table,
                     greatestRow);
+            int columns = statements.group(4).split(",").length;
+            StatementProgress progress = StatementProgress.ofBuild(
+                    "Start-up (building index " + index + ")",
+                    greatestRow,
+                    INDEX_BUILD_STEPS_BEYOND_COLUMNS + columns);
             long started = System.nanoTime();
-            jdbcTemplate.execute(statement);
+            StatementSteps.counted(jdbcTemplate, progress::stepsTaken, connection -> {
+                try (Statement create = connection.createStatement()) {
+                    create.execute(statement);
+                }
+                return null;
+            });
             log.info(
                     "Start-up built index {} in {} s",
                     index,
