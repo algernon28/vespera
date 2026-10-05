@@ -135,11 +135,11 @@ Text repeated across enough of the corpus that its recurrence is a fact about do
 _Avoid_: template text, chrome, junk, filler
 
 **Bake-off**:
-The embedding-model selection mechanism specifically: candidates measured over the same sample and seeds, each re-chunked to its own tokenizer, judged by the relevance-threshold gate (ADR-034, ADR-044). Not a general word for comparing two models — there is exactly one bake-off in this design, and the extraction engine does not have one (ADR-072).
+The embedding-model selection mechanism specifically: candidates measured over the same sample and seeds, each re-chunked to its own tokenizer, judged by the relevance-threshold gate (ADR-034, ADR-044). Every candidate is served locally (ADR-195). Not a general word for comparing two models — there is exactly one bake-off in this design, and the extraction engine does not have one (ADR-072).
 _Avoid_: shoot-out, A/B test, champion/challenger, evaluation
 
 **Reference model**:
-A deliberately larger model an unfavourable measurement is re-checked against before it is believed. A role, not a stage: the pipeline never invokes one, and confirmation happens between runs, compared by a person (ADR-072). The same hosted model may separately be a bake-off candidate; that is the competition, this is the confirmation.
+A deliberately larger model, served on the operator's machine, that an unfavourable measurement is re-checked against before it is believed. A role, not a stage: the pipeline never invokes one, and confirmation happens between runs, compared by a person (ADR-072, ADR-195). The same model may separately be a bake-off candidate; that is the competition, this is the confirmation.
 _Avoid_: fallback, oracle, champion, second opinion
 
 ### Operation

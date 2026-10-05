@@ -100,16 +100,6 @@
             <artifactId>spring-ai-starter-model-ollama</artifactId>
         </dependency>
         <dependency>
-            <!--
-              The bake-off's reference model is OpenAI (ADR-034). No code in the census slice
-              consumes this: the pom carries what a recorded decision requires, ahead of the code
-              that uses it (ADR-046), the same way ledger's verdict and run tables exist before
-              any stage writes to them.
-            -->
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-openai</artifactId>
-        </dependency>
-        <dependency>
             <!-- The profile is YAML, read and written through Jackson's records support (ADR-061). -->
             <groupId>tools.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>

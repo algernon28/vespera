@@ -86,10 +86,11 @@ spring:
   ai:
     model:
       # Ollama is the default engine and serves locally (ADR-013), and which runtime serves is
-      # configuration rather than code (ADR-012). The OpenAI starter is on the classpath for the
-      # bake-off's reference model (ADR-034) and is selected per invocation, never by default --
-      # naming the model here is also what keeps its auto-configuration from demanding an API key
-      # the moment the application starts.
+      # configuration rather than code (ADR-012). The reference model and every bake-off candidate
+      # are local models served by the same Ollama (ADR-195), so no hosted starter is on the
+      # classpath. Chat and embedding name Ollama explicitly, though it is also Spring AI's default
+      # when they are unset. No starter here serves the kinds set to none; the keys stay so that
+      # one added later is not switched on by default.
       chat: ollama
       embedding: ollama
       image: none
