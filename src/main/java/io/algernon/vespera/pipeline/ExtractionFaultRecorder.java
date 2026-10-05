@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.extraction.ExtractionFaultResolution;
 import io.algernon.vespera.extraction.ExtractionFaults;
+import io.algernon.vespera.extraction.FaultResolutionProgress;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
@@ -100,7 +101,24 @@ class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOu
         RunId runId = stageRuns.extraction();
         boolean completed =
                 ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode());
-        transactions.executeWithoutResult(status -> resolution.resolve(runId, completed));
+        transactions.executeWithoutResult(status -> resolution.resolve(runId, completed, faultsResolved()));
         return stepExecution.getExitStatus();
+    }
+
+    /** Stage 2's fault resolution counter: made here, ticked as {@code extraction} reports (ADR-192 section 4). */
+    private static FaultResolutionProgress faultsResolved() {
+        return new FaultResolutionProgress() {
+            private StageProgress counter;
+
+            @Override
+            public void toResolve(long faults) {
+                counter = StageProgress.over("Stage 2 (extraction, faults resolved)", faults);
+            }
+
+            @Override
+            public void faultResolved() {
+                counter.itemDone();
+            }
+        };
     }
 }

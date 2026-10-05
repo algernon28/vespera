@@ -7,6 +7,7 @@ import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.similarity.DocumentFrequency;
+import io.algernon.vespera.similarity.FrequencyProgress;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -105,7 +106,7 @@ class ContentCensusTasklet implements Tasklet {
                     // whole call's: this class cannot time the one statement apart from the rest.
                     announceReadOf(extractionRunId);
                     long measureStarted = System.nanoTime();
-                    documentFrequency.measure(runId, extractionRunId);
+                    documentFrequency.measure(runId, extractionRunId, frequencyRowsProgress());
                     log.info(
                             "Stage 3 (content census) measured shingle document frequency in {} s",
                             String.format(Locale.ROOT, "%.1f", (System.nanoTime() - measureStarted) / NANOS_PER_SECOND));
@@ -125,6 +126,23 @@ class ContentCensusTasklet implements Tasklet {
                             reportFile);
                     return true;
                 });
+    }
+
+    /** Stage 3's frequency rows counter: made here, ticked as {@code similarity} reports (ADR-192 section 4). */
+    private static FrequencyProgress frequencyRowsProgress() {
+        return new FrequencyProgress() {
+            private StageProgress counter;
+
+            @Override
+            public void toGoThrough(long hashes) {
+                counter = StageProgress.over("Stage 3 (content census, frequency rows)", hashes);
+            }
+
+            @Override
+            public void hashGoneThrough() {
+                counter.itemDone();
+            }
+        };
     }
 
     /**

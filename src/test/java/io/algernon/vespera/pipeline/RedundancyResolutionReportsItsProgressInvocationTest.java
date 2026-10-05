@@ -182,11 +182,11 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                         .containsExactlyElementsOf(ProgressLines.expected(CONTAINMENT, signed)));
         claim(
                 "4b's counters lie between its starting and finishing lines, in the order it goes through its"
-                        + " loops",
+                        + " loops, a component's verdicts written before the component is counted as resolved",
                 () -> assertThat(String.join("\n", operatorLines()))
                         .containsSubsequence(
-                                STARTING, PAIRS + ": 1 of ", PROFILES + ": 1 of ", COMPONENTS + ": 1 of ",
-                                VERDICTS + ": 1 of ", CONTAINMENT + ": 1 of ", FINISHED));
+                                STARTING, PAIRS + ": 1 of ", PROFILES + ": 1 of ", VERDICTS + ": 1 of ",
+                                COMPONENTS + ": 1 of ", CONTAINMENT + ": 1 of ", FINISHED));
         for (String counter : EVERY_COUNTER) {
             claim(
                     "every line of " + counter + " was written by the progress counter itself",

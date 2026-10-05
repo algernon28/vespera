@@ -284,10 +284,10 @@ Every whole-job test reads the lines the invocation wrote through a list appende
 
 **Where the tests are, and why.** A test that names a type, method or overload this record adds does not compile until its part does, and one tree is compiled at once, so it would stop the whole test tree compiling. A test that compiles today but is red until a later part lands would make each earlier part's tree red. So:
 
-- **In `src/test`**: part (a)'s tests, green since (a) landed with this record, and the tests that are green and stay green.
+- **In `src/test`**: parts (a) and (b)'s tests, green since each landed, and the tests that are green and stay green.
 - **Under `docs/adr/0192/tests/<part>/`**, as complete files at the path they take under `src/test/java`: every other test, which `spec-implementer` moves into `src/test` when it builds that part. `docs/` is not compiled by Maven, and `docs/check-claims.mjs` reads only the top level of `docs/adr` for records, so files there touch neither the build nor the guards. A whole-job test there that compiles against main today was compiled and run on this branch from `src/test` before it was moved, and failed only at its counter claims.
 
-**Part (a) lands with this record**, so its six tests are in `src/test` and green, and the table says so; the rows for parts (b) to (d) give their state before their part is built.
+**Part (a) landed with this record, and part (b) after it**, so their tests are in `src/test` and green, and the table says so; the rows for parts (c) and (d) give their state before their part is built.
 
 | Part | Test | Where | State on this branch | Pins |
 |---|---|---|---|---|
@@ -298,11 +298,11 @@ Every whole-job test reads the lines the invocation wrote through a list appende
 | (a) | `pipeline.StageProgressRunningCountTest` | `src/test` | green since part (a) | the running cadence, 99 lines to 99,000, then 100,000 and 110,000 |
 | (a) | `corpus.CensusRunningCountCadenceTest` | `src/test` | green since part (a) | the same cadence in `WalkRecorder`; a running line naming 1,000 entries while none is committed; a checkpoint taken at 1,500 entries writing no line and still committing them; the count falling after a resume |
 | (a) | `corpus.ContentIdentityResolutionReportsItsLoopsTest` | `src/test` | green since part (a) | sizes announced once, zero included; each duplicate reported |
-| (b) | `pipeline.StageTwoReportsItsFaultResolutionInvocationTest` | `docs/…/b/` | compiles today; red by assertion | one held fault resolved, one line; no fault held, no line; logger names |
-| (b) | `pipeline.RedundancyResolutionReportsItsProgressInvocationTest` | `docs/…/b/` | compiles today; red by assertion | stage 3's frequency rows; 4b's pairs, profiles, components, verdicts and containment; nothing signed, nothing written; already recorded, nothing written; logger names |
-| (b) | `extraction.ExtractionFaultResolutionReportsItsCountTest` | `docs/…/b/` | names `FaultResolutionProgress` | announced once, each fault reported, on completion and on a stop |
-| (b) | `similarity.FrequencyProgressTest` | `docs/…/b/` | names `FrequencyProgress` | distinct hashes announced once, a hash in one document counted though no row is written, zero announced |
-| (b) | `similarity.RedundancyResolutionReportsItsCountsTest` | `docs/…/b/` | names `ResolutionProgress` | every loop's order and totals; two components summed into the verdict counter; candidates reported inside the containment loop; zero announced; nothing signed, nothing called |
+| (b) | `pipeline.StageTwoReportsItsFaultResolutionInvocationTest` | `src/test` | green since part (b) | one held fault resolved, one line; no fault held, no line; logger names |
+| (b) | `pipeline.RedundancyResolutionReportsItsProgressInvocationTest` | `src/test` | green since part (b) | stage 3's frequency rows; 4b's pairs, profiles, components, verdicts and containment; nothing signed, nothing written; already recorded, nothing written; logger names |
+| (b) | `extraction.ExtractionFaultResolutionReportsItsCountTest` | `src/test` | green since part (b) | announced once, each fault reported, on completion and on a stop |
+| (b) | `similarity.FrequencyProgressTest` | `src/test` | green since part (b) | distinct hashes announced once, a hash in one document counted though no row is written, zero announced |
+| (b) | `similarity.RedundancyResolutionReportsItsCountsTest` | `src/test` | green since part (b) | every loop's order and totals; two components summed into the verdict counter; candidates reported inside the containment loop; zero announced; nothing signed, nothing called |
 | (c) | `pipeline.StageFiveReportsItsProgressInvocationTest` | `docs/…/c/` | compiles today; red by assertion | 5a, 5c, 5d, 5e, 5f, the report and 6a's counters, 6a's already-recorded branch, a partition emptied by the floor; logger names |
 | (c) | `embedding.ScoringProgressTest` | `docs/…/c/` | names `ScoringProgress` | both loops, a seed or occurrence with nothing stored still reported, zero announced |
 | (c) | `embedding.ClusteringProgressTest` | `docs/…/c/` | names `ClusteringProgress` | b(b + 1)/2 over three blocks of a pass; one block; a counter per `clusterAndRecord` call over two partitions; nothing for an empty partition |

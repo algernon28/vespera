@@ -72,14 +72,30 @@ public class RedundancyResolution {
      * loses to another.
      */
     public void resolve(RunId stage4RunId, RunId stage3RunId, RunId stage2RunId, Set<Long> boilerplateHashes) {
+        resolve(stage4RunId, stage3RunId, stage2RunId, boilerplateHashes, ResolutionProgress.NONE);
+    }
+
+    /**
+     * As {@link #resolve(RunId, RunId, RunId, Set)}, and tells {@code progress} about each loop (ADR-192
+     * section 5): once before its first item with its total, zero included, and after each item. Returns
+     * before any loop, calling nothing, when no occurrence is signed.
+     */
+    public void resolve(
+            RunId stage4RunId,
+            RunId stage3RunId,
+            RunId stage2RunId,
+            Set<Long> boilerplateHashes,
+            ResolutionProgress progress) {
         Set<Long> signedOccurrenceIds = loadSignedOccurrenceIds(stage4RunId);
         if (signedOccurrenceIds.isEmpty()) {
             return;
         }
 
         ShingleSetCache shingleSets = new ShingleSetCache(stage2RunId, boilerplateHashes);
-        Set<Long> removed = resolveNearDuplicates(stage4RunId, stage2RunId, signedOccurrenceIds, shingleSets);
-        resolveContainment(stage4RunId, stage3RunId, stage2RunId, signedOccurrenceIds, shingleSets, removed);
+        Set<Long> removed =
+                resolveNearDuplicates(stage4RunId, stage2RunId, signedOccurrenceIds, shingleSets, progress);
+        resolveContainment(
+                stage4RunId, stage3RunId, stage2RunId, signedOccurrenceIds, shingleSets, removed, progress);
     }
 
     /**
@@ -105,16 +121,23 @@ public class RedundancyResolution {
     // -- Phase 1: near-duplication -------------------------------------------------------------
 
     private Set<Long> resolveNearDuplicates(
-            RunId stage4RunId, RunId stage2RunId, Set<Long> signedOccurrenceIds, ShingleSetCache shingleSets) {
+            RunId stage4RunId,
+            RunId stage2RunId,
+            Set<Long> signedOccurrenceIds,
+            ShingleSetCache shingleSets,
+            ResolutionProgress progress) {
         RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
 
         UnionFind unionFind = new UnionFind(signedOccurrenceIds);
-        for (PairKey pair : nearDuplicateCandidates(stage4RunId)) {
+        Set<PairKey> candidatePairs = nearDuplicateCandidates(stage4RunId);
+        progress.toScorePairs(candidatePairs.size());
+        for (PairKey pair : candidatePairs) {
             long[] a = shingleSets.get(pair.a());
             long[] b = shingleSets.get(pair.b());
             if (jaccard(a, b) >= thresholds.nearDuplicateJaccard()) {
                 unionFind.union(pair.a(), pair.b());
             }
+            progress.pairScored();
         }
 
         Set<Long> componentMembers = new HashSet<>();
@@ -127,7 +150,10 @@ public class RedundancyResolution {
             componentMembers.addAll(component);
         }
 
-        Map<Long, OccurrenceProfile> profiles = loadOccurrenceProfiles(stage2RunId, componentMembers);
+        Map<Long, OccurrenceProfile> profiles = loadOccurrenceProfiles(stage2RunId, componentMembers, progress);
+        progress.toResolveComponents(resolvableComponents.size());
+        // Summed and announced once: every member of every component but its survivor (ADR-192 section 5).
+        progress.toWriteNearDuplicateVerdicts(componentMembers.size() - resolvableComponents.size());
         Set<Long> removed = new HashSet<>();
         for (Set<Long> component : resolvableComponents) {
             // The survivor rule (ADR-079) picks one member of the component; every other member is then
@@ -152,7 +178,9 @@ public class RedundancyResolution {
                         score,
                         "near-duplicate of occurrence %d at Jaccard %.4f".formatted(survivor, score));
                 removed.add(member);
+                progress.nearDuplicateVerdictWritten();
             }
+            progress.componentResolved();
         }
         return removed;
     }
@@ -193,7 +221,9 @@ public class RedundancyResolution {
     }
 
     /** Only the columns the survivor rule needs, for only the occurrences a component actually names. */
-    private Map<Long, OccurrenceProfile> loadOccurrenceProfiles(RunId stage2RunId, Set<Long> occurrenceIds) {
+    private Map<Long, OccurrenceProfile> loadOccurrenceProfiles(
+            RunId stage2RunId, Set<Long> occurrenceIds, ResolutionProgress progress) {
+        progress.toReadProfiles(occurrenceIds.size());
         if (occurrenceIds.isEmpty()) {
             return Map.of();
         }
@@ -220,6 +250,7 @@ public class RedundancyResolution {
             profiles.put(
                     occurrenceId,
                     new OccurrenceProfile(alphanumericCharCount, facts.creationTime(), facts.path().value()));
+            progress.profileRead();
         }
         return profiles;
     }
@@ -232,9 +263,11 @@ public class RedundancyResolution {
             RunId stage2RunId,
             Set<Long> signedOccurrenceIds,
             ShingleSetCache shingleSets,
-            Set<Long> removed) {
+            Set<Long> removed,
+            ResolutionProgress progress) {
         RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
         Map<Long, Integer> documentFrequency = loadDocumentFrequency(stage3RunId);
+        progress.toCheckForContainment(signedOccurrenceIds.size());
         // One count per document for the whole pass, not one per pair: counting a spreadsheet's hundred
         // thousand shingles again for every document that names it as a candidate is what made this
         // pass run for hours once tables were read (ADR-145).
@@ -242,11 +275,13 @@ public class RedundancyResolution {
 
         for (long a : signedOccurrenceIds) {
             if (removed.contains(a)) {
+                progress.checkedForContainment();
                 continue;
             }
             long[] setA = shingleSets.get(a);
             List<Long> rareHashes = rarestHashes(setA, documentFrequency, thresholds.rareShingleSampleSize());
             if (rareHashes.isEmpty()) {
+                progress.checkedForContainment();
                 continue;
             }
 
@@ -255,7 +290,10 @@ public class RedundancyResolution {
             long bestContainer = -1;
             double bestScore = -1;
             for (long b : candidates) {
-                if (b == a || removed.contains(b) || !signedOccurrenceIds.contains(b)) {
+                // Every path out of one candidate is counted, the ones that skip it included.
+                boolean skipped = b == a || removed.contains(b) || !signedOccurrenceIds.contains(b);
+                if (skipped) {
+                    progress.containmentCandidateGoneThrough();
                     continue;
                 }
                 // A cheap, deliberately approximate pre-filter (a COUNT, not a fetched set): it compares
@@ -264,14 +302,17 @@ public class RedundancyResolution {
                 // exclude a true one. The same "retrieval overshoots, scoring corrects" shape ADR-081
                 // already accepts for LSH banding, applied here to the |B| > |A| guard.
                 if (rawSizes.computeIfAbsent(b, id -> rawShingleSetSize(stage2RunId, id)) <= setA.length) {
+                    progress.containmentCandidateGoneThrough();
                     continue;
                 }
                 long[] setB = shingleSets.get(b);
                 if (setB.length <= setA.length) {
+                    progress.containmentCandidateGoneThrough();
                     continue;
                 }
                 double containmentScore = containment(setA, setB);
                 if (containmentScore < thresholds.containmentIndex()) {
+                    progress.containmentCandidateGoneThrough();
                     continue;
                 }
                 // Multiple containers passing the cut is not addressed by ADR-079/081: this class picks
@@ -281,6 +322,7 @@ public class RedundancyResolution {
                     bestScore = containmentScore;
                     bestContainer = b;
                 }
+                progress.containmentCandidateGoneThrough();
             }
 
             if (bestContainer >= 0) {
@@ -292,6 +334,7 @@ public class RedundancyResolution {
                         bestScore,
                         "contained in occurrence %d at containment %.4f".formatted(bestContainer, bestScore));
             }
+            progress.checkedForContainment();
         }
     }
 

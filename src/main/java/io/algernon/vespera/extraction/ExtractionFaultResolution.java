@@ -42,9 +42,19 @@ public final class ExtractionFaultResolution {
     /**
      * Writes every held fault under {@code run}, in the order held; where {@code completed}, also writes
      * {@code extraction-failed} against each with the reason {@code category + ": " + detail}. In the
-     * caller's transaction.
+     * caller's transaction. Reports nothing.
      */
     public void resolve(RunId run, boolean completed) {
+        resolve(run, completed, FaultResolutionProgress.NONE);
+    }
+
+    /**
+     * As {@link #resolve(RunId, boolean)}, and tells {@code progress} the number of faults held once,
+     * before the first is written (zero included), and each fault resolved after it is written, and
+     * verdicted where the step completed (ADR-192 section 5).
+     */
+    public void resolve(RunId run, boolean completed, FaultResolutionProgress progress) {
+        progress.toResolve(held.size());
         for (Held fault : held) {
             faults.write(fault.occurrence(), run, fault.category(), fault.detail());
             if (completed) {
@@ -54,6 +64,7 @@ public final class ExtractionFaultResolution {
                         VerdictKind.EXTRACTION_FAILED,
                         fault.category() + ": " + fault.detail());
             }
+            progress.faultResolved();
         }
     }
 

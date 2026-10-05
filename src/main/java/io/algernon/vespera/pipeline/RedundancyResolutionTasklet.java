@@ -4,6 +4,7 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.similarity.RedundancyResolution;
+import io.algernon.vespera.similarity.ResolutionProgress;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,9 +77,83 @@ class RedundancyResolutionTasklet implements Tasklet {
                 () -> {
                     LOG.info("Stage 4b (redundancy resolution) starting under run {}", runId.value());
                     Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();
-                    redundancyResolution.resolve(runId, stage3RunId, extractionRunId, boilerplateHashes);
+                    redundancyResolution.resolve(
+                            runId, stage3RunId, extractionRunId, boilerplateHashes, resolutionProgress());
                     LOG.info("Stage 4b (redundancy resolution) finished under run {}", runId.value());
                     return true;
                 });
+    }
+
+    /**
+     * Stage 4b's six counters: each made when {@code similarity} announces its loop, and ticked as it
+     * reports (ADR-192 sections 4 and 5). The candidates counter has no total and is opened with the
+     * containment loop it sits in.
+     */
+    private static ResolutionProgress resolutionProgress() {
+        String stage = "Stage 4b (redundancy resolution, ";
+        return new ResolutionProgress() {
+            private StageProgress pairs;
+            private StageProgress profiles;
+            private StageProgress components;
+            private StageProgress verdicts;
+            private StageProgress containment;
+            private StageProgress candidates;
+
+            @Override
+            public void toScorePairs(long total) {
+                pairs = StageProgress.over(stage + "near-duplicate candidates)", total);
+            }
+
+            @Override
+            public void pairScored() {
+                pairs.itemDone();
+            }
+
+            @Override
+            public void toReadProfiles(long total) {
+                profiles = StageProgress.over(stage + "occurrence profiles)", total);
+            }
+
+            @Override
+            public void profileRead() {
+                profiles.itemDone();
+            }
+
+            @Override
+            public void toResolveComponents(long total) {
+                components = StageProgress.over(stage + "near-duplicate components)", total);
+            }
+
+            @Override
+            public void componentResolved() {
+                components.itemDone();
+            }
+
+            @Override
+            public void toWriteNearDuplicateVerdicts(long total) {
+                verdicts = StageProgress.over(stage + "near-duplicate verdicts)", total);
+            }
+
+            @Override
+            public void nearDuplicateVerdictWritten() {
+                verdicts.itemDone();
+            }
+
+            @Override
+            public void toCheckForContainment(long total) {
+                containment = StageProgress.over(stage + "containment)", total);
+                candidates = StageProgress.running(stage + "containment candidates)");
+            }
+
+            @Override
+            public void checkedForContainment() {
+                containment.itemDone();
+            }
+
+            @Override
+            public void containmentCandidateGoneThrough() {
+                candidates.itemDone();
+            }
+        };
     }
 }

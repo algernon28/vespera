@@ -1,0 +1,85 @@
+package io.algernon.vespera.similarity;
+
+/**
+ * What {@link RedundancyResolution#resolve} tells its caller about its loops, as it goes (ADR-192 section
+ * 5). {@code similarity} knows no stage and writes no line: the caller owns every counter.
+ *
+ * <p>Each {@code to...} method is called exactly once each time its loop is reached, with the loop's total,
+ * before its first item, zero included; its completion method once after each item. A resolution that
+ * returns before any loop is reached (no occurrence is signed) calls none of them.
+ *
+ * <p>The order is fixed: pairs, profiles, then components and verdicts (both before the component loop),
+ * then containment. Within a component its verdicts are reported before the component is. Containment
+ * candidates have no total: they are reported inside the containment loop, after it is announced.
+ */
+public interface ResolutionProgress {
+
+    /** A progress that does nothing, for the callers that want no report. */
+    ResolutionProgress NONE = new ResolutionProgress() {
+        @Override
+        public void toScorePairs(long pairs) {}
+
+        @Override
+        public void pairScored() {}
+
+        @Override
+        public void toReadProfiles(long occurrences) {}
+
+        @Override
+        public void profileRead() {}
+
+        @Override
+        public void toResolveComponents(long components) {}
+
+        @Override
+        public void componentResolved() {}
+
+        @Override
+        public void toWriteNearDuplicateVerdicts(long members) {}
+
+        @Override
+        public void nearDuplicateVerdictWritten() {}
+
+        @Override
+        public void toCheckForContainment(long occurrences) {}
+
+        @Override
+        public void checkedForContainment() {}
+
+        @Override
+        public void containmentCandidateGoneThrough() {}
+    };
+
+    /** The candidate pairs the signature buckets formed. */
+    void toScorePairs(long pairs);
+
+    /** One candidate pair scored. */
+    void pairScored();
+
+    /** The members of components of two or more. */
+    void toReadProfiles(long occurrences);
+
+    /** One occurrence's facts read for the survivor rule. */
+    void profileRead();
+
+    /** The components of two or more. */
+    void toResolveComponents(long components);
+
+    /** One component resolved. */
+    void componentResolved();
+
+    /** The members of those components less one survivor each, summed. */
+    void toWriteNearDuplicateVerdicts(long members);
+
+    /** One member written as redundant with its component's survivor. */
+    void nearDuplicateVerdictWritten();
+
+    /** The signed occurrences. */
+    void toCheckForContainment(long occurrences);
+
+    /** One signed occurrence checked for a container, on every path out of it. */
+    void checkedForContainment();
+
+    /** One containment candidate gone through, for any signed occurrence. Has no total. */
+    void containmentCandidateGoneThrough();
+}
