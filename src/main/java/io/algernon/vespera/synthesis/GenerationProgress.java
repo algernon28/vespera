@@ -1,8 +1,14 @@
 package io.algernon.vespera.synthesis;
 
 /**
- * What the walk tells its caller about each cluster it leaves unwritten, as it goes (ADR-190). This
- * module logs nothing, so the caller says what the operator reads.
+ * What the walk tells its caller about each cluster it leaves unwritten, and about every cluster it goes
+ * through, as it goes (ADR-190, ADR-192). This module logs nothing, so the caller says what the operator
+ * reads.
+ *
+ * <p>{@link #toGoThrough} is called once, after the slots already written are read and before the walk,
+ * zero included; {@link #clusterGoneThrough} once at the end of each cluster's path, after any report of the
+ * four kinds, and for a fifth turned-down answer before the walk returns {@code Stopped}. Both do nothing by
+ * default.
  */
 public interface GenerationProgress {
 
@@ -17,4 +23,10 @@ public interface GenerationProgress {
 
     /** {@code docFor} threw any other fault. Called before its row is written. */
     void answerTurnedDown(RecordedCluster cluster, ClusterFault fault);
+
+    /** Called once, before the walk's first cluster, with how many clusters it will go through. */
+    default void toGoThrough(long clusters) {}
+
+    /** Called once at the end of each cluster's path, whichever path it took. */
+    default void clusterGoneThrough() {}
 }

@@ -17,7 +17,8 @@ import org.springframework.stereotype.Component;
  * the repair pass's deletion and the completion rule (ADR-116).
  *
  * <p>It knows no stage, names no Spring Batch type and logs nothing: what the operator reads is said
- * by the caller, through {@link GenerationProgress} and the {@link GenerationOutcome} it returns.
+ * by the caller, through {@link GenerationProgress}, which hears of each cluster left unwritten and of
+ * every cluster gone through (ADR-192), and the {@link GenerationOutcome} it returns.
  */
 @Component
 public class ClusterGeneration {
@@ -57,6 +58,7 @@ public class ClusterGeneration {
         Set<ClusterSlot> alreadyWritten = synthesisDocs.forRun(generation).stream()
                 .map(doc -> new ClusterSlot(doc.winningSeed(), doc.clusterOrdinal()))
                 .collect(Collectors.toSet());
+        progress.toGoThrough(clusters.size());
         int written = 0;
         int skipped = 0;
         int faulted = 0;
@@ -68,17 +70,20 @@ public class ClusterGeneration {
             ClusterSlot slot = ClusterSlot.of(recorded);
             if (alreadyWritten.contains(slot)) {
                 skipped++;
+                progress.clusterGoneThrough();
                 continue;
             }
             ClusterMaterial material = exemplars.of(recorded);
             if (material.exemplars().isEmpty()) {
                 progress.noSendableDocument(recorded);
                 unsendable.put(slot, Unwritten.NO_SENDABLE_DOCUMENT);
+                progress.clusterGoneThrough();
                 continue;
             }
             if (ClusterSynthesis.nothingFitsIn(contextWindow, material.exemplars())) {
                 progress.nothingFitsTheWindow(recorded, material.exemplars().size(), contextWindow);
                 unsendable.put(slot, Unwritten.NOTHING_FITS_THE_WINDOW);
+                progress.clusterGoneThrough();
                 continue;
             }
             SynthesisDoc doc;
@@ -100,9 +105,12 @@ public class ClusterGeneration {
                 if (!e.noAnswerWasAskedFor()) {
                     turnedDownInARow.add(e.fault());
                     if (turnedDownInARow.size() >= CONSECUTIVE_TURNED_DOWN_ANSWERS) {
+                        // The fifth is counted before the walk returns (ADR-192 section 2).
+                        progress.clusterGoneThrough();
                         return new GenerationOutcome.Stopped(List.copyOf(turnedDownInARow), frozen(unsendable));
                     }
                 }
+                progress.clusterGoneThrough();
                 continue;
             }
             synthesisDocs.record(generation, slot.winningSeed(), slot.clusterOrdinal(), doc);
@@ -112,6 +120,7 @@ public class ClusterGeneration {
             written++;
             // Only a believed answer drops the streak.
             turnedDownInARow.clear();
+            progress.clusterGoneThrough();
         }
         // Completion needs two things (ADR-116): no unsendable cluster, and no fault row standing.
         int standingFaults = clusterFaults.forRun(generation).size();

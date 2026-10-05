@@ -229,12 +229,42 @@ public final class Deliverable {
             List<ListedSurvivor> survivors,
             SurvivorPictures pictures,
             Map<ClusterSlot, Unwritten> unwritten) {
+        return writeTo(
+                workingDirectory,
+                provenance,
+                arrangement,
+                written,
+                survivors,
+                pictures,
+                unwritten,
+                DeliverableProgress.NONE);
+    }
+
+    /**
+     * Writes the whole tree and tells {@code progress} the total of each of the four loops that read or
+     * write something, once and in the order {@link DeliverableProgress} fixes, and each item as it is
+     * done (ADR-192 section 5). This module writes no line. Returns where the tree landed.
+     *
+     * @param unwritten as for {@link #writeTo(Path, DeliverableProvenance, List, List, List, SurvivorPictures,
+     *     Map)}
+     * @param progress told each loop's total before its first item, zero included, and each item after it
+     *     is done
+     */
+    public static Path writeTo(
+            Path workingDirectory,
+            DeliverableProvenance provenance,
+            List<RecordedCluster> arrangement,
+            List<RecordedSynthesisDoc> written,
+            List<ListedSurvivor> survivors,
+            SurvivorPictures pictures,
+            Map<ClusterSlot, Unwritten> unwritten,
+            DeliverableProgress progress) {
         Path tree = workingDirectory.resolve(DIRECTORY_NAME).resolve(provenance.runId());
         try {
             Files.createDirectories(tree);
-            Set<String> furnitureDigests = furnitureDigestsAcrossSurvivors(survivors, pictures);
+            Set<String> furnitureDigests = furnitureDigestsAcrossSurvivors(survivors, pictures, progress);
             writeIndexAndClusterFiles(
-                    tree, provenance, arrangement, written, survivors, pictures, furnitureDigests, unwritten);
+                    tree, provenance, arrangement, written, survivors, pictures, furnitureDigests, unwritten, progress);
             writeManifest(tree, arrangement, survivors);
             return tree;
         } catch (IOException e) {
@@ -250,10 +280,12 @@ public final class Deliverable {
      * at once. From that, {@link #furnitureDigestsOf} decides which of those digests are furniture.
      */
     private static Set<String> furnitureDigestsAcrossSurvivors(
-            List<ListedSurvivor> survivors, SurvivorPictures pictures) {
+            List<ListedSurvivor> survivors, SurvivorPictures pictures, DeliverableProgress progress) {
         List<PictureEntry> entries = new ArrayList<>();
         Map<String, Integer> recurrence = new HashMap<>();
         Set<OccurrenceId> asked = new HashSet<>();
+        progress.toListPictures(
+                survivors.stream().map(ListedSurvivor::occurrence).distinct().count());
         for (ListedSurvivor survivor : survivors) {
             if (!asked.add(survivor.occurrence())) {
                 continue;
@@ -268,6 +300,7 @@ public final class Deliverable {
                         survivor.occurrence(),
                         picture.place()));
             }
+            progress.picturesListed();
         }
         return furnitureDigestsOf(entries, recurrence);
     }
@@ -413,7 +446,8 @@ public final class Deliverable {
             List<ListedSurvivor> survivors,
             SurvivorPictures pictures,
             Set<String> furnitureDigests,
-            Map<ClusterSlot, Unwritten> unwritten)
+            Map<ClusterSlot, Unwritten> unwritten,
+            DeliverableProgress progress)
             throws IOException {
         Map<ClusterKey, RecordedSynthesisDoc> writtenByCluster = new LinkedHashMap<>();
         for (RecordedSynthesisDoc doc : written) {
@@ -445,6 +479,23 @@ public final class Deliverable {
 
         StringBuilder index = new StringBuilder();
         openIndexWith(index, provenance);
+
+        // The three totals, announced before the loop over partitions; the entries are those that carry a
+        // document, as the page numbers them (ADR-192 section 5).
+        long entriesWithADocument = 0;
+        for (RecordedCluster recorded : arrangement) {
+            entriesWithADocument += numbered(
+                            writtenByCluster.get(ClusterKey.of(recorded)) == null
+                                    ? null
+                                    : writtenByCluster.get(ClusterKey.of(recorded)).doc(),
+                            membersByCluster.getOrDefault(ClusterKey.of(recorded), List.of()))
+                    .stream()
+                    .filter(entry -> entry.document() != null)
+                    .count();
+        }
+        progress.toWritePartitions(byPartition.size());
+        progress.toWriteClusterFiles(arrangement.size());
+        progress.toWriteMembershipEntries(entriesWithADocument);
 
         for (Map.Entry<OccurrenceId, List<RecordedCluster>> partition : byPartition.entrySet()) {
             List<RecordedCluster> clusters = partition.getValue();
@@ -478,8 +529,10 @@ public final class Deliverable {
                         provenance.corpusRoot(),
                         pictures,
                         furnitureDigests,
-                        unwritten.get(ClusterSlot.of(recorded)));
+                        unwritten.get(ClusterSlot.of(recorded)),
+                        progress);
             }
+            progress.partitionWritten();
         }
 
         Files.writeString(tree.resolve(INDEX_FILE_NAME), index.toString(), StandardCharsets.UTF_8);
@@ -496,7 +549,8 @@ public final class Deliverable {
             String corpusRoot,
             SurvivorPictures pictures,
             Set<String> furnitureDigests,
-            Unwritten why)
+            Unwritten why,
+            DeliverableProgress progress)
             throws IOException {
         String label = inACell(recorded.label().value());
         int documentCount = recorded.cluster().documentCount();
@@ -520,7 +574,9 @@ public final class Deliverable {
                     members,
                     corpusRoot,
                     pictures,
-                    furnitureDigests);
+                    furnitureDigests,
+                    progress);
+            progress.clusterFileWritten();
             return;
         }
         String link = partitionDirName + "/" + clusterFileName;
@@ -542,7 +598,9 @@ public final class Deliverable {
                 members,
                 corpusRoot,
                 pictures,
-                furnitureDigests);
+                furnitureDigests,
+                progress);
+        progress.clusterFileWritten();
     }
 
     /**
@@ -593,7 +651,8 @@ public final class Deliverable {
             List<ListedSurvivor> members,
             String corpusRoot,
             SurvivorPictures pictures,
-            Set<String> furnitureDigests)
+            Set<String> furnitureDigests,
+            DeliverableProgress progress)
             throws IOException {
         StringBuilder page = new StringBuilder();
         page.append("# ").append(inAHeading(doc == null ? label : doc.title())).append("\n\n");
@@ -612,7 +671,14 @@ public final class Deliverable {
             page.append('\n').append(MEMBERSHIP_HEADING).append("\n\n");
             String pictureDirectoryName = stemOf(file.getFileName().toString());
             appendMembership(
-                    page, numbered, file.getParent(), corpusRoot, pictureDirectoryName, pictures, furnitureDigests);
+                    page,
+                    numbered,
+                    file.getParent(),
+                    corpusRoot,
+                    pictureDirectoryName,
+                    pictures,
+                    furnitureDigests,
+                    progress);
         }
         Files.writeString(file, page.toString(), StandardCharsets.UTF_8);
     }
@@ -716,7 +782,8 @@ public final class Deliverable {
             String corpusRoot,
             String pictureDirectoryName,
             SurvivorPictures pictures,
-            Set<String> furnitureDigests)
+            Set<String> furnitureDigests,
+            DeliverableProgress progress)
             throws IOException {
         Optional<Path> corpusRootDirectory = asDirectory(corpusRoot);
         for (int at = 0; at < entries.size(); at++) {
@@ -738,6 +805,7 @@ public final class Deliverable {
             }
             appendPictures(
                     page, member, ordinal, pageDirectory, pictureDirectoryName, pictures, furnitureDigests);
+            progress.membershipEntryWritten();
         }
     }
 
