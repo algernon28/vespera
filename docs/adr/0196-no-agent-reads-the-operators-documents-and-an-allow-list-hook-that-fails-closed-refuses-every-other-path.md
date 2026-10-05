@@ -40,7 +40,7 @@ The hook refuses a call when any path of the call is:
 
 It is an allow list and not a list of archives, so an archive on a new path is refused without anyone naming it. The cost of a mistake in the list is a refusal, which the operator lifts by adding the path to the local list.
 
-**The allow-list decision is made from the path's text, before the file system is asked about it.** A path outside the list is never touched, so a refused UNC path costs no network lookup.
+**The allow-list decision is made from the path's text, before the file system is asked about it.** A path outside the list is never touched, so a refused UNC path costs no network lookup. Nothing beneath a refused folder is asked about either: when the current directory is itself refused, no token is looked up under it.
 
 ### 3. The paths of a call
 
@@ -56,7 +56,7 @@ The call's current directory is the `cwd` field of the hook's input. A call that
 
 A link is followed before the check: a junction or symlink under an allowed root that leads outside the allow list is outside it.
 
-**The walk down from a search root is bounded, and refuses when it reaches its bound.** It goes breadth-first and stops at the first folder holding `vespera.db` or `vespera.lock`. It looks at no more than 10,000 folders. It never enters a folder named `.git`, `node_modules` or `target`, and never follows a symlink or a junction. A root with more folders than the bound is refused, with a line saying to search a narrower folder, because a working directory beneath it cannot be ruled out. The test builds 10,050 folders to hold that; no switch lowers the bound for a test, because such a switch would be a way round it.
+**The walk down from a search root is bounded, and refuses when it reaches its bound.** It goes breadth-first and stops at the first folder holding `vespera.db` or `vespera.lock`. It looks at no more than 10,000 folders. It never enters a folder named `.git`, `node_modules` or `target`, and never follows a symlink or a junction. A root with more folders than the bound is refused, with a line saying to search a narrower folder, because a working directory beneath it cannot be ruled out. The test builds 10,050 folders to hold that; no switch lowers the bound for a test, because such a switch would be a way round it. Those folders lie flat in one folder, so the case holds the refusal at the bound and says nothing of what a deep walk costs.
 
 Two things follow from the walk and are accepted:
 
@@ -69,12 +69,17 @@ The checkout's own path may hold a space, and the hook still finds its allow lis
 
 A command is text, and the hook reads paths out of it. It cuts the text into tokens at white space, quotes, and `;`, `|`, `&`, `<`, `>`, `(` and `)`, and reads each token.
 
+**A path is not always a whole token, and two more readings are made for that.**
+
+- **A space escaped with a backslash joins what is on either side of it.** `cat my\ runs/report.html` names `my runs/report.html`, and the two halves are also read as that one path.
+- **A token is also cut at `,`, `{` and `}`, and each piece is read.** A brace list, `cat {note.txt,../wd/report.html}`, and a comma list, as PowerShell writes an array, carry a path that is not at the head of the token.
+
 **A quoted string is also read whole**, as one token, whether its quotes are single or double. A path with a space in it is written in quotes, and cut at the space it is two tokens neither of which is the path: `cat 'my runs/report.html'` must be refused when `my runs` is a working directory. A quoted sentence, such as a commit message, read whole is a relative path to nothing, and is let through unless one of its pieces is refused on its own.
 
 It reads:
 
 - **a drive path**, `Q:/x` or `Q:\x`, with one separator after the colon or several (`Q://x`, `Q:\\x`). The `//` after a URL's scheme is not one: `https://example.com/x` is let through.
-- **a bare drive**: a token that is one letter and a colon, as in `cd Q:`. It is the root of that drive, which no allowed root is, so it is refused whatever the letter.
+- **a bare drive**: a token that is one letter and a colon, as in `cd Q:`. It is the root of that drive, which no allowed root is, so it is refused whatever the letter. A dot or two after the colon, `Q:.` and `Q:..`, is that drive's current directory or its parent, and is a drive too. The drive is told from the token as it is written, before any punctuation is trimmed from its end: trimmed first, `Q:.` loses its dot and then its colon and is left a plain name.
 - **a home path**: `~`, `$HOME`, `${HOME}`.
 - **a variable of the environment at the head of a token**: `$USERPROFILE/x`, `${USERPROFILE}/x`, `$env:USERPROFILE\x`, `${env:USERPROFILE}\x`, and the variable alone, as in `echo $USERPROFILE`. It is replaced by its value in the hook's own environment and the result is checked like any other path, so `$USERPROFILE/.m2` is let through and `$USERPROFILE/Documents` is refused. A variable with no value there is not read: it is a path built at run time (§5). Neither is one whose value is a list of paths, such as `PATH`.
 - **a relative path.** Every token that is none of the other forms is read as one, a command's own name included. It is read against the current directory and against every directory the command names, as the rule below says.
@@ -84,7 +89,7 @@ It reads:
 
 On Windows only, it also reads:
 
-- **a path on a drive with no separator after the colon**, `Q:folder\x`. To the shell it is a path from that drive's own current directory, which is the drive's root unless something changed it. A token headed by exactly one letter, a colon, and then anything but a separator is a path on that drive, and it is checked as the drive's root joined with the rest. Only that reading is judged. So such a token on the current directory's own drive is checked from that drive's root and not as a relative path, which can refuse a path the shell would have found under the current directory, and never lets one through. A word and a colon, `HEAD:README.md` or `localhost:5001`, is not one.
+- **a path on a drive with no separator after the colon**, `Q:folder\x`. To the shell it is a path from that drive's own current directory, which is the drive's root unless something changed it. A token headed by exactly one letter, a colon, and then anything but a separator is a path on that drive. Two readings of it are judged, and either refuses: the drive's root joined with the rest, and the rest as a relative path, read as every relative path is. The first is where it lands on a drive whose current directory is its root. The second is where it lands on the drive the command runs on. Judging only the first could let through a path that is allowed from the root and lands in a working directory under the current directory. A word and a colon, `HEAD:README.md` or `localhost:5001`, is not one.
 - **a Git Bash drive path**, `/q/x`, and its `/proc/cygdrive/q/x` and `/cygdrive/q/x` forms. It is one only when written with forward slashes.
 - **a UNC path**, `//host/share/x` or `\\host\share\x`: two slashes or two backslashes at the head of the token, and not one of each.
 
@@ -93,22 +98,33 @@ On Windows only, it also reads:
 **A relative path is read against every directory the command names, and is refused if any of those readings is refused.** A command can change directory before it reads a path: `cd <folder> && cat wd/report.html`, `git -C <folder> show wd/report.html`, `pushd`, `Set-Location`, `env -C`, `make -C`, a subshell. Read against the current directory alone, the relative path lands somewhere harmless, and the command reads a working directory.
 
 - The directories a command names are its current directory and every token of it, in any form §4 reads, that is a folder that exists. An absolute one counts as a relative one does: `cd D:/checkout/docs && cat adr/x.md` names `D:/checkout/docs`, and `cd docs && cat adr/x.md` names `docs`. No list of verbs is kept: a list is dodged by the verb it leaves out.
-- A relative token is read against each of them. A token that is a folder under one of them is a directory the command names too, so `cd a && cd b` is followed. This is repeated until it finds no new folder.
+- A relative token that is a folder under one of them is a directory the command names too, so `cd a && cd b` is followed. The directories a command names are therefore reached by chains: from the current directory or an absolute folder, one token after another.
+- **Along one chain a token is used no more often than the command writes it.** `..` written once climbs once from each directory the other tokens reach, and the folder it yields is not climbed again by that same `..`. Written twice, as in `cd .. && cd ..`, it climbs twice. The same holds for every token, and `..` is where it matters.
+- A relative token is read against every directory that a chain reaches without having used that token up.
 - The call is refused if any reading of any token is outside the allow list or inside a working directory.
 
-**The rule is bounded, and refuses at its bounds.** Relative paths are read against no more than 32 folders, the current directory among them, so a command that names 32 folders besides its current directory is refused. One reading is one relative token against one folder, a token that is written twice being counted once, and a command that needs more than 20,000 readings is refused. Each refusal says to split the command. Past either bound there are readings the hook did not make, so it cannot let the call through. Both bounds have a case.
+**Why a token is counted.** The first version of this rule read every token against every directory, the ones that token had itself yielded among them. `..` was read against the current directory, its parent was a folder and so was named, `..` was read against the parent, and so on to the root of the drive, which is outside the allow list. `ls ..` was refused from every directory at every depth, and so were `git -C .. status` and `cd ../.. && ./mvnw -q test`. A shell uses each token it is given once, so a chain that uses `..` more often than it is written is one no command runs. Counting what is written, and not each token once, is what keeps `cd .. && cd .. && cat wd/report.html` refused when `wd` is two folders up: counted once, the second climb would be left out and the path let through.
+
+**The rule is bounded, and refuses at its bounds.** Relative paths are read against no more than 32 folders, the current directory among them, so a command that names 32 folders besides its current directory is refused. One reading is one relative token against one folder, and a command that needs more than 20,000 readings is refused. Each refusal says to split the command. Past either bound there are readings the hook did not make, so it cannot let the call through. Both bounds have a case.
 
 One reading is not made: a token that is a plain name, with no separator in it, and that does not exist in a folder. That reading is a path directly in the folder, the folder was itself checked, and nothing is there to follow, so the answer is the folder's own.
 
 The rule knows only the directories written in the command. A directory the command reaches without naming it is §5's.
 
-The cost is refusals of harmless commands, and it is small beyond what the rule before it already cost. A relative path that climbs with `..` was already refused when it left the allow list from the current directory, as `cd src/main && cat ../../README.md` does from the repository. What is new is a refusal when a command names an allowed folder and, separately, a relative name that happens to be a working directory under that folder.
+The cost is refusals of harmless commands. Three kinds are known:
+
+- A relative path that climbs with `..` is refused when it leaves the allow list from the current directory, as `cd src/main && cat ../../README.md` does from the repository. That was so before this rule.
+- A command that names an allowed folder and, separately, a relative name that happens to be a working directory under that folder.
+- A command with two climbing tokens that leave the allow list when one is read after the other, though the command reads each from the current directory: `cp ../README.md ..` from one folder inside the repository. The hook cannot tell it from `cd .. && cat ../README.md`.
 
 **A token led by a backslash is not a path from the root.** `'\n'` in `tr '\n' ' '` and `'\s'` in a `grep` pattern are escapes, and a regular expression literal such as `/\s+/g` is neither a Git Bash drive nor a UNC path. A backslash still separates folders inside a drive path, a UNC path and a relative path. A regular expression literal with no backslash, `/a/g`, cannot be told from the Git Bash path to folder `g` on drive `A:`, and is refused on Windows.
 
 ### 5. What the hook does not cover
 
-These are stated so nobody takes the hook for the whole of the protection. For each, §1's written rule is all there is.
+These are stated so nobody takes the hook for the whole of the protection. For each, §1's written rule is all there is. **It is the list of what is known, and it is not complete**: three gates each found forms that were not on it, and a hook that reads a command as text cannot list every way a shell can spell a path.
+
+- **A brace list with text before or after it**, `../{a,b}/x`. The pieces are read, and so is the token as it is written, but the list is not expanded as the shell expands it.
+- **A variable written for `cmd`**, `%USERPROFILE%\Documents\x`. It is read as a relative path of that spelling.
 
 - **`mcp__*` tools.** A file tool an MCP server offers is not one of the eight, and the hook never sees its call.
 - **Monitor**, which runs a shell command and is not one of the eight.
@@ -136,7 +152,7 @@ Claude Code blocks a call only on exit 2. Any other non-zero exit is a hook that
 - **`node` not on `PATH`**, or the guard ending with any exit code but 0 and 2.
 - **The wrapper itself failing.** The command registered in `settings.json` starts the wrapper, and must turn any exit code of the wrapper but 0 into 2. A wrapper it cannot find refuses.
 
-**A hook that runs out of time is not known to fail closed.** `settings.json` sets no `timeout` for the hook, so Claude Code's default applies, and what Claude Code does with a call whose hook timed out has not been verified. The slowest thing the hook does is the walk down, which the bound keeps short.
+**A hook that runs out of time is not known to fail closed.** `settings.json` sets no `timeout` for the hook, so Claude Code's default applies, and what Claude Code does with a call whose hook timed out has not been verified. The slowest thing the hook does is the reading of relative paths against named folders, and the bound on readings is what limits it. Measured at the third gate, on the operator's machine: a command naming 31 folders with 588 tokens that each hold a separator, 19,840 readings and so just under the bound, took 3.6 s. The same count of plain names took 0.39 s, and the walk down at its bound of 10,000 folders 0.4 s. The bound stays at 20,000. Only a command built for it comes near, 3.6 s is well inside any time a hook is given, and a lower bound would refuse a long commit message beside a few folders, which is an everyday command.
 
 ### 7. The test
 
