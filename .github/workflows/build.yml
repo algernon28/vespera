@@ -61,6 +61,17 @@ jobs:
           path: target/allure-results
           if-no-files-found: warn
 
+      # ADR-194: a test's output goes to a file per class, not to this log, so a failing test's
+      # logged lines are read here. A green run needs none of it.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-linux
+          path: |
+            target/surefire-reports
+            target/failsafe-reports
+          if-no-files-found: warn
+
   ntfs:
     name: Test on NTFS
     runs-on: windows-latest
@@ -86,4 +97,12 @@ jobs:
         with:
           name: allure-results-ntfs
           path: target/allure-results
+          if-no-files-found: warn
+
+      # ADR-194, as in the job above.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-ntfs
+          path: target/surefire-reports
           if-no-files-found: warn
