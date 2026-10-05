@@ -119,11 +119,20 @@ class EmbeddingScoringTasklet implements Tasklet {
                             scoring.value(),
                             survivors.size(),
                             usableSeeds.size());
+                    StageProgress survivorsDone =
+                            StageProgress.over("Stage 5c (embedding scoring, corpus survivors)", survivors.size());
+                    StageProgress survivorChunks =
+                            StageProgress.running("Stage 5c (embedding scoring, corpus survivor chunks)");
                     for (OccurrenceId occurrenceId : survivors) {
-                        rechunkAndEmbed(canonicalRoot, occurrenceId, modelName);
+                        rechunkAndEmbed(canonicalRoot, occurrenceId, modelName, survivorChunks);
+                        survivorsDone.itemDone();
                     }
+                    StageProgress seedsDone =
+                            StageProgress.over("Stage 5c (embedding scoring, seeds)", usableSeeds.size());
+                    StageProgress seedChunks = StageProgress.running("Stage 5c (embedding scoring, seed chunks)");
                     for (OccurrenceId occurrenceId : usableSeeds) {
-                        rechunkAndEmbed(seedWalk.canonicalRoot(), occurrenceId, modelName);
+                        rechunkAndEmbed(seedWalk.canonicalRoot(), occurrenceId, modelName, seedChunks);
+                        seedsDone.itemDone();
                     }
                     LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.value());
                     return true;
@@ -144,7 +153,8 @@ class EmbeddingScoringTasklet implements Tasklet {
         return allSeeds;
     }
 
-    private void rechunkAndEmbed(Path canonicalRoot, OccurrenceId occurrenceId, String modelName) {
+    private void rechunkAndEmbed(
+            Path canonicalRoot, OccurrenceId occurrenceId, String modelName, StageProgress chunksEmbedded) {
         OccurrenceFacts facts = ledger.factsFor(occurrenceId)
                 .orElseThrow(() -> new IllegalStateException("no facts recorded for occurrence " + occurrenceId.value()));
         Path file = canonicalRoot.resolve(facts.path().value());
@@ -159,6 +169,7 @@ class EmbeddingScoringTasklet implements Tasklet {
                     chunk.ordinal(),
                     chunk.text(),
                     modelName);
+            chunksEmbedded.itemDone();
         }
     }
 }

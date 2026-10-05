@@ -42,13 +42,29 @@ public class RelevanceScoring {
             String chunkerIdentity,
             String chunkingRuleIdentity,
             String modelName) {
+        return residentSeedVectors(
+                seedContentHashesByOccurrence, chunkerIdentity, chunkingRuleIdentity, modelName, ScoringProgress.NONE);
+    }
+
+    /**
+     * As {@link #residentSeedVectors(Map, String, String, String)}, telling {@code progress} how many seeds
+     * will be read, once, before the first, and each seed as it is read, found or not (ADR-192 section 5).
+     */
+    public Map<OccurrenceId, List<float[]>> residentSeedVectors(
+            Map<OccurrenceId, String> seedContentHashesByOccurrence,
+            String chunkerIdentity,
+            String chunkingRuleIdentity,
+            String modelName,
+            ScoringProgress progress) {
         Map<OccurrenceId, List<float[]>> resident = new LinkedHashMap<>();
+        progress.toReadSeedVectors(seedContentHashesByOccurrence.size());
         for (Map.Entry<OccurrenceId, String> seed : seedContentHashesByOccurrence.entrySet()) {
             List<float[]> vectors =
                     vectorCache.vectorsFor(seed.getValue(), chunkerIdentity, chunkingRuleIdentity, modelName);
             if (!vectors.isEmpty()) {
                 resident.put(seed.getKey(), vectors);
             }
+            progress.seedVectorsRead();
         }
         return resident;
     }
@@ -75,9 +91,20 @@ public class RelevanceScoring {
      * null metric.
      */
     public Map<OccurrenceId, Double> scoresFor(RunId runId, Collection<OccurrenceId> occurrences) {
+        return scoresFor(runId, occurrences, ScoringProgress.NONE);
+    }
+
+    /**
+     * As {@link #scoresFor(RunId, Collection)}, telling {@code progress} how many occurrences will be read,
+     * once, before the first, and each occurrence as it is read, scored or not (ADR-192 section 5).
+     */
+    public Map<OccurrenceId, Double> scoresFor(
+            RunId runId, Collection<OccurrenceId> occurrences, ScoringProgress progress) {
         Map<OccurrenceId, Double> scores = new LinkedHashMap<>();
+        progress.toReadScores(occurrences.size());
         for (OccurrenceId occurrence : occurrences) {
             scoreCache.forOccurrence(occurrence, runId).ifPresent(score -> scores.put(occurrence, score.score()));
+            progress.scoreRead();
         }
         return scores;
     }

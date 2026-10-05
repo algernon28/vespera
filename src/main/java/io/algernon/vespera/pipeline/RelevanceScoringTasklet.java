@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceScoring;
+import io.algernon.vespera.embedding.ScoringProgress;
 import io.algernon.vespera.embedding.UnusableSeed;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ChunkingRule;
@@ -111,7 +112,7 @@ class RelevanceScoringTasklet implements Tasklet {
 
                     Map<OccurrenceId, String> seedContentHashes = seedContentHashes(seedWalk, measurementRun);
                     Map<OccurrenceId, List<float[]>> residentSeedVectors = relevanceScoring.residentSeedVectors(
-                            seedContentHashes, chunkerIdentity, chunkingRuleIdentity, modelName);
+                            seedContentHashes, chunkerIdentity, chunkingRuleIdentity, modelName, seedVectorsProgress());
                     if (residentSeedVectors.isEmpty()) {
                         LOG.info(
                                 "stage 5's relevance-scoring step is gated: {} seed occurrence(s) produced"
@@ -130,6 +131,8 @@ class RelevanceScoringTasklet implements Tasklet {
                             scoring.value(),
                             survivors.size(),
                             residentSeedVectors.size());
+                    StageProgress scored =
+                            StageProgress.over("Stage 5d (relevance scoring, corpus survivors)", survivors.size());
                     for (OccurrenceId occurrenceId : survivors) {
                         OccurrenceFacts facts = ledger.factsFor(occurrenceId)
                                 .orElseThrow(() -> new IllegalStateException(
@@ -144,6 +147,7 @@ class RelevanceScoringTasklet implements Tasklet {
                                 chunkingRuleIdentity,
                                 modelName,
                                 residentSeedVectors);
+                        scored.itemDone();
                     }
                     LOG.info("Stage 5d (relevance scoring) finished under scoring run {}", scoring.value());
                     return true;
@@ -159,13 +163,32 @@ class RelevanceScoringTasklet implements Tasklet {
         allSeeds.removeAll(unusable);
 
         Map<OccurrenceId, String> contentHashes = new LinkedHashMap<>();
+        StageProgress hashed = StageProgress.over("Stage 5d (relevance scoring, seed files hashed)", allSeeds.size());
         for (OccurrenceId seedOccurrenceId : allSeeds) {
             OccurrenceFacts facts = ledger.factsFor(seedOccurrenceId)
                     .orElseThrow(() -> new IllegalStateException(
                             "no facts recorded for seed occurrence " + seedOccurrenceId.value()));
             Path file = seedWalk.canonicalRoot().resolve(facts.path().value());
             contentHashes.put(seedOccurrenceId, extractor.contentHashFor(file));
+            hashed.itemDone();
         }
         return contentHashes;
+    }
+
+    /** {@code embedding} tells this stage the seeds' total and each seed read; this stage owns the line. */
+    private static ScoringProgress seedVectorsProgress() {
+        return new ScoringProgress() {
+            private StageProgress read;
+
+            @Override
+            public void toReadSeedVectors(long seeds) {
+                read = StageProgress.over("Stage 5d (relevance scoring, seed vectors read)", seeds);
+            }
+
+            @Override
+            public void seedVectorsRead() {
+                read.itemDone();
+            }
+        };
     }
 }

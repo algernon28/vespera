@@ -6,6 +6,7 @@ import io.algernon.vespera.extraction.DocumentTitles;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.embedding.RelevanceScoring;
+import io.algernon.vespera.embedding.ScoringProgress;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -139,7 +140,7 @@ class ArrangementTasklet implements Tasklet {
 
         RunId arrangement = stageRuns.arrangement();
         Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
-                scoring, membership.stream().map(DocumentCluster::occurrenceId).toList());
+                scoring, membership.stream().map(DocumentCluster::occurrenceId).toList(), scoresReadProgress());
 
         // The page an approval copies its name off is written every time this invocation arrives at an
         // arrangement, from the rows recorded under it, including when they were recorded by an
@@ -163,11 +164,14 @@ class ArrangementTasklet implements Tasklet {
 
                     List<ArrangedCluster> arranged = Arrangement.order(partitions);
                     Map<ClusterSlot, OccurrenceId> leads = new HashMap<>();
+                    StageProgress labelledAndRecorded =
+                            StageProgress.over("Stage 6a (arrangement, clusters)", arranged.size());
                     for (ArrangedCluster cluster : arranged) {
                         LabelledCluster labelled =
                                 LeadDocument.labelled(cluster, documents, this::titleOf, this::pathObjectOf);
                         clusters.record(arrangement, cluster, labelled.label());
                         leads.put(new ClusterSlot(cluster.winningSeed(), cluster.ordinal()), labelled.leadDocument());
+                        labelledAndRecorded.itemDone();
                     }
                     write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
                             ArrangementGate.shortNameOf(arrangement),
@@ -199,6 +203,7 @@ class ArrangementTasklet implements Tasklet {
             Map<ClusterSlot, OccurrenceId> kept,
             List<ClusteredDocument> documents) {
         Map<OccurrenceId, List<ArrangementReport.Cluster>> bySeed = new LinkedHashMap<>();
+        StageProgress rowsDrawn = StageProgress.over("Stage 6a (arrangement, page rows)", recordedClusters.size());
         for (RecordedCluster recorded : recordedClusters) {
             ArrangedCluster cluster = recorded.cluster();
             OccurrenceId lead = kept.get(ClusterSlot.of(recorded));
@@ -208,9 +213,14 @@ class ArrangementTasklet implements Tasklet {
             bySeed.computeIfAbsent(cluster.winningSeed(), seed -> new ArrayList<>())
                     .add(new ArrangementReport.Cluster(
                             recorded.label().value(), cluster.documentCount(), pathOf(lead), linkTo(lead)));
+            rowsDrawn.itemDone();
         }
         List<ArrangementReport.Partition> partitions = new ArrayList<>();
-        bySeed.forEach((seed, clusters) -> partitions.add(new ArrangementReport.Partition(pathOf(seed), clusters)));
+        StageProgress partitionsDrawn = StageProgress.over("Stage 6a (arrangement, page partitions)", bySeed.size());
+        bySeed.forEach((seed, clusters) -> {
+            partitions.add(new ArrangementReport.Partition(pathOf(seed), clusters));
+            partitionsDrawn.itemDone();
+        });
         return partitions;
     }
 
@@ -234,14 +244,35 @@ class ArrangementTasklet implements Tasklet {
     private List<ClusteredDocument> clusteredDocuments(
             List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
         Map<OccurrenceId, String> seedPaths = new LinkedHashMap<>();
-        return membership.stream()
-                .map(member -> new ClusteredDocument(
-                        member.occurrenceId(),
-                        member.winningSeedOccurrenceId(),
-                        seedPaths.computeIfAbsent(member.winningSeedOccurrenceId(), this::pathOf),
-                        member.clusterOrdinal(),
-                        scores.get(member.occurrenceId())))
-                .toList();
+        StageProgress gathered = StageProgress.over("Stage 6a (arrangement, members gathered)", membership.size());
+        List<ClusteredDocument> documents = new ArrayList<>(membership.size());
+        for (DocumentCluster member : membership) {
+            documents.add(new ClusteredDocument(
+                    member.occurrenceId(),
+                    member.winningSeedOccurrenceId(),
+                    seedPaths.computeIfAbsent(member.winningSeedOccurrenceId(), this::pathOf),
+                    member.clusterOrdinal(),
+                    scores.get(member.occurrenceId())));
+            gathered.itemDone();
+        }
+        return List.copyOf(documents);
+    }
+
+    /** {@code embedding} tells this stage the total and each score read; this stage owns the line. */
+    private static ScoringProgress scoresReadProgress() {
+        return new ScoringProgress() {
+            private StageProgress read;
+
+            @Override
+            public void toReadScores(long occurrences) {
+                read = StageProgress.over("Stage 6a (arrangement, scores read)", occurrences);
+            }
+
+            @Override
+            public void scoreRead() {
+                read.itemDone();
+            }
+        };
     }
 
     /**

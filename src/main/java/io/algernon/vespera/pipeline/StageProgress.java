@@ -46,8 +46,10 @@ final class StageProgress {
     }
 
     /**
-     * A counter over {@code total} items for the named stage — {@code stage} is the label an operator
-     * reads, so it names the loop the way its stage's own lines name the stage.
+     * A counter over {@code total} items for the named loop — {@code stage} is the label an operator
+     * reads: the stage's name and, after a comma, the unit counted. Every label but 6a's and 6b's names the
+     * stage as its own lines do; those two are new wording, since those steps' own lines read {@code the
+     * arrangement step ...} and {@code The generation step finished under ...} (ADR-192 section 4).
      */
     static StageProgress over(String stage, long total) {
         return new StageProgress(stage, false, total);

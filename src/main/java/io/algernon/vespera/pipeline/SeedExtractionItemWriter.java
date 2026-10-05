@@ -179,6 +179,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         unusableSeeds.discardForRun(runId);
 
         long couldNotOpenCount = 0;
+        StageProgress recorded = StageProgress.over("Stage 5a (seed extraction, seeds recorded)", outcomes.size());
         for (SeedExtractionOutcome outcome : outcomes) {
             if (outcome.hasMeasurement()) {
                 extractionMetrics.write(outcome.occurrenceId(), runId, outcome.measurement());
@@ -188,6 +189,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             if (!outcome.usable()) {
                 unusableSeeds.record(outcome.occurrenceId(), runId, outcome.unusableReason());
             }
+            recorded.itemDone();
         }
 
         if (couldNotOpenCount > 0) {

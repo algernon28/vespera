@@ -84,12 +84,22 @@ final class NearestNeighbourGraph {
      * find.
      */
     static Graph build(MeanVectors vectors, int k, int blockSize) {
+        return build(vectors, k, blockSize, ClusteringProgress.NONE);
+    }
+
+    /**
+     * As {@link #build(MeanVectors, int, int)}, telling {@code progress} how many pairs of blocks the pass
+     * compares, b(b + 1)/2 for b blocks, before the first, and each pair as it is done (ADR-192 section 5).
+     */
+    static Graph build(MeanVectors vectors, int k, int blockSize, ClusteringProgress progress) {
         int count = vectors.count();
         int neighbours = Math.min(k, Math.max(count - 1, 0));
         List<TopK> heaps = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             heaps.add(new TopK(neighbours));
         }
+        long blocks = ((long) count + blockSize - 1) / blockSize;
+        progress.toCompareBlocks(blocks * (blocks + 1) / 2);
 
         for (int outerFrom = 0; outerFrom < count; outerFrom += blockSize) {
             List<float[]> outer = vectors.block(outerFrom, blockSize);
@@ -111,6 +121,7 @@ final class NearestNeighbourGraph {
                         heaps.get(right).offer(left, similarity);
                     }
                 }
+                progress.blockPairCompared();
             }
         }
 
