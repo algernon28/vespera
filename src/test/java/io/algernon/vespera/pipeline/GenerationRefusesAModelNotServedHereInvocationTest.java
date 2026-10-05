@@ -40,9 +40,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * local daemon and forwards each request to ollama.com. So before stage 6b mints its run or puts a
  * single question, the generation model it resolved passes the check the labeller already makes
  * (ADR-197 section 6): a tag that ends in {@code cloud} is refused without asking Ollama anything, a
- * model {@code /api/show} reports as remote is refused, and a model Ollama cannot answer about is
- * refused rather than assumed local. A refusal is one line naming the model, the invocation ends
- * non-zero, and no run is minted.
+ * model {@code /api/show} reports as remote is refused, a model Ollama has never pulled is refused as
+ * one it does not serve, and a model Ollama cannot answer about is refused rather than assumed local.
+ * A refusal is exactly one line at error level naming the stage, the generation model and the reason;
+ * the invocation ends non-zero, and no run is minted. A stage whose gate is shut asks nothing at all.
  *
  * <p>The serving engine here is {@link EmbeddingScriptedBeans}' client, scripted by name, and the chat
  * model is {@link GenerationScriptedBeans}' double, which counts every call. No test reaches a model or
@@ -69,6 +70,9 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
     /** The embedding model this fixture names, so gate 3 and everything behind it open. */
     private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
+    /** What the refusal line calls this stage, so an operator reading the log knows which one stopped. */
+    private static final String THE_STAGE = "the generation step";
+
     /** A tag Ollama gives a cloud model: served by the local daemon, answered by ollama.com. */
     private static final String A_CLOUD_TAGGED_GENERATION_MODEL = "gpt-oss:120b-cloud";
 
@@ -78,8 +82,14 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
     /** A name Ollama's {@code /api/show} is scripted to fail on. */
     private static final String A_GENERATION_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT = "a-model-nobody-can-place:8b";
 
+    /** A name Ollama has never pulled, as a mistyped {@code generationModel} is. */
+    private static final String A_GENERATION_MODEL_OLLAMA_HAS_NEVER_PULLED = "a-model-nobody-pulled:8b";
+
     /** A name Ollama reports as having its weights on this machine. */
     private static final String A_GENERATION_MODEL_SERVED_HERE = "a-model-served-here:8b";
+
+    /** A name configured where stage 6b's gate is shut, so it must never be asked about. */
+    private static final String A_GENERATION_MODEL_BEHIND_A_SHUT_GATE = "a-model-behind-a-shut-gate:8b";
 
     /** The one line of Java's stack trace format that a refusal must not print. */
     private static final String A_STACK_FRAME = "\tat ";
@@ -131,13 +141,10 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                     assertThat(GenerationScriptedBeans.callsMade()).isZero();
                 });
         claim(
-                "one line says the generation model " + A_CLOUD_TAGGED_GENERATION_MODEL + " is a cloud"
-                        + " model, and no stack trace stands in its place",
-                () -> {
-                    assertThat(linesSaying(said, A_CLOUD_TAGGED_GENERATION_MODEL + " is a cloud model"))
-                            .isNotEmpty();
-                    assertThat(said).doesNotContain(A_STACK_FRAME);
-                });
+                "exactly one line, at error level, names " + THE_STAGE + " and says the generation model "
+                        + A_CLOUD_TAGGED_GENERATION_MODEL + " is a cloud model, and no stack trace stands in"
+                        + " its place",
+                () -> oneErrorLineSays(said, A_CLOUD_TAGGED_GENERATION_MODEL, " is a cloud model"));
         claim(
                 "Ollama was not asked about it: the tag alone settles it, so the refusal needs no answer"
                         + " from anything",
@@ -171,13 +178,10 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                     assertThat(GenerationScriptedBeans.callsMade()).isZero();
                 });
         claim(
-                "one line names the generation model " + A_GENERATION_MODEL_OLLAMA_FORWARDS + " and says"
-                        + " Ollama reports it as remote, with no stack trace",
-                () -> {
-                    assertThat(linesSaying(said, A_GENERATION_MODEL_OLLAMA_FORWARDS))
-                            .anySatisfy(line -> assertThat(line).contains("as remote"));
-                    assertThat(said).doesNotContain(A_STACK_FRAME);
-                });
+                "exactly one line, at error level, names " + THE_STAGE + " and the generation model "
+                        + A_GENERATION_MODEL_OLLAMA_FORWARDS + " and says Ollama reports it as remote, with"
+                        + " no stack trace",
+                () -> oneErrorLineSays(said, A_GENERATION_MODEL_OLLAMA_FORWARDS, "as remote"));
         claim("no generation run was minted", () -> assertThat(generationRunsOver(root)).isEmpty());
     }
 
@@ -203,12 +207,45 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                     assertThat(GenerationScriptedBeans.callsMade()).isZero();
                 });
         claim(
-                "one line names the generation model " + A_GENERATION_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT
-                        + " and says it could not be established where it runs, with no stack trace",
+                "exactly one line, at error level, names " + THE_STAGE + " and the generation model "
+                        + A_GENERATION_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT + " and says it could not be"
+                        + " established where it runs, with no stack trace",
+                () -> oneErrorLineSays(said, A_GENERATION_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT, "could not be established"));
+        claim("no generation run was minted", () -> assertThat(generationRunsOver(root)).isEmpty());
+    }
+
+    @Test
+    @Story("No cluster's text leaves this machine through Ollama")
+    @DisplayName("A generation model Ollama has never pulled is refused as one it does not serve, not as one it cannot place")
+    void aGenerationModelOllamaHasNeverPulledIsRefusedAsNotServed(
+            @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
+        anApprovedArrangementToWriteUnder(root, seeds, A_GENERATION_MODEL_OLLAMA_HAS_NEVER_PULLED);
+        EmbeddingScriptedBeans.hasNeverPulled(A_GENERATION_MODEL_OLLAMA_HAS_NEVER_PULLED);
+        int before = output.getAll().length();
+
+        cli.run("run", root.toString());
+        String said = output.getAll().substring(before);
+
+        claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
+                .isNotZero());
+        claim(
+                "no question reached the generation model",
                 () -> {
-                    assertThat(linesSaying(said, A_GENERATION_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT))
-                            .anySatisfy(line -> assertThat(line).contains("could not be established"));
-                    assertThat(said).doesNotContain(A_STACK_FRAME);
+                    assertThat(GenerationScriptedBeans.countingCallsMade()).isZero();
+                    assertThat(GenerationScriptedBeans.callsMade()).isZero();
+                });
+        claim(
+                "exactly one line, at error level, names " + THE_STAGE + " and says Ollama serves no model"
+                        + " named " + A_GENERATION_MODEL_OLLAMA_HAS_NEVER_PULLED + ": an operator who mistyped"
+                        + " generationModel is told the name is not served here, which is ADR-114's stop in"
+                        + " the words it always had, and not that its remoteness is in doubt",
+                () -> {
+                    oneErrorLineSays(
+                            said,
+                            A_GENERATION_MODEL_OLLAMA_HAS_NEVER_PULLED,
+                            "serves no model named " + A_GENERATION_MODEL_OLLAMA_HAS_NEVER_PULLED);
+                    assertThat(linesSaying(said, A_GENERATION_MODEL_OLLAMA_HAS_NEVER_PULLED))
+                            .noneSatisfy(line -> assertThat(line).contains("could not be established"));
                 });
         claim("no generation run was minted", () -> assertThat(generationRunsOver(root)).isEmpty());
     }
@@ -236,12 +273,53 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                         .isEqualTo(1));
     }
 
-    /**
-     * One corpus document and one seed, run once so an arrangement exists, then that arrangement
-     * approved and {@code generationModel} named, so the next invocation reaches stage 6b.
-     */
-    private void anApprovedArrangementToWriteUnder(Path root, Path seeds, String generationModel)
+    @Test
+    @Story("No cluster's text leaves this machine through Ollama")
+    @DisplayName("A generation model behind a shut arrangement gate is not asked about")
+    void aGenerationModelBehindAShutGateIsNotAskedAbout(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
+        aCorpus(root, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .generationModel(A_GENERATION_MODEL_BEHIND_A_SHUT_GATE, "set by this test, with no approval")
+                .build());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "Ollama was asked about the embedding model in this invocation, so the fixture was"
+                        + " listening and its silence about the generation model below means something",
+                () -> assertThat(EmbeddingScriptedBeans.shownModels()).contains(EMBEDDING_MODEL_NAME));
+        claim(
+                "Ollama was never asked about the generation model " + A_GENERATION_MODEL_BEHIND_A_SHUT_GATE
+                        + ": with no arrangement approved stage 6b sends nothing, so the check runs after"
+                        + " its gates and an operator is not asked to start Ollama to be told a gate is shut",
+                () -> assertThat(EmbeddingScriptedBeans.shownModels())
+                        .doesNotContain(A_GENERATION_MODEL_BEHIND_A_SHUT_GATE));
+        claim(
+                "and no question reached the generation model",
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isZero());
+    }
+
+    /**
+     * Exactly one line names {@code model} and says {@code reason}, it is at error level, it names the
+     * stage, and nothing printed a stack trace.
+     */
+    private static void oneErrorLineSays(String said, String model, String reason) {
+        List<String> lines = said.lines()
+                .filter(line -> line.contains(model) && line.contains(reason))
+                .toList();
+        assertThat(lines)
+                .as("the lines naming %s and saying \"%s\"", model, reason)
+                .hasSize(1);
+        assertThat(lines.getFirst())
+                .as("the one line naming %s", model)
+                .matches("^\\S+ ERROR .*")
+                .contains(THE_STAGE);
+        assertThat(said).as("what the invocation printed").doesNotContain(A_STACK_FRAME);
+    }
+
+    /** One corpus document and one seed, with every gate up to the arrangement open. */
+    private void aCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         Profile profile = profileStore.load();
@@ -251,6 +329,15 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                 .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
                 .build());
+    }
+
+    /**
+     * {@link #aCorpus}, run once so an arrangement exists, then that arrangement approved and {@code
+     * generationModel} named, so the next invocation reaches stage 6b.
+     */
+    private void anApprovedArrangementToWriteUnder(Path root, Path seeds, String generationModel)
+            throws IOException {
+        aCorpus(root, seeds);
         cli.run("run", root.toString());
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .arrangementApproved(ArrangementGate.shortNameOf(theLatestArrangement(root)), "read by this test")

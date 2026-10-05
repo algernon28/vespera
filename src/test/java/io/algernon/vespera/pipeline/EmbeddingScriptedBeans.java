@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.embedding.ModelArtefact;
 import io.algernon.vespera.embedding.OllamaClient;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -15,6 +16,9 @@ import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.embedding.EmbeddingResponseMetadata;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 /**
  * {@link SeedScriptedExtractionBeans}' sibling for gate 3's scoring step (#107): every chunk embeds to
@@ -37,6 +41,12 @@ import org.springframework.context.annotation.Bean;
  * "this machine" for every name nothing scripted, which is what a model pulled into the local daemon
  * answers. Every name it is asked about is kept, so a test can say whether the check was made and how
  * often. The embedding double counts its calls, so a test can say none was made.
+ *
+ * <p><b>A name it has never pulled is never pulled for {@code /api/show} either.</b> The real daemon
+ * answers 404 there, and since ADR-202 the check asks {@code /api/show} before anything reads {@code
+ * /api/tags}, so in production it is the check that meets an unpulled name first and ADR-114's stop in
+ * {@code artefactOf} is no longer reached for it. The double answers both endpoints alike so a test of
+ * that case runs the path production runs.
  *
  * <p>{@code @TestConfiguration} rather than {@code @Configuration}, for the reason {@link
  * StubbedExtractionBeans} documents at length: left plain, this sits inside the application's
@@ -157,9 +167,23 @@ class EmbeddingScriptedBeans {
                 return new ModelArtefact(DIGEST, DTYPE);
             }
 
+            /**
+             * What {@code /api/show} says about {@code modelName}. A name this runtime has never pulled
+             * is answered as the real daemon answers it, with 404 and {@code model '<name>' not found},
+             * raised as the {@code RestClient} behind the real client raises it, so the check meets
+             * the never-pulled case in the shape production gives it.
+             */
             @Override
             public boolean isRemote(String modelName) {
                 SHOWN.add(modelName);
+                if (NEVER_PULLED.contains(modelName)) {
+                    throw HttpClientErrorException.create(
+                            HttpStatus.NOT_FOUND,
+                            "Not Found",
+                            HttpHeaders.EMPTY,
+                            ("{\"error\":\"model '" + modelName + "' not found\"}").getBytes(StandardCharsets.UTF_8),
+                            StandardCharsets.UTF_8);
+                }
                 if (UNANSWERED.contains(modelName)) {
                     throw new IllegalStateException("the runtime answered /api/show for " + modelName
                             + " with a server error");
