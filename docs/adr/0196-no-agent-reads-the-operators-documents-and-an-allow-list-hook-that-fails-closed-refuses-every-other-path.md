@@ -107,7 +107,13 @@ On Windows only, it also reads:
 
 **The rule is bounded, and refuses at its bounds.** Relative paths are read against no more than 32 folders, the current directory among them, so a command that names 32 folders besides its current directory is refused. One reading is one relative token against one folder, and a command that needs more than 20,000 readings is refused. Each refusal says to split the command. Past either bound there are readings the hook did not make, so it cannot let the call through. Both bounds have a case.
 
-One reading is not made: a token that is a plain name, with no separator in it, and that does not exist in a folder. That reading is a path directly in the folder, the folder was itself checked, and nothing is there to follow, so the answer is the folder's own.
+One reading is counted and not judged: a token that is a plain name, with no separator in it, and that does not exist in a folder. That reading is a path directly in the folder, the folder was itself checked, and nothing is there to follow, so the answer is the folder's own.
+
+**How the count is kept, and where it counts too much.** For each folder the hook keeps the least use of each token over the chains it has found to that folder, and it makes each reading of a token against a folder once. Three things in it count more than a shell would. Each reads more and can only refuse more:
+
+- A token inside quotes is counted for the piece and again for the quoted string read whole, so `cd ".."` may climb twice, and is refused from one folder inside the repository.
+- A drive letter, a colon and two dots, `Q:..`, also counts as a `..`.
+- The least use is kept token by token, so a folder two chains reach may be given a use that neither chain has. Every token it is then read with is one that some chain to it had left.
 
 The rule knows only the directories written in the command. A directory the command reaches without naming it is §5's.
 
@@ -133,6 +139,7 @@ These are stated so nobody takes the hook for the whole of the protection. For e
 - **An option with its value attached and no `=`**, as in `-I../x`. The token starts with `-` and is not read. A drive path written straight after a letter, as in `-IQ:/x`, is not read either.
 - **Another user's home**, `~name/x`. Only `~` alone or before a separator is the home folder; `~name/x` is read as a relative path of that spelling.
 - **A path from the root of the current drive, written without its letter**, as PowerShell's `Get-Content \archive\x` or `/archive/x`. On Windows it is a real path on whatever drive the command runs on. It was left uncovered, with no rule and no case, on the operator's word of 2026-10-05: it has the same shape as `'\s'` in a pattern, which §4 lets through, and the hook cannot tell the two apart.
+- **A directory change that a loop repeats.** `for i in 1 2 3; do cd ..; done` writes `..` once and uses it three times. The hook counts what is written.
 - **A directory the command changes to without naming it.** `cd` with no argument goes to the home folder, and `cd -` to the one before. The relative paths after it are read against the directories §4 knows, and this is not one.
 - **A directory named in a form §4 does not read**, such as `cd /tmp`. Relative paths are not read against it.
 - **A quoted string inside a quoted string**, as in `bash -c "cat 'my runs/x'"`. The outer string is read whole and the inner one is not, so the inner path is cut at its space.
@@ -152,7 +159,14 @@ Claude Code blocks a call only on exit 2. Any other non-zero exit is a hook that
 - **`node` not on `PATH`**, or the guard ending with any exit code but 0 and 2.
 - **The wrapper itself failing.** The command registered in `settings.json` starts the wrapper, and must turn any exit code of the wrapper but 0 into 2. A wrapper it cannot find refuses.
 
-**A hook that runs out of time is not known to fail closed.** `settings.json` sets no `timeout` for the hook, so Claude Code's default applies, and what Claude Code does with a call whose hook timed out has not been verified. The slowest thing the hook does is the reading of relative paths against named folders, and the bound on readings is what limits it. Measured at the third gate, on the operator's machine: a command naming 31 folders with 588 tokens that each hold a separator, 19,840 readings and so just under the bound, took 3.6 s. The same count of plain names took 0.39 s, and the walk down at its bound of 10,000 folders 0.4 s. The bound stays at 20,000. Only a command built for it comes near, 3.6 s is well inside any time a hook is given, and a lower bound would refuse a long commit message beside a few folders, which is an everyday command.
+**A hook that runs out of time is not known to fail closed.** `settings.json` sets no `timeout` for the hook, so Claude Code's default applies, and what Claude Code does with a call whose hook timed out has not been verified. The two slow things the hook does are the walk down and the reading of relative paths against named folders, and each has its bound. All figures are from the operator's machine.
+
+- **The architect measured, at the third gate, on the code of that day:** a command naming 31 folders with 588 tokens that each hold a separator, 19,840 readings and so just under the bound, at 3.6 s; the same count of plain names at 0.39 s; the walk down at its bound of 10,000 folders at 0.4 s.
+- **The implementer measured, after the change that followed:** that same worst command, let through, at about 0.36 s, and an ordinary `ls` at 85 ms, of which about 82 ms is the hook starting.
+
+What changed between the two is that a path that does not exist is answered from its parent, once, and the answer kept. Such a path is not a link and holds nothing, so where its links lead and which working directory it is inside are its parent's answers with its name put back; that is what the check gave before, one path at a time. A path that exists is checked as before.
+
+The bound on readings stays at 20,000. At a third of a second it costs nothing to keep, and a lower one would refuse a long commit message beside a few folders, which is an everyday command.
 
 ### 7. The test
 
@@ -172,7 +186,8 @@ Claude Code blocks a call only on exit 2. Any other non-zero exit is a hook that
   - a commit message that quotes `../x`, or a `sed` expression that reads as a relative path out of the repository;
   - an unquoted path with a space in it, cut short at the space. Quoted, it is read whole (§4);
   - a token that is one letter and a colon, as in a commit message that lists `A:` and `B:`;
-  - on Windows, a token headed by one letter and a colon, whatever follows: a `sed` expression with colons for delimiters, `s:a:b:`, a refspec between one-letter names, `a:b`, or a one-letter host before a path;
+  - on Windows, a token headed by one letter and a colon, whatever follows: a `sed` expression with colons for delimiters, `s:a:b:`, a refspec between one-letter names, `a:b`, or a one-letter host before a path. A docker volume between one-letter names is refused when it is a token of its own, `-v a:b`, or the value after `=`, `--volume=a:b`. Attached to its option, `-va:b`, it is not read at all, which is §5's attached value and not a rule;
+  - `cd ".."` from one folder inside the repository, because the quoted `..` is counted twice (§4);
   - `echo $SHELL`, and any other variable alone whose value is a path outside the allow list;
   - on Windows, a one-letter switch written with a slash, as in `cmd /c`, which reads as the drive `C:`;
   - on Windows, a regular expression literal with one letter between its slashes, `/a/g`, which reads as a folder on drive `A:`;

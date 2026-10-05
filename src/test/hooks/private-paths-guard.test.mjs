@@ -500,6 +500,12 @@ const cases = [
   ["A304", "cat of a repository path whose space is escaped with a backslash", "Bash", { command: String.raw`cat my\ notes/readme.txt` }, ALLOWED],
 
   /* A7. A path on a drive with no separator after the colon is judged from the drive's root and as a relative path. */
+  /* What the record says of two Windows spellings, which had no case. */
+  ["C101", "docker with a volume between two one-letter names, written as a token of its own", "Bash", { command: "docker run -v a:b image" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C102", "Read of a report through the working directory's own stream name", "Read", { file_path: `${WD}::$INDEX_ALLOCATION/report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C103", "cat of a relative path through the working directory's own stream name", "Bash", { command: "cat working-directory::$INDEX_ALLOCATION/report.html" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
+  ["C104", "Read of a report in a working directory by its data stream name", "Read", { file_path: `${WD}/report.html::$DATA` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
   ["A701", "such a path that is allowed from the drive's root and lands in a working directory under the current directory", "Bash", { command: `cat ${ON_THE_FIXTURES_DRIVE}${T.slice(3)}/scratch/note.txt` }, REFUSED, { cwd: `${T}/mirror`, windows: ONLY_WINDOWS.drive }],
 ];
 
