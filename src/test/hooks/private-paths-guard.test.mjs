@@ -112,6 +112,11 @@ put(`${DEEP}/a/b/notes.txt`, "fixture\n");
 put(`${T}/my runs/vespera.db`);
 put(`${T}/my runs/report.html`, "<p>fixture</p>\n");
 put(`${C}/my notes/readme.txt`, "fixture\n");
+put(`${C}/src/main/App.java`, "class App {}\n");
+// Under temp/mirror, the temp folder's own path from its drive's root, ending in a working directory:
+// where C:Users/.../temp/scratch lands when it is read as a relative path from temp/mirror.
+if (windows) put(`${T}/mirror/${T.slice(3)}/scratch/vespera.db`);
+else mkdirSync(`${T}/mirror`, { recursive: true });
 // Working directories only inside the three folders the walk down from a search root never enters.
 put(`${T}/built/note.txt`, "fixture\n");
 put(`${T}/built/target/run/vespera.db`);
@@ -468,6 +473,34 @@ const cases = [
   ["N707", "curl of a host and a port with no scheme", "Bash", { command: "curl -s localhost:5001/health" }, ALLOWED],
   ["N708", "git commit with a quoted sentence that opens with a word and a colon", "Bash", { command: 'git commit -m "Note: the guard reads one letter and a colon as a drive, and a word and a colon as a word."' }, ALLOWED],
   ["N709", "sed with colons for delimiters, whose expression is headed by one letter and a colon", "Bash", { command: "sed -e s:a:b: README.md" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* A1. A token is used along one chain of directories no more often than the command writes it, so a climb is not climbed again by itself. */
+  ["A101", "ls of .. from two folders inside the repository", "Bash", { command: "ls .." }, ALLOWED, { cwd: `${C}/src/main` }],
+  ["A102", "git -C .. from one folder inside the repository", "Bash", { command: "git -C .. status" }, ALLOWED, { cwd: `${C}/src` }],
+  ["A103", "cd ../.. and ls from two folders inside the repository", "Bash", { command: "cd ../.. && ls" }, ALLOWED, { cwd: `${C}/src/main` }],
+  ["A104", "cd ../.. and the Maven wrapper from two folders inside the repository", "Bash", { command: "cd ../.. && ./mvnw -q test" }, ALLOWED, { cwd: `${C}/src/main` }],
+  ["A105", "cd to .., an allowed folder, then cat of a relative path that stays out of every working directory", "Bash", { command: "cd .. && cat scratch/note.txt" }, ALLOWED, { cwd: `${T}/scratch` }],
+  ["A106", "cd .. written twice from two folders inside the repository, which climbs twice and no further", "Bash", { command: "cd .. && cd .. && ls" }, ALLOWED, { cwd: `${C}/src/main` }],
+  ["A107", "cd .. written twice, then a relative path into a working directory two folders up", "Bash", { command: "cd .. && cd .. && cat working-directory/report.html" }, REFUSED, { cwd: `${DEEP}/a` }],
+  ["A108", "cd to a folder by a relative name with no .. in it, then cat into a working directory beneath it", "Bash", { command: "cd deep && cat a/b/notes.txt" }, REFUSED, { cwd: T }],
+  ["A109", "git -C naming a folder by a relative name with no .. in it, then a path into a working directory beneath it", "Bash", { command: "git -C deep show a/b/notes.txt" }, REFUSED, { cwd: T }],
+  ["A110", "Set-Location to a folder by a relative name with no .. in it, then Get-Content into a working directory beneath it", "PowerShell", { command: String.raw`Set-Location deep; Get-Content a\b\notes.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["A111", "from one folder inside the repository, a path through .. beside a bare .., which read together leave the allow list", "Bash", { command: "cp ../README.md .." }, REFUSED, { cwd: `${C}/src` }],
+
+  /* A2. One letter and a colon is a drive as written, before any punctuation is trimmed from it. */
+  ["A201", "ls of a drive letter, a colon and a dot", "Bash", { command: "ls Q:." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["A202", "ls of a drive letter, a colon and two dots", "Bash", { command: "ls Q:.." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["A203", "Set-Location to a drive letter, a colon and a dot, then Get-Content of a relative path", "PowerShell", { command: String.raw`Set-Location Q:.; Get-Content folder\doc.txt` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
+  ["A204", "a drive path that ends a sentence, followed by a full stop", "Bash", { command: `echo see ${NO_DRIVE}.` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* A3. A path that is not a whole token: after an escaped space, or in a list. */
+  ["A301", "cat of a relative path whose space is escaped with a backslash, into a working directory", "Bash", { command: String.raw`cat my\ runs/report.html` }, REFUSED, { cwd: T }],
+  ["A302", "cat of a brace list, one of whose items climbs into a working directory", "Bash", { command: "cat {note.txt,../working-directory/report.html}" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["A303", "Get-Content of a comma list, one of whose items climbs into a working directory", "PowerShell", { command: "Get-Content note.txt,../working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["A304", "cat of a repository path whose space is escaped with a backslash", "Bash", { command: String.raw`cat my\ notes/readme.txt` }, ALLOWED],
+
+  /* A7. A path on a drive with no separator after the colon is judged from the drive's root and as a relative path. */
+  ["A701", "such a path that is allowed from the drive's root and lands in a working directory under the current directory", "Bash", { command: `cat ${ON_THE_FIXTURES_DRIVE}${T.slice(3)}/scratch/note.txt` }, REFUSED, { cwd: `${T}/mirror`, windows: ONLY_WINDOWS.drive }],
 ];
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
