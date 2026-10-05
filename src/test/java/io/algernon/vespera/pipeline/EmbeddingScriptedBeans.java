@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.embedding.ModelArtefact;
 import io.algernon.vespera.embedding.OllamaClient;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +30,13 @@ import org.springframework.context.annotation.Bean;
  * composes an embedder identity through this same double, so a runtime that refused everything would
  * stop the cascade three stages before the one a 6b test is about. {@link #servesEveryModel()} is the
  * state it ships in, so nothing that does not script a refusal behaves any differently than before.
+ *
+ * <p><b>It can also be told a model is forwarded to a hosted service, or that it cannot say</b>
+ * (ADR-202, #431). {@code OllamaClient.isRemote} is what {@code /api/show} says about a name, and the
+ * check every call to Ollama passes asks it. Scripted by name for the reason above, and answering
+ * "this machine" for every name nothing scripted, which is what a model pulled into the local daemon
+ * answers. Every name it is asked about is kept, so a test can say whether the check was made and how
+ * often. The embedding double counts its calls, so a test can say none was made.
  *
  * <p>{@code @TestConfiguration} rather than {@code @Configuration}, for the reason {@link
  * StubbedExtractionBeans} documents at length: left plain, this sits inside the application's
@@ -62,6 +70,18 @@ class EmbeddingScriptedBeans {
      */
     private static final Set<String> NEVER_PULLED = new HashSet<>();
 
+    /** The names this fixture's runtime reports as forwarded to a hosted service, as a cloud model is. */
+    private static final Set<String> FORWARDED = new HashSet<>();
+
+    /** The names this fixture's runtime cannot answer {@code /api/show} about at all. */
+    private static final Set<String> UNANSWERED = new HashSet<>();
+
+    /** Every name {@code /api/show} has been asked about since the scripts were last dropped, in order. */
+    private static final List<String> SHOWN = new ArrayList<>();
+
+    /** How many calls have reached the embedding double since the scripts were last dropped. */
+    private static int embeddingCallsMade;
+
     /**
      * Scripts this fixture's runtime as never having pulled {@code modelName}, so an identity composed
      * around it is refused rather than invented.
@@ -71,7 +91,34 @@ class EmbeddingScriptedBeans {
     }
 
     /**
-     * Drops every scripted refusal, leaving a runtime that answers for whatever it is asked about.
+     * Scripts this fixture's runtime as forwarding {@code modelName} to a hosted service: its {@code
+     * /api/show} answer carries {@code remote_host} and {@code remote_model}, whatever the name says.
+     */
+    static void forwardsToAHostedService(String modelName) {
+        FORWARDED.add(modelName);
+    }
+
+    /**
+     * Scripts this fixture's runtime as unable to answer {@code /api/show} about {@code modelName}, the
+     * way a daemon that is down or answers 500 cannot.
+     */
+    static void cannotSayWhereItRuns(String modelName) {
+        UNANSWERED.add(modelName);
+    }
+
+    /** Every name {@code /api/show} has been asked about since the scripts were last dropped. */
+    static List<String> shownModels() {
+        return List.copyOf(SHOWN);
+    }
+
+    /** How many calls have reached the embedding double since the scripts were last dropped. */
+    static int embeddingCallsMade() {
+        return embeddingCallsMade;
+    }
+
+    /**
+     * Drops every scripted refusal and every count, leaving a runtime that answers for whatever it is
+     * asked about and serves every model on this machine.
      *
      * <p>Called from {@code @BeforeEach} as well as {@code @AfterEach} by whoever scripts one. An
      * {@code @AfterEach} alone leaks into the next class when a method dies before reaching it, and the
@@ -79,6 +126,10 @@ class EmbeddingScriptedBeans {
      */
     static void servesEveryModel() {
         NEVER_PULLED.clear();
+        FORWARDED.clear();
+        UNANSWERED.clear();
+        SHOWN.clear();
+        embeddingCallsMade = 0;
     }
 
     @Bean
@@ -105,10 +156,20 @@ class EmbeddingScriptedBeans {
                 }
                 return new ModelArtefact(DIGEST, DTYPE);
             }
+
+            @Override
+            public boolean isRemote(String modelName) {
+                SHOWN.add(modelName);
+                if (UNANSWERED.contains(modelName)) {
+                    throw new IllegalStateException("the runtime answered /api/show for " + modelName
+                            + " with a server error");
+                }
+                return FORWARDED.contains(modelName);
+            }
         };
     }
 
-    /** Embeds any text to the same fixed-length vector of ones, never refusing. */
+    /** Embeds any text to the same fixed-length vector of ones, never refusing, and counts each call. */
     private static final class FixedDimensionEmbeddingModel implements EmbeddingModel {
 
         private final int dimension;
@@ -119,6 +180,7 @@ class EmbeddingScriptedBeans {
 
         @Override
         public EmbeddingResponse call(EmbeddingRequest request) {
+            embeddingCallsMade++;
             float[] vector = new float[dimension];
             Arrays.fill(vector, 1f);
             return new EmbeddingResponse(List.of(new Embedding(vector, 0)), new EmbeddingResponseMetadata());
