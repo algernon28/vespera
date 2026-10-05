@@ -13,35 +13,44 @@
 // What it reads of a call: a file tool's own path fields; Grep's glob and Glob's pattern; the current
 // directory (the call's cwd, or this checkout when the call gives none) of a Grep or Glob without a path
 // and of a Bash or PowerShell command; and the text of that command. In the text it reads drive paths,
-// a bare drive, and on Windows a drive-relative path such as Q:folder/x (a single letter and a colon at
-// the head of a token is that drive, whatever follows, and is read as that drive's root joined with the
-// rest), ~ and a variable at the head of a token (replaced by its value in this process's
-// environment), the value after =, a token headed by @ also without the @, and relative paths. Each
-// quoted string is read whole as well as in its pieces. A link is followed before the check, and the
-// allow-list decision is made from a path's text before the file system is asked about it, so a refused
-// path costs no lookup. On Windows only it also reads Git Bash drive paths (written with forward
-// slashes), /proc/cygdrive and /cygdrive paths, and UNC paths.
+// a bare drive, ~ and a variable at the head of a token (replaced by its value in this process's
+// environment), the value after =, a token headed by @ also without the @, and relative paths. On
+// Windows, one letter and a colon at the head of a token, as written, is a drive whatever follows (Q:.
+// and Q:folder/x too): the drive's root joined with the rest is judged, and so is the rest as a
+// relative path, and either refuses. Each quoted string is read whole as well as in its pieces, a
+// backslash before a space joins the two sides into one more reading, and each token is also cut at
+// , { and } and each piece read. A link is followed before the check, and the allow-list decision is
+// made from a path's text before the file system is asked about it, so a refused path costs no lookup,
+// and nothing beneath a refused folder is looked up: no relative path is read against the current
+// directory, or a folder the command names, once that folder is itself refused. On Windows only it also
+// reads Git Bash drive paths (written with forward slashes), /proc/cygdrive and /cygdrive paths, and
+// UNC paths.
 //
 // A relative path in a command is read against the current directory and against every folder the
 // command names: a token, in any form read above, that is a folder that exists, and a relative token that
-// is a folder under one of those, repeated until nothing is new. A command can change directory before
-// it reads a path (cd to a folder it names, git -C, pushd, Set-Location, env -C), and no list of such
-// words is kept. A bare cd, which goes to the home folder, and cd -, which goes back, name no folder
-// in the text and are not followed. The call is refused if any reading of any token is outside the
-// allow list or inside a working directory. The folders read against, the current directory among
+// is a folder under one of those. Folders are reached along chains of tokens, and along one chain a
+// token is used no more often than the command writes it, so that a .. written once climbs once and
+// not again from the folder it yielded, and written twice climbs twice. Per folder the guard keeps the
+// least use of each token over the chains found, which terminates. A command can change directory
+// before it reads a path (cd to a folder it names, git -C, pushd, Set-Location, env -C), and no list of
+// such words is kept. A bare cd, which goes to the home folder, and cd -, which goes back, name no
+// folder in the text and are not followed. The call is refused if any reading of any token is outside
+// the allow list or inside a working directory. The folders read against, the current directory among
 // them, are bounded at DIRECTORY_LIMIT, and so are the readings at READING_LIMIT: a command that names
 // one folder too many, or needs more readings, is refused, because what is left cannot be ruled out.
 //
 // What it does not read, so that this is not taken for the whole of the protection (ADR-196 section 5
-// is the full list): a path a command builds at run time (a command substitution, a variable set in the
-// same command, a loop, a program's own computing); a variable that is not at the head of a token; an
-// option with its value attached and no =, as in -I../x; ~name/x; a path from the root of the drive
-// without its letter, such as \archive\x; a shell wildcard; a recursive shell command (grep -r, rg,
-// find) that begins above a working directory; a rooted POSIX path such as /tmp/x, so that
-// cd /tmp && cat run/x reads run/x against the current directory only; a bare cd or cd -; a quoted
-// string inside a quoted string, as in bash -c "cat 'my runs/x'", which is read whole only as the
-// outer one; a working directory that the walk down from a search root does not reach (below); and
-// any tool outside the eight, among them every mcp__* tool and Monitor. A session whose own
+// is the list of what is known, and it is not complete): a path a command builds at run time (a
+// command substitution, a variable set in the same command, a loop, a program's own computing); a
+// variable that is not at the head of a token, and %NAME%\x as cmd writes a variable; an option with
+// its value attached and no =, as in -I../x; ~name/x; a brace list with text around it, as in
+// ../{a,b}/x, whose pieces are read but which is not expanded as a shell expands it; a path from the
+// root of the drive without its letter, such as \archive\x; a shell wildcard; a recursive shell command
+// (grep -r, rg, find) that begins above a working directory; a rooted POSIX path such as /tmp/x, so
+// that cd /tmp && cat run/x reads run/x against the current directory only; a bare cd or cd -; a
+// quoted string inside a quoted string, as in bash -c "cat 'my runs/x'", which is read whole only as
+// the outer one; a working directory that the walk down from a search root does not reach (below);
+// and any tool outside the eight, among them every mcp__* tool and Monitor. A session whose own
 // .claude/settings.json registers no hook never runs this file. For all of those the written rule in
 // AGENTS.md is the only protection.
 //
@@ -167,6 +176,41 @@ function workingDirectoryAbove(absolute) {
   return null;
 }
 
+// What the file system says of a path that the text has already allowed: whether it is there and is a
+// folder, where its links lead, and the working directory it is inside, if any. A path that is not there
+// is answered from its parent, so a name that does not exist costs one question and no more.
+const described = new Map();
+function describe(absolute) {
+  const known = described.get(absolute);
+  if (known) return known;
+  let stat;
+  try {
+    stat = statSync(absolute, { throwIfNoEntry: false });
+  } catch {
+    stat = undefined;
+  }
+  let result;
+  if (stat) {
+    const real = realPath(absolute);
+    result = {
+      exists: true,
+      folder: stat.isDirectory(),
+      real,
+      inside: workingDirectoryAbove(absolute) ?? workingDirectoryAbove(real),
+    };
+  } else {
+    const parent = dirname(absolute);
+    if (parent === absolute) {
+      result = { exists: false, folder: false, real: absolute, inside: null };
+    } else {
+      const above = describe(parent);
+      result = { exists: false, folder: false, real: resolve(above.real, basename(absolute)), inside: above.inside };
+    }
+  }
+  described.set(absolute, result);
+  return result;
+}
+
 // The first working directory at any depth beneath a folder, breadth-first, and whether the walk
 // reached the end of what it was willing to look at.
 function workingDirectoryBelow(absolute) {
@@ -212,13 +256,16 @@ function valueOf(name) {
 const COMMAND_BREAKS = /[\s"'`;|&<>()]+/;
 
 // What a command's text names: absolute paths, each as { label, abs }, and relative ones, each as
-// { label, rel }, which are read against a directory by the caller.
+// rel -> { label, written }, where written is how many times the command writes that token. A
+// relative one is read against a directory by the caller.
 function pathsInCommand(command, cwd) {
   const absolute = [];
   const relative = new Map();
   const addAbsolute = (label, abs) => absolute.push({ label, abs });
   const addRelative = (label, rel) => {
-    if (!relative.has(rel)) relative.set(rel, label);
+    const known = relative.get(rel);
+    if (known) known.written++;
+    else relative.set(rel, { label, written: 1 });
   };
 
   // A drive path, Q:\x or Q:/x, with one separator after the colon or several, wherever in the text it
@@ -229,7 +276,24 @@ function pathsInCommand(command, cwd) {
   }
 
   const readToken = (token) => {
-    if (/^[A-Za-z]:$/.test(token)) return addAbsolute(token, absoluteOf(drive(token[0], ""), cwd));
+    // One letter and a colon at the head of the token as it is written is a drive, before any
+    // punctuation is trimmed off its end: trimmed first, Q:. would lose its dot and its colon.
+    const head = /^([A-Za-z]):([\s\S]*)$/.exec(token);
+    if (head) {
+      const [, letter, rest] = head;
+      if (rest === "") return addAbsolute(token, absoluteOf(drive(letter, ""), cwd));
+      if (windows && !/^[\\/]/.test(rest)) {
+        // Q:folder/x is a path on drive Q with no separator after the colon. It is a path from that
+        // drive's own current directory, which is its root unless something changed it, so it is read
+        // from the root and as a relative path from where the command runs, and either may refuse.
+        for (const part of new Set([rest, trimSentence(rest)])) {
+          if (!part) continue;
+          addAbsolute(token, absoluteOf(drive(letter, part), cwd));
+          addRelative(token, part.replace(/\\/g, "/"));
+        }
+        return;
+      }
+    }
     const t = trimSentence(token);
     if (!t) return;
     if (t.startsWith("@")) readToken(t.slice(1));
@@ -237,11 +301,7 @@ function pathsInCommand(command, cwd) {
     if (/^[A-Za-z][A-Za-z0-9+.-]+:\/\//.test(t)) return;
     const driven = /^([A-Za-z]):[\\/]+([\s\S]*)$/.exec(t);
     if (driven) return addAbsolute(t, absoluteOf(drive(driven[1], trimSentence(driven[2])), cwd));
-    // Q:folder/x, with no separator after the colon, is a path on drive Q too. One letter and a colon
-    // at the head: HEAD:README.md, localhost:5001 and $env:NAME have more before the colon or none.
-    const driveRelative = windows ? /^([A-Za-z]):([^\\/][\s\S]*)$/.exec(t) : null;
-    if (driveRelative) return addAbsolute(t, absoluteOf(drive(driveRelative[1], driveRelative[2]), cwd));
-    const s =t.replace(/\\/g, "/");
+    const s = t.replace(/\\/g, "/");
     if (/^~(?=$|\/)/.test(s)) return addAbsolute(t, absoluteOf(homedir() + s.slice(1), cwd));
     const variable = /^\$(?:(?:\{env:|env:)(\w+)\}?|(\w+)|\{(\w+)\})(?=$|\/)/i.exec(s);
     if (variable) {
@@ -257,18 +317,32 @@ function pathsInCommand(command, cwd) {
       const gitBash = fromGitBash(t);
       if (gitBash !== t) return addAbsolute(t, absoluteOf(gitBash, cwd));
     }
-    // Any other rooted path, /tmp/x or /etc/x or \archive\x, is not decided and is not read.
+    // A path rooted on the current drive without its letter, \archive\x or /archive/x, was left
+    // uncovered on the operator's word of 2026-10-05, because it has the shape of an escape or a
+    // pattern such as '\s'. Other rooted POSIX paths, /tmp/x or /etc/x, are not decided. Neither is read.
     if (s.startsWith("/")) return;
     addRelative(t, s);
   };
 
-  const read = (text) => {
+  // A token, and the value after its first =.
+  const readOne = (text) => {
     readToken(text);
     const equals = text.indexOf("=");
     if (equals >= 0) readToken(text.slice(equals + 1));
   };
+  // A token, and each piece of it cut at , { and }: a brace list or a comma list carries paths that
+  // are not at the head of the token.
+  const read = (text) => {
+    readOne(text);
+    const pieces = text.split(/[,{}]/);
+    if (pieces.length > 1) for (const piece of pieces) if (piece) readOne(piece);
+  };
 
   for (const token of command.split(COMMAND_BREAKS)) if (token) read(token);
+  // A backslash before a space joins what is on either side of it into one path.
+  for (const m of command.matchAll(/(?:\\ |[^\s"'`;|&<>()])+/g)) {
+    if (m[0].includes("\\ ")) read(m[0].replace(/\\ /g, " "));
+  }
   // A quoted string is a path with its spaces in it as often as it is a sentence.
   for (const m of command.matchAll(/'([^']*)'|"([^"]*)"/g)) {
     const whole = m[1] ?? m[2];
@@ -301,77 +375,115 @@ function refusalsOf(call) {
   const realRoots = rootPaths.map((p) => norm(realPath(p)));
 
   const refused = [];
-  const seen = new Set();
+  const decided = new Map();
 
+  // Whether the path is refused, and the reason is recorded once.
   function check(label, absolute, searchRoot = false) {
     const text = norm(absolute);
     const key = `${text}|${searchRoot}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    if (text === "/dev/null" || text.endsWith(":/dev/null")) return;
-    if (!within(text, roots)) {
-      refused.push(`${label} (outside the allow list)`);
-      return;
+    if (decided.has(key)) return decided.get(key);
+    const turnedDown = (reason) => {
+      refused.push(`${label} (${reason})`);
+      decided.set(key, true);
+      return true;
+    };
+    if (text === "/dev/null" || text.endsWith(":/dev/null")) {
+      decided.set(key, false);
+      return false;
     }
-    const real = realPath(absolute);
-    const realText = norm(real);
+    if (!within(text, roots)) return turnedDown("outside the allow list");
+    const found = describe(absolute);
+    const realText = norm(found.real);
     if (!within(realText, roots) && !within(realText, realRoots)) {
-      refused.push(`${label} (a link leads from it to ${real}, outside the allow list)`);
-      return;
+      return turnedDown(`a link leads from it to ${found.real}, outside the allow list`);
     }
-    const inside = workingDirectoryAbove(absolute) ?? workingDirectoryAbove(real);
-    if (inside) {
-      refused.push(`${label} (inside the Vespera working directory ${inside})`);
-      return;
+    if (found.inside) return turnedDown(`inside the Vespera working directory ${found.inside}`);
+    if (searchRoot) {
+      const below = workingDirectoryBelow(found.real);
+      if (below.found) return turnedDown(`a recursive search from it reaches the Vespera working directory ${below.found}`);
+      if (!below.complete) {
+        return turnedDown(`ruling out a working directory beneath it would take more than ${WALK_LIMIT} folders, so search a narrower one`);
+      }
     }
-    if (!searchRoot) return;
-    const below = workingDirectoryBelow(real);
-    if (below.found) {
-      refused.push(`${label} (a recursive search from it reaches the Vespera working directory ${below.found})`);
-    } else if (!below.complete) {
-      refused.push(
-        `${label} (ruling out a working directory beneath it would take more than ${WALK_LIMIT} folders, so search a narrower one)`,
-      );
-    }
+    decided.set(key, false);
+    return false;
   }
 
   if (tool === "Bash" || tool === "PowerShell") {
-    check(`the current directory, ${currentDirectory}`, cwd);
+    const currentRefused = check(`the current directory, ${currentDirectory}`, cwd);
     const { absolute, relative } = pathsInCommand(String(input.command ?? ""), cwd);
 
-    // The folders the command names, which a relative path may be read against. Only a folder inside the
-    // allow list is asked about: one outside it is refused from its text.
-    const directories = [cwd];
-    const named = new Set([norm(cwd)]);
+    // The folders the command names, which a relative path may be read against, each with the least use
+    // of every relative token over the chains of tokens that reach it. A folder that is refused is not
+    // one: nothing is looked up beneath it, and it is refused already.
+    const folders = new Map();
+    const queue = [];
     let tooMany = false;
-    const name = (abs) => {
-      const text = norm(abs);
-      if (named.has(text) || !within(text, roots) || !isDirectory(abs)) return;
-      if (directories.length >= DIRECTORY_LIMIT) {
-        if (!tooMany) refused.push(`the command names more than ${DIRECTORY_LIMIT - 1} folders besides the current directory, so what its relative paths are read against cannot be ruled out; split it`);
-        tooMany = true;
+    const reach = (path, use) => {
+      const key = norm(path);
+      const known = folders.get(key);
+      if (!known) {
+        if (folders.size >= DIRECTORY_LIMIT) {
+          if (!tooMany) {
+            refused.push(`the command names more than ${DIRECTORY_LIMIT - 1} folders besides the current directory, so what its relative paths are read against cannot be ruled out; split it`);
+          }
+          tooMany = true;
+          return;
+        }
+        const entry = { path, key, use: new Map(use), queued: true };
+        folders.set(key, entry);
+        queue.push(entry);
         return;
       }
-      named.add(text);
-      directories.push(abs);
+      let lowered = false;
+      for (const [token, used] of known.use) {
+        const viaThisChain = use.get(token) ?? 0;
+        if (viaThisChain >= used) continue;
+        lowered = true;
+        if (viaThisChain === 0) known.use.delete(token);
+        else known.use.set(token, viaThisChain);
+      }
+      if (lowered && !known.queued) {
+        known.queued = true;
+        queue.push(known);
+      }
     };
 
+    if (!currentRefused) reach(cwd, new Map());
     for (const { label, abs } of absolute) {
-      check(label, abs);
-      name(abs);
+      if (!check(label, abs) && describe(abs).folder) reach(abs, new Map());
     }
+
     let readings = 0;
-    for (let i = 0; i < directories.length; i++) {
-      for (const [rel, label] of relative) {
-        if (++readings > READING_LIMIT) {
-          refused.push(`the command's relative paths need more than ${READING_LIMIT} readings against the folders it names, so what they reach cannot be ruled out; split it`);
-          return refused;
+    const answered = new Map();
+    while (queue.length) {
+      const entry = queue.shift();
+      entry.queued = false;
+      for (const [rel, { label, written }] of relative) {
+        const used = entry.use.get(rel) ?? 0;
+        if (used >= written) continue;
+        const key = `${entry.key}|${rel}`;
+        let answer = answered.get(key);
+        if (!answer) {
+          if (++readings > READING_LIMIT) {
+            refused.push(`the command's relative paths need more than ${READING_LIMIT} readings against the folders it names, so what they reach cannot be ruled out; split it`);
+            return refused;
+          }
+          const abs = resolve(entry.path, "./" + rel);
+          answer = { abs, folder: false };
+          // A plain name that is not there is no more than the folder it would be in, which was checked.
+          const plain = !/[\\/]/.test(rel) && rel !== "." && rel !== "..";
+          if (!(plain && !describe(abs).exists)) {
+            const turnedDown = check(entry.key === norm(cwd) ? label : `${label}, read against ${entry.path}`, abs);
+            answer.folder = !turnedDown && describe(abs).folder;
+          }
+          answered.set(key, answer);
         }
-        const abs = resolve(directories[i], "./" + rel);
-        // A plain name that is not there is no more than the folder it would be in, which was checked.
-        if (!/[\\/]/.test(rel) && rel !== "." && rel !== ".." && !existsSync(abs)) continue;
-        check(i === 0 ? label : `${label}, read against ${directories[i]}`, abs);
-        name(abs);
+        if (answer.folder) {
+          const use = new Map(entry.use);
+          use.set(rel, used + 1);
+          reach(answer.abs, use);
+        }
       }
     }
     return refused;
