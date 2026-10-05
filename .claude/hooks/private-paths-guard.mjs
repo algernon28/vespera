@@ -23,9 +23,10 @@
 // also cut at , { and } and each piece read. Four rules bear on that cut. A token that is one path
 // followed only by , or } is counted once: its piece is the token with that punctuation off, which the
 // token's own reading already is, so the piece's relative reading is not counted a second time. In a
-// quoted string that holds no $( and no backtick, on Windows, one letter and a colon straight after { or
-// , (white space may lie between), with no separator after the colon, is the key of an object and not a
-// drive, as in '{t:.title}', and what follows the colon is still read as a token. The braces of a
+// quoted string that holds no $( and no backtick, one letter and a colon straight after { or , (white
+// space may lie between), with no separator after the colon, is the key of an object, as in '{t:.title}':
+// what follows the colon is read as a token on every platform, and on Windows the key is then no drive.
+// The braces of a
 // variable at the head of a token or of a piece, ${NAME} or ${env:NAME}, that is replaced by its value
 // are no cut: the token or piece is read whole. And in a Bash command only, ${NAME-word}, ${NAME=word},
 // ${NAME+word} and ${NAME?word}, each with or without a colon before the sign, is a variable with a word
@@ -400,10 +401,12 @@ function pathsInCommand(command, bash) {
     if (head) {
       const [, letter, rest] = head;
       if (rest === "") return addAbsolute(token, drive(letter, ""));
-      if (windows && key && !/^[\\/]/.test(rest)) {
+      if (key && !/^[\\/]/.test(rest)) {
         // The key of an object in a quoted string, as in '{t:.title}': what follows the colon is read as
-        // a token, and the key is no drive.
-        return readToken(rest);
+        // a token on every platform. Only on Windows is the key then no drive; elsewhere the whole is
+        // read as the name it is, as before.
+        readToken(rest);
+        if (windows) return;
       }
       if (windows && !/^[\\/]/.test(rest)) {
         // Q:folder/x is a path on drive Q with no separator after the colon. It is a path from that
