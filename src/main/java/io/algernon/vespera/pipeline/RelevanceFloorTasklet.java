@@ -138,8 +138,11 @@ class RelevanceFloorTasklet implements Tasklet {
                     elsewhere.currentIdentity());
             case RelevanceFloor.Applicable applicable -> {
                 List<OccurrenceId> below = relevanceScoring.scoredBelow(scoring, applicable.value());
+                StageProgress written = StageProgress.over(
+                        "Stage 5e (relevance floor, below-threshold verdicts)", below.size());
                 for (OccurrenceId occurrenceId : below) {
                     ledger.verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, REASON);
+                    written.itemDone();
                 }
                 LOG.info(
                         "Stage 5e (relevance floor) finished under scoring run {}: threshold {}, {}"

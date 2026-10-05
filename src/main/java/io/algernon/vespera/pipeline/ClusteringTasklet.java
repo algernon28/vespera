@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.Clustering;
+import io.algernon.vespera.embedding.ClusteringProgress;
 import io.algernon.vespera.embedding.RetainedEdgeSpread;
 import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.extraction.ChunkingRule;
@@ -149,15 +150,31 @@ class ClusteringTasklet implements Tasklet {
                                     + " cluster",
                             scoring.value(),
                             partitions.size());
-                    List<ClusterSizeReport.Partition> reported = new ArrayList<>();
+                    // Every partition's members are asked for and filtered before the first partition is
+                    // clustered, so the counter over the files hashed has one total across all of them
+                    // (ADR-192 section 5). One membersOf statement per partition, moved earlier, not added.
+                    List<List<OccurrenceId>> membersByPartition = new ArrayList<>(partitions.size());
+                    long filesToHash = 0;
                     for (OccurrenceId winningSeed : partitions) {
                         List<OccurrenceId> members = clustering.membersOf(scoring, winningSeed).stream()
                                 .filter(survivors::contains)
                                 .toList();
+                        membersByPartition.add(members);
+                        filesToHash += members.size();
+                    }
+                    StageProgress partitionsDone =
+                            StageProgress.over("Stage 5f (clustering, seed partitions)", partitions.size());
+                    StageProgress filesHashed =
+                            StageProgress.over("Stage 5f (clustering, files hashed)", filesToHash);
+                    List<ClusterSizeReport.Partition> reported = new ArrayList<>();
+                    for (int partition = 0; partition < partitions.size(); partition++) {
+                        OccurrenceId winningSeed = partitions.get(partition);
+                        List<OccurrenceId> members = membersByPartition.get(partition);
                         if (members.isEmpty()) {
                             // Every document this seed won was removed by the floor. A partition of
                             // nothing is not a partition, and a heading with no page under it is not
-                            // worth minting.
+                            // worth minting. It is counted all the same: the stage has been through it.
+                            partitionsDone.itemDone();
                             continue;
                         }
                         // The spread of the kept edges comes back from the pass that built the graph,
@@ -167,15 +184,17 @@ class ClusteringTasklet implements Tasklet {
                         Optional<RetainedEdgeSpread> spread = clustering.clusterAndRecord(
                                 scoring,
                                 winningSeed,
-                                contentHashesOf(canonicalRoot, members),
+                                contentHashesOf(canonicalRoot, members, filesHashed),
                                 chunkerIdentity,
                                 chunkingRuleIdentity,
-                                modelName);
+                                modelName,
+                                blocksOfPartition(partition + 1, partitions.size()));
                         // Read back rather than returned from the pass: a cluster exists as the set of
                         // rows carrying its identity, so the sizes a reader is shown are the rows, not
                         // what the arithmetic meant to write.
                         reported.add(new ClusterSizeReport.Partition(
                                 pathOf(winningSeed), documentClusters.sizesFor(scoring, winningSeed), spread));
+                        partitionsDone.itemDone();
                     }
 
                     write(CLUSTER_SIZES_FILE_NAME, ClusterSizeReport.render(reported));
@@ -198,15 +217,39 @@ class ClusteringTasklet implements Tasklet {
      * ADR-085's ceiling is about: it is what lets {@link Clustering} address a block without holding
      * the partition.
      */
-    private Map<OccurrenceId, String> contentHashesOf(Path canonicalRoot, List<OccurrenceId> members) {
+    private Map<OccurrenceId, String> contentHashesOf(
+            Path canonicalRoot, List<OccurrenceId> members, StageProgress filesHashed) {
         Map<OccurrenceId, String> contentHashes = new LinkedHashMap<>();
         for (OccurrenceId member : members) {
             OccurrenceFacts facts = ledger.factsFor(member)
                     .orElseThrow(() -> new IllegalStateException(
                             "no facts recorded for occurrence " + member.value()));
             contentHashes.put(member, extractor.contentHashFor(canonicalRoot.resolve(facts.path().value())));
+            filesHashed.itemDone();
         }
         return contentHashes;
+    }
+
+    /**
+     * What {@code embedding} tells this stage about one partition's pass over pairs of blocks: a new counter
+     * for each announcement, named for the partition's 1-based place among {@code of} (ADR-192 section 5).
+     */
+    private static ClusteringProgress blocksOfPartition(int place, int of) {
+        return new ClusteringProgress() {
+            private StageProgress compared;
+
+            @Override
+            public void toCompareBlocks(long blockPairs) {
+                compared = StageProgress.over(
+                        "Stage 5f (clustering, comparison blocks, partition " + place + " of " + of + ")",
+                        blockPairs);
+            }
+
+            @Override
+            public void blockPairCompared() {
+                compared.itemDone();
+            }
+        };
     }
 
     private String pathOf(OccurrenceId occurrenceId) {

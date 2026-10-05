@@ -109,6 +109,29 @@ public class Clustering {
             String chunkerIdentity,
             String chunkingRuleIdentity,
             String modelName) {
+        return clusterAndRecord(
+                runId,
+                winningSeed,
+                contentHashesByOccurrence,
+                chunkerIdentity,
+                chunkingRuleIdentity,
+                modelName,
+                ClusteringProgress.NONE);
+    }
+
+    /**
+     * As {@link #clusterAndRecord(RunId, OccurrenceId, Map, String, String, String)}, telling {@code
+     * progress} how many pairs of blocks the partition's pass compares and each pair as it is done (ADR-192
+     * section 5). A partition with no member returns before the pass and calls neither method.
+     */
+    public Optional<RetainedEdgeSpread> clusterAndRecord(
+            RunId runId,
+            OccurrenceId winningSeed,
+            Map<OccurrenceId, String> contentHashesByOccurrence,
+            String chunkerIdentity,
+            String chunkingRuleIdentity,
+            String modelName,
+            ClusteringProgress progress) {
         List<OccurrenceId> members = List.copyOf(contentHashesByOccurrence.keySet());
         if (members.isEmpty()) {
             return Optional.empty();
@@ -116,7 +139,7 @@ public class Clustering {
         StoredMeanVectors vectors = new StoredMeanVectors(
                 List.copyOf(contentHashesByOccurrence.values()), chunkerIdentity, chunkingRuleIdentity, modelName);
         NearestNeighbourGraph.Graph graph =
-                NearestNeighbourGraph.build(vectors, NEIGHBOURS, blockSizeFor(vectors.dimension()));
+                NearestNeighbourGraph.build(vectors, NEIGHBOURS, blockSizeFor(vectors.dimension()), progress);
         int[] ordinals = Communities.of(graph, Communities.DEFAULT_RESOLUTION);
         for (int document = 0; document < members.size(); document++) {
             documentClusters.record(runId, members.get(document), winningSeed, ordinals[document]);

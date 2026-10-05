@@ -190,12 +190,15 @@ class RelevanceReportTasklet implements Tasklet {
         Path canonicalRoot = Walk.canonicalRoot(root);
         List<RelevanceLabellingReport.Preview> previews = new ArrayList<>();
         List<RelevanceLabelFile.Entry> entries = new ArrayList<>();
+        StageProgress sampledOpened = StageProgress.over(
+                "Stage 5 (relevance report, sampled survivors)", distribution.sample().size());
         for (RelevanceDistribution.Sampled sampled : distribution.sample()) {
             String path = pathOf(sampled.occurrenceId());
             String seedPath = pathOf(sampled.winningSeedOccurrenceId());
             String opening = textOpeningOf(canonicalRoot, sampled.occurrenceId());
             previews.add(new RelevanceLabellingReport.Preview(sampled.occurrenceId(), path, seedPath, opening));
             entries.add(new RelevanceLabelFile.Entry(path, sampled, seedPath));
+            sampledOpened.itemDone();
         }
 
         // The answers already given, re-banded against this run's own scores. That is ADR-088's
@@ -280,9 +283,12 @@ class RelevanceReportTasklet implements Tasklet {
             return Map.of();
         }
         Map<OccurrenceId, Boolean> answers = new LinkedHashMap<>();
-        for (RelevanceLabel label : relevanceLabels.forSeedSet(seedSet)) {
+        List<RelevanceLabel> recorded = relevanceLabels.forSeedSet(seedSet);
+        StageProgress matched = StageProgress.over("Stage 5 (relevance report, answers matched)", recorded.size());
+        for (RelevanceLabel label : recorded) {
             ledger.occurrenceId(walk.get(), label.path())
                     .ifPresent(occurrence -> answers.putIfAbsent(occurrence, label.relevant()));
+            matched.itemDone();
         }
         return answers;
     }

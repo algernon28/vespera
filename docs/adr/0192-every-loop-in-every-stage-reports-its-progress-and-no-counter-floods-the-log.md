@@ -284,10 +284,10 @@ Every whole-job test reads the lines the invocation wrote through a list appende
 
 **Where the tests are, and why.** A test that names a type, method or overload this record adds does not compile until its part does, and one tree is compiled at once, so it would stop the whole test tree compiling. A test that compiles today but is red until a later part lands would make each earlier part's tree red. So:
 
-- **In `src/test`**: parts (a) and (b)'s tests, green since each landed, and the tests that are green and stay green.
+- **In `src/test`**: parts (a), (b) and (c)'s tests, green since each landed, and the tests that are green and stay green.
 - **Under `docs/adr/0192/tests/<part>/`**, as complete files at the path they take under `src/test/java`: every other test, which `spec-implementer` moves into `src/test` when it builds that part. `docs/` is not compiled by Maven, and `docs/check-claims.mjs` reads only the top level of `docs/adr` for records, so files there touch neither the build nor the guards. A whole-job test there that compiles against main today was compiled and run on this branch from `src/test` before it was moved, and failed only at its counter claims.
 
-**Part (a) landed with this record, and part (b) after it**, so their tests are in `src/test` and green, and the table says so; the rows for parts (c) and (d) give their state before their part is built.
+**Part (a) landed with this record, and parts (b) and (c) after it**, so their tests are in `src/test` and green, and the table says so; the rows for part (d) give their state before it is built.
 
 | Part | Test | Where | State on this branch | Pins |
 |---|---|---|---|---|
@@ -303,9 +303,9 @@ Every whole-job test reads the lines the invocation wrote through a list appende
 | (b) | `extraction.ExtractionFaultResolutionReportsItsCountTest` | `src/test` | green since part (b) | announced once, each fault reported, on completion and on a stop |
 | (b) | `similarity.FrequencyProgressTest` | `src/test` | green since part (b) | distinct hashes announced once, a hash in one document counted though no row is written, zero announced |
 | (b) | `similarity.RedundancyResolutionReportsItsCountsTest` | `src/test` | green since part (b) | every loop's order and totals; two components summed into the verdict counter; candidates reported inside the containment loop; zero announced; nothing signed, nothing called |
-| (c) | `pipeline.StageFiveReportsItsProgressInvocationTest` | `docs/…/c/` | compiles today; red by assertion | 5a, 5c, 5d, 5e, 5f, the report and 6a's counters, 6a's already-recorded branch, a partition emptied by the floor; logger names |
-| (c) | `embedding.ScoringProgressTest` | `docs/…/c/` | names `ScoringProgress` | both loops, a seed or occurrence with nothing stored still reported, zero announced |
-| (c) | `embedding.ClusteringProgressTest` | `docs/…/c/` | names `ClusteringProgress` | b(b + 1)/2 over three blocks of a pass; one block; a counter per `clusterAndRecord` call over two partitions; nothing for an empty partition |
+| (c) | `pipeline.StageFiveReportsItsProgressInvocationTest` | `src/test` | green since part (c) | 5a, 5c, 5d, 5e, 5f, the report and 6a's counters, 6a's already-recorded branch, a partition emptied by the floor; logger names |
+| (c) | `embedding.ScoringProgressTest` | `src/test` | green since part (c) | both loops, a seed or occurrence with nothing stored still reported, zero announced |
+| (c) | `embedding.ClusteringProgressTest` | `src/test` | green since part (c) | b(b + 1)/2 over three blocks of a pass; one block; a counter per `clusterAndRecord` call over two partitions; nothing for an empty partition |
 | (d) | `pipeline.GenerationReportsItsProgressInvocationTest` | `docs/…/d/` | compiles today; red by assertion | 6b's clusters on a clean finish, on a stop (the fifth counted, the sixth not reached), on a cluster nothing could be sent for, on a cluster the engine finds no room for, on a window no document fits, and with clusters already written; the tree's counters on each of the three exits; logger names |
 | (d) | `synthesis.ClusterGenerationReportsEveryClusterTest` | `docs/…/d/` | names `GenerationProgress`'s new methods | `toGoThrough` once, zero included; `clusterGoneThrough` on every path, the fifth turned down included |
 | (d) | `synthesis.DeliverableProgressTest` | `docs/…/d/` | names `DeliverableProgress` | the four loops' order and totals over two partitions; an entry for a document the cluster no longer holds not counted |
