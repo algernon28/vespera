@@ -5,6 +5,8 @@ import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
+import io.algernon.vespera.embedding.LocalOllamaModel;
+import io.algernon.vespera.embedding.OllamaClient;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.embedding.ScoringProgress;
 import io.algernon.vespera.extraction.Chunk;
@@ -111,6 +113,14 @@ import org.springframework.stereotype.Component;
  * imposed schema being wrong for this corpus, and every call after the fifth buys another copy of
  * the same wrong answer. It is what makes an empty deliverable unreachable rather than merely
  * detectable afterwards.
+ *
+ * <p><b>A generation model Ollama does not serve on this machine stops the step before a run is minted</b>
+ * (ADR-202, ADR-114's third stop). Once the walk and arrangement gates are open, this step resolves the
+ * generation model's name once, puts it through {@link LocalOllamaModel#refusalOf}, and sends every
+ * question under that same name: the one it hands {@link ClusterGeneration}. A refusal is one line at
+ * error level, the step failed and no exception thrown, as the five-in-a-row stop above does; no run is
+ * minted, no digest is read, and no question is put. {@link StageRuns#generation} reads the name for the
+ * run's identity on its own, and that read sends nothing.
  */
 @Component
 @StepScope
@@ -135,6 +145,7 @@ class GenerationTasklet implements Tasklet {
     private final ClusterFaults clusterFaults;
     private final Ledger ledger;
     private final ProfileStore profileStore;
+    private final OllamaClient ollamaClient;
     private final Path root;
     private final Path workingDirectory;
 
@@ -156,6 +167,7 @@ class GenerationTasklet implements Tasklet {
             JdbcTemplate jdbcTemplate,
             Ledger ledger,
             ProfileStore profileStore,
+            OllamaClient ollamaClient,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
         this.arrangementGate = arrangementGate;
@@ -178,6 +190,7 @@ class GenerationTasklet implements Tasklet {
         this.documentPictures = new DocumentPictures(jdbcTemplate);
         this.ledger = ledger;
         this.profileStore = profileStore;
+        this.ollamaClient = ollamaClient;
         this.root = root;
         this.workingDirectory = workingDirectory;
     }
@@ -211,6 +224,15 @@ class GenerationTasklet implements Tasklet {
         // recorded, so a missing upstream run stops the step before it can be marked finished.
         RunId byteLevelReductionRun = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
 
+        // The generation model's name is read once, here, and every question is sent under it (ADR-202
+        // section 2). Before the run is resolved, so a refusal mints no run and reads no digest.
+        String modelName = generationModel.name();
+        Optional<String> refusal = LocalOllamaModel.refusalOf(modelName, ollamaClient);
+        if (refusal.isPresent()) {
+            stopOnAModelNotServedHere(contribution, chunkContext, modelName, refusal.get());
+            return RepeatStatus.FINISHED;
+        }
+
         RunId generation = stageRuns.generation();
 
         // Nothing is discarded (ADR-157 §5): stage 6b never discards its own rows, since a synthesis
@@ -230,7 +252,6 @@ class GenerationTasklet implements Tasklet {
                             scoresReadProgress());
                     Map<ClusterKey, List<DocumentCluster>> byCluster = membership.stream()
                             .collect(Collectors.groupingBy(ClusterKey::of));
-                    String modelName = generationModel.name();
                     int contextWindow = generationContextWindow.size();
                     List<RecordedCluster> recordedClusters = clusters.forRun(arrangement);
                     // A running counter: how many members a cluster has is known only as it is reached.
@@ -704,6 +725,24 @@ class GenerationTasklet implements Tasklet {
         // says nothing about why in its own record is worse than one line of belt and braces --
         // deliberately, rather than left looking like something that was meant to be load-bearing.
         contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(why));
+    }
+
+    /**
+     * Stops the step on a generation model Ollama does not serve on this machine (ADR-202), and says why.
+     *
+     * <p>It records the failure rather than throwing one, for {@link #stopTheStep}'s reason: no stack trace
+     * stands where the one line belongs. It is called before the run is resolved, so nothing is written
+     * and the step's status is all that carries the non-zero exit.
+     */
+    private static void stopOnAModelNotServedHere(
+            StepContribution contribution, ChunkContext chunkContext, String modelName, String refusal) {
+        LOG.error(
+                "the generation step stopped: the generation model {} was refused, so no question was put and"
+                        + " no run was minted -- {}",
+                modelName,
+                refusal);
+        chunkContext.getStepContext().getStepExecution().setStatus(BatchStatus.FAILED);
+        contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(refusal));
     }
 
     /**
