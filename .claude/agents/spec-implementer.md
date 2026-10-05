@@ -4,6 +4,7 @@ description: Implements a recorded spec in this repo and proves it with the exis
 tools: Read, Grep, Glob, Edit, Write, Bash
 color: yellow
 model: sonnet
+effort: medium
 ---
 
 # Spec implementer
