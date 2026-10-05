@@ -8,12 +8,14 @@ import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobOperator;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
@@ -225,6 +227,22 @@ public class VesperaCommand implements Callable<Integer> {
         private final LabelIngestion labelIngestion;
         private final NextAction nextAction;
         private final Path workingDirectoryInUse;
+        private final ObjectProvider<AutoLabelling> autoLabelling;
+        private final String configuredRoot;
+
+        @Option(
+                names = "--auto",
+                description = "Have the local model answer the questions in the label file, then set"
+                        + " relevanceScoreFloor by the rule that loses no documentation (ADR-197). An answer a"
+                        + " person gave is never replaced.")
+        private boolean auto;
+
+        @Option(
+                names = "--root",
+                paramLabel = "<root>",
+                description = "With --auto, the corpus root the label file's documents are under. Falls back to "
+                        + Run.ROOT_PROPERTY + " when omitted.")
+        private Path root;
 
         @Parameters(
                 index = "0",
@@ -241,18 +259,31 @@ public class VesperaCommand implements Callable<Integer> {
         @Mixin
         private WorkingDirectoryOption databaseDirectory = new WorkingDirectoryOption();
 
+        /**
+         * {@code --auto} is reached through an {@code ObjectProvider} and not injected, so that this
+         * command is built in a context that does not provide it. The application provides it; the
+         * whole-job slice does not, and a test that wants it imports {@link AutoLabelling} and a labeller
+         * of its own. A build without it says so when {@code --auto} is typed. Nothing about {@code label}
+         * without {@code --auto} reaches the labeller or the chat model behind it.
+         */
         Label(
                 LabelIngestion labelIngestion,
                 NextAction nextAction,
-                @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse) {
+                @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
+                ObjectProvider<AutoLabelling> autoLabelling,
+                @Value("${" + Run.ROOT_PROPERTY + ":}") String configuredRoot) {
             this.labelIngestion = labelIngestion;
             this.nextAction = nextAction;
             this.workingDirectoryInUse = workingDirectoryInUse;
+            this.autoLabelling = autoLabelling;
+            this.configuredRoot = configuredRoot;
         }
 
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             file = null;
+            auto = false;
+            root = null;
             databaseDirectory = new WorkingDirectoryOption();
         }
 
@@ -270,12 +301,50 @@ public class VesperaCommand implements Callable<Integer> {
                 System.err.println(misnamedDatabaseDirectory);
                 return CommandLine.ExitCode.SOFTWARE;
             }
+            if (auto && file != null) {
+                System.err.println("vespera label --auto takes no file: it works on the label file the last run"
+                        + " wrote in the working directory. Give either --auto or a file, not both.");
+                return CommandLine.ExitCode.USAGE;
+            }
+            if (auto) {
+                return callAuto();
+            }
             LabelIngestion.Outcome outcome = labelIngestion.ingest(file);
             if (outcome.refused()) {
                 System.err.println("vespera label recorded nothing: " + outcome.message());
                 return outcome.message().startsWith(LabelIngestion.NO_FILE)
                         ? CommandLine.ExitCode.USAGE
                         : CommandLine.ExitCode.SOFTWARE;
+            }
+            System.out.println(outcome.message());
+            System.out.println(nextAction.line());
+            return CommandLine.ExitCode.OK;
+        }
+
+        /**
+         * {@code --auto} (ADR-197 §6): the root is named by the option or by configuration and never
+         * guessed (ADR-066), because the openings put to the model are read from the corpus.
+         */
+        private Integer callAuto() {
+            AutoLabelling labelling = autoLabelling.getIfAvailable();
+            if (labelling == null) {
+                System.err.println("vespera label --auto recorded nothing: no local labeller is wired into"
+                        + " this build.");
+                return CommandLine.ExitCode.SOFTWARE;
+            }
+            Path corpusRoot = root != null
+                    ? root
+                    : configuredRoot == null || configuredRoot.isBlank() ? null : Path.of(configuredRoot.strip());
+            if (corpusRoot == null) {
+                System.err.println("vespera label --auto named no root and " + Run.ROOT_PROPERTY + " is not set:"
+                        + " give the corpus root with --root <root>, or set " + Run.ROOT_PROPERTY + ". A root"
+                        + " is never guessed, because the openings put to the model are read from it.");
+                return CommandLine.ExitCode.USAGE;
+            }
+            AutoLabelling.Outcome outcome = labelling.run(corpusRoot);
+            if (outcome.refused()) {
+                System.err.println("vespera label --auto recorded nothing: " + outcome.message());
+                return CommandLine.ExitCode.SOFTWARE;
             }
             System.out.println(outcome.message());
             System.out.println(nextAction.line());

@@ -632,6 +632,22 @@ CREATE TABLE IF NOT EXISTS relevance_label (
 -- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS relevance_label_by_run_id ON relevance_label (run_id);
 
+-- embedding's own table (ADR-197 §3): which labels a local model set rather than a person. A label with
+-- no row here was set by a person, which is every row relevance_label held before this table existed.
+-- No row anywhere depends on it, so no schema version moves (ADR-197 amends ADR-059 and ADR-049). A
+-- person's answer that is new or changed deletes the row; a model's answer never replaces a label
+-- that has no row.
+CREATE TABLE IF NOT EXISTS relevance_label_provenance (
+    path TEXT NOT NULL,
+    seed_set TEXT NOT NULL,
+    labelled_by TEXT NOT NULL,
+    run_id TEXT NOT NULL REFERENCES run (id),
+    PRIMARY KEY (path, seed_set)
+);
+
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
+CREATE INDEX IF NOT EXISTS relevance_label_provenance_by_run_id ON relevance_label_provenance (run_id);
+
 -- synthesis's own table (ADR-105, ADR-110, ADR-112, #175): one row per cluster, which is the level
 -- stage 5 left unbuilt. document_cluster above says which documents share a cluster; it says so
 -- without the cluster having a row anywhere, which is what keeps membership from falling out of step

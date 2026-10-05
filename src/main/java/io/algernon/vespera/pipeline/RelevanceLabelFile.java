@@ -69,6 +69,21 @@ final class RelevanceLabelFile {
             String seedSet,
             List<Entry> entries,
             Map<OccurrenceId, Boolean> recordedAnswers) {
+        return render(scoringRunId, embedderIdentity, seedSet, entries, recordedAnswers, Map.of());
+    }
+
+    /**
+     * As above, and an entry whose recorded answer a local model set carries {@code labelledBy}, naming
+     * the model (ADR-197 §3). The file reader ignores the key; a person overrules by editing
+     * {@code relevant}, and the key is gone the next time the file is written.
+     */
+    static String render(
+            String scoringRunId,
+            String embedderIdentity,
+            String seedSet,
+            List<Entry> entries,
+            Map<OccurrenceId, Boolean> recordedAnswers,
+            Map<OccurrenceId, String> labelledBy) {
         Map<String, Object> document = new LinkedHashMap<>();
         document.put("generatedUnderRun", scoringRunId);
         document.put("generatedUnderEmbedder", embedderIdentity);
@@ -86,6 +101,10 @@ final class RelevanceLabelFile {
             // Where an answer is already recorded for this document (ADR-169 §1), it is written here
             // instead, so a re-run does not cost the operator their view of what they answered.
             question.put("relevant", recordedAnswers.get(entry.sampled().occurrenceId()));
+            String model = labelledBy.get(entry.sampled().occurrenceId());
+            if (model != null) {
+                question.put("labelledBy", model);
+            }
             questions.add(question);
         }
         document.put("documents", questions);
