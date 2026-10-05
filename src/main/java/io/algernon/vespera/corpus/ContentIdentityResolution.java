@@ -39,9 +39,12 @@ public final class ContentIdentityResolution {
      */
     public void resolve(RunId runId, Path canonicalRoot, HashingProgress progress) throws Exception {
         Map<Long, List<OccurrenceId>> bySize = new LinkedHashMap<>();
-        for (OccurrenceId occurrenceId : SurvivorDrain.drain(ledger.survivors(runId))) {
+        List<OccurrenceId> survivors = SurvivorDrain.drain(ledger.survivors(runId));
+        progress.toSize(survivors.size());
+        for (OccurrenceId occurrenceId : survivors) {
             long sizeBytes = factsFor(occurrenceId).sizeBytes();
             bySize.computeIfAbsent(sizeBytes, ignored -> new ArrayList<>()).add(occurrenceId);
+            progress.sized();
         }
 
         // The hash pass's own denominator, and not the survivor count: a file whose size is unique to it
@@ -77,11 +80,12 @@ public final class ContentIdentityResolution {
             if (sameHash.size() < 2) {
                 continue;
             }
-            verdictSuperseded(runId, DuplicateResolution.resolve(sameHash), sameHash);
+            verdictSuperseded(runId, DuplicateResolution.resolve(sameHash), sameHash, progress);
         }
     }
 
-    private void verdictSuperseded(RunId runId, DuplicateResolution.Resolution resolution, List<Candidate> group) {
+    private void verdictSuperseded(
+            RunId runId, DuplicateResolution.Resolution resolution, List<Candidate> group, HashingProgress progress) {
         String representativePath = group.stream()
                 .filter(candidate -> candidate.occurrenceId().equals(resolution.representative()))
                 .findFirst()
@@ -95,6 +99,7 @@ public final class ContentIdentityResolution {
                     runId,
                     VerdictKind.SUPERSEDED_BY,
                     "superseded by the representative at " + representativePath);
+            progress.supersededRecorded();
         }
     }
 

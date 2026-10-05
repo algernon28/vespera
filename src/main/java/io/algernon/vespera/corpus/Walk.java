@@ -69,6 +69,20 @@ public final class Walk {
          * <p>A no-op by default: an observer that holds nothing has nothing to resume.
          */
         default void checkpoint(Checkpoint at, Progress progress) {}
+
+        /**
+         * An entry beneath the root has been counted and its handling is done: recorded, reported as an
+         * anomaly, or, for a directory, entered. {@code progress} is what the walk had counted by then,
+         * this session's only. Called once for every entry the walk counts and never for the root, nor
+         * for an entry an earlier session already counted (ADR-192 section 6).
+         *
+         * <p>This is what the census's running line is written from, so that a flat root or one large
+         * directory is not silent until the walk ends. It is not a point to resume from and an observer
+         * commits nothing on it.
+         *
+         * <p>A no-op by default: an observer that reports nothing has nothing to say.
+         */
+        default void entryWalked(Progress progress) {}
     }
 
     /**
@@ -247,10 +261,12 @@ public final class Walk {
                     entriesSeen++;
                     if (isSoftLink(attrs)) {
                         report(dir, WalkAnomalyKind.SOFT_LINK_NOT_FOLLOWED, "a soft link was skipped rather than followed");
+                        observer.entryWalked(progress());
                         return FileVisitResult.SKIP_SUBTREE;
                     }
                     directoriesEntered++;
                     descend(entry);
+                    observer.entryWalked(progress());
                     return FileVisitResult.CONTINUE;
                 }
             }
@@ -269,10 +285,12 @@ public final class Walk {
 
             if (isSoftLink(attrs)) {
                 report(file, WalkAnomalyKind.SOFT_LINK_NOT_FOLLOWED, "a soft link was skipped rather than followed");
+                observer.entryWalked(progress());
                 return FileVisitResult.CONTINUE;
             }
             if (!attrs.isRegularFile()) {
                 report(file, WalkAnomalyKind.UNPROCESSABLE, "not a regular file");
+                observer.entryWalked(progress());
                 return FileVisitResult.CONTINUE;
             }
 
@@ -287,6 +305,7 @@ public final class Walk {
                     observer.anomaly(lossyRendering, WalkAnomalyKind.UNENCODABLE_PATH, reason);
                 }
             }
+            observer.entryWalked(progress());
             return FileVisitResult.CONTINUE;
         }
 
@@ -306,6 +325,7 @@ public final class Walk {
             }
             entriesSeen++;
             report(file, WalkAnomalyKind.UNPROCESSABLE, detail);
+            observer.entryWalked(progress());
             return FileVisitResult.CONTINUE;
         }
 

@@ -53,6 +53,18 @@ public class WalkRecorder {
      */
     static final int COMMIT_INTERVAL = 1_000;
 
+    /** The count at which the census's running line is first written, and its step never falls below (ADR-192 section 8). */
+    private static final long RUNNING_FIRST_LINE = 1_000L;
+
+    /** A tenth of the power of ten at or below {@code reached}, and never less than 1,000. */
+    private static long runningStep(long reached) {
+        long powerOfTen = 1L;
+        while (powerOfTen * 10 <= reached) {
+            powerOfTen *= 10;
+        }
+        return Math.max(RUNNING_FIRST_LINE, powerOfTen / 10);
+    }
+
     private final Ledger ledger;
     private final AnomalyLog anomalyLog;
     private final TransactionTemplate transactions;
@@ -245,15 +257,29 @@ public class WalkRecorder {
                 ledger.recordProgress(walkId, at.encodedOrdinals(), at.pathRendering(), cumulative(progress));
             });
             entriesAtLastCommit = progress.entriesSeen();
+        }
 
-            // A running count and no percentage (ADR-093): the walk is discovering the total as it goes,
-            // so it has no denominator to report against until it finishes. The checkpoint cadence is
-            // this line's cadence too -- both measure entries walked, and a second counter would only
-            // give an operator two numbers that mean the same thing.
+        /**
+         * A running count and no percentage (ADR-093): the walk is discovering the total as it goes, so
+         * it has no denominator to report against until it finishes. Written here, after each entry the
+         * walk counts, and not at a checkpoint, so that a flat root or one large directory is not silent
+         * until the walk ends (ADR-192 section 6). It commits nothing, so the count it states can include
+         * entries the ledger does not hold yet.
+         *
+         * <p>The cadence is ADR-192 section 8's running cadence, over the cumulative entries: a line at
+         * each count that is a multiple of {@code max(1,000, 10^(floor(log10 n) - 1))}. {@code pipeline}'s
+         * {@code StageProgress.running} holds the same rule, which {@code corpus} may not depend on.
+         */
+        @Override
+        public void entryWalked(Walk.Progress progress) {
             WalkCounts counts = cumulative(progress);
+            long entries = counts.entriesSeen();
+            if (entries < RUNNING_FIRST_LINE || entries % runningStep(entries) != 0) {
+                return;
+            }
             log.info(
                     "Stage 0 (census): {} entries walked so far, {} directories entered, under walk {}",
-                    String.format(Locale.ROOT, "%,d", counts.entriesSeen()),
+                    String.format(Locale.ROOT, "%,d", entries),
                     String.format(Locale.ROOT, "%,d", counts.directoriesEntered()),
                     walkId.value());
         }
@@ -265,7 +291,7 @@ public class WalkRecorder {
             });
 
             // The walk's end line carries the counts the progress lines were building towards
-            // (ADR-093), and is the only one a corpus smaller than one checkpoint interval ever logs.
+            // (ADR-093), and is the only progress line a walk of fewer than 1,000 entries writes.
             WalkCounts counts = cumulative(progress);
             log.info(
                     "Stage 0 (census): walk {} finished — {} entries walked, {} directories entered",
