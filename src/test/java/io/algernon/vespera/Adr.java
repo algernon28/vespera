@@ -1103,6 +1103,15 @@ public final class Adr {
     public static final String STATEMENTS_REPORT_THEIR_PROGRESS = FILE
             + "0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md";
 
+    /**
+     * ADR-198: every invocation writes an account built from an allow-list that names no document: a file
+     * in a folder outside every working directory, composed from typed values and never from a message, a path or a title; an exception
+     * is kept as its type and never its message; the operator's own lines do not change (extends ADR-093;
+     * rests on ADR-192 and ADR-076; settles #424).
+     */
+    public static final String EVERY_INVOCATION_WRITES_AN_ACCOUNT_THAT_NAMES_NO_DOCUMENT = FILE
+            + "0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md";
+
     private Adr() {
     }
 }

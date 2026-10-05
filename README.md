@@ -113,6 +113,8 @@ vespera run <root> [--db-dir=<path>]     walk a corpus and take it as far as the
 vespera label [file] [--db-dir=<path>]   record the answers you wrote into the label file
 ```
 
+To have `vespera run` write an invocation account (a file with no document's name or words in it, which a hosted model may read), set `vespera.account-dir` to a folder outside every working directory, in `application-local.yaml` or with `--vespera.account-dir=<path>`; left unset, or set inside a working directory, no account is written.
+
 `vespera run` takes the archive root as its argument, falling back to `vespera.corpus-root` in configuration. Given neither, it refuses rather than guessing — a census of the wrong tree reports success.
 
 ## Running it

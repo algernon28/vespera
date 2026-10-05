@@ -12,6 +12,9 @@ vespera:
   # application-local.yaml, as the environment variable VESPERA_CORPUS_ROOT (VESPERA_CORPUSROOT is
   # read too), or with --vespera.corpus-root=<path>.
   corpus-root: ""
+  # Where the invocation account is written (ADR-198). Unset: no account. Set it per machine, to a folder
+  # outside every working directory.
+  # account-dir:
   docling:
     # docling-serve is a managed sidecar (ADR-011), same as Chroma and Ollama, but unlike them
     # carries no Spring Boot auto-configuration or ServiceConnection support -- there is no

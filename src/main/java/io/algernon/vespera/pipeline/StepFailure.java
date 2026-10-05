@@ -49,7 +49,7 @@ final class StepFailure {
         return false;
     }
 
-    private static Throwable firstBeneathTheFramework(Throwable failure) {
+    static Throwable firstBeneathTheFramework(Throwable failure) {
         while (failure.getCause() != null && failure.getClass().getName().startsWith("org.springframework.batch.")) {
             failure = failure.getCause();
         }

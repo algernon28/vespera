@@ -1,7 +1,9 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.RunId;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 
 /**
@@ -43,6 +45,17 @@ class InvocationRuns {
     /** Records {@code runId} as the run this invocation minted or continued for {@code stage}. */
     void record(String stage, RunId runId) {
         executionContext.putString(KEY_PREFIX + stage, runId.value());
+    }
+
+    /** Every run this invocation minted or continued so far, by stage name (ADR-198). */
+    Map<String, String> all() {
+        Map<String, String> runs = new TreeMap<>();
+        for (Map.Entry<String, Object> entry : executionContext.entrySet()) {
+            if (entry.getKey().startsWith(KEY_PREFIX) && entry.getValue() instanceof String id) {
+                runs.put(entry.getKey().substring(KEY_PREFIX.length()), id);
+            }
+        }
+        return runs;
     }
 
     /** The run this invocation minted or continued for {@code stage}, if it has run yet this invocation. */
