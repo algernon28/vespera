@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "w=\"$CLAUDE_PROJECT_DIR/.claude/hooks/run-private-paths-guard.sh\"; [ -f \"$w\" ] || w=\"$(git -C \"$CLAUDE_PROJECT_DIR\" rev-parse --path-format=absolute --git-common-dir)/../.claude/hooks/run-private-paths-guard.sh\"; [ -f \"$w\" ] || { echo 'Refused: the private-paths guard could not be found.' >&2; exit 2; }; bash \"$w\""
+            "command": "w=\"$CLAUDE_PROJECT_DIR/.claude/hooks/run-private-paths-guard.sh\"; [ -f \"$w\" ] || w=\"$(git -C \"$CLAUDE_PROJECT_DIR\" rev-parse --path-format=absolute --git-common-dir)/../.claude/hooks/run-private-paths-guard.sh\"; [ -f \"$w\" ] || { echo 'Refused: the private-paths guard could not be found.' >&2; exit 2; }; bash \"$w\"; s=$?; [ \"$s\" -eq 0 ] || exit 2"
           }
         ]
       }

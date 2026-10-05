@@ -1,38 +1,98 @@
-// Refuses any Claude tool call that would read or write outside the places listed in
-// .claude/allowed-paths.txt (plus .claude/allowed-paths.local.txt on this machine), and any path inside
-// a Vespera working directory wherever it is. The operator's archives can hold sensitive documents, and
-// nothing that reads a document may reach a hosted model: a document is read only by local models.
+// Refuses a Claude tool call that names a path outside the places listed in .claude/allowed-paths.txt
+// (plus .claude/allowed-paths.local.txt on this machine), or a path inside a Vespera working directory
+// wherever it is, or a recursive Grep or Glob that starts above one. The operator's archives can hold
+// sensitive documents, and nothing that reads a document may reach a hosted model: a document is read
+// only by local models. docs/adr/0196 is the record, and src/test/hooks/private-paths-guard.test.mjs
+// holds this file to it.
 //
-// Allow list, not deny list, so that a knowledge base on a new path is protected without anyone
-// remembering to add it. A refused path that is legitimate is added to the allow list; a mistake costs
-// a refusal, never an exposed document.
+// It is registered for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell.
+// It is an allow list and not a list of archives, so an archive on a new path is refused without anyone
+// naming it. A refused path that is legitimate is added to the allow list, so inside what it reads a
+// mistake costs a refusal and not an exposed document.
 //
-// Bash and PowerShell commands are checked for the absolute paths written in their text. A path built
-// at run time inside a script is not seen here; the written rule in AGENTS.md covers that.
+// What it reads of a call: a file tool's own path fields; Grep's glob and Glob's pattern; the directory
+// a Grep or Glob without a path searches; the directory a Bash or PowerShell command starts in; and the
+// text of that command, in which it reads drive paths, a bare drive, ~ and $VARIABLE paths (replaced by
+// their value in this process's environment), relative paths (read against where the command starts),
+// and, on Windows only, Git Bash drive paths, /proc/cygdrive paths and UNC paths. A link is followed
+// before the check. The allow-list decision is made from a path's text before the file system is asked
+// about it, so a refused path costs no lookup.
 //
-// Protocol: Claude Code passes the tool call as JSON on stdin. Exit code 2 refuses it, and stderr is
-// what Claude reads.
+// What it does not read: a path a command builds at run time (a command substitution, a variable set
+// in the same command, a loop, a program's own computing), a shell wildcard, a recursive shell command
+// (grep -r, rg, find) that starts above a working directory, a rooted POSIX path such as /tmp/x in a
+// command, and any tool outside the eight, among them every mcp__* tool and Monitor. A session whose
+// own .claude/settings.json registers no hook never runs this file. For all of those the written
+// rule in AGENTS.md is the only protection.
+//
+// A Grep or Glob root that holds a working directory at any depth is refused, because a recursive
+// search reaches into it. That downward walk is breadth-first, looks at no more than WALK_LIMIT
+// folders, never enters .git, node_modules or target, never follows a link, and stops at the first
+// hit. A search that would need more than that is refused too: it cannot be ruled out.
+//
+// It fails closed. Input it cannot read, input that names no tool, and any exception end in exit
+// code 2, which is the only code Claude Code treats as a refusal.
+//
+// Protocol: Claude Code passes the tool call as JSON on stdin. Exit code 2 refuses it, exit code 0
+// lets it through, and stderr is what Claude reads.
 
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, delimiter, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const here = dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
-const repo = resolve(here, "..", "..");
+const windows = process.platform === "win32";
+const here = dirname(fileURLToPath(import.meta.url));
+const checkout = resolve(here, "..", "..");
 
-const call = JSON.parse(readFileSync(0, "utf8"));
-const cwd = call.cwd || repo;
-const input = call.tool_input || {};
+const WALK_LIMIT = 10000;
+const NOT_WALKED = new Set([".git", "node_modules", "target"]);
+const WORKING_DIRECTORY_FILES = ["vespera.db", "vespera.lock"];
 
 const norm = (p) => resolve(p).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+const within = (path, roots) => roots.some((r) => path === r || path.startsWith(r + "/"));
+const drive = (letter, rest) => `${letter.toUpperCase()}:/${rest}`;
+
+// A Git Bash path such as /h/archive, or its /proc/cygdrive/h/archive form, is the drive path H:/archive.
+function fromGitBash(p) {
+  if (!windows) return p;
+  const m = /^\/(?:proc\/cygdrive\/|cygdrive\/)?([A-Za-z])(?:\/(.*))?$/.exec(p);
+  return m ? drive(m[1], m[2] ?? "") : p;
+}
+
+// The absolute path a field or a token names when the call starts in base. The backslash separates
+// folders in every form this reads, on every platform.
+function absoluteOf(text, base) {
+  return resolve(base, fromGitBash(String(text).replace(/\\/g, "/")));
+}
+
+// The path with its links followed, as far as it exists: the deepest folder that exists is resolved
+// and the names beneath it are put back.
+function realPath(absolute) {
+  const tail = [];
+  let current = absolute;
+  for (let i = 0; i < 512; i++) {
+    try {
+      const resolved = realpathSync.native(current);
+      return tail.length ? resolve(resolved, ...tail.reverse()) : resolved;
+    } catch {
+      // not there: ask about its parent
+    }
+    const parent = dirname(current);
+    if (parent === current) return absolute;
+    tail.push(basename(current));
+    current = parent;
+  }
+  return absolute;
+}
 
 const tokens = {
-  "${REPO}": repo,
+  "${REPO}": checkout,
   "${HOME}": homedir(),
   "${TEMP}": process.env.TEMP || process.env.TMPDIR || tmpdir(),
 };
 
-function allowList() {
+function allowedRoots() {
   const roots = [];
   for (const name of ["allowed-paths.txt", "allowed-paths.local.txt"]) {
     const file = join(here, "..", name);
@@ -41,75 +101,231 @@ function allowList() {
       line = line.trim();
       if (!line || line.startsWith("#")) continue;
       for (const [k, v] of Object.entries(tokens)) line = line.split(k).join(v);
-      roots.push(norm(line));
+      roots.push(resolve(line));
     }
   }
   return roots;
 }
 
-// A Git Bash path such as /h/archive or /c/Users is the drive path H:/archive or C:/Users.
-function fromGitBash(p) {
-  const m = /^\/([A-Za-z])(\/.*)?$/.exec(p);
-  return m ? `${m[1]}:${m[2] || "/"}` : p;
-}
-
-function pathsInCommand(command) {
-  const found = [];
-  // Drive paths: C:\x or C:/x, but not the "s://" of a URL scheme.
-  for (const m of command.matchAll(/(?<![A-Za-z])([A-Za-z]:[\\/](?![\\/])[^\s"'`;|&<>()]*)/g)) found.push(m[1]);
-  // Git Bash drive paths: /h/..., not part of a longer token.
-  for (const m of command.matchAll(/(?<![\w.:/-])(\/[A-Za-z](?:\/[^\s"'`;|&<>()]*)?)(?=$|[\s"'`;|&<>()])/g)) found.push(fromGitBash(m[1]));
-  // Home-relative paths.
-  for (const m of command.matchAll(/(?<![\w/])(~|\$HOME|\$\{HOME\})(\/[^\s"'`;|&<>()]*)?/g)) found.push(homedir() + (m[2] || ""));
-  // Punctuation that ends a sentence or a list item is not part of the path.
-  return found.map((p) => p.replace(/[,.;:)\]}\\…]+$/, "")).filter(Boolean);
-}
-
-function pathsOfCall() {
-  const tool = call.tool_name;
-  if (tool === "Bash" || tool === "PowerShell") return pathsInCommand(String(input.command || ""));
-  return [input.file_path, input.path, input.notebook_path].filter(Boolean).map(String);
-}
+const holdsWorkingDirectory = (dir) => WORKING_DIRECTORY_FILES.some((name) => existsSync(join(dir, name)));
 
 // A working directory is recognised by what Vespera writes into it, wherever it is.
-function insideAWorkingDirectory(p) {
-  let dir = p;
+function workingDirectoryAbove(absolute) {
+  let dir = absolute;
   try {
     if (existsSync(dir) && !statSync(dir).isDirectory()) dir = dirname(dir);
   } catch {
     dir = dirname(dir);
   }
   for (let i = 0; i < 64; i++) {
-    if (existsSync(join(dir, "vespera.db")) || existsSync(join(dir, "vespera.lock"))) return dir;
-    const up = dirname(dir);
-    if (up === dir) return null;
-    dir = up;
+    if (holdsWorkingDirectory(dir)) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
   }
   return null;
 }
 
-const roots = allowList();
-const refused = [];
-for (const raw of pathsOfCall()) {
-  const absolute = isAbsolute(raw) ? raw : resolve(cwd, raw);
-  const p = norm(fromGitBash(absolute.replace(/\\/g, "/")));
-  if (p === "/dev/null" || p.endsWith(":/dev/null")) continue;
-  const allowed = roots.some((r) => p === r || p.startsWith(r + "/"));
-  if (!allowed) {
-    refused.push(`${raw} (outside the allow list)`);
-    continue;
+// The first working directory at any depth beneath a folder, breadth-first, and whether the walk
+// reached the end of what it was willing to look at.
+function workingDirectoryBelow(absolute) {
+  try {
+    if (!statSync(absolute).isDirectory()) return { found: null, complete: true };
+  } catch {
+    return { found: null, complete: true };
   }
-  const workingDirectory = insideAWorkingDirectory(resolve(p));
-  if (workingDirectory) refused.push(`${raw} (inside the Vespera working directory ${workingDirectory})`);
+  const queue = [absolute];
+  for (let next = 0; next < queue.length; next++) {
+    if (next >= WALK_LIMIT) return { found: null, complete: false };
+    let entries;
+    try {
+      entries = readdirSync(queue[next], { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    if (entries.some((e) => WORKING_DIRECTORY_FILES.includes(e.name.toLowerCase()))) {
+      return { found: queue[next], complete: true };
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || NOT_WALKED.has(entry.name)) continue;
+      if (queue.length >= WALK_LIMIT) return { found: null, complete: false };
+      queue.push(join(queue[next], entry.name));
+    }
+  }
+  return { found: null, complete: true };
 }
 
-if (refused.length) {
-  process.stderr.write(
-    "Refused by .claude/hooks/private-paths-guard.mjs: Claude never opens the operator's archives or a " +
-      "Vespera working directory, because their documents may be sensitive and are read only by local " +
-      "models. Paths: " + refused.join("; ") + ". If a path is legitimate and holds no document, the " +
-      "operator adds it to .claude/allowed-paths.local.txt.\n",
-  );
-  process.exit(2);
+// The punctuation that ends a sentence or a list item is not part of a path. A trailing .. is the
+// parent folder and not punctuation, and neither is a trailing single dot after a separator.
+function trimSentence(p) {
+  for (;;) {
+    if (/(^|[\\/])\.{1,2}$/.test(p)) return p;
+    const shorter = p.replace(/[,.;:)\]}…]$/, "");
+    if (shorter === p) return p;
+    p = shorter;
+  }
 }
-process.exit(0);
+
+function valueOf(name) {
+  const value = name.toUpperCase() === "HOME" ? homedir() : process.env[name];
+  // A list of paths, such as PATH, is not one path.
+  return value && !value.includes(delimiter) ? value : "";
+}
+
+const COMMAND_BREAKS = /[\s"'`;|&<>()]+/;
+
+// The paths written in a command's text, each as { label, abs }, read against where it starts.
+function pathsInCommand(command, cwd) {
+  const found = [];
+  const add = (label, abs) => found.push({ label, abs });
+
+  // A drive path, Q:\x or Q:/x, with one separator after the colon or several. A URL's scheme is
+  // longer than one letter, so the s of https is preceded by a letter and is not a drive.
+  for (const m of command.matchAll(/(?<![A-Za-z])([A-Za-z]):[\\/]+([^\s"'`;|&<>()]*)/g)) {
+    add(m[0], absoluteOf(drive(m[1], trimSentence(m[2])), cwd));
+  }
+
+  const readToken = (token) => {
+    if (/^[A-Za-z]:$/.test(token)) return add(token, absoluteOf(drive(token[0], ""), cwd));
+    const t = trimSentence(token);
+    if (!t || t.startsWith("-")) return;
+    if (/^[A-Za-z][A-Za-z0-9+.-]+:\/\//.test(t)) return;
+    if (/^[A-Za-z]:[\\/]/.test(t)) return;
+    const s = t.replace(/\\/g, "/");
+    if (/^~(?=$|\/)/.test(s)) return add(t, absoluteOf(homedir() + s.slice(1), cwd));
+    const variable = /^\$(?:env:(\w+)|(\w+)|\{(\w+)\})(?=$|\/)/i.exec(s);
+    if (variable) {
+      const value = valueOf(variable[1] ?? variable[2] ?? variable[3]);
+      if (value) add(t, absoluteOf(value + s.slice(variable[0].length), cwd));
+      return;
+    }
+    if (s.startsWith("$")) return;
+    if (windows) {
+      if (/^\/\/[^/]+\/[^/]/.test(s)) return add(t, absoluteOf(s, cwd));
+      if (fromGitBash(s) !== s) return add(t, absoluteOf(s, cwd));
+    }
+    // Any other rooted path, /tmp/x or /etc/x, is not decided and is not read.
+    if (s.startsWith("/")) return;
+    add(t, absoluteOf("./" + s, cwd));
+  };
+
+  for (const token of command.split(COMMAND_BREAKS)) {
+    if (!token) continue;
+    readToken(token);
+    const equals = token.indexOf("=");
+    if (equals >= 0) readToken(token.slice(equals + 1));
+  }
+  return found;
+}
+
+// The part of a search pattern before its first wildcard, which is the folder the search starts in.
+function staticPrefix(pattern) {
+  const kept = [];
+  for (const segment of pattern.split("/")) {
+    if (/[*?[\]{}]/.test(segment)) break;
+    kept.push(segment);
+  }
+  let prefix = kept.join("/");
+  if (/^[A-Za-z]:$/.test(prefix)) prefix += "/";
+  if (prefix === "" && pattern.startsWith("/")) prefix = "/";
+  return prefix;
+}
+
+function refusalsOf(call) {
+  const tool = call.tool_name;
+  const input = call.tool_input && typeof call.tool_input === "object" ? call.tool_input : {};
+  const startsIn = typeof call.cwd === "string" && call.cwd ? call.cwd : checkout;
+  const cwd = absoluteOf(startsIn, checkout);
+
+  const rootPaths = allowedRoots();
+  const roots = rootPaths.map(norm);
+  const realRoots = rootPaths.map((p) => norm(realPath(p)));
+
+  const refused = [];
+  const seen = new Set();
+
+  function check(label, absolute, searchRoot = false) {
+    const text = norm(absolute);
+    const key = `${text}|${searchRoot}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    if (text === "/dev/null" || text.endsWith(":/dev/null")) return;
+    if (!within(text, roots)) {
+      refused.push(`${label} (outside the allow list)`);
+      return;
+    }
+    const real = realPath(absolute);
+    const realText = norm(real);
+    if (!within(realText, roots) && !within(realText, realRoots)) {
+      refused.push(`${label} (a link leads from it to ${real}, outside the allow list)`);
+      return;
+    }
+    const inside = workingDirectoryAbove(absolute) ?? workingDirectoryAbove(real);
+    if (inside) {
+      refused.push(`${label} (inside the Vespera working directory ${inside})`);
+      return;
+    }
+    if (!searchRoot) return;
+    const below = workingDirectoryBelow(real);
+    if (below.found) {
+      refused.push(`${label} (a recursive search from it reaches the Vespera working directory ${below.found})`);
+    } else if (!below.complete) {
+      refused.push(
+        `${label} (ruling out a working directory beneath it would take more than ${WALK_LIMIT} folders, so search a narrower one)`,
+      );
+    }
+  }
+
+  if (tool === "Bash" || tool === "PowerShell") {
+    check(`the directory the command starts in, ${startsIn}`, cwd);
+    for (const { label, abs } of pathsInCommand(String(input.command ?? ""), cwd)) check(label, abs);
+    return refused;
+  }
+
+  const searches = tool === "Grep" || tool === "Glob";
+  for (const field of searches ? ["file_path", "notebook_path"] : ["file_path", "path", "notebook_path"]) {
+    if (input[field]) check(String(input[field]), absoluteOf(input[field], cwd));
+  }
+  if (searches) {
+    const root = input.path ? absoluteOf(input.path, cwd) : cwd;
+    check(input.path ? String(input.path) : `the directory the search starts in, ${startsIn}`, root, true);
+    const pattern = tool === "Glob" ? input.pattern : input.glob;
+    if (pattern) {
+      const prefix = staticPrefix(String(pattern).replace(/\\/g, "/"));
+      check(String(pattern), prefix === "" ? root : absoluteOf(prefix, root), true);
+    }
+  }
+  return refused;
+}
+
+function refusal(reason) {
+  process.stderr.write(`Refused by .claude/hooks/private-paths-guard.mjs: ${reason}\n`);
+  return 2;
+}
+
+function main() {
+  let call;
+  try {
+    call = JSON.parse(readFileSync(0, "utf8"));
+  } catch {
+    return refusal("its input is empty or is not JSON, so there is no call to check.");
+  }
+  if (!call || typeof call !== "object" || Array.isArray(call) || typeof call.tool_name !== "string" || !call.tool_name) {
+    return refusal("its input names no tool, so there is no call to check.");
+  }
+  let refused;
+  try {
+    refused = refusalsOf(call);
+  } catch (caught) {
+    return refusal(`it failed before it reached a decision (${caught?.message ?? caught}), and a call it cannot decide on is refused.`);
+  }
+  if (!refused.length) return 0;
+  return refusal(
+    "Claude never opens the operator's archives or a Vespera working directory, because their " +
+      "documents may be sensitive and are read only by local models. Paths: " + refused.join("; ") +
+      ". If a path is legitimate and holds no document, the operator adds it to " +
+      ".claude/allowed-paths.local.txt.",
+  );
+}
+
+process.exitCode = main();
