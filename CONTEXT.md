@@ -157,7 +157,7 @@ A value the pipeline requires and does not have. Not a pause — supply the valu
 _Avoid_: approval step, pause. Also "checkpoint" **for this concept**: a gate is not a point work resumes from, and the word now names one (see Checkpoint below).
 
 **Archive**:
-The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), and the deliverable references the surviving originals where they are instead of copying them. An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent opens an archive (ADR-195).
+The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), and the deliverable references the surviving originals where they are instead of copying them. An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent opens an archive (ADR-196).
 _Avoid_: knowledge base (what Vespera makes from an archive, never the archive itself), repository (this project's git checkout), dataset, source folder
 
 **Corpus root**:
@@ -165,7 +165,7 @@ The directory a walk starts from: the one `vespera run <root>` names, or `vesper
 _Avoid_: archive root, archive (the files, where this is the path), input directory, base path
 
 **Working directory**:
-The one directory an invocation writes into, kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, `vespera.log`, `profile.yaml`, the pages the stages write for the operator, the label file and the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-195).
+The one directory an invocation writes into, kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, `vespera.log`, `profile.yaml`, the pages the stages write for the operator, the label file and the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-196).
 _Avoid_: db dir (the option's spelling, not the term), output directory, data directory, workspace
 _Not to be confused with_: the directory a process or a shell command is started in. That is the **current directory** in our names and records (ADR-122), never the working directory.
 

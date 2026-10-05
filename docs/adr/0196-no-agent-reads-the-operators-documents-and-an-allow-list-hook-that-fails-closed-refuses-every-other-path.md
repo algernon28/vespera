@@ -1,4 +1,4 @@
-# ADR-195 — No agent reads the operator's documents, and an allow-list hook that fails closed refuses every other path
+# ADR-196 — No agent reads the operator's documents, and an allow-list hook that fails closed refuses every other path
 
 - **Date**: 2026-10-05
 - **Status**: accepted
