@@ -9,7 +9,11 @@ import org.springframework.stereotype.Component;
  * (ADR-059) — so a change to stage 5's tables refuses a stale database without saying anything about
  * the ledger's, corpus's, extraction's or similarity's.
  *
- * <p>Bump {@link #VERSION} in the same commit that changes embedding's tables in {@code schema.sql}.
+ * <p>Bump {@link #VERSION} in the same commit that changes the shape of a table embedding already has,
+ * or that adds one the rows of an existing table depend on. <b>A new table nothing existing depends on
+ * does not bump</b> (ADR-197 amends ADR-059): {@code CREATE TABLE IF NOT EXISTS} adds it to a database
+ * written before it, and the guard has nothing to refuse. {@code relevance_label_provenance} is that
+ * case, and the version stays 7.
  * Version 1 is {@code unusable_seed} (ADR-083). Version 2 is {@code seed_corpus_comparison}
  * (ADR-086, #106). Version 3 is {@code vector} (ADR-084, ADR-085, #107). Version 4 is {@code
  * relevance_score} (ADR-020, #108). Version 5 is {@code relevance_label} (ADR-088, #111). Version 6

@@ -2,10 +2,13 @@ package io.algernon.vespera.embedding;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Reads what a serving runtime reports about itself (ADR-091), for the parts of an instrument
@@ -72,6 +75,31 @@ public class OllamaClient {
         return new ModelArtefact(
                 stated("digest", modelName, model.digest()),
                 stated("quantization level", modelName, model.details() == null ? null : model.details().dtype()));
+    }
+
+    /**
+     * Whether the runtime forwards {@code modelName} to a service that is not this machine (ADR-197 §6).
+     *
+     * <p>A loopback endpoint alone does not keep a document here: an Ollama cloud model is served by the
+     * local daemon and forwarded to ollama.com. {@code /api/show} names such a model by {@code
+     * remote_host} and {@code remote_model}, which are absent for a model whose weights are local. The
+     * field names are those of {@code ShowResponse} in Ollama's {@code api/types.go} at {@code v0.33.2},
+     * read, not run against the image; the test pins the reading against a stub, and a model whose
+     * answer cannot be read at all is refused by the caller, never assumed local.
+     */
+    public boolean isRemote(String modelName) {
+        JsonNode shown = restClient
+                .post()
+                .uri("/api/show")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("model", modelName))
+                .retrieve()
+                .body(JsonNode.class);
+        if (shown == null) {
+            throw new IllegalStateException("the runtime answered /api/show for " + modelName + " with nothing");
+        }
+        return !shown.path("remote_host").asString("").isBlank()
+                || !shown.path("remote_model").asString("").isBlank();
     }
 
     private static String stated(String field, String modelName, String value) {
