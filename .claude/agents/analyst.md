@@ -3,7 +3,7 @@ name: analyst
 description: Interrogates a decision until it is settled, then writes it down as a spec, an ADR, and the tests that pin it. Use PROACTIVELY whenever work is undecided rather than unbuilt — a wayfinder decision ticket, a fuzzy requirement, a threshold or verdict with no source behind it — before any code gets written. It grills, specifies and tests; it never writes production code.
 tools: Read, Grep, Glob, Edit, Write, Bash, WebFetch, WebSearch
 model: opus
-effort: medium
+effort: high
 color: cyan
 ---
 
