@@ -87,6 +87,12 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
   the package and class name, and the failure categories match on `@Feature`, so a test that
   ships unlabelled falls out of both the tree and its category.
 
+## The operator's documents are never read by an agent
+
+**No agent opens an archive Vespera walks, a run's working directory, or anything in them**: no document, no `vespera.db`, no `vespera.log`, no report and no deliverable. The archives can hold sensitive documents, and a document is read only by the local models Vespera runs (Docling, and the models Ollama serves). This holds for every agent and subagent, whatever its task, including a run it is driving: labels, floors and approvals are the operator's, or a local model's ([#423](https://github.com/algernon28/vespera/issues/423)), never an agent's.
+
+`.claude/hooks/private-paths-guard.mjs` enforces it. It refuses every file and search tool, and every absolute path in a shell command, outside `.claude/allowed-paths.txt`, and anything inside a folder holding `vespera.db` or `vespera.lock`. It is an allow list, so a knowledge base on a new path is protected without being named. A refused path that is legitimate and holds no document goes in `.claude/allowed-paths.local.txt` (gitignored), by the operator. A path a script builds at run time is not seen by the hook; this rule covers it.
+
 ## Conventions worth knowing
 
 - **The pom carries what a recorded decision requires** (ADR-046), not what current code happens to use. A new dependency wants a decision behind it.

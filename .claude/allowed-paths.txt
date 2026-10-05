@@ -1,0 +1,11 @@
+# The only places a Claude session may read or write. Everything else is refused by
+# .claude/hooks/private-paths-guard.mjs, so an archive or a working directory on any path is protected
+# without being listed. Paths on one machine only go in .claude/allowed-paths.local.txt (gitignored).
+#
+# ${REPO} is this repository, ${HOME} the user's home, ${TEMP} the system temp folder.
+${REPO}
+${TEMP}
+${HOME}/.m2
+${HOME}/.jdks
+${HOME}/.claude
+${HOME}/.config/gh

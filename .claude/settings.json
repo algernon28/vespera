@@ -1,5 +1,18 @@
 {
   "enabledPlugins": {
     "mattpocock-skills@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep|Glob|Edit|Write|NotebookEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/private-paths-guard.mjs\""
+          }
+        ]
+      }
+    ]
   }
 }
