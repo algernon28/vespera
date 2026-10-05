@@ -1080,6 +1080,18 @@ public final class Adr {
     public static final String STAGE_6_RULES_LIVE_IN_SYNTHESIS = FILE
             + "0190-stage-6bs-loop-and-6as-lead-document-rule-live-in-synthesis-which-still-knows-no-stage.md";
 
+    /**
+     * ADR-192 -- every loop in every stage that reads or writes the database or a file, or calls the
+     * embedding model, the generation model or the converter, has a progress counter of its own on the one line ADR-093 fixed, an inner loop
+     * having one only where the outer item's time goes; a loop with no total is a running count; no
+     * counter over a known total writes more than 100 lines; capability modules hand their counts over
+     * through callbacks they own and write no line; the census writes its running count at the same running
+     * cadence, wherever the entries are (amends ADR-093's cadence, ADR-190 sections 2 and 4; extends
+     * ADR-188 section 2 and ADR-189 section 2; settles #412).
+     */
+    public static final String EVERY_LOOP_REPORTS_ITS_PROGRESS = FILE
+            + "0192-every-loop-in-every-stage-reports-its-progress-and-no-counter-floods-the-log.md";
+
     private Adr() {
     }
 }

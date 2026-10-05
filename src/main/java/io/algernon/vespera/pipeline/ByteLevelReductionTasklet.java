@@ -195,22 +195,42 @@ public class ByteLevelReductionTasklet implements Tasklet {
     }
 
     /**
-     * The second pass. {@code corpus} resolves content identity; this opens the progress line over the
-     * count it reports and writes each hashed line.
+     * The second pass. {@code corpus} resolves content identity; this opens the progress counters over the
+     * counts it reports and writes each hashed line. Three loops are counted (ADR-192): the sizes read, over
+     * the survivors drained; the hashes, over the files sharing a size; and the duplicates recorded, a running
+     * count opened when the hashing is announced, since how many files are copies is known only afterwards.
      */
     private void resolveDuplicates(RunId runId, Path canonicalRoot) throws Exception {
         new ContentIdentityResolution(ledger, contentIdentity).resolve(runId, canonicalRoot, new HashingProgress() {
+            private StageProgress sizes;
             private StageProgress progress;
+            private StageProgress duplicates;
+
+            @Override
+            public void toSize(long survivors) {
+                sizes = StageProgress.over("Stage 1 (byte-level reduction, sizes read)", survivors);
+            }
+
+            @Override
+            public void sized() {
+                sizes.itemDone();
+            }
 
             @Override
             public void toHash(long occurrences) {
                 progress = StageProgress.over("Stage 1 (byte-level reduction, content hash)", occurrences);
+                duplicates = StageProgress.running("Stage 1 (byte-level reduction, duplicates recorded)");
             }
 
             @Override
             public void hashed(OccurrenceId occurrence, String sha256) {
                 log.info("[byte-level-reduction] hashed {} -> {}", occurrence.value(), sha256);
                 progress.itemDone();
+            }
+
+            @Override
+            public void supersededRecorded() {
+                duplicates.itemDone();
             }
         });
     }
