@@ -2,7 +2,8 @@
 # Runs private-paths-guard.mjs, failing closed. A worktree cut from a branch without the guard has no
 # copy of it under $CLAUDE_PROJECT_DIR, and a hook command that cannot start exits with a code Claude
 # Code treats as non-blocking, so the call would go through unguarded. So: the worktree's own copy,
-# else the main checkout's, else refuse.
+# else the main checkout's, else refuse. The command registered in .claude/settings.json starts this script
+# and maps any exit code of it but 0 to 2, so this script failing to run refuses too.
 input=$(cat)
 guard="$CLAUDE_PROJECT_DIR/.claude/hooks/private-paths-guard.mjs"
 if [ ! -f "$guard" ]; then
