@@ -32,7 +32,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 - Prose written for a reader outside this project is free of the lists altogether; ADR-122 enumerates the audiences, and this is deliberately not a second copy of that list. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
 - **Cluster** renders as *group*.
 
-**`docs/adr/`** holds 193 decisions, ADR-001 to ADR-194 (one number below ADR-194 is reserved by an open ticket and has no record yet), and two things about it are invisible from the files:
+**`docs/adr/`** holds 194 decisions, ADR-001 to ADR-195 (one number below ADR-195 is reserved by an open ticket and has no record yet), and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.
@@ -92,6 +92,12 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 **No agent opens an archive Vespera walks, a run's working directory, or anything in them**: no document, no `vespera.db`, no `vespera.log`, no report and no deliverable. The archives can hold sensitive documents, and a document is read only by the local models Vespera runs (Docling, and the models Ollama serves). This holds for every agent and subagent, whatever its task, including a run it is driving: labels, floors and approvals are the operator's, or a local model's ([#423](https://github.com/algernon28/vespera/issues/423)), never an agent's.
 
 `.claude/hooks/private-paths-guard.mjs` enforces it. It refuses every file and search tool, and every absolute path in a shell command, outside `.claude/allowed-paths.txt`, and anything inside a folder holding `vespera.db` or `vespera.lock`. It is an allow list, so a knowledge base on a new path is protected without being named. A refused path that is legitimate and holds no document goes in `.claude/allowed-paths.local.txt` (gitignored), by the operator. A path a script builds at run time is not seen by the hook; this rule covers it.
+
+ADR-195 is the record: what the hook must refuse, how it fails closed, and what it does not cover. `src/test/hooks/private-paths-guard.test.mjs` holds the hook to it, with no path of the operator's in it:
+
+```
+node --test src/test/hooks/private-paths-guard.test.mjs
+```
 
 ## Conventions worth knowing
 
