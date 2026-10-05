@@ -63,6 +63,17 @@
         <gmavenplus-plugin.version>5.1.0</gmavenplus-plugin.version>
         <groovy.version>5.1.1</groovy.version>
         <aspectj.version>1.9.25.1</aspectj.version>
+        <!--
+          ADR-194: what a test class writes goes to <class>-output.txt in target/surefire-reports or
+          target/failsafe-reports, not to the build's console. Tests that provoke a fault on purpose
+          log errors and stack traces a reader of a green build took for failures. A failing test's
+          own assertion and stack still print on the console; what it logged is in that file.
+
+          A property rather than plugin configuration, because both plugins read this one and a
+          property can be overridden: -Dmaven.test.redirectTestOutputToFile=false puts a run's test
+          output back on the console. A value written into <configuration> would ignore that.
+        -->
+        <maven.test.redirectTestOutputToFile>true</maven.test.redirectTestOutputToFile>
     </properties>
     <dependencies>
         <dependency>
