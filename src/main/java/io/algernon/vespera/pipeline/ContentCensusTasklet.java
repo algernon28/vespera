@@ -8,6 +8,7 @@ import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.FrequencyProgress;
+import io.algernon.vespera.similarity.SimilarityStatement;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Locale;
+import java.util.OptionalLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -101,10 +103,10 @@ class ContentCensusTasklet implements Tasklet {
 
                     // The one statement inside DocumentFrequency.measure that reads every shingle row of
                     // stage 2's run took half an hour on a 16.7 GB database on a USB spinning disk and said
-                    // nothing, so the read has a line before it where there is something to read, and the
-                    // measurement has its time after it whether or not there is (ADR-191). The time is the
-                    // whole call's: this class cannot time the one statement apart from the rest.
-                    announceReadOf(extractionRunId);
+                    // nothing, so the read has a line before it where there is something to read, progress
+                    // lines while it runs, and the measurement has its time after it whether or not there is
+                    // (ADR-191, ADR-193). The time is the whole call's: this class cannot time the one
+                    // statement apart from the rest.
                     long measureStarted = System.nanoTime();
                     documentFrequency.measure(runId, extractionRunId, frequencyRowsProgress());
                     log.info(
@@ -128,10 +130,43 @@ class ContentCensusTasklet implements Tasklet {
                 });
     }
 
-    /** Stage 3's frequency rows counter: made here, ticked as {@code similarity} reports (ADR-192 section 4). */
+    /**
+     * Stage 3's frequency rows counter, ticked as {@code similarity} reports (ADR-192 section 4), and the
+     * lines of its read of the shingle rows, written as {@code similarity} reports that (ADR-193 section 7).
+     * The bound is {@code similarity}'s to answer ({@link DocumentFrequency#shingleRowsUpTo}) and it hands
+     * it over immediately before the read; what is said about it is this class's. Says nothing about the read
+     * where the run holds no shingle row, and what is said is ADR-191 section 1's, stopping loses only the
+     * time spent.
+     */
     private static FrequencyProgress frequencyRowsProgress() {
         return new FrequencyProgress() {
+            private StatementProgress readProgress;
             private StageProgress counter;
+
+            @Override
+            public void statementStarting(SimilarityStatement statement, OptionalLong rowsUpTo) {
+                if (statement != SimilarityStatement.SHINGLE_ROWS || rowsUpTo.isEmpty()) {
+                    return;
+                }
+                log.info(
+                        "Stage 3 (content census) is reading up to {} shingle rows of stage 2's run before it"
+                                + " measures anything; SQLite reads them a page at a time, from wherever in the"
+                                + " file stage 2 wrote them, which took half an hour on a USB spinning disk for one"
+                                + " run in a 16.7 GB database, and stopping before it ends loses only the time"
+                                + " spent",
+                        rowsUpTo.getAsLong());
+                readProgress = StatementProgress.ofRead(
+                        "Stage 3 (content census, reading shingle rows)",
+                        rowsUpTo.getAsLong(),
+                        statement.stepsPerRow().getAsInt());
+            }
+
+            @Override
+            public void stepsTaken(SimilarityStatement statement, long steps) {
+                if (readProgress != null) {
+                    readProgress.stepsTaken(steps);
+                }
+            }
 
             @Override
             public void toGoThrough(long hashes) {
@@ -143,21 +178,6 @@ class ContentCensusTasklet implements Tasklet {
                 counter.itemDone();
             }
         };
-    }
-
-    /**
-     * Says how many shingle rows of stage 2's run the measurement is about to read at most, and that
-     * stopping loses only the time spent (ADR-191 section 1). Says nothing where the run holds none.
-     * The bound is {@code similarity}'s to answer ({@link DocumentFrequency#shingleRowsUpTo}); what is
-     * said about it is this class's.
-     */
-    private void announceReadOf(RunId extractionRunId) {
-        documentFrequency.shingleRowsUpTo(extractionRunId).ifPresent(rows -> log.info(
-                "Stage 3 (content census) is reading up to {} shingle rows of stage 2's run before it measures"
-                        + " anything; SQLite reads them a page at a time, from wherever in the file stage 2 wrote"
-                        + " them, which took half an hour on a USB spinning disk for one run in a 16.7 GB database,"
-                        + " and stopping before it ends loses only the time spent",
-                rows));
     }
 
     /**

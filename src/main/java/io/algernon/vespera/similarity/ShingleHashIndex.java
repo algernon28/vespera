@@ -1,6 +1,9 @@
 package io.algernon.vespera.similarity;
 
+import io.algernon.vespera.ledger.StatementSteps;
+import java.sql.Statement;
 import java.time.Duration;
+import java.util.OptionalLong;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -70,8 +73,29 @@ public class ShingleHashIndex {
      * is how a caller decides whether there is anything to announce.
      */
     public Duration build() {
+        return build(SimilarityStatementProgress.NONE);
+    }
+
+    /**
+     * As {@link #build()}, and tells {@code progress} the table's {@link #shingleRowsUpTo} once before the
+     * statement, the steps SQLite has taken at each of its callbacks while it runs, and that it has ended
+     * (ADR-193 sections 2 and 7). The statement runs on one connection, outside any transaction of the
+     * caller's, with the progress handler set on it and cleared after.
+     */
+    public Duration build(SimilarityStatementProgress progress) {
+        progress.statementStarting(SimilarityStatement.SHINGLE_HASH_INDEX_BUILD, OptionalLong.of(shingleRowsUpTo()));
         long started = System.nanoTime();
-        jdbcTemplate.execute(BUILD);
-        return Duration.ofNanos(System.nanoTime() - started);
+        StatementSteps.counted(
+                jdbcTemplate,
+                steps -> progress.stepsTaken(SimilarityStatement.SHINGLE_HASH_INDEX_BUILD, steps),
+                connection -> {
+                    try (Statement statement = connection.createStatement()) {
+                        statement.execute(BUILD);
+                    }
+                    return null;
+                });
+        Duration took = Duration.ofNanos(System.nanoTime() - started);
+        progress.statementEnded(SimilarityStatement.SHINGLE_HASH_INDEX_BUILD);
+        return took;
     }
 }

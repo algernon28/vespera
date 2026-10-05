@@ -3,6 +3,9 @@ package io.algernon.vespera.similarity;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.StatementSteps;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -55,22 +58,36 @@ public class DocumentFrequency {
         Map<Hash, Counts> byHash = new HashMap<>();
         Map<String, Set<Long>> shingledOccurrencesByParameter = new HashMap<>();
 
-        jdbcTemplate.query(
-                "SELECT occurrence_id, shingle_parameter_identity, shingle_hash FROM shingle WHERE run_id = ?",
-                resultSet -> {
-                    long occurrenceId = resultSet.getLong("occurrence_id");
-                    if (!survivorIds.contains(occurrenceId)) {
-                        return;
+        // The one statement that reads every shingle row of stage 2's run, counted by SQLite's progress
+        // handler (ADR-193). It runs on the connection the template hands over and is never handed back to it.
+        progress.statementStarting(SimilarityStatement.SHINGLE_ROWS, shingleRowsUpTo(stage2RunId));
+        StatementSteps.counted(
+                jdbcTemplate,
+                steps -> progress.stepsTaken(SimilarityStatement.SHINGLE_ROWS, steps),
+                connection -> {
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "SELECT occurrence_id, shingle_parameter_identity, shingle_hash FROM shingle"
+                                    + " WHERE run_id = ?")) {
+                        statement.setString(1, stage2RunId.value());
+                        try (ResultSet resultSet = statement.executeQuery()) {
+                            while (resultSet.next()) {
+                                long occurrenceId = resultSet.getLong("occurrence_id");
+                                if (!survivorIds.contains(occurrenceId)) {
+                                    continue;
+                                }
+                                String parameterIdentity = resultSet.getString("shingle_parameter_identity");
+                                long hash = resultSet.getLong("shingle_hash");
+                                byHash.computeIfAbsent(new Hash(parameterIdentity, hash), ignored -> new Counts())
+                                        .record(occurrenceId);
+                                shingledOccurrencesByParameter
+                                        .computeIfAbsent(parameterIdentity, ignored -> new HashSet<>())
+                                        .add(occurrenceId);
+                            }
+                        }
                     }
-                    String parameterIdentity = resultSet.getString("shingle_parameter_identity");
-                    long hash = resultSet.getLong("shingle_hash");
-                    byHash.computeIfAbsent(new Hash(parameterIdentity, hash), ignored -> new Counts())
-                            .record(occurrenceId);
-                    shingledOccurrencesByParameter
-                            .computeIfAbsent(parameterIdentity, ignored -> new HashSet<>())
-                            .add(occurrenceId);
-                },
-                stage2RunId.value());
+                    return null;
+                });
+        progress.statementEnded(SimilarityStatement.SHINGLE_ROWS);
 
         progress.toGoThrough(byHash.size());
         byHash.forEach((hash, counts) -> {
@@ -106,7 +123,9 @@ public class DocumentFrequency {
      * <p>Exact where the run's rows are one unbroken stretch of rowids; too high where another run wrote
      * between them, because the span then takes in that run's rows. Hence "up to", not "exactly".
      * Writes nothing and logs nothing: {@code similarity} knows no stage, and what is said about the
-     * bound, and when, is the caller's.
+     * bound, and when, is the caller's. {@link #measure} asks for it itself and hands it to its {@link
+     * FrequencyProgress} in {@code statementStarting}, immediately before the read and after the drain of
+     * stage 2's survivors (ADR-193 section 7).
      */
     public OptionalLong shingleRowsUpTo(RunId stage2RunId) {
         // Two statements on purpose, never one. Each is one descent of shingle_by_run_id: 2 ms and

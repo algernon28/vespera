@@ -1092,6 +1092,17 @@ public final class Adr {
     public static final String EVERY_LOOP_REPORTS_ITS_PROGRESS = FILE
             + "0192-every-loop-in-every-stage-reports-its-progress-and-no-counter-floods-the-log.md";
 
+    /**
+     * ADR-193 -- a statement SQLite calls back during and whose total is cheap reports "about X% of N rows"
+     * through SQLite's progress callback, every 100,000 steps on the connection that runs it, turned into
+     * rows by a steps-per-row ratio pinned against the bundled SQLite; a build says when its rows are gone
+     * through and its silent end begins; every other statement in scope says when it starts and how long
+     * it took; the drop keeps ADR-187's two lines (amends ADR-187 section 1, ADR-182 section 2.4's line,
+     * ADR-191 sections 1 and 3; extends ADR-093; settles #411).
+     */
+    public static final String STATEMENTS_REPORT_THEIR_PROGRESS = FILE
+            + "0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md";
+
     private Adr() {
     }
 }
