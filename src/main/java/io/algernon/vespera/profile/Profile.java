@@ -187,6 +187,24 @@ public record Profile(
                 extractionAttempt);
     }
 
+    /**
+     * The same profile with the relevance floor answered, keeping the pointer at the labelling page.
+     * Only the rule of ADR-197 §4 calls this, and only over a key it may write; the provenance says so.
+     */
+    public Profile withRelevanceScoreFloor(String value, String provenance) {
+        return new Profile(
+                seedFolder,
+                degenerateOutputConfidenceFloor,
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel,
+                new NumericValue(value, provenance, relevanceScoreFloor.measurement()),
+                arrangementApproved,
+                generationModel,
+                generationContextWindow,
+                logTimestampShareFloor,
+                extractionAttempt);
+    }
+
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
     public Profile withLogTimestampShareFloorMeasurement(Measurement measurement) {
         return new Profile(

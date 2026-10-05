@@ -2,7 +2,9 @@ package io.algernon.vespera.embedding;
 
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -53,6 +55,25 @@ public class RelevanceLabels {
             RunId runId,
             double scoreShown,
             String embedderIdentity) {
+        Optional<Boolean> previous = answerFor(path, seedSet);
+        upsert(path, seedSet, relevant, runId, scoreShown, embedderIdentity);
+        // A person's answer that is new or changed is the person's from now on (ADR-197 §3). One that
+        // repeats what a model said is not a correction, so the model's mark stays.
+        if (previous.isEmpty() || previous.get() != relevant) {
+            jdbcTemplate.update(
+                    "DELETE FROM relevance_label_provenance WHERE path = ? AND seed_set = ?",
+                    path.value(),
+                    seedSet);
+        }
+    }
+
+    private void upsert(
+            OccurrencePath path,
+            String seedSet,
+            boolean relevant,
+            RunId runId,
+            double scoreShown,
+            String embedderIdentity) {
         jdbcTemplate.update(
                 "INSERT INTO relevance_label (path, seed_set, relevant, run_id, score_shown,"
                         + " embedder_identity) VALUES (?, ?, ?, ?, ?, ?)"
@@ -65,6 +86,60 @@ public class RelevanceLabels {
                 runId.value(),
                 scoreShown,
                 embedderIdentity);
+    }
+
+    /**
+     * Records what a local model answered about the document at {@code path}, marked as the model's
+     * (ADR-197 §3), unless a person's answer stands for it, which a model's never replaces.
+     *
+     * @return whether the answer was recorded
+     */
+    public boolean recordByModel(
+            OccurrencePath path,
+            String seedSet,
+            boolean relevant,
+            RunId runId,
+            double scoreShown,
+            String embedderIdentity,
+            String labeller) {
+        boolean someoneAnswered = answerFor(path, seedSet).isPresent();
+        if (someoneAnswered && labelledBy(path, seedSet).isEmpty()) {
+            return false;
+        }
+        upsert(path, seedSet, relevant, runId, scoreShown, embedderIdentity);
+        jdbcTemplate.update(
+                "INSERT INTO relevance_label_provenance (path, seed_set, labelled_by, run_id)"
+                        + " VALUES (?, ?, ?, ?) ON CONFLICT (path, seed_set) DO UPDATE SET"
+                        + " labelled_by = excluded.labelled_by, run_id = excluded.run_id",
+                path.value(),
+                seedSet,
+                labeller,
+                runId.value());
+        return true;
+    }
+
+    /** The labeller that set the answer for {@code path}, or empty where a person did, or nobody has. */
+    public Optional<String> labelledBy(OccurrencePath path, String seedSet) {
+        return jdbcTemplate
+                .queryForList(
+                        "SELECT labelled_by FROM relevance_label_provenance WHERE path = ? AND seed_set = ?",
+                        String.class,
+                        path.value(),
+                        seedSet)
+                .stream()
+                .findFirst();
+    }
+
+    /** Every answer against {@code seedSet} that a model set, by path, naming the labeller. */
+    public Map<String, String> modelAnswers(String seedSet) {
+        Map<String, String> byPath = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT path, labelled_by FROM relevance_label_provenance WHERE seed_set = ? ORDER BY path",
+                resultSet -> {
+                    byPath.put(resultSet.getString("path"), resultSet.getString("labelled_by"));
+                },
+                seedSet);
+        return byPath;
     }
 
     /** What a person answered about the document at {@code path} against {@code seedSet}. */

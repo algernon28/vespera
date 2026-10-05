@@ -4,15 +4,13 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceLabel;
 import io.algernon.vespera.embedding.RelevanceLabels;
-import io.algernon.vespera.extraction.Chunk;
-import io.algernon.vespera.extraction.ChunkingRule;
 import io.algernon.vespera.extraction.DoclingExtractor;
-import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Measurement;
@@ -74,29 +72,7 @@ class RelevanceReportTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(RelevanceReportTasklet.class);
 
-    /**
-     * How much of a document's opening is shown on the page. Long enough to recognise what a document
-     * is, short enough that sixty of them stay readable in one sitting.
-     */
-    private static final int TEXT_OPENING_CHARACTERS = 400;
-
-    /**
-     * What a sampled survivor's preview shows when its file could not be opened while this page was
-     * written (ADR-152 §1). Distinct from {@code (no text was extracted)}: that fallback is a fact
-     * about the document's conversion, this one is a fact about the archive at this one moment.
-     */
-    private static final String FILE_COULD_NOT_BE_OPENED_FALLBACK =
-            "(the file could not be opened when this page was written, so its opening is not shown)";
-
-    /**
-     * What a sampled survivor's preview shows when the extraction cache holds no conversion for its
-     * file's current bytes (ADR-152 §3) — under one run chain, the file's bytes changed since stage 2
-     * converted it. The claim is only about the cache, which is all this step knows; it does not say
-     * the file has changed.
-     */
-    private static final String NO_CONVERSION_ON_RECORD_FALLBACK =
-            "(no conversion is on record for the file as it is now, so its opening is not shown)";
-
+    private final DocumentOpening documentOpening;
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
@@ -105,9 +81,6 @@ class RelevanceReportTasklet implements Tasklet {
     private final RelevanceLabels relevanceLabels;
     private final RelevanceFloor relevanceFloor;
     private final Ledger ledger;
-    private final DoclingExtractor extractor;
-    private final ExtractorIdentity extractorIdentity;
-    private final HybridChunker hybridChunker;
     private final ProfileStore profileStore;
     private final Path root;
     private final Path workingDirectory;
@@ -127,6 +100,7 @@ class RelevanceReportTasklet implements Tasklet {
             ProfileStore profileStore,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${vespera.working-dir}") Path workingDirectory) {
+        this.documentOpening = new DocumentOpening(extractor, extractorIdentity, hybridChunker);
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
@@ -135,9 +109,6 @@ class RelevanceReportTasklet implements Tasklet {
         this.relevanceLabels = relevanceLabels;
         this.relevanceFloor = relevanceFloor;
         this.ledger = ledger;
-        this.extractor = extractor;
-        this.extractorIdentity = extractorIdentity;
-        this.hybridChunker = hybridChunker;
         this.profileStore = profileStore;
         this.root = root;
         this.workingDirectory = workingDirectory;
@@ -225,7 +196,8 @@ class RelevanceReportTasklet implements Tasklet {
                         // (ADR-169 §4).
                         seedSet.orElseThrow(),
                         entries,
-                        answers));
+                        answers,
+                        modelAnswersInThisWalk(seedSet.orElseThrow(), scoring)));
         pointTheThresholdKeyAtThePage();
 
         LOG.info(
@@ -293,6 +265,19 @@ class RelevanceReportTasklet implements Tasklet {
         return answers;
     }
 
+    /** Which of the answers in this walk a local model set, by the model's name (ADR-197 §3). */
+    private Map<OccurrenceId, String> modelAnswersInThisWalk(String seedSet, RunId runId) {
+        Optional<WalkId> walk = ledger.walkOf(runId);
+        if (walk.isEmpty()) {
+            return Map.of();
+        }
+        Map<OccurrenceId, String> byOccurrence = new LinkedHashMap<>();
+        relevanceLabels.modelAnswers(seedSet).forEach((path, model) -> ledger.occurrenceId(
+                        walk.get(), new OccurrencePath(path))
+                .ifPresent(occurrence -> byOccurrence.put(occurrence, model)));
+        return byOccurrence;
+    }
+
     /** The seed folder the answers are about, canonicalised the way every other reader of it is. */
     private Optional<String> seedSet() {
         Profile profile = profileStore.load();
@@ -321,46 +306,19 @@ class RelevanceReportTasklet implements Tasklet {
      * <p><b>A file that cannot be opened is a fact about that document, not a fault in this run.</b>
      * Hashing the file is the one archive access this method makes, and only the {@link
      * UncheckedIOException} it can throw is tolerated — the survivor stays in the sample and on the
-     * page, with {@link #FILE_COULD_NOT_BE_OPENED_FALLBACK} standing in for its opening and one warning
-     * naming it. A cache miss under the hash that was read is tolerated the same way, with {@link
-     * #NO_CONVERSION_ON_RECORD_FALLBACK} in its place. Neither ever reaches Docling.
+     * page, with {@link DocumentOpening#FILE_COULD_NOT_BE_OPENED_FALLBACK} standing in for its opening and
+     * one warning naming it. A cache miss under the hash that was read is tolerated the same way, with
+     * {@link DocumentOpening#NO_CONVERSION_ON_RECORD_FALLBACK} in its place. Neither ever reaches Docling.
+     * The reading itself is {@link DocumentOpening}'s, shared with {@code vespera label --auto}.
      */
     private String textOpeningOf(Path canonicalRoot, OccurrenceId occurrenceId) {
         Optional<OccurrenceFacts> facts = ledger.factsFor(occurrenceId);
         if (facts.isEmpty()) {
             return "(no text was extracted)";
         }
-        Path file = canonicalRoot.resolve(facts.get().path().value());
-        String contentHash;
-        try {
-            contentHash = extractor.contentHashFor(file);
-        } catch (UncheckedIOException fileCouldNotBeOpened) {
-            LOG.warn(
-                    "occurrence {} is sampled on the labelling page but its file {} could not be opened,"
-                            + " so its opening is not shown",
-                    occurrenceId.value(),
-                    file,
-                    fileCouldNotBeOpened);
-            return FILE_COULD_NOT_BE_OPENED_FALLBACK;
-        }
-        Optional<DoclingResponse> cached = extractor.cached(contentHash, extractorIdentity);
-        if (cached.isEmpty()) {
-            LOG.warn(
-                    "occurrence {} is sampled on the labelling page but its file {} carries no cached"
-                            + " conversion under its current content hash, so its opening is not shown",
-                    occurrenceId.value(),
-                    file);
-            return NO_CONVERSION_ON_RECORD_FALLBACK;
-        }
-        List<Chunk> chunks =
-                hybridChunker.chunk(cached.get().rawResponse(), contentHash, ChunkingRule.DEFAULT);
-        if (chunks.isEmpty()) {
-            return "(no text was extracted)";
-        }
-        String opening = chunks.getFirst().text().strip();
-        return opening.length() <= TEXT_OPENING_CHARACTERS
-                ? opening
-                : opening.substring(0, TEXT_OPENING_CHARACTERS) + "...";
+        return documentOpening
+                .of(canonicalRoot, facts.get().path().value(), "occurrence " + occurrenceId.value())
+                .text();
     }
 
     /**

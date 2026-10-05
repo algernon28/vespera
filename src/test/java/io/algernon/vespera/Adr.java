@@ -1112,6 +1112,13 @@ public final class Adr {
     public static final String EVERY_INVOCATION_WRITES_AN_ACCOUNT_THAT_NAMES_NO_DOCUMENT = FILE
             + "0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md";
 
+    /**
+     * ADR-197 — a local model answers the relevance questions and the floor is a rule over the labels,
+     * so no document reaches a hosted model (settles #423).
+     */
+    public static final String A_LOCAL_MODEL_LABELS_AND_THE_FLOOR_IS_A_RULE = FILE
+            + "0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md";
+
     private Adr() {
     }
 }
