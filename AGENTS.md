@@ -32,7 +32,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 - Prose written for a reader outside this project is free of the lists altogether; ADR-122 enumerates the audiences, and this is deliberately not a second copy of that list. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
 - **Cluster** renders as *group*.
 
-**`docs/adr/`** holds 194 decisions, ADR-001 to ADR-195 (one number below ADR-195 is reserved by an open ticket and has no record yet), and two things about it are invisible from the files:
+**`docs/adr/`** holds 195 decisions, ADR-001 to ADR-196 (one number below ADR-196 is reserved by an open ticket and has no record yet), and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.
@@ -86,6 +86,18 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
   The report tree groups on those three labels (`groupBy` in `allurerc.mjs`) instead of folding on
   the package and class name, and the failure categories match on `@Feature`, so a test that
   ships unlabelled falls out of both the tree and its category.
+
+## The operator's documents are never read by an agent
+
+**No agent opens an archive, walked or not, a seed set, a working directory, or anything in them**: no document, no `vespera.db`, no `vespera.log`, no report and no deliverable. The archives can hold sensitive documents, and a document is read only by the local models Vespera runs (Docling, and the models Ollama serves). This holds for every agent and subagent, whatever its task, including a run it is driving: labels, floors and approvals are the operator's, or a local model's ([#423](https://github.com/algernon28/vespera/issues/423)), never an agent's.
+
+`.claude/hooks/private-paths-guard.mjs` enforces it for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell. It refuses a call that names a path outside `.claude/allowed-paths.txt`, or inside a folder holding `vespera.db` or `vespera.lock`. In a shell command it reads drive paths, relative paths and paths headed by a variable of the environment, and the command's current directory; a relative path is read against every folder the command names, so `cd` to a folder the hook reads does not get round it. It also refuses a Grep or Glob that starts in a folder holding a working directory at any depth, so name `src` or `docs`, not the repository root, once a run has written `.vespera` there. It is an allow list, so an archive on a new path is refused without being named. A refused path that is legitimate and holds no document goes in `.claude/allowed-paths.local.txt` (gitignored), by the operator. The hook does not see an `mcp__*` tool, Monitor, a path a script builds at run time, or a rooted POSIX path such as `/tmp/x` in a shell command; this rule covers those, and ADR-196 lists the others that are known, which is not all there are.
+
+ADR-196 is the record: what the hook must refuse, how it fails closed, and what it does not cover. `src/test/hooks/private-paths-guard.test.mjs` holds the hook to it, with no path of the operator's in it:
+
+```
+node --test src/test/hooks/private-paths-guard.test.mjs
+```
 
 ## Conventions worth knowing
 

@@ -1,0 +1,12 @@
+# The only places a call to Read, Grep, Glob, Edit, Write, NotebookEdit, Bash or PowerShell may name a path
+# in. .claude/hooks/private-paths-guard.mjs refuses a path outside them, so an archive on any path is refused
+# without being listed, and a working directory under one of them is refused too. What it does not read is
+# in ADR-196, section 5. Paths on one machine only go in .claude/allowed-paths.local.txt (gitignored).
+#
+# ${REPO} is this repository, ${HOME} the user's home, ${TEMP} the system temp folder.
+${REPO}
+${TEMP}
+${HOME}/.m2
+${HOME}/.jdks
+${HOME}/.claude
+${HOME}/.config/gh

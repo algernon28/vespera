@@ -50,6 +50,15 @@ jobs:
           java-version: 26
           cache: maven
 
+      # ADR-196: the private-paths guard is a Node script behind a bash wrapper, so the table of cases
+      # that holds it to its record is a Node test and not a JUnit one. It needs Node 22, and the bash
+      # and git this runner already has. Here it runs the cases that are portable.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: node --test src/test/hooks/private-paths-guard.test.mjs
+
       # verify, not test: the integration test is bound to failsafe and excluded from surefire, so
       # `mvnw test` never reaches it. Docker is already running on this runner.
       - run: ./mvnw -B verify
@@ -86,6 +95,14 @@ jobs:
           distribution: temurin
           java-version: 26
           cache: maven
+
+      # ADR-196, as in the job above, except that here every case runs: the drive letters, Git Bash
+      # paths, UNC paths and PowerShell forms the guard reads are Windows forms.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: node --test src/test/hooks/private-paths-guard.test.mjs
 
       # test, not verify: the integration test needs Linux containers, which this runner has no way
       # to start. What this job is here for is the tests that only a real NTFS volume is evidence

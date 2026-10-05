@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-195. One number below ADR-195 is reserved by an open ticket and has no file yet.
+One file per architecture decision, ADR-001 through ADR-196. One number below ADR-196 is reserved by an open ticket and has no file yet.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -213,3 +213,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-192](0192-every-loop-in-every-stage-reports-its-progress-and-no-counter-floods-the-log.md) | 2026-10-05 | Every loop in every stage reports its progress, and no counter floods the log *(amends ADR-093's cadence, ADR-190 §2 and §4; extends ADR-188 §2, ADR-189 §2; rests on ADR-040, ADR-041, ADR-055, ADR-058, ADR-110, ADR-140, ADR-154 §2, ADR-188, ADR-189, ADR-190, ADR-191)* |
 | [ADR-194](0194-what-a-test-writes-goes-to-a-file-per-class-not-to-the-builds-console.md) | 2026-10-05 | What a test writes goes to a file per class, not to the build's console *(extends ADR-093 in the test JVM; rests on ADR-065)* |
 | [ADR-195](0195-the-reference-model-and-every-bake-off-candidate-are-served-locally.md) | 2026-10-05 | The reference model and every bake-off candidate are served locally, never hosted *(amends ADR-072, ADR-046's additions list; extends ADR-033; clarifies ADR-034)* |
+| [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md) | 2026-10-05 | No agent reads the operator's documents, and an allow-list hook that fails closed refuses every other path *(rests on ADR-054, ADR-177)* |

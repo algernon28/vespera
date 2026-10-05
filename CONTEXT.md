@@ -156,6 +156,19 @@ _Avoid_: invalid, malformed, bad. Also "unset" **for this state**: a value read 
 A value the pipeline requires and does not have. Not a pause — supply the value and no gate occurs; leave it unset and the run ends there, having recorded everything it learned.
 _Avoid_: approval step, pause. Also "checkpoint" **for this concept**: a gate is not a point work resumes from, and the word now names one (see Checkpoint below).
 
+**Archive**:
+The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), and the deliverable references the surviving originals where they are instead of copying them. An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent opens an archive (ADR-196).
+_Avoid_: knowledge base (what Vespera makes from an archive, never the archive itself), repository (this project's git checkout), dataset, source folder
+
+**Corpus root**:
+The directory a walk starts from: the one `vespera run <root>` names, or `vespera.corpus-root` when the command names none (ADR-066). A path, and the whole of a corpus's identity (ADR-054). The root is where a walk enters an archive, and the corpus is the part of the archive beneath it.
+_Avoid_: archive root, archive (the files, where this is the path), input directory, base path
+
+**Working directory**:
+The one directory an invocation writes into, kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, `vespera.log`, `profile.yaml`, the pages the stages write for the operator, the label file and the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-196).
+_Avoid_: db dir (the option's spelling, not the term), output directory, data directory, workspace
+_Not to be confused with_: the directory a process or a shell command is started in. That is the **current directory**, as ADR-066 writes it, in every name and record of ours, never the working directory.
+
 **Walk**:
 One observation of a filesystem, producing file occurrences. Carries the root it observed and whether it finished, because a partial walk that looks complete curates a fraction of the archive and reports success.
 _Avoid_: scan, crawl, import

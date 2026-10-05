@@ -85,6 +85,9 @@ ajcore.*.txt
 # repository's, and only this one directory beneath it is an install.
 /.claude/skills/
 
+# Places one machine lets Claude read beyond .claude/allowed-paths.txt. Per-machine by definition.
+/.claude/allowed-paths.local.txt
+
 # Qodana's local run: the SARIF report it writes at the repository root (megabytes of it, one file
 # per run), its cache directory, and the profile the IDE generated to produce them. All three are
 # IDE-local today -- nothing in .github/workflows runs Qodana -- and `git add -A` sweeps them in
