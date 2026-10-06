@@ -44,6 +44,9 @@ class SurvivorsTest {
     /** Files this test records against the walk: two that survive, one that is ruled out. */
     private static final int OCCURRENCES_RECORDED = 3;
 
+    /** More than the 1,000 a page of the reader holds, so the read crosses two page boundaries. */
+    private static final int OCCURRENCES_OVER_THREE_PAGES = 2_500;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -214,6 +217,46 @@ class SurvivorsTest {
                 "both runs the third run read are recorded against it, as rows rather than as one"
                         + " delimited value",
                 () -> assertThat(ledger.upstreamRuns(third)).containsExactlyInAnyOrder(first, second));
+    }
+
+    /**
+     * What stage 1's first pass relies on since ADR-200: it writes a verdict for a survivor while the reader
+     * is still open, across page boundaries, and must be handed every survivor still to come.
+     */
+    @Test
+    @Story("What survives a stage")
+    @DisplayName("A verdict written for each survivor as it arrives loses no survivor still to come")
+    @Issue("405")
+    @Link(name = "ADR-200", url = Adr.STAGE_1_HOLDS_ONE_SIZE_AT_A_TIME, type = "adr")
+    void aVerdictWrittenMidReadRemovesNothingToCome() throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        List<OccurrenceId> recorded = new ArrayList<>();
+        for (int i = 0; i < OCCURRENCES_OVER_THREE_PAGES; i++) {
+            recorded.add(record(ledger, walkId, "f" + i + ".txt"));
+        }
+        RunId runId = ledger.startRun("byte-level-reduction", "abc123", "{}", walkId, List.of());
+
+        List<OccurrenceId> handedOut = new ArrayList<>();
+        ItemStreamReader<OccurrenceId> reader = ledger.survivors(runId);
+        reader.open(new ExecutionContext());
+        try {
+            for (OccurrenceId id = reader.read(); id != null; id = reader.read()) {
+                ledger.verdict(id, runId, VerdictKind.BROKEN, "written while reading");
+                handedOut.add(id);
+            }
+        } finally {
+            reader.close();
+        }
+
+        claim(
+                "all " + OCCURRENCES_OVER_THREE_PAGES + " occurrences were handed out, each once and in the order"
+                        + " they were recorded, although each had a blocking verdict written the moment it arrived"
+                        + " and the read went over three pages",
+                () -> assertThat(handedOut).containsExactlyElementsOf(recorded));
+        claim(
+                "and once the read has ended none of them is a survivor, so the verdicts written during it count",
+                () -> assertThat(drain(ledger.survivors(runId))).isEmpty());
     }
 
     private static OccurrenceId record(Ledger ledger, WalkId walkId, String path) {

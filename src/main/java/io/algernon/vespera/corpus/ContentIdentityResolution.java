@@ -37,7 +37,8 @@ public final class ContentIdentityResolution {
     /**
      * Reads the survivor set twice, in ascending size and never as a whole: the anti-join {@link
      * Ledger#survivorsBySize} always runs excludes what the first pass verdicted, so this pass's own
-     * boundary needs no application-level filtering, and each read holds one size at a time (ADR-200).
+     * boundary needs no application-level filtering. The first read holds no survivor, only a count,
+     * and the second holds one size at a time (ADR-200).
      *
      * <p>The first read sizes every survivor and adds up what the second will hash, a size's members
      * counting only when two or more share it, so the hash pass's total is known before its first hash

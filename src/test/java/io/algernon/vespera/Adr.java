@@ -1128,7 +1128,7 @@ public final class Adr {
             + "0202-generation-and-embedding-refuse-an-ollama-model-not-served-on-this-machine-before-anything-is-sent.md";
 
     /**
-     * ADR-203— the invocation account's folder is judged by every reading of its name (as text, where it
+     * ADR-203 — the invocation account's folder is judged by every reading of its name (as text, where it
      * leads, as the file system walks it, and where this machine's own calls lead), a name that is there
      * and cannot be followed is refused with a line of its own, and the account is written only where it
      * was judged (amends ADR-198 sections 1, 6 and 7; rests on ADR-201 and ADR-196; settles #436).
@@ -1137,8 +1137,9 @@ public final class Adr {
             + "0203-the-invocation-accounts-folder-is-judged-by-every-reading-of-its-name-and-a-name-that-cannot-be-followed-is-refused.md";
 
     /**
-     * ADR-200— stage 1 reads a run's survivors in ascending size and holds one size at a time, in both
-     * reads of its second pass; the first pass holds none; one index on the walk and the size is added,
+     * ADR-200 — stage 1 reads a run's survivors in ascending size, twice, and never holds more than one
+     * size of them: the read that sizes holds no survivor, only how many share the size in hand, and the
+     * read that hashes holds one size at a time; the first pass holds none; one index on the walk and the size is added,
      * so no schema version moves; the rows of different sizes are now written in size order, where they
      * were written in the order each size was first met, and no test pins that order; stage 1 has no
      * drain left, so it has no timed statement (amends ADR-188 sections 1 and 2 in what they say of

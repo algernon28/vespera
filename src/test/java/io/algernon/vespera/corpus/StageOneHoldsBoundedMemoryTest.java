@@ -63,12 +63,6 @@ class StageOneHoldsBoundedMemoryTest {
     /** The lone file of size 5, the two files of size 11, and the one look-ahead read to learn a size has ended. */
     private static final int FIRST_SIZE_AND_ONE_LOOK_AHEAD = 4;
 
-    /**
-     * The three files of size 20, or the three of size 30, which are the most that share one size, and the
-     * one look-ahead read to learn that size has ended.
-     */
-    private static final int LARGEST_SIZE_AND_ONE_LOOK_AHEAD = 4;
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -187,13 +181,14 @@ class StageOneHoldsBoundedMemoryTest {
 
     /**
      * The read that sizes, which comes before the one that hashes and which {@link #holdsOneSizeWhileHashing}
-     * cannot see: were it to read every survivor before reporting the first, eight would be waiting at the
-     * first report, and this fails.
+     * cannot see. It holds no survivor, only how many share the size in hand (ADR-200 section 2): were it to
+     * read every survivor before reporting the first, eight would be waiting at the first report, and were it
+     * to gather each size before reporting it, three would be waiting at the first report of size 20.
      */
     @Test
     @Story("Content identity resolves one size at a time")
-    @DisplayName("Each time a file's size is reported, no more files are waiting to be reported than the most that share one size, and one")
-    void holdsOneSizeWhileSizing(@TempDir Path root) throws Exception {
+    @DisplayName("Each time a file's size is reported, no file that has been read is waiting to be reported")
+    void holdsNoSurvivorWhileSizing(@TempDir Path root) throws Exception {
         Corpus corpus = new Corpus(root);
         corpus.occurrence("c1.txt", "c".repeat(30), LATER);
         corpus.occurrence("a1.txt", "a".repeat(20), LATER);
@@ -216,12 +211,10 @@ class StageOneHoldsBoundedMemoryTest {
                 "a read of the survivors by size was open every time a size was reported",
                 () -> assertThat(progress.openAtEverySizing).isTrue());
         claim(
-                "and every time, the survivors handed out and not yet reported were no more than "
-                        + LARGEST_SIZE_AND_ONE_LOOK_AHEAD
-                        + ": the three that share the commonest size and the one that showed that size had ended,"
-                        + " never the " + (SURVIVORS - 1) + " that would be waiting had the whole set been read first",
-                () -> assertThat(progress.handedOutAheadOfSizing)
-                        .allSatisfy(ahead -> assertThat(ahead).isLessThanOrEqualTo(LARGEST_SIZE_AND_ONE_LOOK_AHEAD)));
+                "and every time, every survivor handed out so far had been reported, this one included: none was"
+                        + " waiting, where " + (SURVIVORS - 1) + " would be had the whole set been read first, and"
+                        + " up to three had each size been gathered before it was reported",
+                () -> assertThat(progress.handedOutAheadOfSizing).containsOnly(0));
     }
 
     @Test

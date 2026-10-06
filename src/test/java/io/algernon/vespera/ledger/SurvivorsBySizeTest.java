@@ -161,6 +161,15 @@ class SurvivorsBySizeTest {
                         .allSatisfy(plan -> assertThat(plan)
                                 .anyMatch(detail -> detail.contains("file_occurrence_by_walk_and_size"))));
         claim(
+                "each page's search of that index is bounded below by the size as well as by the folder walked,"
+                        + " so a page starts where the last one ended; a search bounded by the walk alone names"
+                        + " the same index and sorts nothing, and goes through the walk from its smallest file"
+                        + " on every page",
+                () -> assertThat(plans)
+                        .allSatisfy(plan -> assertThat(plan)
+                                .anyMatch(detail -> detail.contains("file_occurrence_by_walk_and_size")
+                                        && detail.contains("size_bytes>"))));
+        claim(
                 "and no page's plan names a temp B-tree, so no page sorts the walk it reads from",
                 () -> assertThat(plans)
                         .allSatisfy(plan -> assertThat(plan).noneMatch(detail -> detail.contains("TEMP B-TREE"))));
