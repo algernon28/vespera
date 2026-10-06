@@ -21,10 +21,11 @@ import org.springframework.stereotype.Component;
  * key of its own. It refuses, before anything is sent, and checks in this order. First its own check: the
  * endpoint Spring AI will actually call (its connection details, not a property that may differ from
  * them) is not this machine. Then the check every call to Ollama passes, {@link LocalOllamaModel} (ADR-202):
- * the model's tag ends in {@code cloud}, {@code /api/show} reports the model as remote, or whether it is
- * remote cannot be established. A loopback address alone does not keep a document here, because an Ollama
- * cloud model is served by the local daemon and forwarded to ollama.com, and a model whose remoteness
- * cannot be established is refused, never assumed local. Last, the digest it reads for its identity: one
+ * the model's tag ends in {@code cloud}, {@code /api/show} reports the model as remote, the daemon answers
+ * 404 because it serves no model of that name, or whether it is remote cannot be established. A loopback
+ * address alone does not keep a document here, because an Ollama cloud model is served by the local
+ * daemon and forwarded to ollama.com, and a model whose remoteness cannot be established is refused,
+ * never assumed local. Last, the digest it reads for its identity: one
  * that cannot be read is refused too.
  *
  * <p>A reply that is not exactly one of the two words is no answer, and a question with no opening is

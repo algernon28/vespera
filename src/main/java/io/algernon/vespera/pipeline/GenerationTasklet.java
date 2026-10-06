@@ -229,7 +229,7 @@ class GenerationTasklet implements Tasklet {
         String modelName = generationModel.name();
         Optional<String> refusal = LocalOllamaModel.refusalOf(modelName, ollamaClient);
         if (refusal.isPresent()) {
-            stopOnAModelNotServedHere(contribution, chunkContext, modelName, refusal.get());
+            stopOnAGenerationModelNotServedHere(contribution, chunkContext, modelName, refusal.get());
             return RepeatStatus.FINISHED;
         }
 
@@ -734,7 +734,7 @@ class GenerationTasklet implements Tasklet {
      * stands where the one line belongs. It is called before the run is resolved, so nothing is written
      * and the step's status is all that carries the non-zero exit.
      */
-    private static void stopOnAModelNotServedHere(
+    private static void stopOnAGenerationModelNotServedHere(
             StepContribution contribution, ChunkContext chunkContext, String modelName, String refusal) {
         LOG.error(
                 "the generation step stopped: the generation model {} was refused, so no question was put and"
