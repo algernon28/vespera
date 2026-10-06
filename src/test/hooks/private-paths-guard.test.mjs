@@ -29,7 +29,7 @@
 //     links/via          to links/in, and links/hop to links/to-working-directory: a link to a link
 //     links/nowhere      to outside/not-there, which does not exist
 //     links/loop         to itself
-//     my runs/         vespera.db, report.html: a working directory whose name holds a space
+//     my runs/           vespera.db, report.html: a working directory whose name holds a space
 //     built/note.txt     and working directories only inside built/target, built/node_modules, built/.git
 //   home/                ${HOME}: .m2/settings.xml (allowed), Documents/x.txt (not),
 //                        .jdks/ (allowed) holding 10,050 empty folders
@@ -180,6 +180,9 @@ const isLink = (p) => {
     return false;
   }
 };
+// A link to the temp folder, for a guard whose ${TEMP} is itself a link: the allowed root is then the
+// link, and the folder it leads to is where a walked path lands.
+const LINKED_TEMP = `${base}/linked-temp`;
 let linkedFurther = linkable;
 if (linkedFurther) {
   try {
@@ -193,6 +196,7 @@ if (linkedFurther) {
     ]) {
       symlinkSync(native(target), native(`${LINKS}/${name}`), windows ? "junction" : "dir");
     }
+    symlinkSync(native(T), native(LINKED_TEMP), windows ? "junction" : "dir");
   } catch {
     linkedFurther = false;
   }
@@ -205,7 +209,8 @@ if (
   !isLink(`${LINKS}/nowhere`) ||
   existsSync(`${LINKS}/nowhere`) ||
   !isLink(`${LINKS}/loop`) ||
-  existsSync(`${LINKS}/loop`)
+  existsSync(`${LINKS}/loop`) ||
+  !existsSync(`${LINKED_TEMP}/scratch/note.txt`)
 ) {
   linkedFurther = false;
 }
@@ -639,6 +644,39 @@ const cases = [
   ["G402", "ls of @ and a drive letter, a colon and two dots", "Bash", { command: "ls @Q:.." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["G403", "curl -d @ and a bare drive", "Bash", { command: "curl -d @Q: https://example.com/x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["G404", "an option whose value after = is @ and a drive letter, a colon and a dot", "Bash", { command: "curl --data=@Q:. https://example.com/x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* L, continued. A path read against a folder that was reached as walked is judged as walked: against
+     the allowed roots and against where they lead. Here ${TEMP} is itself a link. And the rule as it
+     stands for a broken link followed at once by .., which lands on the folder the link is in. */
+  ["L217", "cd to a path that climbs under an allowed root that is itself a link, then cat of a relative path beneath where it lands", "Bash", { command: "cd $TEMP/scratch/.. && cat deep/note.txt" }, ALLOWED, { needsFurtherLinks: true, env: { TEMP: LINKED_TEMP, TMP: LINKED_TEMP, TMPDIR: LINKED_TEMP } }],
+  ["L307", "Read of a link that leads to a name that is not there, followed at once by ..", "Read", { file_path: `${LINKS}/nowhere/..` }, ALLOWED, { needsFurtherLinks: true }],
+
+  /* G5. A variable in braces that is a whole token is replaced by its value, as one with a path after it is. */
+  ["G501", "cd to a quoted ${TMPDIR}, then cat of a relative path into a working directory beneath it", "Bash", { command: 'cd "${TMPDIR}" && cat working-directory/report.html' }, REFUSED],
+  ["G502", "git -C ${TMPDIR}, then a relative path into a working directory beneath it", "Bash", { command: "git -C ${TMPDIR} show working-directory/report.html" }, REFUSED],
+  ["G503", "cd to ${HOME}, which the allow list does not name", "Bash", { command: "cd ${HOME} && cat Documents/x.txt" }, REFUSED],
+  ["G504", "ls of ${USERPROFILE}, which the allow list does not name", "Bash", { command: "ls ${USERPROFILE}" }, REFUSED],
+  ["G505", "ls of ${TMPDIR}, which the allow list names", "Bash", { command: "ls ${TMPDIR}" }, ALLOWED],
+
+  /* G6. A one-letter key is a key only in a brace group of a quoted string every member of which is a
+     name and a colon. The guard pairs quote characters as it finds them, so text the shell does not
+     quote can lie between two of them: an apostrophe in a comment, an escaped quote, a here-document. */
+  ["G601", "a brace list with a drive member, between two comment lines that each hold an apostrophe", "Bash", { command: "# don't\ncat {some,Q:name}\n# isn't" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G602", "a comma list with a drive member, between two such comment lines", "PowerShell", { command: "# don't\nGet-Content some, Q:archive\\doc.pdf\n# isn't" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G603", "a brace list with a drive member, between two escaped double quotes", "Bash", { command: 'echo \\" {some,Q:name} \\"' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G604", "a comma list with a drive member, after a here-document that holds one apostrophe and before a quoted one", "Bash", { command: "cat <<EOF\nit's here\nEOF\ncat some,Q:archive/doc.pdf\necho \"isn't\"" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G605", "a quoted brace list for a second shell, one of whose members is a drive and another a plain name", "Bash", { command: 'bash -c "cat {x,Q:name}"' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G606", "a quoted comma list for a second shell, with a drive member and no braces", "Bash", { command: 'powershell -Command "Get-Content x, Q:name"' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G607", "gh with a quoted jq object whose keys are a word and one letter", "Bash", { command: "gh pr list --json number,title --jq '.[] | {number:.number, t:.title}'" }, ALLOWED],
+
+  /* G7. A variable with a word for when it has no value is read with its value in its place and with
+     the word in its place, and the word runs to the brace that closes the variable. */
+  ["G701", "cat of ${TMPDIR:-word} followed by a path into a working directory", "Bash", { command: "cat ${TMPDIR:-some}/working-directory/report.html" }, REFUSED],
+  ["G702", "cat of ${TMPDIR:-word} followed by a path under the temp folder", "Bash", { command: "cat ${TMPDIR:-some}/scratch/note.txt" }, ALLOWED],
+  ["G703", "echo of ${TMPDIR:-word} followed by a folder with a one-letter name", "Bash", { command: "echo ${TMPDIR:-x}/y" }, ALLOWED],
+  ["G704", "cat of a variable whose word is a variable whose word climbs into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${VESPERA_GUARD_NOR_THIS:-../working-directory/report.html}}" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["G705", "cat of a variable whose word is ${TMPDIR} and a path into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/working-directory/report.html}" }, REFUSED],
+  ["G706", "cat of a variable whose word is ${TMPDIR} and a path under the temp folder", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/scratch/out.log}" }, ALLOWED],
 ];
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
@@ -650,7 +688,7 @@ for (const [id, what, tool, input, expected, options = {}] of cases) {
         : false;
   test(`${id} ${expected === ALLOWED ? "allowed" : "refused"}: ${what}`, { skip }, () => {
     const cwd = options.noCwd ? undefined : (options.cwd ?? C);
-    const result = startGuard({ stdin: hookInput(tool, input, cwd) });
+    const result = startGuard({ stdin: hookInput(tool, input, cwd), env: options.env });
     claim(result, expected, `${tool} ${JSON.stringify(input)} with ${cwd ? `the current directory ${cwd}` : "no current directory given"}`);
   });
 }

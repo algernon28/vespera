@@ -133,6 +133,7 @@ These are stated so nobody takes the hook for the whole of the protection. For e
 
 - **A brace list with text before or after it**, `../{a,b}/x`. The pieces are read, and so is the token as it is written, but the list is not expanded as the shell expands it.
 - **A variable written for `cmd`**, `%USERPROFILE%\Documents\x`. It is read as a relative path of that spelling.
+
 - **`mcp__*` tools.** A file tool an MCP server offers is not one of the eight, and the hook never sees its call.
 - **Monitor**, which runs a shell command and is not one of the eight.
 - **A path a script builds at run time.** `cat "$(some-command)"`, a variable set earlier in the same command, a loop over a listing, a program that opens a path it computed. The hook reads text, and the path is not in it.
