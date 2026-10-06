@@ -76,6 +76,9 @@ public class ByteLevelReductionTasklet implements Tasklet {
 
     private static final Logger log = LoggerFactory.getLogger(ByteLevelReductionTasklet.class);
 
+    /** Stage 1's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 1 (byte-level reduction)";
+
     private final Ledger ledger;
     private final ContentIdentity contentIdentity;
     private final DetectedFormats detectedFormats;
@@ -153,7 +156,10 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * and the tally; what is written here is the operator's text, the page, and the floor's measurement.
      */
     private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot, Double logFloor) throws Exception {
-        StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", ledger.survivorCount(runId));
+        // The anti-join over the walk's occurrences is the count itself, so there is no cheaper total to count
+        // against and the wait is timed (ADR-193 section 1, ADR-199 section 2).
+        long survivors = TimedStatement.count(STAGE, "the survivors to check", () -> ledger.survivorCount(runId));
+        StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", survivors);
         FormatMix mix = new BrokenOrOutOfScope(ledger, detectedFormats, textSizeLimits())
                 .verdictSurvivors(runId, canonicalRoot, logFloor, new CheckingProgress() {
                     @Override
@@ -197,11 +203,16 @@ public class ByteLevelReductionTasklet implements Tasklet {
     /**
      * The second pass. {@code corpus} resolves content identity; this opens the progress counters over the
      * counts it reports and writes each hashed line. Three loops are counted (ADR-192): the sizes read, over
-     * the survivors the pass will read ({@code Ledger.survivorCount}); the hashes, over the files sharing a
+     * the survivors the pass will read ({@code Ledger.survivorCount}, timed from the call to {@code resolve} to
+     * its first callback); the hashes, over the files sharing a
      * size; and the duplicates recorded, a running count opened when the hashing is announced, since how
      * many files are copies is known only afterwards.
      */
     private void resolveDuplicates(RunId runId, Path canonicalRoot) throws Exception {
+        // The first thing resolve does is count the survivors, and toSize, called with that count, is its first
+        // callback: so the stretch from the call to toSize is the count and nothing else, and corpus tells
+        // this class when it ends without a line of its own (ADR-199 section 2).
+        TimedStatement sizing = TimedStatement.countStarted(STAGE, "the survivors to size");
         new ContentIdentityResolution(ledger, contentIdentity).resolve(runId, canonicalRoot, new HashingProgress() {
             private StageProgress sizes;
             private StageProgress progress;
@@ -209,6 +220,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
 
             @Override
             public void toSize(long survivors) {
+                sizing.ended();
                 sizes = StageProgress.over("Stage 1 (byte-level reduction, sizes read)", survivors);
             }
 

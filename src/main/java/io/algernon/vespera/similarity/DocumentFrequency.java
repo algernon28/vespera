@@ -48,12 +48,19 @@ public class DocumentFrequency {
     }
 
     /**
-     * As {@link #measure(RunId, RunId)}, and tells {@code progress} the number of distinct (granularity,
+     * As {@link #measure(RunId, RunId)}, and tells {@code progress}, in this order: that the drain of stage
+     * 2's survivors starts and ends ({@link SimilarityStatement#FREQUENCY_SURVIVORS}, timed, so with no
+     * total); that the read of the shingle rows starts, with {@link #shingleRowsUpTo} as its total, empty
+     * where the run holds no shingle row, the steps SQLite has taken at each of that read's callbacks, and
+     * that it ends ({@link SimilarityStatement#SHINGLE_ROWS}); then the number of distinct (granularity,
      * hash) pairs counted in memory once, before the first is gone through (zero included), and each one
-     * gone through, a row written for it or not (ADR-192 section 5).
+     * gone through, a row written for it or not (ADR-192 section 5, ADR-193 section 7). A statement that
+     * throws is not told to have ended.
      */
     public void measure(RunId stage3RunId, RunId stage2RunId, FrequencyProgress progress) {
+        progress.statementStarting(SimilarityStatement.FREQUENCY_SURVIVORS, OptionalLong.empty());
         Set<Long> survivorIds = drainSurvivors(stage2RunId);
+        progress.statementEnded(SimilarityStatement.FREQUENCY_SURVIVORS);
 
         Map<Hash, Counts> byHash = new HashMap<>();
         Map<String, Set<Long>> shingledOccurrencesByParameter = new HashMap<>();

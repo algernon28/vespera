@@ -72,6 +72,9 @@ class RelevanceReportTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(RelevanceReportTasklet.class);
 
+    /** The report's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 5 (relevance report)";
+
     private final DocumentOpening documentOpening;
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
@@ -149,9 +152,13 @@ class RelevanceReportTasklet implements Tasklet {
         RunId scoring = stageRuns.embeddingScoring();
 
         RelevanceDistribution.Distribution distribution;
+        TimedStatement readingTheScores = TimedStatement.readStarted(STAGE, "the scores");
         try {
             distribution = relevanceDistribution.measure(scoring);
+            readingTheScores.ended();
         } catch (java.util.NoSuchElementException nothingScored) {
+            // The read finished and found no score: that is the gate's answer, not a statement that failed.
+            readingTheScores.ended();
             LOG.info("stage 5's relevance-report step is gated: no survivor carries a relevance score"
                     + " under {}, so there is no spread to report. Nothing was put to a person.",
                     scoring.value());
@@ -184,13 +191,18 @@ class RelevanceReportTasklet implements Tasklet {
                 RelevanceLabellingReport.render(
                         distribution,
                         previews,
-                        relevanceDistribution.spreadOf(scoring, answers),
+                        TimedStatement.read(
+                                STAGE,
+                                "the scores against the answers",
+                                () -> relevanceDistribution.spreadOf(scoring, answers)),
                         ignoredFloor().orElse(null)));
         write(
                 RelevanceLabelFile.FILE_NAME,
                 RelevanceLabelFile.render(
                         scoring.value(),
-                        relevanceDistribution.anyEmbedderIdentity().orElse(modelName),
+                        TimedStatement.read(
+                                        STAGE, "the embedder identities", relevanceDistribution::anyEmbedderIdentity)
+                                .orElse(modelName),
                         // The preamble's seed-walk gate is open, and SeedGate opens it only for a seed
                         // folder the profile names and that canonicalises, so this is always present
                         // (ADR-169 §4).
@@ -222,11 +234,12 @@ class RelevanceReportTasklet implements Tasklet {
         if (modelName.isEmpty()) {
             return Optional.empty();
         }
-        Optional<String> currentIdentity = relevanceDistribution.embedderIdentityFor(modelName.get());
+        Optional<String> currentIdentity = TimedStatement.read(
+                STAGE, "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName.get()));
         if (currentIdentity.isEmpty()) {
             return Optional.empty();
         }
-        if (relevanceFloor.stateFor(currentIdentity.get())
+        if (relevanceFloor.stateFor(currentIdentity.get(), STAGE)
                 instanceof RelevanceFloor.CalibratedElsewhere elsewhere) {
             return Optional.of(new RelevanceLabellingReport.IgnoredFloor(
                     elsewhere.value(), elsewhere.calibratedUnder(), elsewhere.currentIdentity()));
@@ -255,7 +268,8 @@ class RelevanceReportTasklet implements Tasklet {
             return Map.of();
         }
         Map<OccurrenceId, Boolean> answers = new LinkedHashMap<>();
-        List<RelevanceLabel> recorded = relevanceLabels.forSeedSet(seedSet);
+        List<RelevanceLabel> recorded =
+                TimedStatement.read(STAGE, "the recorded answers", () -> relevanceLabels.forSeedSet(seedSet));
         StageProgress matched = StageProgress.over("Stage 5 (relevance report, answers matched)", recorded.size());
         for (RelevanceLabel label : recorded) {
             ledger.occurrenceId(walk.get(), label.path())
@@ -272,8 +286,9 @@ class RelevanceReportTasklet implements Tasklet {
             return Map.of();
         }
         Map<OccurrenceId, String> byOccurrence = new LinkedHashMap<>();
-        relevanceLabels.modelAnswers(seedSet).forEach((path, model) -> ledger.occurrenceId(
-                        walk.get(), new OccurrencePath(path))
+        Map<String, String> modelAnswers =
+                TimedStatement.read(STAGE, "the answers a model gave", () -> relevanceLabels.modelAnswers(seedSet));
+        modelAnswers.forEach((path, model) -> ledger.occurrenceId(walk.get(), new OccurrencePath(path))
                 .ifPresent(occurrence -> byOccurrence.put(occurrence, model)));
         return byOccurrence;
     }

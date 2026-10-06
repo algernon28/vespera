@@ -55,6 +55,14 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>Part (c) of ADR-192.</b> This compiles against main and is red there at the claims that the counters'
  * lines are there, each after a claim that the stage ran; part (c) moves it into {@code src/test} and turns it
  * green. The claims that a loop which did not run writes no counter pass on main and have to go on passing.
+ *
+ * <p><b>Parked under {@code docs/adr/0193/tests/b/} with claims added to the file of this name in {@code
+ * src/test}</b>, which it replaces when part (b) of ADR-193 lands (ADR-193 section 6, ADR-199 section 3,
+ * #411, #429): every statement stage 5b to stage 6a issues outside a loop has a line before it and a line
+ * after it with the seconds it took, once each, in the order the step issues them. 5b's two reads of the
+ * extraction metrics are counted, and their totals are left out of the comparison here, being pinned where
+ * {@code embedding} hands them over ({@code EmbeddingStatementProgressOrderTest}). On main every such claim is
+ * red by assertion, the lines not being written, and every other claim here passes.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -107,6 +115,24 @@ class StageFiveReportsItsProgressInvocationTest {
     private static final String ARRANGEMENT_CLUSTERS = "Stage 6a (arrangement, clusters)";
     private static final String ARRANGEMENT_PAGE_ROWS = "Stage 6a (arrangement, page rows)";
     private static final String ARRANGEMENT_PAGE_PARTITIONS = "Stage 6a (arrangement, page partitions)";
+
+    /** Each stage's own name, which its statement lines open with. */
+    private static final String STAGE_FIVE_B = "Stage 5b (seed/corpus comparison)";
+
+    private static final String STAGE_FIVE_C = "Stage 5c (embedding scoring)";
+    private static final String STAGE_FIVE_D = "Stage 5d (relevance scoring)";
+    private static final String STAGE_FIVE_E = "Stage 5e (relevance floor)";
+    private static final String STAGE_FIVE_F = "Stage 5f (clustering)";
+    private static final String THE_REPORT = "Stage 5 (relevance report)";
+    private static final String STAGE_SIX_A = "Stage 6a (arrangement)";
+
+    /** What the statements read, as their lines name it (ADR-193 section 6, ADR-199 section 3). */
+    private static final String CORPUS_SURVIVORS = "the corpus survivors";
+
+    private static final String SEED_OCCURRENCES = "the seed walk's occurrences";
+    private static final String UNUSABLE_SEEDS = "the unusable seeds";
+    private static final String EMBEDDER_IDENTITIES = "the embedder identities";
+    private static final String RECORDED_ANSWERS = "the recorded answers";
 
     private static final String EMBEDDING_STARTING = "Stage 5c (embedding scoring) starting under scoring run ";
     private static final String EMBEDDING_FINISHED = "Stage 5c (embedding scoring) finished under scoring run ";
@@ -212,6 +238,30 @@ class StageFiveReportsItsProgressInvocationTest {
                                 EMBEDDING_SEEDS + ": 1 of 1",
                                 EMBEDDING_FINISHED));
         everyLineIsTheCounters(EMBEDDING_SURVIVORS, EMBEDDING_SEEDS);
+        claim(
+                "the comparison of the seeds with the collection says what it is reading and how long each read"
+                        + " took, each line once, in the order it reads: the documents left, the seed folder's"
+                        + " files, and the extraction metrics of each side; and nothing about unusable seeds,"
+                        + " none being recorded",
+                () -> assertThat(StatementLines.withoutTotals(StatementLines.of(operatorLines(), STAGE_FIVE_B)))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_FIVE_B, CORPUS_SURVIVORS),
+                                StatementLines.timedRead(STAGE_FIVE_B, SEED_OCCURRENCES),
+                                StatementLines.countedRead(STAGE_FIVE_B, "the corpus survivors' extraction metrics"),
+                                StatementLines.countedRead(STAGE_FIVE_B, "the seeds' extraction metrics"))));
+        claim(
+                "embedding says the same of its three reads, in the order it makes them, before it embeds"
+                        + " anything",
+                () -> {
+                    assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_C))
+                            .containsExactlyElementsOf(StatementLines.inOrder(
+                                    StatementLines.timedRead(STAGE_FIVE_C, CORPUS_SURVIVORS),
+                                    StatementLines.timedRead(STAGE_FIVE_C, SEED_OCCURRENCES),
+                                    StatementLines.timedRead(STAGE_FIVE_C, UNUSABLE_SEEDS)));
+                    assertThat(String.join("\n", operatorLines()))
+                            .containsSubsequence(
+                                    STAGE_FIVE_C + " read " + UNUSABLE_SEEDS + " in ", EMBEDDING_SURVIVORS + ": 1 of 3");
+                });
     }
 
     @Test
@@ -236,6 +286,15 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(SCORING_SURVIVORS))
                         .containsExactlyElementsOf(ProgressLines.expected(SCORING_SURVIVORS, CORPUS_DOCUMENTS)));
         everyLineIsTheCounters(SEED_FILES, SEED_VECTORS, SCORING_SURVIVORS);
+        claim(
+                "scoring says what it is reading and how long each read took, each line once, in the order it"
+                        + " reads: the seed folder's files and the unusable seeds, for the seeds it hashes, and"
+                        + " then the documents left",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_D))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_FIVE_D, SEED_OCCURRENCES),
+                                StatementLines.timedRead(STAGE_FIVE_D, UNUSABLE_SEEDS),
+                                StatementLines.timedRead(STAGE_FIVE_D, CORPUS_SURVIVORS))));
     }
 
     @Test
@@ -253,6 +312,24 @@ class StageFiveReportsItsProgressInvocationTest {
                 "no answer has been recorded for this seed set, so the relevance report has none to look up and"
                         + " writes no answers counter",
                 () -> assertThat(progressOf(REPORT_ANSWERS)).isEmpty());
+        claim(
+                "with no threshold set, the floor step makes one read, of the embedder identities, and says so"
+                        + " before and after: it asks for no answers and for no scores",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_E))
+                        .containsExactlyElementsOf(StatementLines.timedRead(STAGE_FIVE_E, EMBEDDER_IDENTITIES)));
+        claim(
+                "and the report says what it is reading and how long each read took, each line once, in the"
+                        + " order it reads: the scores, the recorded answers, the scores against the answers, the"
+                        + " embedder identities twice, once for each question it asks of them, and the answers a"
+                        + " model gave",
+                () -> assertThat(StatementLines.of(operatorLines(), THE_REPORT))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(THE_REPORT, "the scores"),
+                                StatementLines.timedRead(THE_REPORT, RECORDED_ANSWERS),
+                                StatementLines.timedRead(THE_REPORT, "the scores against the answers"),
+                                StatementLines.timedRead(THE_REPORT, EMBEDDER_IDENTITIES),
+                                StatementLines.timedRead(THE_REPORT, EMBEDDER_IDENTITIES),
+                                StatementLines.timedRead(THE_REPORT, "the answers a model gave"))));
 
         anAnswerGivenUnderThisRunsIdentity(root, seeds);
         profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
@@ -280,6 +357,28 @@ class StageFiveReportsItsProgressInvocationTest {
                 "and an emptied partition opens no counter over its blocks",
                 () -> assertThat(progressOf(BLOCKS)).isEmpty());
         everyLineIsTheCounters(RELEVANCE_FLOOR, REPORT_ANSWERS, PARTITIONS);
+        claim(
+                "with a threshold that is a number and applies, the floor step makes three reads and says so of"
+                        + " each, in order: the embedder identities, the recorded answers the threshold is"
+                        + " checked against, and the scores below it",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_E))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_FIVE_E, EMBEDDER_IDENTITIES),
+                                StatementLines.timedRead(STAGE_FIVE_E, RECORDED_ANSWERS),
+                                StatementLines.timedRead(STAGE_FIVE_E, "the scores below the floor"))));
+        claim(
+                "and the report reads the recorded answers a second time, for the same check of the threshold,"
+                        + " between its two reads of the embedder identities, and says so in the report's own"
+                        + " name",
+                () -> assertThat(StatementLines.of(operatorLines(), THE_REPORT))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(THE_REPORT, "the scores"),
+                                StatementLines.timedRead(THE_REPORT, RECORDED_ANSWERS),
+                                StatementLines.timedRead(THE_REPORT, "the scores against the answers"),
+                                StatementLines.timedRead(THE_REPORT, EMBEDDER_IDENTITIES),
+                                StatementLines.timedRead(THE_REPORT, RECORDED_ANSWERS),
+                                StatementLines.timedRead(THE_REPORT, EMBEDDER_IDENTITIES),
+                                StatementLines.timedRead(THE_REPORT, "the answers a model gave"))));
     }
 
     @Test
@@ -311,6 +410,16 @@ class StageFiveReportsItsProgressInvocationTest {
                         + " the partition's counter",
                 () -> assertThat(progressOf(MEMBERS_RECORDED)).isEmpty());
         everyLineIsTheCounters(PARTITIONS, FILES_HASHED, BLOCKS);
+        claim(
+                "grouping says what it is reading and how long each read took, each line once, in the order it"
+                        + " reads: the seed partitions, the documents left, the members of the one partition,"
+                        + " and, once that partition is grouped, the sizes of its groups",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_F))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
+                                StatementLines.timedRead(STAGE_FIVE_F, CORPUS_SURVIVORS),
+                                StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 1"),
+                                StatementLines.timedRead(STAGE_FIVE_F, "the cluster sizes of partition 1 of 1"))));
     }
 
     @Test
@@ -381,6 +490,7 @@ class StageFiveReportsItsProgressInvocationTest {
         everyLineIsTheCounters(
                 ARRANGEMENT_SCORES, ARRANGEMENT_MEMBERS, ARRANGEMENT_CLUSTERS, ARRANGEMENT_PAGE_ROWS,
                 ARRANGEMENT_PAGE_PARTITIONS);
+        theArrangementSaidItsTwoReads();
     }
 
     /**
@@ -422,6 +532,22 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(ARRANGEMENT_CLUSTERS)).isEmpty());
         everyLineIsTheCounters(
                 ARRANGEMENT_SCORES, ARRANGEMENT_MEMBERS, ARRANGEMENT_PAGE_ROWS, ARRANGEMENT_PAGE_PARTITIONS);
+        theArrangementSaidItsTwoReads();
+    }
+
+    /**
+     * That the arrangement said it read the membership and then the groups recorded, and how long each took,
+     * once each: on the branch that records them and on the branch that finds them recorded, which reads
+     * them for the page it writes again.
+     */
+    private void theArrangementSaidItsTwoReads() {
+        claim(
+                "the arrangement says it is reading which document is in which group, and how long that took,"
+                        + " and then the same of the groups recorded: each line once, in that order",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_SIX_A))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_SIX_A, "the cluster membership"),
+                                StatementLines.timedRead(STAGE_SIX_A, "the recorded clusters"))));
     }
 
     /** That every line of each named counter came from {@code StageProgress}'s logger, and that there was one. */

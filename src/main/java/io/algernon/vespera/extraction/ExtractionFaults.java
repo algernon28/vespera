@@ -2,7 +2,6 @@ package io.algernon.vespera.extraction;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
-import java.util.HashSet;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -60,10 +59,18 @@ public class ExtractionFaults {
      * step reads again, and the ones whose resolving verdicts it deletes first.
      */
     public Set<OccurrenceId> occurrencesForRun(RunId runId) {
-        return new HashSet<>(jdbcTemplate.query(
-                "SELECT occurrence_id FROM extraction_fault WHERE run_id = ?",
-                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
-                runId.value()));
+        return occurrencesForRun(runId, ExtractionStatementProgress.NONE);
+    }
+
+    /**
+     * As {@link #occurrencesForRun(RunId)}, and tells {@code progress} that the read starts, over the span of
+     * the run's rows or an empty total where it holds none, the steps SQLite has taken at each callback, and
+     * that it ended (ADR-193 section 7, ADR-199 section 2): {@link ExtractionStatement#FAULTED_OCCURRENCES},
+     * counted. A read that throws is not told to have ended.
+     */
+    public Set<OccurrenceId> occurrencesForRun(RunId runId, ExtractionStatementProgress progress) {
+        return RunRows.occurrencesOf(
+                jdbcTemplate, "extraction_fault", runId, ExtractionStatement.FAULTED_OCCURRENCES, progress);
     }
 
     /** How many occurrences {@code runId}'s step refused to open -- the count section 7 puts on a page. */

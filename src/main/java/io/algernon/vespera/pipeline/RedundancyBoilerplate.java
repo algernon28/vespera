@@ -15,10 +15,14 @@ import org.springframework.stereotype.Component;
  * ({@link BoilerplateShingles}), cheap enough once but wasteful to repeat for every one of a chunk
  * step's items.
  *
- * <p>Depends on {@link StageRuns} directly rather than through an {@code ObjectProvider}: this bean is
- * itself only ever reached through an {@code ObjectProvider} at its own call sites, so its target is
- * never constructed — and therefore never triggers stage 4's own run being minted — while the gate is
- * closed.
+ * <p>Depends on {@link StageRuns} directly rather than through an {@code ObjectProvider}, and is itself
+ * reached two ways: {@link RedundancyResolutionTasklet} asks an {@code ObjectProvider} for it, and {@link
+ * RedundancySignatureItemWriter} takes it as a constructor argument. Either way what is handed over is
+ * the job-scoped proxy, and the target, whose constructor asks {@link StageRuns} for stage 3's run and
+ * the floor, is built at the first call
+ * of {@link #hashes()} and not before. While the gate is closed neither caller makes that call: 4a's
+ * reader yields nothing, so its writer is never asked to write a chunk, and 4b's tasklet returns before it
+ * asks its provider. So the target is not built, and this class asks {@link StageRuns} for nothing, behind a shut gate.
  */
 @Component
 @JobScope

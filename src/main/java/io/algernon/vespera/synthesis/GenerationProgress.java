@@ -9,8 +9,14 @@ package io.algernon.vespera.synthesis;
  * zero included; {@link #clusterGoneThrough} once at the end of each cluster's path, after any report of the
  * four kinds, and for a fifth turned-down answer before the walk returns {@code Stopped}. Both do nothing by
  * default.
+ *
+ * <p>It is also a {@link SynthesisStatementProgress} (ADR-193 section 7, ADR-199 section 4), and is told
+ * about the walk's two reads: {@link SynthesisStatement#WRITTEN} started and ended before {@link
+ * #toGoThrough}, and {@link SynthesisStatement#STANDING_FAULTS} after the last cluster, started and ended
+ * where the walk goes through every cluster, and not at all where it returns {@code Stopped} on five answers
+ * turned down in a row, since it returns before that read.
  */
-public interface GenerationProgress {
+public interface GenerationProgress extends SynthesisStatementProgress {
 
     /** The exemplars came back empty. No call was made. */
     void noSendableDocument(RecordedCluster cluster);

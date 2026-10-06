@@ -86,12 +86,21 @@ class RelevanceFloor {
      * operator is told which one it was, by the closing line rather than by anything here.
      */
     State stateFor(String currentEmbedderIdentity) {
+        return stateFor(currentEmbedderIdentity, "Stage 5e (relevance floor)");
+    }
+
+    /**
+     * As {@link #stateFor(String)}, for a caller that is not stage 5e: the one read this makes, of the
+     * answers recorded for the seed set, is said under {@code stage}, the name of the step that asked
+     * (ADR-193, ADR-199 section 3). It is issued only where the floor is a number and a seed set is named.
+     */
+    State stateFor(String currentEmbedderIdentity, String stage) {
         Profile profile = profileStore.load();
         if (!(profile.relevanceScoreFloor().reading() instanceof NumericValue.Answered answered)) {
             return new Unset();
         }
         double value = answered.number();
-        List<String> calibratedUnder = calibratedUnder();
+        List<String> calibratedUnder = calibratedUnder(stage);
         if (calibratedUnder.isEmpty() || calibratedUnder.equals(List.of(currentEmbedderIdentity))) {
             return new Applicable(value);
         }
@@ -113,12 +122,14 @@ class RelevanceFloor {
      * archive invisibly, while an under-block leaves a document to be removed by a later, better
      * informed run.
      */
-    private List<String> calibratedUnder() {
+    private List<String> calibratedUnder(String stage) {
         Optional<String> seedSet = seedSet();
         if (seedSet.isEmpty()) {
             return List.of();
         }
-        return relevanceLabels.forSeedSet(seedSet.get()).stream()
+        // Timed: the read has no run, so no span (ADR-193 section 6).
+        return TimedStatement.read(stage, "the recorded answers", () -> relevanceLabels.forSeedSet(seedSet.get()))
+                .stream()
                 .map(RelevanceLabel::embedderIdentity)
                 .distinct()
                 .toList();

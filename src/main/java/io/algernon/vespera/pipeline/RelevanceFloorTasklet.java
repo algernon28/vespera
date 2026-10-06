@@ -51,6 +51,9 @@ class RelevanceFloorTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(RelevanceFloorTasklet.class);
 
+    /** Stage 5e's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 5e (relevance floor)";
+
     /**
      * What the verdict row records as its reason. It names the number and the scale it was read on,
      * because a removal a person is reading a year later has to say what it was measured against.
@@ -101,7 +104,8 @@ class RelevanceFloorTasklet implements Tasklet {
         // threshold against the wrong identity is what would let a number calibrated elsewhere remove
         // documents here. Not yet a decision this run can be finished on -- a later invocation, once
         // embedding-scoring has actually run, may answer differently under this very run id.
-        Optional<String> currentIdentity = relevanceDistribution.embedderIdentityFor(modelName);
+        Optional<String> currentIdentity =
+                TimedStatement.read(STAGE, "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName));
         if (currentIdentity.isEmpty()) {
             LOG.info(
                     "stage 5's relevance-floor step removed nothing: the vectors under {} carry no single"
@@ -112,7 +116,7 @@ class RelevanceFloorTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        RelevanceFloor.State state = relevanceFloor.stateFor(currentIdentity.get());
+        RelevanceFloor.State state = relevanceFloor.stateFor(currentIdentity.get(), STAGE);
 
         // Every removal this run has standing goes before the state is acted on, whichever way it
         // turns out (ADR-118). The answers decide this step and no run names them, so the decision can
@@ -137,7 +141,8 @@ class RelevanceFloorTasklet implements Tasklet {
                     elsewhere.calibratedUnder(),
                     elsewhere.currentIdentity());
             case RelevanceFloor.Applicable applicable -> {
-                List<OccurrenceId> below = relevanceScoring.scoredBelow(scoring, applicable.value());
+                List<OccurrenceId> below = TimedStatement.read(
+                        STAGE, "the scores below the floor", () -> relevanceScoring.scoredBelow(scoring, applicable.value()));
                 StageProgress written = StageProgress.over(
                         "Stage 5e (relevance floor, below-threshold verdicts)", below.size());
                 for (OccurrenceId occurrenceId : below) {

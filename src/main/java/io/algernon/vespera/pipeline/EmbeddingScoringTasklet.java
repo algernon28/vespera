@@ -61,6 +61,9 @@ class EmbeddingScoringTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(EmbeddingScoringTasklet.class);
 
+    /** Stage 5c's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 5c (embedding scoring)";
+
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
@@ -134,7 +137,8 @@ class EmbeddingScoringTasklet implements Tasklet {
                 () -> {},
                 () -> {
                     Path canonicalRoot = Walk.canonicalRoot(root);
-                    Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun));
+                    Set<OccurrenceId> survivors = TimedStatement.read(
+                            STAGE, "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(measurementRun)));
                     Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk, measurementRun);
                     LOG.info(
                             "Stage 5c (embedding scoring) starting under scoring run {}: re-chunking and"
@@ -189,8 +193,10 @@ class EmbeddingScoringTasklet implements Tasklet {
      * vector exists exactly where a corpus chunk's does, keyed the same way.
      */
     private Set<OccurrenceId> usableSeedOccurrences(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
-        Set<OccurrenceId> allSeeds = ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId()));
-        Set<OccurrenceId> unusable = unusableSeeds.forRun(measurementRun).stream()
+        Set<OccurrenceId> allSeeds = TimedStatement.read(
+                STAGE, "the seed walk's occurrences", () -> ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId())));
+        Set<OccurrenceId> unusable = TimedStatement.read(STAGE, "the unusable seeds", () -> unusableSeeds.forRun(measurementRun))
+                .stream()
                 .map(UnusableSeed::occurrenceId)
                 .collect(Collectors.toSet());
         allSeeds.removeAll(unusable);

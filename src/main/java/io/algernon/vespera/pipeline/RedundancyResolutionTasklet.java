@@ -5,6 +5,8 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.similarity.RedundancyResolution;
 import io.algernon.vespera.similarity.ResolutionProgress;
+import io.algernon.vespera.similarity.SimilarityStatement;
+import java.util.OptionalLong;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +32,9 @@ import org.springframework.stereotype.Component;
 class RedundancyResolutionTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(RedundancyResolutionTasklet.class);
+
+    /** Stage 4b's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 4b (redundancy resolution)";
 
     private final RedundancyGate redundancyGate;
     private final StageRuns stageRuns;
@@ -87,11 +92,39 @@ class RedundancyResolutionTasklet implements Tasklet {
     /**
      * Stage 4b's six counters: each made when {@code similarity} announces its loop, and ticked as it
      * reports (ADR-192 sections 4 and 5). The candidates counter has no total and is opened with the
-     * containment loop it sits in.
+     * containment loop it sits in. It also writes the lines of the four reads among the loops, as {@code
+     * similarity} reports each (ADR-193 section 7, ADR-199 section 3): the signed occurrences, counted, which
+     * says nothing where nothing is signed, and the signature bands, the near-duplicates' extraction metrics
+     * and the shingle document frequencies, timed.
      */
     private static ResolutionProgress resolutionProgress() {
         String stage = "Stage 4b (redundancy resolution, ";
+        ReportedStatements reads = ReportedStatements.saying()
+                .counted(
+                        SimilarityStatement.SIGNED_OCCURRENCES,
+                        STAGE,
+                        "the signed occurrences",
+                        "Stage 4b (redundancy resolution, reading signed occurrences)")
+                .timed(SimilarityStatement.SIGNATURE_BANDS, STAGE, "the signature bands")
+                .timed(SimilarityStatement.NEAR_DUPLICATE_METRICS, STAGE, "the near-duplicates' extraction metrics")
+                .timed(SimilarityStatement.DOCUMENT_FREQUENCY, STAGE, "the shingle document frequencies")
+                .build();
         return new ResolutionProgress() {
+            @Override
+            public void statementStarting(SimilarityStatement statement, OptionalLong rowsUpTo) {
+                reads.statementStarting(statement, rowsUpTo);
+            }
+
+            @Override
+            public void stepsTaken(SimilarityStatement statement, long steps) {
+                reads.stepsTaken(statement, steps);
+            }
+
+            @Override
+            public void statementEnded(SimilarityStatement statement) {
+                reads.statementEnded(statement);
+            }
+
             private StageProgress pairs;
             private StageProgress profiles;
             private StageProgress components;

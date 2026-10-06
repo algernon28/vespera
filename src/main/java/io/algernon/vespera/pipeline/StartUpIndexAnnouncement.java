@@ -56,8 +56,9 @@ class StartUpIndexAnnouncement extends ApplicationDataSourceScriptDatabaseInitia
 
     /**
      * The steps SQLite takes for each row of a whole-table index build beyond one for each column the index
-     * holds: 8 plus c, measured against the bundled SQLite and pinned by {@code StatementStepsPerRowTest}
-     * (ADR-193 section 3).
+     * holds: 8 plus c, measured against the bundled SQLite by {@code StatementStepsPerRowTest}, and held to
+     * that measurement by {@code StatementStepsPerRowAreTheDeclaredOnesTest}, which is what fails when the
+     * two drift apart (ADR-193 section 3, ADR-199 section 6).
      */
     static final int INDEX_BUILD_STEPS_BEYOND_COLUMNS = 8;
 

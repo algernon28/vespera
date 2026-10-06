@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.extraction.ConfidenceDistribution;
+import io.algernon.vespera.extraction.ExtractionStatement;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Measurement;
@@ -56,6 +57,9 @@ class ContentCensusTasklet implements Tasklet {
 
     private static final Logger log = LoggerFactory.getLogger(ContentCensusTasklet.class);
 
+    /** Stage 3's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 3 (content census)";
+
     private final DocumentFrequency documentFrequency;
     private final ConfidenceDistribution confidenceDistribution;
     private final StageRuns stageRuns;
@@ -105,16 +109,29 @@ class ContentCensusTasklet implements Tasklet {
                     // stage 2's run took half an hour on a 16.7 GB database on a USB spinning disk and said
                     // nothing, so the read has a line before it where there is something to read, progress
                     // lines while it runs, and the measurement has its time after it whether or not there is
-                    // (ADR-191, ADR-193). The time is the whole call's: this class cannot time the one
-                    // statement apart from the rest.
+                    // (ADR-191, ADR-193). The time on this line is the whole call's, and stays so: ADR-193
+                    // section 4.1 keeps ADR-191's line as the measurement's time, and the lines of the two
+                    // statements inside it are the ones ADR-199 section 3 writes out.
                     long measureStarted = System.nanoTime();
                     documentFrequency.measure(runId, extractionRunId, frequencyRowsProgress());
                     log.info(
                             "Stage 3 (content census) measured shingle document frequency in {} s",
                             String.format(Locale.ROOT, "%.1f", (System.nanoTime() - measureStarted) / NANOS_PER_SECOND));
 
-                    ConfidenceDistribution.Distribution distribution =
-                            confidenceDistribution.measure(runId, extractionRunId);
+                    ConfidenceDistribution.Distribution distribution = confidenceDistribution.measure(
+                            runId,
+                            extractionRunId,
+                            ReportedStatements.saying()
+                                    .timed(
+                                            ExtractionStatement.SURVIVORS,
+                                            STAGE,
+                                            "stage 2's survivors for the confidence distribution")
+                                    .counted(
+                                            ExtractionStatement.EXTRACTION_METRICS,
+                                            STAGE,
+                                            "the extraction metrics",
+                                            "Stage 3 (content census, reading extraction metrics)")
+                                    .build());
                     log.info("Stage 3 (content census) measured the confidence distribution");
                     Path reportFile = writeReport(distribution);
 
@@ -131,20 +148,34 @@ class ContentCensusTasklet implements Tasklet {
     }
 
     /**
-     * Stage 3's frequency rows counter, ticked as {@code similarity} reports (ADR-192 section 4), and the
-     * lines of its read of the shingle rows, written as {@code similarity} reports that (ADR-193 section 7).
-     * The bound is {@code similarity}'s to answer ({@link DocumentFrequency#shingleRowsUpTo}) and it hands
-     * it over immediately before the read; what is said about it is this class's. Says nothing about the read
-     * where the run holds no shingle row, and what is said is ADR-191 section 1's, stopping loses only the
-     * time spent.
+     * Stage 3's frequency rows counter, ticked as {@code similarity} reports (ADR-192 section 4), the lines of
+     * its drain of stage 2's survivors, and the lines of its read of the shingle rows, written as {@code
+     * similarity} reports each (ADR-193 section 7). The drain is timed: two lines, whenever it is issued. The
+     * bound of the read is {@code similarity}'s to answer ({@link DocumentFrequency#shingleRowsUpTo}) and it
+     * hands it over immediately before the read; what is said about it is this class's. The read says nothing
+     * where the run holds no shingle row, and where it does it is ADR-191 section 1's reading line, then the
+     * progress lines of ADR-193 section 4.1, and no after-line of its own: the line the caller writes after
+     * the whole measurement is ADR-191's.
      */
     private static FrequencyProgress frequencyRowsProgress() {
+        ReportedStatements survivors = ReportedStatements.saying()
+                .timed(SimilarityStatement.FREQUENCY_SURVIVORS, STAGE, "stage 2's survivors for the shingle frequencies")
+                .build();
         return new FrequencyProgress() {
             private StatementProgress readProgress;
             private StageProgress counter;
 
             @Override
+            public void statementEnded(SimilarityStatement statement) {
+                survivors.statementEnded(statement);
+            }
+
+            @Override
             public void statementStarting(SimilarityStatement statement, OptionalLong rowsUpTo) {
+                if (statement == SimilarityStatement.FREQUENCY_SURVIVORS) {
+                    survivors.statementStarting(statement, rowsUpTo);
+                    return;
+                }
                 if (statement != SimilarityStatement.SHINGLE_ROWS || rowsUpTo.isEmpty()) {
                     return;
                 }

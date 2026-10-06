@@ -11,8 +11,15 @@ package io.algernon.vespera.similarity;
  * <p>The order is fixed: pairs, profiles, then components and verdicts (both before the component loop),
  * then containment. Within a component its verdicts are reported before the component is. Containment
  * candidates have no total: they are reported inside the containment loop, after it is announced.
+ *
+ * <p>It is also a {@link SimilarityStatementProgress}, and is told about four reads among those loops
+ * (ADR-193 section 7, ADR-199 section 4): the signed occurrences ({@code SIGNED_OCCURRENCES}, counted), first
+ * of all, before any loop and even where nothing is signed, which is where a resolution that returns before
+ * its loops stops reporting; then the signature bands, before the pairs are announced; the near-duplicates'
+ * extraction metrics, after the profiles are announced and only where a component holds a member; and the
+ * shingle document frequencies, before the containment loop is announced.
  */
-public interface ResolutionProgress {
+public interface ResolutionProgress extends SimilarityStatementProgress {
 
     /** A progress that does nothing, for the callers that want no report. */
     ResolutionProgress NONE = new ResolutionProgress() {

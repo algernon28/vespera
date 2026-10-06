@@ -5,6 +5,7 @@ import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.ExtractionFaults;
+import io.algernon.vespera.extraction.ExtractionStatement;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.FailuresInARow;
 import io.algernon.vespera.ledger.Ledger;
@@ -123,6 +124,9 @@ public class ExtractionJobConfiguration {
 
     /** For the seconds the removal of {@code shingle_by_hash} took, as its closing line states them (ADR-187). */
     private static final double NANOS_PER_SECOND = 1_000_000_000.0;
+
+    /** Stage 2's own name, which its statement lines open with. */
+    private static final String STAGE_TWO = "Stage 2 (extraction)";
 
     @Bean
     Step extractionStep(
@@ -324,8 +328,24 @@ public class ExtractionJobConfiguration {
         // opened outside the chunk transaction, which is the only place a delete can be made to stick.
         //
         // The queries are extraction's (ADR-041); the one delete against verdict is the ledger's.
+        //
+        // The two reads this method makes of a run's own rows, the faults here and the metrics below, are
+        // counted by SQLite's progress handler and said in two lines each where the run holds a row, and
+        // not at all where it holds none, which is every first invocation (ADR-193, ADR-199 section 2).
+        ReportedStatements resumeReads = ReportedStatements.saying()
+                .counted(
+                        ExtractionStatement.FAULTED_OCCURRENCES,
+                        STAGE_TWO,
+                        "the faults already recorded",
+                        "Stage 2 (extraction, reading faults already recorded)")
+                .counted(
+                        ExtractionStatement.RECORDED_OCCURRENCES,
+                        STAGE_TWO,
+                        "the occurrences already measured",
+                        "Stage 2 (extraction, reading occurrences already measured)")
+                .build();
         ExtractionFaults extractionFaults = new ExtractionFaults(jdbcTemplate);
-        Set<OccurrenceId> faulted = extractionFaults.occurrencesForRun(extractionRun);
+        Set<OccurrenceId> faulted = extractionFaults.occurrencesForRun(extractionRun, resumeReads);
         ledger.discardVerdictsAgainst(extractionRun, faulted, VerdictKind.EXTRACTION_FAILED);
         extractionFaults.discardForRun(extractionRun);
 
@@ -351,7 +371,7 @@ public class ExtractionJobConfiguration {
                     String.format(Locale.ROOT, "%.1f", (System.nanoTime() - dropStarted) / NANOS_PER_SECOND));
         }
 
-        Set<OccurrenceId> recorded = extractionMetrics.occurrencesForRun(extractionRun);
+        Set<OccurrenceId> recorded = extractionMetrics.occurrencesForRun(extractionRun, resumeReads);
         if (!recorded.isEmpty() || !faulted.isEmpty()) {
             // Said when anything was recorded or faulted (ADR-181 section 1): a run whose only leftovers
             // are fault rows reads those occurrences again, and says so. Counts follow their labels so
