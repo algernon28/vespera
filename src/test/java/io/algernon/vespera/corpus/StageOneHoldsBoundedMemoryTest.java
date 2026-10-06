@@ -60,16 +60,20 @@ class StageOneHoldsBoundedMemoryTest {
     /** Nine survivors: the three of size 20, the three of size 30, the two of size 11 and the one of size 5. */
     private static final int SURVIVORS = 9;
 
-    /** The lone file of size 5, the two files of size 11, and the one look-ahead read to learn a size has ended. */
-    private static final int FIRST_SIZE_AND_ONE_LOOK_AHEAD = 4;
+    /**
+     * What a size-ordered read has handed out when the first file is hashed: the first two sizes, the lone
+     * file of size 5 and the two files of size 11, and the one look-ahead read to learn that size 11 has ended.
+     */
+    private static final int TWO_SIZES_AND_ONE_LOOK_AHEAD = 4;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Test
-    @Story("Content identity resolves one size at a time")
-    @DisplayName("Over four sizes, each duplicate names its representative and only the files that share a size are hashed")
-    void resolvesEverySizeAsItAlwaysDid(@TempDir Path root) throws Exception {
+    /**
+     * The fixture every test but one builds, in the order it is recorded so that id order and size order
+     * disagree: nine files in four sizes, the walk recorded and not yet run.
+     */
+    private Corpus fourSizesRecordedInterleaved(Path root) throws IOException {
         Corpus corpus = new Corpus(root);
         corpus.occurrence("c1.txt", "c".repeat(30), LATER);
         corpus.occurrence("a1.txt", "a".repeat(20), LATER);
@@ -80,6 +84,14 @@ class StageOneHoldsBoundedMemoryTest {
         corpus.occurrence("b2.txt", "e".repeat(11), EARLIER);
         corpus.occurrence("a3.txt", "a".repeat(20), EARLIER);
         corpus.occurrence("c3.txt", "d".repeat(30), EARLIER);
+        return corpus;
+    }
+
+    @Test
+    @Story("Content identity resolves one size at a time")
+    @DisplayName("Over four sizes, each duplicate names its representative and only the files that share a size are hashed")
+    void resolvesEverySizeAsItAlwaysDid(@TempDir Path root) throws Exception {
+        Corpus corpus = fourSizesRecordedInterleaved(root);
         RunId run = corpus.run();
 
         corpus.resolution(corpus.ledger).resolve(run, root, new Recording(null));
@@ -121,16 +133,7 @@ class StageOneHoldsBoundedMemoryTest {
     @Story("Content identity resolves one size at a time")
     @DisplayName("Every size is announced and read before the first hash, and the hashing then goes size by size")
     void reportsInTheOrderTheContractPins(@TempDir Path root) throws Exception {
-        Corpus corpus = new Corpus(root);
-        corpus.occurrence("c1.txt", "c".repeat(30), LATER);
-        corpus.occurrence("a1.txt", "a".repeat(20), LATER);
-        corpus.occurrence("b1.txt", "b".repeat(11), EARLIER);
-        corpus.occurrence("d.txt", "z".repeat(5), EARLIER);
-        corpus.occurrence("a2.txt", "a".repeat(20), EARLIER);
-        corpus.occurrence("c2.txt", "c".repeat(30), EARLIER);
-        corpus.occurrence("b2.txt", "e".repeat(11), EARLIER);
-        corpus.occurrence("a3.txt", "a".repeat(20), EARLIER);
-        corpus.occurrence("c3.txt", "d".repeat(30), EARLIER);
+        Corpus corpus = fourSizesRecordedInterleaved(root);
         Recording progress = new Recording(null);
 
         corpus.resolution(corpus.ledger).resolve(corpus.run(), root, progress);
@@ -153,18 +156,9 @@ class StageOneHoldsBoundedMemoryTest {
 
     @Test
     @Story("Content identity resolves one size at a time")
-    @DisplayName("When the first file is hashed, no more than its size and one look-ahead have been read")
+    @DisplayName("When the first file is hashed, no more than the first two sizes and one look-ahead have been read")
     void holdsOneSizeWhileHashing(@TempDir Path root) throws Exception {
-        Corpus corpus = new Corpus(root);
-        corpus.occurrence("c1.txt", "c".repeat(30), LATER);
-        corpus.occurrence("a1.txt", "a".repeat(20), LATER);
-        corpus.occurrence("b1.txt", "b".repeat(11), EARLIER);
-        corpus.occurrence("d.txt", "z".repeat(5), EARLIER);
-        corpus.occurrence("a2.txt", "a".repeat(20), EARLIER);
-        corpus.occurrence("c2.txt", "c".repeat(30), EARLIER);
-        corpus.occurrence("b2.txt", "e".repeat(11), EARLIER);
-        corpus.occurrence("a3.txt", "a".repeat(20), EARLIER);
-        corpus.occurrence("c3.txt", "d".repeat(30), EARLIER);
+        Corpus corpus = fourSizesRecordedInterleaved(root);
         SizeOrderLedger counting = new SizeOrderLedger(jdbcTemplate);
         Recording progress = new Recording(counting);
 
@@ -175,8 +169,8 @@ class StageOneHoldsBoundedMemoryTest {
                 () -> assertThat(progress.openAtFirstHash).isTrue());
         claim(
                 "and it has handed out the lone file of size 5, the two of size 11 and the one that showed that size had ended,"
-                        + " " + FIRST_SIZE_AND_ONE_LOOK_AHEAD + " of the " + SURVIVORS + " survivors, not the whole set",
-                () -> assertThat(progress.handedOutAtFirstHash).isEqualTo(FIRST_SIZE_AND_ONE_LOOK_AHEAD));
+                        + " " + TWO_SIZES_AND_ONE_LOOK_AHEAD + " of the " + SURVIVORS + " survivors, not the whole set",
+                () -> assertThat(progress.handedOutAtFirstHash).isEqualTo(TWO_SIZES_AND_ONE_LOOK_AHEAD));
     }
 
     /**
@@ -189,16 +183,7 @@ class StageOneHoldsBoundedMemoryTest {
     @Story("Content identity resolves one size at a time")
     @DisplayName("Each time a file's size is reported, no file that has been read is waiting to be reported")
     void holdsNoSurvivorWhileSizing(@TempDir Path root) throws Exception {
-        Corpus corpus = new Corpus(root);
-        corpus.occurrence("c1.txt", "c".repeat(30), LATER);
-        corpus.occurrence("a1.txt", "a".repeat(20), LATER);
-        corpus.occurrence("b1.txt", "b".repeat(11), EARLIER);
-        corpus.occurrence("d.txt", "z".repeat(5), EARLIER);
-        corpus.occurrence("a2.txt", "a".repeat(20), EARLIER);
-        corpus.occurrence("c2.txt", "c".repeat(30), EARLIER);
-        corpus.occurrence("b2.txt", "e".repeat(11), EARLIER);
-        corpus.occurrence("a3.txt", "a".repeat(20), EARLIER);
-        corpus.occurrence("c3.txt", "d".repeat(30), EARLIER);
+        Corpus corpus = fourSizesRecordedInterleaved(root);
         SizeOrderLedger counting = new SizeOrderLedger(jdbcTemplate);
         Recording progress = new Recording(counting);
 
