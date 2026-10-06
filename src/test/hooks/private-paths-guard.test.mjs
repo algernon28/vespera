@@ -1,5 +1,6 @@
 // The private-paths guard, held to its record: docs/adr/0196. No agent reads the operator's documents,
-// and a PreToolUse hook refuses any path outside an allow list and fails closed.
+// and a PreToolUse hook refuses any path outside an allow list and fails closed. docs/adr/0201 amends
+// that record, and the L and G cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -23,6 +24,11 @@
 //     deep/note.txt      and deep/a/b/vespera.lock, a working directory two folders further down
 //     links/out          a junction (Windows) or symlink to outside/
 //     links/to-working-directory
+//     links/inside       to scratch/, a folder inside the allow list
+//     links/in           to deep/a, so that links/in/.. is deep/ to whatever follows the link
+//     links/via          to links/in, and links/hop to links/to-working-directory: a link to a link
+//     links/nowhere      to outside/not-there, which does not exist
+//     links/loop         to itself
 //     my runs/           vespera.db, report.html: a working directory whose name holds a space
 //     built/note.txt     and working directories only inside built/target, built/node_modules, built/.git
 //   home/                ${HOME}: .m2/settings.xml (allowed), Documents/x.txt (not),
@@ -38,6 +44,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -163,6 +170,58 @@ try {
 // not started, so none of them holds or fails for a reason that is not the guard's.
 if (!existsSync(`${LINKS}/out/doc.txt`) || !existsSync(`${LINKS}/to-working-directory/vespera.db`)) linkable = false;
 const NO_LINK = "this platform would not create a junction or a symlink that leads where it should";
+
+// The links of the L cases, kept apart from the two above so that R503 to R505 are started wherever they
+// were before. Two of them lead nowhere on purpose: one to a name that is not there, one to itself.
+const isLink = (p) => {
+  try {
+    return lstatSync(native(p)).isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
+// A link to the temp folder, for a guard whose ${TEMP} is itself a link: the allowed root is then the
+// link, and the folder it leads to is where a walked path lands.
+const LINKED_TEMP = `${base}/linked-temp`;
+let linkedFurther = linkable;
+if (linkedFurther) {
+  try {
+    for (const [name, target] of [
+      ["inside", `${T}/scratch`],
+      ["in", `${DEEP}/a`],
+      ["via", `${LINKS}/in`],
+      ["hop", `${LINKS}/to-working-directory`],
+      ["nowhere", `${O}/not-there`],
+      ["loop", `${LINKS}/loop`],
+    ]) {
+      symlinkSync(native(target), native(`${LINKS}/${name}`), windows ? "junction" : "dir");
+    }
+    symlinkSync(native(T), native(LINKED_TEMP), windows ? "junction" : "dir");
+  } catch {
+    linkedFurther = false;
+  }
+}
+if (
+  !existsSync(`${LINKS}/inside/note.txt`) ||
+  !existsSync(`${LINKS}/in/b/notes.txt`) ||
+  !existsSync(`${LINKS}/via/b/notes.txt`) ||
+  !existsSync(`${LINKS}/hop/vespera.db`) ||
+  !isLink(`${LINKS}/nowhere`) ||
+  existsSync(`${LINKS}/nowhere`) ||
+  !isLink(`${LINKS}/loop`) ||
+  existsSync(`${LINKS}/loop`) ||
+  !existsSync(`${LINKED_TEMP}/scratch/note.txt`)
+) {
+  linkedFurther = false;
+}
+
+// A quoted sentence is read whole as one relative path. A file system holds no name longer than 255
+// characters, and asked about one it does not answer "not there" everywhere: it may say the name is too long.
+const LONGEST_NAME_A_FILE_SYSTEM_HOLDS = 255;
+const SENTENCE_LONGER_THAN_A_NAME = "The guard reads a quoted sentence whole, and a long one is still a sentence. ".repeat(5).trim();
+if (SENTENCE_LONGER_THAN_A_NAME.length <= LONGEST_NAME_A_FILE_SYSTEM_HOLDS || /[\\/]/.test(SENTENCE_LONGER_THAN_A_NAME)) {
+  throw new Error("the fixture sentence is no longer one name longer than a file system holds");
+}
 
 // A wrapper that ends with a given exit code before it reaches its own mapping of exit codes.
 function checkoutWhoseWrapperExits(code) {
@@ -500,25 +559,136 @@ const cases = [
   ["A304", "cat of a repository path whose space is escaped with a backslash", "Bash", { command: String.raw`cat my\ notes/readme.txt` }, ALLOWED],
 
   /* A7. A path on a drive with no separator after the colon is judged from the drive's root and as a relative path. */
+  ["A701", "such a path that is allowed from the drive's root and lands in a working directory under the current directory", "Bash", { command: `cat ${ON_THE_FIXTURES_DRIVE}${T.slice(3)}/scratch/note.txt` }, REFUSED, { cwd: `${T}/mirror`, windows: ONLY_WINDOWS.drive }],
+
   /* What the record says of two Windows spellings, which had no case. */
   ["C101", "docker with a volume between two one-letter names, written as a token of its own", "Bash", { command: "docker run -v a:b image" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["C102", "Read of a report through the working directory's own stream name", "Read", { file_path: `${WD}::$INDEX_ALLOCATION/report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["C103", "cat of a relative path through the working directory's own stream name", "Bash", { command: "cat working-directory::$INDEX_ALLOCATION/report.html" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
   ["C104", "Read of a report in a working directory by its data stream name", "Read", { file_path: `${WD}/report.html::$DATA` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
 
-  ["A701", "such a path that is allowed from the drive's root and lands in a working directory under the current directory", "Bash", { command: `cat ${ON_THE_FIXTURES_DRIVE}${T.slice(3)}/scratch/note.txt` }, REFUSED, { cwd: `${T}/mirror`, windows: ONLY_WINDOWS.drive }],
+  /* L1. A link is followed before the check, through every tool and through a link to a link. R503 and
+     R504 hold a link that leads outside the allow list, and R505 one that leads into a folder holding
+     vespera.db: a junction on Windows and a symlink elsewhere. */
+  ["L101", "Read through a link under the temp folder that leads to a folder inside the allow list", "Read", { file_path: `${LINKS}/inside/note.txt` }, ALLOWED, { needsFurtherLinks: true }],
+  ["L102", "Grep whose path is such a link", "Grep", { pattern: "x", path: `${LINKS}/inside` }, ALLOWED, { needsFurtherLinks: true }],
+  ["L103", "Write of a path that does not exist yet, through such a link", "Write", { file_path: `${LINKS}/inside/not-written-yet.txt`, content: "x" }, ALLOWED, { needsFurtherLinks: true }],
+  ["L104", "cat of a relative path through a link that leads into a working directory", "Bash", { command: "cat links/to-working-directory/report.html" }, REFUSED, { cwd: T, needsLink: true }],
+  ["L105", "Grep whose path is a link that leads into a working directory", "Grep", { pattern: "x", path: `${LINKS}/to-working-directory` }, REFUSED, { needsLink: true }],
+  ["L106", "Glob whose pattern names such a link beneath its path", "Glob", { pattern: "to-working-directory/**", path: LINKS }, REFUSED, { needsLink: true }],
+  ["L107", "Read through a link to a link that leads into a working directory", "Read", { file_path: `${LINKS}/hop/report.html` }, REFUSED, { needsFurtherLinks: true }],
+
+  /* L2. A path that holds .. is read twice, and either reading refuses: folded as text, and as the file
+     system walks it, where a .. is taken from the folder the path before it leads to. links/in leads to
+     deep/a, so links/in/.. is links/ as text and deep/ as walked, and deep/a/b is a working directory. */
+  ["L201", "Read of a path that climbs with .. out of a link, into a working directory beside where the link leads", "Read", { file_path: `${LINKS}/in/../a/b/notes.txt` }, REFUSED, { needsFurtherLinks: true }],
+  ["L202", "Grep whose path climbs out of a link into such a working directory", "Grep", { pattern: "x", path: `${LINKS}/in/../a/b` }, REFUSED, { needsFurtherLinks: true }],
+  ["L203", "Grep whose path is a link and .., the parent of where the link leads, which holds a working directory", "Grep", { pattern: "x", path: `${LINKS}/in/..` }, REFUSED, { needsFurtherLinks: true }],
+  ["L204", "Glob whose pattern climbs out of a link beneath its path into such a working directory", "Glob", { pattern: "in/../a/b/*.txt", path: LINKS }, REFUSED, { needsFurtherLinks: true }],
+  ["L205", "Grep whose glob climbs out of a link beneath its path into such a working directory", "Grep", { pattern: "x", path: LINKS, glob: "in/../a/b/*.txt" }, REFUSED, { needsFurtherLinks: true }],
+  ["L206", "Glob with an absolute pattern that climbs out of a link into such a working directory", "Glob", { pattern: `${LINKS}/in/../a/b/*.txt` }, REFUSED, { needsFurtherLinks: true }],
+  ["L207", "cat of a relative path that climbs out of a link into such a working directory", "Bash", { command: "cat links/in/../a/b/notes.txt" }, REFUSED, { cwd: T, needsFurtherLinks: true }],
+  ["L208", "cd through a link, then cat of a relative path that climbs out of where the link leads", "Bash", { command: "cd in && cat ../a/b/notes.txt" }, REFUSED, { cwd: LINKS, needsFurtherLinks: true }],
+  ["L209", "cat of a relative path that climbs, with a link as the current directory", "Bash", { command: "cat ../a/b/notes.txt" }, REFUSED, { cwd: `${LINKS}/in`, needsFurtherLinks: true }],
+  ["L210", "Read by a relative path that climbs, with a link as the current directory", "Read", { file_path: "../a/b/notes.txt" }, REFUSED, { cwd: `${LINKS}/in`, needsFurtherLinks: true }],
+  ["L211", "cd through a link, cd -P to .., which is the parent of where the link leads, then cat into a working directory beneath it", "Bash", { command: "cd in && cd -P .. && cat a/b/notes.txt" }, REFUSED, { cwd: LINKS, needsFurtherLinks: true }],
+  ["L212", "Read of a path that climbs out of a link to a link, into such a working directory", "Read", { file_path: `${LINKS}/via/../a/b/notes.txt` }, REFUSED, { needsFurtherLinks: true }],
+  ["L213", "Get-Content of a relative path that climbs out of a link, written with backslashes", "PowerShell", { command: String.raw`Get-Content links\in\..\a\b\notes.txt` }, REFUSED, { cwd: T, needsFurtherLinks: true, windows: ONLY_WINDOWS.powerShell }],
+  ["L214", "Read of a path that climbs out of a link and stays inside the allow list and out of every working directory", "Read", { file_path: `${LINKS}/inside/../scratch/note.txt` }, ALLOWED, { needsFurtherLinks: true }],
+  ["L215", "cat of such a relative path", "Bash", { command: "cat links/inside/../scratch/note.txt" }, ALLOWED, { cwd: T, needsFurtherLinks: true }],
+  ["L216", "cat of a relative path that climbs out of a link to a file beside a working directory and not in one", "Bash", { command: "cat links/in/../note.txt" }, ALLOWED, { cwd: T, needsFurtherLinks: true }],
+
+  /* L3. A name that is there and cannot be followed to where it leads is refused. Only a name that is
+     not there is answered from the folder it would be in, so a path not written yet stays usable. */
+  ["L301", "Read of a link that leads to a name that is not there", "Read", { file_path: `${LINKS}/nowhere` }, REFUSED, { needsFurtherLinks: true }],
+  ["L302", "Write of a path that does not exist yet, beneath such a link", "Write", { file_path: `${LINKS}/nowhere/not-written-yet.txt`, content: "x" }, REFUSED, { needsFurtherLinks: true }],
+  ["L303", "Read beneath a link that leads to itself", "Read", { file_path: `${LINKS}/loop/note.txt` }, REFUSED, { needsFurtherLinks: true }],
+  ["L304", "ls of a plain name that is a link leading to a name that is not there", "Bash", { command: "ls nowhere" }, REFUSED, { cwd: LINKS, needsFurtherLinks: true }],
+  ["L305", "Write of a path that does not exist yet, two folders that do not exist yet down an allowed one", "Write", { file_path: `${T}/scratch/not-made-yet/nor-this/out.log`, content: "x" }, ALLOWED],
+  ["L306", "git commit with a quoted sentence longer than any name a file system holds", "Bash", { command: `git commit -m "${SENTENCE_LONGER_THAN_A_NAME}"` }, ALLOWED],
+
+  /* G1. A token that ends in a comma or a closing brace is one path written once, and is counted once. */
+  ["G101", "Get-ChildItem of .. and a folder, with a space after the comma, from one folder inside the repository", "PowerShell", { command: "Get-ChildItem .., main" }, ALLOWED, { cwd: `${C}/src` }],
+  ["G102", "Get-ChildItem of the same two with no space after the comma", "PowerShell", { command: "Get-ChildItem ..,main" }, ALLOWED, { cwd: `${C}/src` }],
+  ["G103", "a .. followed by a closing brace, from one folder inside the repository", "Bash", { command: "echo ..}" }, ALLOWED, { cwd: `${C}/src` }],
+  ["G104", "Get-ChildItem of .. written twice with a comma between, which climbs twice", "PowerShell", { command: "Get-ChildItem .., .." }, REFUSED, { cwd: `${C}/src` }],
+  ["G105", "ls of .. followed by a comma, from the repository, where one climb leaves the allow list", "Bash", { command: "ls ..," }, REFUSED],
+  ["G106", "ls of .. led by a comma, from the repository", "Bash", { command: "ls ,.." }, REFUSED],
+  ["G107", "cat of a relative path into a working directory, followed by a comma", "Bash", { command: "cat ../working-directory/report.html, and more" }, REFUSED, { cwd: `${T}/scratch` }],
+
+  /* G2. Spellings that are no path: a key of an object in a quoted string, and the braces of a variable.
+     Each allowed case stands beside the refusals the rule must leave standing. */
+  ["G201", "gh with a quoted jq object whose key is one letter", "Bash", { command: "gh api repos/algernon28/vespera/issues/432 --jq '{t:.title}'" }, ALLOWED],
+  ["G202", "node -e with a quoted object literal whose keys are one letter each", "Bash", { command: 'node -e "console.log(JSON.stringify({a:1,b:2}))"' }, ALLOWED],
+  ["G203", "gh with a quoted jq object whose second one-letter key follows a comma and a space", "Bash", { command: "gh pr list --json number,title --jq '.[] | {n:.number, t:.title}'" }, ALLOWED],
+  ["G204", "a quoted key of one letter whose value is a relative path into a working directory", "Bash", { command: "jq '{t:../working-directory/report.html}'" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["G205", "ls of a comma list, outside quotes, whose second path is a drive letter, a colon and two dots", "Bash", { command: "ls x,Q:.." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G206", "cat of a brace list, outside quotes, one of whose paths is a drive letter, a colon and a dot", "Bash", { command: "cat {x,Q:.}" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G207", "such a brace list inside a command substitution in double quotes, where the shell does expand it", "Bash", { command: 'echo "$(cat {x,Q:.})"' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G208", "a quoted command whose token is a drive letter, a colon and a name, after no comma and no brace", "Bash", { command: "bash -c 'cat Q:x'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G209", "a quoted brace list one of whose paths is written the Git Bash way", "Bash", { command: 'bash -c "cat {x,/q/no-such-folder/x}"' }, REFUSED, { windows: ONLY_WINDOWS.gitBash }],
+  ["G210", "an option whose value after = is a drive letter, a colon and a dot", "Bash", { command: "sort --file=Q:. README.md" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G211", "cat of a quoted path headed by ${TMPDIR}, whose next folder has a one-letter name", "Bash", { command: 'cat "${TMPDIR}/x"' }, ALLOWED],
+  ["G212", "cat of a quoted path headed by ${TMPDIR}, under the temp folder", "Bash", { command: 'cat "${TMPDIR}/scratch/note.txt"' }, ALLOWED],
+  ["G213", "cat of a path headed by ${TMPDIR} into a working directory", "Bash", { command: "cat ${TMPDIR}/working-directory/report.html" }, REFUSED],
+  ["G214", "cat of a comma list headed by ${TMPDIR}, whose second path climbs into a working directory", "Bash", { command: "cat ${TMPDIR}/scratch/note.txt,../working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["G215", "a variable in braces that has no value, followed by a relative path into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE}../working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["G216", "echo of a one-letter variable with a default value", "Bash", { command: "echo ${f:-none}" }, ALLOWED],
+  ["G217", "cat of a variable whose default value is a relative path into a working directory", "Bash", { command: "cat ${OUT:-../working-directory/report.html}" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["G218", "cat of a variable whose default value is a drive letter, a colon and a dot", "Bash", { command: "cat ${x:-Q:.}" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G219", "Get-Content of ${Q:-x}, which PowerShell reads as a name on drive Q and not as a default value", "PowerShell", { command: "Get-Content ${Q:-x}" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G220", "PowerShell's ${Q:x}, which is what a name on drive Q holds", "PowerShell", { command: "${Q:x}" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* G4. The @ is taken off a token as it is written, before any punctuation is trimmed from its end. */
+  ["G401", "ls of @ and a drive letter, a colon and a dot", "Bash", { command: "ls @Q:." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G402", "ls of @ and a drive letter, a colon and two dots", "Bash", { command: "ls @Q:.." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G403", "curl -d @ and a bare drive", "Bash", { command: "curl -d @Q: https://example.com/x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G404", "an option whose value after = is @ and a drive letter, a colon and a dot", "Bash", { command: "curl --data=@Q:. https://example.com/x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* L, continued. A path read against a folder that was reached as walked is judged as walked: against
+     the allowed roots and against where they lead. Here ${TEMP} is itself a link. And the rule as it
+     stands for a broken link followed at once by .., which lands on the folder the link is in. */
+  ["L217", "cd to a path that climbs under an allowed root that is itself a link, then cat of a relative path beneath where it lands", "Bash", { command: "cd $TEMP/scratch/.. && cat deep/note.txt" }, ALLOWED, { needsFurtherLinks: true, env: { TEMP: LINKED_TEMP, TMP: LINKED_TEMP, TMPDIR: LINKED_TEMP } }],
+  ["L307", "Read of a link that leads to a name that is not there, followed at once by ..", "Read", { file_path: `${LINKS}/nowhere/..` }, ALLOWED, { needsFurtherLinks: true }],
+
+  /* G5. A variable in braces that is a whole token is replaced by its value, as one with a path after it is. */
+  ["G501", "cd to a quoted ${TMPDIR}, then cat of a relative path into a working directory beneath it", "Bash", { command: 'cd "${TMPDIR}" && cat working-directory/report.html' }, REFUSED],
+  ["G502", "git -C ${TMPDIR}, then a relative path into a working directory beneath it", "Bash", { command: "git -C ${TMPDIR} show working-directory/report.html" }, REFUSED],
+  ["G503", "cd to ${HOME}, which the allow list does not name", "Bash", { command: "cd ${HOME} && cat Documents/x.txt" }, REFUSED],
+  ["G504", "ls of ${USERPROFILE}, which the allow list does not name", "Bash", { command: "ls ${USERPROFILE}" }, REFUSED],
+  ["G505", "ls of ${TMPDIR}, which the allow list names", "Bash", { command: "ls ${TMPDIR}" }, ALLOWED],
+
+  /* G6. A one-letter key is a key only in a brace group of a quoted string every member of which is a
+     name and a colon. The guard pairs quote characters as it finds them, so text the shell does not
+     quote can lie between two of them: an apostrophe in a comment, an escaped quote, a here-document. */
+  ["G601", "a brace list with a drive member, between two comment lines that each hold an apostrophe", "Bash", { command: "# don't\ncat {some,Q:name}\n# isn't" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G602", "a comma list with a drive member, between two such comment lines", "PowerShell", { command: "# don't\nGet-Content some, Q:archive\\doc.pdf\n# isn't" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G603", "a brace list with a drive member, between two escaped double quotes", "Bash", { command: 'echo \\" {some,Q:name} \\"' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G604", "a comma list with a drive member, after a here-document that holds one apostrophe and before a quoted one", "Bash", { command: "cat <<EOF\nit's here\nEOF\ncat some,Q:archive/doc.pdf\necho \"isn't\"" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G605", "a quoted brace list for a second shell, one of whose members is a drive and another a plain name", "Bash", { command: 'bash -c "cat {x,Q:name}"' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G606", "a quoted comma list for a second shell, with a drive member and no braces", "Bash", { command: 'powershell -Command "Get-Content x, Q:name"' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G607", "gh with a quoted jq object whose keys are a word and one letter", "Bash", { command: "gh pr list --json number,title --jq '.[] | {number:.number, t:.title}'" }, ALLOWED],
+
+  /* G7. A variable with a word for when it has no value is read with its value in its place and with
+     the word in its place, and the word runs to the brace that closes the variable. */
+  ["G701", "cat of ${TMPDIR:-word} followed by a path into a working directory", "Bash", { command: "cat ${TMPDIR:-some}/working-directory/report.html" }, REFUSED],
+  ["G702", "cat of ${TMPDIR:-word} followed by a path under the temp folder", "Bash", { command: "cat ${TMPDIR:-some}/scratch/note.txt" }, ALLOWED],
+  ["G703", "echo of ${TMPDIR:-word} followed by a folder with a one-letter name", "Bash", { command: "echo ${TMPDIR:-x}/y" }, ALLOWED],
+  ["G704", "cat of a variable whose word is a variable whose word climbs into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${VESPERA_GUARD_NOR_THIS:-../working-directory/report.html}}" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["G705", "cat of a variable whose word is ${TMPDIR} and a path into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/working-directory/report.html}" }, REFUSED],
+  ["G706", "cat of a variable whose word is ${TMPDIR} and a path under the temp folder", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/scratch/out.log}" }, ALLOWED],
 ];
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
   const skip =
     options.windows && !windows
       ? `not started on this platform: ${options.windows}`
-      : options.needsLink && !linkable
+      : (options.needsLink && !linkable) || (options.needsFurtherLinks && !linkedFurther)
         ? `not started on this platform: ${NO_LINK}`
         : false;
   test(`${id} ${expected === ALLOWED ? "allowed" : "refused"}: ${what}`, { skip }, () => {
     const cwd = options.noCwd ? undefined : (options.cwd ?? C);
-    const result = startGuard({ stdin: hookInput(tool, input, cwd) });
+    const result = startGuard({ stdin: hookInput(tool, input, cwd), env: options.env });
     claim(result, expected, `${tool} ${JSON.stringify(input)} with ${cwd ? `the current directory ${cwd}` : "no current directory given"}`);
   });
 }
