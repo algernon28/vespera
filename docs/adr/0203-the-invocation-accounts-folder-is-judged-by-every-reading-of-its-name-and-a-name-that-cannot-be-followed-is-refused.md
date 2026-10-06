@@ -4,7 +4,7 @@
 - **Status**: accepted
 - **Amends**: [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md), in these places and no others: §1's sentence on when the account is written ("is not at or below the working directory this invocation uses, and has no folder at or above it that holds `vespera.db` or `vespera.lock`"), which is now a judgement of every reading of the name and not of its text; §1's two warnings, to which a third is added; §6's "with the file it tried to create", made exact; and §7's "The only lines added are the warnings of §1 and §6", which the third line made false. ADR-198's allow-list (§2), its counts (§3), its progress lines (§4), its exception types (§5) and its timing (§8) stand as written.
 - **Rests on**: [ADR-201](0201-the-private-paths-guard-reads-a-climb-out-of-a-link-both-ways-and-refuses-a-name-it-cannot-follow.md), whose §1 reads a name as text and as the file system walks it and refuses on either, and whose §2 refuses a name that is there and cannot be followed. [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), whose hook is what the account's folder has to be readable through.
-- **Settles**: [#436](https://github.com/algernon28/vespera/issues/436), which ADR-201 left open ("`InvocationAccount.refusalToWrite`, ... raised as its own ticket").
+- **Settles**: [#436](https://github.com/algernon28/vespera/issues/436), which ADR-201 left open: the account's own refusal to write, which compared paths as text, "raised as its own ticket".
 
 ## Context
 
@@ -25,7 +25,7 @@ Three other facts decide this record, each executed on 2026-10-06 on Windows 11 
 The configured name is made absolute and not folded. It is then read four ways, each as a path with no `..` and no link left in it, except the first, which is the text:
 
 1. **As text**: each `..` folded against the name before it. Its own text is judged, and so is where it leads (next).
-2. **Where the text leads**: the deepest name of it that is there, asked without following links (so a link to nothing is there), is resolved with `toRealPath`, and the names after it, which are not there, are put back.
+2. **Where the text leads**: the deepest name of it that is there, asked without following links (so a link to nothing is there), is resolved with `toRealPath`, and the names after it, which are not there, are put back. When those names held a `..`, the folded result is resolved again, so that a link the fold brings up to the part that is there is followed too (`missing/../a-link`).
 3. **As the file system walks it** (ADR-201 §1): from the root, one name at a time; at each `..`, the parent of the real path reached so far; a name that is not there is put back as text. §2 says how.
 4. **Where this machine's own file calls lead**, which is where `createDirectories` and the open will go (§4). On Windows the system folds a `..` as text before it follows a link, so this is reading 2; elsewhere the system walks it, so this is reading 3. It is judged as well, so that what is written to is always what was judged and no claim about a platform holds that up.
 
@@ -94,12 +94,17 @@ ADR-198 §6 says the line names the file it tried to create. Now that the accoun
 
 `InvocationAccountTest` holds the writer on its own; each case builds its links with `TestLinks`, which makes a symbolic link and, on Windows where that is refused, a junction.
 
+Every test of this change carries `@Issue("436")`; there are seventeen, and each is named here once.
+
 - A link in a working directory that leads out of it, written under: `noAccountWhereTheFolderIsALinkInAWorkingDirectoryThatLeadsOutOfIt` (§1; it held the opposite in the first form of #436's fix).
 - A parent step after a link into a working directory: `noAccountWhereAParentOfTheFolderLeadsIntoAWorkingDirectory` (§2), and the text of a parent step inside while the walk leads out: `noAccountWhereOnlyTheTextOfAParentStepLiesInsideAWorkingDirectory` (§1).
-- A folder that is a link into a working directory, one that does not exist yet beneath such a link, one that is a link to nothing, one beneath a link to nothing, and two links in a loop: the other tests of this change, unchanged (§1, §3).
+- The folder is a link into a working directory (`noAccountWhereTheFolderIsALinkIntoAWorkingDirectory`), and one that does not exist yet lies beneath such a link (`noAccountWhereTheFolderDoesNotExistYetBeneathALinkIntoAWorkingDirectory`): nothing is written or created (§1).
+- The two positive cases, where an account is written and nothing is logged: through a link to a folder outside every working directory, `anAccountIsWrittenThroughALinkToAFolderOutsideEveryWorkingDirectory`, and in a folder that does not exist yet beneath one that does and is outside every working directory, `anAccountIsWrittenInAFolderThatDoesNotExistYet` (§1, §4).
+- A folder that is a link to nothing (`noAccountWhereTheFolderIsALinkToNothing`), one beneath a link to nothing (`noAccountWhereAFolderAboveItIsALinkToNothing`) and two links in a loop (`noAccountWhereTheFolderIsALinkInALoop`): the line is "cannot be followed" (§3).
+- A parent step that climbs out of a link to nothing: `noAccountWhereAParentStepClimbsOutOfALinkToNothing` holds that nothing is written or created and that the one line is "cannot be followed", which is the stricter rule of §3 and the third decision left open to the operator below.
 - A working directory that cannot be followed: `noAccountWhereTheWorkingDirectoryCannotBeFollowed` (§3).
 - A link to nothing, made inside a working directory and named as the folder, so that its text lies inside: `noAccountWhereTheFolderIsALinkToNothingInAWorkingDirectory` holds that the line is "cannot be followed" and not "lies inside" (§1, §3).
-- A name such as `outside/missing/../a-link`, where a parent step follows a folder that is not there: `noAccountWhereAParentStepAfterAMissingFolderLeadsOntoALinkIntoAWorkingDirectory` holds the refusal when the link leads into a working directory; `anAccountIsWrittenWhereAParentStepAfterAMissingFolderLeadsOntoALinkOutsideEveryWorkingDirectory` holds that the account is written where a link to a folder outside leads; and `theWarningForAFailedWriteAfterAParentStepNamesTheFileBeyondTheLink` holds, through the warning of §5, that the place written to has no link in it (§4, §5).
+- A name made of the folder a link is made in, then `missing`, a parent step and the link's name (`<the folder the link is made in>/missing/../a-link`), where a parent step follows a folder that is not there. `noAccountWhereAParentStepAfterAMissingFolderLeadsOntoALinkIntoAWorkingDirectory` holds the refusal when the link leads into a working directory, and `anAccountIsWrittenWhereAParentStepAfterAMissingFolderLeadsOntoALinkOutsideEveryWorkingDirectory` holds that the account is written where a link to a folder outside leads and that the folder the link was made in gains no `missing` (§4). Neither observes the second resolution of §1's reading 2: both are green with or without it, on Windows and elsewhere. Only `theWarningForAFailedWriteAfterAParentStepNamesTheFileBeyondTheLink` observes it, by the warning of §5 naming a place with no link in it, and only on a system that walks a parent step through a link, which Windows does not (§5).
 - The warning for a failed write names where the link leads: `theWarningForAFailedWriteNamesTheFileBeyondTheLink` (§5).
 
 ## What this does not decide
@@ -107,4 +112,4 @@ ADR-198 §6 says the line names the file it tried to create. Now that the accoun
 - **Whether the agent finds the account** when the readings of a name lead to different places and every one is outside. §4 writes where this machine's own calls lead and says no more.
 - **A retention rule** for old accounts, as in ADR-198.
 - **Whether the walked reading and the file system's own agree on a system that is not Windows**, by execution (§2).
-- **A denied name, which the JDK cannot tell from a missing one.** ADR-201 §2 refuses it in the hook. Here it is answered from its parent and ends as §5's warning (§3), which is weaker and leaks nothing.
+- **A denied name, which the JDK cannot tell from a missing one.** ADR-201 §2 refuses it in the hook. Here it is answered from its parent and is expected to end as §5's warning; that was not executed (§3). That is weaker and leaks nothing.

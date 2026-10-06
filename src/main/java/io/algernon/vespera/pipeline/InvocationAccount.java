@@ -110,7 +110,7 @@ final class InvocationAccount implements JobExecutionListener {
     @Override
     public synchronized void beforeJob(JobExecution jobExecution) {
         withheld = 0;
-        FolderRuling ruling = refusalToWrite();
+        FolderRuling ruling = rulingOnTheFolder();
         if (ruling.refusal() != null) {
             log.warn("no invocation account was written: {}", ruling.refusal());
             return;
@@ -264,7 +264,7 @@ final class InvocationAccount implements JobExecutionListener {
      * inside a working directory refuses. On acceptance the folder returned is the one {@link #open(Path)}
      * writes to: where this machine's own calls lead.
      */
-    private FolderRuling refusalToWrite() {
+    private FolderRuling rulingOnTheFolder() {
         if (accountDirectory == null) {
             return FolderRuling.refused("vespera.account-dir is not set");
         }
@@ -285,14 +285,18 @@ final class InvocationAccount implements JobExecutionListener {
                 return FolderRuling.refused("vespera.account-dir lies inside a working directory");
             }
         }
-        return new FolderRuling(null, written);
+        return FolderRuling.accepted(written);
     }
 
-    /** What {@link #refusalToWrite()} decided: the warning's reason, or the folder it accepted; never both. */
+    /** What {@link #rulingOnTheFolder()} decided: the warning's reason, or the folder it accepted; never both. */
     private record FolderRuling(String refusal, Path folder) {
 
         static FolderRuling refused(String reason) {
             return new FolderRuling(reason, null);
+        }
+
+        static FolderRuling accepted(Path folder) {
+            return new FolderRuling(null, folder);
         }
     }
 
@@ -314,10 +318,10 @@ final class InvocationAccount implements JobExecutionListener {
      * without following links, so a link to nothing is there) is resolved with {@code toRealPath()}, and the
      * rest, which is not there, is put back name by name and then has its parent steps folded; when that rest
      * held a parent step, the folded path, which holds none, is resolved again, so that a link the fold
-     * brought up to the part that is there is followed too. The part that
-     * is there is read as the platform reads it, which on Windows folds a parent step as text before it
-     * follows a link, so this is where {@code createDirectories} and the open will go. When no ancestor is
-     * there (a missing drive or share) the normalised text is used.
+     * brought up to the part that is there is followed too. The part that is there is read as the platform
+     * reads it, which on Windows folds a parent step as text before it follows a link, so this is where
+     * {@code createDirectories} and the open will go. When no ancestor is there (a missing drive or share)
+     * the normalised text is used.
      *
      * @throws IOException when a name that is there cannot be followed (a link to nothing, a loop)
      */
@@ -373,7 +377,7 @@ final class InvocationAccount implements JobExecutionListener {
         return real;
     }
 
-    /** Writes in {@code folder}, which {@link #refusalToWrite()} judged and accepted. */
+    /** Writes in {@code folder}, which {@link #rulingOnTheFolder()} judged and accepted. */
     private void open(Path folder) throws IOException {
         file = folder;
         Files.createDirectories(folder);

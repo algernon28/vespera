@@ -440,6 +440,31 @@ class InvocationAccountTest {
 
     @Test
     @Story("A folder that cannot be followed is refused for that")
+    @DisplayName("A name that steps up out of a link to nothing writes nothing, creates nothing and says it cannot be followed")
+    @Issue("436")
+    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
+    void noAccountWhereAParentStepClimbsOutOfALinkToNothing() throws IOException {
+        aWorkingDirectoryHolding();
+        Path link = aLinkTo(accountDirectory.resolve("nothing-here"));
+        Path climbingOut = link.resolve("..").resolve("accounts");
+
+        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(climbingOut));
+
+        claim(
+                "the folder the link was made in holds the link and nothing else: no account folder was made"
+                        + " beside it, where the text of the name lands, and nothing at the name the link leads to",
+                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
+        claim(
+                "the working directory holds the database and nothing else",
+                () -> assertThat(everythingBeneath(workingDirectory)).containsExactly(DATABASE));
+        claim(
+                "the one line logged says the folder cannot be followed, though the parent step climbs out of the"
+                        + " link",
+                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED));
+    }
+
+    @Test
+    @Story("A folder that cannot be followed is refused for that")
     @DisplayName("Two links that lead to each other write nothing and say the folder cannot be followed")
     @Issue("436")
     @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
@@ -544,6 +569,10 @@ class InvocationAccountTest {
         claim(
                 "the account is in the folder the link leads to, and is the only thing in it",
                 () -> assertThat(namesIn(outside)).containsExactly(FIRST_NAME));
+        claim(
+                "the folder the link was made in holds the link and the folder it leads to, and no folder that was"
+                        + " not there",
+                () -> assertThat(namesIn(accountDirectory)).containsExactlyInAnyOrder(A_LINK, "outside"));
         claim(
                 "the working directory holds the database and nothing else",
                 () -> assertThat(everythingBeneath(workingDirectory)).containsExactly(DATABASE));
