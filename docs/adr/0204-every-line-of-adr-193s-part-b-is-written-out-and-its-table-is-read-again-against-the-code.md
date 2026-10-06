@@ -139,7 +139,7 @@ ADR-193's Tests table says `StatementStepsPerRowTest` pins *"the drop's steps th
 
 ### 7. What this record found and does not decide
 
-ADR-199 §3's list stands, less `RelevanceLabels.modelAnswers`, which §2 takes up. One thing more was found, and it is **a loop, not a statement**: `RelevanceReportTasklet.modelAnswersInThisWalk` looks each answer a model gave up in the ledger, one statement an answer, with no counter. Its sibling over every answer has one (`Stage 5 (relevance report, answers matched)`). That is ADR-192's rule, not this record's, and it is not decided here: it is left to a ticket of its own, **(the ticket's number goes here when it is opened)**, *"The relevance report looks up each answer a model gave with no counter"*.
+ADR-199 §3's list stands, less `RelevanceLabels.modelAnswers`, which §2 takes up. One thing more was found, and it is **a loop, not a statement**: `RelevanceReportTasklet.modelAnswersInThisWalk` looks each answer a model gave up in the ledger, one statement an answer, with no counter. Its sibling over every answer has one (`Stage 5 (relevance report, answers matched)`). That is ADR-192's rule, not this record's, and it is not decided here: it is left to a ticket of its own, [#444](https://github.com/algernon28/vespera/issues/444), *"The relevance report looks up each answer a model gave with no counter"*.
 
 ## Why this shape, and what the others cost
 

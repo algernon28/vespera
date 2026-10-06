@@ -564,7 +564,12 @@ class StageFiveReportsItsProgressInvocationTest {
      * runs a first invocation minted: enough extraction metrics, signatures and unusable seeds for each read
      * to pass one callback. Then the record that stage 3, 4b and 5b finished is deleted, and the next
      * invocation does those three again under the same runs. None of the rows is about a document of the
-     * collection, so nothing any stage decides changes.
+     * collection. The signature rows do enter 4b's work all the same: its read returns them and its
+     * containment loop goes through each. So the test holds what that could have changed: the verdicts
+     * under the redundancy run are the ones the first invocation wrote, and none is against a file of the
+     * folder nobody walked. With this fixture the first invocation writes none under that run, every
+     * converted document coming back alike, so what is held is that the synthetic signatures added none. It
+     * claims nothing about what any other stage decides.
      */
     @Test
     @Story("A long read inside the database reports how far it has gone")
@@ -579,6 +584,7 @@ class StageFiveReportsItsProgressInvocationTest {
         String census = theLatestRunOf(StageModules.CONTENT_CENSUS.stage());
         String redundancy = theLatestRunOf(StageModules.CONTENT_REDUNDANCY.stage());
         String measurement = theLatestRunOf(StageModules.SEED_MEASUREMENT.stage());
+        List<String> verdictsOfTheFirstInvocation = verdictsUnder(redundancy);
         List<Long> nobodysFiles = filesOfAFolderNobodyWalked(ROWS_PAST_ONE_CALLBACK_AT_FIVE_STEPS);
         List<Long> fewer = nobodysFiles.subList(0, ROWS_PAST_ONE_CALLBACK_AT_SEVEN_STEPS);
         writeForEach(METRIC_ROW, fewer, extraction);
@@ -600,6 +606,19 @@ class StageFiveReportsItsProgressInvocationTest {
         cli.run("run", root.toString());
 
         claim("the second invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "resolving redundancy again, with the synthetic signatures among the signed, wrote the "
+                        + verdictsOfTheFirstInvocation.size() + " verdict(s) the first invocation wrote under"
+                        + " that run and no other: the same documents, kinds and reasons",
+                () -> assertThat(verdictsUnder(redundancy)).isEqualTo(verdictsOfTheFirstInvocation));
+        claim(
+                "and no verdict of any run is against a file of the folder nobody walked",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM verdict WHERE occurrence_id >= ? AND occurrence_id <= ?",
+                                Long.class,
+                                nobodysFiles.getFirst(),
+                                nobodysFiles.getLast()))
+                        .isZero());
         saidAboutHowFar("Stage 3 (content census, reading extraction metrics)", rowSpanUnder("extraction_metric", extraction));
         saidAboutHowFar(
                 "Stage 4b (redundancy resolution, reading signed occurrences)",
@@ -713,6 +732,15 @@ class StageFiveReportsItsProgressInvocationTest {
             rows.add(new Object[] {occurrence, run});
         }
         jdbcTemplate.batchUpdate(insertRow, rows);
+    }
+
+    /** Every verdict under {@code run}, as the occurrence, the kind and the reason, in a fixed order. */
+    private List<String> verdictsUnder(String run) {
+        return jdbcTemplate.queryForList(
+                "SELECT occurrence_id || ' ' || kind || ' ' || reason FROM verdict WHERE run_id = ?"
+                        + " ORDER BY occurrence_id, kind, reason",
+                String.class,
+                run);
     }
 
     private void forgetThatItFinished(String run, String step) {
