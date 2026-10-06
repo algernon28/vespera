@@ -11,6 +11,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Clock;
@@ -89,6 +90,8 @@ final class InvocationAccount implements JobExecutionListener {
 
     private BufferedWriter out;
     private Path file;
+    /** The resolved place {@link #refusalToWrite()} judged, and the only place {@link #open()} writes to. */
+    private Path judgedFolder;
     private ch.qos.logback.classic.Logger progressLogger;
     private ProgressAppender appender;
     private long withheld;
@@ -258,8 +261,15 @@ final class InvocationAccount implements JobExecutionListener {
         if (accountDirectory == null) {
             return "vespera.account-dir is not set";
         }
-        Path folder = accountDirectory.toAbsolutePath().normalize();
-        if (folder.startsWith(workingDirectory.toAbsolutePath().normalize())) {
+        Path folder;
+        Path working;
+        try {
+            folder = resolved(accountDirectory);
+            working = resolved(workingDirectory);
+        } catch (IOException e) {
+            return "vespera.account-dir cannot be followed to where it leads";
+        }
+        if (folder.startsWith(working)) {
             return "vespera.account-dir lies inside a working directory";
         }
         for (Path above = folder; above != null; above = above.getParent()) {
@@ -267,15 +277,37 @@ final class InvocationAccount implements JobExecutionListener {
                 return "vespera.account-dir lies inside a working directory";
             }
         }
+        judgedFolder = folder;
         return null;
     }
 
+    /**
+     * Where {@code path} leads: its deepest ancestor that is there (asked without following links, so a link
+     * to nothing is there) is resolved with {@code toRealPath()}, and the rest, which is not there, is put
+     * back with its parent steps folded. No parent step is folded before the links are followed.
+     *
+     * @throws IOException when a name that is there cannot be followed (a link to nothing, a loop)
+     */
+    private static Path resolved(Path path) throws IOException {
+        Path absolute = path.toAbsolutePath();
+        Path existing = absolute;
+        while (existing != null && !Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
+            existing = existing.getParent();
+        }
+        if (existing == null) {
+            return absolute.normalize();
+        }
+        Path real = existing.toRealPath();
+        return real.resolve(existing.relativize(absolute).toString()).normalize();
+    }
+
     private void open() throws IOException {
-        file = accountDirectory;
-        Files.createDirectories(accountDirectory);
+        Path folder = judgedFolder;
+        file = folder;
+        Files.createDirectories(folder);
         String stamp = FILE_STAMP.format(clock.instant().atOffset(ZoneOffset.UTC));
         for (int attempt = 1; ; attempt++) {
-            Path candidate = accountDirectory.resolve(
+            Path candidate = folder.resolve(
                     FILE_PREFIX + stamp + (attempt == 1 ? "" : "-" + attempt) + ".txt");
             file = candidate;
             try {

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.abort;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.TestLinks;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -224,25 +225,12 @@ class WalkTest {
     @Issue("19")
     @Link(name = "ADR-051", url = Adr.OCCURRENCE_IDENTIFIED_BY_RELATIVE_PATH, type = "adr")
     @Link(name = "ADR-053", url = Adr.WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS, type = "adr")
-    void skipsSoftLinksAndRecordsThemInstead(@TempDir Path root) throws IOException, InterruptedException {
+    void skipsSoftLinksAndRecordsThemInstead(@TempDir Path root) throws IOException {
         Path outside = Files.createDirectories(root.resolve("real"));
         Files.writeString(outside.resolve("hidden.txt"), "must not be walked through the link");
         Path link = root.resolve("link");
 
-        boolean created = false;
-        try {
-            Files.createSymbolicLink(link, outside);
-            created = true;
-        } catch (IOException | UnsupportedOperationException e) {
-            // Creating a symlink on Windows needs a privilege; a junction does not.
-            if (System.getProperty("os.name", "").startsWith("Windows")) {
-                Process p = new ProcessBuilder("cmd", "/c", "mklink", "/J", link.toString(), outside.toString())
-                        .redirectErrorStream(true)
-                        .start();
-                created = p.waitFor() == 0;
-            }
-        }
-        assumeTrue(created, "could not create a soft link in this environment");
+        assumeTrue(TestLinks.make(link, outside), "could not create a soft link in this environment");
 
         Recorder recorder = walk(root);
 
