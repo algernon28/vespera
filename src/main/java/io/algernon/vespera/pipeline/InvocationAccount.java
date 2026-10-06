@@ -11,6 +11,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Clock;
@@ -95,7 +96,9 @@ final class InvocationAccount implements JobExecutionListener {
 
     /**
      * @param accountDirectory the folder {@code vespera.account-dir} names, or {@code null} when it is unset;
-     *     where it is unset or lies inside a working directory no account is written (ADR-198 section 1)
+     *     where it is not set, lies inside a working directory by any reading of its name, or cannot be
+     *     followed to where it leads, no account is written (ADR-198 section 1, ADR-203); on acceptance the
+     *     folder judged is handed to {@link #open(Path)}, which writes nowhere else
      */
     InvocationAccount(Path workingDirectory, Path accountDirectory, JdbcTemplate jdbcTemplate, Clock clock) {
         this.workingDirectory = workingDirectory;
@@ -107,13 +110,13 @@ final class InvocationAccount implements JobExecutionListener {
     @Override
     public synchronized void beforeJob(JobExecution jobExecution) {
         withheld = 0;
-        String refusal = refusalToWrite();
-        if (refusal != null) {
-            log.warn("no invocation account was written: {}", refusal);
+        FolderRuling ruling = rulingOnTheFolder();
+        if (ruling.refusal() != null) {
+            log.warn("no invocation account was written: {}", ruling.refusal());
             return;
         }
         try {
-            open();
+            open(ruling.folder());
             line("invocation started");
             if (LoggerFactory.getLogger(StageProgress.class) instanceof ch.qos.logback.classic.Logger logger) {
                 progressLogger = logger;
@@ -253,29 +256,134 @@ final class InvocationAccount implements JobExecutionListener {
         return durationBetweenOrZero(start, end).toString();
     }
 
-    /** Why no account may be written, or {@code null}: the folder is unset, or at or below a working directory. */
-    private String refusalToWrite() {
+    /**
+     * Why no account may be written, or else the folder to write in: the folder is not set, it lies inside a
+     * working directory, or a name on the way to it, or the working directory, is there and cannot be
+     * followed (ADR-203). The folder is judged as every reading of its name leads (its text, where its text
+     * leads, the walk of ADR-201 section 1, and where this machine's own calls lead), and any one reading
+     * inside a working directory refuses. On acceptance the folder returned is the one {@link #open(Path)}
+     * writes to: where this machine's own calls lead.
+     */
+    private FolderRuling rulingOnTheFolder() {
         if (accountDirectory == null) {
-            return "vespera.account-dir is not set";
+            return FolderRuling.refused("vespera.account-dir is not set");
         }
-        Path folder = accountDirectory.toAbsolutePath().normalize();
-        if (folder.startsWith(workingDirectory.toAbsolutePath().normalize())) {
-            return "vespera.account-dir lies inside a working directory";
+        Path text = accountDirectory.toAbsolutePath().normalize();
+        Path textWorking = workingDirectory.toAbsolutePath().normalize();
+        Path[] readings;
+        Path resolvedWorking;
+        Path written;
+        try {
+            resolvedWorking = resolved(workingDirectory);
+            written = resolved(accountDirectory);
+            readings = new Path[] {text, resolved(text), walked(accountDirectory), written};
+        } catch (IOException e) {
+            return FolderRuling.refused("vespera.account-dir cannot be followed to where it leads");
         }
-        for (Path above = folder; above != null; above = above.getParent()) {
-            if (Files.exists(above.resolve("vespera.db")) || Files.exists(above.resolve("vespera.lock"))) {
-                return "vespera.account-dir lies inside a working directory";
+        for (Path reading : readings) {
+            if (insideAWorkingDirectory(reading, textWorking, resolvedWorking)) {
+                return FolderRuling.refused("vespera.account-dir lies inside a working directory");
             }
         }
-        return null;
+        return FolderRuling.accepted(written);
     }
 
-    private void open() throws IOException {
-        file = accountDirectory;
-        Files.createDirectories(accountDirectory);
+    /** What {@link #rulingOnTheFolder()} decided: the warning's reason, or the folder it accepted; never both. */
+    private record FolderRuling(String refusal, Path folder) {
+
+        static FolderRuling refused(String reason) {
+            return new FolderRuling(reason, null);
+        }
+
+        static FolderRuling accepted(Path folder) {
+            return new FolderRuling(null, folder);
+        }
+    }
+
+    /** Whether {@code reading} is at or below a working directory, given or resolved, or a folder holding its files. */
+    private static boolean insideAWorkingDirectory(Path reading, Path textWorking, Path resolvedWorking) {
+        if (reading.startsWith(textWorking) || reading.startsWith(resolvedWorking)) {
+            return true;
+        }
+        for (Path above = reading; above != null; above = above.getParent()) {
+            if (Files.exists(above.resolve("vespera.db")) || Files.exists(above.resolve("vespera.lock"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Where {@code path} leads as this machine's own calls lead: its deepest ancestor that is there (asked
+     * without following links, so a link to nothing is there) is resolved with {@code toRealPath()}, and the
+     * rest, which is not there, is put back name by name and then has its parent steps folded; when that rest
+     * held a parent step, the folded path, which holds none, is resolved again, so that a link the fold
+     * brought up to the part that is there is followed too. The part that is there is read as the platform
+     * reads it, which on Windows folds a parent step as text before it follows a link, so this is where
+     * {@code createDirectories} and the open will go. When no ancestor is there (a missing drive or share)
+     * the normalised text is used.
+     *
+     * @throws IOException when a name that is there cannot be followed (a link to nothing, a loop)
+     */
+    private static Path resolved(Path path) throws IOException {
+        Path absolute = path.toAbsolutePath();
+        Path existing = absolute;
+        while (existing != null && !Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
+            existing = existing.getParent();
+        }
+        if (existing == null) {
+            return absolute.normalize();
+        }
+        Path result = existing.toRealPath();
+        boolean putBackAParentStep = false;
+        for (int i = existing.getNameCount(); i < absolute.getNameCount(); i++) {
+            Path name = absolute.getName(i);
+            putBackAParentStep |= name.toString().equals("..");
+            result = result.resolve(name);
+        }
+        Path folded = result.normalize();
+        // The fold may leave a name that is there and is a link (acct/missing/../a-link). The folded path holds
+        // no parent step, so the second pass puts back none and ends there.
+        return putBackAParentStep ? resolved(folded) : folded;
+    }
+
+    /**
+     * The walked reading (ADR-201 section 1): from the root, one name at a time; at a {@code ..} the parent of
+     * the real path reached so far, at any other name that is there its {@code toRealPath()}, and a name that
+     * is not there is put back as text. It hands no path that still holds a {@code ..} to {@code relativize},
+     * {@code resolve(String)} or {@code normalize}, which on Windows fold it as text.
+     *
+     * @throws IOException when a name the walk meets is there and cannot be followed
+     */
+    private static Path walked(Path path) throws IOException {
+        Path absolute = path.toAbsolutePath();
+        Path real = absolute.getRoot();
+        for (int i = 0; i < absolute.getNameCount(); i++) {
+            Path name = absolute.getName(i);
+            String text = name.toString();
+            if (text.equals(".")) {
+                continue;
+            }
+            if (text.equals("..")) {
+                Path parent = real.getParent();
+                if (parent != null) {
+                    real = parent;
+                }
+                continue;
+            }
+            Path candidate = real.resolve(name);
+            real = Files.exists(candidate, LinkOption.NOFOLLOW_LINKS) ? candidate.toRealPath() : candidate;
+        }
+        return real;
+    }
+
+    /** Writes in {@code folder}, which {@link #rulingOnTheFolder()} judged and accepted. */
+    private void open(Path folder) throws IOException {
+        file = folder;
+        Files.createDirectories(folder);
         String stamp = FILE_STAMP.format(clock.instant().atOffset(ZoneOffset.UTC));
         for (int attempt = 1; ; attempt++) {
-            Path candidate = accountDirectory.resolve(
+            Path candidate = folder.resolve(
                     FILE_PREFIX + stamp + (attempt == 1 ? "" : "-" + attempt) + ".txt");
             file = candidate;
             try {

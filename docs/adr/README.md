@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-202. Two numbers below ADR-202 are reserved by branches in flight and have no file yet.
+One file per architecture decision, ADR-001 through ADR-203. Two numbers below ADR-203 are reserved by branches in flight and have no file yet.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -219,3 +219,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md) | 2026-10-05 | Every invocation writes an account built from an allow-list, and the account names no document *(extends ADR-093; makes a narrow exception to ADR-041; rests on ADR-192)* |
 | [ADR-201](0201-the-private-paths-guard-reads-a-climb-out-of-a-link-both-ways-and-refuses-a-name-it-cannot-follow.md) | 2026-10-05 | The private-paths guard reads a climb out of a link both ways, and refuses a name it cannot follow *(amends ADR-196)* |
 | [ADR-202](0202-generation-and-embedding-refuse-an-ollama-model-not-served-on-this-machine-before-anything-is-sent.md) | 2026-10-05 | Generation and embedding refuse an Ollama model not served on this machine, through the labeller's own check, before anything is sent *(extends ADR-197 §6, ADR-114; rests on ADR-195, ADR-196, ADR-110)* |
+| [ADR-203](0203-the-invocation-accounts-folder-is-judged-by-every-reading-of-its-name-and-a-name-that-cannot-be-followed-is-refused.md) | 2026-10-06 | The invocation account's folder is judged by every reading of its name, and a name that cannot be followed is refused *(amends ADR-198 §1, §6, §7; rests on ADR-201, ADR-196)* |

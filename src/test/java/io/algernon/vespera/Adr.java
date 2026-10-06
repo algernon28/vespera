@@ -1127,6 +1127,15 @@ public final class Adr {
     public static final String GENERATION_AND_EMBEDDING_REFUSE_A_MODEL_NOT_SERVED_HERE = FILE
             + "0202-generation-and-embedding-refuse-an-ollama-model-not-served-on-this-machine-before-anything-is-sent.md";
 
+    /**
+     * ADR-203 — the invocation account's folder is judged by every reading of its name (as text, where it
+     * leads, as the file system walks it, and where this machine's own calls lead), a name that is there
+     * and cannot be followed is refused with a line of its own, and the account is written only where it
+     * was judged (amends ADR-198 sections 1, 6 and 7; rests on ADR-201 and ADR-196; settles #436).
+     */
+    public static final String THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME = FILE
+            + "0203-the-invocation-accounts-folder-is-judged-by-every-reading-of-its-name-and-a-name-that-cannot-be-followed-is-refused.md";
+
     private Adr() {
     }
 }
