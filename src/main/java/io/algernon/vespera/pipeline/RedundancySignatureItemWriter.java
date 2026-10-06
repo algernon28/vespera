@@ -46,7 +46,13 @@ class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
         this.runId = stageRuns.contentRedundancy();
         this.extractionRunId = stageRuns.upstream(StageModules.EXTRACTION);
         this.redundancyBoilerplate = redundancyBoilerplate;
-        this.progress = StageProgress.over("Stage 4a (redundancy signatures)", ledger.survivorCount(runId));
+        long survivors = TimedStatement.of(
+                "Stage 4a (redundancy signatures)",
+                "counting",
+                "counted",
+                "the survivors it signs",
+                () -> ledger.survivorCount(runId));
+        this.progress = StageProgress.over("Stage 4a (redundancy signatures)", survivors);
     }
 
     @Override

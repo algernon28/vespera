@@ -32,8 +32,9 @@ import org.junit.jupiter.api.Test;
  * ADR-200 (#405), under which stage 1 drains no survivors, so no {@code CorpusStatement} is written.
  *
  * <p>The measured figures are {@link StatementStepsPerRowTest}'s, which runs each statement against the
- * bundled SQLite. This test only holds the declarations to them, so a ratio changed in one place and not
- * the other fails here.
+ * bundled SQLite, and for ADR-199's two reads {@link UncoveredStatementsStepsPerRowTest}'s. This test only
+ * holds the declarations to them, so a ratio changed in one place and not the other fails here. ADR-199's
+ * three timed survivor counts are in no enum: {@code pipeline} times each where it makes the call.
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -51,6 +52,11 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
                 SimilarityStatement.SHINGLE_ROWS, StatementStepsPerRowTest.SHINGLE_ROWS_STEPS,
                 SimilarityStatement.SIGNED_OCCURRENCES, StatementStepsPerRowTest.SIGNED_OCCURRENCES_STEPS,
                 ExtractionStatement.EXTRACTION_METRICS, StatementStepsPerRowTest.CONFIDENCE_METRICS_STEPS,
+                // ADR-199's two counted reads of stage 2's resume, measured by their own test. Nine pairs of
+                // Map.of's ten: one more counted statement moves this to Map.ofEntries.
+                ExtractionStatement.FAULTED_OCCURRENCES, UncoveredStatementsStepsPerRowTest.FAULTED_OCCURRENCES_STEPS,
+                ExtractionStatement.RECORDED_OCCURRENCES,
+                        UncoveredStatementsStepsPerRowTest.RECORDED_OCCURRENCES_STEPS,
                 EmbeddingStatement.UNUSABLE_SEEDS, StatementStepsPerRowTest.UNUSABLE_SEEDS_STEPS,
                 EmbeddingStatement.CORPUS_METRICS, StatementStepsPerRowTest.COMPARISON_METRICS_STEPS,
                 EmbeddingStatement.SEED_METRICS, StatementStepsPerRowTest.COMPARISON_METRICS_STEPS);
