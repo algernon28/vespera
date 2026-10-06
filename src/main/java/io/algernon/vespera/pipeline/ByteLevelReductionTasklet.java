@@ -153,7 +153,13 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * and the tally; what is written here is the operator's text, the page, and the floor's measurement.
      */
     private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot, Double logFloor) throws Exception {
-        StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", ledger.survivorCount(runId));
+        long survivors = TimedStatement.of(
+                "Stage 1 (byte-level reduction)",
+                "counting",
+                "counted",
+                "the survivors the broken check goes through",
+                () -> ledger.survivorCount(runId));
+        StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", survivors);
         FormatMix mix = new BrokenOrOutOfScope(ledger, detectedFormats, textSizeLimits())
                 .verdictSurvivors(runId, canonicalRoot, logFloor, new CheckingProgress() {
                     @Override
@@ -202,6 +208,10 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * many files are copies is known only afterwards.
      */
     private void resolveDuplicates(RunId runId, Path canonicalRoot) throws Exception {
+        // The resolution counts its survivors before it asks the ledger for anything else and hands the answer
+        // to toSize, so the time from here to toSize is that count's (ADR-199 section 2).
+        TimedStatement.Started counting = TimedStatement.begin(
+                "Stage 1 (byte-level reduction)", "counting", "counted", "the survivors whose sizes it reads");
         new ContentIdentityResolution(ledger, contentIdentity).resolve(runId, canonicalRoot, new HashingProgress() {
             private StageProgress sizes;
             private StageProgress progress;
@@ -209,6 +219,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
 
             @Override
             public void toSize(long survivors) {
+                counting.end();
                 sizes = StageProgress.over("Stage 1 (byte-level reduction, sizes read)", survivors);
             }
 

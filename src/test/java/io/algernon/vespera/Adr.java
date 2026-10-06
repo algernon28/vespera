@@ -1149,6 +1149,14 @@ public final class Adr {
     public static final String STAGE_1_HOLDS_ONE_SIZE_AT_A_TIME = FILE
             + "0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md";
 
+    /**
+     * ADR-199: the statements ADR-193 left unnamed take its rule: the survivor count that sizes a stage's
+     * counter is timed, stage 1's second one from outside {@code corpus}, and the reads of a stopped run's
+     * faults and of the occurrences it measured are counted (extends ADR-193; rests on ADR-200; settles #429).
+     */
+    public static final String THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE = FILE
+            + "0199-the-statements-adr-193-left-unnamed-take-its-rule.md";
+
     private Adr() {
     }
 }
