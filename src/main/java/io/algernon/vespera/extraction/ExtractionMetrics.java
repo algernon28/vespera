@@ -96,6 +96,11 @@ public class ExtractionMetrics {
      * {@code extraction_metric_by_run_id}.
      */
     OptionalLong metricRowsUpTo(RunId runId) {
+        return metricRowsUpTo(jdbcTemplate, runId);
+    }
+
+    /** The same span, for a caller that holds a {@link JdbcTemplate} and no instance of this class. */
+    static OptionalLong metricRowsUpTo(JdbcTemplate jdbcTemplate, RunId runId) {
         Long least = jdbcTemplate.queryForObject(
                 "SELECT MIN(rowid) FROM extraction_metric WHERE run_id = ?", Long.class, runId.value());
         Long greatest = jdbcTemplate.queryForObject(

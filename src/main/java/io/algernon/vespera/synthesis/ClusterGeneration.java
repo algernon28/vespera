@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
@@ -17,8 +18,9 @@ import org.springframework.stereotype.Component;
  * the repair pass's deletion and the completion rule (ADR-116).
  *
  * <p>It knows no stage, names no Spring Batch type and logs nothing: what the operator reads is said
- * by the caller, through {@link GenerationProgress}, which hears of each cluster left unwritten and of
- * every cluster gone through (ADR-192), and the {@link GenerationOutcome} it returns.
+ * by the caller, through {@link GenerationProgress}, which hears of each cluster left unwritten, of
+ * every cluster gone through (ADR-192) and of the walk's two reads, the clusters already written and
+ * the faults standing (ADR-193), and the {@link GenerationOutcome} it returns.
  */
 @Component
 public class ClusterGeneration {
@@ -55,9 +57,13 @@ public class ClusterGeneration {
             int contextWindow,
             GenerationProgress progress) {
         // Rows an earlier invocation of this run already wrote (ADR-115, ADR-116).
+        // A timed statement (ADR-193 sections 1 and 6): the read goes through a temp B-tree and has no cheap
+        // total, so the caller is told it starts and ends, and nothing between.
+        progress.statementStarting(SynthesisStatement.WRITTEN, OptionalLong.empty());
         Set<ClusterSlot> alreadyWritten = synthesisDocs.forRun(generation).stream()
                 .map(doc -> new ClusterSlot(doc.winningSeed(), doc.clusterOrdinal()))
                 .collect(Collectors.toSet());
+        progress.statementEnded(SynthesisStatement.WRITTEN);
         progress.toGoThrough(clusters.size());
         int written = 0;
         int skipped = 0;
@@ -123,7 +129,9 @@ public class ClusterGeneration {
             progress.clusterGoneThrough();
         }
         // Completion needs two things (ADR-116): no unsendable cluster, and no fault row standing.
+        progress.statementStarting(SynthesisStatement.STANDING_FAULTS, OptionalLong.empty());
         int standingFaults = clusterFaults.forRun(generation).size();
+        progress.statementEnded(SynthesisStatement.STANDING_FAULTS);
         if (!unsendable.isEmpty() || standingFaults > 0) {
             return new GenerationOutcome.LeftUnfinished(standingFaults, faulted, frozen(unsendable));
         }

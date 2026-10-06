@@ -283,9 +283,9 @@ class StatementStepsPerRowTest {
                         + STEPS_PER_CALLBACK + " at which a handler is called",
                 () -> assertThat(atFewer).isLessThan(STEPS_PER_CALLBACK));
         claim(
-                "and over " + (FEWER + DIFFERENCE * 10) + " rows it takes " + atMore + ", no more than a few"
-                        + " steps beyond that: SQLite frees the index in steps that do not grow with it",
-                () -> assertThat(atMore).isLessThan(STEPS_PER_CALLBACK).isLessThan(atFewer + FEWER));
+                "and over " + (FEWER + DIFFERENCE * 10) + " rows it takes " + atMore + ", the same number of"
+                        + " steps: SQLite frees the index in steps that do not grow with it",
+                () -> assertThat(atMore).isLessThan(STEPS_PER_CALLBACK).isEqualTo(atFewer));
     }
 
     private void measureRead(String table, String sql, String index, int expected) throws SQLException {

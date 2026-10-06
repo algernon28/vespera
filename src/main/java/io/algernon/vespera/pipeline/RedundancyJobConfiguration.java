@@ -169,7 +169,8 @@ public class RedundancyJobConfiguration {
      * {@code startRun} is mint-or-continue (ADR-115).
      *
      * <p>The index is built whenever it is missing and never when it is present, whoever left it
-     * there, and the two lines are written only when a build is made.
+     * there, and every line about it is written only when a build is made: the line before, the progress
+     * lines and the line saying the rows are gone through that ADR-193 puts between, and the line after.
      */
     private static final class ShingleHashIndexBuild implements StepExecutionListener {
 

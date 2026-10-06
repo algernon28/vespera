@@ -66,6 +66,12 @@ class RelevanceFloorTest {
     private static final String ANOTHER_MODELS_IDENTITY =
             "model=nomic-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
 
+    /**
+     * The step the floor is asked by, whose name opens the lines around the one read the floor makes
+     * (ADR-204 section 3). No claim here is about those lines; the floor's answer does not depend on it.
+     */
+    private static final String THE_STEP_THAT_ASKS = "Stage 5e (relevance floor)";
+
     @TempDir
     static Path workingDirectory;
 
@@ -96,7 +102,7 @@ class RelevanceFloorTest {
     void anUnansweredFloorRemovesNothing() {
         profileWithFloor(null);
 
-        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY);
+        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY, THE_STEP_THAT_ASKS);
 
         claim(
                 "the state is unset, which is what the key ships as: the run is what produces the data"
@@ -115,7 +121,7 @@ class RelevanceFloorTest {
         profileWithFloor("0.42");
         aLabelGivenUnder(ANOTHER_MODELS_IDENTITY);
 
-        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY);
+        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY, THE_STEP_THAT_ASKS);
 
         claim(
                 "the number is set and still nothing is removed: a threshold is a number on a scale, the"
@@ -142,7 +148,7 @@ class RelevanceFloorTest {
         profileWithFloor("0.42");
         aLabelGivenUnder(THIS_RUNS_IDENTITY);
 
-        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY);
+        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY, THE_STEP_THAT_ASKS);
 
         claim(
                 "the floor applies, and its value is the number the operator wrote: this is the one state"
@@ -157,7 +163,7 @@ class RelevanceFloorTest {
     void anUnlabelledFloorIsApplied() {
         profileWithFloor("0.42");
 
-        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY);
+        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY, THE_STEP_THAT_ASKS);
 
         claim(
                 "a floor with no labels behind it applies: ADR-088 is explicit that nothing checks a"
@@ -173,7 +179,7 @@ class RelevanceFloorTest {
     void aThresholdThatIsNotANumberReadsAsUnset() {
         profileWithFloor("about a half");
 
-        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY);
+        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY, THE_STEP_THAT_ASKS);
 
         claim(
                 "the run is not lost to a typo in one key of a file a person edits by hand: ADR-047 says"
@@ -190,7 +196,7 @@ class RelevanceFloorTest {
         aLabelGivenUnder(THIS_RUNS_IDENTITY);
         aLabelGivenUnder(ANOTHER_MODELS_IDENTITY);
 
-        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY);
+        RelevanceFloor.State state = floor.stateFor(THIS_RUNS_IDENTITY, THE_STEP_THAT_ASKS);
 
         claim(
                 "answers spanning two models are a half-re-ingested pass, and the honest reading is that"

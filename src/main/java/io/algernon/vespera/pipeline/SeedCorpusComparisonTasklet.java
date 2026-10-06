@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.embedding.EmbeddingStatement;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -96,8 +97,33 @@ class SeedCorpusComparisonTasklet implements Tasklet {
                 () -> seedCorpusComparison.discardForRun(measurementRun),
                 () -> {
                     LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.value());
-                    SeedCorpusComparison.Comparison comparison =
-                            seedCorpusComparison.measure(measurementRun, extractionRunId, seedWalk.walkId());
+                    // Five statements that wait, said as SeedCorpusComparison reports each (ADR-193 section 7,
+                    // ADR-204 section 3): two drains, timed, and three reads of a run's rows, counted, the
+                    // first of which says nothing where no seed is recorded unusable.
+                    String stage = "Stage 5b (seed/corpus comparison)";
+                    SeedCorpusComparison.Comparison comparison = seedCorpusComparison.measure(
+                            measurementRun,
+                            extractionRunId,
+                            seedWalk.walkId(),
+                            ReportedStatements.saying()
+                                    .timed(EmbeddingStatement.CORPUS_SURVIVORS, stage, "the corpus survivors")
+                                    .timed(EmbeddingStatement.SEED_OCCURRENCES, stage, "the seed walk's occurrences")
+                                    .counted(
+                                            EmbeddingStatement.UNUSABLE_SEEDS,
+                                            stage,
+                                            "the unusable seeds",
+                                            "Stage 5b (seed/corpus comparison, reading unusable seeds)")
+                                    .counted(
+                                            EmbeddingStatement.CORPUS_METRICS,
+                                            stage,
+                                            "the corpus survivors' extraction metrics",
+                                            "Stage 5b (seed/corpus comparison, reading corpus metrics)")
+                                    .counted(
+                                            EmbeddingStatement.SEED_METRICS,
+                                            stage,
+                                            "the seeds' extraction metrics",
+                                            "Stage 5b (seed/corpus comparison, reading seed metrics)")
+                                    .build());
                     Path reportFile = writeReport(comparison);
                     LOG.info(
                             "Stage 5b (seed/corpus comparison) finished under run {}; report written to {}",

@@ -2,10 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.similarity.BoilerplateShingles;
-import java.util.Locale;
 import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.stereotype.Component;
 
@@ -15,18 +12,18 @@ import org.springframework.stereotype.Component;
  * ({@link BoilerplateShingles}), cheap enough once but wasteful to repeat for every one of a chunk
  * step's items.
  *
- * <p>Depends on {@link StageRuns} directly rather than through an {@code ObjectProvider}: this bean is
- * itself only ever reached through an {@code ObjectProvider} at its own call sites, so its target is
- * never constructed — and therefore never triggers stage 4's own run being minted — while the gate is
- * closed.
+ * <p>Depends on {@link StageRuns} directly rather than through an {@code ObjectProvider}, and is itself
+ * reached two ways: {@link RedundancyResolutionTasklet} asks an {@code ObjectProvider} for it, and {@link
+ * RedundancySignatureItemWriter} takes it as a constructor argument. Either way what is handed over is
+ * the job-scoped proxy, and the target, whose constructor asks {@link StageRuns} for stage 3's run and
+ * the floor, is built at the first call
+ * of {@link #hashes()} and not before. While the gate is closed neither caller makes that call: 4a's
+ * reader yields nothing, so its writer is never asked to write a chunk, and 4b's tasklet returns before it
+ * asks its provider. So the target is not built, and this class asks {@link StageRuns} for nothing, behind a shut gate.
  */
 @Component
 @JobScope
 class RedundancyBoilerplate {
-
-    private static final Logger log = LoggerFactory.getLogger(RedundancyBoilerplate.class);
-
-    private static final double NANOS_PER_SECOND = 1_000_000_000.0;
 
     private final Set<Long> hashes;
 
@@ -39,12 +36,12 @@ class RedundancyBoilerplate {
     RedundancyBoilerplate(BoilerplateShingles boilerplateShingles, StageRuns stageRuns) {
         RunId censusRun = stageRuns.upstream(StageModules.CONTENT_CENSUS);
         double floor = stageRuns.contentRedundancyFloor();
-        log.info("Stage 4 (content redundancy) is reading the boilerplate shingles");
-        long started = System.nanoTime();
-        this.hashes = boilerplateShingles.resolve(censusRun, floor);
-        log.info(
-                "Stage 4 (content redundancy) read the boilerplate shingles in {} s",
-                String.format(Locale.ROOT, "%.1f", (System.nanoTime() - started) / NANOS_PER_SECOND));
+        this.hashes = TimedStatement.of(
+                "Stage 4 (content redundancy)",
+                "reading",
+                "read",
+                "the boilerplate shingles",
+                () -> boilerplateShingles.resolve(censusRun, floor));
     }
 
     Set<Long> hashes() {

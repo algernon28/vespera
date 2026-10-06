@@ -16,7 +16,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * it, because it runs at every start (ADR-173 §3) and would build the whole index during start-up only
  * for the next stage 2 to drop it. Row by row, at random places in an index far larger than any page
  * cache, it cost a stage-2 chunk 3.9 s against 96 ms without it (ADR-182 Context). Built once over
- * every row the table then holds, it costs about a minute per 25,000,000 rows.
+ * every row the table then holds, a one-column index took 15 seconds over 20,000,000 synthetic rows written
+ * in order on a USB spinning disk (ADR-193's probe), and this one took 39 minutes over the 42,833,917 rows
+ * of the archive's own {@code shingle} table on the same kind of disk, rows that were neither new nor in
+ * order: the worst measured (ADR-193 section 4.2). What it costs elsewhere is not known, so no rate is
+ * stated here.
  *
  * <p>Both statements are decided from what {@code sqlite_master} holds at the moment, through {@code IF
  * EXISTS} and {@code IF NOT EXISTS}, never from a record of what an earlier invocation did (ADR-182 §3).

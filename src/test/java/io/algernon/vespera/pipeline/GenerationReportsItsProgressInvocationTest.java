@@ -57,6 +57,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * src/test} and turns it green. The running counter of cluster documents opened writes its first line at the
  * 1,000th, which no fixture here reaches, and is not pinned. Report text says <em>group</em> where these names
  * say cluster (ADR-122).
+ *
+ * <p><b>Two claims came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3, #411): each of
+ * 6b's reads has a line before it and a line after it with the seconds it took, once each, in the order the
+ * step makes them, and a walk that stops on the fifth answer turned down never reads the standing faults.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -119,6 +123,9 @@ class GenerationReportsItsProgressInvocationTest {
     private static final String FILES = "Stage 6b (generation, cluster files written)";
     private static final String ENTRIES = "Stage 6b (generation, membership entries)";
 
+    /** Stage 6b's own name, which its statement lines open with. */
+    private static final String STAGE_SIX_B = "Stage 6b (generation)";
+
     private static final String FINISHED = "The generation step finished under ";
     private static final String STOPPED = "the generation step stopped under run ";
     private static final String LEFT_UNWRITTEN = "the generation step left ";
@@ -177,6 +184,19 @@ class GenerationReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(CLUSTERS))
                         .containsExactlyElementsOf(ProgressLines.expected(CLUSTERS, SIX_CLUSTERS)));
         theTreesCountersRan(root, SIX_CLUSTERS);
+        claim(
+                "the step says what it is reading and how long each read took, each line once, in the order it"
+                        + " reads: which document is in which group, the groups recorded, the groups already"
+                        + " written, the faults still standing once the last group is gone through, and, for the"
+                        + " tree, the groups written and the faults recorded",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_SIX_B))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_SIX_B, "the cluster membership"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the recorded clusters"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the clusters already written"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the standing faults"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the clusters written"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the faults recorded"))));
     }
 
     @Test
@@ -203,6 +223,16 @@ class GenerationReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(CLUSTERS))
                         .containsExactlyElementsOf(ProgressLines.expected(CLUSTERS, SIX_CLUSTERS).subList(0, 5)));
         theTreesCountersRan(root, SIX_CLUSTERS);
+        claim(
+                "a walk that stops never reads the faults still standing, so the step says nothing of that"
+                        + " read; every other read is said as on a clean finish, the two for the tree included",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_SIX_B))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_SIX_B, "the cluster membership"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the recorded clusters"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the clusters already written"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the clusters written"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the faults recorded"))));
     }
 
     /**

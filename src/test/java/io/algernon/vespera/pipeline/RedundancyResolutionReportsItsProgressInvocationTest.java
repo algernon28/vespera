@@ -54,6 +54,12 @@ import org.springframework.test.context.DynamicPropertySource;
  * that the counters' lines are there; part (b) moves it into {@code src/test} and turns it green. The other
  * two pass on main and have to go on passing: a stage with nothing signed counts nothing, and a stage already
  * recorded does not run its loops.
+ *
+ * <p><b>The claims about statements came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3,
+ * #411): stage 3's two drains and its read of the extraction metrics, and the four reads 4b's resolution
+ * makes, each with a line before it and a line after it with the seconds it took, and none of them where the
+ * stage issued no statement. 4a's count of the survivors it signs is ADR-199's, and {@code
+ * UncoveredStatementsInvocationTest} holds its lines.
  */
 @CascadeSliceTest
 @Import(ConverterStopsPartwayBeans.class)
@@ -77,6 +83,14 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
     /** Every counter this class names, for the claims about who wrote their lines. */
     private static final List<String> EVERY_COUNTER =
             List.of(FREQUENCY_ROWS, PAIRS, PROFILES, COMPONENTS, VERDICTS, CONTAINMENT);
+
+    /** Each stage's own name, which its statement lines open with. */
+    private static final String STAGE_THREE = "Stage 3 (content census)";
+
+    private static final String STAGE_FOUR_B = "Stage 4b (redundancy resolution)";
+
+    /** How stage 3's line before its read of the shingle rows opens; the rest is the bound and what a stop costs. */
+    private static final String READING_UP_TO = "Stage 3 (content census) is reading up to ";
 
     private static final String STARTING = "Stage 4b (redundancy resolution) starting under run ";
     private static final String FINISHED = "Stage 4b (redundancy resolution) finished under run ";
@@ -187,6 +201,47 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                         .containsSubsequence(
                                 STARTING, PAIRS + ": 1 of ", PROFILES + ": 1 of ", VERDICTS + ": 1 of ",
                                 COMPONENTS + ": 1 of ", CONTAINMENT + ": 1 of ", FINISHED));
+        long metricRows = rowSpanUnder("extraction_metric", theRun(root, StageModules.EXTRACTION.stage()));
+        long signatureRows = rowSpanUnder("minhash_signature", run);
+        claim(
+                "stage 3 says what it is reading and how long each read took, each line once, in the order it"
+                        + " reads: the documents stage 2 left, for the shingle frequencies; the shingle rows; the"
+                        + " documents stage 2 left again, for the confidence spread; and the extraction metrics,"
+                        + " over up to the " + metricRows + " rows stage 2's run holds",
+                () -> assertThat(shingleRowsLineShortened(StatementLines.of(operatorLines(), STAGE_THREE)))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_THREE, "stage 2's survivors for the shingle frequencies"),
+                                List.of(READING_UP_TO),
+                                StatementLines.timedRead(
+                                        STAGE_THREE, "stage 2's survivors for the confidence distribution"),
+                                StatementLines.countedRead(STAGE_THREE, "the extraction metrics", metricRows))));
+        claim(
+                "resolving says what it is reading and how long each read took, each line once, in the order it"
+                        + " reads: the signed documents, over up to the " + signatureRows + " signature rows of its"
+                        + " run; the signature bands; the extraction metrics of the near-duplicates; and the"
+                        + " shingle frequencies",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FOUR_B))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.countedRead(STAGE_FOUR_B, "the signed occurrences", signatureRows),
+                                StatementLines.timedRead(STAGE_FOUR_B, "the signature bands"),
+                                StatementLines.timedRead(STAGE_FOUR_B, "the near-duplicates' extraction metrics"),
+                                StatementLines.timedRead(STAGE_FOUR_B, "the shingle document frequencies"))));
+        claim(
+                "each of resolving's reads lies where the step makes it: the signed documents and the bands"
+                        + " before the first pair is scored, the near-duplicates' metrics before the first of"
+                        + " them is counted as read, and the shingle frequencies before the first document is"
+                        + " checked for a container",
+                () -> assertThat(String.join("\n", operatorLines()))
+                        .containsSubsequence(
+                                STARTING,
+                                STAGE_FOUR_B + " read the signed occurrences in ",
+                                STAGE_FOUR_B + " read the signature bands in ",
+                                PAIRS + ": 1 of ",
+                                STAGE_FOUR_B + " is reading the near-duplicates' extraction metrics",
+                                PROFILES + ": 1 of ",
+                                STAGE_FOUR_B + " read the shingle document frequencies in ",
+                                CONTAINMENT + ": 1 of ",
+                                FINISHED));
         for (String counter : EVERY_COUNTER) {
             claim(
                     "every line of " + counter + " was written by the progress counter itself",
@@ -217,6 +272,10 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                 "and no 4b counter wrote a line: resolution returns before any loop when nothing is signed",
                 () -> assertThat(List.of(PAIRS, PROFILES, COMPONENTS, VERDICTS, CONTAINMENT))
                         .allSatisfy(counter -> assertThat(ProgressLines.of(logged.list, counter)).isEmpty()));
+        claim(
+                "nor does it say it is reading anything: the read of the signed documents has no row to go"
+                        + " through, so it has nothing to wait for, and no later read is made",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FOUR_B)).isEmpty());
     }
 
     @Test
@@ -238,6 +297,30 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                 "so no counter of stage 3 or of 4b writes a line: the loops it counts did not run",
                 () -> assertThat(EVERY_COUNTER)
                         .allSatisfy(counter -> assertThat(ProgressLines.of(logged.list, counter)).isEmpty()));
+        claim(
+                "and neither stage 3 nor resolving says it is reading anything: a step already recorded makes"
+                        + " none of its reads",
+                () -> {
+                    assertThat(StatementLines.of(operatorLines(), STAGE_THREE)).isEmpty();
+                    assertThat(StatementLines.of(operatorLines(), STAGE_FOUR_B)).isEmpty();
+                });
+    }
+
+    /** {@code said} with stage 3's line before its read of the shingle rows cut to how it opens. */
+    private static List<String> shingleRowsLineShortened(List<String> said) {
+        return said.stream()
+                .map(line -> line.startsWith(READING_UP_TO) ? READING_UP_TO : line)
+                .toList();
+    }
+
+    /**
+     * The span of {@code run}'s rowids in {@code table}, greatest less least plus one, which is the total a
+     * counted read of that run's rows is stated over (ADR-191 section 2); zero where the run holds none.
+     */
+    private long rowSpanUnder(String table, String run) {
+        Long span = jdbcTemplate.queryForObject(
+                "SELECT MAX(rowid) - MIN(rowid) + 1 FROM " + table + " WHERE run_id = ?", Long.class, run);
+        return span == null ? 0 : span;
     }
 
     /**

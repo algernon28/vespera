@@ -70,6 +70,9 @@ class ArrangementTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(ArrangementTasklet.class);
 
+    /** Stage 6a's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 6a (arrangement)";
+
     /**
      * The page's name in the working directory, beside the profile and the database (ADR-054).
      *
@@ -129,7 +132,8 @@ class ArrangementTasklet implements Tasklet {
         }
 
         RunId scoring = stageRuns.embeddingScoring();
-        List<DocumentCluster> membership = documentClusters.forRun(scoring);
+        List<DocumentCluster> membership =
+                TimedStatement.of(STAGE, "reading", "read", "the cluster membership", () -> documentClusters.forRun(scoring));
         if (membership.isEmpty()) {
             LOG.info(
                     "the arrangement step is gated: no survivor was grouped under {}, so there is nothing"
@@ -155,7 +159,7 @@ class ArrangementTasklet implements Tasklet {
                     write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
                             ArrangementGate.shortNameOf(arrangement),
                             Walk.canonicalRoot(root).toString(),
-                            reportOf(clusters.forRun(arrangement), Map.of(), clusteredDocuments(membership, scores))));
+                            reportOf(recordedClusters(arrangement), Map.of(), clusteredDocuments(membership, scores))));
                 },
                 () -> clusters.discardForRun(arrangement),
                 () -> {
@@ -176,7 +180,7 @@ class ArrangementTasklet implements Tasklet {
                     write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
                             ArrangementGate.shortNameOf(arrangement),
                             Walk.canonicalRoot(root).toString(),
-                            reportOf(clusters.forRun(arrangement), leads, documents)));
+                            reportOf(recordedClusters(arrangement), leads, documents)));
                     LOG.info(
                             "The arrangement step finished under {}: {} seed partition(s), {} cluster(s), {}"
                                     + " document(s)",
@@ -186,6 +190,14 @@ class ArrangementTasklet implements Tasklet {
                             arranged.stream().mapToInt(ArrangedCluster::documentCount).sum());
                     return true;
                 });
+    }
+
+    /**
+     * The clusters recorded under {@code arrangement}, read once on whichever branch the step takes: a timed
+     * statement, since the read goes through a temp B-tree and has no cheap total (ADR-193 section 6).
+     */
+    private List<RecordedCluster> recordedClusters(RunId arrangement) {
+        return TimedStatement.of(STAGE, "reading", "read", "the recorded clusters", () -> clusters.forRun(arrangement));
     }
 
     /**

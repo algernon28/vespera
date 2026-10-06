@@ -203,7 +203,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
     /**
      * The second pass. {@code corpus} resolves content identity; this opens the progress counters over the
      * counts it reports and writes each hashed line. Three loops are counted (ADR-192): the sizes read, over
-     * the survivors the pass will read ({@code Ledger.survivorCount}); the hashes, over the files sharing a
+     * the survivors the pass will read ({@code Ledger.survivorCount}, timed from the call to {@code resolve} to
+     * its first callback); the hashes, over the files sharing a
      * size; and the duplicates recorded, a running count opened when the hashing is announced, since how
      * many files are copies is known only afterwards.
      */

@@ -4,7 +4,10 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.StatementSteps;
 import io.algernon.vespera.ledger.VerdictKind;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,6 +18,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -77,8 +81,13 @@ public class RedundancyResolution {
 
     /**
      * As {@link #resolve(RunId, RunId, RunId, Set)}, and tells {@code progress} about each loop (ADR-192
-     * section 5): once before its first item with its total, zero included, and after each item. Returns
-     * before any loop, calling nothing, when no occurrence is signed.
+     * section 5): once before its first item with its total, zero included, and after each item. It also
+     * tells it about the four reads among the loops (ADR-193 section 7, ADR-204 sections 3 and 4), each
+     * started once before it and ended once after it, and not ended where it throws: the signed
+     * occurrences, counted, first of all, started with the span of the run's rows or with an empty total
+     * where it holds none; then the signature bands, the near-duplicates' extraction metrics (only where a
+     * component holds a member) and the shingle document frequencies, each timed. Returns before any loop,
+     * having reported the first read alone, when no occurrence is signed.
      */
     public void resolve(
             RunId stage4RunId,
@@ -86,7 +95,7 @@ public class RedundancyResolution {
             RunId stage2RunId,
             Set<Long> boilerplateHashes,
             ResolutionProgress progress) {
-        Set<Long> signedOccurrenceIds = loadSignedOccurrenceIds(stage4RunId);
+        Set<Long> signedOccurrenceIds = loadSignedOccurrenceIds(stage4RunId, progress);
         if (signedOccurrenceIds.isEmpty()) {
             return;
         }
@@ -107,15 +116,45 @@ public class RedundancyResolution {
      * a whole shingle set, so holding the result in memory costs nothing like holding every document's
      * shingle set would (the class-level note explains why that alternative was rejected).
      */
-    private Set<Long> loadSignedOccurrenceIds(RunId stage4RunId) {
+    private Set<Long> loadSignedOccurrenceIds(RunId stage4RunId, ResolutionProgress progress) {
         Set<Long> ids = new HashSet<>();
-        jdbcTemplate.query(
-                "SELECT DISTINCT occurrence_id FROM minhash_signature WHERE run_id = ?",
-                resultSet -> {
-                    ids.add(resultSet.getLong("occurrence_id"));
-                },
-                stage4RunId.value());
+        // Counted by SQLite's progress handler (ADR-193): the one read of this class whose rows are all
+        // returned and whose total is the span of the run's rowids. It runs on the connection the template
+        // hands over and is never handed back to it.
+        progress.statementStarting(SimilarityStatement.SIGNED_OCCURRENCES, spanOfRun("minhash_signature", stage4RunId));
+        StatementSteps.counted(
+                jdbcTemplate,
+                steps -> progress.stepsTaken(SimilarityStatement.SIGNED_OCCURRENCES, steps),
+                connection -> {
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "SELECT DISTINCT occurrence_id FROM minhash_signature WHERE run_id = ?")) {
+                        statement.setString(1, stage4RunId.value());
+                        try (ResultSet resultSet = statement.executeQuery()) {
+                            while (resultSet.next()) {
+                                ids.add(resultSet.getLong("occurrence_id"));
+                            }
+                        }
+                    }
+                    return null;
+                });
+        progress.statementEnded(SimilarityStatement.SIGNED_OCCURRENCES);
         return ids;
+    }
+
+    /**
+     * The span of {@code run}'s rowids in {@code table}, greatest less least plus one, as two statements and
+     * never one (ADR-191 section 2): each is one descent of the index on {@code run_id} alone. Empty for a
+     * run that holds no row. {@code table} is a constant of this class, never a caller's text.
+     */
+    private OptionalLong spanOfRun(String table, RunId run) {
+        Long least = jdbcTemplate.queryForObject(
+                "SELECT MIN(rowid) FROM " + table + " WHERE run_id = ?", Long.class, run.value());
+        Long greatest = jdbcTemplate.queryForObject(
+                "SELECT MAX(rowid) FROM " + table + " WHERE run_id = ?", Long.class, run.value());
+        if (least == null || greatest == null) {
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(greatest - least + 1);
     }
 
     // -- Phase 1: near-duplication -------------------------------------------------------------
@@ -129,7 +168,7 @@ public class RedundancyResolution {
         RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
 
         UnionFind unionFind = new UnionFind(signedOccurrenceIds);
-        Set<PairKey> candidatePairs = nearDuplicateCandidates(stage4RunId);
+        Set<PairKey> candidatePairs = nearDuplicateCandidates(stage4RunId, progress);
         progress.toScorePairs(candidatePairs.size());
         for (PairKey pair : candidatePairs) {
             long[] a = shingleSets.get(pair.a());
@@ -186,8 +225,11 @@ public class RedundancyResolution {
     }
 
     /** Near-duplicate candidates: pairs sharing a bucket, read directly off {@code signature_band}. */
-    private Set<PairKey> nearDuplicateCandidates(RunId stage4RunId) {
+    private Set<PairKey> nearDuplicateCandidates(RunId stage4RunId, ResolutionProgress progress) {
         Map<BandBucket, List<Long>> buckets = new HashMap<>();
+        // Timed, not counted: the only index leading with run_id has columns after it, so the span costs as
+        // much as the read (ADR-193 section 1).
+        progress.statementStarting(SimilarityStatement.SIGNATURE_BANDS, OptionalLong.empty());
         jdbcTemplate.query(
                 "SELECT band_ordinal, band_hash, occurrence_id FROM signature_band WHERE run_id = ?",
                 resultSet -> {
@@ -197,6 +239,7 @@ public class RedundancyResolution {
                             .add(resultSet.getLong("occurrence_id"));
                 },
                 stage4RunId.value());
+        progress.statementEnded(SimilarityStatement.SIGNATURE_BANDS);
 
         Set<PairKey> pairs = new HashSet<>();
         for (List<Long> occurrenceIds : buckets.values()) {
@@ -232,6 +275,8 @@ public class RedundancyResolution {
         List<Object> args = new ArrayList<>();
         args.add(stage2RunId.value());
         args.addAll(occurrenceIds);
+        // Timed: an IN list has no cheap total (ADR-193 section 1).
+        progress.statementStarting(SimilarityStatement.NEAR_DUPLICATE_METRICS, OptionalLong.empty());
         jdbcTemplate.query(
                 "SELECT occurrence_id, alphanumeric_char_count FROM extraction_metric"
                         + " WHERE run_id = ? AND occurrence_id IN (" + placeholders + ")",
@@ -240,6 +285,7 @@ public class RedundancyResolution {
                             resultSet.getLong("occurrence_id"), resultSet.getLong("alphanumeric_char_count"));
                 },
                 args.toArray());
+        progress.statementEnded(SimilarityStatement.NEAR_DUPLICATE_METRICS);
 
         Map<Long, OccurrenceProfile> profiles = new HashMap<>();
         for (long occurrenceId : occurrenceIds) {
@@ -266,7 +312,7 @@ public class RedundancyResolution {
             Set<Long> removed,
             ResolutionProgress progress) {
         RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
-        Map<Long, Integer> documentFrequency = loadDocumentFrequency(stage3RunId);
+        Map<Long, Integer> documentFrequency = loadDocumentFrequency(stage3RunId, progress);
         progress.toCheckForContainment(signedOccurrenceIds.size());
         // One count per document for the whole pass, not one per pair: counting a spreadsheet's hundred
         // thousand shingles again for every document that names it as a candidate is what made this
@@ -398,8 +444,10 @@ public class RedundancyResolution {
         return count == null ? 0 : count;
     }
 
-    private Map<Long, Integer> loadDocumentFrequency(RunId stage3RunId) {
+    private Map<Long, Integer> loadDocumentFrequency(RunId stage3RunId, ResolutionProgress progress) {
         Map<Long, Integer> counts = new HashMap<>();
+        // Timed: the span costs as much as the read (ADR-193 section 1).
+        progress.statementStarting(SimilarityStatement.DOCUMENT_FREQUENCY, OptionalLong.empty());
         jdbcTemplate.query(
                 "SELECT shingle_hash, document_count FROM shingle_document_frequency"
                         + " WHERE run_id = ? AND shingle_parameter_identity = ?",
@@ -408,6 +456,7 @@ public class RedundancyResolution {
                 },
                 stage3RunId.value(),
                 ShingleParameters.DEFAULT.identity());
+        progress.statementEnded(SimilarityStatement.DOCUMENT_FREQUENCY);
         return counts;
     }
 

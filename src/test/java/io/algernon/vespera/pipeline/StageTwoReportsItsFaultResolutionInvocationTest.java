@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -38,6 +39,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * counter's line is there; part (b) moves it into {@code src/test} and turns it green. The fixture is {@code
  * SeedScriptedExtractionBeans}, whose converter fails on {@code CONVERTER_FAULT} while blaming itself, which
  * is what a held fault is; {@code ExtractionFaultInvocationTest} pins the row and the verdict.
+ *
+ * <p><b>Two claims came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3, #411): on a first
+ * invocation stage 2 times its count of the survivors still to read and, at its end, its read of the
+ * occurrences it could not read for the review list, and says nothing of the two reads a resume makes, which
+ * are ADR-199's.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -45,7 +51,40 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("Progress reporting")
 @Issue("412")
 @Link(name = "ADR-192", url = Adr.EVERY_LOOP_REPORTS_ITS_PROGRESS, type = "adr")
+@Link(name = "ADR-193", url = Adr.STATEMENTS_REPORT_THEIR_PROGRESS, type = "adr")
+@Link(name = "ADR-204", url = Adr.PART_B_OF_THE_STATEMENTS_WRITTEN_OUT, type = "adr")
 class StageTwoReportsItsFaultResolutionInvocationTest {
+
+    /** Stage 2's own name, which its statement lines open with, and which its counter over the files is labelled with. */
+    private static final String STAGE_TWO = "Stage 2 (extraction)";
+
+    /**
+     * That stage 2 timed its count and its read for the review list, once each, in the order it issues them,
+     * around the work between: the count before the first file is counted as read, the read before the line
+     * that says where the list is.
+     */
+    private void stageTwoTimedItsCountAndItsReviewListRead() {
+        List<String> lines =
+                logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        claim(
+                "stage 2 says it is counting the files it still has to read, and how long that took, and at its"
+                        + " end that it is reading the ones it could not read, and how long that took: each line"
+                        + " once, in that order, and nothing about what an earlier invocation left, there being"
+                        + " none",
+                () -> assertThat(StatementLines.of(lines, STAGE_TWO))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedCount(STAGE_TWO, "the survivors still to read"),
+                                StatementLines.timedRead(STAGE_TWO, "the occurrences it could not read"))));
+        claim(
+                "the count ends before the first file is counted as read, and the read for the list ends before"
+                        + " the line that says where the list is",
+                () -> assertThat(String.join("\n", lines))
+                        .containsSubsequence(
+                                STAGE_TWO + " counted the survivors still to read in ",
+                                STAGE_TWO + ": 1 of ",
+                                STAGE_TWO + " read the occurrences it could not read in ",
+                                "could not be read; they are listed in "));
+    }
 
     private static final String BOILERPLATE_FLOOR = "1.0";
     private static final String MODEL_NAME = "qwen3-embedding:0.6b";
@@ -105,6 +144,7 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
         cli.run("run", root.toString());
 
         claim("the invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
+        stageTwoTimedItsCountAndItsReviewListRead();
         claim(
                 "the step held one fault and resolved it at its end, and the counter reads one of one",
                 () -> assertThat(ProgressLines.of(logged.list, FAULTS_RESOLVED))
@@ -127,6 +167,7 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
         cli.run("run", root.toString());
 
         claim("the invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
+        stageTwoTimedItsCountAndItsReviewListRead();
         claim(
                 "no fault was held, so the resolution is never reached and no counter line is written: that"
                         + " passes on main and has to go on passing",

@@ -3,10 +3,15 @@ package io.algernon.vespera.extraction;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.StatementSteps;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
@@ -66,25 +71,52 @@ public class ConfidenceDistribution {
      * the value the caller then renders as the HTML file (ADR-075).
      */
     public Distribution measure(RunId stage3RunId, RunId extractionRunId) {
+        return measure(stage3RunId, extractionRunId, ExtractionStatementProgress.NONE);
+    }
+
+    /**
+     * As {@link #measure(RunId, RunId)}, and tells {@code progress} about the two statements that wait, each
+     * started once before it and ended once after it (ADR-193 section 7): the drain of stage 2's survivors
+     * ({@link ExtractionStatement#SURVIVORS}, timed, so with no total), then the read of the metrics ({@link
+     * ExtractionStatement#EXTRACTION_METRICS}, counted, started with the span of stage 2's rows or an empty
+     * total where it holds none, given its steps at each callback of SQLite's handler). A statement that
+     * throws is not told to have ended.
+     */
+    public Distribution measure(RunId stage3RunId, RunId extractionRunId, ExtractionStatementProgress progress) {
+        progress.statementStarting(ExtractionStatement.SURVIVORS, OptionalLong.empty());
         Set<Long> survivorIds = drainSurvivors(extractionRunId);
+        progress.statementEnded(ExtractionStatement.SURVIVORS);
 
         Map<QualityGrade, Long> countsByGrade = new EnumMap<>(QualityGrade.class);
         for (QualityGrade grade : QualityGrade.SCORED) {
             countsByGrade.put(grade, 0L);
         }
 
-        List<Double> scores = jdbcTemplate.query(
-                "SELECT occurrence_id, mean_score FROM extraction_metric WHERE run_id = ?",
-                (resultSet, rowNumber) -> {
-                    long occurrenceId = resultSet.getLong("occurrence_id");
-                    double score = resultSet.getDouble("mean_score");
-                    boolean scoreIsNull = resultSet.wasNull();
-                    if (!survivorIds.contains(occurrenceId) || scoreIsNull) {
-                        return null;
+        // Counted by SQLite's progress handler (ADR-193): it runs on the connection the template hands over
+        // and is never handed back to it.
+        progress.statementStarting(
+                ExtractionStatement.EXTRACTION_METRICS,
+                ExtractionMetrics.metricRowsUpTo(jdbcTemplate, extractionRunId));
+        List<Double> scores = StatementSteps.counted(
+                jdbcTemplate,
+                steps -> progress.stepsTaken(ExtractionStatement.EXTRACTION_METRICS, steps),
+                connection -> {
+                    List<Double> read = new ArrayList<>();
+                    try (PreparedStatement select = connection.prepareStatement(
+                            "SELECT occurrence_id, mean_score FROM extraction_metric WHERE run_id = ?")) {
+                        select.setString(1, extractionRunId.value());
+                        try (ResultSet rows = select.executeQuery()) {
+                            while (rows.next()) {
+                                long occurrenceId = rows.getLong("occurrence_id");
+                                double score = rows.getDouble("mean_score");
+                                boolean scoreIsNull = rows.wasNull();
+                                read.add(!survivorIds.contains(occurrenceId) || scoreIsNull ? null : score);
+                            }
+                        }
                     }
-                    return score;
-                },
-                extractionRunId.value());
+                    return read;
+                });
+        progress.statementEnded(ExtractionStatement.EXTRACTION_METRICS);
 
         for (Double score : scores) {
             if (score == null) {

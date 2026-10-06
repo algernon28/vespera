@@ -84,14 +84,19 @@ class RelevanceFloor {
      *
      * <p>Unreadable and unset are one answer <em>to this question</em> and not the same state: the
      * operator is told which one it was, by the closing line rather than by anything here.
+     *
+     * <p>The one read this makes, of the answers recorded for the seed set, is said under {@code stage},
+     * the name of the step that asked, {@code Stage 5e (relevance floor)} or {@code Stage 5 (relevance
+     * report)} (ADR-193, ADR-204 section 3). It is issued only where the floor is a number and a seed set
+     * is named.
      */
-    State stateFor(String currentEmbedderIdentity) {
+    State stateFor(String currentEmbedderIdentity, String stage) {
         Profile profile = profileStore.load();
         if (!(profile.relevanceScoreFloor().reading() instanceof NumericValue.Answered answered)) {
             return new Unset();
         }
         double value = answered.number();
-        List<String> calibratedUnder = calibratedUnder();
+        List<String> calibratedUnder = calibratedUnder(stage);
         if (calibratedUnder.isEmpty() || calibratedUnder.equals(List.of(currentEmbedderIdentity))) {
             return new Applicable(value);
         }
@@ -113,12 +118,14 @@ class RelevanceFloor {
      * archive invisibly, while an under-block leaves a document to be removed by a later, better
      * informed run.
      */
-    private List<String> calibratedUnder() {
+    private List<String> calibratedUnder(String stage) {
         Optional<String> seedSet = seedSet();
         if (seedSet.isEmpty()) {
             return List.of();
         }
-        return relevanceLabels.forSeedSet(seedSet.get()).stream()
+        // Timed: the read has no run, so no span (ADR-193 section 6).
+        return TimedStatement.of(stage, "reading", "read", "the recorded answers", () -> relevanceLabels.forSeedSet(seedSet.get()))
+                .stream()
                 .map(RelevanceLabel::embedderIdentity)
                 .distinct()
                 .toList();

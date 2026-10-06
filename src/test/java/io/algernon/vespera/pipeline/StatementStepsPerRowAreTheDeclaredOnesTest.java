@@ -25,8 +25,8 @@ import org.junit.jupiter.api.Test;
  * The steps a row each module declares for its counted statements are the ones SQLite was measured to
  * take, and every other statement declares none (ADR-193 sections 3 and 7, #411).
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/}</b> until part (b) adds the last of the four enums; it
- * does not compile before. {@code spec-implementer} moves it to {@code src/test} with that part.
+ * <p>It was parked under {@code docs/adr/0193/tests/b/} until part (b) added the last of the four enums, and
+ * came into {@code src/test} with that part (ADR-204).
  *
  * <p>Four, where ADR-193 section 7 named five: {@code corpus} has no statement of that record's since
  * ADR-200 (#405), under which stage 1 drains no survivors, so no {@code CorpusStatement} is written.

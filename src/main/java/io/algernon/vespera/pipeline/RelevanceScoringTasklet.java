@@ -49,6 +49,9 @@ class RelevanceScoringTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(RelevanceScoringTasklet.class);
 
+    /** Stage 5d's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 5d (relevance scoring)";
+
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
@@ -124,7 +127,8 @@ class RelevanceScoringTasklet implements Tasklet {
                         return false;
                     }
 
-                    Set<OccurrenceId> survivors = ItemStreamReaders.drain(ledger.survivors(measurementRun));
+                    Set<OccurrenceId> survivors = TimedStatement.of(
+                            STAGE, "reading", "read", "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(measurementRun)));
                     LOG.info(
                             "Stage 5d (relevance scoring) starting under scoring run {}: scoring {} corpus"
                                     + " survivor(s) against {} resident seed document(s)",
@@ -156,8 +160,10 @@ class RelevanceScoringTasklet implements Tasklet {
 
     /** Every usable seed's own content hash, resolved once so {@link RelevanceScoring} never has to touch a file. */
     private Map<OccurrenceId, String> seedContentHashes(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
-        Set<OccurrenceId> allSeeds = ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId()));
-        Set<OccurrenceId> unusable = unusableSeeds.forRun(measurementRun).stream()
+        Set<OccurrenceId> allSeeds = TimedStatement.of(
+                STAGE, "reading", "read", "the seed walk's occurrences", () -> ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId())));
+        Set<OccurrenceId> unusable = TimedStatement.of(STAGE, "reading", "read", "the unusable seeds", () -> unusableSeeds.forRun(measurementRun))
+                .stream()
                 .map(UnusableSeed::occurrenceId)
                 .collect(Collectors.toSet());
         allSeeds.removeAll(unusable);

@@ -3,7 +3,10 @@ package io.algernon.vespera.embedding;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.StatementSteps;
 import io.algernon.vespera.ledger.WalkId;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -11,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -86,12 +90,37 @@ public class SeedCorpusComparison {
      * (ADR-086); it is not the run survivors are read through (ADR-156).
      */
     public Comparison measure(RunId measurementRunId, RunId extractionRunId, WalkId seedWalkId) {
-        Set<Long> corpusSurvivorIds = drain(ledger.survivors(measurementRunId));
-        Set<Long> seedCandidateIds = drain(ledger.occurrencesOf(seedWalkId));
-        Set<Long> unusableSeedIds = unusableSeedIds(measurementRunId);
+        return measure(measurementRunId, extractionRunId, seedWalkId, EmbeddingStatementProgress.NONE);
+    }
 
-        List<MetricRow> corpusRows = metricRows(extractionRunId, corpusSurvivorIds);
-        List<MetricRow> allSeedRows = metricRows(measurementRunId, seedCandidateIds);
+    /**
+     * As {@link #measure(RunId, RunId, WalkId)}, and tells {@code progress} about the five statements that
+     * wait, each started once before it and ended once after it, in the order they are issued (ADR-193
+     * section 7): the two drains, {@link EmbeddingStatement#CORPUS_SURVIVORS} and {@link
+     * EmbeddingStatement#SEED_OCCURRENCES}, timed, so with no total; then the three counted reads, {@link
+     * EmbeddingStatement#UNUSABLE_SEEDS}, {@link EmbeddingStatement#CORPUS_METRICS} and {@link
+     * EmbeddingStatement#SEED_METRICS}, each started with the span of its run's rows, or an empty total where
+     * the run holds none, and given its steps at each callback of SQLite's handler. A read of metrics over a
+     * population that is empty is not issued and makes no call. A statement that throws is not told to have
+     * ended.
+     */
+    public Comparison measure(
+            RunId measurementRunId,
+            RunId extractionRunId,
+            WalkId seedWalkId,
+            EmbeddingStatementProgress progress) {
+        progress.statementStarting(EmbeddingStatement.CORPUS_SURVIVORS, OptionalLong.empty());
+        Set<Long> corpusSurvivorIds = drain(ledger.survivors(measurementRunId));
+        progress.statementEnded(EmbeddingStatement.CORPUS_SURVIVORS);
+        progress.statementStarting(EmbeddingStatement.SEED_OCCURRENCES, OptionalLong.empty());
+        Set<Long> seedCandidateIds = drain(ledger.occurrencesOf(seedWalkId));
+        progress.statementEnded(EmbeddingStatement.SEED_OCCURRENCES);
+        Set<Long> unusableSeedIds = unusableSeedIds(measurementRunId, progress);
+
+        List<MetricRow> corpusRows =
+                metricRows(extractionRunId, corpusSurvivorIds, EmbeddingStatement.CORPUS_METRICS, progress);
+        List<MetricRow> allSeedRows =
+                metricRows(measurementRunId, seedCandidateIds, EmbeddingStatement.SEED_METRICS, progress);
         List<MetricRow> seedRows = allSeedRows.stream()
                 .filter(row -> !unusableSeedIds.contains(row.occurrenceId()))
                 .toList();
@@ -338,42 +367,95 @@ public class SeedCorpusComparison {
         return quartiles == null ? null : quartiles.upperQuartile();
     }
 
-    private Set<Long> unusableSeedIds(RunId measurementRunId) {
-        return new HashSet<>(jdbcTemplate.queryForList(
-                "SELECT occurrence_id FROM unusable_seed WHERE run_id = ?", Long.class, measurementRunId.value()));
+    /**
+     * Counted by SQLite's progress handler (ADR-193): the read runs on the connection the template hands over
+     * and is never handed back to it, so the handler counts the read and nothing else.
+     */
+    private Set<Long> unusableSeedIds(RunId measurementRunId, EmbeddingStatementProgress progress) {
+        Set<Long> ids = new HashSet<>();
+        progress.statementStarting(EmbeddingStatement.UNUSABLE_SEEDS, spanOfRun("unusable_seed", measurementRunId));
+        StatementSteps.counted(
+                jdbcTemplate,
+                steps -> progress.stepsTaken(EmbeddingStatement.UNUSABLE_SEEDS, steps),
+                connection -> {
+                    try (PreparedStatement select = connection.prepareStatement(
+                            "SELECT occurrence_id FROM unusable_seed WHERE run_id = ?")) {
+                        select.setString(1, measurementRunId.value());
+                        try (ResultSet rows = select.executeQuery()) {
+                            while (rows.next()) {
+                                ids.add(rows.getLong("occurrence_id"));
+                            }
+                        }
+                    }
+                    return null;
+                });
+        progress.statementEnded(EmbeddingStatement.UNUSABLE_SEEDS);
+        return ids;
     }
 
-    private List<MetricRow> metricRows(RunId runId, Set<Long> candidateIds) {
+    /**
+     * The metric rows of {@code runId} that belong to {@code candidateIds}, read as {@code statement}, counted
+     * by SQLite's progress handler on the connection the template hands over (ADR-193). Not issued, and no
+     * call made, where there is no candidate.
+     */
+    private List<MetricRow> metricRows(
+            RunId runId, Set<Long> candidateIds, EmbeddingStatement statement, EmbeddingStatementProgress progress) {
         if (candidateIds.isEmpty()) {
             return List.of();
         }
-        return jdbcTemplate.query(
-                "SELECT occurrence_id, primary_language, mean_score, word_count, page_count,"
-                        + " vowelless_word_count, single_character_word_count FROM extraction_metric"
-                        + " WHERE run_id = ?",
-                (resultSet, rowNumber) -> {
-                    long occurrenceId = resultSet.getLong("occurrence_id");
-                    String primaryLanguage = resultSet.getString("primary_language");
-                    resultSet.getDouble("mean_score");
-                    boolean meanScoreIsNull = resultSet.wasNull();
-                    int wordCount = resultSet.getInt("word_count");
-                    int pageCount = resultSet.getInt("page_count");
-                    boolean pageCountIsNull = resultSet.wasNull();
-                    int vowellessWordCount = resultSet.getInt("vowelless_word_count");
-                    int singleCharacterWordCount = resultSet.getInt("single_character_word_count");
-                    return new MetricRow(
-                            occurrenceId,
-                            primaryLanguage,
-                            meanScoreIsNull,
-                            wordCount,
-                            pageCountIsNull ? null : pageCount,
-                            vowellessWordCount,
-                            singleCharacterWordCount);
-                },
-                runId.value())
-                .stream()
-                .filter(row -> candidateIds.contains(row.occurrenceId()))
-                .toList();
+        progress.statementStarting(statement, spanOfRun("extraction_metric", runId));
+        List<MetricRow> rows = StatementSteps.counted(
+                jdbcTemplate, steps -> progress.stepsTaken(statement, steps), connection -> {
+                    List<MetricRow> read = new ArrayList<>();
+                    try (PreparedStatement select = connection.prepareStatement(
+                            "SELECT occurrence_id, primary_language, mean_score, word_count, page_count,"
+                                    + " vowelless_word_count, single_character_word_count FROM extraction_metric"
+                                    + " WHERE run_id = ?")) {
+                        select.setString(1, runId.value());
+                        try (ResultSet resultSet = select.executeQuery()) {
+                            while (resultSet.next()) {
+                                long occurrenceId = resultSet.getLong("occurrence_id");
+                                String primaryLanguage = resultSet.getString("primary_language");
+                                resultSet.getDouble("mean_score");
+                                boolean meanScoreIsNull = resultSet.wasNull();
+                                int wordCount = resultSet.getInt("word_count");
+                                int pageCount = resultSet.getInt("page_count");
+                                boolean pageCountIsNull = resultSet.wasNull();
+                                int vowellessWordCount = resultSet.getInt("vowelless_word_count");
+                                int singleCharacterWordCount = resultSet.getInt("single_character_word_count");
+                                if (candidateIds.contains(occurrenceId)) {
+                                    read.add(new MetricRow(
+                                            occurrenceId,
+                                            primaryLanguage,
+                                            meanScoreIsNull,
+                                            wordCount,
+                                            pageCountIsNull ? null : pageCount,
+                                            vowellessWordCount,
+                                            singleCharacterWordCount));
+                                }
+                            }
+                        }
+                    }
+                    return read;
+                });
+        progress.statementEnded(statement);
+        return rows;
+    }
+
+    /**
+     * The span of {@code run}'s rowids in {@code table}, greatest less least plus one, as two statements and
+     * never one (ADR-191 section 2): each is one descent of the index on {@code run_id} alone. Empty for a
+     * run that holds no row. {@code table} is a constant of this class, never a caller's text.
+     */
+    private OptionalLong spanOfRun(String table, RunId run) {
+        Long least = jdbcTemplate.queryForObject(
+                "SELECT MIN(rowid) FROM " + table + " WHERE run_id = ?", Long.class, run.value());
+        Long greatest = jdbcTemplate.queryForObject(
+                "SELECT MAX(rowid) FROM " + table + " WHERE run_id = ?", Long.class, run.value());
+        if (least == null || greatest == null) {
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(greatest - least + 1);
     }
 
     /**

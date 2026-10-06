@@ -1157,6 +1157,16 @@ public final class Adr {
     public static final String THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE = FILE
             + "0199-the-statements-adr-193-left-unnamed-take-its-rule.md";
 
+    /**
+     * ADR-204 -- part (b) of ADR-193, written out as it is built: every line with its stage's own name,
+     * ADR-193 section 6 read again against the code, the four enums with their constants, the report's
+     * read of the answers a model gave timed and the reads under {@code vespera label} given no line, and
+     * the tests part (b) owed (extends ADR-193 sections 4, 6 and 7 and corrects one sentence of its Tests;
+     * takes up one statement ADR-199 section 3 listed; rests on ADR-199, ADR-200 and ADR-197; #411).
+     */
+    public static final String PART_B_OF_THE_STATEMENTS_WRITTEN_OUT = FILE
+            + "0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md";
+
     private Adr() {
     }
 }

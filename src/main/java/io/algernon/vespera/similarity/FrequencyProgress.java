@@ -5,6 +5,12 @@ package io.algernon.vespera.similarity;
  * FrequencyProgress)} tells its caller about the loop that writes its rows, as it goes (ADR-192 section 5).
  * {@code similarity} knows no stage and writes no line: the caller owns the counter.
  *
+ * <p>Before the loop it also tells its caller about the two statements that come first, through {@link
+ * SimilarityStatementProgress}: the drain of stage 2's survivors ({@code FREQUENCY_SURVIVORS}, timed), then
+ * the read of the shingle rows ({@code SHINGLE_ROWS}, counted, started with the run's span of rowids, or an
+ * empty total where the run holds no shingle row), each started, given its steps where it is counted, and
+ * ended, before the loop is announced.
+ *
  * <p>{@link #toGoThrough} is called exactly once, before the first hash, with the distinct (granularity,
  * hash) pairs counted in memory, zero included; {@link #hashGoneThrough} once after each, whether or not a
  * row was written for it.

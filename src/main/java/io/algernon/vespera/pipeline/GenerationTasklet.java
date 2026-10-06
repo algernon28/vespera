@@ -45,6 +45,7 @@ import io.algernon.vespera.synthesis.RecordedClusterFault;
 import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
 import io.algernon.vespera.synthesis.SurvivorPictures;
 import io.algernon.vespera.synthesis.SynthesisDocs;
+import io.algernon.vespera.synthesis.SynthesisStatement;
 import io.algernon.vespera.synthesis.Unwritten;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -54,6 +55,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -127,6 +129,9 @@ import org.springframework.stereotype.Component;
 class GenerationTasklet implements Tasklet {
 
     private static final Logger LOG = LoggerFactory.getLogger(GenerationTasklet.class);
+
+    /** Stage 6b's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 6b (generation)";
 
     private final ArrangementGate arrangementGate;
     private final StageRuns stageRuns;
@@ -245,7 +250,8 @@ class GenerationTasklet implements Tasklet {
                 () -> {},
                 () -> {
                     RunId scoring = scoringRunBehind(arrangement);
-                    List<DocumentCluster> membership = documentClusters.forRun(scoring);
+                    List<DocumentCluster> membership = TimedStatement.of(
+                            STAGE, "reading", "read", "the cluster membership", () -> documentClusters.forRun(scoring));
                     Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
                             scoring,
                             membership.stream().map(DocumentCluster::occurrenceId).toList(),
@@ -253,7 +259,8 @@ class GenerationTasklet implements Tasklet {
                     Map<ClusterKey, List<DocumentCluster>> byCluster = membership.stream()
                             .collect(Collectors.groupingBy(ClusterKey::of));
                     int contextWindow = generationContextWindow.size();
-                    List<RecordedCluster> recordedClusters = clusters.forRun(arrangement);
+                    List<RecordedCluster> recordedClusters =
+                            TimedStatement.of(STAGE, "reading", "read", "the recorded clusters", () -> clusters.forRun(arrangement));
                     // A running counter: how many members a cluster has is known only as it is reached.
                     StageProgress documentsOpened =
                             StageProgress.running("Stage 6b (generation, cluster documents opened)");
@@ -325,11 +332,33 @@ class GenerationTasklet implements Tasklet {
      * The four lines the walk's progress earns, each about one cluster, written under this class's own
      * logger so that what the operator reads is unchanged by where the walk lives (ADR-093, ADR-190). It also
      * opens the {@code Stage 6b (generation, clusters)} counter when the walk announces its total, and ticks it
-     * once at the end of each cluster's path (ADR-192 section 5).
+     * once at the end of each cluster's path (ADR-192 section 5). And it writes the two lines of each of the
+     * walk's two reads, the clusters already written and the standing faults, as {@code synthesis} reports
+     * them (ADR-193 section 7, ADR-204 section 3): both timed, the second not reached where the walk stops on
+     * five answers turned down in a row.
      */
     private static GenerationProgress progressLines() {
+        ReportedStatements reads = ReportedStatements.saying()
+                .timed(SynthesisStatement.WRITTEN, STAGE, "the clusters already written")
+                .timed(SynthesisStatement.STANDING_FAULTS, STAGE, "the standing faults")
+                .build();
         return new GenerationProgress() {
             private StageProgress gone;
+
+            @Override
+            public void statementStarting(SynthesisStatement statement, OptionalLong rowsUpTo) {
+                reads.statementStarting(statement, rowsUpTo);
+            }
+
+            @Override
+            public void stepsTaken(SynthesisStatement statement, long steps) {
+                reads.stepsTaken(statement, steps);
+            }
+
+            @Override
+            public void statementEnded(SynthesisStatement statement) {
+                reads.statementEnded(statement);
+            }
 
             @Override
             public void toGoThrough(long clusters) {
@@ -481,7 +510,8 @@ class GenerationTasklet implements Tasklet {
             Map<OccurrenceId, Double> scores,
             Map<ClusterSlot, Unwritten> foundThisRun) {
         Map<OccurrenceId, Optional<String>> hashes = new HashMap<>();
-        List<RecordedSynthesisDoc> written = synthesisDocs.forRun(generation);
+        List<RecordedSynthesisDoc> written =
+                TimedStatement.of(STAGE, "reading", "read", "the clusters written", () -> synthesisDocs.forRun(generation));
         DeliverableProvenance provenance = new DeliverableProvenance(
                 generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
         return Deliverable.writeTo(
@@ -510,7 +540,9 @@ class GenerationTasklet implements Tasklet {
             List<RecordedSynthesisDoc> written,
             Map<ClusterSlot, Unwritten> foundThisRun) {
         Map<ClusterSlot, Unwritten> why = new LinkedHashMap<>();
-        for (RecordedClusterFault fault : clusterFaults.forRun(generation)) {
+        List<RecordedClusterFault> recordedFaults =
+                TimedStatement.of(STAGE, "reading", "read", "the faults recorded", () -> clusterFaults.forRun(generation));
+        for (RecordedClusterFault fault : recordedFaults) {
             why.put(new ClusterSlot(fault.winningSeed(), fault.clusterOrdinal()), Unwritten.of(fault.fault().kind()));
         }
         why.putAll(foundThisRun);

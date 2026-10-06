@@ -69,6 +69,13 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p>{@link SuccessiveBuildsBeans} stands in for the build's implementation versions in every test, so
  * the changed-run test can play a second build over the same walk; the others never move it.
+ *
+ * <p><b>Two tests here also hold the whole of what stage 2 says about its statements on a resume, in
+ * order</b> (ADR-199 section 2, ADR-193 section 6, ADR-204 section 3, #411): the two reads the reader makes
+ * first, of the faults the stopped run recorded and of the occurrences it measured, each said only where the
+ * run holds a row of its table and over the span of the run's rows, and then the count of the survivors still
+ * to read and the read for the review list. {@code UncoveredStatementsInvocationTest} holds the two reads'
+ * lines on their own; what is added here is the order of all four and each read's total.
  */
 @CascadeSliceTest
 @ExtendWith(OutputCaptureExtension.class)
@@ -108,6 +115,19 @@ class ExtractionResumeInvocationTest {
 
     /** Stage 2's progress line (ADR-093): how many it has done, of how many. */
     private static final Pattern STAGE_TWO_PROGRESS = Pattern.compile("Stage 2 \\(extraction\\): ([\\d,]+) of ([\\d,]+) \\(");
+
+    /** Stage 2's own name, which its statement lines open with. */
+    private static final String STAGE_TWO = "Stage 2 (extraction)";
+
+    /** What the two reads before a resume read, as their lines name it (ADR-199 section 2). */
+    private static final String FAULTS_ALREADY_RECORDED = "the faults the stopped run recorded";
+
+    private static final String OCCURRENCES_ALREADY_MEASURED = "the occurrences the stopped run measured";
+
+    /** The two statements every stage 2 that reads an occurrence times: its count, and its read for the review list. */
+    private static final List<String> THE_COUNT_AND_THE_REVIEW_LIST_READ = StatementLines.inOrder(
+            StatementLines.timedCount(STAGE_TWO, "the survivors still to read"),
+            StatementLines.timedRead(STAGE_TWO, "the occurrences it could not read"));
 
     /** No row at all. */
     private static final long NONE = 0;
@@ -282,8 +302,11 @@ class ExtractionResumeInvocationTest {
         writeCorpus(root, "progress");
 
         ConverterStopsPartwayBeans.stopAnsweringAfter(ANSWERED_BEFORE_THE_STOP);
+        int beforeTheFirst = output.getAll().length();
         cli.run("run", root.toString());
+        List<String> first = List.of(output.getAll().substring(beforeTheFirst).split("\\R"));
         long notRecorded = occurrencesNotRecordedUnder(onlyExtractionRunOf(root));
+        long measured = rowSpanUnder("extraction_metric", onlyExtractionRunOf(root));
 
         emptyTheExtractionCache();
         ConverterStopsPartwayBeans.keepAnswering();
@@ -301,6 +324,32 @@ class ExtractionResumeInvocationTest {
         claim(
                 "and the last line reaches all " + notRecorded + " of them",
                 () -> assertThat(progress.getLast()[0]).isEqualTo(String.valueOf(notRecorded)));
+
+        List<String> second = List.of(output.getAll().substring(before).split("\\R"));
+        claim(
+                "the first invocation, whose run held nothing when it began, says nothing about reading what an"
+                        + " earlier one left: only that it counted what it had to read, and at its end that it"
+                        + " read what it could not read",
+                () -> assertThat(StatementLines.of(first, STAGE_TWO))
+                        .containsExactlyElementsOf(THE_COUNT_AND_THE_REVIEW_LIST_READ));
+        claim(
+                "the second says first that it is reading what the first had already measured, over up to the "
+                        + measured + " rows from the run's first to its last, and how long that took; then its"
+                        + " count and its read at the end; and nothing about faults, the run holding none",
+                () -> assertThat(StatementLines.of(second, STAGE_TWO))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.countedRead(STAGE_TWO, OCCURRENCES_ALREADY_MEASURED, measured),
+                                THE_COUNT_AND_THE_REVIEW_LIST_READ)));
+        claim(
+                "that read ends before the line that says the stage resumes, and so few rows take far fewer steps"
+                        + " than the database reports progress at, so no progress line is written for it",
+                () -> {
+                    assertThat(String.join("\n", second))
+                            .containsSubsequence(
+                                    STAGE_TWO + " read " + OCCURRENCES_ALREADY_MEASURED + " in ",
+                                    STAGE_TWO + " resumes run ");
+                    assertThat(second).noneMatch(line -> line.contains("the stopped run measured): about "));
+                });
     }
 
     /**
@@ -412,7 +461,8 @@ class ExtractionResumeInvocationTest {
     @Test
     @Story("Stage 2 interrupted partway")
     @DisplayName("When only the record that extraction finished was lost, the next invocation redoes only the document the converter failed on, and records its removal once")
-    void aStageWhoseEndOfStepWasLostDoesTheFaultAgainAndRecordsItOnce(@TempDir Path root) throws IOException {
+    void aStageWhoseEndOfStepWasLostDoesTheFaultAgainAndRecordsItOnce(CapturedOutput output, @TempDir Path root)
+            throws IOException {
         ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, CONVERTER_FAULT_AT);
         writeCorpus(root, "end of step lost");
 
@@ -435,8 +485,22 @@ class ExtractionResumeInvocationTest {
                 "DELETE FROM finished_step WHERE run_id = ? AND step = ?", run, StepNames.EXTRACTION);
         emptyTheExtractionCache();
         ConverterStopsPartwayBeans.keepAnswering();
+        long faultRows = rowSpanUnder("extraction_fault", run);
+        long measured = rowSpanUnder("extraction_metric", run);
+        int before = output.getAll().length();
         cli.run("run", root.toString());
+        List<String> second = List.of(output.getAll().substring(before).split("\\R"));
 
+        claim(
+                "the next invocation says first that it is reading the faults already recorded, over up to the "
+                        + faultRows + " the run holds, and how long that took; then the same of the " + measured
+                        + " rows already measured; then its count and its read at the end: each line once, in"
+                        + " that order",
+                () -> assertThat(StatementLines.of(second, STAGE_TWO))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.countedRead(STAGE_TWO, FAULTS_ALREADY_RECORDED, faultRows),
+                                StatementLines.countedRead(STAGE_TWO, OCCURRENCES_ALREADY_MEASURED, measured),
+                                THE_COUNT_AND_THE_REVIEW_LIST_READ)));
         claim(
                 "with only the record that the stage finished lost, the next invocation reads again the "
                         + CONVERTER_FAULT_AT.size() + " document the converter failed on and none of the "
@@ -452,6 +516,16 @@ class ExtractionResumeInvocationTest {
         claim(
                 "and the stage is recorded as finished again",
                 () -> assertThat(stageTwoFinished(run)).isTrue());
+    }
+
+    /**
+     * The span of {@code run}'s rowids in {@code table}, greatest less least plus one, which is the total a
+     * counted read of that run's rows is stated over (ADR-191 section 2); zero where the run holds none.
+     */
+    private long rowSpanUnder(String table, String run) {
+        Long span = jdbcTemplate.queryForObject(
+                "SELECT MAX(rowid) - MIN(rowid) + 1 FROM " + table + " WHERE run_id = ?", Long.class, run);
+        return span == null ? 0 : span;
     }
 
     /**
