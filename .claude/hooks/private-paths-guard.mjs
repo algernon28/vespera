@@ -22,15 +22,25 @@
 // in its pieces, a backslash before a space joins the two sides into one more reading, and each token is
 // also cut at , { and } and each piece read. Four rules bear on that cut. A token that is one path
 // followed only by , or } is counted once: its piece is the token with that punctuation off, which the
-// token's own reading already is, so the piece's relative reading is not counted a second time. In a
-// quoted string that holds no $( and no backtick, one letter and a colon straight after { or , (white
-// space may lie between), with no separator after the colon, is the key of an object, as in '{t:.title}':
-// what follows the colon is read as a token on every platform, and on Windows the key is then no drive.
-// The braces of a
+// token's own reading already is, so the piece's relative reading is not counted a second time. On
+// Windows, one letter and a colon is the key of an object and not a drive only where all of this holds:
+// it stands in a quoted string, as this pairs quote characters, that holds no $( and no backtick; it
+// stands in a brace group of that string, the text between a { and the next } with no other brace between;
+// and every member of that group, which is what its commas part, is keyed: after white space, a name, a
+// colon, and then something that is not a separator and not the end of the member, as in '{t:.title}'
+// and '{number:.number, t:.title}'. What follows a key's colon is read as a token on every platform. A
+// comma list with no braces is never an object, and a bare drive is always a drive. The braces of a
 // variable at the head of a token or of a piece, ${NAME} or ${env:NAME}, that is replaced by its value
-// are no cut: the token or piece is read whole. And in a Bash command only, ${NAME-word}, ${NAME=word},
-// ${NAME+word} and ${NAME?word}, each with or without a colon before the sign, is a variable with a word
-// for when it has no value: its name is not read, and its word is read as a token of its own.
+// are no cut: the token or piece is read whole, and so is the variable alone, whose closing brace is no
+// punctuation to trim. And in a Bash command only, ${NAME-word}, ${NAME=word}, ${NAME+word} and
+// ${NAME?word}, each with or without a colon before the sign, is a variable with a word for when it has
+// no value, wherever it stands in a token: the token is read with the word in its place and, when the
+// name has a value, with the value in its place, what follows the closing brace joined to each and not
+// read apart. The name itself is not read. The word runs to the brace that closes the variable, counting
+// the braces between, and a word that holds a variable is read by the same rules. A value put in the
+// place of a variable that is not at the head of a token or of a piece is joined to what stands before
+// it, so it is read as a path only where that makes one, as after an =, and on a system that is not
+// Windows a rooted one is not read.
 //
 // A link is followed before the check. A path that holds .. is read twice, and either reading refuses:
 // as text, where .. folds against the name before it, and as the file system walks it, which starts from
@@ -40,11 +50,12 @@
 // then, and not when it is the first again, which it is wherever no link is on the way; it asks the file
 // system once about each folder a .. is taken from, whatever the allow list says of that folder. It is
 // judged against the allowed roots and against where they lead, and in a shell command each of the two
-// readings that is a folder is a folder the command names. A name that is there
-// and cannot be followed to where it leads (a link to a name that is not there, a link in a loop, any
-// answer of the file system but "not there") is refused, and so is everything beneath it. Only a name
-// that is not there is answered from the folder it would be in: no such name, a name beneath something
-// that is not a folder, a name too long and a name the platform cannot hold. The allow-list decision is
+// readings that is a folder is a folder the command names, and a relative path read against a folder
+// that was reached as walked is judged as walked too. A name that is there and cannot be followed to
+// where it leads (a link to a name that is not there, a link in a loop, any answer of the file system
+// but "not there") is refused, and so is everything beneath it. Only a name that is not there is
+// answered from the folder it would be in: no such name, a name beneath something that is not a
+// folder, a name too long and a name the platform cannot hold. The allow-list decision is
 // made from a path's text before the file system is asked about it, so a refused path costs no lookup,
 // and nothing beneath a refused folder is looked up: no relative path is read against the current
 // directory, or a folder the command names, once that folder is itself refused. On Windows only it also
@@ -75,9 +86,9 @@
 // (grep -r, rg, find) that begins above a working directory; a rooted POSIX path such as /tmp/x, so
 // that cd /tmp && cat run/x reads run/x against the current directory only; a bare cd or cd -; a
 // quoted string inside a quoted string, as in bash -c "cat 'my runs/x'", which is read whole only as
-// the outer one; a member of a list inside quotes that is a path on a drive with no separator after the
-// colon, as in bash -c "cat {x,Q:name}", whose part after the colon is read and whose drive is not; a
-// link that only Git Bash's runtime follows, such as a symlink written as a file for Cygwin, which is a
+// the outer one; a brace group between two quote characters, every member of which is a name, a colon
+// and a value, one of them a path on a drive with no separator after the colon, as in bash -c "cat
+// {a:1,Q:name}", whose part after the colon is read and whose drive is not; a link that only Git Bash's runtime follows, such as a symlink written as a file for Cygwin, which is a
 // plain file to this process; a working directory that the walk down from a search root does not reach
 // (below); and any tool outside the eight, among them every mcp__* tool and Monitor. A session whose
 // own .claude/settings.json registers no hook never runs this file. For all of those the written rule
@@ -256,8 +267,8 @@ function lookUp(absolute) {
 // What the file system says of a path that the text has already allowed: whether it is there and is a
 // folder, where its links lead, the working directory it is inside, if any, and whether it is a name that
 // is there and cannot be followed, which refuses it and everything beneath it. Only a name that is not
-// there (see NOT_THERE) is answered from its parent, so a name that does not exist costs one question and
-// no more.
+// there (see NOT_THERE) is answered from its parent, so a name that does not exist costs one question
+// for each level of it that is missing, and one more for the folder that is there.
 const described = new Map();
 function describe(absolute) {
   const known = described.get(absolute);
@@ -319,10 +330,12 @@ function workingDirectoryBelow(absolute) {
 }
 
 // The punctuation that ends a sentence or a list item is not part of a path. A trailing .. is the
-// parent folder and not punctuation, and neither is a trailing single dot after a separator.
+// parent folder and not punctuation, and neither is a trailing single dot after a separator, nor the
+// brace that closes a ${ : the variable alone, ${NAME}, is a token headed by the variable.
 function trimSentence(p) {
   for (;;) {
     if (/(^|[\\/])\.{1,2}$/.test(p)) return p;
+    if (/\$\{[^{}]*\}$/.test(p)) return p;
     const shorter = p.replace(/[,.;:)\]}…]$/, "");
     if (shorter === p) return p;
     p = shorter;
@@ -340,11 +353,17 @@ const QUOTED_STRINGS = /'([^']*)'|"([^"]*)"/g;
 // A variable in braces at the head of a text that readToken replaces by its value: ${NAME} or
 // ${env:NAME}, with a separator or the end after it.
 const BRACED_VARIABLE = /^\$\{(?:env:)?(\w+)\}(?=$|[\\/])/i;
-// A Bash parameter expansion with a word for when the variable has no value.
-const PARAMETER_WITH_WORD = /\$\{\w+:?[-=+?]([^}]*)\}/g;
+// The start of a Bash parameter expansion with a word for when the variable has no value.
+const PARAMETER_WITH_WORD = /\$\{(\w+):?[-=+?]/y;
+// A brace group of a quoted string: the text between a { and the next }, with no other brace between.
+const BRACE_GROUP = /\{([^{}]*)\}/g;
+// A keyed member of a brace group: after white space, a name, a colon, and then something that is not a
+// separator and not the end of the member.
+const KEYED_MEMBER = /^(\s*)\w+:(?![\\/]|$)/;
 
-// The pieces of a text cut at , { and }, each with the character it follows (null for the first). The
-// braces of a variable at the head of a piece that is replaced by its value are no cut.
+// The pieces of a text cut at , { and }, each with the character it follows (null for the first) and
+// where it starts. The braces of a variable at the head of a piece that is replaced by its value are no
+// cut.
 function cut(text) {
   const parts = [];
   let start = 0;
@@ -355,12 +374,51 @@ function cut(text) {
       if (head && valueOf(head[1])) i += head[0].length;
     }
     if (i === text.length || ",{}".includes(text[i])) {
-      parts.push({ piece: text.slice(start, i), before });
+      parts.push({ piece: text.slice(start, i), before, start });
       before = text[i];
       start = i + 1;
     }
   }
   return parts;
+}
+
+// A Bash text read twice: with the word in the place of each ${NAME<sign>word} and, where the name has a
+// value, with the value in its place. What follows a closing brace stays joined to what is put in its
+// place. The word runs to the brace that closes the variable, counting the braces between, and a word
+// that holds an expansion is read by these same rules. A text with no expansion in it is its own two
+// readings.
+function variantsOf(text) {
+  let words = "";
+  let values = "";
+  let i = 0;
+  while (i < text.length) {
+    PARAMETER_WITH_WORD.lastIndex = i;
+    const start = text[i] === "$" ? PARAMETER_WITH_WORD.exec(text) : null;
+    if (start) {
+      let depth = 1;
+      let end = i + start[0].length;
+      for (; end < text.length && depth > 0; end++) {
+        if (text[end] === "{") depth++;
+        else if (text[end] === "}") depth--;
+      }
+      if (depth === 0) {
+        const [word, wordWithValues] = variantsOf(text.slice(i + start[0].length, end - 1));
+        words += word;
+        // Where the expansion heads a token or a piece the variable alone stands in its place, which
+        // readToken replaces by its value; elsewhere the value itself does, so that the braces of a
+        // variable that is not at a head are not cut and what follows is not read apart.
+        const value = valueOf(start[1]);
+        const heads = values === "" || ",{}".includes(values[values.length - 1]);
+        values += value ? (heads ? `\${${start[1]}}` : value) : wordWithValues;
+        i = end;
+        continue;
+      }
+    }
+    words += text[i];
+    values += text[i];
+    i++;
+  }
+  return [words, values];
 }
 
 // What a command's text names: absolute paths, each as { label, text }, where text is read against the
@@ -371,13 +429,18 @@ function pathsInCommand(command, bash) {
   const absolute = [];
   const relative = new Map();
   // The relative paths a token's own reading made, while it is being recorded, and the ones a piece of
-  // that token must not count again.
+  // that token must not count again. And the relative paths the first of a Bash token's two readings
+  // made, which the second does not count again.
   let recorded = null;
   let uncounted = null;
+  let firstReading = null;
+  let secondReading = false;
   const addAbsolute = (label, text) => absolute.push({ label, text });
   const addRelative = (label, rel) => {
     recorded?.add(rel);
+    if (!secondReading) firstReading?.add(rel);
     if (uncounted?.has(rel)) return;
+    if (secondReading && firstReading.has(rel)) return;
     const known = relative.get(rel);
     if (known) known.written++;
     else relative.set(rel, { label, written: 1 });
@@ -390,7 +453,8 @@ function pathsInCommand(command, bash) {
     addAbsolute(m[0], drive(m[1], trimSentence(m[2])));
   }
 
-  // key says that the token is the key of an object in a quoted string, which is not a drive.
+  // key says that the token stands where a key of an object is told (see the quoted strings below),
+  // which is not a drive.
   const readToken = (token, key = false) => {
     // An @ is taken off the token as it is written, before any punctuation is trimmed from its end, so
     // that what is left is told a drive, or not, as written.
@@ -455,62 +519,81 @@ function pathsInCommand(command, bash) {
     const equals = text.indexOf("=");
     if (equals >= 0) readToken(text.slice(equals + 1));
   };
+  // A quoted string is a path with its spaces in it as often as it is a sentence, and may hold a brace
+  // group that is the object of a second program, as in jq '{t:.title}'. Where the first letter of a
+  // member of such a group, and a colon after it, is a key and not a drive is told by the shape of the
+  // group and by nothing the quote characters say, since this pairs them as it finds them and text that
+  // the shell does not quote can lie between two: the string holds no $( and no backtick, and every
+  // member of the group is keyed. keys holds the offsets in the command at which a keyed member's name
+  // starts.
+  const quotes = [];
+  const keys = new Set();
+  for (const m of command.matchAll(QUOTED_STRINGS)) {
+    const whole = m[1] ?? m[2];
+    const from = m.index + 1;
+    quotes.push({ from, whole });
+    if (/\$\(|`/.test(whole)) continue;
+    for (const group of whole.matchAll(BRACE_GROUP)) {
+      const starts = [];
+      let at = group.index + 1;
+      for (const member of group[1].split(",")) {
+        const keyed = KEYED_MEMBER.exec(member);
+        if (!keyed) break;
+        starts.push(from + at + keyed[1].length);
+        at += member.length + 1;
+      }
+      if (starts.length === group[1].split(",").length) for (const start of starts) keys.add(start);
+    }
+  }
+
   // A token, and each piece of it cut at , { and }: a brace list or a comma list carries paths that
   // are not at the head of the token. The braces of a variable that is replaced by its value, at the
-  // head of the token or of a piece, are no cut, and neither are those of a Bash ${NAME-word}, whose word
-  // is read as a token of its own. A token that is one path followed only by , or } is read once and not
-  // again as its own piece, so that a .. written once climbs once. key says that the token's head follows
-  // { or , in a quoted string that holds no $( and no backtick, and quoted that the token is in one: the
-  // piece after a { or a , in it may be the key of an object.
-  const read = (text, key = false, quoted = false) => {
-    const body = bash
-      ? text.replace(PARAMETER_WITH_WORD, (_, word) => {
-          read(word, false, quoted);
-          return "}";
-        })
-      : text;
-    const parts = cut(body);
+  // head of the token or of a piece, are no cut. A token that is one path followed only by , or } is
+  // read once and not again as its own piece, so that a .. written once climbs once. base is where the
+  // text starts in the command, or -1 when it does not start there: a piece that starts at an offset
+  // in keys is the head of a keyed member.
+  const readOnce = (text, base) => {
+    const keyAt = (offset) => base >= 0 && keys.has(base + offset);
+    const parts = cut(text);
     const single = parts.length > 1 && parts[0].piece !== "" && parts.slice(1).every((p) => p.piece === "" && p.before !== "{");
     if (single) recorded = new Set();
-    readOne(text, key);
+    readOne(text, keyAt(0));
     if (single) {
       uncounted = recorded;
       recorded = null;
     }
     if (parts.length > 1) {
-      for (const { piece, before } of parts) {
-        if (piece) readOne(piece, before === null ? key : quoted && (before === "{" || before === ","));
-      }
+      for (const { piece, start } of parts) if (piece) readOne(piece, keyAt(start));
     }
     uncounted = null;
   };
-
-  // A quoted string is a path with its spaces in it as often as it is a sentence. One that holds no $(
-  // and no backtick is safe from a second shell's command substitution, so what is cut out of it can
-  // be the key of an object.
-  const quotes = [];
-  for (const m of command.matchAll(QUOTED_STRINGS)) {
-    const whole = m[1] ?? m[2];
-    quotes.push({ from: m.index + 1, to: m.index + m[0].length - 1, whole, safe: !/\$\(|`/.test(whole) });
-  }
-
-  let q = 0;
-  for (const m of command.matchAll(COMMAND_TOKENS)) {
-    while (q < quotes.length && quotes[q].to <= m.index) q++;
-    const inside = q < quotes.length && quotes[q].from <= m.index ? quotes[q] : null;
-    let key = false;
-    if (inside?.safe) {
-      let k = m.index - 1;
-      while (k >= inside.from && /\s/.test(command[k])) k--;
-      key = k >= inside.from && (command[k] === "{" || command[k] === ",");
+  // In a Bash command a text with a ${NAME-word} in it is read twice, with the word and with the value in
+  // the place of the expansion (see variantsOf), and not as it is written, so that the name is not read.
+  // A relative path the first reading made is not counted again by the second.
+  const read = (text, base = -1) => {
+    if (bash) {
+      const [words, values] = variantsOf(text);
+      if (words !== text) {
+        firstReading = new Set();
+        readOnce(words, -1);
+        if (values !== words) {
+          secondReading = true;
+          readOnce(values, -1);
+        }
+        firstReading = null;
+        secondReading = false;
+        return;
+      }
     }
-    read(m[0], key, Boolean(inside?.safe));
-  }
+    readOnce(text, base);
+  };
+
+  for (const m of command.matchAll(COMMAND_TOKENS)) read(m[0], m.index);
   // A backslash before a space joins what is on either side of it into one path.
   for (const m of command.matchAll(/(?:\\ |[^\s"'`;|&<>()])+/g)) {
     if (m[0].includes("\\ ")) read(m[0].replace(/\\ /g, " "));
   }
-  for (const { whole, safe } of quotes) if (whole) read(whole, false, safe);
+  for (const { whole, from } of quotes) if (whole) read(whole, from);
   return { absolute, relative };
 }
 
@@ -578,14 +661,15 @@ function refusalsOf(call) {
   // something else, as the file system walks it. Returns each with whether it was refused. The second is
   // made only when the first was not refused, since the call is refused already then and nothing about
   // a refused path is looked up, and not when it is the first again, which is every path with no link on
-  // the way. A base that was itself read as walked makes a real path, so its readings are judged as walked.
+  // the way. A base that was itself read as walked is a real path, so every reading made against it is
+  // judged as walked, and each reading says whether it was, so that a folder reached by it carries that on.
   const checkReadings = (label, text, base, searchRoot = false, baseWalked = false) => {
     const asText = absoluteOf(text, base);
-    const readings = [{ absolute: asText, turnedDown: check(label, asText, searchRoot, baseWalked) }];
+    const readings = [{ absolute: asText, walked: baseWalked, turnedDown: check(label, asText, searchRoot, baseWalked) }];
     if (readings[0].turnedDown) return readings;
     const walked = walkedOf(text, base);
     if (walked && norm(walked) !== norm(asText)) {
-      readings.push({ absolute: walked, turnedDown: check(`${label}, read as the file system walks its ..`, walked, searchRoot, true) });
+      readings.push({ absolute: walked, walked: true, turnedDown: check(`${label}, read as the file system walks its ..`, walked, searchRoot, true) });
     }
     return readings;
   };
@@ -601,7 +685,7 @@ function refusalsOf(call) {
     const folders = new Map();
     const queue = [];
     let tooMany = false;
-    const reach = (path, use) => {
+    const reach = (path, use, walked = false) => {
       const key = norm(path);
       const known = folders.get(key);
       if (!known) {
@@ -612,7 +696,7 @@ function refusalsOf(call) {
           tooMany = true;
           return;
         }
-        const entry = { path, key, use: new Map(use), queued: true };
+        const entry = { path, key, walked, use: new Map(use), queued: true };
         folders.set(key, entry);
         queue.push(entry);
         return;
@@ -631,10 +715,10 @@ function refusalsOf(call) {
       }
     };
 
-    for (const { absolute: path, turnedDown } of currentChecked) if (!turnedDown) reach(path, new Map());
+    for (const { absolute: path, walked, turnedDown } of currentChecked) if (!turnedDown) reach(path, new Map(), walked);
     for (const { label, text } of absolute) {
-      for (const { absolute: path, turnedDown } of checkReadings(label, text, cwd)) {
-        if (!turnedDown && describe(path).folder) reach(path, new Map());
+      for (const { absolute: path, walked, turnedDown } of checkReadings(label, text, cwd)) {
+        if (!turnedDown && describe(path).folder) reach(path, new Map(), walked);
       }
     }
 
@@ -659,20 +743,21 @@ function refusalsOf(call) {
           const asText = absoluteOf("./" + rel, entry.path);
           const found = plain ? describe(asText) : null;
           if (found && !found.exists && !found.blocked) {
-            answer = [{ abs: asText, folder: false }];
+            answer = [{ abs: asText, walked: entry.walked, folder: false }];
           } else {
-            answer = checkReadings(named, "./" + rel, entry.path).map(({ absolute: abs, turnedDown }) => ({
+            answer = checkReadings(named, "./" + rel, entry.path, false, entry.walked).map(({ absolute: abs, walked, turnedDown }) => ({
               abs,
+              walked,
               folder: !turnedDown && describe(abs).folder,
             }));
           }
           answered.set(key, answer);
         }
-        for (const { abs, folder } of answer) {
+        for (const { abs, walked, folder } of answer) {
           if (!folder) continue;
           const use = new Map(entry.use);
           use.set(rel, used + 1);
-          reach(abs, use);
+          reach(abs, use, walked);
         }
       }
     }
