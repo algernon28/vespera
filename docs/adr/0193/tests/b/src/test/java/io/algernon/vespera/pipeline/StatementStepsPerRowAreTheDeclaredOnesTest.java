@@ -34,6 +34,13 @@ import org.junit.jupiter.api.Test;
  * <p>The measured figures are {@link StatementStepsPerRowTest}'s, which runs each statement against the
  * bundled SQLite. This test only holds the declarations to them, so a ratio changed in one place and not
  * the other fails here.
+ *
+ * <p>{@code ExtractionStatement} carries two constants ADR-193 did not name, for the two reads stage 2's
+ * reader makes before a resume (ADR-199 section 2, #429), each counted at the ratio measured for it.
+ *
+ * <p><b>The change that moves this class into {@code src/test} deletes {@code
+ * DeclaredStepsPerRowOfPartATest}</b>, which holds the three declarations of part (a) until then and makes no
+ * claim this class does not (ADR-199 section 6).
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -51,6 +58,10 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
                 SimilarityStatement.SHINGLE_ROWS, StatementStepsPerRowTest.SHINGLE_ROWS_STEPS,
                 SimilarityStatement.SIGNED_OCCURRENCES, StatementStepsPerRowTest.SIGNED_OCCURRENCES_STEPS,
                 ExtractionStatement.EXTRACTION_METRICS, StatementStepsPerRowTest.CONFIDENCE_METRICS_STEPS,
+                // ADR-199's two counted reads of a resume. Nine pairs of Map.of's ten: a second further
+                // counted statement moves this to Map.ofEntries.
+                ExtractionStatement.FAULTED_OCCURRENCES, StatementStepsPerRowTest.FAULTED_OCCURRENCES_STEPS,
+                ExtractionStatement.RECORDED_OCCURRENCES, StatementStepsPerRowTest.RECORDED_OCCURRENCES_STEPS,
                 EmbeddingStatement.UNUSABLE_SEEDS, StatementStepsPerRowTest.UNUSABLE_SEEDS_STEPS,
                 EmbeddingStatement.CORPUS_METRICS, StatementStepsPerRowTest.COMPARISON_METRICS_STEPS,
                 EmbeddingStatement.SEED_METRICS, StatementStepsPerRowTest.COMPARISON_METRICS_STEPS);

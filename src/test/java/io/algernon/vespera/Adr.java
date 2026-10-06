@@ -1149,6 +1149,17 @@ public final class Adr {
     public static final String STAGE_1_HOLDS_ONE_SIZE_AT_A_TIME = FILE
             + "0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md";
 
+    /**
+     * ADR-199 -- the statements ADR-193 left unnamed take its rule, and its table is read again against
+     * the code: the survivor counts that size stage 1's and stage 4a's counters are timed, stage 2's two
+     * reads on a resume are counted at five steps a row, the report's read of the answers a model gave is
+     * timed, and what runs outside the job's steps says nothing; every line of part (b) is written out in
+     * full, with the tests it owes (extends ADR-193 sections 1, 4, 6 and 7 and corrects one sentence of
+     * its Tests; rests on ADR-200 and ADR-197; settles #429 inside #411's part (b)).
+     */
+    public static final String THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE = FILE
+            + "0199-the-statements-adr-193-left-unnamed-take-its-rule.md";
+
     private Adr() {
     }
 }
