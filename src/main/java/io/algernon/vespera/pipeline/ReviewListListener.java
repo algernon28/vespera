@@ -57,8 +57,8 @@ class ReviewListListener implements StepExecutionListener {
         if (!completed && stepExecution.getReadCount() == 0) {
             return stepExecution.getExitStatus();
         }
-        List<RemovedOccurrence> failures = TimedStatement.read(
-                "Stage 2 (extraction)",
+        List<RemovedOccurrence> failures = TimedStatement.of(
+                "Stage 2 (extraction)", "reading", "read",
                 "the occurrences it could not read",
                 () -> ledger.extractionFailures(stageRuns.extraction()));
         Path page = workingDirectory.resolve(FILE_NAME);

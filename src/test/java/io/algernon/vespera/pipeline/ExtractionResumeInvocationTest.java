@@ -70,12 +70,12 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>{@link SuccessiveBuildsBeans} stands in for the build's implementation versions in every test, so
  * the changed-run test can play a second build over the same walk; the others never move it.
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/} with claims added to two tests of the file of this name
- * in {@code src/test}</b>, which it replaces when part (b) of ADR-193 lands (ADR-199 sections 2 and 3, #411,
- * #429): the two reads the reader makes before a resume, of the faults already recorded and of the
- * occurrences already measured, are counted statements, each saying what it reads and how long it took only
- * where the run holds a row of its table. On main those claims are red by assertion, the lines not being
- * written, and every other claim here passes.
+ * <p><b>Two tests here also hold the whole of what stage 2 says about its statements on a resume, in
+ * order</b> (ADR-199 section 2, ADR-193 section 6, ADR-204 section 3, #411): the two reads the reader makes
+ * first, of the faults the stopped run recorded and of the occurrences it measured, each said only where the
+ * run holds a row of its table and over the span of the run's rows, and then the count of the survivors still
+ * to read and the read for the review list. {@code UncoveredStatementsInvocationTest} holds the two reads'
+ * lines on their own; what is added here is the order of all four and each read's total.
  */
 @CascadeSliceTest
 @ExtendWith(OutputCaptureExtension.class)
@@ -119,10 +119,10 @@ class ExtractionResumeInvocationTest {
     /** Stage 2's own name, which its statement lines open with. */
     private static final String STAGE_TWO = "Stage 2 (extraction)";
 
-    /** What the two reads before a resume read, as their lines name it (ADR-199 section 3). */
-    private static final String FAULTS_ALREADY_RECORDED = "the faults already recorded";
+    /** What the two reads before a resume read, as their lines name it (ADR-199 section 2). */
+    private static final String FAULTS_ALREADY_RECORDED = "the faults the stopped run recorded";
 
-    private static final String OCCURRENCES_ALREADY_MEASURED = "the occurrences already measured";
+    private static final String OCCURRENCES_ALREADY_MEASURED = "the occurrences the stopped run measured";
 
     /** The two statements every stage 2 that reads an occurrence times: its count, and its read for the review list. */
     private static final List<String> THE_COUNT_AND_THE_REVIEW_LIST_READ = StatementLines.inOrder(
@@ -348,7 +348,7 @@ class ExtractionResumeInvocationTest {
                             .containsSubsequence(
                                     STAGE_TWO + " read " + OCCURRENCES_ALREADY_MEASURED + " in ",
                                     STAGE_TWO + " resumes run ");
-                    assertThat(second).noneMatch(line -> line.contains("already measured): about "));
+                    assertThat(second).noneMatch(line -> line.contains("the stopped run measured): about "));
                 });
     }
 

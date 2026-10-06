@@ -35,7 +35,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * What {@code similarity} tells its caller around each of its statements, and in which order (ADR-193
- * sections 6 to 8, ADR-199 section 4, #411): {@code statementStarting} once before the statement, with its
+ * sections 6 to 8, ADR-204 section 4, #411): {@code statementStarting} once before the statement, with its
  * total for a counted one and an empty total for a timed one; {@code stepsTaken} at each callback of SQLite's
  * handler; {@code statementEnded} once after it, on every path but one that throws.
  *
@@ -45,16 +45,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * counted, then the signature bands, the near-duplicates' extraction metrics and the shingle document
  * frequencies, each timed.
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/}</b>: it names five constants of {@code
- * SimilarityStatement} that part (b) adds, and needs {@code ResolutionProgress} to extend {@code
- * SimilarityStatementProgress}; it does not compile before. It runs on {@link PoolOfTwo}, so a counted read
- * handed back to the template would report no steps over many rows.
+ * <p>It runs on {@link PoolOfTwo}, so a counted read handed back to the template would report no steps over
+ * many rows.
  */
 @Epic("Redundancy")
 @Feature("Progress reporting")
 @Issue("411")
 @Link(name = "ADR-193", url = Adr.STATEMENTS_REPORT_THEIR_PROGRESS, type = "adr")
-@Link(name = "ADR-199", url = Adr.THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE, type = "adr")
+@Link(name = "ADR-204", url = Adr.PART_B_OF_THE_STATEMENTS_WRITTEN_OUT, type = "adr")
 class SimilarityStatementProgressOrderTest {
 
     private static final double NO_BOILERPLATE_FLOOR = 0.9;

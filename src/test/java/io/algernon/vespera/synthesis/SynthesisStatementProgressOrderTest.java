@@ -33,7 +33,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * What {@code synthesis} tells its caller around the two statements of {@code ClusterGeneration.write}, and
- * in which order (ADR-193 sections 6 and 7, ADR-199 section 4, #411): the read of the clusters already
+ * in which order (ADR-193 sections 6 and 7, ADR-204 section 4, #411): the read of the clusters already
  * written, started and ended before the walk is announced, and the read of the standing faults, started and
  * ended after the last cluster is gone through. Both are timed, so each is started with no total and neither
  * reports a step.
@@ -42,10 +42,6 @@ import org.springframework.test.context.ActiveProfiles;
  * the serving engine is one that fails if it is called. A walk that stops on five answers turned down
  * returns before the second read, and that is held where a whole job plays it ({@code
  * GenerationReportsItsProgressInvocationTest}).
- *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/}</b>: it names {@code SynthesisStatement} and needs {@code
- * GenerationProgress} to extend {@code SynthesisStatementProgress}, which part (b) adds; it does not compile
- * before.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -54,7 +50,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Feature("Progress reporting")
 @Issue("411")
 @Link(name = "ADR-193", url = Adr.STATEMENTS_REPORT_THEIR_PROGRESS, type = "adr")
-@Link(name = "ADR-199", url = Adr.THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE, type = "adr")
+@Link(name = "ADR-204", url = Adr.PART_B_OF_THE_STATEMENTS_WRITTEN_OUT, type = "adr")
 class SynthesisStatementProgressOrderTest {
 
     private static final String MODEL_NAME = "qwen3:8b";

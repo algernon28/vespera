@@ -111,7 +111,7 @@ class ContentCensusTasklet implements Tasklet {
                     // lines while it runs, and the measurement has its time after it whether or not there is
                     // (ADR-191, ADR-193). The time on this line is the whole call's, and stays so: ADR-193
                     // section 4.1 keeps ADR-191's line as the measurement's time, and the lines of the two
-                    // statements inside it are the ones ADR-199 section 3 writes out.
+                    // statements inside it are the ones ADR-204 section 3 writes out.
                     long measureStarted = System.nanoTime();
                     documentFrequency.measure(runId, extractionRunId, frequencyRowsProgress());
                     log.info(

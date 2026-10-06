@@ -25,22 +25,16 @@ import org.junit.jupiter.api.Test;
  * The steps a row each module declares for its counted statements are the ones SQLite was measured to
  * take, and every other statement declares none (ADR-193 sections 3 and 7, #411).
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/}</b> until part (b) adds the last of the four enums; it
- * does not compile before. {@code spec-implementer} moves it to {@code src/test} with that part.
+ * <p>It was parked under {@code docs/adr/0193/tests/b/} until part (b) added the last of the four enums, and
+ * came into {@code src/test} with that part (ADR-204).
  *
  * <p>Four, where ADR-193 section 7 named five: {@code corpus} has no statement of that record's since
  * ADR-200 (#405), under which stage 1 drains no survivors, so no {@code CorpusStatement} is written.
  *
  * <p>The measured figures are {@link StatementStepsPerRowTest}'s, which runs each statement against the
- * bundled SQLite. This test only holds the declarations to them, so a ratio changed in one place and not
- * the other fails here.
- *
- * <p>{@code ExtractionStatement} carries two constants ADR-193 did not name, for the two reads stage 2's
- * reader makes before a resume (ADR-199 section 2, #429), each counted at the ratio measured for it.
- *
- * <p><b>The change that moves this class into {@code src/test} deletes {@code
- * DeclaredStepsPerRowOfPartATest}</b>, which holds the three declarations of part (a) until then and makes no
- * claim this class does not (ADR-199 section 6).
+ * bundled SQLite, and for ADR-199's two reads {@link UncoveredStatementsStepsPerRowTest}'s. This test only
+ * holds the declarations to them, so a ratio changed in one place and not the other fails here. ADR-199's
+ * three timed survivor counts are in no enum: {@code pipeline} times each where it makes the call.
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -58,10 +52,11 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
                 SimilarityStatement.SHINGLE_ROWS, StatementStepsPerRowTest.SHINGLE_ROWS_STEPS,
                 SimilarityStatement.SIGNED_OCCURRENCES, StatementStepsPerRowTest.SIGNED_OCCURRENCES_STEPS,
                 ExtractionStatement.EXTRACTION_METRICS, StatementStepsPerRowTest.CONFIDENCE_METRICS_STEPS,
-                // ADR-199's two counted reads of a resume. Nine pairs of Map.of's ten: a second further
-                // counted statement moves this to Map.ofEntries.
-                ExtractionStatement.FAULTED_OCCURRENCES, StatementStepsPerRowTest.FAULTED_OCCURRENCES_STEPS,
-                ExtractionStatement.RECORDED_OCCURRENCES, StatementStepsPerRowTest.RECORDED_OCCURRENCES_STEPS,
+                // ADR-199's two counted reads of stage 2's resume, measured by their own test. Nine pairs of
+                // Map.of's ten: one more counted statement moves this to Map.ofEntries.
+                ExtractionStatement.FAULTED_OCCURRENCES, UncoveredStatementsStepsPerRowTest.FAULTED_OCCURRENCES_STEPS,
+                ExtractionStatement.RECORDED_OCCURRENCES,
+                        UncoveredStatementsStepsPerRowTest.RECORDED_OCCURRENCES_STEPS,
                 EmbeddingStatement.UNUSABLE_SEEDS, StatementStepsPerRowTest.UNUSABLE_SEEDS_STEPS,
                 EmbeddingStatement.CORPUS_METRICS, StatementStepsPerRowTest.COMPARISON_METRICS_STEPS,
                 EmbeddingStatement.SEED_METRICS, StatementStepsPerRowTest.COMPARISON_METRICS_STEPS);

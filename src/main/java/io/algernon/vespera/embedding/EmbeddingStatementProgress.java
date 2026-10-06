@@ -4,7 +4,7 @@ import java.util.OptionalLong;
 
 /**
  * What a statement inside {@code embedding} tells its caller while SQLite runs it (ADR-193 section 7,
- * ADR-199 section 4). {@code embedding} knows no stage and writes no line: the caller owns the words. Every
+ * ADR-204 section 4). {@code embedding} knows no stage and writes no line: the caller owns the words. Every
  * method has a body that does nothing, so a caller that wants no report implements none of them.
  *
  * <p>For every statement, {@link #statementStarting} is called once before it, {@link #stepsTaken} at each

@@ -46,12 +46,13 @@ class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
         this.runId = stageRuns.contentRedundancy();
         this.extractionRunId = stageRuns.upstream(StageModules.EXTRACTION);
         this.redundancyBoilerplate = redundancyBoilerplate;
-        // Timed, in the constructor: the anti-join over the walk's occurrences is the count itself, so there
-        // is no cheaper total to count against (ADR-193 section 1, ADR-199 section 2).
-        this.progress = StageProgress.over(
+        long survivors = TimedStatement.of(
                 "Stage 4a (redundancy signatures)",
-                TimedStatement.count(
-                        "Stage 4a (redundancy signatures)", "the survivors to sign", () -> ledger.survivorCount(runId)));
+                "counting",
+                "counted",
+                "the survivors it signs",
+                () -> ledger.survivorCount(runId));
+        this.progress = StageProgress.over("Stage 4a (redundancy signatures)", survivors);
     }
 
     @Override

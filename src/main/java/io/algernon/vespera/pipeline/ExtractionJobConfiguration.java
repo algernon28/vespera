@@ -6,6 +6,7 @@ import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.ExtractionFaults;
 import io.algernon.vespera.extraction.ExtractionStatement;
+import io.algernon.vespera.extraction.ExtractionStatementProgress;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.FailuresInARow;
 import io.algernon.vespera.ledger.Ledger;
@@ -20,6 +21,7 @@ import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,8 +127,62 @@ public class ExtractionJobConfiguration {
     /** For the seconds the removal of {@code shingle_by_hash} took, as its closing line states them (ADR-187). */
     private static final double NANOS_PER_SECOND = 1_000_000_000.0;
 
-    /** Stage 2's own name, which its statement lines open with. */
-    private static final String STAGE_TWO = "Stage 2 (extraction)";
+    /**
+     * The lines of the read of the faults a stopped run left, written as {@code extraction} reports it
+     * (ADR-199 section 2, ADR-193 sections 4.1 and 7): one line before the read, and one after it with how long it took,
+     * with progress between where SQLite calls back. {@code extraction} calls it with an empty total where the run
+     * holds no fault, and nothing is written then, so a first invocation writes nothing here.
+     */
+    private static ExtractionStatementProgress faultReadProgress() {
+        return readProgress("the faults the stopped run recorded");
+    }
+
+    /** The same lines for the read of the occurrences the stopped run measured (ADR-199 section 2). */
+    private static ExtractionStatementProgress measuredReadProgress() {
+        return readProgress("the occurrences the stopped run measured");
+    }
+
+    private static ExtractionStatementProgress readProgress(String what) {
+        return new ExtractionStatementProgress() {
+            private StatementProgress progress;
+            private long started;
+
+            @Override
+            public void statementStarting(ExtractionStatement statement, OptionalLong rowsUpTo) {
+                if (rowsUpTo.isEmpty()) {
+                    return;
+                }
+                long rows = rowsUpTo.getAsLong();
+                log.info(
+                        "Stage 2 (extraction) is reading {}, over up to {} rows",
+                        what,
+                        String.format(Locale.ROOT, "%,d", rows));
+                progress = StatementProgress.ofRead(
+                        "Stage 2 (extraction, reading " + what + ")",
+                        rows,
+                        statement.stepsPerRow().getAsInt());
+                started = System.nanoTime();
+            }
+
+            @Override
+            public void stepsTaken(ExtractionStatement statement, long steps) {
+                if (progress != null) {
+                    progress.stepsTaken(steps);
+                }
+            }
+
+            @Override
+            public void statementEnded(ExtractionStatement statement) {
+                if (progress == null) {
+                    return;
+                }
+                log.info(
+                        "Stage 2 (extraction) read {} in {} s",
+                        what,
+                        String.format(Locale.ROOT, "%.1f", (System.nanoTime() - started) / NANOS_PER_SECOND));
+            }
+        };
+    }
 
     @Bean
     Step extractionStep(
@@ -328,24 +384,8 @@ public class ExtractionJobConfiguration {
         // opened outside the chunk transaction, which is the only place a delete can be made to stick.
         //
         // The queries are extraction's (ADR-041); the one delete against verdict is the ledger's.
-        //
-        // The two reads this method makes of a run's own rows, the faults here and the metrics below, are
-        // counted by SQLite's progress handler and said in two lines each where the run holds a row, and
-        // not at all where it holds none, which is every first invocation (ADR-193, ADR-199 section 2).
-        ReportedStatements resumeReads = ReportedStatements.saying()
-                .counted(
-                        ExtractionStatement.FAULTED_OCCURRENCES,
-                        STAGE_TWO,
-                        "the faults already recorded",
-                        "Stage 2 (extraction, reading faults already recorded)")
-                .counted(
-                        ExtractionStatement.RECORDED_OCCURRENCES,
-                        STAGE_TWO,
-                        "the occurrences already measured",
-                        "Stage 2 (extraction, reading occurrences already measured)")
-                .build();
         ExtractionFaults extractionFaults = new ExtractionFaults(jdbcTemplate);
-        Set<OccurrenceId> faulted = extractionFaults.occurrencesForRun(extractionRun, resumeReads);
+        Set<OccurrenceId> faulted = extractionFaults.occurrencesForRun(extractionRun, faultReadProgress());
         ledger.discardVerdictsAgainst(extractionRun, faulted, VerdictKind.EXTRACTION_FAILED);
         extractionFaults.discardForRun(extractionRun);
 
@@ -371,7 +411,7 @@ public class ExtractionJobConfiguration {
                     String.format(Locale.ROOT, "%.1f", (System.nanoTime() - dropStarted) / NANOS_PER_SECOND));
         }
 
-        Set<OccurrenceId> recorded = extractionMetrics.occurrencesForRun(extractionRun, resumeReads);
+        Set<OccurrenceId> recorded = extractionMetrics.occurrencesForRun(extractionRun, measuredReadProgress());
         if (!recorded.isEmpty() || !faulted.isEmpty()) {
             // Said when anything was recorded or faulted (ADR-181 section 1): a run whose only leftovers
             // are fault rows reads those occurrences again, and says so. Counts follow their labels so

@@ -105,7 +105,7 @@ class RelevanceFloorTasklet implements Tasklet {
         // documents here. Not yet a decision this run can be finished on -- a later invocation, once
         // embedding-scoring has actually run, may answer differently under this very run id.
         Optional<String> currentIdentity =
-                TimedStatement.read(STAGE, "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName));
+                TimedStatement.of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName));
         if (currentIdentity.isEmpty()) {
             LOG.info(
                     "stage 5's relevance-floor step removed nothing: the vectors under {} carry no single"
@@ -141,8 +141,8 @@ class RelevanceFloorTasklet implements Tasklet {
                     elsewhere.calibratedUnder(),
                     elsewhere.currentIdentity());
             case RelevanceFloor.Applicable applicable -> {
-                List<OccurrenceId> below = TimedStatement.read(
-                        STAGE, "the scores below the floor", () -> relevanceScoring.scoredBelow(scoring, applicable.value()));
+                List<OccurrenceId> below = TimedStatement.of(
+                        STAGE, "reading", "read", "the scores below the floor", () -> relevanceScoring.scoredBelow(scoring, applicable.value()));
                 StageProgress written = StageProgress.over(
                         "Stage 5e (relevance floor, below-threshold verdicts)", below.size());
                 for (OccurrenceId occurrenceId : below) {

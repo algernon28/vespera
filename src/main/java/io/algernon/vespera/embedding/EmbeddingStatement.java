@@ -4,7 +4,7 @@ import java.util.OptionalInt;
 
 /**
  * The statements of {@code embedding} that SQLite counts or that are timed, named so that {@link
- * EmbeddingStatementProgress} can say which one it reports on (ADR-193 section 7, ADR-199 section 4). A
+ * EmbeddingStatementProgress} can say which one it reports on (ADR-193 section 7, ADR-204 section 4). A
  * counted statement declares its steps a row here, beside its SQL, and a timed one declares none. Each
  * ratio is measured against the bundled SQLite by {@code StatementStepsPerRowTest}, and {@code
  * StatementStepsPerRowAreTheDeclaredOnesTest} is what holds each declaration here to that measurement.

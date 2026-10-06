@@ -82,7 +82,7 @@ public class RedundancyResolution {
     /**
      * As {@link #resolve(RunId, RunId, RunId, Set)}, and tells {@code progress} about each loop (ADR-192
      * section 5): once before its first item with its total, zero included, and after each item. It also
-     * tells it about the four reads among the loops (ADR-193 section 7, ADR-199 sections 2 and 4), each
+     * tells it about the four reads among the loops (ADR-193 section 7, ADR-204 sections 3 and 4), each
      * started once before it and ended once after it, and not ended where it throws: the signed
      * occurrences, counted, first of all, started with the span of the run's rows or with an empty total
      * where it holds none; then the signature bands, the near-duplicates' extraction metrics (only where a

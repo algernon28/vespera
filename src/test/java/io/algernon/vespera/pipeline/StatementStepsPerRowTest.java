@@ -79,12 +79,6 @@ class StatementStepsPerRowTest {
     /** Stage 5b's two reads of the extraction metrics, seven columns each. */
     static final int COMPARISON_METRICS_STEPS = 12;
 
-    /** Stage 2's read, when it resumes, of the occurrences its run already holds a fault for (ADR-199). */
-    static final int FAULTED_OCCURRENCES_STEPS = 5;
-
-    /** Stage 2's read, when it resumes, of the occurrences its run already holds a metric row for (ADR-199). */
-    static final int RECORDED_OCCURRENCES_STEPS = 5;
-
     /** The interval every handler is set at, in steps (ADR-193 section 2). */
     private static final int STEPS_PER_CALLBACK = 100_000;
 
@@ -206,43 +200,13 @@ class StatementStepsPerRowTest {
                         + " WHERE run_id = ?",
                 "extraction_metric_by_run_id",
                 COMPARISON_METRICS_STEPS);
-        measureRead("extraction_fault", "SELECT occurrence_id FROM extraction_fault WHERE run_id = ?",
-                "extraction_fault_by_run_id", FAULTED_OCCURRENCES_STEPS);
-        measureRead("extraction_metric", "SELECT occurrence_id FROM extraction_metric WHERE run_id = ?",
-                "extraction_metric_by_run_id", RECORDED_OCCURRENCES_STEPS);
-    }
-
-    /**
-     * ADR-199 section 2: the count that sizes a stage's counter is timed, because it has no total that is
-     * cheap. It goes through the walk's occurrences and asks the verdicts about each, so the rows it goes
-     * through are not one run's rows of one table, and no span of rowids bounds them.
-     */
-    @Test
-    @Story("A count of what a stage has left says how long it took")
-    @DisplayName("Counting the documents a stage has left goes through every file of the collection, so nothing cheap says how many that is")
-    void theSurvivorCountGoesThroughTheWalkAndHasNoCheapTotal() throws SQLException {
-        writeAWalkOf(FEWER);
-        long atFewer = survivorCountSteps();
-        String plan = survivorCountPlan();
-        writeAWalkOf(DIFFERENCE);
-        long atMore = survivorCountSteps();
-
-        claim(
-                "the plan of the survivor count names both the occurrences and the verdicts, so what it goes"
-                        + " through is not one run's rows of one table: " + plan,
-                () -> assertThat(plan).contains("file_occurrence").contains("verdict"));
-        claim(
-                "and it takes more steps with every occurrence the walk holds, " + (atMore - atFewer) + " more for "
-                        + DIFFERENCE + " more occurrences, so its cost grows with a table and it is in scope",
-                () -> assertThat(atMore - atFewer).isGreaterThanOrEqualTo(DIFFERENCE));
     }
 
     @Test
     @Story("A long statement inside the database reports how far it has gone")
     @DisplayName("The bound on a counted read costs the same however many rows its run holds, and the bound on a timed one does not")
     void theBoundOfACountedReadIsCheapAndTheBoundOfATimedOneIsNot() throws SQLException {
-        List<String> cheap =
-                List.of("shingle", "minhash_signature", "extraction_metric", "unusable_seed", "extraction_fault");
+        List<String> cheap = List.of("shingle", "minhash_signature", "extraction_metric", "unusable_seed");
         List<String> dear = List.of("signature_band", "shingle_document_frequency", "call_exemplar");
         for (String table : concat(cheap, dear)) {
             write(table, EARLIER_RUN, MORE);
@@ -322,76 +286,6 @@ class StatementStepsPerRowTest {
                 "and over " + (FEWER + DIFFERENCE * 10) + " rows it takes " + atMore + ", no more than a few"
                         + " steps beyond that: SQLite frees the index in steps that do not grow with it",
                 () -> assertThat(atMore).isLessThan(STEPS_PER_CALLBACK).isEqualTo(atFewer));
-    }
-
-    /** The count, in the shape {@code Ledger.survivorCount} issues it over a run with one run upstream of it. */
-    private static final String SURVIVOR_COUNT = "SELECT COUNT(*) FROM file_occurrence"
-            + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
-            + " AND NOT EXISTS (SELECT 1 FROM verdict"
-            + " WHERE verdict.occurrence_id = file_occurrence.id"
-            + " AND verdict.kind IN ('BROKEN', 'OUT_OF_SCOPE')"
-            + " AND verdict.run_id IN (?, ?))";
-
-    private int occurrencesWritten;
-
-    /** {@code more} further occurrences of one walk, the run that reads it, and a blocking verdict on every fifth. */
-    private void writeAWalkOf(int more) throws SQLException {
-        database.setAutoCommit(false);
-        try (Statement statement = database.createStatement()) {
-            statement.executeUpdate("INSERT OR IGNORE INTO walk (id, root) VALUES (1, 'root')");
-            statement.executeUpdate("INSERT OR IGNORE INTO run (id, stage, implementation_version, config_consumed,"
-                    + " walk_id) VALUES ('" + RUN_READ + "', 'byte-level-reduction', 'v', '{}', 1)");
-        }
-        try (PreparedStatement occurrence = database.prepareStatement(
-                        "INSERT INTO file_occurrence (walk_id, path, size_bytes, last_modified, creation_time)"
-                                + " VALUES (1, ?, 1, 1, 1)");
-                PreparedStatement verdict = database.prepareStatement(
-                        "INSERT INTO verdict (occurrence_id, run_id, kind, reason) VALUES (?, ?, 'BROKEN', 'x')")) {
-            for (int row = occurrencesWritten; row < occurrencesWritten + more; row++) {
-                occurrence.setString(1, "path-" + row);
-                occurrence.addBatch();
-                if (row % 5 == 0) {
-                    verdict.setLong(1, row + 1L);
-                    verdict.setString(2, RUN_READ);
-                    verdict.addBatch();
-                }
-            }
-            occurrence.executeBatch();
-            verdict.executeBatch();
-        }
-        occurrencesWritten += more;
-        database.commit();
-        database.setAutoCommit(true);
-    }
-
-    private long survivorCountSteps() throws SQLException {
-        return counted(() -> {
-            try (PreparedStatement count = database.prepareStatement(SURVIVOR_COUNT)) {
-                count.setString(1, RUN_READ);
-                count.setString(2, RUN_READ);
-                count.setString(3, EARLIER_RUN);
-                try (ResultSet rows = count.executeQuery()) {
-                    while (rows.next()) {
-                        // the one row of the count
-                    }
-                }
-            }
-        });
-    }
-
-    private String survivorCountPlan() throws SQLException {
-        List<String> details = new ArrayList<>();
-        try (PreparedStatement explain = database.prepareStatement("EXPLAIN QUERY PLAN " + SURVIVOR_COUNT)) {
-            explain.setString(1, RUN_READ);
-            explain.setString(2, RUN_READ);
-            explain.setString(3, EARLIER_RUN);
-            try (ResultSet rows = explain.executeQuery()) {
-                while (rows.next()) {
-                    details.add(rows.getString("detail"));
-                }
-            }
-        }
-        return String.join(" | ", details);
     }
 
     private void measureRead(String table, String sql, String index, int expected) throws SQLException {

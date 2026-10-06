@@ -55,12 +55,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * two pass on main and have to go on passing: a stage with nothing signed counts nothing, and a stage already
  * recorded does not run its loops.
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/} with claims added to the file of this name in {@code
- * src/test}</b>, which it replaces when part (b) of ADR-193 lands (ADR-193 section 6, ADR-199 section 3,
- * #411, #429): stage 3's two drains and its read of the extraction metrics, 4a's count of the survivors it
- * signs, and the four reads 4b's resolution makes, each with a line before it and a line after it with the
- * seconds it took. On main the claims that those lines are there are red by assertion, and every other
- * claim here passes, the three that a stage which issued no statement says nothing among them.
+ * <p><b>The claims about statements came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3,
+ * #411): stage 3's two drains and its read of the extraction metrics, and the four reads 4b's resolution
+ * makes, each with a line before it and a line after it with the seconds it took, and none of them where the
+ * stage issued no statement. 4a's count of the survivors it signs is ADR-199's, and {@code
+ * UncoveredStatementsInvocationTest} holds its lines.
  */
 @CascadeSliceTest
 @Import(ConverterStopsPartwayBeans.class)
@@ -88,7 +87,6 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
     /** Each stage's own name, which its statement lines open with. */
     private static final String STAGE_THREE = "Stage 3 (content census)";
 
-    private static final String STAGE_FOUR_A = "Stage 4a (redundancy signatures)";
     private static final String STAGE_FOUR_B = "Stage 4b (redundancy resolution)";
 
     /** How stage 3's line before its read of the shingle rows opens; the rest is the bound and what a stop costs. */
@@ -217,10 +215,6 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                                 StatementLines.timedRead(
                                         STAGE_THREE, "stage 2's survivors for the confidence distribution"),
                                 StatementLines.countedRead(STAGE_THREE, "the extraction metrics", metricRows))));
-        claim(
-                "signing says it is counting the documents it has to sign, and how long that took, once",
-                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FOUR_A))
-                        .containsExactlyElementsOf(StatementLines.timedCount(STAGE_FOUR_A, "the survivors to sign")));
         claim(
                 "resolving says what it is reading and how long each read took, each line once, in the order it"
                         + " reads: the signed documents, over up to the " + signatureRows + " signature rows of its"

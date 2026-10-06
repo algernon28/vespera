@@ -92,7 +92,7 @@ class RelevanceFloor {
     /**
      * As {@link #stateFor(String)}, for a caller that is not stage 5e: the one read this makes, of the
      * answers recorded for the seed set, is said under {@code stage}, the name of the step that asked
-     * (ADR-193, ADR-199 section 3). It is issued only where the floor is a number and a seed set is named.
+     * (ADR-193, ADR-204 section 3). It is issued only where the floor is a number and a seed set is named.
      */
     State stateFor(String currentEmbedderIdentity, String stage) {
         Profile profile = profileStore.load();
@@ -128,7 +128,7 @@ class RelevanceFloor {
             return List.of();
         }
         // Timed: the read has no run, so no span (ADR-193 section 6).
-        return TimedStatement.read(stage, "the recorded answers", () -> relevanceLabels.forSeedSet(seedSet.get()))
+        return TimedStatement.of(stage, "reading", "read", "the recorded answers", () -> relevanceLabels.forSeedSet(seedSet.get()))
                 .stream()
                 .map(RelevanceLabel::embedderIdentity)
                 .distinct()

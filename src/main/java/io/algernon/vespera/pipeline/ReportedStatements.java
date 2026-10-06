@@ -9,13 +9,16 @@ import io.algernon.vespera.similarity.SimilarityStatementProgress;
 import io.algernon.vespera.synthesis.SynthesisStatement;
 import io.algernon.vespera.synthesis.SynthesisStatementProgress;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Writes the lines of the statements a capability module announces through the callbacks it owns (ADR-193
- * sections 4 and 7, ADR-199 sections 3 and 4), in the words the caller gives each. It is every module's
+ * sections 4 and 7, ADR-204 sections 3 and 4), in the words the caller gives each. It is every module's
  * {@code <Module>StatementProgress} at once, since each interface's methods take that module's own enum and
  * so do not collide; a caller hands it where a module asks for its interface, or, where the module's
  * interface also reports a loop, forwards the three statement callbacks to it. A statement it was given no
@@ -30,7 +33,7 @@ import java.util.OptionalLong;
  *       then {@link StatementProgress}' lines under the caller's label as SQLite calls back, then {@code
  *       <stage> read <what> in <S> s}.
  *   <li><b>A counted one started with an empty total</b>, a run that holds no row: nothing at all, neither
- *       line and no progress. That silence is {@code pipeline}'s to keep (ADR-199 section 4); the capability
+ *       line and no progress. That silence is {@code pipeline}'s to keep (ADR-204 section 4); the capability
  *       module only reports that it started.
  * </ul>
  *
@@ -49,7 +52,14 @@ final class ReportedStatements
 
     private final Map<Enum<?>, Words> words;
 
-    private TimedStatement lines;
+    private static final Logger log = LoggerFactory.getLogger(ReportedStatements.class);
+
+    private static final double NANOS_PER_SECOND = 1_000_000_000.0;
+
+    private TimedStatement.Started lines;
+    private String countedStage;
+    private String countedWhat;
+    private long countedStarted;
     private StatementProgress progress;
 
     private ReportedStatements(Map<Enum<?>, Words> words) {
@@ -145,15 +155,25 @@ final class ReportedStatements
 
     private void starting(Enum<?> statement, OptionalInt stepsPerRow, OptionalLong rowsUpTo) {
         lines = null;
+        countedWhat = null;
         progress = null;
         Words said = words.get(statement);
         if (said == null) {
             return;
         }
         if (stepsPerRow.isEmpty()) {
-            lines = TimedStatement.readStarted(said.stage(), said.what());
+            lines = TimedStatement.begin(said.stage(), "reading", "read", said.what());
         } else if (rowsUpTo.isPresent()) {
-            lines = TimedStatement.readStartedOver(said.stage(), said.what(), rowsUpTo.getAsLong());
+            // The line before carries the total, which TimedStatement's own does not, so a counted read
+            // writes both its lines here and keeps its own clock.
+            log.info(
+                    "{} is reading {}, over up to {} rows",
+                    said.stage(),
+                    said.what(),
+                    String.format(Locale.ROOT, "%,d", rowsUpTo.getAsLong()));
+            countedStage = said.stage();
+            countedWhat = said.what();
+            countedStarted = System.nanoTime();
             progress = StatementProgress.ofRead(said.label(), rowsUpTo.getAsLong(), stepsPerRow.getAsInt());
         }
     }
@@ -166,9 +186,16 @@ final class ReportedStatements
 
     private void ended() {
         if (lines != null) {
-            lines.ended();
+            lines.end();
+        } else if (countedWhat != null) {
+            log.info(
+                    "{} read {} in {} s",
+                    countedStage,
+                    countedWhat,
+                    String.format(Locale.ROOT, "%.1f", (System.nanoTime() - countedStarted) / NANOS_PER_SECOND));
         }
         lines = null;
+        countedWhat = null;
         progress = null;
     }
 }

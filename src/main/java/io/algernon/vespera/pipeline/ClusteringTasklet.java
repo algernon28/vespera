@@ -126,7 +126,7 @@ class ClusteringTasklet implements Tasklet {
                 () -> {},
                 () -> {
                     List<OccurrenceId> partitions =
-                            TimedStatement.read(STAGE, "the seed partitions", () -> clustering.partitions(scoring));
+                            TimedStatement.of(STAGE, "reading", "read", "the seed partitions", () -> clustering.partitions(scoring));
                     if (partitions.isEmpty()) {
                         LOG.info(
                                 "stage 5's clustering step is gated: no survivor carries a relevance score"
@@ -147,8 +147,8 @@ class ClusteringTasklet implements Tasklet {
                     // and clustering it would give a page to a document this run has just decided is not
                     // in the archive. ADR-060 keeps the verdict join in the ledger, so the filter is
                     // here rather than in the partition query embedding owns.
-                    Set<OccurrenceId> survivors = TimedStatement.read(
-                            STAGE, "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(scoring)));
+                    Set<OccurrenceId> survivors = TimedStatement.of(
+                            STAGE, "reading", "read", "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(scoring)));
 
                     LOG.info(
                             "Stage 5f (clustering) starting under scoring run {}: {} seed partition(s) to"
@@ -163,8 +163,8 @@ class ClusteringTasklet implements Tasklet {
                     for (OccurrenceId winningSeed : partitions) {
                         String whichPartition =
                                 "partition " + (membersByPartition.size() + 1) + " of " + partitions.size();
-                        List<OccurrenceId> members = TimedStatement.read(
-                                        STAGE,
+                        List<OccurrenceId> members = TimedStatement.of(
+                                        STAGE, "reading", "read",
                                         "the members of " + whichPartition,
                                         () -> clustering.membersOf(scoring, winningSeed))
                                 .stream()
@@ -205,8 +205,8 @@ class ClusteringTasklet implements Tasklet {
                         // what the arithmetic meant to write.
                         reported.add(new ClusterSizeReport.Partition(
                                 pathOf(winningSeed),
-                                TimedStatement.read(
-                                        STAGE,
+                                TimedStatement.of(
+                                        STAGE, "reading", "read",
                                         "the cluster sizes of partition " + (partition + 1) + " of " + partitions.size(),
                                         () -> documentClusters.sizesFor(scoring, winningSeed)),
                                 spread));

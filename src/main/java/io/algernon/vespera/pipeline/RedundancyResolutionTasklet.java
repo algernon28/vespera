@@ -93,7 +93,7 @@ class RedundancyResolutionTasklet implements Tasklet {
      * Stage 4b's six counters: each made when {@code similarity} announces its loop, and ticked as it
      * reports (ADR-192 sections 4 and 5). The candidates counter has no total and is opened with the
      * containment loop it sits in. It also writes the lines of the four reads among the loops, as {@code
-     * similarity} reports each (ADR-193 section 7, ADR-199 section 3): the signed occurrences, counted, which
+     * similarity} reports each (ADR-193 section 7, ADR-204 section 3): the signed occurrences, counted, which
      * says nothing where nothing is signed, and the signature bands, the near-duplicates' extraction metrics
      * and the shingle document frequencies, timed.
      */

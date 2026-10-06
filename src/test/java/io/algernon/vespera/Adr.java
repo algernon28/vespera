@@ -1150,15 +1150,22 @@ public final class Adr {
             + "0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md";
 
     /**
-     * ADR-199 -- the statements ADR-193 left unnamed take its rule, and its table is read again against
-     * the code: the survivor counts that size stage 1's and stage 4a's counters are timed, stage 2's two
-     * reads on a resume are counted at five steps a row, the report's read of the answers a model gave is
-     * timed, and what runs outside the job's steps says nothing; every line of part (b) is written out in
-     * full, with the tests it owes (extends ADR-193 sections 1, 4, 6 and 7 and corrects one sentence of
-     * its Tests; rests on ADR-200 and ADR-197; settles #429 inside #411's part (b)).
+     * ADR-199: the statements ADR-193 left unnamed take its rule: the survivor count that sizes a stage's
+     * counter is timed, stage 1's second one from outside {@code corpus}, and the reads of a stopped run's
+     * faults and of the occurrences it measured are counted (extends ADR-193; rests on ADR-200; settles #429).
      */
     public static final String THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE = FILE
             + "0199-the-statements-adr-193-left-unnamed-take-its-rule.md";
+
+    /**
+     * ADR-204 -- part (b) of ADR-193, written out as it is built: every line with its stage's own name,
+     * ADR-193 section 6 read again against the code, the four enums with their constants, the report's
+     * read of the answers a model gave timed and the reads under {@code vespera label} given no line, and
+     * the tests part (b) owed (extends ADR-193 sections 4, 6 and 7 and corrects one sentence of its Tests;
+     * takes up one statement ADR-199 section 3 listed; rests on ADR-199, ADR-200 and ADR-197; #411).
+     */
+    public static final String PART_B_OF_THE_STATEMENTS_WRITTEN_OUT = FILE
+            + "0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md";
 
     private Adr() {
     }

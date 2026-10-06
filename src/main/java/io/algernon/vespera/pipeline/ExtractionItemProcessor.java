@@ -154,11 +154,11 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.judge = new OccurrenceJudge(extractionMetrics, failuresInARow, extractionRun, confidenceFloor.value());
         // One wait to the operator, so one timed span over the whole expression: the read of the occurrences
         // already recorded inside the argument, and the drain or the count after it (ADR-193 section 6,
-        // ADR-199 section 2). Neither is given a pair of lines of its own.
+        // ADR-199 section 1). Neither is given a pair of lines of its own.
         this.progress = StageProgress.over(
                 "Stage 2 (extraction)",
-                TimedStatement.count(
-                        "Stage 2 (extraction)",
+                TimedStatement.of(
+                        "Stage 2 (extraction)", "counting", "counted",
                         "the survivors still to read",
                         () -> UnrecordedOccurrences.countOver(
                                 ledger, extractionRun, extractionMetrics.occurrencesForRun(extractionRun))));

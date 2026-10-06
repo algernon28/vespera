@@ -2,8 +2,13 @@ package io.algernon.vespera.extraction;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.StatementSteps;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -60,14 +65,45 @@ public class ExtractionMetrics {
     }
 
     /**
-     * As {@link #occurrencesForRun(RunId)}, and tells {@code progress} that the read starts, over the span of
-     * the run's rows or an empty total where it holds none, the steps SQLite has taken at each callback, and
-     * that it ended (ADR-193 section 7, ADR-199 section 2): {@link ExtractionStatement#RECORDED_OCCURRENCES},
-     * counted. A read that throws is not told to have ended.
+     * The same, counted (ADR-199 section 1): {@code progress} is told its total before the read (empty
+     * where the run holds no row), the steps SQLite has taken at each callback, and that it ended. The read
+     * is always issued, and where the run holds no row it finds none.
      */
     public Set<OccurrenceId> occurrencesForRun(RunId runId, ExtractionStatementProgress progress) {
-        return RunRows.occurrencesOf(
-                jdbcTemplate, "extraction_metric", runId, ExtractionStatement.RECORDED_OCCURRENCES, progress);
+        OptionalLong rowsUpTo = metricRowsUpTo(runId);
+        ExtractionStatement statement = ExtractionStatement.RECORDED_OCCURRENCES;
+        progress.statementStarting(statement, rowsUpTo);
+        Set<OccurrenceId> recorded = StatementSteps.counted(
+                jdbcTemplate, steps -> progress.stepsTaken(statement, steps), connection -> {
+                    Set<OccurrenceId> found = new HashSet<>();
+                    try (PreparedStatement read = connection.prepareStatement(
+                            "SELECT occurrence_id FROM extraction_metric WHERE run_id = ?")) {
+                        read.setString(1, runId.value());
+                        try (ResultSet rows = read.executeQuery()) {
+                            while (rows.next()) {
+                                found.add(new OccurrenceId(rows.getLong("occurrence_id")));
+                            }
+                        }
+                    }
+                    return found;
+                });
+        progress.statementEnded(statement);
+        return recorded;
+    }
+
+    /**
+     * The span of {@code runId}'s metrics rows, empty where it holds none: two statements, each one descent of
+     * {@code extraction_metric_by_run_id}.
+     */
+    OptionalLong metricRowsUpTo(RunId runId) {
+        Long least = jdbcTemplate.queryForObject(
+                "SELECT MIN(rowid) FROM extraction_metric WHERE run_id = ?", Long.class, runId.value());
+        Long greatest = jdbcTemplate.queryForObject(
+                "SELECT MAX(rowid) FROM extraction_metric WHERE run_id = ?", Long.class, runId.value());
+        if (least == null || greatest == null) {
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(greatest - least + 1);
     }
 
     /**

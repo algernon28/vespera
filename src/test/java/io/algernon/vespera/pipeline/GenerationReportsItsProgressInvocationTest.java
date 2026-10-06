@@ -58,12 +58,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * 1,000th, which no fixture here reaches, and is not pinned. Report text says <em>group</em> where these names
  * say cluster (ADR-122).
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/} with two claims more than the file of this name in {@code
- * src/test}</b>, which it replaces when part (b) of ADR-193 lands (ADR-193 section 6, ADR-199 section 3,
- * #411): each of 6b's reads has a line before it and a line after it with the seconds it took, once each, in
- * the order the step makes them, and a walk that stops on the fifth answer turned down never reads the
- * standing faults. On main both claims are red by assertion, the lines not being written, and every other
- * claim here passes.
+ * <p><b>Two claims came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3, #411): each of
+ * 6b's reads has a line before it and a line after it with the seconds it took, once each, in the order the
+ * step makes them, and a walk that stops on the fifth answer turned down never reads the standing faults.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)

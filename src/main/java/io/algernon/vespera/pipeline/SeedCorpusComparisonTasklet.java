@@ -98,7 +98,7 @@ class SeedCorpusComparisonTasklet implements Tasklet {
                 () -> {
                     LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.value());
                     // Five statements that wait, said as SeedCorpusComparison reports each (ADR-193 section 7,
-                    // ADR-199 section 3): two drains, timed, and three reads of a run's rows, counted, the
+                    // ADR-204 section 3): two drains, timed, and three reads of a run's rows, counted, the
                     // first of which says nothing where no seed is recorded unusable.
                     String stage = "Stage 5b (seed/corpus comparison)";
                     SeedCorpusComparison.Comparison comparison = seedCorpusComparison.measure(

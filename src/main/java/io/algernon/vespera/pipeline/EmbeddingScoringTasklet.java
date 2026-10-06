@@ -137,8 +137,8 @@ class EmbeddingScoringTasklet implements Tasklet {
                 () -> {},
                 () -> {
                     Path canonicalRoot = Walk.canonicalRoot(root);
-                    Set<OccurrenceId> survivors = TimedStatement.read(
-                            STAGE, "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(measurementRun)));
+                    Set<OccurrenceId> survivors = TimedStatement.of(
+                            STAGE, "reading", "read", "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(measurementRun)));
                     Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk, measurementRun);
                     LOG.info(
                             "Stage 5c (embedding scoring) starting under scoring run {}: re-chunking and"
@@ -193,9 +193,9 @@ class EmbeddingScoringTasklet implements Tasklet {
      * vector exists exactly where a corpus chunk's does, keyed the same way.
      */
     private Set<OccurrenceId> usableSeedOccurrences(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
-        Set<OccurrenceId> allSeeds = TimedStatement.read(
-                STAGE, "the seed walk's occurrences", () -> ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId())));
-        Set<OccurrenceId> unusable = TimedStatement.read(STAGE, "the unusable seeds", () -> unusableSeeds.forRun(measurementRun))
+        Set<OccurrenceId> allSeeds = TimedStatement.of(
+                STAGE, "reading", "read", "the seed walk's occurrences", () -> ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId())));
+        Set<OccurrenceId> unusable = TimedStatement.of(STAGE, "reading", "read", "the unusable seeds", () -> unusableSeeds.forRun(measurementRun))
                 .stream()
                 .map(UnusableSeed::occurrenceId)
                 .collect(Collectors.toSet());

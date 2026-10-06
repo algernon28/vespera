@@ -250,8 +250,8 @@ class GenerationTasklet implements Tasklet {
                 () -> {},
                 () -> {
                     RunId scoring = scoringRunBehind(arrangement);
-                    List<DocumentCluster> membership = TimedStatement.read(
-                            STAGE, "the cluster membership", () -> documentClusters.forRun(scoring));
+                    List<DocumentCluster> membership = TimedStatement.of(
+                            STAGE, "reading", "read", "the cluster membership", () -> documentClusters.forRun(scoring));
                     Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
                             scoring,
                             membership.stream().map(DocumentCluster::occurrenceId).toList(),
@@ -260,7 +260,7 @@ class GenerationTasklet implements Tasklet {
                             .collect(Collectors.groupingBy(ClusterKey::of));
                     int contextWindow = generationContextWindow.size();
                     List<RecordedCluster> recordedClusters =
-                            TimedStatement.read(STAGE, "the recorded clusters", () -> clusters.forRun(arrangement));
+                            TimedStatement.of(STAGE, "reading", "read", "the recorded clusters", () -> clusters.forRun(arrangement));
                     // A running counter: how many members a cluster has is known only as it is reached.
                     StageProgress documentsOpened =
                             StageProgress.running("Stage 6b (generation, cluster documents opened)");
@@ -334,7 +334,7 @@ class GenerationTasklet implements Tasklet {
      * opens the {@code Stage 6b (generation, clusters)} counter when the walk announces its total, and ticks it
      * once at the end of each cluster's path (ADR-192 section 5). And it writes the two lines of each of the
      * walk's two reads, the clusters already written and the standing faults, as {@code synthesis} reports
-     * them (ADR-193 section 7, ADR-199 section 3): both timed, the second not reached where the walk stops on
+     * them (ADR-193 section 7, ADR-204 section 3): both timed, the second not reached where the walk stops on
      * five answers turned down in a row.
      */
     private static GenerationProgress progressLines() {
@@ -511,7 +511,7 @@ class GenerationTasklet implements Tasklet {
             Map<ClusterSlot, Unwritten> foundThisRun) {
         Map<OccurrenceId, Optional<String>> hashes = new HashMap<>();
         List<RecordedSynthesisDoc> written =
-                TimedStatement.read(STAGE, "the clusters written", () -> synthesisDocs.forRun(generation));
+                TimedStatement.of(STAGE, "reading", "read", "the clusters written", () -> synthesisDocs.forRun(generation));
         DeliverableProvenance provenance = new DeliverableProvenance(
                 generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
         return Deliverable.writeTo(
@@ -541,7 +541,7 @@ class GenerationTasklet implements Tasklet {
             Map<ClusterSlot, Unwritten> foundThisRun) {
         Map<ClusterSlot, Unwritten> why = new LinkedHashMap<>();
         List<RecordedClusterFault> recordedFaults =
-                TimedStatement.read(STAGE, "the faults recorded", () -> clusterFaults.forRun(generation));
+                TimedStatement.of(STAGE, "reading", "read", "the faults recorded", () -> clusterFaults.forRun(generation));
         for (RecordedClusterFault fault : recordedFaults) {
             why.put(new ClusterSlot(fault.winningSeed(), fault.clusterOrdinal()), Unwritten.of(fault.fault().kind()));
         }

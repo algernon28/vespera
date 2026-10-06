@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 
 /**
  * The lines a stage writes around its statements, read out of what an invocation logged, and the lines
- * ADR-193 sections 4.1 and 4.3 and ADR-199 section 3 give a statement, for the whole-job tests to compare
+ * ADR-193 sections 4.1 and 4.3 and ADR-204 section 3 give a statement, for the whole-job tests to compare
  * them with.
  *
  * <p>A statement line opens with the stage's own name and one of four verbs: {@code is reading}, {@code

@@ -44,12 +44,6 @@ import org.springframework.test.context.DynamicPropertySource;
  * neither loop writes a line. Every line of both counters must come from {@code StageProgress}'s logger. The
  * contract by which {@code corpus} hands the counts over is pinned in {@code
  * ContentIdentityResolutionReportsItsLoopsTest}, which part (a) brings in.
- *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/} with one claim more than the file of this name in {@code
- * src/test}</b>, which it replaces when part (b) of ADR-193 lands (ADR-199 sections 2 and 3, #411, #429):
- * the count of the survivors that sizes each of stage 1's two counters is timed, a line before it and a line
- * after it with the seconds it took. On main that claim is red by assertion, the lines not being written,
- * and every other claim here passes.
  */
 @CascadeSliceTest
 @Import(ConverterStopsPartwayBeans.class)
@@ -57,13 +51,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("Progress reporting")
 @Issue("412")
 @Link(name = "ADR-192", url = Adr.EVERY_LOOP_REPORTS_ITS_PROGRESS, type = "adr")
-@Link(name = "ADR-199", url = Adr.THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE, type = "adr")
 class StageOneReportsItsLoopsInvocationTest {
-
-    /** Stage 1's own name, which its statement lines open with. */
-    private static final String STAGE_ONE = "Stage 1 (byte-level reduction)";
-
-    private static final String BROKEN_CHECK = "Stage 1 (byte-level reduction, broken check)";
 
     /** One original and 1,001 copies: the 1,000th duplicate recorded is the first line, and no second falls. */
     static final int COPIES = 1_002;
@@ -121,25 +109,6 @@ class StageOneReportsItsLoopsInvocationTest {
         cli.run("run", root.toString());
 
         stageOneRan();
-        List<String> lines =
-                logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
-        claim(
-                "stage 1 says it is counting the files left to check, and how long the count took, and then the"
-                        + " same of the files left to size: each line once, in that order, and no other line"
-                        + " about a count or a read",
-                () -> assertThat(StatementLines.of(lines, STAGE_ONE))
-                        .containsExactlyElementsOf(StatementLines.inOrder(
-                                StatementLines.timedCount(STAGE_ONE, "the survivors to check"),
-                                StatementLines.timedCount(STAGE_ONE, "the survivors to size"))));
-        claim(
-                "each count is said to have ended before the counter it sizes writes its first line",
-                () -> assertThat(String.join("\n", lines))
-                        .containsSubsequence(
-                                STAGE_ONE + " counted the survivors to check in ",
-                                BROKEN_CHECK + ": 1 of ",
-                                STAGE_ONE + " is counting the survivors to size",
-                                STAGE_ONE + " counted the survivors to size in ",
-                                SIZES + ": 1 of "));
         claim(
                 "the counter reads one, two and three of three, for the three survivors whose size is read to"
                         + " group them: a file whose size no other file shares is counted too, though it is"

@@ -13,7 +13,7 @@ package io.algernon.vespera.similarity;
  * candidates have no total: they are reported inside the containment loop, after it is announced.
  *
  * <p>It is also a {@link SimilarityStatementProgress}, and is told about four reads among those loops
- * (ADR-193 section 7, ADR-199 section 4): the signed occurrences ({@code SIGNED_OCCURRENCES}, counted), first
+ * (ADR-193 section 7, ADR-204 section 4): the signed occurrences ({@code SIGNED_OCCURRENCES}, counted), first
  * of all, before any loop and even where nothing is signed, which is where a resolution that returns before
  * its loops stops reporting; then the signature bands, before the pairs are announced; the near-duplicates'
  * extraction metrics, after the profiles are announced and only where a component holds a member; and the

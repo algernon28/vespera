@@ -40,12 +40,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * SeedScriptedExtractionBeans}, whose converter fails on {@code CONVERTER_FAULT} while blaming itself, which
  * is what a held fault is; {@code ExtractionFaultInvocationTest} pins the row and the verdict.
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/} with two claims more than the file of this name in
- * {@code src/test}</b>, which it replaces when part (b) of ADR-193 lands (ADR-193 section 6, ADR-199 section
- * 3, #411, #429): on a first invocation stage 2 times its count of the survivors still to read and, at its
- * end, its read of the occurrences it could not read for the review list, and says nothing of the two reads
- * a resume makes. On main both claims are red by assertion, the lines not being written, and every other
- * claim here passes.
+ * <p><b>Two claims came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3, #411): on a first
+ * invocation stage 2 times its count of the survivors still to read and, at its end, its read of the
+ * occurrences it could not read for the review list, and says nothing of the two reads a resume makes, which
+ * are ADR-199's.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -54,7 +52,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Issue("412")
 @Link(name = "ADR-192", url = Adr.EVERY_LOOP_REPORTS_ITS_PROGRESS, type = "adr")
 @Link(name = "ADR-193", url = Adr.STATEMENTS_REPORT_THEIR_PROGRESS, type = "adr")
-@Link(name = "ADR-199", url = Adr.THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE, type = "adr")
+@Link(name = "ADR-204", url = Adr.PART_B_OF_THE_STATEMENTS_WRITTEN_OUT, type = "adr")
 class StageTwoReportsItsFaultResolutionInvocationTest {
 
     /** Stage 2's own name, which its statement lines open with, and which its counter over the files is labelled with. */

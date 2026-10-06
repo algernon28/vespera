@@ -76,9 +76,6 @@ public class ByteLevelReductionTasklet implements Tasklet {
 
     private static final Logger log = LoggerFactory.getLogger(ByteLevelReductionTasklet.class);
 
-    /** Stage 1's own name, which its statement lines open with. */
-    private static final String STAGE = "Stage 1 (byte-level reduction)";
-
     private final Ledger ledger;
     private final ContentIdentity contentIdentity;
     private final DetectedFormats detectedFormats;
@@ -156,9 +153,12 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * and the tally; what is written here is the operator's text, the page, and the floor's measurement.
      */
     private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot, Double logFloor) throws Exception {
-        // The anti-join over the walk's occurrences is the count itself, so there is no cheaper total to count
-        // against and the wait is timed (ADR-193 section 1, ADR-199 section 2).
-        long survivors = TimedStatement.count(STAGE, "the survivors to check", () -> ledger.survivorCount(runId));
+        long survivors = TimedStatement.of(
+                "Stage 1 (byte-level reduction)",
+                "counting",
+                "counted",
+                "the survivors the broken check goes through",
+                () -> ledger.survivorCount(runId));
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", survivors);
         FormatMix mix = new BrokenOrOutOfScope(ledger, detectedFormats, textSizeLimits())
                 .verdictSurvivors(runId, canonicalRoot, logFloor, new CheckingProgress() {
@@ -209,10 +209,10 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * many files are copies is known only afterwards.
      */
     private void resolveDuplicates(RunId runId, Path canonicalRoot) throws Exception {
-        // The first thing resolve does is count the survivors, and toSize, called with that count, is its first
-        // callback: so the stretch from the call to toSize is the count and nothing else, and corpus tells
-        // this class when it ends without a line of its own (ADR-199 section 2).
-        TimedStatement sizing = TimedStatement.countStarted(STAGE, "the survivors to size");
+        // The resolution counts its survivors before it asks the ledger for anything else and hands the answer
+        // to toSize, so the time from here to toSize is that count's (ADR-199 section 2).
+        TimedStatement.Started counting = TimedStatement.begin(
+                "Stage 1 (byte-level reduction)", "counting", "counted", "the survivors whose sizes it reads");
         new ContentIdentityResolution(ledger, contentIdentity).resolve(runId, canonicalRoot, new HashingProgress() {
             private StageProgress sizes;
             private StageProgress progress;
@@ -220,7 +220,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
 
             @Override
             public void toSize(long survivors) {
-                sizing.ended();
+                counting.end();
                 sizes = StageProgress.over("Stage 1 (byte-level reduction, sizes read)", survivors);
             }
 

@@ -18,15 +18,14 @@ import org.springframework.util.StreamUtils;
 /**
  * A pool of two connections over a database file of the test's own, under the shipped {@code schema.sql},
  * with no transaction open: what each module's contract test of its counted statements runs on (ADR-193
- * section 2, ADR-199 section 4).
+ * section 2, ADR-204 section 4).
  *
  * <p><b>Two connections on purpose.</b> A counted statement must run on the connection its progress handler
  * was set on. One handed back to a {@code JdbcTemplate} method inside the callback borrows the second
  * connection here, the handler on the first counts nothing, and a read over many rows reports no steps. The
  * test profile's pool of one, inside a test's transaction, cannot see that mistake.
  *
- * <p>Parked under {@code docs/adr/0193/tests/b/} with the tests that use it; it compiles against main and
- * names nothing part (b) adds.
+ * <p>It names nothing a module owns, so each module's contract test can use it.
  */
 public final class PoolOfTwo implements AutoCloseable {
 

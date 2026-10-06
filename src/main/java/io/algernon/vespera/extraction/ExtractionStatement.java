@@ -4,10 +4,11 @@ import java.util.OptionalInt;
 
 /**
  * The statements of {@code extraction} that SQLite counts or that are timed, named so that {@link
- * ExtractionStatementProgress} can say which one it reports on (ADR-193 section 7, ADR-199 section 4). A
+ * ExtractionStatementProgress} can say which one it reports on (ADR-193 section 7, ADR-204 section 4). A
  * counted statement declares its steps a row here, beside its SQL, and a timed one declares none. Each
- * ratio is measured against the bundled SQLite by {@code StatementStepsPerRowTest}, and {@code
- * StatementStepsPerRowAreTheDeclaredOnesTest} is what holds each declaration here to that measurement.
+ * ratio is measured against the bundled SQLite, the first two by {@code UncoveredStatementsStepsPerRowTest}
+ * and the last by {@code StatementStepsPerRowTest}, and {@code StatementStepsPerRowAreTheDeclaredOnesTest}
+ * is what holds each declaration here to that measurement.
  *
  * <p>The constants come in the order the statements are issued: the two reads stage 2's reader makes
  * before a resume, then the two of {@link ConfidenceDistribution#measure}.

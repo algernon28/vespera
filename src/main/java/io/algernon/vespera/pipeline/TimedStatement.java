@@ -6,24 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The two lines of one statement that SQLite cannot count, and the time between them (ADR-193 section 4.3,
- * ADR-199 section 3):
- *
- * <pre>
- * &lt;stage&gt; is reading &lt;what&gt;                  &lt;stage&gt; is counting &lt;what&gt;
- * &lt;stage&gt; read &lt;what&gt; in &lt;S&gt; s            &lt;stage&gt; counted &lt;what&gt; in &lt;S&gt; s
- * </pre>
- *
- * <p>{@code <stage>} is the name the stage's own starting and finishing lines use, and {@code <S>} is the
- * statement's wall clock in seconds to one decimal place. The second form is for the three survivor counts and
- * the one stage 2 makes, whose statement is the count itself (ADR-199 section 2). No total and no progress
- * line: a counted statement's lines, which carry both, are {@link ReportedStatements}'.
- *
- * <p>The first line is written when the statement is started and the second when it ends, and a statement
- * that throws is not ended, so it writes the first line alone. A statement that is not issued is not started
- * and writes nothing. Where {@code pipeline} makes the call itself, {@link #read} and {@link #count} write
- * both around it; where a capability module makes it, the callback it owns tells {@code pipeline} when to
- * {@link #readStarted} and {@link TimedStatement#ended() end}.
+ * The two lines of a timed statement (ADR-193 section 4.3): one before it, one after it with the seconds it
+ * took, and nothing between. {@code <stage> is <doing> <what>} and {@code <stage> <did> <what> in <S> s},
+ * with S to one decimal place. Written where {@code pipeline} makes the call, and never by a capability
+ * module. A statement that throws writes no after-line: the step's own failure says so.
  */
 final class TimedStatement {
 
@@ -31,61 +17,53 @@ final class TimedStatement {
 
     private static final double NANOS_PER_SECOND = 1_000_000_000.0;
 
-    private final String stage;
-    private final String what;
-    private final String did;
-    private final long started;
-
-    private TimedStatement(String stage, String what, String doing, String did, String suffix) {
-        this.stage = stage;
-        this.what = what;
-        this.did = did;
-        log.info("{} is {} {}{}", stage, doing, what, suffix);
-        this.started = System.nanoTime();
-    }
-
-    /** Writes {@code <stage> is reading <what>} and starts the clock. */
-    static TimedStatement readStarted(String stage, String what) {
-        return new TimedStatement(stage, what, "reading", "read", "");
-    }
+    private TimedStatement() {}
 
     /**
-     * Writes {@code <stage> is reading <what>, over up to <N> rows}, N grouped in threes, and starts the
-     * clock: the line before a counted read of a run that holds a row (ADR-193 section 4.1).
+     * The two halves apart, for a statement that is not {@code pipeline}'s to run: writes the line before and
+     * hands back what the caller ends, which writes the line after. Never ended, it writes no line after.
      */
-    static TimedStatement readStartedOver(String stage, String what, long rowsUpTo) {
-        return new TimedStatement(
-                stage, what, "reading", "read", String.format(Locale.ROOT, ", over up to %,d rows", rowsUpTo));
+    static Started begin(String stage, String doing, String did, String what) {
+        log.info("{} is {} {}", stage, doing, what);
+        return new Started(stage, did, what, System.nanoTime());
     }
 
-    /** Writes {@code <stage> is counting <what>} and starts the clock. */
-    static TimedStatement countStarted(String stage, String what) {
-        return new TimedStatement(stage, what, "counting", "counted", "");
+    /** A timed statement whose line before is written; {@link #end} writes the line after. */
+    static final class Started {
+
+        private final String stage;
+        private final String did;
+        private final String what;
+        private final long started;
+
+        private Started(String stage, String did, String what, long started) {
+            this.stage = stage;
+            this.did = did;
+            this.what = what;
+            this.started = started;
+        }
+
+        void end() {
+            log.info(
+                    "{} {} {} in {} s",
+                    stage,
+                    did,
+                    what,
+                    String.format(Locale.ROOT, "%.1f", (System.nanoTime() - started) / NANOS_PER_SECOND));
+        }
     }
 
-    /** Writes {@code <stage> read <what> in <S> s}, or {@code counted}, as the statement was started. */
-    void ended() {
+    /** Runs {@code statement} between its two lines, and hands back what it answered. */
+    static <T> T of(String stage, String doing, String did, String what, Supplier<T> statement) {
+        log.info("{} is {} {}", stage, doing, what);
+        long started = System.nanoTime();
+        T answer = statement.get();
         log.info(
                 "{} {} {} in {} s",
                 stage,
                 did,
                 what,
                 String.format(Locale.ROOT, "%.1f", (System.nanoTime() - started) / NANOS_PER_SECOND));
-    }
-
-    /** Runs {@code statement} between {@code <stage> is reading <what>} and {@code <stage> read <what> in <S> s}. */
-    static <T> T read(String stage, String what, Supplier<T> statement) {
-        TimedStatement timed = readStarted(stage, what);
-        T answer = statement.get();
-        timed.ended();
-        return answer;
-    }
-
-    /** Runs {@code statement} between {@code <stage> is counting <what>} and {@code <stage> counted <what> in <S> s}. */
-    static <T> T count(String stage, String what, Supplier<T> statement) {
-        TimedStatement timed = countStarted(stage, what);
-        T answer = statement.get();
-        timed.ended();
         return answer;
     }
 }

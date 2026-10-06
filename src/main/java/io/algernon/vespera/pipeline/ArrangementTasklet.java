@@ -133,7 +133,7 @@ class ArrangementTasklet implements Tasklet {
 
         RunId scoring = stageRuns.embeddingScoring();
         List<DocumentCluster> membership =
-                TimedStatement.read(STAGE, "the cluster membership", () -> documentClusters.forRun(scoring));
+                TimedStatement.of(STAGE, "reading", "read", "the cluster membership", () -> documentClusters.forRun(scoring));
         if (membership.isEmpty()) {
             LOG.info(
                     "the arrangement step is gated: no survivor was grouped under {}, so there is nothing"
@@ -197,7 +197,7 @@ class ArrangementTasklet implements Tasklet {
      * statement, since the read goes through a temp B-tree and has no cheap total (ADR-193 section 6).
      */
     private List<RecordedCluster> recordedClusters(RunId arrangement) {
-        return TimedStatement.read(STAGE, "the recorded clusters", () -> clusters.forRun(arrangement));
+        return TimedStatement.of(STAGE, "reading", "read", "the recorded clusters", () -> clusters.forRun(arrangement));
     }
 
     /**

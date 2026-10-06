@@ -33,22 +33,20 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * What {@code embedding} tells its caller around each statement of {@code SeedCorpusComparison.measure}, and
- * in which order (ADR-193 sections 6 to 8, ADR-199 section 4, #411): its two drains, of the corpus survivors
+ * in which order (ADR-193 sections 6 to 8, ADR-204 section 4, #411): its two drains, of the corpus survivors
  * and of the seed walk's occurrences, each started with no total and ended; then its three counted reads, of
  * the unusable seeds, of the corpus survivors' extraction metrics under stage 2's run and of the seeds' under
  * the measurement run, each started with the span of its run's rows, or with an empty total where the run
  * holds none, and ended.
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/}</b>: it names {@code EmbeddingStatement}, {@code
- * EmbeddingStatementProgress} and an overload of {@code measure} that part (b) adds, and does not compile
- * before. It runs on {@link PoolOfTwo}, so a counted read handed back to the template would report no steps
- * over many rows.
+ * <p>It runs on {@link PoolOfTwo}, so a counted read handed back to the template would report no steps over
+ * many rows.
  */
 @Epic("Relevance")
 @Feature("Progress reporting")
 @Issue("411")
 @Link(name = "ADR-193", url = Adr.STATEMENTS_REPORT_THEIR_PROGRESS, type = "adr")
-@Link(name = "ADR-199", url = Adr.THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE, type = "adr")
+@Link(name = "ADR-204", url = Adr.PART_B_OF_THE_STATEMENTS_WRITTEN_OUT, type = "adr")
 class EmbeddingStatementProgressOrderTest {
 
     /** Enough rows, at 5 or at 12 steps a row, for at least one callback of SQLite's handler in each read. */

@@ -56,13 +56,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * lines are there, each after a claim that the stage ran; part (c) moves it into {@code src/test} and turns it
  * green. The claims that a loop which did not run writes no counter pass on main and have to go on passing.
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/} with claims added to the file of this name in {@code
- * src/test}</b>, which it replaces when part (b) of ADR-193 lands (ADR-193 section 6, ADR-199 section 3,
- * #411, #429): every statement stage 5b to stage 6a issues outside a loop has a line before it and a line
- * after it with the seconds it took, once each, in the order the step issues them. 5b's two reads of the
- * extraction metrics are counted, and their totals are left out of the comparison here, being pinned where
- * {@code embedding} hands them over ({@code EmbeddingStatementProgressOrderTest}). On main every such claim is
- * red by assertion, the lines not being written, and every other claim here passes.
+ * <p><b>The claims about statements came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3,
+ * #411): every statement stage 5b to stage 6a issues outside a loop has a line before it and a line after it
+ * with the seconds it took, once each, in the order the step issues them. 5b's two reads of the extraction
+ * metrics are counted, and their totals are left out of the comparison here, being pinned where {@code
+ * embedding} hands them over ({@code EmbeddingStatementProgressOrderTest}).
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -126,7 +124,7 @@ class StageFiveReportsItsProgressInvocationTest {
     private static final String THE_REPORT = "Stage 5 (relevance report)";
     private static final String STAGE_SIX_A = "Stage 6a (arrangement)";
 
-    /** What the statements read, as their lines name it (ADR-193 section 6, ADR-199 section 3). */
+    /** What the statements read, as their lines name it (ADR-193 section 6, ADR-204 section 3). */
     private static final String CORPUS_SURVIVORS = "the corpus survivors";
 
     private static final String SEED_OCCURRENCES = "the seed walk's occurrences";
