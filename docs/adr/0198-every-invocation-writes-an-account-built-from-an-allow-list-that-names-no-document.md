@@ -1,5 +1,7 @@
 # ADR-198 — Every invocation writes an account built from an allow-list, and the account names no document
 
+> **Partly amended — see [ADR-203](0203-the-invocation-accounts-folder-is-judged-by-every-reading-of-its-name-and-a-name-that-cannot-be-followed-is-refused.md).** These passages below are no longer the whole of the decision, and that record says what replaces each: §1's sentence on when the account is written ("is not at or below the working directory this invocation uses, and has no folder at or above it that holds `vespera.db` or `vespera.lock`") and its two warnings, to which a third is added; §6's "with the file it tried to create"; and §7's "The only lines added are the warnings of §1 and §6". Everything else in this record stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Extends**: [ADR-093](0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md). Its console and rolling file are untouched. A third output is added beside them, and it is not a Logback appender (§1).

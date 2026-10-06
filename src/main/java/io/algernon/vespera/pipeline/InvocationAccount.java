@@ -90,8 +90,6 @@ final class InvocationAccount implements JobExecutionListener {
 
     private BufferedWriter out;
     private Path file;
-    /** The resolved place {@link #refusalToWrite()} judged, and the only place {@link #open()} writes to. */
-    private Path judgedFolder;
     private ch.qos.logback.classic.Logger progressLogger;
     private ProgressAppender appender;
     private long withheld;
@@ -100,7 +98,7 @@ final class InvocationAccount implements JobExecutionListener {
      * @param accountDirectory the folder {@code vespera.account-dir} names, or {@code null} when it is unset;
      *     where it is not set, lies inside a working directory by any reading of its name, or cannot be
      *     followed to where it leads, no account is written (ADR-198 section 1, ADR-203); on acceptance the
-     *     writer records the folder {@link #open()} writes to
+     *     folder judged is handed to {@link #open(Path)}, which writes nowhere else
      */
     InvocationAccount(Path workingDirectory, Path accountDirectory, JdbcTemplate jdbcTemplate, Clock clock) {
         this.workingDirectory = workingDirectory;
@@ -112,13 +110,13 @@ final class InvocationAccount implements JobExecutionListener {
     @Override
     public synchronized void beforeJob(JobExecution jobExecution) {
         withheld = 0;
-        String refusal = refusalToWrite();
-        if (refusal != null) {
-            log.warn("no invocation account was written: {}", refusal);
+        FolderRuling ruling = refusalToWrite();
+        if (ruling.refusal() != null) {
+            log.warn("no invocation account was written: {}", ruling.refusal());
             return;
         }
         try {
-            open();
+            open(ruling.folder());
             line("invocation started");
             if (LoggerFactory.getLogger(StageProgress.class) instanceof ch.qos.logback.classic.Logger logger) {
                 progressLogger = logger;
@@ -259,15 +257,16 @@ final class InvocationAccount implements JobExecutionListener {
     }
 
     /**
-     * Why no account may be written, or {@code null}: the folder is not set, it lies inside a working
-     * directory, or a name on the way to it is there and cannot be followed (ADR-203). The folder is judged as
-     * every reading of its name leads (its text, where its text leads, the walk of ADR-201 section 1, and
-     * where this machine's own calls lead), and any one reading inside a working directory refuses. On
-     * acceptance it records the folder {@link #open()} writes to: where this machine's own calls lead.
+     * Why no account may be written, or else the folder to write in: the folder is not set, it lies inside a
+     * working directory, or a name on the way to it, or the working directory, is there and cannot be
+     * followed (ADR-203). The folder is judged as every reading of its name leads (its text, where its text
+     * leads, the walk of ADR-201 section 1, and where this machine's own calls lead), and any one reading
+     * inside a working directory refuses. On acceptance the folder returned is the one {@link #open(Path)}
+     * writes to: where this machine's own calls lead.
      */
-    private String refusalToWrite() {
+    private FolderRuling refusalToWrite() {
         if (accountDirectory == null) {
-            return "vespera.account-dir is not set";
+            return FolderRuling.refused("vespera.account-dir is not set");
         }
         Path text = accountDirectory.toAbsolutePath().normalize();
         Path textWorking = workingDirectory.toAbsolutePath().normalize();
@@ -279,15 +278,22 @@ final class InvocationAccount implements JobExecutionListener {
             written = resolved(accountDirectory);
             readings = new Path[] {text, resolved(text), walked(accountDirectory), written};
         } catch (IOException e) {
-            return "vespera.account-dir cannot be followed to where it leads";
+            return FolderRuling.refused("vespera.account-dir cannot be followed to where it leads");
         }
         for (Path reading : readings) {
             if (insideAWorkingDirectory(reading, textWorking, resolvedWorking)) {
-                return "vespera.account-dir lies inside a working directory";
+                return FolderRuling.refused("vespera.account-dir lies inside a working directory");
             }
         }
-        judgedFolder = written;
-        return null;
+        return new FolderRuling(null, written);
+    }
+
+    /** What {@link #refusalToWrite()} decided: the warning's reason, or the folder it accepted; never both. */
+    private record FolderRuling(String refusal, Path folder) {
+
+        static FolderRuling refused(String reason) {
+            return new FolderRuling(reason, null);
+        }
     }
 
     /** Whether {@code reading} is at or below a working directory, given or resolved, or a folder holding its files. */
@@ -306,7 +312,9 @@ final class InvocationAccount implements JobExecutionListener {
     /**
      * Where {@code path} leads as this machine's own calls lead: its deepest ancestor that is there (asked
      * without following links, so a link to nothing is there) is resolved with {@code toRealPath()}, and the
-     * rest, which is not there, is put back name by name and then has its parent steps folded. The part that
+     * rest, which is not there, is put back name by name and then has its parent steps folded; when that rest
+     * held a parent step, the folded path, which holds none, is resolved again, so that a link the fold
+     * brought up to the part that is there is followed too. The part that
      * is there is read as the platform reads it, which on Windows folds a parent step as text before it
      * follows a link, so this is where {@code createDirectories} and the open will go. When no ancestor is
      * there (a missing drive or share) the normalised text is used.
@@ -323,10 +331,16 @@ final class InvocationAccount implements JobExecutionListener {
             return absolute.normalize();
         }
         Path result = existing.toRealPath();
+        boolean putBackAParentStep = false;
         for (int i = existing.getNameCount(); i < absolute.getNameCount(); i++) {
-            result = result.resolve(absolute.getName(i));
+            Path name = absolute.getName(i);
+            putBackAParentStep |= name.toString().equals("..");
+            result = result.resolve(name);
         }
-        return result.normalize();
+        Path folded = result.normalize();
+        // The fold may leave a name that is there and is a link (acct/missing/../a-link). The folded path holds
+        // no parent step, so the second pass puts back none and ends there.
+        return putBackAParentStep ? resolved(folded) : folded;
     }
 
     /**
@@ -359,8 +373,8 @@ final class InvocationAccount implements JobExecutionListener {
         return real;
     }
 
-    private void open() throws IOException {
-        Path folder = judgedFolder;
+    /** Writes in {@code folder}, which {@link #refusalToWrite()} judged and accepted. */
+    private void open(Path folder) throws IOException {
         file = folder;
         Files.createDirectories(folder);
         String stamp = FILE_STAMP.format(clock.instant().atOffset(ZoneOffset.UTC));

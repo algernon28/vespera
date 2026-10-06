@@ -343,7 +343,8 @@ class InvocationAccountTest {
 
         claim(
                 "nothing was written where the link leads: the folder is as empty as it was made, because the"
-                        + " configured name lies inside a working directory, and the hook reads that name too",
+                        + " configured name lies inside a working directory, and the agent's path guard reads that"
+                        + " name by its text too",
                 () -> assertThat(namesIn(outside)).isEmpty());
         claim(
                 "the working directory holds the database and the link, and no account",
@@ -475,6 +476,110 @@ class InvocationAccountTest {
         claim(
                 "the one line logged says a name cannot be followed",
                 () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED));
+    }
+
+    @Test
+    @Story("A folder that cannot be followed is refused for that")
+    @DisplayName("A link to nothing, made inside a working directory and named as the folder, says it cannot be followed, and not that it lies inside")
+    @Issue("436")
+    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
+    void noAccountWhereTheFolderIsALinkToNothingInAWorkingDirectory() throws IOException {
+        aWorkingDirectoryHolding();
+        Path link = workingDirectory.resolve(A_LINK);
+        assumeTrue(TestLinks.make(link, accountDirectory.resolve("nothing-here")), NO_LINK);
+
+        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(link));
+
+        claim(
+                "nothing was written: the working directory holds the database and the link, and the folder the"
+                        + " link leads to was not made",
+                () -> {
+                    assertThat(namesIn(workingDirectory)).containsExactlyInAnyOrder(DATABASE, A_LINK);
+                    assertThat(namesIn(accountDirectory)).isEmpty();
+                });
+        claim(
+                "the one line logged says the folder cannot be followed: no reading is judged until every name on"
+                        + " it has been followed, though the text of this name lies inside a working directory",
+                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED));
+    }
+
+    @Test
+    @Story("An account is written only outside every working directory")
+    @DisplayName("A name that steps up out of a folder that is not there, onto a link into a working directory, writes nothing")
+    @Issue("436")
+    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
+    void noAccountWhereAParentStepAfterAMissingFolderLeadsOntoALinkIntoAWorkingDirectory() throws IOException {
+        Path subfolder = aWorkingDirectoryHolding(SUBFOLDER);
+        aLinkTo(subfolder);
+        Path viaTheMissingFolder = accountDirectory.resolve("missing").resolve("..").resolve(A_LINK);
+
+        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(viaTheMissingFolder));
+
+        claim(
+                "nothing was written in the working directory: it holds the database and the subfolder the link"
+                        + " leads to, and no account",
+                () -> assertThat(everythingBeneath(workingDirectory)).containsExactlyInAnyOrder(DATABASE, SUBFOLDER));
+        claim(
+                "the folder the link was made in holds the link and no folder that was not there",
+                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
+        claim(
+                "the one line logged says the folder lies inside a working directory",
+                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_INSIDE_A_WORKING_DIRECTORY));
+    }
+
+    @Test
+    @Story("An account is written only outside every working directory")
+    @DisplayName("A name that steps up out of a folder that is not there, onto a link to a folder outside every working directory, is written in the folder the link leads to")
+    @Issue("436")
+    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
+    void anAccountIsWrittenWhereAParentStepAfterAMissingFolderLeadsOntoALinkOutsideEveryWorkingDirectory()
+            throws IOException {
+        aWorkingDirectoryHolding();
+        Path outside = Files.createDirectory(accountDirectory.resolve("outside"));
+        aLinkTo(outside);
+        Path viaTheMissingFolder = accountDirectory.resolve("missing").resolve("..").resolve(A_LINK);
+
+        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(viaTheMissingFolder));
+
+        claim(
+                "the account is in the folder the link leads to, and is the only thing in it",
+                () -> assertThat(namesIn(outside)).containsExactly(FIRST_NAME));
+        claim(
+                "the working directory holds the database and nothing else",
+                () -> assertThat(everythingBeneath(workingDirectory)).containsExactly(DATABASE));
+        claim("and nothing was logged", () -> assertThat(logged).isEmpty());
+    }
+
+    @Test
+    @Story("The account is never a gate")
+    @DisplayName("A write that fails beneath a link reached by a parent step after a folder that is not there names where the link leads, and not the link")
+    @Issue("436")
+    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
+    void theWarningForAFailedWriteAfterAParentStepNamesTheFileBeyondTheLink() throws IOException {
+        aWorkingDirectoryHolding();
+        Path outside = Files.createDirectory(accountDirectory.resolve("outside"));
+        Files.writeString(outside.resolve("a-file-not-a-folder"), "x");
+        aLinkTo(outside);
+        Path beneathTheFile = accountDirectory
+                .resolve("missing")
+                .resolve("..")
+                .resolve(A_LINK)
+                .resolve("a-file-not-a-folder")
+                .resolve("beneath");
+        Path whereItLeads = outside.toRealPath().resolve("a-file-not-a-folder").resolve("beneath");
+
+        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(beneathTheFile));
+
+        claim(
+                "one line was logged, saying the account could not be written to the place the link leads to: the"
+                        + " place written to has no link in it, though a parent step was folded after the link was met",
+                () -> assertThat(logged)
+                        .singleElement()
+                        .asString()
+                        .startsWith("the invocation account could not be written to " + whereItLeads + ": "));
+        claim(
+                "and the link's own name is not in it",
+                () -> assertThat(logged.getFirst()).doesNotContain(A_LINK));
     }
 
     @Test

@@ -29,7 +29,7 @@ The configured name is made absolute and not folded. It is then read four ways, 
 3. **As the file system walks it** (ADR-201 §1): from the root, one name at a time; at each `..`, the parent of the real path reached so far; a name that is not there is put back as text. §2 says how.
 4. **Where this machine's own file calls lead**, which is where `createDirectories` and the open will go (§4). On Windows the system folds a `..` as text before it follows a link, so this is reading 2; elsewhere the system walks it, so this is reading 3. It is judged as well, so that what is written to is always what was judged and no claim about a platform holds that up.
 
-**Inside** is: at or below the working directory this invocation uses, taken as given and taken as resolved, or at or below a folder holding `vespera.db` or `vespera.lock`. **Any reading that is inside refuses**, with the line ADR-198 already has: `no invocation account was written: vespera.account-dir lies inside a working directory`. A name judged inside by one reading and outside by another is refused: the agent reads the configured name, and the hook reads it by each of them.
+**Inside** is: at or below the working directory this invocation uses, taken as given and taken as resolved, or at or below a folder holding `vespera.db` or `vespera.lock`. **Any reading that is inside refuses**, with the line ADR-198 already has: `no invocation account was written: vespera.account-dir lies inside a working directory`. **A name that any reading cannot follow is refused first, with §3's line, before any reading is judged**, because no reading is complete until every name on it has been followed: a name whose text lies inside a working directory, but which meets a link to nothing, is refused as a name that cannot be followed and not as one that lies inside. A name judged inside by one reading and outside by another is refused: the agent reads the configured name, and the hook reads it by each of them.
 
 - **What it lets through that was refused before**: nothing. A name refused by its text, such as a link in a working directory that leads out of it, is refused still.
 - **What it newly refuses**: a name whose text is outside every working directory and which leads into one, or is read as inside one by the walk; and a name that cannot be followed (§3).
@@ -41,19 +41,19 @@ The open question was whether ADR-198 should adopt ADR-201 §1's walked reading 
 It is reachable on Windows without the system's help, by the measurement above: the code takes the names of the path one at a time and takes the parent of the real path reached so far at each `..`. It does not hand a path that still holds a `..` to `relativize`, `resolve` or `normalize` before the walk has finished, because on Windows each of them folds it as text.
 
 - **What it does not know**: on a system that is not Windows the walked reading is what the system itself does, and was not run here. CI runs it on Linux.
-- **The platform pair is deleted.** `noAccountWhereAParentOfTheFolderLeadsIntoAWorkingDirectory` holds the refusal without an assumption, and `anAccountIsWrittenWhereAParentOfTheFolderIsFoldedAsText` is removed, since its claim, that the account is written where the text lands, is false once the walked reading lands inside.
+- **The platform pair is deleted.** `noAccountWhereAParentOfTheFolderLeadsIntoAWorkingDirectory` holds the refusal without a platform assumption, and `anAccountIsWrittenWhereAParentOfTheFolderIsFoldedAsText` is removed, since its claim, that the account is written where the text lands, is false once the walked reading lands inside.
 
 ### 3. A name that is there and cannot be followed is refused, with a line of its own
 
 A name for which `Files.exists(name, NOFOLLOW_LINKS)` is true and `toRealPath` throws, as a link to nothing or a link in a loop does, is a name the account cannot place. **No account is written**, nothing is created at the name it leads to, and the invocation writes one warning: `no invocation account was written: vespera.account-dir cannot be followed to where it leads`.
 
-- **It holds for every name the readings meet**: the configured name, a name above it, and a name the walk of §1 reaches, including one a following `..` would climb out of. That is stricter than ADR-201 §2, which lets `links/nowhere/..` through because the hook only reads and nothing is read through a broken link. Here the account is a file written once, and the cost of a refusal is one warning.
+- **It holds for every name the readings meet**, and it is decided before any reading is judged (§1): the configured name, a name above it, and a name the walk of §1 reaches, including one a following `..` would climb out of. That is stricter than ADR-201 §2, which lets `links/nowhere/..` through because the hook only reads and nothing is read through a broken link. Here the account is a file written once, and the cost of a refusal is one warning.
 - **The working directory is a name too.** One that is there and cannot be followed gives the same line. It is practically unreachable: `vespera.db` is open in the working directory before `beforeJob` runs, so the directory has been followed. It is not judged unreachable by assumption, and the line is there for it.
-- **`Files.exists(..., NOFOLLOW_LINKS)` answers false when existence cannot be determined**, access denied among the causes (the JDK's documentation; not executed here). Such a name is then answered from its parent as a name that is not there. It surfaces as §5's "could not be written" warning, never as an account: everything beneath it is reached through the name the system will not answer for, so nothing is written there.
+- **`Files.exists(..., NOFOLLOW_LINKS)` answers false when existence cannot be determined**, access denied among the causes (the JDK's documentation; not executed here). Such a name is then answered from its parent as a name that is not there. It is expected to surface as §5's "could not be written" warning, from the JDK's documentation; that was not executed here, and Windows permissions may allow a folder to be created beneath a name whose attributes cannot be read.
 
 ### 4. The account is written only where it was judged
 
-`refusalToWrite` keeps the place it judged (reading 4 of §1), and `open()` creates the folder and the file there and nowhere else. The configured name is not used again after the judgement.
+The place judged (reading 4 of §1) is the place the folder and the file are created, and nowhere else. The configured name is not used again after the judgement.
 
 - **The gap between judging and creating is accepted.** The part of the name that exists is resolved, with no link in it, when it is judged, and it is written by that resolved path. What remains is an operator who swaps a folder in that path for a link while the invocation starts, on their own machine. ADR-196's threat is an agent that reads what it may not; an operator racing their own command line is not in it, and the hook reads the folder again at each read.
 
@@ -69,7 +69,7 @@ ADR-198 §6 says the line names the file it tried to create. Now that the accoun
 
 1. §1 refuses when any reading is inside, where it could have refused only when every reading is.
 2. §2 adopts the walked reading on Windows, where it could have stated the limit and kept a platform pair.
-3. §3 refuses a broken link a `..` would climb out of, where it could have followed ADR-201's L307.
+3. §3 refuses a broken link a `..` would climb out of, where it could have followed ADR-201 §2's rule for `links/nowhere/..` (case L307 of the guard's table).
 4. §4 writes where this machine's own calls lead when the readings differ and are all outside, and does not refuse for the difference. A name such as `link/../accounts`, where the text lands in one place and the walk in another, both outside, is written in one of them, and the agent may not find it in the other. It is a name the operator would not write on purpose.
 5. §4 accepts the race.
 
@@ -98,6 +98,8 @@ ADR-198 §6 says the line names the file it tried to create. Now that the accoun
 - A parent step after a link into a working directory: `noAccountWhereAParentOfTheFolderLeadsIntoAWorkingDirectory` (§2), and the text of a parent step inside while the walk leads out: `noAccountWhereOnlyTheTextOfAParentStepLiesInsideAWorkingDirectory` (§1).
 - A folder that is a link into a working directory, one that does not exist yet beneath such a link, one that is a link to nothing, one beneath a link to nothing, and two links in a loop: the other tests of this change, unchanged (§1, §3).
 - A working directory that cannot be followed: `noAccountWhereTheWorkingDirectoryCannotBeFollowed` (§3).
+- A link to nothing, made inside a working directory and named as the folder, so that its text lies inside: `noAccountWhereTheFolderIsALinkToNothingInAWorkingDirectory` holds that the line is "cannot be followed" and not "lies inside" (§1, §3).
+- A name such as `outside/missing/../a-link`, where a parent step follows a folder that is not there: `noAccountWhereAParentStepAfterAMissingFolderLeadsOntoALinkIntoAWorkingDirectory` holds the refusal when the link leads into a working directory; `anAccountIsWrittenWhereAParentStepAfterAMissingFolderLeadsOntoALinkOutsideEveryWorkingDirectory` holds that the account is written where a link to a folder outside leads; and `theWarningForAFailedWriteAfterAParentStepNamesTheFileBeyondTheLink` holds, through the warning of §5, that the place written to has no link in it (§4, §5).
 - The warning for a failed write names where the link leads: `theWarningForAFailedWriteNamesTheFileBeyondTheLink` (§5).
 
 ## What this does not decide
