@@ -1128,13 +1128,25 @@ public final class Adr {
             + "0202-generation-and-embedding-refuse-an-ollama-model-not-served-on-this-machine-before-anything-is-sent.md";
 
     /**
-     * ADR-203 — the invocation account's folder is judged by every reading of its name (as text, where it
+     * ADR-203— the invocation account's folder is judged by every reading of its name (as text, where it
      * leads, as the file system walks it, and where this machine's own calls lead), a name that is there
      * and cannot be followed is refused with a line of its own, and the account is written only where it
      * was judged (amends ADR-198 sections 1, 6 and 7; rests on ADR-201 and ADR-196; settles #436).
      */
     public static final String THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME = FILE
             + "0203-the-invocation-accounts-folder-is-judged-by-every-reading-of-its-name-and-a-name-that-cannot-be-followed-is-refused.md";
+
+    /**
+     * ADR-200— stage 1 reads a run's survivors in ascending size and holds one size at a time, in both
+     * reads of its second pass; the first pass holds none; one index on the walk and the size is added,
+     * so no schema version moves; the rows of different sizes are now written in size order, where they
+     * were written in the order each size was first met, and no test pins that order; stage 1 has no
+     * drain left, so it has no timed statement (amends ADR-188 sections 1 and 2 in what they say of
+     * the drain, ADR-192 sections 4 and 7 in two phrases, and ADR-193 sections 6, 7 and 9 and its Tests
+     * for stage 1; rests on ADR-060 and ADR-156; settles #405).
+     */
+    public static final String STAGE_1_HOLDS_ONE_SIZE_AT_A_TIME = FILE
+            + "0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md";
 
     private Adr() {
     }

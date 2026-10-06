@@ -32,8 +32,9 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * The two loops of stage 1's second pass that ADR-192 counts, as {@code ContentIdentityResolution} reports
  * them through {@code HashingProgress}'s three new methods, each with a default body that does nothing:
- * {@code toSize(long)} once with the survivors drained and {@code sized()} after each size read, and {@code
- * supersededRecorded()}, with no total, after each duplicate is recorded and verdicted.
+ * {@code toSize(long)} once with the survivors the pass will read (since ADR-200; it was the survivors
+ * drained) and {@code sized()} after each size read, and {@code supersededRecorded()}, with no total, after
+ * each duplicate is recorded and verdicted.
  *
  * <p><b>Part (a) of ADR-192.</b> Does not compile until those methods exist; part (a) moves it into {@code
  * src/test}. {@code ContentIdentityResolutionTest}'s own recording class implements only the two methods
