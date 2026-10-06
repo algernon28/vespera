@@ -98,7 +98,9 @@ final class InvocationAccount implements JobExecutionListener {
 
     /**
      * @param accountDirectory the folder {@code vespera.account-dir} names, or {@code null} when it is unset;
-     *     where it is unset or lies inside a working directory no account is written (ADR-198 section 1)
+     *     where it is not set, lies inside a working directory by any reading of its name, or cannot be
+     *     followed to where it leads, no account is written (ADR-198 section 1, ADR-203); on acceptance the
+     *     writer records the folder {@link #open()} writes to
      */
     InvocationAccount(Path workingDirectory, Path accountDirectory, JdbcTemplate jdbcTemplate, Clock clock) {
         this.workingDirectory = workingDirectory;
@@ -256,35 +258,58 @@ final class InvocationAccount implements JobExecutionListener {
         return durationBetweenOrZero(start, end).toString();
     }
 
-    /** Why no account may be written, or {@code null}: the folder is unset, or at or below a working directory. */
+    /**
+     * Why no account may be written, or {@code null}: the folder is not set, it lies inside a working
+     * directory, or a name on the way to it is there and cannot be followed (ADR-203). The folder is judged as
+     * every reading of its name leads (its text, where its text leads, the walk of ADR-201 section 1, and
+     * where this machine's own calls lead), and any one reading inside a working directory refuses. On
+     * acceptance it records the folder {@link #open()} writes to: where this machine's own calls lead.
+     */
     private String refusalToWrite() {
         if (accountDirectory == null) {
             return "vespera.account-dir is not set";
         }
-        Path folder;
-        Path working;
+        Path text = accountDirectory.toAbsolutePath().normalize();
+        Path textWorking = workingDirectory.toAbsolutePath().normalize();
+        Path[] readings;
+        Path resolvedWorking;
+        Path written;
         try {
-            folder = resolved(accountDirectory);
-            working = resolved(workingDirectory);
+            resolvedWorking = resolved(workingDirectory);
+            written = resolved(accountDirectory);
+            readings = new Path[] {text, resolved(text), walked(accountDirectory), written};
         } catch (IOException e) {
             return "vespera.account-dir cannot be followed to where it leads";
         }
-        if (folder.startsWith(working)) {
-            return "vespera.account-dir lies inside a working directory";
-        }
-        for (Path above = folder; above != null; above = above.getParent()) {
-            if (Files.exists(above.resolve("vespera.db")) || Files.exists(above.resolve("vespera.lock"))) {
+        for (Path reading : readings) {
+            if (insideAWorkingDirectory(reading, textWorking, resolvedWorking)) {
                 return "vespera.account-dir lies inside a working directory";
             }
         }
-        judgedFolder = folder;
+        judgedFolder = written;
         return null;
     }
 
+    /** Whether {@code reading} is at or below a working directory, given or resolved, or a folder holding its files. */
+    private static boolean insideAWorkingDirectory(Path reading, Path textWorking, Path resolvedWorking) {
+        if (reading.startsWith(textWorking) || reading.startsWith(resolvedWorking)) {
+            return true;
+        }
+        for (Path above = reading; above != null; above = above.getParent()) {
+            if (Files.exists(above.resolve("vespera.db")) || Files.exists(above.resolve("vespera.lock"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
-     * Where {@code path} leads: its deepest ancestor that is there (asked without following links, so a link
-     * to nothing is there) is resolved with {@code toRealPath()}, and the rest, which is not there, is put
-     * back with its parent steps folded. No parent step is folded before the links are followed.
+     * Where {@code path} leads as this machine's own calls lead: its deepest ancestor that is there (asked
+     * without following links, so a link to nothing is there) is resolved with {@code toRealPath()}, and the
+     * rest, which is not there, is put back name by name and then has its parent steps folded. The part that
+     * is there is read as the platform reads it, which on Windows folds a parent step as text before it
+     * follows a link, so this is where {@code createDirectories} and the open will go. When no ancestor is
+     * there (a missing drive or share) the normalised text is used.
      *
      * @throws IOException when a name that is there cannot be followed (a link to nothing, a loop)
      */
@@ -297,8 +322,41 @@ final class InvocationAccount implements JobExecutionListener {
         if (existing == null) {
             return absolute.normalize();
         }
-        Path real = existing.toRealPath();
-        return real.resolve(existing.relativize(absolute).toString()).normalize();
+        Path result = existing.toRealPath();
+        for (int i = existing.getNameCount(); i < absolute.getNameCount(); i++) {
+            result = result.resolve(absolute.getName(i));
+        }
+        return result.normalize();
+    }
+
+    /**
+     * The walked reading (ADR-201 section 1): from the root, one name at a time; at a {@code ..} the parent of
+     * the real path reached so far, at any other name that is there its {@code toRealPath()}, and a name that
+     * is not there is put back as text. It hands no path that still holds a {@code ..} to {@code relativize},
+     * {@code resolve(String)} or {@code normalize}, which on Windows fold it as text.
+     *
+     * @throws IOException when a name the walk meets is there and cannot be followed
+     */
+    private static Path walked(Path path) throws IOException {
+        Path absolute = path.toAbsolutePath();
+        Path real = absolute.getRoot();
+        for (int i = 0; i < absolute.getNameCount(); i++) {
+            Path name = absolute.getName(i);
+            String text = name.toString();
+            if (text.equals(".")) {
+                continue;
+            }
+            if (text.equals("..")) {
+                Path parent = real.getParent();
+                if (parent != null) {
+                    real = parent;
+                }
+                continue;
+            }
+            Path candidate = real.resolve(name);
+            real = Files.exists(candidate, LinkOption.NOFOLLOW_LINKS) ? candidate.toRealPath() : candidate;
+        }
+        return real;
     }
 
     private void open() throws IOException {

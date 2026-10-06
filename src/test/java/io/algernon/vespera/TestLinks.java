@@ -25,7 +25,8 @@ public final class TestLinks {
     /**
      * Makes {@code link} lead to {@code target}.
      *
-     * @param target an absolute path; it need not exist, but a junction can only be made to one that does
+     * @param target an absolute path; it need not exist, as a symbolic link's does not, and as a junction's did
+     *     not on Windows 11, where a junction to a name that is not there was made
      * @return whether the link was made
      */
     public static boolean make(Path link, Path target) {
