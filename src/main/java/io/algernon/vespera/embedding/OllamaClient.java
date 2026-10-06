@@ -14,7 +14,7 @@ import tools.jackson.databind.JsonNode;
  * Reads what a serving runtime reports about itself (ADR-091), for the parts of an instrument
  * identity that are not ours to choose.
  *
- * <p><b>It serves two callers, and says so.</b> It was written for {@link EmbedderIdentity} and read
+ * <p><b>Its identity reading serves two callers, and says so.</b> It was written for {@link EmbedderIdentity} and read
  * only by the embedder until stage 6b's generator identity needed the same manifest digest from the
  * same endpoint (ADR-110, ADR-114). {@code /api/tags} answers for whichever model was asked about, but
  * the reading is not neutral between the two callers: it refuses on a blank {@code dtype} as well as a
@@ -79,6 +79,8 @@ public class OllamaClient {
 
     /**
      * Whether the runtime forwards {@code modelName} to a service that is not this machine (ADR-197 §6).
+     * It is read through {@link LocalOllamaModel#refusalOf}, the one check the labeller, embedding scoring
+     * and generation all pass (ADR-202), and by nothing else.
      *
      * <p>A loopback endpoint alone does not keep a document here: an Ollama cloud model is served by the
      * local daemon and forwarded to ollama.com. {@code /api/show} names such a model by {@code
