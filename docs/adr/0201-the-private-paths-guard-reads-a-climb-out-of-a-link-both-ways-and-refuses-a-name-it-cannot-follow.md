@@ -83,6 +83,7 @@ A one-letter name and a colon are the key of an object, and not a drive, only wh
 - **In a Bash command only, `${NAME-word}`, `${NAME=word}`, `${NAME+word}` and `${NAME?word}`, each with or without a colon before the sign, is a variable with a word for when it has no value.** The token is read twice, wherever in it the variable stands: with the word in the variable's place, and, when the name has a value, with that value in its place. Either refuses. What follows the closing brace is read with each and not apart from them. So `${TMPDIR:-some}/working-directory/report.html` is the report under the temp folder, `${f:-none}` is `none`, and `${TMPDIR:-x}/y` is `y` under the temp folder and `x/y`, and not the drive `Y:`.
 - **The word runs to the brace that closes the variable**, counting the braces between. A word that holds a variable is read by these same rules, so `${ONE:-${TWO:-../wd/report.html}}` and `${LOG:-${TMPDIR}/wd/report.html}` are read to the path.
 - **Two limits on those readings, as the guard has them.** Where the variable is not at the head of a token or a piece, its value is joined to what stands before it; on Windows that is read where it makes a drive path, and elsewhere a rooted value in that place is not read, which is ADR-196 §5's rooted path. And a command is cut into tokens at white space before a variable is looked for, so a word that holds a space, as in `${Y:-a b}`, is not read as one word: it is read in its two halves, and on Windows the first is refused as the drive `Y:`. A quoted string is still read whole.
+- **A third limit: the word after an unbraced variable is not read.** In `$ONE${TWO:-../wd/report.html}` the word is joined to `$ONE` before it, and a token headed by a variable with no value is not read, so the path in the word is let through; where `ONE` is empty, bash reads it. The sixth gate found it by running it. It goes on §8's list.
 - In a PowerShell command `${Q:-x}` is what a name on drive `Q:` holds, and is read as before.
 
 - **What it lets through**: `${NAME}/q/x` where `NAME` has a value in the hook's environment and none in the command's shell, which is then a Git Bash drive path. That is ADR-196 §5's variable set in the same command.
@@ -117,6 +118,7 @@ An ordinary `ls` takes 30 to 40 ms started that way, and a Grep of the repositor
 
 - **A brace group between two quote characters, every member of which is a name, a colon and a value, one of them a path on a drive with no separator after the colon** (§4 above): `{a:1,Q:name}`. Its drive is not read; what follows the colon is.
 - **A link that only Git Bash's runtime follows.** A symlink written as a file for Cygwin is a plain file to Node, so `realpath` does not see where it leads. Whether Git Bash follows one was not probed.
+- **The word of a variable that follows an unbraced variable**, as in `$ONE${TWO:-../wd/report.html}`: §5's third limit.
 - **A guard that runs out of time.** Claude Code's documentation says the call goes through (§7). No command within the bounds comes near the default.
 
 ### 9. The test
@@ -130,7 +132,7 @@ An ordinary `ls` takes 30 to 40 ms started that way, and a Grep of the repositor
 - **L217**: §1's path read against a folder reached as walked, with a guard whose `${TEMP}` is itself a link. **L307**: §2's broken link followed at once by `..`.
 - **G501 to G505**: §5's variable alone in braces. **G601 to G607**: §4, the fifth gate's four shapes and the two spellings the first form let through, all refused, beside an object whose keys are a word and one letter, let through. **G701 to G706**: §5's variable with a word, with a path after it and with a variable for its word.
 
-On Windows, ADR-196's guard held 229 of the first 258 and not the other 29, which were written first as what the guard was to be brought to. The guard the fifth gate read held all 258, and 5 of the 20 written after it: the other 15 are what it is brought to next. On Linux, CI started 195 of the 258 and did not start 63, which are Windows forms; 46 of the 60 new cases among the 258 ran there. The 20 written after the fifth gate have not been run on Linux.
+On Windows, ADR-196's guard held 229 of the first 258 and not the other 29, which were written first as what the guard was to be brought to. The guard the fifth gate read held all 258, and 5 of the 20 written after it; the guard this record ships with holds all 278. On Linux, CI started 209 of the 278 and did not start 69, which are Windows forms; 14 of the 20 written after the fifth gate ran there, and the other 6 are drive forms.
 
 ## Decided here, open to the operator's overruling
 
