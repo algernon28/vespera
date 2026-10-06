@@ -1119,6 +1119,14 @@ public final class Adr {
     public static final String A_LOCAL_MODEL_LABELS_AND_THE_FLOOR_IS_A_RULE = FILE
             + "0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md";
 
+    /**
+     * ADR-202 — generation and embedding refuse an Ollama model that is not served on this machine,
+     * through one check the labeller shares, before anything is sent (extends ADR-197 section 6 and
+     * ADR-114; settles #431).
+     */
+    public static final String GENERATION_AND_EMBEDDING_REFUSE_A_MODEL_NOT_SERVED_HERE = FILE
+            + "0202-generation-and-embedding-refuse-an-ollama-model-not-served-on-this-machine-before-anything-is-sent.md";
+
     private Adr() {
     }
 }

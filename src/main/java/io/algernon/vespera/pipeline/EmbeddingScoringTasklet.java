@@ -2,6 +2,8 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.ChunkEmbedder;
+import io.algernon.vespera.embedding.LocalOllamaModel;
+import io.algernon.vespera.embedding.OllamaClient;
 import io.algernon.vespera.embedding.UnusableSeed;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.Chunk;
@@ -16,13 +18,17 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
+import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,6 +48,12 @@ import org.springframework.stereotype.Component;
  * and each chunk is embedded and stored as a vector via {@link ChunkEmbedder}, under gate 3's own run
  * row (ADR-084). Both sides go through the same path with no instruction: a seed chunk against a
  * corpus chunk is two documents, not a query against a document.
+ *
+ * <p><b>It sends nothing under a model Ollama does not serve on this machine</b> (ADR-202). Once the
+ * gates are open and before the measurement run or the scoring run is resolved, the embedding model's name
+ * is put through {@link LocalOllamaModel#refusalOf}, once, and every chunk is sent under that name. A
+ * refusal stops the step as generation's stop does (ADR-111): one line at error level, the step failed, no
+ * exception thrown, and no run minted. Where a gate is shut nothing is sent, so nothing is asked of Ollama.
  */
 @Component
 @StepScope
@@ -59,6 +71,7 @@ class EmbeddingScoringTasklet implements Tasklet {
     private final HybridChunker hybridChunker;
     private final ChunkEmbedder chunkEmbedder;
     private final UnusableSeeds unusableSeeds;
+    private final OllamaClient ollamaClient;
     private final Path root;
 
     EmbeddingScoringTasklet(
@@ -72,6 +85,7 @@ class EmbeddingScoringTasklet implements Tasklet {
             HybridChunker hybridChunker,
             ChunkEmbedder chunkEmbedder,
             UnusableSeeds unusableSeeds,
+            OllamaClient ollamaClient,
             @Value("#{jobParameters['root']}") Path root) {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
@@ -83,6 +97,7 @@ class EmbeddingScoringTasklet implements Tasklet {
         this.hybridChunker = hybridChunker;
         this.chunkEmbedder = chunkEmbedder;
         this.unusableSeeds = unusableSeeds;
+        this.ollamaClient = ollamaClient;
         this.root = root;
     }
 
@@ -96,6 +111,14 @@ class EmbeddingScoringTasklet implements Tasklet {
         }
         String modelName = preamble.modelName().orElseThrow();
         SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();
+
+        // Before either run is resolved, so a refusal mints none (ADR-202 section 2), and once, so every
+        // chunk is sent under the name that was checked.
+        Optional<String> refusal = LocalOllamaModel.refusalOf(modelName, ollamaClient);
+        if (refusal.isPresent()) {
+            stopTheStep(contribution, chunkContext, modelName, refusal.get());
+            return RepeatStatus.FINISHED;
+        }
 
         RunId measurementRun = stageRuns.seedMeasurement();
         RunId scoring = stageRuns.embeddingScoring();
@@ -137,6 +160,27 @@ class EmbeddingScoringTasklet implements Tasklet {
                     LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.value());
                     return true;
                 });
+    }
+
+    /**
+     * Stops the step on an embedding model Ollama does not serve on this machine (ADR-202), and says why.
+     *
+     * <p>It records the failure rather than throwing one, as generation's stop does (ADR-111): an
+     * exception would put a stack trace where the one line belongs. The step's status is what carries the
+     * non-zero exit; the exit description beside it reaches no table, since the job repository is
+     * resourceless (ADR-036), and is kept so that a failed step does not leave its own record silent about
+     * why.
+     */
+    private static void stopTheStep(
+            StepContribution contribution, ChunkContext chunkContext, String modelName, String refusal) {
+        LOG.error(
+                "stage 5's scoring step stopped: the embedding model {} was refused, so nothing was embedded"
+                        + " and no run was minted -- {}",
+                modelName,
+                refusal);
+        StepExecution stepExecution = chunkContext.getStepContext().getStepExecution();
+        stepExecution.setStatus(BatchStatus.FAILED);
+        contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(refusal));
     }
 
     /**
