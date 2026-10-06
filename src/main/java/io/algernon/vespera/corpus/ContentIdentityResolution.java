@@ -18,8 +18,8 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
 /**
  * Stage 1's second pass: content identity over what the first pass left (ADR-188, moved from
  * {@code pipeline}; reading one size at a time since ADR-200). Every occurrence still surviving is
- * grouped by size, hashed within any group of two or more, and every content-identity group resolves to one representative, the rest
- * verdicted {@code superseded-by} (ADR-067, ADR-069).
+ * grouped by size, hashed within any group of two or more, and every content-identity group resolves to
+ * one representative, the rest verdicted {@code superseded-by} (ADR-067, ADR-069).
  *
  * <p>This logs nothing per item: what an operator reads is written by the caller, through
  * {@link HashingProgress}.
@@ -46,23 +46,42 @@ public final class ContentIdentityResolution {
     public void resolve(RunId runId, Path canonicalRoot, HashingProgress progress) throws Exception {
         progress.toSize(ledger.survivorCount(runId));
 
-        // The hash pass's own denominator, and not the survivor count: a file whose size is unique to it
-        // is never hashed at all (ADR-057), so counting it in would leave this pass reporting a fraction
-        // of a total it will never reach.
-        long[] toHash = {0};
-        eachSize(runId, sameSize -> {
-            sameSize.forEach(ignored -> progress.sized());
-            if (sameSize.size() >= 2) {
-                toHash[0] += sameSize.size();
-            }
-        });
-        progress.toHash(toHash[0]);
+        progress.toHash(sizeEverySurvivor(runId, progress));
 
         eachSize(runId, sameSize -> {
             if (sameSize.size() >= 2) {
                 resolveGroupSharingASize(runId, canonicalRoot, sameSize, progress);
             }
         });
+    }
+
+    /**
+     * The first read: reports each survivor as it is read and holds none, only how many have the size
+     * in hand. Returns the hash pass's own denominator, and not the survivor count: a file whose size
+     * is unique to it is never hashed at all (ADR-057), so counting it in would leave this pass
+     * reporting a fraction of a total it will never reach.
+     */
+    private long sizeEverySurvivor(RunId runId, HashingProgress progress) throws Exception {
+        long toHash = 0;
+        ItemStreamReader<SizedOccurrence> survivors = ledger.survivorsBySize(runId);
+        survivors.open(new ExecutionContext());
+        try {
+            long size = 0;
+            long sharingIt = 0;
+            for (SizedOccurrence next = survivors.read(); next != null; next = survivors.read()) {
+                if (sharingIt > 0 && next.sizeBytes() != size) {
+                    toHash += sharingIt >= 2 ? sharingIt : 0;
+                    sharingIt = 0;
+                }
+                size = next.sizeBytes();
+                sharingIt++;
+                progress.sized();
+            }
+            toHash += sharingIt >= 2 ? sharingIt : 0;
+        } finally {
+            survivors.close();
+        }
+        return toHash;
     }
 
     /** What is done with every survivor of one size, once all of them have been read. */

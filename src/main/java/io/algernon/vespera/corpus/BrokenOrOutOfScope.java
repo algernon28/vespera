@@ -16,7 +16,8 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
 
 /**
  * Stage 1's first pass: every survivor is checked against {@link BrokenCheck}, and the broken and the
- * out-of-scope are verdicted (ADR-188, moved from {@code pipeline} unchanged).
+ * out-of-scope are verdicted (ADR-188, moved from {@code pipeline}; fed one id at a time by the
+ * survivors reader since ADR-200, which is all that changed).
  *
  * <p>A mechanically-corrupt occurrence is verdicted {@code broken} (ADR-068), the cheapest filter in the
  * cascade, so nothing broken ever reaches extraction. An intact one of a kind {@link OutOfScope} names is
@@ -52,7 +53,8 @@ public final class BrokenOrOutOfScope {
 
     /**
      * Checks every survivor of {@code runId}, in the order {@link Ledger#survivors} gives them, one at a
-     * time as the reader hands each out and never the set at once (ADR-200), and returns the tally. {@code logFloor} is {@code null} where no log rule applies (ADR-171 section 3).
+     * time as the reader hands each out and never the set at once (ADR-200), and returns the tally.
+     * {@code logFloor} is {@code null} where no log rule applies (ADR-171 section 3).
      */
     public FormatMix verdictSurvivors(RunId runId, Path canonicalRoot, Double logFloor, CheckingProgress progress)
             throws Exception {
