@@ -34,7 +34,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * the survivors, and the one that records each duplicate (ADR-192 sections 3 and 4, #412). Stage 1 already
  * counted its broken check and its hashing (ADR-188).
  *
- * <p>The sizes counter has a total, the survivors the pass drained. The duplicates have none before the
+ * <p>The sizes counter has a total, the survivors the pass will read (ADR-200). The duplicates have none before the
  * loop starts, since how many files are copies of another is known only when every size group has been
  * hashed, so they are a running count, {@code N so far}, whose first line falls at 1,000 (ADR-192 section
  * 8). It is pinned over {@value #COPIES} copies of one file, of which stage 1 records {@code COPIES - 1} as

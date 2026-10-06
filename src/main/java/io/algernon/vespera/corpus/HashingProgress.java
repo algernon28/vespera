@@ -12,7 +12,7 @@ public interface HashingProgress {
 
     /**
      * Called exactly once, before the first size is read, zero included: how many survivors the pass
-     * drained, each of which has its recorded size read to group it.
+     * reads, each of which has its recorded size read to group it (ADR-200).
      */
     default void toSize(long survivors) {}
 

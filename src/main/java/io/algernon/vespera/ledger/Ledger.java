@@ -49,6 +49,20 @@ public class Ledger {
     /** Occurrences per statement in {@link #discardVerdictsAgainst}: SQLite caps one statement's variables. */
     private static final int DISCARD_BATCH = 500;
 
+    /**
+     * One page of {@link #survivorsBySize}: the walk's survivors after the last row read. {@code size_bytes
+     * >= ?} bounds the range by the index column after the walk, and the row-value comparison then cuts
+     * it at the exact row, the pair {@code (size_bytes, id)} compared as one.
+     */
+    private static final String SURVIVORS_BY_SIZE_PAGE_SQL = "SELECT id, size_bytes FROM file_occurrence"
+            + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+            + " AND NOT EXISTS (SELECT 1 FROM verdict"
+            + " WHERE verdict.occurrence_id = file_occurrence.id"
+            + " AND verdict.kind IN (%s)"
+            + " AND verdict.run_id IN (%s))"
+            + " AND size_bytes >= ? AND (size_bytes, id) > (?, ?)"
+            + " ORDER BY size_bytes, id LIMIT ?";
+
     private final JdbcTemplate jdbcTemplate;
 
     public Ledger(JdbcTemplate jdbcTemplate) {
@@ -536,6 +550,32 @@ public class Ledger {
             throw new IllegalStateException("the survivors reader is misconfigured", e);
         }
         return reader;
+    }
+
+    /**
+     * The survivors of {@code runId}, the same set {@link #survivors} reads, in ascending recorded size and
+     * the lower id first within a size, so every survivor of one size arrives together (ADR-200).
+     *
+     * <p>What stage 1's content identity needs, which is each size whole and never the whole set: a caller
+     * holds one size at a time and lets it go. A reader for the reason {@link #survivors} is one
+     * (ADR-060), paged by keyset over {@code file_occurrence_by_walk_and_size}, so no page sorts and
+     * none goes back over the walk.
+     *
+     * <p>Open it before reading and close it after, as for {@link #survivors}. A verdict the caller
+     * writes for a survivor already handed out removes nothing still to come, because a later page asks
+     * only for rows after the last one read.
+     */
+    public ItemStreamReader<SizedOccurrence> survivorsBySize(RunId runId) {
+        List<String> runsInScope = runsInScope(runId);
+        String placeholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
+        List<Object> fixedArguments = new ArrayList<>();
+        fixedArguments.add(runId.value());
+        fixedArguments.addAll(runsInScope);
+        return new SurvivorsBySize(
+                jdbcTemplate,
+                SURVIVORS_BY_SIZE_PAGE_SQL.formatted(blockingKinds(), placeholders),
+                fixedArguments,
+                SURVIVORS_PAGE_SIZE);
     }
 
     /**

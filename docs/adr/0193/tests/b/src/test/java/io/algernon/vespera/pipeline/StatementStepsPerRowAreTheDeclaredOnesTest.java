@@ -4,7 +4,6 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.CorpusStatement;
 import io.algernon.vespera.embedding.EmbeddingStatement;
 import io.algernon.vespera.extraction.ExtractionStatement;
 import io.algernon.vespera.similarity.SimilarityStatement;
@@ -26,8 +25,11 @@ import org.junit.jupiter.api.Test;
  * The steps a row each module declares for its counted statements are the ones SQLite was measured to
  * take, and every other statement declares none (ADR-193 sections 3 and 7, #411).
  *
- * <p><b>Parked under {@code docs/adr/0193/tests/b/}</b> until part (b) adds the last of the five enums; it
+ * <p><b>Parked under {@code docs/adr/0193/tests/b/}</b> until part (b) adds the last of the four enums; it
  * does not compile before. {@code spec-implementer} moves it to {@code src/test} with that part.
+ *
+ * <p>Four, where ADR-193 section 7 named five: {@code corpus} has no statement of that record's since
+ * ADR-200 (#405), under which stage 1 drains no survivors, so no {@code CorpusStatement} is written.
  *
  * <p>The measured figures are {@link StatementStepsPerRowTest}'s, which runs each statement against the
  * bundled SQLite. This test only holds the declarations to them, so a ratio changed in one place and not
@@ -75,7 +77,6 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
 
     private static Stream<Enum<?>> everyStatement() {
         return Stream.of(
-                        CorpusStatement.values(),
                         ExtractionStatement.values(),
                         SimilarityStatement.values(),
                         EmbeddingStatement.values(),
@@ -85,7 +86,6 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
 
     private static OptionalInt stepsPerRowOf(Enum<?> statement) {
         return switch (statement) {
-            case CorpusStatement corpus -> corpus.stepsPerRow();
             case ExtractionStatement extraction -> extraction.stepsPerRow();
             case SimilarityStatement similarity -> similarity.stepsPerRow();
             case EmbeddingStatement embedding -> embedding.stepsPerRow();

@@ -1136,6 +1136,19 @@ public final class Adr {
     public static final String THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME = FILE
             + "0203-the-invocation-accounts-folder-is-judged-by-every-reading-of-its-name-and-a-name-that-cannot-be-followed-is-refused.md";
 
+    /**
+     * ADR-200 — stage 1 reads a run's survivors in ascending size, twice, and never holds more than one
+     * size of them: the read that sizes holds no survivor, only how many share the size in hand, and the
+     * read that hashes holds one size at a time; the first pass holds none; one index on the walk and the size is added,
+     * so no schema version moves; the rows of different sizes are now written in size order, where they
+     * were written in the order each size was first met, and no test pins that order; stage 1 has no
+     * drain left, so it has no timed statement (amends ADR-188 sections 1 and 2 in what they say of
+     * the drain, ADR-192 sections 4 and 7 in two phrases, and ADR-193 sections 6, 7 and 9 and its Tests
+     * for stage 1; rests on ADR-060 and ADR-156; settles #405).
+     */
+    public static final String STAGE_1_HOLDS_ONE_SIZE_AT_A_TIME = FILE
+            + "0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md";
+
     private Adr() {
     }
 }

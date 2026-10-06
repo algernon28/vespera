@@ -1,5 +1,7 @@
 # ADR-192 — Every loop in every stage reports its progress, and no counter floods the log
 
+> **Partly amended — see [ADR-200](0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md).** Stage 1 no longer drains its survivors, so two phrases below are no longer true of it: in §4, the total of `Stage 1 (byte-level reduction, sizes read)`, "the survivors the pass drained", which is now the survivors the pass will read; and in §7, "`SurvivorDrain.drain` (both of stage 1's passes)" among the drains left to #411, which no longer exists. Everything else in this record stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-093](0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md), its section *"Stage progress is reported on a percentage/count cadence, where a denominator exists"*, in its cadence and nothing else. Its sentence *"that stage logs a progress line at INFO whenever it crosses **5% or 1,000 items, whichever comes first** since the last report"* now reads: whichever comes first, except that over a total of more than 100,000 items a line is written every 1% of the total, so that no counter over a known total writes more than 100 lines. Its sentence that the walk *"logs a running count only"* now reads with a cadence: a running count writes a line every 1,000 items below 100,000, and from there every tenth of the power of ten at or below the count reached (§8). The line `<label>: N of M (x%)`, its INFO level, and everything else in ADR-093 stand.

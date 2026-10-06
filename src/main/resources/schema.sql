@@ -51,6 +51,12 @@ CREATE TABLE IF NOT EXISTS file_occurrence (
     UNIQUE (walk_id, path)
 );
 
+-- Stage 1 reads a run's survivors in ascending size to hold one size at a time (ADR-200). Without
+-- this, every page of that read would sort the whole walk. The rowid follows the two columns, so a
+-- page is a range of the index in (size_bytes, id) order. Additive, so no module's schema version moves:
+-- a database that lacks it builds it at start-up, announced as ADR-187 says.
+CREATE INDEX IF NOT EXISTS file_occurrence_by_walk_and_size ON file_occurrence (walk_id, size_bytes);
+
 -- A run owns verdict rows: they are derived under a configuration, where an occurrence is observed
 -- (ADR-048). id is the hash of the four things that determine what the run would produce, so a run
 -- that would produce identical output has an identical identity.
