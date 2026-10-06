@@ -9,8 +9,9 @@ import java.util.OptionalInt;
  * ratio is measured against the bundled SQLite by {@code StatementStepsPerRowTest}, and {@code
  * StatementStepsPerRowAreTheDeclaredOnesTest} is what holds each declaration here to that measurement.
  *
- * <p>The constants come in the order the statements are issued: the build of {@code shingle_by_hash}
- * (stage 4b's first), stage 3's two reads, then the four reads of stage 4b's resolution.
+ * <p>The constants are in the order ADR-204 section 4 lists them: the build of {@code shingle_by_hash}, stage
+ * 3's two reads, then the four reads of stage 4b's resolution. That is the order they are issued in, except
+ * that the build stands first and stage 4b issues it after stage 3's two.
  */
 public enum SimilarityStatement {
 

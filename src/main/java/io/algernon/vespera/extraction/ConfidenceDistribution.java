@@ -96,7 +96,7 @@ public class ConfidenceDistribution {
         // and is never handed back to it.
         progress.statementStarting(
                 ExtractionStatement.EXTRACTION_METRICS,
-                new ExtractionMetrics(jdbcTemplate, new LanguageDetection()).metricRowsUpTo(extractionRunId));
+                ExtractionMetrics.metricRowsUpTo(jdbcTemplate, extractionRunId));
         List<Double> scores = StatementSteps.counted(
                 jdbcTemplate,
                 steps -> progress.stepsTaken(ExtractionStatement.EXTRACTION_METRICS, steps),

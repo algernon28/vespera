@@ -22,7 +22,8 @@ import org.slf4j.LoggerFactory;
  * {@code <Module>StatementProgress} at once, since each interface's methods take that module's own enum and
  * so do not collide; a caller hands it where a module asks for its interface, or, where the module's
  * interface also reports a loop, forwards the three statement callbacks to it. A statement it was given no
- * words for is ignored, which is how stage 3 leaves its read of the shingle rows to ADR-191's own lines.
+ * words for is ignored, and a caller may also never forward one: stage 3 forwards only its drain of stage 2's
+ * survivors, and leaves its read of the shingle rows to ADR-191's own lines.
  *
  * <p>What it writes, for a statement started and ended:
  *
@@ -71,7 +72,7 @@ final class ReportedStatements
         return new Builder();
     }
 
-    /** The words of each statement one caller reports, in the order it adds them. */
+    /** The words of each statement one caller reports. Looked up by statement, so the order they are added in is not relied on. */
     static final class Builder {
 
         private final Map<Enum<?>, Words> words = new HashMap<>();

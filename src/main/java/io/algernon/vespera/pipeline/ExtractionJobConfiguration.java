@@ -21,7 +21,6 @@ import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -129,59 +128,30 @@ public class ExtractionJobConfiguration {
 
     /**
      * The lines of the read of the faults a stopped run left, written as {@code extraction} reports it
-     * (ADR-199 section 2, ADR-193 sections 4.1 and 7): one line before the read, and one after it with how long it took,
-     * with progress between where SQLite calls back. {@code extraction} calls it with an empty total where the run
-     * holds no fault, and nothing is written then, so a first invocation writes nothing here.
+     * (ADR-199 section 2, ADR-193 sections 4.1 and 7) by {@link ReportedStatements}: one line before the read,
+     * and one after it with how long it took, with progress between where SQLite calls back. {@code
+     * extraction} calls it with an empty total where the run holds no fault, and nothing is written then, so a
+     * first invocation writes nothing here.
      */
     private static ExtractionStatementProgress faultReadProgress() {
-        return readProgress("the faults the stopped run recorded");
+        return readProgress(
+                ExtractionStatement.FAULTED_OCCURRENCES,
+                "the faults the stopped run recorded",
+                "Stage 2 (extraction, reading the faults the stopped run recorded)");
     }
 
     /** The same lines for the read of the occurrences the stopped run measured (ADR-199 section 2). */
     private static ExtractionStatementProgress measuredReadProgress() {
-        return readProgress("the occurrences the stopped run measured");
+        return readProgress(
+                ExtractionStatement.RECORDED_OCCURRENCES,
+                "the occurrences the stopped run measured",
+                "Stage 2 (extraction, reading the occurrences the stopped run measured)");
     }
 
-    private static ExtractionStatementProgress readProgress(String what) {
-        return new ExtractionStatementProgress() {
-            private StatementProgress progress;
-            private long started;
-
-            @Override
-            public void statementStarting(ExtractionStatement statement, OptionalLong rowsUpTo) {
-                if (rowsUpTo.isEmpty()) {
-                    return;
-                }
-                long rows = rowsUpTo.getAsLong();
-                log.info(
-                        "Stage 2 (extraction) is reading {}, over up to {} rows",
-                        what,
-                        String.format(Locale.ROOT, "%,d", rows));
-                progress = StatementProgress.ofRead(
-                        "Stage 2 (extraction, reading " + what + ")",
-                        rows,
-                        statement.stepsPerRow().getAsInt());
-                started = System.nanoTime();
-            }
-
-            @Override
-            public void stepsTaken(ExtractionStatement statement, long steps) {
-                if (progress != null) {
-                    progress.stepsTaken(steps);
-                }
-            }
-
-            @Override
-            public void statementEnded(ExtractionStatement statement) {
-                if (progress == null) {
-                    return;
-                }
-                log.info(
-                        "Stage 2 (extraction) read {} in {} s",
-                        what,
-                        String.format(Locale.ROOT, "%.1f", (System.nanoTime() - started) / NANOS_PER_SECOND));
-            }
-        };
+    private static ExtractionStatementProgress readProgress(ExtractionStatement statement, String what, String label) {
+        return ReportedStatements.saying()
+                .counted(statement, "Stage 2 (extraction)", what, label)
+                .build();
     }
 
     @Bean

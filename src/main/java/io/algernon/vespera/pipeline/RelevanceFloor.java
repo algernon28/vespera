@@ -85,14 +85,11 @@ class RelevanceFloor {
      * <p>Unreadable and unset are one answer <em>to this question</em> and not the same state: the
      * operator is told which one it was, by the closing line rather than by anything here.
      */
-    State stateFor(String currentEmbedderIdentity) {
-        return stateFor(currentEmbedderIdentity, "Stage 5e (relevance floor)");
-    }
-
     /**
-     * As {@link #stateFor(String)}, for a caller that is not stage 5e: the one read this makes, of the
-     * answers recorded for the seed set, is said under {@code stage}, the name of the step that asked
-     * (ADR-193, ADR-204 section 3). It is issued only where the floor is a number and a seed set is named.
+     * The floor's state for a run whose vectors carry {@code currentEmbedderIdentity}, as above. The one
+     * read it makes, of the answers recorded for the seed set, is said under {@code stage}, the name of the
+     * step that asked, {@code Stage 5e (relevance floor)} or {@code Stage 5 (relevance report)} (ADR-193,
+     * ADR-204 section 3). It is issued only where the floor is a number and a seed set is named.
      */
     State stateFor(String currentEmbedderIdentity, String stage) {
         Profile profile = profileStore.load();
