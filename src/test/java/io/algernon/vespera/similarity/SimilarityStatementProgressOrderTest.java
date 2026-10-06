@@ -57,6 +57,9 @@ class SimilarityStatementProgressOrderTest {
 
     private static final double NO_BOILERPLATE_FLOOR = 0.9;
 
+    /** Measuring issues two statements, and each is started once and ended once: four callbacks. */
+    private static final int A_START_AND_AN_END_FOR_EACH_OF_TWO = 4;
+
     /** The interval ADR-193 section 2 fixes. */
     private static final long EVERY_HUNDRED_THOUSAND_STEPS = 100_000L;
 
@@ -116,8 +119,10 @@ class SimilarityStatementProgressOrderTest {
                                 ended(SimilarityStatement.SHINGLE_ROWS),
                                 "toGoThrough"));
         claim(
-                "and no statement is reported after the loop is announced",
-                () -> assertThat(recorder.statements()).hasSize(4));
+                "and no statement is reported after the loop is announced: the callbacks about statements are"
+                        + " the " + A_START_AND_AN_END_FOR_EACH_OF_TWO + " above, a start and an end for each of"
+                        + " measuring's two statements",
+                () -> assertThat(recorder.statements()).hasSize(A_START_AND_AN_END_FOR_EACH_OF_TWO));
     }
 
     @Test

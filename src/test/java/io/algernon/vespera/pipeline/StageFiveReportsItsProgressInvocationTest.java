@@ -9,8 +9,10 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceLabels;
+import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -21,7 +23,9 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -164,6 +168,9 @@ class StageFiveReportsItsProgressInvocationTest {
 
     @Autowired
     private RelevanceLabels relevanceLabels;
+
+    @Autowired
+    private Ledger ledger;
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
@@ -546,6 +553,177 @@ class StageFiveReportsItsProgressInvocationTest {
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_SIX_A, "the cluster membership"),
                                 StatementLines.timedRead(STAGE_SIX_A, "the recorded clusters"))));
+    }
+
+    /**
+     * ADR-204 section 3's five progress labels, and 5b's line before its read of the unusable seeds, which no
+     * ordinary fixture reaches: a counted read writes a progress line only once SQLite has taken 100,000
+     * steps, and a line about the unusable seeds only where one is recorded.
+     *
+     * <p>So the rows are written here, synthetic and against the files of a folder nobody walked, under the
+     * runs a first invocation minted: enough extraction metrics, signatures and unusable seeds for each read
+     * to pass one callback. Then the record that stage 3, 4b and 5b finished is deleted, and the next
+     * invocation does those three again under the same runs. None of the rows is about a document of the
+     * collection, so nothing any stage decides changes.
+     */
+    @Test
+    @Story("A long read inside the database reports how far it has gone")
+    @DisplayName("Over tens of thousands of rows, each long read of stages 3, 4b and 5b says about how far it has gone, under its own name")
+    void eachCountedReadSaysHowFarItHasGoneUnderItsOwnLabel(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        theStageRan(RELEVANCE_REPORT_FINISHED);
+        String extraction = theLatestRunOf(StageModules.EXTRACTION.stage());
+        String census = theLatestRunOf(StageModules.CONTENT_CENSUS.stage());
+        String redundancy = theLatestRunOf(StageModules.CONTENT_REDUNDANCY.stage());
+        String measurement = theLatestRunOf(StageModules.SEED_MEASUREMENT.stage());
+        List<Long> nobodysFiles = filesOfAFolderNobodyWalked(ROWS_PAST_ONE_CALLBACK_AT_FIVE_STEPS);
+        List<Long> fewer = nobodysFiles.subList(0, ROWS_PAST_ONE_CALLBACK_AT_SEVEN_STEPS);
+        writeForEach(METRIC_ROW, fewer, extraction);
+        writeForEach(METRIC_ROW, fewer, measurement);
+        writeForEach(
+                "INSERT INTO minhash_signature (occurrence_id, run_id, signature_identity, signature)"
+                        + " VALUES (?, ?, 'synthetic', x'00')",
+                nobodysFiles,
+                redundancy);
+        writeForEach(
+                "INSERT INTO unusable_seed (occurrence_id, run_id, reason) VALUES (?, ?, 'synthetic')",
+                nobodysFiles,
+                measurement);
+        forgetThatItFinished(census, StepNames.CONTENT_CENSUS);
+        forgetThatItFinished(redundancy, StepNames.CONTENT_REDUNDANCY);
+        forgetThatItFinished(measurement, StepNames.SEED_CORPUS_COMPARISON);
+        logged.list.clear();
+
+        cli.run("run", root.toString());
+
+        claim("the second invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
+        saidAboutHowFar("Stage 3 (content census, reading extraction metrics)", rowSpanUnder("extraction_metric", extraction));
+        saidAboutHowFar(
+                "Stage 4b (redundancy resolution, reading signed occurrences)",
+                rowSpanUnder("minhash_signature", redundancy));
+        saidAboutHowFar(
+                "Stage 5b (seed/corpus comparison, reading unusable seeds)", rowSpanUnder("unusable_seed", measurement));
+        saidAboutHowFar(
+                "Stage 5b (seed/corpus comparison, reading corpus metrics)", rowSpanUnder("extraction_metric", extraction));
+        saidAboutHowFar(
+                "Stage 5b (seed/corpus comparison, reading seed metrics)", rowSpanUnder("extraction_metric", measurement));
+        claim(
+                "and with unusable seeds recorded, the comparison says it is reading them, over up to the rows its"
+                        + " run holds, and how long that took, between its read of the seed folder's files and its"
+                        + " reads of the metrics",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_B))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_FIVE_B, CORPUS_SURVIVORS),
+                                StatementLines.timedRead(STAGE_FIVE_B, SEED_OCCURRENCES),
+                                StatementLines.countedRead(
+                                        STAGE_FIVE_B, UNUSABLE_SEEDS, rowSpanUnder("unusable_seed", measurement)),
+                                StatementLines.countedRead(
+                                        STAGE_FIVE_B,
+                                        "the corpus survivors' extraction metrics",
+                                        rowSpanUnder("extraction_metric", extraction)),
+                                StatementLines.countedRead(
+                                        STAGE_FIVE_B,
+                                        "the seeds' extraction metrics",
+                                        rowSpanUnder("extraction_metric", measurement)))));
+    }
+
+    /**
+     * ADR-204 section 3: the read of the scores that finds none has still ended, so its line after is
+     * written, and then the step says it is gated. The corpus is one file the scripted converter fails on
+     * while blaming itself, which stage 2 removes at its end, so stage 5 has a usable seed and nothing to
+     * score.
+     */
+    @Test
+    @Story("The relevance report says what it is reading")
+    @DisplayName("Where no document carries a score, the report still says it read the scores and how long that took, and reads nothing more")
+    void theReportSaysItReadTheScoresWhereItFoundNone(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve(SeedScriptedExtractionBeans.CONVERTER_FAULT), "a file the converter faults on");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds, null);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the report found no score and said it was gated for that reason",
+                () -> assertThat(operatorLines())
+                        .anyMatch(line -> line.startsWith("stage 5's relevance-report step is gated: no survivor"
+                                + " carries a relevance score under ")));
+        claim(
+                "it said it was reading the scores, and then that it had read them and how long that took: the"
+                        + " read ended, having found nothing. It made no other read",
+                () -> assertThat(StatementLines.of(operatorLines(), THE_REPORT))
+                        .containsExactlyElementsOf(StatementLines.timedRead(THE_REPORT, "the scores")));
+        claim(
+                "and the line that the read ended comes before the line that the step is gated",
+                () -> assertThat(String.join("\n", operatorLines()))
+                        .containsSubsequence(
+                                THE_REPORT + " read the scores in ", "stage 5's relevance-report step is gated"));
+    }
+
+    /** Enough rows for a read that takes five steps a row to pass the 100,000 at which SQLite first calls back. */
+    private static final int ROWS_PAST_ONE_CALLBACK_AT_FIVE_STEPS = 21_000;
+
+    /** Enough for one that takes seven steps a row, and so for one that takes twelve. */
+    private static final int ROWS_PAST_ONE_CALLBACK_AT_SEVEN_STEPS = 15_000;
+
+    private static final String METRIC_ROW = "INSERT INTO extraction_metric (occurrence_id, run_id, status,"
+            + " processing_time, character_count, alphanumeric_char_count, word_count,"
+            + " word_character_length_total, vowelless_word_count, single_character_word_count)"
+            + " VALUES (?, ?, 'success', 1.0, 1, 1, 1, 1, 0, 0)";
+
+    /** That the read labelled {@code label} wrote a progress line, and every one over {@code rowsUpTo} rows. */
+    private void saidAboutHowFar(String label, long rowsUpTo) {
+        String total = String.format(Locale.ROOT, "%,d", rowsUpTo);
+        claim(
+                label + " says about how far it has gone at least once, each time as a share of the " + total
+                        + " rows its run holds from first to last",
+                () -> assertThat(operatorLines())
+                        .filteredOn(line -> line.startsWith(label + ": "))
+                        .isNotEmpty()
+                        .allMatch(line -> line.matches(".*: about \\d+% of " + total + " rows$")));
+    }
+
+    /** The run of {@code stage} minted last: this test's, read straight after its first invocation. */
+    private String theLatestRunOf(String stage) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM run WHERE stage = ? ORDER BY rowid DESC LIMIT 1", String.class, stage);
+    }
+
+    /** {@code files} recorded under a walk of a folder that does not exist: in no run's survivors. */
+    private List<Long> filesOfAFolderNobodyWalked(int files) {
+        WalkId walk = ledger.startWalk(Path.of("C:/synthetic-" + System.nanoTime()));
+        List<Object[]> rows = new ArrayList<>();
+        for (int file = 0; file < files; file++) {
+            rows.add(new Object[] {walk.value(), "synthetic-" + file + ".txt"});
+        }
+        jdbcTemplate.batchUpdate(
+                "INSERT INTO file_occurrence (walk_id, path, size_bytes, last_modified, creation_time)"
+                        + " VALUES (?, ?, 1, 1, 1)",
+                rows);
+        return jdbcTemplate.queryForList(
+                "SELECT id FROM file_occurrence WHERE walk_id = ? ORDER BY id", Long.class, walk.value());
+    }
+
+    private void writeForEach(String insertRow, List<Long> occurrences, String run) {
+        List<Object[]> rows = new ArrayList<>();
+        for (Long occurrence : occurrences) {
+            rows.add(new Object[] {occurrence, run});
+        }
+        jdbcTemplate.batchUpdate(insertRow, rows);
+    }
+
+    private void forgetThatItFinished(String run, String step) {
+        jdbcTemplate.update("DELETE FROM finished_step WHERE run_id = ? AND step = ?", run, step);
+    }
+
+    /** The span of {@code run}'s rowids in {@code table}: greatest less least plus one, zero where it holds none. */
+    private long rowSpanUnder(String table, String run) {
+        Long span = jdbcTemplate.queryForObject(
+                "SELECT MAX(rowid) - MIN(rowid) + 1 FROM " + table + " WHERE run_id = ?", Long.class, run);
+        return span == null ? 0 : span;
     }
 
     /** That every line of each named counter came from {@code StageProgress}'s logger, and that there was one. */

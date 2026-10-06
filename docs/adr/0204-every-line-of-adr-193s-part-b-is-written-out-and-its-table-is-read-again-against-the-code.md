@@ -16,17 +16,10 @@ Terms are ADR-193's: a statement is *counted* where SQLite calls back during it 
 ADR-193 gave every statement named on #411 and in ADR-192 §7 one of two forms and landed in two parts. Part (a) is on `main`. Part (b) is every other row of its §6. Since ADR-193 was accepted:
 
 1. **ADR-199 settled #429** and is built: the three survivor counts that size a counter, and the two reads stage 2's reader makes before a resume.
-2. **`main` moved under §6's table**, which was read off the code at `7b25d04`. ADR-200 struck its two stage 1 rows, and ADR-197 added statements to the relevance report and a command of its own.
+2. **`main` moved under §6's table**, which was read off the code at `7b25d04`. ADR-200 struck its two stage 1 rows, and ADR-197 added statements to the relevance report and an option of the `label` command, `vespera label --auto`, with statements of its own.
 3. **Part (a)'s gate, on 2026-10-06, found one sentence the record says and no test held**: that the removal of `shingle_by_hash` takes the same steps at two sizes.
 
 ADR-193 §6 gives each statement its `<what>`. It gives a `<stage>` only to the ones it shows in full, so two readers of it could write `Stage 5d (relevance scoring) is reading …` and `Stage 5d is reading …` and both be following the record. This record writes every line out.
-
-**This record was first drafted as ADR-199, on a branch, while #429's own record was being gated; that one reached `main` first and is ADR-199.** Where the two decided the same statement differently, ADR-199 stands, and the differences were four:
-
-- Stage 1's two counts are `the survivors the broken check goes through` and `the survivors whose sizes it reads`; the draft had `the survivors to check` and `the survivors to size`.
-- Stage 4a's count is `the survivors it signs`; the draft had `the survivors to sign`.
-- Stage 2's two reads are `the faults the stopped run recorded` and `the occurrences the stopped run measured`, and each one's progress label carries those words whole; the draft had `the faults already recorded` and `the occurrences already measured`, with the article dropped in the label.
-- The measured ratios of those two reads are `UncoveredStatementsStepsPerRowTest`'s; the draft had put them in `StatementStepsPerRowTest`.
 
 ## Measurements
 
@@ -54,7 +47,7 @@ Part (b) changes `extraction`, `similarity`, `embedding`, `synthesis` and `pipel
 
 ### 3. Every line of part (b), written out
 
-**`<stage>` is the name the stage's own starting and finishing lines use.** A timed statement writes ADR-193 §4.3's two lines, a counted one §4.1's two and its progress lines between. `<S>` is seconds to one decimal place, and `<N>` is grouped in threes.
+**The table below is the definition of each `<stage>`.** For stages 1 to 5f and the report it is the name the stage's own starting and finishing lines already use. For 6a and 6b it is not: their own lines say *"the arrangement step"* and *"the generation step"*, and `Stage 6a (arrangement)` and `Stage 6b (generation)` are the new wording ADR-193 §6 gave them, used by their statement lines and their counters and not by those lines. A timed statement writes ADR-193 §4.3's two lines, a counted one §4.1's two and its progress lines between. `<S>` is seconds to one decimal place, and `<N>` is grouped in threes.
 
 ```
 <stage> is reading <what>                              <stage> is counting <what>
@@ -109,13 +102,14 @@ In the order each step issues them. The rows marked ADR-199 are on `main` alread
 | `Stage 6b (generation)` | timed | `the standing faults`, not issued where the walk stops on five answers turned down in a row |
 | `Stage 6b (generation)` | timed, two | `the clusters written`, `the faults recorded` |
 
-- **A progress label drops the article of its `<what>`** in every row above, as ADR-193 §4.1's own two do. ADR-199's two labels keep theirs, and stand as that record wrote them.
+- **The five progress labels in the table are the definition, and no rule derives them from the `<what>`.** Three are the `<what>` less its article: `reading extraction metrics`, `reading signed occurrences`, `reading unusable seeds`. 5b's two shorten theirs, to `reading corpus metrics` and `reading seed metrics`, as ADR-193 §6 wrote them. ADR-199's two labels keep the whole `<what>`, article and all, and stand as that record wrote them.
+- **The report's read of the scores is ended where it finds none.** `RelevanceDistribution.measure` answers a run with no score by throwing `NoSuchElementException`, which is the step's gate and not a statement that failed: the read went through and found nothing. So the report writes `Stage 5 (relevance report) read the scores in <S> s` and then its line that it is gated, and makes no other read. Any other exception from that read writes no line after it, as for every timed statement.
 - **`RelevanceFloor` is asked by two steps**, 5e and the report, so the read it makes carries the `<stage>` of the step that asked.
 - **A statement not issued writes nothing** (ADR-193 §4.3). A step already recorded under its run issues none of the statements inside its work. 6a's two reads are outside that work and are issued on both branches (ADR-154 §2).
 
 ### 4. The callbacks
 
-ADR-193 §7 stands, less `corpus` (ADR-200). The four enums, each constant in the order its statement is issued, with r where it is counted:
+ADR-193 §7 stands, less `corpus` (ADR-200). The four enums, with r where a constant is counted. **The constants are in the order their statements are issued, with one exception**: `SHINGLE_HASH_INDEX_BUILD` stands first in `SimilarityStatement`, and stage 4b issues its build after stage 3 has issued `FREQUENCY_SURVIVORS` and `SHINGLE_ROWS`. It was the first constant written, with part (a), and ADR-193 §7 lists it first while saying of every enum that its constants are *"in the order the statements are issued"*; that sentence is not true of this one constant, and the constant is not moved for it.
 
 | Enum | Constants |
 |---|---|
@@ -145,7 +139,7 @@ ADR-193's Tests table says `StatementStepsPerRowTest` pins *"the drop's steps th
 
 ### 7. What this record found and does not decide
 
-ADR-199 §3's list stands, less `RelevanceLabels.modelAnswers`, which §2 takes up. One thing more was found, and it is **a loop, not a statement**: `RelevanceReportTasklet.modelAnswersInThisWalk` looks each answer a model gave up in the ledger, one statement an answer, with no counter. Its sibling over every answer has one (`Stage 5 (relevance report, answers matched)`). That is ADR-192's rule, not this record's, and it is not decided here.
+ADR-199 §3's list stands, less `RelevanceLabels.modelAnswers`, which §2 takes up. One thing more was found, and it is **a loop, not a statement**: `RelevanceReportTasklet.modelAnswersInThisWalk` looks each answer a model gave up in the ledger, one statement an answer, with no counter. Its sibling over every answer has one (`Stage 5 (relevance report, answers matched)`). That is ADR-192's rule, not this record's, and it is not decided here: it is left to a ticket of its own, **(the ticket's number goes here when it is opened)**, *"The relevance report looks up each answer a model gave with no counter"*.
 
 ## Why this shape, and what the others cost
 
@@ -169,14 +163,16 @@ All in `src/test`. Those that name a type part (b) adds were parked under `docs/
 |---|---|
 | `pipeline.StatementStepsPerRowTest`, one assertion tightened | the removal of `shingle_by_hash` taking the same steps at two sizes (§6) |
 | `pipeline.StatementStepsPerRowAreTheDeclaredOnesTest` | every declared r equal to the measured one, and every timed constant declaring none, over the four enums of §4 |
-| `extraction.ConfidenceDistributionStatementProgressOrderTest` | `ConfidenceDistribution.measure`'s drain started with no total and ended, then its read started with the span of the run's rows, or with an empty total over a run with none; the read's steps between its start and its end over many rows, on a pool of two outside a transaction, so on the connection the handler is on |
+| `extraction.ConfidenceDistributionStatementProgressOrderTest` | `ConfidenceDistribution.measure`'s drain started with no total and ended, then its read started with the span of the run's rows, or with an empty total over a run with none; the read's steps between its start and its end over many rows, on a pool of two outside a transaction, so on the connection the handler is on; a read that throws started and never ended, with no handler left: §4's *"on every path but one that throws"*, held for this one statement of part (b) |
 | `similarity.SimilarityStatementProgressOrderTest` | `DocumentFrequency.measure`'s two statements in order before its loop is announced; `RedundancyResolution.resolve`'s four among its loops, and none after the first where nothing is signed; the signed-occurrences read reporting steps on a pool of two; the build's two callbacks over a few rows |
 | `embedding.EmbeddingStatementProgressOrderTest` | `SeedCorpusComparison.measure`'s five statements in order; the unusable-seeds read started with an empty total where none is recorded; each counted read reporting steps on a pool of two |
 | `synthesis.SynthesisStatementProgressOrderTest` | `ClusterGeneration.write` starting and ending `WRITTEN` before the walk is announced and `STANDING_FAULTS` after the last cluster |
 | `pipeline.StageTwoReportsItsFaultResolutionInvocationTest` | stage 2 on a first invocation: the count of the survivors still to read and the review-list read, once each, in order, and no line of either read of a resume |
 | `pipeline.ExtractionResumeInvocationTest` | stage 2's whole sequence on a resume: ADR-199's read of the occurrences the stopped run measured, over the span of the run's rows, then the count and the review-list read; and, over one fault, ADR-199's fault read first |
 | `pipeline.RedundancyResolutionReportsItsProgressInvocationTest` | stage 3's four statements around ADR-191's line; 4b's four reads in order and where the step makes them; no line of 4b's where nothing is signed; none of stage 3's or 4b's where the step is already recorded |
-| `pipeline.StageFiveReportsItsProgressInvocationTest` | every row of §3 from 5b to 6a, on a first invocation and, for 5e and the report, on one where the floor is a number |
+| `pipeline.StageFiveReportsItsProgressInvocationTest` | the rows of §3 from 5b to 6a, on a first invocation and, for 5e and the report, on one where the floor is a number: 5b's with no unusable seed recorded, so its lines for that read absent, and 5f's over one partition |
+| the same class, `eachCountedReadSaysHowFarItHasGoneUnderItsOwnLabel`: stage 3, 4b and 5b done again under their runs over 15,000 to 21,000 synthetic rows | each of §3's five progress labels, word for word, on a line `about X% of N rows` whose N is the span of the run's rows; 5b's two lines for its read of the unusable seeds, with its total, between the drains and the reads of the metrics; and 5b's other two totals |
+| the same class, `theReportSaysItReadTheScoresWhereItFoundNone`: a corpus whose one file stage 2 removes | the report's line after its read of the scores written where the read finds none, before the line that the step is gated, and no other read made (§3) |
 | `pipeline.GenerationReportsItsProgressInvocationTest` | 6b's six reads on a clean finish, and the same less `the standing faults` where the walk stops |
 
 `pipeline.StatementLines` and `PoolOfTwo` are helpers: the first reads a stage's statement lines out of what an invocation logged, the second is a pool of two connections over a file of its own under `schema.sql`.
@@ -185,8 +181,9 @@ All in `src/test`. Those that name a type part (b) adds were parked under `docs/
 
 **Not pinned, and why:**
 
-- **A progress line of a counted read of part (b) in a whole job.** Every fixture's run holds far fewer rows than one callback covers. The steps reaching the callback are pinned in each module's contract test, and the line and its cadence in `StatementProgressTest`.
-- **5b's two totals in a whole job.** Which run wrote which metric row is not the whole-job test's to know; the total handed to `pipeline` is pinned in `EmbeddingStatementProgressOrderTest`.
+- **How many progress lines a counted read of part (b) writes, and at which shares.** Each label is pinned on one line, over rows just past one callback. The cadence over a small and a very large total is `StatementProgressTest`'s, which holds it under a label of its own and not under these.
+- **A statement of part (b) that throws, other than the read of the extraction metrics.** The same helper, `ledger.StatementSteps`, runs every counted read, and `StatementStepsTest` holds it to clearing its handler after a throw; one contract test holds a module to not reporting an end. The timed statements inside `similarity`, `embedding` and `synthesis` have no test that makes one throw.
+- **The line after `the scores` where the read fails for any reason but finding none.** No fixture makes that read throw anything else.
 - **Which class in `pipeline` writes a line of a statement a capability module announces.** That is the implementation's to name.
 - **5f over two partitions.** The fixtures reach one (ADR-192, Tests).
 

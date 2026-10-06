@@ -2,6 +2,7 @@ package io.algernon.vespera.extraction;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.PoolOfTwo;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -179,6 +181,45 @@ class ConfidenceDistributionStatementProgressOrderTest {
                 .isZero());
     }
 
+    /**
+     * ADR-204 section 4, "on every path but one that throws", for a statement of part (b): the table is
+     * dropped once the read has been announced, so the read itself is what fails.
+     */
+    @Test
+    @Story("Measuring the confidence spread says what it is reading")
+    @DisplayName("A read of the metrics that throws is not said to have ended, and leaves no handler behind")
+    void aReadThatThrowsIsNotSaidToHaveEnded() {
+        ledger.fileOccurrence(walk, new OccurrencePath("a.txt"), 1, Instant.EPOCH, Instant.EPOCH);
+        jdbcTemplate.update(
+                METRIC_ROW, ledger.occurrenceId(walk, new OccurrencePath("a.txt")).orElseThrow().value(), stage2.value());
+        Recorder recorder = new Recorder() {
+            @Override
+            public void statementStarting(ExtractionStatement statement, OptionalLong rowsUpTo) {
+                super.statementStarting(statement, rowsUpTo);
+                if (statement == ExtractionStatement.EXTRACTION_METRICS) {
+                    // Between the bound and the read, so the read itself is what fails.
+                    jdbcTemplate.execute("DROP TABLE extraction_metric");
+                }
+            }
+        };
+
+        claim(
+                "the measurement fails as the template reports any statement's failure, once the table is gone",
+                () -> assertThatThrownBy(() -> new ConfidenceDistribution(jdbcTemplate, ledger)
+                                .measure(stage3, stage2, recorder))
+                        .isInstanceOf(DataAccessException.class));
+        claim(
+                "the caller was told the drain started and ended and the read started, over the one row the run"
+                        + " held, and never that the read ended",
+                () -> assertThat(recorder.calls)
+                        .containsExactly(
+                                starting(ExtractionStatement.SURVIVORS, OptionalLong.empty()),
+                                ended(ExtractionStatement.SURVIVORS),
+                                starting(ExtractionStatement.EXTRACTION_METRICS, OptionalLong.of(1))));
+        claim("and neither connection of the pool carries a handler afterwards", () -> assertThat(pool.handlersLeft())
+                .isZero());
+    }
+
     private static String starting(ExtractionStatement statement, OptionalLong rowsUpTo) {
         return "statementStarting(" + statement + ", " + rowsUpTo + ")";
     }
@@ -188,7 +229,7 @@ class ConfidenceDistributionStatementProgressOrderTest {
     }
 
     /** Every callback, in the order it came, written as the call it was. */
-    private static final class Recorder implements ExtractionStatementProgress {
+    private static class Recorder implements ExtractionStatementProgress {
 
         final List<String> calls = new ArrayList<>();
 
