@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-204.
+One file per architecture decision, ADR-001 through ADR-205.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -223,3 +223,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-202](0202-generation-and-embedding-refuse-an-ollama-model-not-served-on-this-machine-before-anything-is-sent.md) | 2026-10-05 | Generation and embedding refuse an Ollama model not served on this machine, through the labeller's own check, before anything is sent *(extends ADR-197 §6, ADR-114; rests on ADR-195, ADR-196, ADR-110)* |
 | [ADR-203](0203-the-invocation-accounts-folder-is-judged-by-every-reading-of-its-name-and-a-name-that-cannot-be-followed-is-refused.md) | 2026-10-06 | The invocation account's folder is judged by every reading of its name, and a name that cannot be followed is refused *(amends ADR-198 §1, §6, §7; rests on ADR-201, ADR-196)* |
 | [ADR-204](0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md) | 2026-10-06 | Every line of ADR-193's part (b) is written out, and its table is read again against the code *(extends ADR-193 §4, §6 and §7; corrects one sentence of its Tests; takes up one statement of ADR-199 §3; rests on ADR-199, ADR-200, ADR-197)* |
+| [ADR-205](0205-the-relevance-report-counts-the-answers-a-model-gave-as-it-looks-each-up.md) | 2026-10-06 | The relevance report counts the answers a model gave as it looks each up *(extends ADR-192 §4; rests on ADR-197 §3, ADR-204 §2 and §7)* |

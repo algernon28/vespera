@@ -279,7 +279,11 @@ class RelevanceReportTasklet implements Tasklet {
         return answers;
     }
 
-    /** Which of the answers in this walk a local model set, by the model's name (ADR-197 §3). */
+    /**
+     * Which of the answers in this walk a local model set, by the model's name (ADR-197 §3). It counts
+     * each lookup under {@code Stage 5 (relevance report, model answers matched)}, over the answers a
+     * model gave for the seed set, matched to this walk or not (ADR-205).
+     */
     private Map<OccurrenceId, String> modelAnswersInThisWalk(String seedSet, RunId runId) {
         Optional<WalkId> walk = ledger.walkOf(runId);
         if (walk.isEmpty()) {
@@ -288,8 +292,13 @@ class RelevanceReportTasklet implements Tasklet {
         Map<OccurrenceId, String> byOccurrence = new LinkedHashMap<>();
         Map<String, String> modelAnswers =
                 TimedStatement.of(STAGE, "reading", "read", "the answers a model gave", () -> relevanceLabels.modelAnswers(seedSet));
-        modelAnswers.forEach((path, model) -> ledger.occurrenceId(walk.get(), new OccurrencePath(path))
-                .ifPresent(occurrence -> byOccurrence.put(occurrence, model)));
+        StageProgress matched =
+                StageProgress.over("Stage 5 (relevance report, model answers matched)", modelAnswers.size());
+        for (Map.Entry<String, String> answer : modelAnswers.entrySet()) {
+            ledger.occurrenceId(walk.get(), new OccurrencePath(answer.getKey()))
+                    .ifPresent(occurrence -> byOccurrence.put(occurrence, answer.getValue()));
+            matched.itemDone();
+        }
         return byOccurrence;
     }
 
