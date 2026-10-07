@@ -1,6 +1,6 @@
 # ADR-049 — Verdict rows, and schema versioning without a migration tool
 
-> **Read with [ADR-209](0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md).** `docs/architecture.md` §1.5 read *"Schema via `schema.sql`"* below as one `schema.sql` per module. There is one file, and the line above each table in it names the module that owns the table. §1.5 is corrected there; the summary below, which says one file, stands, is transcribed verbatim and is not edited.
+> **Read with [ADR-209](0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md).** `docs/architecture.md` §1.5 read *"Schema via `schema.sql`"* below as one `schema.sql` per module. There is one file, and the line above each table in it names the module that owns the table. §1.5 is corrected in `docs/architecture.md` under ADR-209; the summary below, which says one file, stands, is transcribed verbatim and is not edited.
 
 > **Reconstituted record — the original text of this ADR is lost.**
 > Rebuilt on 2026-08-22 from the decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md), the only surviving record of these decisions. The summary below is transcribed **verbatim** from that digest.
