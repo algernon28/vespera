@@ -41,7 +41,9 @@ import org.springframework.test.context.ActiveProfiles;
  * <p>No answer is asked for here: one test walks nothing and the other walks a cluster already written, so
  * the serving engine is one that fails if it is called. A walk that stops on five answers turned down
  * returns before the second read, and that is held where a whole job plays it ({@code
- * GenerationReportsItsProgressInvocationTest}).
+ * GenerationReportsItsProgressInvocationTest}). A read that throws is {@code
+ * SynthesisStatementThatThrowsTest}'s: it drops a table, so it runs on a database of its own and not in
+ * this class's context, whose database every class of its kind shares.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -144,51 +146,55 @@ class SynthesisStatementProgressOrderTest {
                 recorded -> new ClusterMaterial(SEED_PATH, List.of()),
                 MODEL_NAME,
                 THE_WINDOW,
-                new GenerationProgress() {
-                    @Override
-                    public void statementStarting(SynthesisStatement statement, OptionalLong rowsUpTo) {
-                        calls.add("statementStarting(" + statement + ", " + rowsUpTo + ")");
-                    }
+                new RecordingProgress());
+    }
 
-                    @Override
-                    public void stepsTaken(SynthesisStatement statement, long steps) {
-                        calls.add("stepsTaken(" + statement + ", " + steps + ")");
-                    }
+    /** Every callback, in the order it came, written into {@link #calls} as the call it was. */
+    private class RecordingProgress implements GenerationProgress {
 
-                    @Override
-                    public void statementEnded(SynthesisStatement statement) {
-                        calls.add(ended(statement));
-                    }
+        @Override
+        public void statementStarting(SynthesisStatement statement, OptionalLong rowsUpTo) {
+            calls.add("statementStarting(" + statement + ", " + rowsUpTo + ")");
+        }
 
-                    @Override
-                    public void noSendableDocument(RecordedCluster cluster) {
-                        calls.add("noSendableDocument");
-                    }
+        @Override
+        public void stepsTaken(SynthesisStatement statement, long steps) {
+            calls.add("stepsTaken(" + statement + ", " + steps + ")");
+        }
 
-                    @Override
-                    public void nothingFitsTheWindow(RecordedCluster cluster, int documentCount, int contextWindow) {
-                        calls.add("nothingFitsTheWindow");
-                    }
+        @Override
+        public void statementEnded(SynthesisStatement statement) {
+            calls.add(ended(statement));
+        }
 
-                    @Override
-                    public void noDocumentCountedInsideTheRoom(RecordedCluster cluster, ClusterFault fault) {
-                        calls.add("noDocumentCountedInsideTheRoom");
-                    }
+        @Override
+        public void noSendableDocument(RecordedCluster cluster) {
+            calls.add("noSendableDocument");
+        }
 
-                    @Override
-                    public void answerTurnedDown(RecordedCluster cluster, ClusterFault fault) {
-                        calls.add("answerTurnedDown");
-                    }
+        @Override
+        public void nothingFitsTheWindow(RecordedCluster cluster, int documentCount, int contextWindow) {
+            calls.add("nothingFitsTheWindow");
+        }
 
-                    @Override
-                    public void toGoThrough(long clusterCount) {
-                        calls.add("toGoThrough " + clusterCount);
-                    }
+        @Override
+        public void noDocumentCountedInsideTheRoom(RecordedCluster cluster, ClusterFault fault) {
+            calls.add("noDocumentCountedInsideTheRoom");
+        }
 
-                    @Override
-                    public void clusterGoneThrough() {
-                        calls.add("clusterGoneThrough");
-                    }
-                });
+        @Override
+        public void answerTurnedDown(RecordedCluster cluster, ClusterFault fault) {
+            calls.add("answerTurnedDown");
+        }
+
+        @Override
+        public void toGoThrough(long clusterCount) {
+            calls.add("toGoThrough " + clusterCount);
+        }
+
+        @Override
+        public void clusterGoneThrough() {
+            calls.add("clusterGoneThrough");
+        }
     }
 }

@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -275,6 +276,91 @@ class SimilarityStatementProgressOrderTest {
                         .containsExactly(
                                 starting(SimilarityStatement.SHINGLE_HASH_INDEX_BUILD, OptionalLong.of(highestRow)),
                                 ended(SimilarityStatement.SHINGLE_HASH_INDEX_BUILD)));
+    }
+
+    /**
+     * ADR-204 section 4, "on every path but one that throws", for a counted statement of {@code similarity}:
+     * the table is dropped once the read has been announced, so the read itself is what fails.
+     */
+    @Test
+    @Story("Resolving redundancy says what it is reading")
+    @DisplayName("A read of the signed occurrences that throws is not said to have ended, and leaves no handler behind")
+    void aCountedReadThatThrowsIsNotSaidToHaveEnded() throws SQLException {
+        oneSignatureRow();
+        Recorder recorder = new DroppingATableWhenStarted(SimilarityStatement.SIGNED_OCCURRENCES, "minhash_signature");
+
+        claim(
+                "resolution fails as the template reports any statement's failure, once the table is gone",
+                () -> assertThatThrownBy(() -> new RedundancyResolution(jdbcTemplate, ledger)
+                                .resolve(stage4, stage3, stage2, Set.of(), recorder))
+                        .isInstanceOf(DataAccessException.class));
+        claim(
+                "the caller was told the read was starting, over the " + ONE_ROW + " row the run held, and never"
+                        + " that it ended",
+                () -> assertThat(recorder.calls)
+                        .containsExactly(
+                                starting(SimilarityStatement.SIGNED_OCCURRENCES, OptionalLong.of(ONE_ROW))));
+        claim("and neither connection of the pool carries a handler afterwards", () -> assertThat(pool.handlersLeft())
+                .isZero());
+    }
+
+    /** The same for a timed statement, which has no handler to leave: the read of the signature bands. */
+    @Test
+    @Story("Resolving redundancy says what it is reading")
+    @DisplayName("A read of the signature bands that throws is not said to have ended")
+    void aTimedReadThatThrowsIsNotSaidToHaveEnded() throws SQLException {
+        oneSignatureRow();
+        Recorder recorder = new DroppingATableWhenStarted(SimilarityStatement.SIGNATURE_BANDS, "signature_band");
+
+        claim(
+                "resolution fails as the template reports any statement's failure, once the table is gone",
+                () -> assertThatThrownBy(() -> new RedundancyResolution(jdbcTemplate, ledger)
+                                .resolve(stage4, stage3, stage2, Set.of(), recorder))
+                        .isInstanceOf(DataAccessException.class));
+        claim(
+                "the caller was told the read of the signed occurrences started and ended, and that the read of"
+                        + " the bands started, with no total, and never that it ended; no loop was announced",
+                () -> assertThat(recorder.calls)
+                        .containsExactly(
+                                starting(SimilarityStatement.SIGNED_OCCURRENCES, OptionalLong.of(ONE_ROW)),
+                                ended(SimilarityStatement.SIGNED_OCCURRENCES),
+                                starting(SimilarityStatement.SIGNATURE_BANDS, OptionalLong.empty())));
+    }
+
+    /** The one signature row the two tests of a read that throws give the run, so resolution has something signed. */
+    private static final int ONE_ROW = 1;
+
+    /** An occurrence number far above any this fixture's walk holds; foreign keys are not enforced on this pool. */
+    private static final long AN_OCCURRENCE_NO_WALK_HOLDS = 1_000_000L;
+
+    private void oneSignatureRow() throws SQLException {
+        try (Connection connection = pool.connection();
+                PreparedStatement insert = connection.prepareStatement("INSERT INTO minhash_signature"
+                        + " (occurrence_id, run_id, signature_identity, signature) VALUES (?, ?, 'identity', x'00')")) {
+            insert.setLong(1, AN_OCCURRENCE_NO_WALK_HOLDS);
+            insert.setString(2, stage4.value());
+            insert.executeUpdate();
+        }
+    }
+
+    /** A recorder that drops {@code table} when {@code statement} is announced, so that statement is what fails. */
+    private final class DroppingATableWhenStarted extends Recorder {
+
+        private final SimilarityStatement statement;
+        private final String table;
+
+        DroppingATableWhenStarted(SimilarityStatement statement, String table) {
+            this.statement = statement;
+            this.table = table;
+        }
+
+        @Override
+        public void statementStarting(SimilarityStatement started, OptionalLong rowsUpTo) {
+            super.statementStarting(started, rowsUpTo);
+            if (started == statement) {
+                jdbcTemplate.execute("DROP TABLE " + table);
+            }
+        }
     }
 
     private static String starting(SimilarityStatement statement, OptionalLong rowsUpTo) {
