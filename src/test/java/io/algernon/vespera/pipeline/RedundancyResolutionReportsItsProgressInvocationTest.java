@@ -8,6 +8,8 @@ import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.ConverterStopsPartwayBeans;
+import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -18,6 +20,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -122,6 +125,9 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Ledger ledger;
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
@@ -321,6 +327,98 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
         Long span = jdbcTemplate.queryForObject(
                 "SELECT MAX(rowid) - MIN(rowid) + 1 FROM " + table + " WHERE run_id = ?", Long.class, run);
         return span == null ? 0 : span;
+    }
+
+    /**
+     * What resolving again over synthetic signatures leaves alone (ADR-204, Tests): the verdicts under the
+     * redundancy run. The first invocation writes one, for the near-duplicate pair. Then signature rows are
+     * written under its run against the files of a folder nobody walked, enough for the read of the signed
+     * occurrences to pass one callback, the record that 4b finished is deleted, and the next invocation
+     * resolves again under the same run with those rows among the signed. Which of the pair is the one
+     * removed is not written here: the verdicts after are compared with the verdicts before.
+     */
+    @Test
+    @Story("Measuring and resolving redundancy say how far they have got")
+    @DisplayName("Resolving again with thousands of synthetic signatures among the signed writes the verdict it wrote before and no other")
+    void resolvingAgainOverSyntheticSignaturesWritesTheSameVerdicts(@TempDir Path root) throws IOException {
+        aCorpusWithOneNearDuplicatePair(root);
+        cli.run("run", root.toString());
+        String run = theRun(root, StageModules.CONTENT_REDUNDANCY.stage());
+        List<String> verdictsOfTheFirstInvocation = verdictsUnder(run);
+        claim(
+                "the first invocation wrote one verdict under the redundancy run, for the one of the pair it"
+                        + " removed, so there is a verdict for the second to keep or to lose",
+                () -> assertThat(verdictsOfTheFirstInvocation).hasSize(ONE_VERDICT));
+        List<Long> nobodysFiles = filesOfAFolderNobodyWalked(SIGNATURES_PAST_ONE_CALLBACK);
+        List<Object[]> signatures = new ArrayList<>();
+        for (Long file : nobodysFiles) {
+            signatures.add(new Object[] {file, run});
+        }
+        jdbcTemplate.batchUpdate(
+                "INSERT INTO minhash_signature (occurrence_id, run_id, signature_identity, signature)"
+                        + " VALUES (?, ?, 'synthetic', x'00')",
+                signatures);
+        jdbcTemplate.update(
+                "DELETE FROM finished_step WHERE run_id = ? AND step = ?", run, StepNames.CONTENT_REDUNDANCY);
+        logged.list.clear();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation reported success and resolved again, under the same run",
+                () -> {
+                    assertThat(cli.getExitCode()).isZero();
+                    assertThat(operatorLines()).anyMatch(line -> line.startsWith(STARTING + run));
+                });
+        claim(
+                "the read of the signed occurrences went through the synthetic rows: it said about how far it"
+                        + " had gone, which a read of three rows never does",
+                () -> assertThat(operatorLines())
+                        .anyMatch(line -> line.startsWith(
+                                "Stage 4b (redundancy resolution, reading signed occurrences): about ")));
+        claim(
+                "the verdicts under the redundancy run are the one the first invocation wrote and no other: the"
+                        + " same document, kind and reason",
+                () -> assertThat(verdictsUnder(run)).isEqualTo(verdictsOfTheFirstInvocation));
+        claim(
+                "one pair is still recorded as near-duplicates, and no verdict of any run is against a file of"
+                        + " the folder nobody walked",
+                () -> {
+                    assertThat(nearDuplicatesRecorded(run)).isEqualTo(ONE_VERDICT);
+                    assertThat(jdbcTemplate.queryForObject(
+                                    "SELECT COUNT(*) FROM verdict WHERE occurrence_id >= ? AND occurrence_id <= ?",
+                                    Long.class,
+                                    nobodysFiles.getFirst(),
+                                    nobodysFiles.getLast()))
+                            .isZero();
+                });
+    }
+
+    /** Enough signature rows, at five steps a row, to pass the 100,000 steps at which SQLite first calls back. */
+    private static final int SIGNATURES_PAST_ONE_CALLBACK = 21_000;
+
+    /** Every verdict under {@code run}, as the occurrence, the kind and the reason, in a fixed order. */
+    private List<String> verdictsUnder(String run) {
+        return jdbcTemplate.queryForList(
+                "SELECT occurrence_id || ' ' || kind || ' ' || reason FROM verdict WHERE run_id = ?"
+                        + " ORDER BY occurrence_id, kind, reason",
+                String.class,
+                run);
+    }
+
+    /** {@code files} recorded under a walk of a folder that does not exist: in no run's survivors. */
+    private List<Long> filesOfAFolderNobodyWalked(int files) {
+        WalkId walk = ledger.startWalk(Path.of("C:/synthetic-" + System.nanoTime()));
+        List<Object[]> rows = new ArrayList<>();
+        for (int file = 0; file < files; file++) {
+            rows.add(new Object[] {walk.value(), "synthetic-" + file + ".txt"});
+        }
+        jdbcTemplate.batchUpdate(
+                "INSERT INTO file_occurrence (walk_id, path, size_bytes, last_modified, creation_time)"
+                        + " VALUES (?, ?, 1, 1, 1)",
+                rows);
+        return jdbcTemplate.queryForList(
+                "SELECT id FROM file_occurrence WHERE walk_id = ? ORDER BY id", Long.class, walk.value());
     }
 
     /**

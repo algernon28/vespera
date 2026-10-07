@@ -2,6 +2,7 @@ package io.algernon.vespera.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.PoolOfTwo;
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -169,6 +171,87 @@ class EmbeddingStatementProgressOrderTest {
                 .isZero());
     }
 
+    /**
+     * ADR-204 section 4, "on every path but one that throws", for a counted statement of {@code embedding}:
+     * the table is dropped once the read has been announced, so the read itself is what fails.
+     */
+    @Test
+    @Story("Comparing the seeds with the collection says what it is reading")
+    @DisplayName("A read of the unusable seeds that throws is not said to have ended, and leaves no handler behind")
+    void aCountedReadThatThrowsIsNotSaidToHaveEnded() throws SQLException {
+        measured(corpusWalk, "kept.txt", extractionRun);
+        OccurrenceId unusable = measured(seedWalk, "empty.pdf", measurementRun);
+        new UnusableSeeds(jdbcTemplate).record(unusable, measurementRun, "recorded unusable by this test");
+        Recorder recorder = new DroppingATableWhenStarted(EmbeddingStatement.UNUSABLE_SEEDS, "unusable_seed");
+
+        claim(
+                "the comparison fails as the template reports any statement's failure, once the table is gone",
+                () -> assertThatThrownBy(() -> new SeedCorpusComparison(jdbcTemplate, ledger)
+                                .measure(measurementRun, extractionRun, seedWalk, recorder))
+                        .isInstanceOf(DataAccessException.class));
+        claim(
+                "the caller was told both drains started and ended and the read started, over the "
+                        + ONE_UNUSABLE_SEED + " row the run held, and never that the read ended",
+                () -> assertThat(recorder.calls)
+                        .containsExactly(
+                                starting(EmbeddingStatement.CORPUS_SURVIVORS, OptionalLong.empty()),
+                                ended(EmbeddingStatement.CORPUS_SURVIVORS),
+                                starting(EmbeddingStatement.SEED_OCCURRENCES, OptionalLong.empty()),
+                                ended(EmbeddingStatement.SEED_OCCURRENCES),
+                                starting(EmbeddingStatement.UNUSABLE_SEEDS, OptionalLong.of(ONE_UNUSABLE_SEED))));
+        claim("and neither connection of the pool carries a handler afterwards", () -> assertThat(pool.handlersLeft())
+                .isZero());
+    }
+
+    /**
+     * The same for a timed statement, which has no handler to leave: the drain of the seed walk's
+     * occurrences, which fails once the table it reads them from is gone.
+     */
+    @Test
+    @Story("Comparing the seeds with the collection says what it is reading")
+    @DisplayName("A drain of the seed folder's files that throws is not said to have ended")
+    void aTimedDrainThatThrowsIsNotSaidToHaveEnded() {
+        measured(corpusWalk, "kept.txt", extractionRun);
+        Recorder recorder = new DroppingATableWhenStarted(EmbeddingStatement.SEED_OCCURRENCES, "file_occurrence");
+
+        claim(
+                "the comparison fails on the database's own refusal, the table the drain reads being gone",
+                () -> assertThatThrownBy(() -> new SeedCorpusComparison(jdbcTemplate, ledger)
+                                .measure(measurementRun, extractionRun, seedWalk, recorder))
+                        .hasRootCauseInstanceOf(SQLException.class));
+        claim(
+                "the caller was told the first drain started and ended and the second started, with no total, and"
+                        + " never that it ended; no read was announced after it",
+                () -> assertThat(recorder.calls)
+                        .containsExactly(
+                                starting(EmbeddingStatement.CORPUS_SURVIVORS, OptionalLong.empty()),
+                                ended(EmbeddingStatement.CORPUS_SURVIVORS),
+                                starting(EmbeddingStatement.SEED_OCCURRENCES, OptionalLong.empty())));
+    }
+
+    /** The one unusable seed the test of a read that throws records. */
+    private static final int ONE_UNUSABLE_SEED = 1;
+
+    /** A recorder that drops {@code table} when {@code statement} is announced, so that statement is what fails. */
+    private final class DroppingATableWhenStarted extends Recorder {
+
+        private final EmbeddingStatement statement;
+        private final String table;
+
+        DroppingATableWhenStarted(EmbeddingStatement statement, String table) {
+            this.statement = statement;
+            this.table = table;
+        }
+
+        @Override
+        public void statementStarting(EmbeddingStatement started, OptionalLong rowsUpTo) {
+            super.statementStarting(started, rowsUpTo);
+            if (started == statement) {
+                jdbcTemplate.execute("DROP TABLE " + table);
+            }
+        }
+    }
+
     private static int indexOfCallOpening(List<String> calls, String opening) {
         for (int i = 0; i < calls.size(); i++) {
             if (calls.get(i).startsWith(opening)) {
@@ -187,7 +270,7 @@ class EmbeddingStatementProgressOrderTest {
     }
 
     /** Every callback, in the order it came, written as the call it was. */
-    private static final class Recorder implements EmbeddingStatementProgress {
+    private static class Recorder implements EmbeddingStatementProgress {
 
         final List<String> calls = new ArrayList<>();
 

@@ -363,6 +363,15 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(BLOCKS)).isEmpty());
         everyLineIsTheCounters(RELEVANCE_FLOOR, REPORT_ANSWERS, PARTITIONS);
         claim(
+                "grouping says it read the seed partitions, the documents left and the members of the one"
+                        + " partition, and says nothing of that partition's group sizes: it kept no member, so"
+                        + " nothing was grouped and no sizes were read",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_F))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
+                                StatementLines.timedRead(STAGE_FIVE_F, CORPUS_SURVIVORS),
+                                StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 1"))));
+        claim(
                 "with a threshold that is a number and applies, the floor step makes three reads and says so of"
                         + " each, in order: the embedder identities, the recorded answers the threshold is"
                         + " checked against, and the scores below it",
@@ -568,8 +577,9 @@ class StageFiveReportsItsProgressInvocationTest {
      * containment loop goes through each. So the test holds what that could have changed: the verdicts
      * under the redundancy run are the ones the first invocation wrote, and none is against a file of the
      * folder nobody walked. With this fixture the first invocation writes none under that run, every
-     * converted document coming back alike, so what is held is that the synthetic signatures added none. It
-     * claims nothing about what any other stage decides.
+     * converted document coming back alike, so what is held here is that the synthetic signatures added none;
+     * {@code RedundancyResolutionReportsItsProgressInvocationTest} holds the same over a run that does hold a
+     * verdict. It claims nothing about what any other stage decides.
      */
     @Test
     @Story("A long read inside the database reports how far it has gone")
@@ -681,6 +691,141 @@ class StageFiveReportsItsProgressInvocationTest {
                         .containsSubsequence(
                                 THE_REPORT + " read the scores in ", "stage 5's relevance-report step is gated"));
     }
+
+    /**
+     * ADR-204 section 3, for 5f over two partitions: the members of every partition are read before the first
+     * is grouped, each read naming its partition and how many there are, and the sizes of a partition's groups
+     * are read once that partition is grouped.
+     *
+     * <p>The scripted embedder answers every chunk alike, so one seed wins every document and no corpus here
+     * makes two partitions of its own. So a first invocation scores the collection against two seeds, the
+     * score row of one document is then rewritten to name the other seed as the one that won it, and the
+     * record that grouping finished is deleted: the next invocation groups again, under the same run, over
+     * two partitions. Which seed is the first partition is the order of their ids and is not claimed.
+     */
+    @Test
+    @Story("Grouping says what it is reading")
+    @DisplayName("Over two partitions, grouping reads the members of both before it groups either, and then the group sizes of each")
+    void clusteringOverTwoPartitionsReadsTheMembersOfBothBeforeItGroupsEither(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        Files.writeString(seeds.resolve("second-seed.txt"), "a second seed document, about something else");
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        theStageRan(CLUSTERING_FINISHED);
+        String scoring = theLatestRunOf(StageModules.EMBEDDING_SCORING.stage());
+        List<Long> winners = jdbcTemplate.queryForList(
+                "SELECT DISTINCT winning_seed_occurrence_id FROM relevance_score WHERE run_id = ?", Long.class, scoring);
+        claim(
+                "the first invocation scored every document against one winning seed: one partition",
+                () -> assertThat(winners).hasSize(ONE_PARTITION));
+        Long theOtherSeed = jdbcTemplate.queryForObject(
+                "SELECT id FROM file_occurrence WHERE id <> ?"
+                        + " AND walk_id = (SELECT walk_id FROM file_occurrence WHERE id = ?)",
+                Long.class,
+                winners.getFirst(),
+                winners.getFirst());
+        jdbcTemplate.update(
+                "UPDATE relevance_score SET winning_seed_occurrence_id = ? WHERE run_id = ? AND occurrence_id ="
+                        + " (SELECT MIN(occurrence_id) FROM relevance_score WHERE run_id = ?)",
+                theOtherSeed,
+                scoring,
+                scoring);
+        forgetThatItFinished(scoring, StepNames.CLUSTERING);
+        logged.list.clear();
+
+        cli.run("run", root.toString());
+
+        claim("the second invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
+        theStageRan(CLUSTERING_FINISHED);
+        claim(
+                "grouping counted " + TWO_PARTITIONS + " partitions",
+                () -> assertThat(progressOf(PARTITIONS))
+                        .containsExactlyElementsOf(ProgressLines.expected(PARTITIONS, TWO_PARTITIONS)));
+        claim(
+                "the files hashed are one counter over both partitions' members, " + CORPUS_DOCUMENTS + " in all",
+                () -> assertThat(progressOf(FILES_HASHED))
+                        .containsExactlyElementsOf(ProgressLines.expected(FILES_HASHED, CORPUS_DOCUMENTS)));
+        claim(
+                "each partition's counter over its pairs of blocks names the partition and how many there are:"
+                        + " partition 1 of 2 and partition 2 of 2, one pair of blocks each",
+                () -> {
+                    assertThat(progressOf(BLOCKS_OF_THE_FIRST_OF_TWO))
+                            .containsExactlyElementsOf(
+                                    ProgressLines.expected(BLOCKS_OF_THE_FIRST_OF_TWO, ONE_PAIR_OF_BLOCKS));
+                    assertThat(progressOf(BLOCKS_OF_THE_SECOND_OF_TWO))
+                            .containsExactlyElementsOf(
+                                    ProgressLines.expected(BLOCKS_OF_THE_SECOND_OF_TWO, ONE_PAIR_OF_BLOCKS));
+                });
+        claim(
+                "it says what it is reading and how long each read took, each line once, in the order it reads:"
+                        + " the seed partitions, the documents left, the members of partition 1 of 2 and of"
+                        + " partition 2 of 2, and only then the group sizes of partition 1 of 2 and of partition"
+                        + " 2 of 2",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_F))
+                        .containsExactlyElementsOf(StatementLines.inOrder(
+                                StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
+                                StatementLines.timedRead(STAGE_FIVE_F, CORPUS_SURVIVORS),
+                                StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 2"),
+                                StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 2 of 2"),
+                                StatementLines.timedRead(STAGE_FIVE_F, "the cluster sizes of partition 1 of 2"),
+                                StatementLines.timedRead(STAGE_FIVE_F, "the cluster sizes of partition 2 of 2"))));
+        claim(
+                "and each partition's group sizes are read before that partition is counted as done, the first's"
+                        + " before the second's: the sizes follow the partition's own grouping, where the"
+                        + " members of both were read before either",
+                () -> assertThat(String.join("\n", operatorLines()))
+                        .containsSubsequence(
+                                STAGE_FIVE_F + " read the members of partition 2 of 2 in ",
+                                STAGE_FIVE_F + " read the cluster sizes of partition 1 of 2 in ",
+                                PARTITIONS + ": 1 of 2",
+                                STAGE_FIVE_F + " read the cluster sizes of partition 2 of 2 in ",
+                                PARTITIONS + ": 2 of 2"));
+    }
+
+    /**
+     * ADR-204 section 3, the other half of what it says of the report's read of the scores: a read that fails
+     * for any reason but finding none is a statement that failed, and writes no line after it. The table of
+     * scores is renamed away between two invocations, so the second's read of it fails inside the database,
+     * and renamed back whatever happens, one database serving the whole class.
+     */
+    @Test
+    @Story("The relevance report says what it is reading")
+    @DisplayName("Where the read of the scores fails, the report says it began reading them and never that it read them")
+    void theReportDoesNotSayItReadTheScoresWhereTheReadFails(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        theStageRan(RELEVANCE_REPORT_FINISHED);
+        logged.list.clear();
+
+        jdbcTemplate.execute("ALTER TABLE relevance_score RENAME TO relevance_score_renamed_away");
+        try {
+            cli.run("run", root.toString());
+        } finally {
+            jdbcTemplate.execute("ALTER TABLE relevance_score_renamed_away RENAME TO relevance_score");
+        }
+
+        claim(
+                "the invocation failed, and the report did not finish",
+                () -> {
+                    assertThat(cli.getExitCode()).isNotZero();
+                    assertThat(operatorLines()).noneMatch(line -> line.startsWith(RELEVANCE_REPORT_FINISHED));
+                });
+        claim(
+                "the report said it was reading the scores, and no line says it read them: the one line about a"
+                        + " read of its is the line before",
+                () -> assertThat(StatementLines.of(operatorLines(), THE_REPORT))
+                        .containsExactly(THE_REPORT + " is reading the scores"));
+    }
+
+    /** The two partitions the rewritten score row makes of one. */
+    private static final int TWO_PARTITIONS = 2;
+
+    private static final String BLOCKS_OF_THE_FIRST_OF_TWO = "Stage 5f (clustering, comparison blocks, partition 1 of 2)";
+    private static final String BLOCKS_OF_THE_SECOND_OF_TWO =
+            "Stage 5f (clustering, comparison blocks, partition 2 of 2)";
 
     /** Enough rows for a read that takes five steps a row to pass the 100,000 at which SQLite first calls back. */
     private static final int ROWS_PAST_ONE_CALLBACK_AT_FIVE_STEPS = 21_000;

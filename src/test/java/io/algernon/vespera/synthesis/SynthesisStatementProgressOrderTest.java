@@ -2,8 +2,10 @@ package io.algernon.vespera.synthesis;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.PoolOfTwo;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
@@ -14,7 +16,9 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.IOException;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,14 +26,18 @@ import java.util.OptionalLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * What {@code synthesis} tells its caller around the two statements of {@code ClusterGeneration.write}, and
@@ -129,6 +137,85 @@ class SynthesisStatementProgressOrderTest {
                                 ended(SynthesisStatement.STANDING_FAULTS)));
     }
 
+    /**
+     * ADR-204 section 4, "on every path but one that throws", for {@code synthesis}, whose two statements
+     * are both timed: the table each reads is dropped once the read has been announced, so the read itself
+     * is what fails. On a database file of the test's own, so that no other test loses the table, and outside
+     * the transaction this class's other tests run in: inside one, Spring keeps the file's connection until
+     * the transaction ends, which is after the folder holding the file is removed.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Story("Writing over the groups says what it is reading")
+    @DisplayName("A read of the groups already written that throws is not said to have ended, and the walk is never announced")
+    void theReadOfWhatIsWrittenThatThrowsIsNotSaidToHaveEnded(@TempDir Path folder) throws SQLException, IOException {
+        try (PoolOfTwo pool = new PoolOfTwo(folder)) {
+            claim(
+                    "writing fails as the template reports any statement's failure, once the table is gone",
+                    () -> assertThatThrownBy(() -> writeDroppingATable(pool, SynthesisStatement.WRITTEN, "synthesis_doc"))
+                            .isInstanceOf(DataAccessException.class));
+            claim(
+                    "the caller was told the read started, with no total, and nothing after it",
+                    () -> assertThat(calls).containsExactly(starting(SynthesisStatement.WRITTEN)));
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Story("Writing over the groups says what it is reading")
+    @DisplayName("A read of the standing faults that throws is not said to have ended")
+    void theReadOfTheStandingFaultsThatThrowsIsNotSaidToHaveEnded(@TempDir Path folder)
+            throws SQLException, IOException {
+        try (PoolOfTwo pool = new PoolOfTwo(folder)) {
+            claim(
+                    "writing fails as the template reports any statement's failure, once the table is gone",
+                    () -> assertThatThrownBy(
+                                    () -> writeDroppingATable(pool, SynthesisStatement.STANDING_FAULTS, "cluster_fault"))
+                            .isInstanceOf(DataAccessException.class));
+            claim(
+                    "the caller was told the first read started and ended, the walk over no group was"
+                            + " announced, and the second read started, with no total, and never that it ended",
+                    () -> assertThat(calls)
+                            .containsExactly(
+                                    starting(SynthesisStatement.WRITTEN),
+                                    ended(SynthesisStatement.WRITTEN),
+                                    "toGoThrough 0",
+                                    starting(SynthesisStatement.STANDING_FAULTS)));
+        }
+    }
+
+    /** Writes over no cluster, on {@code pool}, with a caller that drops {@code table} when {@code statement} is announced. */
+    private void writeDroppingATable(PoolOfTwo pool, SynthesisStatement statement, String table) {
+        JdbcTemplate ownDatabase = pool.jdbcTemplate();
+        Ledger ledger = new Ledger(ownDatabase);
+        WalkId walk = ledger.startWalk(Path.of("C:/corpus-statements"));
+        RunId ownRun = ledger.startRun("generation", "g-statements", "{}", walk, List.of());
+        ChatModel neverAsked = new ChatModel() {
+            @Override
+            public ChatResponse call(Prompt prompt) {
+                throw new IllegalStateException("no answer is asked for in this test");
+            }
+        };
+        calls.clear();
+        new ClusterGeneration(
+                        new ClusterSynthesis(neverAsked), new SynthesisDocs(ownDatabase), new ClusterFaults(ownDatabase))
+                .write(
+                        ownRun,
+                        List.of(),
+                        recorded -> new ClusterMaterial(SEED_PATH, List.of()),
+                        MODEL_NAME,
+                        THE_WINDOW,
+                        new RecordingProgress() {
+                            @Override
+                            public void statementStarting(SynthesisStatement started, OptionalLong rowsUpTo) {
+                                super.statementStarting(started, rowsUpTo);
+                                if (started == statement) {
+                                    ownDatabase.execute("DROP TABLE " + table);
+                                }
+                            }
+                        });
+    }
+
     private static String starting(SynthesisStatement statement) {
         return "statementStarting(" + statement + ", " + OptionalLong.empty() + ")";
     }
@@ -144,51 +231,55 @@ class SynthesisStatementProgressOrderTest {
                 recorded -> new ClusterMaterial(SEED_PATH, List.of()),
                 MODEL_NAME,
                 THE_WINDOW,
-                new GenerationProgress() {
-                    @Override
-                    public void statementStarting(SynthesisStatement statement, OptionalLong rowsUpTo) {
-                        calls.add("statementStarting(" + statement + ", " + rowsUpTo + ")");
-                    }
+                new RecordingProgress());
+    }
 
-                    @Override
-                    public void stepsTaken(SynthesisStatement statement, long steps) {
-                        calls.add("stepsTaken(" + statement + ", " + steps + ")");
-                    }
+    /** Every callback, in the order it came, written into {@link #calls} as the call it was. */
+    private class RecordingProgress implements GenerationProgress {
 
-                    @Override
-                    public void statementEnded(SynthesisStatement statement) {
-                        calls.add(ended(statement));
-                    }
+        @Override
+        public void statementStarting(SynthesisStatement statement, OptionalLong rowsUpTo) {
+            calls.add("statementStarting(" + statement + ", " + rowsUpTo + ")");
+        }
 
-                    @Override
-                    public void noSendableDocument(RecordedCluster cluster) {
-                        calls.add("noSendableDocument");
-                    }
+        @Override
+        public void stepsTaken(SynthesisStatement statement, long steps) {
+            calls.add("stepsTaken(" + statement + ", " + steps + ")");
+        }
 
-                    @Override
-                    public void nothingFitsTheWindow(RecordedCluster cluster, int documentCount, int contextWindow) {
-                        calls.add("nothingFitsTheWindow");
-                    }
+        @Override
+        public void statementEnded(SynthesisStatement statement) {
+            calls.add(ended(statement));
+        }
 
-                    @Override
-                    public void noDocumentCountedInsideTheRoom(RecordedCluster cluster, ClusterFault fault) {
-                        calls.add("noDocumentCountedInsideTheRoom");
-                    }
+        @Override
+        public void noSendableDocument(RecordedCluster cluster) {
+            calls.add("noSendableDocument");
+        }
 
-                    @Override
-                    public void answerTurnedDown(RecordedCluster cluster, ClusterFault fault) {
-                        calls.add("answerTurnedDown");
-                    }
+        @Override
+        public void nothingFitsTheWindow(RecordedCluster cluster, int documentCount, int contextWindow) {
+            calls.add("nothingFitsTheWindow");
+        }
 
-                    @Override
-                    public void toGoThrough(long clusterCount) {
-                        calls.add("toGoThrough " + clusterCount);
-                    }
+        @Override
+        public void noDocumentCountedInsideTheRoom(RecordedCluster cluster, ClusterFault fault) {
+            calls.add("noDocumentCountedInsideTheRoom");
+        }
 
-                    @Override
-                    public void clusterGoneThrough() {
-                        calls.add("clusterGoneThrough");
-                    }
-                });
+        @Override
+        public void answerTurnedDown(RecordedCluster cluster, ClusterFault fault) {
+            calls.add("answerTurnedDown");
+        }
+
+        @Override
+        public void toGoThrough(long clusterCount) {
+            calls.add("toGoThrough " + clusterCount);
+        }
+
+        @Override
+        public void clusterGoneThrough() {
+            calls.add("clusterGoneThrough");
+        }
     }
 }
