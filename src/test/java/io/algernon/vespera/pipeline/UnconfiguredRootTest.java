@@ -109,8 +109,8 @@ class UnconfiguredRootTest {
     }
 
     /**
-     * The sentence of the refusal, which only its exit code held until now. ADR-208 takes the
-     * root requirement away from {@code vespera label --auto} and keeps it here, so this is the one
+     * The sentence of the refusal, which only its exit code held until ADR-208. That record took the
+     * root requirement away from {@code vespera label --auto} and kept it here, so this is the one
      * command left that says a root is never guessed.
      */
     @Test

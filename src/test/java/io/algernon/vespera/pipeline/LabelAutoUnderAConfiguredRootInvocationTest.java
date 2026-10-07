@@ -37,14 +37,14 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * {@code vespera label --auto} on a machine whose configuration names a corpus root, as an operator's
- * local profile does for {@code vespera run} (ADR-066), with no {@code --root} on the command line
- * (ADR-208 section 5).
+ * local profile does for {@code vespera run} (ADR-066). The command line names no root, and since
+ * ADR-208 {@code label} has no option to name one with (ADR-208 section 5).
  *
  * <p>The configured root is a directory nobody created. The labelling succeeds all the same, because the
  * command finds each document through the run the label file names (ADR-206 section 4), and it asks
- * for no root on standard error. Both hold before ADR-208's change, when the
- * property satisfied the requirement and was then never read, and after it, when the command does not
- * read the property at all.
+ * for no root on standard error. Both held before ADR-208's change, when the property satisfied a
+ * requirement the command then had and was never read after that, and both hold since it, now that the
+ * command does not read the property at all.
  *
  * <p>A class of its own because the property is bound when the context is built: the classes that
  * label with no root configured cannot also be the one that configures one. It has its own working
@@ -74,7 +74,7 @@ class LabelAutoUnderAConfiguredRootInvocationTest {
     /** A name resolved under an empty temporary directory and never created, so nothing can be read under it. */
     private static final String A_FOLDER_NOBODY_CREATED = "a-configured-root-nobody-created";
 
-    /** How the refusal ADR-208 removes opened; with a root configured it was never reached. */
+    /** How the refusal ADR-208 removed opened; with a root configured it was never reached. */
     private static final String HOW_THE_REMOVED_REFUSAL_OPENS = "vespera label --auto named no root";
 
     /** The opening each question put to the scripted labeller, empty where none could be read. */

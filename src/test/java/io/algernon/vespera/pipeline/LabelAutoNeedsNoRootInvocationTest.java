@@ -41,10 +41,10 @@ import picocli.CommandLine;
  * {@code vespera label --auto} needs no corpus root, and {@code --root} is no longer an option of
  * {@code label}, with {@code --auto} or without (ADR-208).
  *
- * <p><b>Parked.</b> Every test here fails until ADR-208's change to {@code VesperaCommand.Label} lands:
- * today the command refuses with no root, and accepts {@code --root} on both forms. This file is kept
- * at {@code docs/adr/0208/tests/} followed by the path it takes in the repository, and moves into
- * {@code src/test} with that change.
+ * <p>Written before ADR-208's change to {@code VesperaCommand.Label}, when the command refused with no
+ * root and accepted {@code --root} on both forms, so every test here failed. Until that change landed
+ * the file was kept at {@code docs/adr/0208/tests/} followed by this path; it moved here with the
+ * change, unedited, and every test passes since (#451).
  *
  * <p>What is claimed of the refused option is what is this project's: the exit code, that nothing was
  * labelled or asked, and that standard error names the option. The sentence around the name is
@@ -74,10 +74,10 @@ class LabelAutoNeedsNoRootInvocationTest {
     /** The words every scripted conversion carries, so finding them means a document's opening was put. */
     private static final String WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH = "stubbed but real content";
 
-    /** The option ADR-208 removes from {@code label}. */
+    /** The option ADR-208 removed from {@code label}. */
     private static final String THE_REMOVED_OPTION = "--root";
 
-    /** How the refusal ADR-208 removes opened. */
+    /** How the refusal ADR-208 removed opened. */
     private static final String HOW_THE_REMOVED_REFUSAL_OPENS = "vespera label --auto named no root";
 
     /** The opening each question put to the scripted labeller, empty where none could be read. */
