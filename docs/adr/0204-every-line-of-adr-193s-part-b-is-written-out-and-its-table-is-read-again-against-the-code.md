@@ -1,5 +1,7 @@
 # ADR-204 — Every line of ADR-193's part (b) is written out, and its table is read again against the code
 
+> **Settled since — see [ADR-205](0205-the-relevance-report-counts-the-answers-a-model-gave-as-it-looks-each-up.md).** The loop §7 found with no counter and left to #444, `RelevanceReportTasklet.modelAnswersInThisWalk`, has had one since that record: `Stage 5 (relevance report, model answers matched)`, over the answers a model gave for the seed set. ADR-205 changes nothing this record decided, and §7 and "the loop of §7" under *What this does not decide* stand as what this record knew when it was written.
+
 - **Date**: 2026-10-06
 - **Status**: accepted
 - **Extends**: [ADR-193](0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md) §4, §6 and §7: every statement of its part (b) is given the `<stage>` its lines open with, the four enums are listed with their constants, and one statement §6 could not have named is given a form (§2).
