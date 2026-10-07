@@ -1200,6 +1200,16 @@ public final class Adr {
     public static final String A_FILE_IS_HASHED_THROUGH_A_FIXED_BUFFER = FILE
             + "0207-a-file-is-hashed-through-a-fixed-buffer-so-its-size-sets-no-limit.md";
 
+    /**
+     * ADR-208 -- {@code vespera label --auto} needs no corpus root, since it opens nothing under one,
+     * and {@code --root} is no longer an option of {@code label}, with {@code --auto} or without, so a
+     * command line that passes it is refused as a usage error; {@code vespera.corpus-root} is read by
+     * {@code vespera run} alone, whose rule stands (amends ADR-197 section 6 and ADR-206 sections 4 and
+     * 7; keeps ADR-066; settles #451 by the operator's choice of its option (b)).
+     */
+    public static final String LABEL_AUTO_NEEDS_NO_CORPUS_ROOT = FILE
+            + "0208-vespera-label-auto-needs-no-corpus-root-and-root-is-no-longer-an-option-of-label.md";
+
     private Adr() {
     }
 }

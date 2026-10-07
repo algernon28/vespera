@@ -111,7 +111,7 @@ class RefusingLabellerInvocationTest {
         cli.run("run", root.toString());
         byte[] before = Files.readAllBytes(workingDirectory.resolve(LABEL_FILE));
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim("the invocation exits 1", () -> assertThat(cli.getExitCode()).isEqualTo(1));
         claim(

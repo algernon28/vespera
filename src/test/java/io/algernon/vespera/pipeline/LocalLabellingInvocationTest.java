@@ -140,7 +140,7 @@ class LocalLabellingInvocationTest {
         aScoredCorpus(root, seeds);
         UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("corpus.txt"));
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
         claim(
@@ -174,7 +174,7 @@ class LocalLabellingInvocationTest {
         Path labels = workingDirectory.resolve(LABEL_FILE);
         Files.writeString(labels, Files.readString(labels).replace("corpus.txt", A_PATH_THE_RUN_NEVER_WALKED));
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim(
                 "the invocation reports success: a file somebody edited is theirs to correct, and one"
@@ -198,7 +198,7 @@ class LocalLabellingInvocationTest {
     void recordsTheAnswersWithTheModelsName(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aScoredCorpus(root, seeds);
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
         claim(
@@ -221,7 +221,7 @@ class LocalLabellingInvocationTest {
     void setsTheFloorByTheRule(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aScoredCorpus(root, seeds);
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         Profile profile = profileStore.load();
         claim(
@@ -248,7 +248,7 @@ class LocalLabellingInvocationTest {
                 .relevanceScoreFloor("0.123", "set by the operator, by hand")
                 .build());
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim(
                 "the value and the provenance are the operator's still",
@@ -268,7 +268,7 @@ class LocalLabellingInvocationTest {
         Files.writeString(labels, Files.readString(labels).replace("relevant: null", "relevant: false"));
         cli.run("label");
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
         claim("the model was not asked about it", () -> assertThat(QUESTIONS.get()).isZero());
@@ -285,7 +285,7 @@ class LocalLabellingInvocationTest {
     @DisplayName("Editing the model's answer in the file and labelling makes it the person's")
     void aPersonCanOverruleTheModel(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aScoredCorpus(root, seeds);
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         cli.run("label");
         claim(
@@ -314,7 +314,7 @@ class LocalLabellingInvocationTest {
         Files.writeString(labels, Files.readString(labels).replace("relevant: null", "relevant: false"));
         byte[] before = Files.readAllBytes(labels);
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim("the invocation fails", () -> assertThat(cli.getExitCode()).isEqualTo(1));
         claim(
@@ -336,7 +336,7 @@ class LocalLabellingInvocationTest {
                 .relevanceScoreFloor("0.123", "set by the rule that loses no documentation (an earlier run)")
                 .build());
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim(
                 "the rule's own earlier value is replaced by what the labels say now",
@@ -349,7 +349,7 @@ class LocalLabellingInvocationTest {
     @DisplayName("A later vespera run keeps the mark of who set an answer in the label file")
     void aLaterRunKeepsTheMark(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aScoredCorpus(root, seeds);
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         cli.run("run", root.toString());
 
@@ -362,23 +362,11 @@ class LocalLabellingInvocationTest {
 
     @Test
     @Story("A label a model set says so")
-    @DisplayName("--auto names no root, and refuses rather than guess one")
-    void refusesWithNoRoot(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aScoredCorpus(root, seeds);
-
-        cli.run("label", "--auto");
-
-        claim("the invocation fails", () -> assertThat(cli.getExitCode()).isNotZero());
-        claim("the model was asked nothing", () -> assertThat(QUESTIONS.get()).isZero());
-    }
-
-    @Test
-    @Story("A label a model set says so")
     @DisplayName("--auto with a file is refused, since it works on the file the last run wrote")
     void refusesAFileWithAuto(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aScoredCorpus(root, seeds);
 
-        cli.run("label", "--auto", "--root", root.toString(), workingDirectory.resolve(LABEL_FILE).toString());
+        cli.run("label", "--auto", workingDirectory.resolve(LABEL_FILE).toString());
 
         claim("the invocation fails", () -> assertThat(cli.getExitCode()).isNotZero());
         claim("the model was asked nothing", () -> assertThat(QUESTIONS.get()).isZero());
