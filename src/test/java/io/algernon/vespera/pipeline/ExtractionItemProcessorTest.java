@@ -231,6 +231,74 @@ class ExtractionItemProcessorTest {
                 () -> assertThat(next.kind()).isEqualTo(VerdictKind.DEGENERATE_OUTPUT));
     }
 
+    /**
+     * The processor's own hash, the second of stage 2's two places that hash a file (ADR-206 section 2):
+     * reached only where nothing was dispatched ahead, which in the job never happens, so it is held here
+     * rather than by a whole invocation. One file, so stage 1 hashed nothing and this step must.
+     */
+    @Test
+    @Story("A file stage 2 cannot hash")
+    @DisplayName("A file gone when the processor hashes it is removed as one that could not be read, and is not sent to the converter")
+    @Issue("452")
+    @Link(name = "ADR-210", url = Adr.A_FILE_THAT_CANNOT_BE_READ_IS_MARKED_AND_THE_STEP_GOES_ON, type = "adr")
+    void aFileGoneWhenTheProcessorHashesItIsMarkedAndNotSent(@TempDir Path root) throws Exception {
+        Corpus corpus = corpusOf(root, 1);
+        ScriptedExtractor docling = new ScriptedExtractor().thenAlwaysAnswering(converted());
+        Files.delete(root.resolve("document-0.txt"));
+
+        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
+
+        claim(
+                "the occurrence is removed as one extraction failed on, and its reason says the file could not"
+                        + " be read",
+                () -> {
+                    assertThat(outcome.kind()).isEqualTo(VerdictKind.EXTRACTION_FAILED);
+                    assertThat(outcome.reason()).startsWith("could not be read: ");
+                });
+        claim(
+                "the converter was asked nothing: there were no bytes to send",
+                () -> assertThat(docling.conversions()).isZero());
+        claim(
+                "and nothing was measured, and no key recorded, for it",
+                () -> {
+                    assertThat(jdbcTemplate.queryForObject(
+                                    "SELECT COUNT(*) FROM extraction_metric WHERE occurrence_id = ?",
+                                    Integer.class,
+                                    corpus.occurrence(0).value()))
+                            .isZero();
+                    assertThat(jdbcTemplate.queryForObject(
+                                    "SELECT COUNT(*) FROM extraction_cache_key WHERE occurrence_id = ?",
+                                    Integer.class,
+                                    corpus.occurrence(0).value()))
+                            .isZero();
+                });
+    }
+
+    @Test
+    @Story("The folder being read is gone")
+    @DisplayName("A folder gone when the processor hashes one of its files stops the step, naming the folder, and marks nothing")
+    @Issue("452")
+    @Link(name = "ADR-210", url = Adr.A_FILE_THAT_CANNOT_BE_READ_IS_MARKED_AND_THE_STEP_GOES_ON, type = "adr")
+    void aFolderGoneWhenTheProcessorHashesStopsTheStep(@TempDir Path parent) throws Exception {
+        Path root = Files.createDirectory(parent.resolve("corpus"));
+        Corpus corpus = corpusOf(root, 1);
+        String canonicalRoot = io.algernon.vespera.corpus.Walk.canonicalRoot(root).toString();
+        ScriptedExtractor docling = new ScriptedExtractor().thenAlwaysAnswering(converted());
+        ExtractionItemProcessor processor = processorOver(corpus, docling);
+        Files.move(root, parent.resolve("moved-away"));
+
+        Throwable stopped = org.assertj.core.api.Assertions.catchThrowable(() -> processor.process(corpus.occurrence(0)));
+
+        claim(
+                "the step is stopped, by a failure that names the folder that can no longer be listed",
+                () -> assertThat(stopped)
+                        .isNotNull()
+                        .hasMessageContaining("the corpus root " + canonicalRoot + " can no longer be listed"));
+        claim(
+                "and the converter was asked nothing",
+                () -> assertThat(docling.conversions()).isZero());
+    }
+
     /** A response Docling answered cleanly with, carrying nothing for this step to judge. */
     private static DoclingResponse converted() {
         return new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 0d, null, "{}");

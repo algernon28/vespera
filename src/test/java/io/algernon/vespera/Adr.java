@@ -1210,6 +1210,18 @@ public final class Adr {
     public static final String LABEL_AUTO_NEEDS_NO_CORPUS_ROOT = FILE
             + "0208-vespera-label-auto-needs-no-corpus-root-and-root-is-no-longer-an-option-of-label.md";
 
+    /**
+     * ADR-210 -- a file the file system will not hand over when stage 1 hashes it is left unhashed and
+     * goes on, and one stage 2 cannot hash or send earns {@code extraction-failed} under a reason that
+     * begins {@code could not be read: }, with no metric, key or cache row, no retry and no part in either
+     * row of five; every such failure first asks whether the corpus root can still be listed, and one
+     * that cannot stops the step naming the root and removes nothing; stage 1's broken check is unchanged
+     * but for that check (amends ADR-206 section 7, the prefix sentence of ADR-175 section 7 and ADR-207
+     * section 4; extends ADR-184 section 4 and ADR-206 section 2 by one row each; settles #452).
+     */
+    public static final String A_FILE_THAT_CANNOT_BE_READ_IS_MARKED_AND_THE_STEP_GOES_ON = FILE
+            + "0210-a-file-that-cannot-be-read-is-marked-and-the-step-goes-on-and-a-corpus-root-that-can-no-longer-be-listed-stops-it.md";
+
     private Adr() {
     }
 }

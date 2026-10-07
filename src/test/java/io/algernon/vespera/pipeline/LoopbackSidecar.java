@@ -93,6 +93,8 @@ final class LoopbackSidecar implements AutoCloseable {
     private final AtomicReference<String> everyCallAnsweredWith = new AtomicReference<>();
     private final AtomicBoolean controlDropped = new AtomicBoolean();
     private final AtomicReference<String> controlAnsweredWith = new AtomicReference<>();
+    private final AtomicInteger healthChecks = new AtomicInteger();
+    private final AtomicReference<Runnable> beforeEachHealthCheck = new AtomicReference<>(() -> {});
 
     private LoopbackSidecar(HttpServer server, ExecutorService threads) {
         this.server = server;
@@ -183,6 +185,21 @@ final class LoopbackSidecar implements AutoCloseable {
         healthDiesWithADrop.set(true);
     }
 
+    /**
+     * Runs {@code action} each time the health check is asked, before it is answered (ADR-210). Stage 2
+     * asks it once before it reads anything, after stage 1 has finished, so this is where a test takes a
+     * file, or the whole folder being read, away between the two stages within one invocation. The action
+     * runs on every check, a wait after a dropped connection included, so it must be safe to repeat.
+     */
+    void beforeEachHealthCheck(Runnable action) {
+        beforeEachHealthCheck.set(action);
+    }
+
+    /** How often the health check has been asked, answered healthy or not. */
+    int healthChecks() {
+        return healthChecks.get();
+    }
+
     /** How often each document has been posted, answered or not. */
     Map<Integer, Long> callsPerDocument() {
         return List.copyOf(calls).stream().collect(Collectors.groupingBy(document -> document, Collectors.counting()));
@@ -195,6 +212,8 @@ final class LoopbackSidecar implements AutoCloseable {
     }
 
     private void health(HttpExchange exchange) throws IOException {
+        healthChecks.incrementAndGet();
+        beforeEachHealthCheck.get().run();
         exchange.sendResponseHeaders(healthy.get() ? 200 : 503, -1);
         exchange.close();
     }

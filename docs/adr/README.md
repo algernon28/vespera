@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-208.
+One file per architecture decision, ADR-001 through ADR-210.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -227,3 +227,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md) | 2026-10-07 | Stage 2 records the key it looked the extraction cache up under, and no step after it opens an archive file *(amends ADR-151 §2 to §5, ADR-152 §1 and §3 to §5, ADR-149 §9 and §10, ADR-192 §4, the reason in ADR-197 §6; restores two sentences of ADR-104)* |
 | [ADR-207](0207-a-file-is-hashed-through-a-fixed-buffer-so-its-size-sets-no-limit.md) | 2026-10-07 | A file is hashed through a fixed buffer, so its size sets no limit *(amends one sentence of ADR-200's Context and one word of ADR-151's; keeps ADR-040, ADR-059, ADR-067, ADR-100, ADR-127, ADR-140, ADR-155, ADR-206; rests on ADR-048, ADR-058; leaves what a file that cannot be read does to stage 1 and stage 2 undecided)* |
 | [ADR-208](0208-vespera-label-auto-needs-no-corpus-root-and-root-is-no-longer-an-option-of-label.md) | 2026-10-07 | `vespera label --auto` needs no corpus root, and `--root` is no longer an option of `label` *(amends ADR-197 §6, ADR-206 §4 and §7; keeps ADR-066, ADR-054, ADR-141)* |
+| [ADR-210](0210-a-file-that-cannot-be-read-is-marked-and-the-step-goes-on-and-a-corpus-root-that-can-no-longer-be-listed-stops-it.md) | 2026-10-07 | A file that cannot be read is marked and the step goes on, and a corpus root that can no longer be listed stops it *(amends one sentence of ADR-206 §7, the prefix sentence of ADR-175 §7, and ADR-207 §4; extends ADR-184 §4 and ADR-206 §2 by a row each, and ADR-188's two progress interfaces; keeps ADR-155, ADR-181, ADR-185, ADR-207 §3; leaves a file sealed `broken` at stage 1, a disk that lists but will not read, and a root gone before a step sets up undecided)* |
