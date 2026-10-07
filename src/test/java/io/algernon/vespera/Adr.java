@@ -1212,7 +1212,8 @@ public final class Adr {
 
     /**
      * ADR-210 -- a file the file system will not hand over when stage 1 hashes it is left unhashed and
-     * goes on, and one stage 2 cannot hash or send earns {@code extraction-failed} under a reason that
+     * goes on, and one stage 2 cannot hash, send, or read whole to convert in parts earns
+     * {@code extraction-failed} under a reason that
      * begins {@code could not be read: }, with no metric, key or cache row, no retry and no part in either
      * row of five; every such failure first asks whether the corpus root can still be listed, and one
      * that cannot stops the step naming the root and removes nothing; stage 1's broken check is unchanged

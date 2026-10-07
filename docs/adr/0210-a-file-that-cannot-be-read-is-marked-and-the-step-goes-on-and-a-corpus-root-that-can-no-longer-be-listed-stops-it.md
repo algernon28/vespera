@@ -7,7 +7,7 @@
 - **Amends**: [ADR-207](0207-a-file-is-hashed-through-a-fixed-buffer-so-its-size-sets-no-limit.md) §4, which left this open, and the Consequence that repeats it (§8.3).
 - **Extends**: [ADR-184](0184-five-failures-in-a-row-stop-stage-2-only-when-the-converter-then-fails-a-control-conversion.md) §4 and ADR-206 §2, each by one row of its table (§8.4, §8.5); [ADR-188](0188-stage-1s-verdict-rules-and-content-identity-live-in-corpus-which-still-knows-no-stage.md) §2's `HashingProgress` and `CheckingProgress`, each by one method with a default body, and its sentence on the order within one survivor, by one step (§4).
 - **Keeps**: ADR-207 §3 (an `Error` thrown while a file is hashed is caught by nothing), [ADR-155](0155-a-seed-file-that-will-not-open-is-recorded-under-a-reason-of-its-own-and-seed-extraction-records-no-completion-until-it-opens.md) (seed extraction, unchanged, its §1 sentence on a seed that vanishes after it is hashed included), [ADR-068](0068-broken-is-a-cross-format-floor-plus-per-format-structural-checks-no-new-dependency.md) and [ADR-094](0094-stage-1-decides-what-a-file-is-from-its-bytes-the-extension-may-only-narrow-within-that-class.md) (the broken check and the formats stage 1 records), [ADR-181](0181-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md) (a stopped stage 2 keeps its committed chunks), [ADR-185](0185-stage-2-asks-the-converter-again-under-a-run-of-its-own-when-extractionattempt-is-raised-and-nothing-is-discarded.md) (asking again is a new stage-2 run), [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-100](0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md) (the module rule and its one exception), [ADR-059](0059-schema-version-is-one-row-per-module-checked-and-refused-independently.md) (no schema version moves).
-- **Rests on**: ADR-175 (a file that fails is marked and the run goes on, and §3a's reason for bounding that rule), ADR-184 §4 (what is evidence about the converter), [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-048](0048-walk-and-run-identity.md) (which run ids move); the operator's decisions on #452, grilled to the design recorded here; and the invocation tests that ship with this record, each run against commit `6eb88a2` before anything in `src/main` changed, with one throwaway measurement beside them (Context). No archive and no working directory was opened for this record (ADR-196).
+- **Rests on**: ADR-175 (a file that fails is marked and the run goes on, and §3a's reason for bounding that rule), ADR-184 §4 (what is evidence about the converter), [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-048](0048-walk-and-run-identity.md) (which run ids move); the operator's decisions on #452, grilled to the design recorded here; and the invocation tests that ship with this record, each run before anything in `src/main` changed, at commit `6eb88a2` and, for the read of a text converted in parts, at `abadff8`, with one throwaway measurement beside them (Context). No archive and no working directory was opened for this record (ADR-196).
 - **Settles** [#452](https://github.com/algernon28/vespera/issues/452), which is the second point of [#449](https://github.com/algernon28/vespera/issues/449).
 
 Two phrases in this record are its own. A file **cannot be read** when the file system will not hand over its bytes: it is locked by another program, it has gone since the walk, its permission was removed, or a read fails partway. The **archive has gone** when the corpus root can no longer be listed: the disk dropped out, the share was disconnected, the folder was moved.
@@ -16,7 +16,7 @@ Two phrases in this record are its own. A file **cannot be read** when the file 
 
 ADR-207 §4 measured what a file that cannot be read does, and left the change to this ticket because of one fact: today's stop is the only thing that notices an archive that has gone. Marking the file and going on would, with nothing else, mark every file after a disk drops out, complete the step and exit 0.
 
-**Measured at `6eb88a2`**, by the tests that ship with this record and by one throwaway measurement that does not ship (the last row). Each test the rows below come from is red against that commit; one more test that ships with them is green there by design and measures nothing in this table (What pins it). Synthetic files only; the "folder" is a corpus root of the test's own, moved away whole.
+**Measured at `6eb88a2`**, by the tests that ship with this record and by one throwaway measurement that does not ship (the last row). Each test the rows below come from is red against that commit; one more test that ships with them is green there by design and measures nothing in this table (What pins it). The row for a text converted in parts was measured later, at `abadff8`, whose `src/main` differs from `6eb88a2` only in `vespera label` (ADR-208). Synthetic files only; the "folder" is a corpus root of the test's own, moved away whole.
 
 | Where | What the test did | What happened |
 | --- | --- | --- |
@@ -24,12 +24,13 @@ ADR-207 §4 measured what a file that cannot be read does, and left the change t
 | stage 2's processor, its hash | deleted the file before the processor hashed it | `UncheckedIOException: could not hash <path>` left the processor |
 | stage 2, the call, for a file stage 1 had hashed | deleted five such files, all read in a row, after stage 1 and before stage 2 read them | **each read as the converter's doing.** The production client reads a file as it posts it, so a file that is gone fails the call before a byte is sent, and the client reports `I/O error on POST request for "<url>": <path>` as a lost connection. Each file was waited for, asked about again, and marked `crashed the converter: docling-serve dropped the connection twice while converting this file: …`; the five made a row of five; the control conversion was sent; where it did not convert, the step stopped |
 | stage 2, the call, the folder gone | moved the folder away just before stage 2 placed its first call | **every file was marked `crashed the converter`, and the step completed.** This is the outcome ADR-207 §4 said a bound must prevent, and it happens today, by the route #452 suspected |
+| stage 2, the call, a text converted in parts (ADR-178), for two files stage 1 had hashed | after stage 1, shut both files' contents away and left their size readable: on Windows, where it was run, by a lock over each whole file | **the step failed** on the worker's `java.io.IOException` that another process had locked a portion of the file, and its closing line said to bring docling-serve back. Nothing was posted |
 | stage 1, hashing | deleted one of two files of one length after the other was hashed | the step failed and the whole stage rolled back: no verdict, no hash, nothing recorded as finished |
 | stage 1, hashing, the folder gone | moved the folder away after the first hash | the same, on `NoSuchFileException` naming the file |
 | stage 1, first pass, the folder gone | moved the folder away after the first file was checked | the first file's log count could not be read, a warning; **every later file was marked `broken`** (*"the file could not be read: …"*), and stage 1 finished |
 | stage 2's setup, the folder gone | stage 2 began after the folder had gone: in the invocation of the row above, once stage 1 had finished, which that row's test logs and asserts nothing about; and in a throwaway measurement, outside the repository and not shipped, that moved the folder away as stage 2 checked the converter's health | the step failed before reading anything, building its run holder: `Error creating bean with name 'scopedTarget.extractionReader' … StageRuns: Constructor threw exception`. Nothing was removed; the line names neither the folder nor what to do |
 
-So three of the four places a file is read already fail the wrong way for an archive that has gone: stage 1's first pass marks every file broken, and stage 2's call marks every file as having crashed the converter, without stopping.
+So three of the four places a file is read already fail the wrong way for an archive that has gone: stage 1's first pass marks every file broken, and stage 2's call marks every file as having crashed the converter, without stopping. And a text converted in parts whose contents cannot be read stops stage 2 as a file stage 2 cannot hash does.
 
 ## Decision
 
@@ -66,10 +67,13 @@ So three of the four places a file is read already fail the wrong way for an arc
 | stage 2, reader: `ConversionDispatch.dispatchIfConvertible` | `could not hash <path>` from `DoclingExtractor.contentHashFor` | nothing is dispatched; the occurrence earns `could not be read` (§5) | stop, from `read()` |
 | stage 2, processor: `ExtractionItemProcessor.contentHashOf` | the same | the same | stop |
 | stage 2, processor: the first `DoclingConnectionLostException` of an occurrence, before `SidecarRecovery` is asked to wait | the call lost its connection | then check that the file opens: if it does not, `could not be read`, with no wait and no retry; if it does, ADR-175 §2 as today | stop |
+| stage 2, the call for a text converted in parts (ADR-178): `TextParts.convertInParts`, on the worker, met by the processor where it takes or places the call | its `Files.readAllBytes` of the whole file, before any part is posted | the occurrence earns `could not be read` (§5); no part is posted, and nothing waits or asks again | stop |
 
 **Not sites, and why.** `BrokenOrOutOfScope`'s log count (`TimestampedLines`) and its leading-bytes read already treat a failed read as "not a log" and "unreadable" in the mix: the file is kept, so nothing is removed for it, and the next file's broken check meets a gone archive. The retry after a first drop, ADR-175 §2: the file opened a moment before it, so a second drop is the converter's; that reading is wrong when the disk was lost during the wait between the two, which is left open (What this does not decide). Seed extraction: ADR-155, unchanged.
 
 **Why the opening check on a lost connection.** The table above measured it: the client reports a file it cannot read as a lost connection. Without the check, a file gone after stage 1 hashed it costs the wait for the sidecar, a second call and a `crashed the converter` mark, and counts towards a row of five. The check opens the file for reading and closes it, reading no byte.
+
+**Why the read of a text converted in parts.** It is the operator's choice, made on this ticket's gate, so that a file that cannot be read is marked wherever stage 2 reads it. Before that read, stage 2 reads the file's size and its first four bytes to decide whether to cut it, and a failure of either decides that it is not cut, so it is posted whole and meets the lost-connection row above. The whole-file read is therefore reached by a file whose size reads and whose contents do not: one locked against reads, one whose read permission was removed, one whose read fails partway, or one gone in the moment between its first bytes and the whole read. Today its `IOException` leaves the worker as an `UncheckedIOException`, which nothing in the step catches, so the step stops (Context). No opening check is made there: the read that failed was the file's own.
 
 ### 4. Stage 1
 
@@ -87,7 +91,7 @@ So three of the four places a file is read already fail the wrong way for an arc
 
 ### 5. Stage 2
 
-**A file stage 2 cannot hash, or that does not open when its call has lost its connection, earns `extraction-failed` at once**, with a reason that begins `could not be read: ` and goes on with what the file system reported: the cause beneath `could not hash <path>`, or the exception the opening check met.
+**A file stage 2 cannot hash, that does not open when its call has lost its connection, or that cannot be read whole when it is converted in parts, earns `extraction-failed` at once**, with a reason that begins `could not be read: ` and goes on with what the file system reported: the cause beneath `could not hash <path>`, the exception the opening check met, or the `IOException` of the whole-file read.
 
 - **It is not an extraction fault.** A fault is a call the converter got and blamed on itself (ADR-139). The converter was never asked about this file, or never received it.
 - **No metric row, no key row, no cache row** (ADR-183, ADR-206 §2): no response came back. ADR-206 §2's table gains the row (§8.5).
@@ -107,7 +111,7 @@ So three of the four places a file is read already fail the wrong way for an arc
 The change that implements this touches three modules under `src/main`, read against `StageModules` (ADR-058):
 
 - **`corpus`**: `ContentIdentityResolution`, `HashingProgress`, `BrokenCheck`, `BrokenOrOutOfScope`, `CheckingProgress`. **Stage 1 moves**, and every later stage through its upstream run (ADR-048).
-- **`extraction`**: `OccurrenceJudge`. **Stage 2 moves**, and stages 3, 4, both runs of stage 5, 6a and 6b, which all name `extraction`.
+- **`extraction`**: `OccurrenceJudge`, `TextParts` and the exception it throws for its whole-file read. **Stage 2 moves**, and stages 3, 4, both runs of stage 5, 6a and 6b, which all name `extraction`.
 - **`pipeline`**: the check, the exception, `ByteLevelReductionTasklet`, `ConversionDispatch`, `PendingConversions`, `ExtractionItemProcessor`, `ExtractionHealthCheckListener`, `StepFailure`, `ReviewListReport`. Stages 3 to 6b, already moved.
 
 So **every stage's run id from 1 to 6b moves once**; the census records a walk, which has no implementation version. **No `ConfigConsumed` record and no module list changes**, so `RunIdentityGoldenTest` is not edited. **No schema version moves**: no table, column or index changes.
@@ -136,7 +140,7 @@ Earlier records are not edited. Each correction is made here.
 
 | The occurrence on the drain | ADR-071's breaker | ADR-175 §3a's count |
 |---|---|---|
-| Could not be read: its file would not hash, or would not open when its call lost its connection | leaves it as it is | leaves it as it is |
+| Could not be read: its file would not hash, would not open when its call lost its connection, or would not read whole to be converted in parts | leaves it as it is | leaves it as it is |
 
 **8.5 ADR-206 §2's table gains one row**, and its rule, that the occurrences with a key row are exactly those with a metric row, stands:
 
@@ -171,10 +175,11 @@ Earlier records are not edited. Each correction is made here.
 - `ByteLevelReductionTasklet`'s two implementations: the root check, the WARN line and the counter;
 - `OccurrenceJudge`'s method for `could not be read`, telling `FailuresInARow` there was no evidence;
 - `ConversionDispatch` and `PendingConversions` filing an occurrence that could not be read; `ExtractionItemProcessor` finding such an occurrence in `PendingConversions` before it hashes anything (today it looks up only a key there, and would hash the file again), and acting at its own hash and at the first lost connection, the root check and the opening check before `SidecarRecovery.awaitHealthy`;
+- the read of a text converted in parts: `TextParts.convertInParts` throws an exception of `extraction`'s own, carrying the `IOException`, when its `Files.readAllBytes` of the file fails, and for nothing else (not its temporary directory, not a part's call; recommended: `CouldNotBeReadException`); `DoclingExtractor.convertUncached` and `PendingConversions.take` let it through as they let any unchecked exception through; `ExtractionItemProcessor` catches it wherever it takes or places a call, in `doProcess` around `pending.take` and `convertNow` and in `retryAfterDrop` around its `convertNow`, asks §2's question, and gives the `could not be read` verdict through `OccurrenceJudge`'s method, with no wait and no second call;
 - the constructors the tests build, kept as they are: `ExtractionItemProcessor`'s ten-argument one, which `ExtractionItemProcessorTest` calls, and `ByteLevelReductionTasklet`'s;
 - `ReviewListReport`'s sentence of §8.2, and the class javadoc that lists the same reasons;
 - the javadoc that states the old rule: `ContentIdentityResolution`, `HashingProgress`, `CheckingProgress`, `BrokenCheck.check`, `ConversionDispatch`, `ExtractionItemProcessor`'s class javadoc and `retryAfterDrop`'s;
-- `AGENTS.md`'s paragraph on the open defect, which says ADR-210 is decided and not yet built: rewritten in the same change that ships the code, to say #452 is closed by ADR-210.
+- not `AGENTS.md`: its paragraph on the open defect, which says ADR-210 is decided and not yet built, is rewritten by the `analyst` once the code has landed, to say #452 is closed by ADR-210, because `spec-implementer` does not edit Markdown.
 
 **What pins it.** Each test below was run against `6eb88a2`. Every one fails there for the reason given, except the two marked green, which pass there and must still pass after.
 
@@ -183,10 +188,11 @@ Earlier records are not edited. Each correction is made here.
   - a file deleted as stage 1 hashes the files of its length: stage 1 finishes, its content-hash counter reads `1 of 2` and `2 of 2`, the file has no hash and no stage-1 verdict, and stage 2 marks it `could not be read: `. *Red: stage 1 fails and rolls back.*
   - the folder gone as stage 1 hashes, and as stage 1 checks: the invocation fails, stage 1's line says it failed, names the root as one that can no longer be listed and says to reconnect, stage 1 is not finished, and no verdict is written. *Red: the line is not there; in the first pass, stage 1 finishes with every later file `broken`.*
   - the folder gone as stage 2 hashes: the invocation fails, stage 2's closing line names the root and says to reconnect, stage 1 is finished and stage 2 is not, and nothing is marked. *Red: the line names `could not hash` and the converter.*
-- `pipeline.AFileGoneBeforeItIsSentInvocationTest`, four tests, with the production client against `LoopbackSidecar`, which gains a hook run before each health check and a count of them:
+- `pipeline.AFileGoneBeforeItIsSentInvocationTest`, five tests, with the production client against `LoopbackSidecar`, which gains a hook run before each health check and a count of them:
   - five files gone after stage 1 hashed them, read in a row, with the control conversion dropped: stage 2 completes, each is marked `could not be read: ` and none `crashed the converter`, no control conversion is posted, the health check is asked once, and the file read last is posted once and kept. *Red: the five are a row of five and the step stops.*
   - a gone file read third among five that drop every call: the step still stops at five in a row, and the line naming the five names the five that dropped and not the gone file. *Red: the gone file is among the five.*
   - a gone file read third among five refused for `capacity`, the control conversion refused too: the breaker's stop. **Green against `6eb88a2` and after**: a file marked `crashed the converter` leaves the breaker as it is, and so does one that could not be read. It is there so that an implementation that counted the file as an answer fails.
+  - two texts too large to send whole, of one length so stage 1 hashes both, their contents shut away at stage 2's health check with their size left readable (a lock over each whole file on Windows, the read permission removed elsewhere, and skipped where that does not stop a read): stage 2 completes, each is marked `could not be read: `, nothing is posted, no part and no control conversion, and the health check is asked once. *Red: the step fails on the worker's `IOException`.* Measured at `abadff8`, on Windows only.
   - the folder gone just before stage 2 places its first call: the invocation fails, the closing line names the root and says to reconnect, nothing is marked, and the health check is asked once. *Red: every file is marked `crashed the converter` and the step completes.*
 - `pipeline.ExtractionItemProcessorTest`, two tests at the processor's own hash, which the job never reaches: a file gone is marked `could not be read: `, nothing is sent and nothing measured or keyed; the folder gone stops the processor with a failure naming the root. *Red: `could not hash` leaves the processor.*
 - `pipeline.ExtractionWhenTheSidecarDropsItsConnectionTest.theFilesExtractionCouldNotReadAreListedForReview`, moved to §8.2's sentence. *Red: the page carries ADR-175's.*
@@ -194,11 +200,10 @@ Earlier records are not edited. Each correction is made here.
 
 **Not pinned, and why:**
 
-- a file locked rather than gone. Holding a lock needs a second handle that excludes readers, which only Windows gives; gone and locked reach the same catches;
+- a file locked rather than gone, at every site but the read of a text converted in parts. Holding a lock needs a second handle that excludes readers, which only Windows gives; gone and locked reach the same catches;
 - the zip and PDF catches of the broken check, one by one: the first-pass test's folder is gone, so the size read fails first;
 - the WARN line of §4 and the exact wording after `could not be read: `;
 - the timeout streak's half of §5's "no evidence": no test here arranges timeouts around a file that cannot be read;
-- a text file converted in parts (ADR-178) that cannot be read when its call is placed. `TextParts.convertInParts` reads the whole file with `Files.readAllBytes`, on the worker, before it posts any part, so a file gone after it was hashed, by stage 1 or by stage 2's reader, fails there. That `IOException` leaves as an `UncheckedIOException`, not a lost connection, and is none of §3's sites, so as this record is written it stops the step as at `6eb88a2`; that is read from the code and not run. No test covers it: every file the tests here take away is small enough to be posted whole;
 - §7: nothing in a test can see a commit.
 
 ## What this does not decide

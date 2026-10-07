@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -18,13 +19,25 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
@@ -65,6 +78,14 @@ import org.springframework.test.context.DynamicPropertySource;
  * places its first call ({@link AMomentBeforeTheFirstCallIsPlaced}), because a folder already gone when
  * stage 2 sets itself up fails the step before it reads anything, which is not this record's case.
  *
+ * <p>One test does not take its files away: it shuts their contents away and leaves the files where
+ * they are, their size still readable. They are texts too large to send whole, which are converted in
+ * parts (ADR-178), and what stage 2 reads of such a file before it sends any part is its size, then its
+ * first bytes, then the whole of it; a file gone by then is not cut at all and is sent whole, so a file
+ * whose size reads and whose contents do not is how that last read is reached. On Windows a lock over
+ * the whole file is held; elsewhere its read permission is removed, and the test is skipped where that
+ * does not stop a read, as it does not for the superuser.
+ *
  * <p>The sidecar is real HTTP, as in {@link ExtractionWhenTheSidecarDropsItsConnectionTest}, whose
  * conventions this follows. Every test that needs files in a row learns the order stage 2 reads in
  * first, because that order is the file system's and not the names'.
@@ -102,6 +123,15 @@ class AFileGoneBeforeItIsSentInvocationTest {
 
     /** How often a file nothing went wrong with is posted. */
     private static final long ONCE = 1;
+
+    /** Two files of one length, so stage 1 hashes both and stage 2 hashes neither. */
+    private static final int TWO_FILES = 2;
+
+    /** A size over the largest text the converter is sent whole, so a text of it is converted in parts. */
+    private static final int TOO_LARGE_TO_SEND_WHOLE = Math.toIntExact(DoclingClient.TEXT_SIZE_CEILING_BYTES + 1_000);
+
+    /** How long each line of such a text is, its line end included: far shorter than a part. */
+    private static final int LINE_LENGTH = 100;
 
     /** How long these tests wait for a converter that dropped a connection to answer its health check. */
     private static final Duration WAIT_AT_MOST = Duration.ofSeconds(1);
@@ -281,6 +311,41 @@ class AFileGoneBeforeItIsSentInvocationTest {
                         .anyMatch(line -> line.startsWith(STAGE_2_FAILED) && line.contains(THE_BREAKERS_STOP)));
     }
 
+    /**
+     * The whole-file read of a text converted in parts, one of stage 2's places a file is read (ADR-210
+     * section 3). Before ADR-210 a failed read there left the worker as an unchecked I/O failure, which
+     * nothing in the step catches, so the step stopped.
+     */
+    @Test
+    @Story("A file whose contents cannot be read when it is cut into parts")
+    @DisplayName("Two text files too large to send whole, whose contents can no longer be read when they are cut into parts, are each removed as files that could not be read, nothing is sent, and extraction goes on")
+    void filesThatCannotBeReadWholeToBeConvertedInPartsAreMarkedAndTheStepGoesOn(@TempDir Path parent)
+            throws IOException {
+        assumeAShutFileCannotBeRead(parent);
+        Path root = theFolderBeingRead(parent);
+        List<Path> tooLarge = writeTwoFilesTooLargeToSendWhole(root);
+        sidecar.beforeEachHealthCheck(() -> tooLarge.forEach(this::shutItsContentsAway));
+        int checksBefore = sidecar.healthChecks();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "extraction completed: " + TWO_FILES + " files whose contents could not be read did not stop it",
+                () -> assertThat(lines()).anyMatch(line -> line.startsWith(STAGE_2_FINISHED)));
+        claim(
+                "each of the " + TWO_FILES + " was removed, and its reason says it could not be read",
+                () -> assertThat(extractionFailedReasons(root))
+                        .containsOnlyKeys(tooLarge.stream().map(file -> file.getFileName().toString()).toList())
+                        .allSatisfy((file, reason) -> assertThat(reason).startsWith(COULD_NOT_BE_READ)));
+        claim(
+                "nothing was sent to the converter, no part of either file and no control document: there were"
+                        + " no bytes to send, and files that could not be read say nothing about the converter",
+                () -> assertThat(sidecar.callsPerDocument()).isEmpty());
+        claim(
+                "and nothing waited for the converter: its health was asked once, before the stage read anything",
+                () -> assertThat(sidecar.healthChecks() - checksBefore).isEqualTo(ONLY_THE_CHECK_BEFORE_THE_STAGE));
+    }
+
     @Test
     @Story("The folder being read is gone")
     @DisplayName("When the folder being read is gone by the time its files are sent, extraction stops, names the folder, says to reconnect it, and removes nothing")
@@ -359,6 +424,94 @@ class AFileGoneBeforeItIsSentInvocationTest {
     @AfterEach
     void disarm() {
         AS_STAGE_2_LOOKS_UP_THE_FIRST_KEY.set(NOTHING);
+    }
+
+    /** What undoes each shutting away a test did, run after it so its folder can be cleaned up. */
+    private final List<Runnable> reopenings = new CopyOnWriteArrayList<>();
+
+    /** The files already shut away, so a second health check shuts nothing twice. */
+    private final Set<Path> shut = ConcurrentHashMap.newKeySet();
+
+    @AfterEach
+    void reopenWhatWasShut() {
+        reopenings.forEach(Runnable::run);
+        reopenings.clear();
+        shut.clear();
+    }
+
+    /**
+     * {@link #TWO_FILES} texts of {@link #TOO_LARGE_TO_SEND_WHOLE} bytes each, in short lines, each opening
+     * with a line of its own, so they share a length and neither is a copy of the other.
+     */
+    private static List<Path> writeTwoFilesTooLargeToSendWhole(Path root) throws IOException {
+        List<Path> written = new ArrayList<>();
+        for (int file = 1; file <= TWO_FILES; file++) {
+            byte[] text = new byte[TOO_LARGE_TO_SEND_WHOLE];
+            Arrays.fill(text, (byte) 'a');
+            for (int end = LINE_LENGTH - 1; end < text.length; end += LINE_LENGTH) {
+                text[end] = (byte) 10;
+            }
+            byte[] opening = "a text too large to send whole, number %d of %d, under %s"
+                    .formatted(file, TWO_FILES, root.getParent().getFileName())
+                    .getBytes(StandardCharsets.US_ASCII);
+            System.arraycopy(opening, 0, text, 0, Math.min(opening.length, LINE_LENGTH - 1));
+            written.add(Files.write(root.resolve("too-large-to-send-whole-%d.txt".formatted(file)), text));
+        }
+        return written;
+    }
+
+    /**
+     * Shuts {@code file}'s contents away and leaves its size readable: a lock over the whole of it on
+     * Windows, where a lock refuses another handle's reads; elsewhere, its read permission removed. Once
+     * for each file, however often it is asked.
+     */
+    private void shutItsContentsAway(Path file) {
+        if (!shut.add(file)) {
+            return;
+        }
+        try {
+            if (posix()) {
+                Set<PosixFilePermission> before = Files.getPosixFilePermissions(file);
+                Files.setPosixFilePermissions(file, Set.of());
+                reopenings.add(() -> {
+                    try {
+                        Files.setPosixFilePermissions(file, before);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+            } else {
+                FileChannel channel = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
+                FileLock lock = channel.lock();
+                reopenings.add(() -> {
+                    try (channel) {
+                        lock.release();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Skips the test where a file shut away by {@link #shutItsContentsAway} can still be read. */
+    private void assumeAShutFileCannotBeRead(Path parent) throws IOException {
+        Path trial = Files.writeString(parent.resolve("a-trial-of-shutting-a-file.txt"), "trial");
+        shutItsContentsAway(trial);
+        boolean read;
+        try (InputStream in = Files.newInputStream(trial)) {
+            in.read();
+            read = true;
+        } catch (IOException refused) {
+            read = false;
+        }
+        assumeTrue(!read, "a file shut away can still be read here, as by the superuser");
+    }
+
+    private static boolean posix() {
+        return FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
     }
 
     /** A folder of its own beneath {@code parent}, so a test can move the whole of it away and still clean up. */
