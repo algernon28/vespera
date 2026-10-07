@@ -15,6 +15,8 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.AbstractDataSource;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -75,8 +78,26 @@ class MetricsReadForAnotherModuleTest {
                 () -> assertThat(counts)
                         .containsOnly(Map.entry(fixture.first, FIRST_COUNT), Map.entry(fixture.second, SECOND_COUNT)));
         claim(
-                "and asking about no document asks the database nothing and answers with nothing",
-                () -> assertThat(fixture.metrics.alphanumericCharCounts(fixture.firstRun, List.of())).isEmpty());
+                "and asking about no document asks the database nothing and answers with nothing: the read is"
+                        + " made through a database that refuses every connection, so any statement at all would"
+                        + " have failed it",
+                () -> assertThat(new ExtractionMetrics(new JdbcTemplate(new RefusingEveryConnection()), new LanguageDetection())
+                                .alphanumericCharCounts(fixture.firstRun, List.of()))
+                        .isEmpty());
+    }
+
+    /** A data source no statement can be made through: each connection asked of it is refused. */
+    private static final class RefusingEveryConnection extends AbstractDataSource {
+
+        @Override
+        public Connection getConnection() throws SQLException {
+            throw new SQLException("this data source refuses every connection");
+        }
+
+        @Override
+        public Connection getConnection(String username, String password) throws SQLException {
+            return getConnection();
+        }
     }
 
     @Test

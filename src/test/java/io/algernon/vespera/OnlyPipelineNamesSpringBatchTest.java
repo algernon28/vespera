@@ -20,9 +20,11 @@ import org.junit.jupiter.api.Test;
  * amending ADR-060's consumer contract).
  *
  * <p>{@code ModuleBoundariesTest} cannot hold this. It checks one module's references to another, and
- * Spring Batch is a library, so a capability module that returned an {@code ItemStreamReader} passed it,
- * and four of them did. This reads every name each shipped class holds: a Batch type it returns, takes,
- * extends, calls or only mentions in a signature is among them.
+ * Spring Batch is a library, so a capability module that named an {@code ItemStreamReader} passed it.
+ * Five did: {@code ledger} returned one from three methods, and {@code corpus}, {@code extraction},
+ * {@code similarity} and {@code embedding} each opened, read and closed the one it returned. This reads
+ * every name each shipped class holds: a Batch type it returns, takes, extends, calls or only mentions
+ * in a signature is among them.
  *
  * <p>The second test is the ticket's own criterion, that no helper is left which empties a reader into a
  * set. Its type is looked up by name, so that this class compiles whether or not the type exists.
