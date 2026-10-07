@@ -69,7 +69,8 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p>Each moment at which a test takes something away has a seam of its own here, armed by the one test
  * that needs it and disarmed before and after every test, since the beans outlive a test and the order
- * tests run in is not fixed:
+ * tests run in is not fixed. Each acts once per arming, the first time it is reached, so a step that
+ * reaches it again meets what was done and nothing more:
  *
  * <ul>
  *   <li>stage 2's hash of one named file: the extraction double's {@code beforeHashing}, the seam
@@ -141,7 +142,12 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
     private static final Consumer<String> NOTHING_AFTER_A_HASH = sha256 -> {};
     private static final Runnable NOTHING_AFTER_A_CHECK = () -> {};
 
-    /** Done to {@link #HASHED_ONLY_BY_STAGE_2} just before stage 2 hashes it. */
+    /**
+     * Done once, to {@link #HASHED_ONLY_BY_STAGE_2}, just before stage 2 first hashes it. Stage 2 may hash
+     * the file more than once, in its reader and again in its processor, and a second move of a file or a
+     * folder already moved would fail inside the move itself; so a later hash does nothing here and meets
+     * what the first one did: the file, or the whole folder, is still gone.
+     */
     private static final AtomicReference<Consumer<Path>> AT_STAGE_2S_HASH = new AtomicReference<>(NOTHING_AT_THE_HASH);
 
     /** Done once, after stage 1 records the first hash it takes, given that hash. */
@@ -164,7 +170,9 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
         DoclingExtractor doclingExtractor(JdbcTemplate jdbcTemplate) {
             return new PathScriptedExtractor()
                     .cachingInto(jdbcTemplate)
-                    .beforeHashing(HASHED_ONLY_BY_STAGE_2, file -> AT_STAGE_2S_HASH.get().accept(file))
+                    .beforeHashing(
+                            HASHED_ONLY_BY_STAGE_2,
+                            file -> AT_STAGE_2S_HASH.getAndSet(NOTHING_AT_THE_HASH).accept(file))
                     .otherwiseAnswering(new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 0d, null, WITH_TEXT));
         }
 
