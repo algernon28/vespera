@@ -38,11 +38,11 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * {@code vespera label --auto} on a machine whose configuration names a corpus root, as an operator's
  * local profile does for {@code vespera run} (ADR-066), with no {@code --root} on the command line
- * (ADR-208 section 3, proposed).
+ * (ADR-208 section 5).
  *
  * <p>The configured root is a directory nobody created. The labelling succeeds all the same, because the
- * command finds each document through the run the label file names (ADR-206 section 4), and it writes
- * no line about a root, because the operator gave it none. Both hold before ADR-208's change, when the
+ * command finds each document through the run the label file names (ADR-206 section 4), and it asks
+ * for no root on standard error. Both hold before ADR-208's change, when the
  * property satisfied the requirement and was then never read, and after it, when the command does not
  * read the property at all.
  *
@@ -74,8 +74,8 @@ class LabelAutoUnderAConfiguredRootInvocationTest {
     /** A name resolved under an empty temporary directory and never created, so nothing can be read under it. */
     private static final String A_FOLDER_NOBODY_CREATED = "a-configured-root-nobody-created";
 
-    /** How the line opens that tells an operator a {@code --root} given to {@code --auto} was not used. */
-    private static final String HOW_THE_UNUSED_ROOT_LINE_OPENS = "--root is not used";
+    /** How the refusal ADR-208 removes opened; with a root configured it was never reached. */
+    private static final String HOW_THE_REMOVED_REFUSAL_OPENS = "vespera label --auto named no root";
 
     /** The opening each question put to the scripted labeller, empty where none could be read. */
     static final List<Optional<String>> OPENINGS_PUT = new CopyOnWriteArrayList<>();
@@ -137,7 +137,7 @@ class LabelAutoUnderAConfiguredRootInvocationTest {
 
     @Test
     @Story("Labelling opens nothing under the archive")
-    @DisplayName("With the archive's folder set in configuration and missing from disk, the model still labels, and nothing is said about the folder")
+    @DisplayName("With the archive's folder set in configuration and missing from disk, the model still labels, and nothing asks for a folder")
     void labelsUnderAConfiguredRootThatDoesNotExistAndSaysNothingAboutIt(
             @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
         claim(
@@ -163,9 +163,9 @@ class LabelAutoUnderAConfiguredRootInvocationTest {
                                 .hasValueSatisfying(text ->
                                         assertThat(text).contains(WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH))));
         claim(
-                "nothing is said about a folder that was not used: the operator gave this command"
-                        + " none, and the configured one is there for the command that reads the archive",
-                () -> assertThat(output.getAll()).doesNotContain(HOW_THE_UNUSED_ROOT_LINE_OPENS));
+                "nothing on standard error asks for a folder: the command needs none, and the"
+                        + " configured one is there for the command that reads the archive",
+                () -> assertThat(output.getErr()).doesNotContain(HOW_THE_REMOVED_REFUSAL_OPENS));
         claim(
                 "and the configured folder still does not exist afterwards",
                 () -> assertThat(configuredRoot()).doesNotExist());

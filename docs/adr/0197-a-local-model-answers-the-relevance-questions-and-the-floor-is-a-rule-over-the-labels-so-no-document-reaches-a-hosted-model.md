@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md).** `vespera label --auto` no longer reads the corpus, so the reason §6 gives for requiring a root, that the openings are read from it, is withdrawn. The requirement stands.
 
-> **A further amendment is proposed, not accepted — see [ADR-208](0208-vespera-label-auto-runs-without-a-corpus-root-and-says-so-when-it-is-given-one.md).** It would withdraw the first bullet of §6 whole: `vespera label --auto` would need no root, and a `--root` it is given would be accepted, not used, and said to be unused. Until the operator accepts it, §6 stands as the block above leaves it.
+> **Partly amended — see [ADR-208](0208-vespera-label-auto-needs-no-corpus-root-and-root-is-no-longer-an-option-of-label.md).** The first bullet of §6 is withdrawn whole: `vespera label --auto` needs no corpus root, and `--root` is no longer an option of `label`, so the heading's `[--root <path>]` goes too and a command line that passes it is refused as a usage error. The requirement the block above says stands stood until that record. Everything else in §6 stands.
 
 - **Date**: 2026-10-05
 - **Status**: accepted

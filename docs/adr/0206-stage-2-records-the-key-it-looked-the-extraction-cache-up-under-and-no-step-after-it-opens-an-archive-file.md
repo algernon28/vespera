@@ -1,6 +1,6 @@
 # ADR-206 — Stage 2 records the key it looked the extraction cache up under, and no step after it opens an archive file
 
-> **An amendment is proposed, not accepted — see [ADR-208](0208-vespera-label-auto-runs-without-a-corpus-root-and-says-so-when-it-is-given-one.md).** It takes up the question the fifth bullet of §4 left to the operator: `vespera label --auto` would no longer require a corpus root, so that bullet, *"The requirement itself stands"* in the header below, and §7's reworded refusal would no longer hold for that command. Until the operator accepts it, everything below stands.
+> **Partly amended — see [ADR-208](0208-vespera-label-auto-needs-no-corpus-root-and-root-is-no-longer-an-option-of-label.md).** It answers the question the fifth bullet of §4 left to the operator: `vespera label --auto` requires no corpus root and `label` takes no `--root`. So that bullet's *"still requires a corpus root"* and *"The requirement itself stands"* in the header below no longer hold, and the refusal §7 lists as reworded is gone, with no sentence in its place. Everything else in this record stands.
 
 - **Date**: 2026-10-07
 - **Status**: accepted
