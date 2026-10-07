@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md).** Every row's `content_hash` is the key stage 2 recorded, not a hash taken at 6b: §2 to §5, the refused alternative of recording the hash, and two Consequences are amended there, and §3's blank cell is withdrawn. §1 stands.
 
+> **Partly amended — see [ADR-207](0207-a-file-is-hashed-through-a-fixed-buffer-so-its-size-sets-no-limit.md).** One word of Context below, "the same streamed SHA-256", was not true when written: neither method streamed, each held its whole file in memory. Both do from ADR-207. That the two are one digest over the same bytes was true and stays true.
+
 - **Date**: 2026-09-25
 - **Status**: accepted
 - **Amends**: [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md) — **one sentence only**: "every column is one the ledger already holds, so it costs a query". That is false of `content_hash`, and this record says what the column costs instead. The column list, the header, the meaning of the column and everything else ADR-104 and [ADR-112](0112-the-arrangement-is-ordered-by-partition-size-and-cluster-mean-score-and-the-path-carries-the-order.md) decided about the manifest stand.

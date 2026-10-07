@@ -1188,6 +1188,18 @@ public final class Adr {
     public static final String STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY = FILE
             + "0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md";
 
+    /**
+     * ADR-207 -- both SHA-256 methods, {@code corpus}'s and {@code extraction}'s, read a file through one
+     * buffer of 64 KiB, so a file's size sets no limit on hashing it and every hash is the value it was;
+     * the two methods stay two; an {@code Error} thrown while hashing is caught by nothing and stops the
+     * step; and a file the file system will not hand over still stops stage 1 and stage 2, which this
+     * record measures and leaves to a ticket of its own (amends one sentence of ADR-200's Context and
+     * one word of ADR-151's, "the same streamed SHA-256"; settles what ADR-206 section 8 found; settles
+     * the first half of #449).
+     */
+    public static final String A_FILE_IS_HASHED_THROUGH_A_FIXED_BUFFER = FILE
+            + "0207-a-file-is-hashed-through-a-fixed-buffer-so-its-size-sets-no-limit.md";
+
     private Adr() {
     }
 }
