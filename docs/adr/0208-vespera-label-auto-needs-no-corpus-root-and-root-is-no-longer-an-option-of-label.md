@@ -121,11 +121,11 @@ Earlier records are not edited in their text. Each correction is made here, and 
 
 **This record's own commits move no run id.** They touch `docs/`, `AGENTS.md` and `src/test`, and nothing under `src/main/java`.
 
-**The implementation moves the run ids of six stages.** `VesperaCommand` and `AutoLabelling` are both in `pipeline`, and `StageModules` names `pipeline` for content census (3), content redundancy (4), seed measurement and embedding scoring (both runs of 5), arrangement (6a) and generation (6b). At the next `vespera run` over an existing working directory each of those is minted anew. Byte-level reduction (1) names `corpus` alone and extraction (2) names `extraction` and `similarity`, so neither moves, and the census records a walk, which has no implementation version. What follows for the operator is what ADR-197's Consequences list: stages 3 to 6b run again over the conversions already cached, the arrangement's name changes so `arrangementApproved` is written again, and the labels survive.
+**The implementation moved the run ids of six stages.** `VesperaCommand` and `AutoLabelling` are both in `pipeline`, and `StageModules` names `pipeline` for content census (3), content redundancy (4), seed measurement and embedding scoring (both runs of 5), arrangement (6a) and generation (6b). At the first `vespera run` of a build that carries it, over an existing working directory, each of those is minted anew. Byte-level reduction (1) names `corpus` alone and extraction (2) names `extraction` and `similarity`, so neither moves, and the census records a walk, which has no implementation version. What follows for the operator is what ADR-197's Consequences list: stages 3 to 6b run again over the conversions already cached, the arrangement's name changes so `arrangementApproved` is written again, and the labels survive.
 
-**No shape of the change avoids it.** The requirement is enforced and the option declared in `VesperaCommand.java`, which is in `pipeline`; neither can go without a commit under that path. Leaving `AutoLabelling.run(Path root)` with its unread parameter and changing `VesperaCommand` alone moves exactly the same six ids, since both files are under one path, and leaves a method that takes an argument it ignores. So the parameter goes (§1). Only leaving everything as it was would have moved nothing.
+**No shape of the change avoided it.** The requirement was enforced and the option declared in `VesperaCommand.java`, which is in `pipeline`; neither could go without a commit under that path. Leaving `AutoLabelling.run(Path root)` with its unread parameter and changing `VesperaCommand` alone would have moved exactly the same six ids, since both files are under one path, and would have left a method that takes an argument it ignores. So the parameter went (§1). Only leaving everything as it was would have moved nothing.
 
-**The operator wants run ids minted once.** The implementation is therefore to be merged together with, or directly after, another change that already moves those stages, and before the next `vespera run` on a working directory worth keeping. [#449](https://github.com/algernon28/vespera/issues/449)'s change is one: it touches `corpus` and `extraction`, which between them move every stage from 1 to 6b.
+**The operator wants run ids minted once.** The implementation was therefore committed directly on top of another change that already moves those stages: [#449](https://github.com/algernon28/vespera/issues/449)'s, at `6eb88a2`, which touches `corpus` and `extraction` and so moves every stage from 1 to 6b. A working directory whose next `vespera run` is made by a build carrying both meets the two moves as one.
 
 ## Why this shape, and what the others cost
 
@@ -149,34 +149,34 @@ Earlier records are not edited in their text. Each correction is made here, and 
 - **An operator labels with `vespera label --auto` and nothing else**, with the archive's disk unplugged if they like.
 - **A command line that still passes `--root` to `label` fails**, with or without `--auto`, exit 2, having done nothing. Scripts and notes written since ADR-197 need the two words removed.
 - **`vespera.corpus-root` is read by `vespera run` alone.**
-- **Six stages' run ids move when the code lands** (§8).
+- **Six stages' run ids moved with the code** (§8).
 - **`README.md` is not edited.** It documents neither `--auto` nor `--root`, and what `docs/check-claims.mjs` holds it to (its subcommands, the commands it gives `--db-dir`, its profile keys and the files written beside the database) does not change.
 - **`CONTEXT.md` is not edited.** Its *Corpus root* entry names `vespera run` and `vespera.corpus-root` only.
-- **Three existing test classes pass `--root` in fourteen invocations**, and one test pins the refusal. They change with the code and not before it, so each is parked as an edited copy (below).
+- **Three existing test classes passed `--root` in fourteen invocations**, and one test pinned the refusal. They changed with the code and not before it: each was kept as an edited copy outside `src/test` until the code landed, and replaced its original then (below; note corrected with [#451](https://github.com/algernon28/vespera/issues/451), when the code landed).
 
-**What the implementation owes** (`spec-implementer`):
+**What the implementation did** (this list was written as what it owed, and is corrected with [#451](https://github.com/algernon28/vespera/issues/451) to what was done):
 
-- `AutoLabelling.run()` with no parameter, and the comment at its lines 160 to 163 kept, since it is true;
-- `VesperaCommand.Label`: the `--root` option, its field and its line in `forgetPreviousInvocation` removed; the constructor without `configuredRoot`, and that field removed; `callAuto` without the refusal, calling `labelling.run()`; its javadoc citing this record in place of *"the root is named by the option or by configuration and never guessed"*;
-- the four files under `docs/adr/0208/tests/src/test/java/io/algernon/vespera/pipeline/` moved to `src/test/java/io/algernon/vespera/pipeline/`, three of them over the file of the same name, and the note under "What pins it" corrected in place;
-- nothing else: no test is edited or deleted by hand, and `VesperaCommand.Run`, `README.md` and `CONTEXT.md` are not touched.
+- `AutoLabelling.run()` has no parameter, and the comment at its lines 160 to 163 is kept, since it is true;
+- `VesperaCommand.Label` has no `--root` option, no field for it and no line for it in `forgetPreviousInvocation`; its constructor takes no `configuredRoot` and the field is gone; `callAuto` has no refusal for want of a root and calls `labelling.run()`; its javadoc cites this record in place of *"the root is named by the option or by configuration and never guessed"*;
+- the four test files that were kept under `docs/adr/0208/tests/` are in `src/test/java/io/algernon/vespera/pipeline/`, three of them in place of the file of the same name;
+- nothing else: no test was edited or deleted by hand, and `VesperaCommand.Run`, `README.md` and `CONTEXT.md` were not touched.
 
-**What pins it.**
+**What pins it.** Every test named here is in `src/test/java/io/algernon/vespera/pipeline/` and passes.
 
-In `src/test` now, because each holds before the change and after it:
+Written with this record, before the code, because each held before the change and holds after it:
 
 - `LabelAutoUnderAConfiguredRootInvocationTest`: with `vespera.corpus-root` naming a directory nobody created and no `--root`, the labelling succeeds, the directory still does not exist, and nothing is said about a root (§5).
 - `UnconfiguredRootTest.saysWhatToSupplyAndThatARootIsNeverGuessed`: `vespera run` with no root exits 2 with its sentence (§6). Until this record only its exit code was held.
 
-Parked under `docs/adr/0208/tests/`, followed by the path each takes in the repository, as ADR-193's Tests describe, because each fails until the code lands:
+Moved into `src/test` with the code. Each failed against the code as it was, so until the code landed it was kept as a complete file under `docs/adr/0208/tests/`, followed by the path it takes in the repository, as ADR-193's Tests describe. **All four have landed and pass unedited; nothing remains under `docs/adr/0208/tests/`** (note corrected with [#451](https://github.com/algernon28/vespera/issues/451), when the code landed). That includes the two tests of the refused option, which could not be run before it: picocli's unknown-option error reaches standard error and names `--root`.
 
 - `LabelAutoNeedsNoRootInvocationTest`, new:
   - `runsWithNoRootNamedAndNoneConfigured`: §1.
   - `refusesTheRemovedOptionWithAuto`: `label --auto --root <path>` exits 2, standard error names `--root`, the model is asked nothing, no answer is recorded and the label file is byte for byte as it was (§2, §3).
   - `refusesTheRemovedOptionWithoutAuto`: `label --root <path>` over a label file holding an answer exits 2, standard error names `--root`, and the answer is not recorded (§2, §3).
   - `theLabelCommandNoLongerListsTheOption`: the command declares no `--root` and its usage text does not mention it.
-- `LocalLabellingInvocationTest`, an edited copy. **Dropped**: `refusesWithNoRoot`, with the refusal it pins. **Changed**: the eleven invocations that passed `"--root", root.toString()` no longer do, in `putsTheOpeningOfADocumentRewrittenInPlace`, `asksAboutAPathTheRunNeverWalkedWithNoOpening`, `recordsTheAnswersWithTheModelsName`, `setsTheFloorByTheRule`, `leavesAFloorAPersonWrote`, `aPersonsAnswerIsNotReplaced`, `aPersonCanOverruleTheModel`, `refusesWhileAnAnswerIsNotYetRecorded`, `rewritesAFloorTheRuleWrote`, `aLaterRunKeepsTheMark` and `refusesAFileWithAuto`. No claim is changed.
-- `OllamaRefusalInvocationTest`, an edited copy: its two invocations lose `--root`. No claim is changed.
-- `RefusingLabellerInvocationTest`, an edited copy: its one invocation loses `--root`. No claim is changed.
+- `LocalLabellingInvocationTest`, as edited. **Dropped**: `refusesWithNoRoot`, with the refusal it pinned. **Changed**: the eleven invocations that passed `"--root", root.toString()` no longer do, in `putsTheOpeningOfADocumentRewrittenInPlace`, `asksAboutAPathTheRunNeverWalkedWithNoOpening`, `recordsTheAnswersWithTheModelsName`, `setsTheFloorByTheRule`, `leavesAFloorAPersonWrote`, `aPersonsAnswerIsNotReplaced`, `aPersonCanOverruleTheModel`, `refusesWhileAnAnswerIsNotYetRecorded`, `rewritesAFloorTheRuleWrote`, `aLaterRunKeepsTheMark` and `refusesAFileWithAuto`. No claim is changed.
+- `OllamaRefusalInvocationTest`, as edited: its two invocations lost `--root`. No claim is changed.
+- `RefusingLabellerInvocationTest`, as edited: its one invocation lost `--root`. No claim is changed.
 
 **Not pinned:** picocli's wording around the option's name (§3), by decision; and that `label` does not read `vespera.corpus-root` at all, as distinct from reading it and doing nothing with it, which no behaviour tells apart.
