@@ -1,6 +1,6 @@
 # Decision records
 
-One file per architecture decision, ADR-001 through ADR-206.
+One file per architecture decision, ADR-001 through ADR-207.
 
 > **These files are reconstituted records.** The original ADR text was lost before 2026-08-22; what survived is the condensed decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md). Each file here carries that row verbatim — id, date, title, summary, the cross-references named in it, and pointers to the digest sections that discuss it — under a provenance header, and nothing more. No rationale has been reconstructed, because none survives to reconstruct: a Context section written today from a one-line summary would read as recorded history while being invention.
 
@@ -225,3 +225,4 @@ These carry their own full text: context, decision and consequences, as original
 | [ADR-204](0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md) | 2026-10-06 | Every line of ADR-193's part (b) is written out, and its table is read again against the code *(extends ADR-193 §4, §6 and §7; corrects one sentence of its Tests; takes up one statement of ADR-199 §3; rests on ADR-199, ADR-200, ADR-197)* |
 | [ADR-205](0205-the-relevance-report-counts-the-answers-a-model-gave-as-it-looks-each-up.md) | 2026-10-06 | The relevance report counts the answers a model gave as it looks each up *(extends ADR-192 §4; rests on ADR-197 §3, ADR-204 §2 and §7)* |
 | [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md) | 2026-10-07 | Stage 2 records the key it looked the extraction cache up under, and no step after it opens an archive file *(amends ADR-151 §2 to §5, ADR-152 §1 and §3 to §5, ADR-149 §9 and §10, ADR-192 §4, the reason in ADR-197 §6; restores two sentences of ADR-104)* |
+| [ADR-207](0207-a-file-is-hashed-through-a-fixed-buffer-so-its-size-sets-no-limit.md) | 2026-10-07 | A file is hashed through a fixed buffer, so its size sets no limit *(amends one sentence of ADR-200's Context and one word of ADR-151's; keeps ADR-040, ADR-059, ADR-067, ADR-100, ADR-127, ADR-140, ADR-155, ADR-206; rests on ADR-048, ADR-058; leaves what a file that cannot be read does to stage 1 and stage 2 undecided)* |

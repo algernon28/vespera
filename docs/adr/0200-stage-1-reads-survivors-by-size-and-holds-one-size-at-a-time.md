@@ -1,5 +1,7 @@
 # ADR-200 — Stage 1 reads its survivors by size and holds one size at a time
 
+> **Partly amended — see [ADR-207](0207-a-file-is-hashed-through-a-fixed-buffer-so-its-size-sets-no-limit.md).** One sentence of Context below, "Hashing already streams, so this is ids, not file contents", was not true when written: each hash held its whole file in memory. It is true from ADR-207. The decision does not rest on it and stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-188](0188-stage-1s-verdict-rules-and-content-identity-live-in-corpus-which-still-knows-no-stage.md) §1 and §2, in what they say of the drain and nothing else. §1's *"with their behaviour unchanged"* stands for every rule and no longer for how either pass reads its survivors: the second pass is changed here, and the first in how it is fed. §1's fifth thing moved, *"`drain`, which both passes use"*, and §2's package-private `SurvivorDrain`, *"which holds `drain` for both passes"*, are deleted: `corpus` has no such type. §1's *"Both passes still drain the survivor reader into a `List`, which departs from ADR-060. Fixing that is #405's job"* is what this record does.
