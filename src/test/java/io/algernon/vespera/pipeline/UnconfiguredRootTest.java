@@ -13,8 +13,11 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -103,6 +106,38 @@ class UnconfiguredRootTest {
         claim(
                 "and it walked nothing at all, the refusal coming before any tree was chosen",
                 () -> assertThat(walkCount()).isZero());
+    }
+
+    /**
+     * The sentence of the refusal, which only its exit code held until now. ADR-208 (proposed) takes the
+     * root requirement away from {@code vespera label --auto} and keeps it here, so this is the one
+     * command left that says a root is never guessed.
+     */
+    @Test
+    @Issue("451")
+    @Story("Where the root comes from")
+    @DisplayName("The refusal says what to supply, and that the folder to read is never guessed")
+    @Link(name = "ADR-208", url = Adr.LABEL_AUTO_NEEDS_NO_CORPUS_ROOT, type = "adr")
+    @ExtendWith(OutputCaptureExtension.class)
+    void saysWhatToSupplyAndThatARootIsNeverGuessed(CapturedOutput output) {
+        claim(
+                "no corpus root is bound in this context, the precondition of the refusal",
+                () -> assertThat(environment.getProperty("vespera.corpus-root")).isBlank());
+
+        cli.run("run");
+
+        claim(
+                "the invocation reports a usage error",
+                () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+        claim(
+                "on standard error it names what was missing and the two ways to supply it, and ends by"
+                        + " saying why it will not pick a folder itself",
+                () -> assertThat(output.getErr())
+                        .contains("vespera run named no root and vespera.corpus-root is not set")
+                        .contains("give the root as the argument -- vespera run <root> -- or set"
+                                + " vespera.corpus-root")
+                        .contains("A root is never guessed, because a census of the wrong tree reports"
+                                + " success."));
     }
 
     private long walkCount() {

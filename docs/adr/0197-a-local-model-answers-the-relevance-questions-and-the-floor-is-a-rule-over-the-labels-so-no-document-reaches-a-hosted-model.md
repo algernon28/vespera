@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md).** `vespera label --auto` no longer reads the corpus, so the reason §6 gives for requiring a root, that the openings are read from it, is withdrawn. The requirement stands.
 
+> **A further amendment is proposed, not accepted — see [ADR-208](0208-vespera-label-auto-runs-without-a-corpus-root-and-says-so-when-it-is-given-one.md).** It would withdraw the first bullet of §6 whole: `vespera label --auto` would need no root, and a `--root` it is given would be accepted, not used, and said to be unused. Until the operator accepts it, §6 stands as the block above leaves it.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) in two sentences. A label is "a person's answer", and becomes: a person's answer, or a local model's answer that says it is one (§3). "Nothing writes the threshold into the profile" becomes: nothing does, except the rule in §4, run on request, over a key that is unset or that the rule itself wrote last (§4).

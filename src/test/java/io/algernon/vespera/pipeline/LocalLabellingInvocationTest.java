@@ -74,6 +74,12 @@ class LocalLabellingInvocationTest {
     /** The words every scripted conversion carries, so finding them means a document's opening was put. */
     private static final String WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH = "stubbed but real content";
 
+    /** A name resolved under an empty temporary directory and never created, so nothing can be read under it. */
+    private static final String A_FOLDER_NOBODY_CREATED = "a-root-nobody-created";
+
+    /** How the line opens that tells an operator a {@code --root} given to {@code --auto} was not used (ADR-208). */
+    private static final String HOW_THE_UNUSED_ROOT_LINE_OPENS = "--root is not used";
+
     @TestConfiguration
     static class Beans {
         @Bean
@@ -382,6 +388,79 @@ class LocalLabellingInvocationTest {
 
         claim("the invocation fails", () -> assertThat(cli.getExitCode()).isNotZero());
         claim("the model was asked nothing", () -> assertThat(QUESTIONS.get()).isZero());
+    }
+
+    /**
+     * {@code --root} naming a directory nobody created (ADR-208 section 2, proposed): the command finds
+     * each document through the run the label file names (ADR-206 section 4), so what the option says
+     * decides nothing. This holds before ADR-208's change and after it.
+     */
+    @Test
+    @Issue("451")
+    @Story("Labelling opens nothing under the archive")
+    @DisplayName("Given a folder that does not exist as the archive's, the model still labels, and the folder is not created")
+    @Link(name = "ADR-208", url = Adr.LABEL_AUTO_NEEDS_NO_CORPUS_ROOT, type = "adr")
+    void aRootThatDoesNotExistIsNeitherOpenedNorAFailure(
+            @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere) throws IOException {
+        aScoredCorpus(root, seeds);
+        Path aRootNobodyCreated = elsewhere.resolve(A_FOLDER_NOBODY_CREATED);
+
+        cli.run("label", "--auto", "--root", aRootNobodyCreated.toString());
+
+        claim(
+                "the invocation reports success, although the folder it was told the archive is in"
+                        + " does not exist",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the model was asked about the one document in the sample (" + ONE_DOCUMENT_IN_THE_SAMPLE
+                        + "), and the question carried its opening. Nothing exists in the folder named,"
+                        + " so the opening cannot have been read from there",
+                () -> assertThat(OPENINGS_PUT)
+                        .singleElement()
+                        .satisfies(opening -> assertThat(opening)
+                                .hasValueSatisfying(text ->
+                                        assertThat(text).contains(WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH))));
+        claim(
+                "and the folder still does not exist afterwards, so nothing was written under it either",
+                () -> assertThat(aRootNobodyCreated).doesNotExist());
+    }
+
+    /**
+     * {@code vespera label} with no {@code --auto}, given {@code --root} (ADR-208 section 5, proposed): it
+     * never needed a root, it ignores one, and it says nothing about it. This holds before ADR-208's
+     * change and after it.
+     */
+    @Test
+    @Issue("451")
+    @Story("Labelling opens nothing under the archive")
+    @DisplayName("Recording a person's answers ignores a folder given as the archive's, and says nothing about it")
+    @Link(name = "ADR-208", url = Adr.LABEL_AUTO_NEEDS_NO_CORPUS_ROOT, type = "adr")
+    void plainLabelGivenARootRecordsTheAnswersAndSaysNothingAboutIt(
+            @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere, CapturedOutput output)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        Path labels = workingDirectory.resolve(LABEL_FILE);
+        Files.writeString(labels, Files.readString(labels).replace("relevant: null", "relevant: true"));
+        Path aRootNobodyCreated = elsewhere.resolve(A_FOLDER_NOBODY_CREATED);
+
+        cli.run("label", "--root", aRootNobodyCreated.toString());
+
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the one answer typed into the file (" + ONE_DOCUMENT_IN_THE_SAMPLE + ") is recorded, as"
+                        + " a person's: no model is named beside it and none was asked",
+                () -> {
+                    assertThat(relevantAnswers(seeds)).isEqualTo(1);
+                    assertThat(labeller(seeds)).isNull();
+                    assertThat(QUESTIONS.get()).isZero();
+                });
+        claim(
+                "nothing is said about the folder: the line that tells an operator it was not used"
+                        + " belongs to labelling by the model, where a folder used to be required",
+                () -> assertThat(output.getAll()).doesNotContain(HOW_THE_UNUSED_ROOT_LINE_OPENS));
+        claim(
+                "and the folder still does not exist afterwards",
+                () -> assertThat(aRootNobodyCreated).doesNotExist());
     }
 
     private void aScoredCorpus(Path root, Path seeds) throws IOException {

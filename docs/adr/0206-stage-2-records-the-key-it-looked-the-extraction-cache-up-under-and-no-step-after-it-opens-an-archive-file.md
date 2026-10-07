@@ -1,5 +1,7 @@
 # ADR-206 — Stage 2 records the key it looked the extraction cache up under, and no step after it opens an archive file
 
+> **An amendment is proposed, not accepted — see [ADR-208](0208-vespera-label-auto-runs-without-a-corpus-root-and-says-so-when-it-is-given-one.md).** It takes up the question the fifth bullet of §4 left to the operator: `vespera label --auto` would no longer require a corpus root, so that bullet, *"The requirement itself stands"* in the header below, and §7's reworded refusal would no longer hold for that command. Until the operator accepts it, everything below stands.
+
 - **Date**: 2026-10-07
 - **Status**: accepted
 - **Amends**: [ADR-151](0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md), in its §2 to §5, one refused alternative and two Consequences (§6.1 below). Its §1 stands: what `content_hash` means, the header and the format do not change. It is amended and not superseded, because §1 is the decision a consumer of the manifest reads.
