@@ -3,7 +3,7 @@
 - **Date**: 2026-10-07
 - **Status**: accepted
 - **Amends**: [ADR-197](0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md) §6, in its heading's `[--root <path>]` and in its first bullet (§7 below). Everything else in §6 stands: `--auto` with a file refuses, the labeller's model is its own setting, the refusals that come first, and the lines the operator sees.
-- **Amends**: [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md), in the fifth bullet of its §4, in one line of its header and in one bullet of its §7 (§7 below). It answers the question that bullet left to the operator.
+- **Amends**: [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md), in the fourth bullet of its §4, in one line of its header and in one bullet of its §7 (§7 below). It answers the question that bullet left to the operator.
 - **Keeps**: [ADR-066](0066-the-command-line-names-the-root-configuration-is-the-fallback.md) (`vespera run` takes its root from the argument, then from `vespera.corpus-root`, and refuses with neither), [ADR-141](0141-the-cli-exits-with-the-commands-exit-code-and-the-scheduler-no-feature-uses-is-removed-at-its-source.md) (exit codes), [ADR-054](0054-a-corpus-is-its-root-path-the-database-lives-in-a-configured-working-directory.md) (the `--db-dir` drift check, on both commands), [ADR-047](0047-the-pipeline-never-blocks.md) (`label` is the deliberate act), [ADR-177](0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md) (the working-directory lock and its holder's line) and [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md) (`vespera label` writes no invocation account).
 - **Rests on**: a reading of the `label` path at commit `251ee64`, with the sites named in §Context; [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and `StageModules` for the run ids (§8); and ADR-206 §4 and §5, which are why the command has nothing to read under a root. No archive and no working directory was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
 - **Settles** [#451](https://github.com/algernon28/vespera/issues/451), by the operator's choice of 2026-10-07 among the three it was put: (a) drop the requirement and go on accepting `--root`, saying it is not used; (b) drop the requirement and remove the option; (c) leave it. The operator chose (b).
@@ -33,11 +33,11 @@ What the command reads instead: the label file in the working directory (line 10
 **Two things nearby touch a path, and neither is the corpus root.**
 
 - `AutoLabelling.run`, line 136, resolves the profile's seed folder with `Walk.canonicalRoot` (`toRealPath` and `isDirectory`), to compare it with the seed set the label file names. That is the seed folder's directory entry. This record leaves it.
-- `WorkingDirectoryLock`, lines 88 and 110 to 114, writes the command line as it was typed into `vespera.lock`, as the holder's line (ADR-177). Whatever is typed is written there as text, a refused command line included. Nothing opens it.
+- `WorkingDirectoryLock`, lines 89 and 110 to 114, writes the command line as it was typed into `vespera.lock`, as the holder's line (ADR-177). Whatever is typed is written there as text, a refused command line included. Nothing opens it.
 
 `vespera label` starts no job, so it writes no invocation account (ADR-198 §1, and point 6 of its list). The private-paths rules are about what an agent opens (ADR-196) and bind no command.
 
-**(b) Plain `vespera label` had no root requirement and never had one.** `Label.call`, lines 309 to 321, goes to `LabelIngestion.ingest(file)` and to `NextAction.line()` and reads neither the `--root` field nor `vespera.corpus-root`. `LabelIngestion` holds the working directory and no root. ADR-197 §6 names `--root` only with `--auto`, and no earlier record (ADR-088, ADR-169) names a root for `label`. **But the option is declared on the `label` command, not on `--auto`**, so picocli accepts `vespera label --root <path>` with no `--auto`; the value is ignored, and nothing says so.
+**(b) Plain `vespera label` had no root requirement and never had one.** `Label.call`, lines 312 to 321, goes to `LabelIngestion.ingest(file)` and to `NextAction.line()` and reads neither the `--root` field nor `vespera.corpus-root`. `LabelIngestion` holds the working directory and no root. ADR-197 §6 names `--root` only with `--auto`, and no earlier record (ADR-088, ADR-169) names a root for `label`. **But the option is declared on the `label` command, not on `--auto`**, so picocli accepts `vespera label --root <path>` with no `--auto`; the value is ignored, and nothing says so.
 
 **(c) Where the requirement was stated.**
 
@@ -46,7 +46,7 @@ What the command reads instead: the label file in the working directory (line 10
 | ADR-197 §6, heading and first bullet | The requirement and its reason. |
 | ADR-197, the block at its top that points to ADR-206 | That ADR-206 withdrew the reason and *"The requirement stands."* |
 | ADR-206, header, the line that amends ADR-197 | *"The requirement itself stands."* |
-| ADR-206 §4, fifth bullet | *"still requires a corpus root, and no longer reads one … Whether the requirement goes is open"*. |
+| ADR-206 §4, fourth bullet | *"still requires a corpus root, and no longer reads one … Whether the requirement goes is open"*. |
 | ADR-206 §7, under Reworded | The refusal's sentence, which ends *"A root is never guessed."* |
 | `VesperaCommand.java`, lines 243 to 244 | The option's description: *"With --auto, the corpus root the label file's documents are under."* False since ADR-206. |
 | `VesperaCommand.java`, lines 324 to 327 and 338 to 341 | The javadoc of `callAuto`, and the refusal. |
@@ -110,7 +110,7 @@ Earlier records are not edited in their text. Each correction is made here, and 
 **ADR-206.**
 
 - Header, the line that amends ADR-197: *"The requirement itself stands."* It stood until this record.
-- §4, fifth bullet: *"`vespera label --auto` still requires a corpus root, and no longer reads one."* **Read instead**: it requires none, takes none and reads none. *"This record leaves the requirement and the option as they are"* is true of ADR-206 and is history. *"Whether the requirement goes is open, and is put to the operator"*: answered here.
+- §4, fourth bullet: *"`vespera label --auto` still requires a corpus root, and no longer reads one."* **Read instead**: it requires none, takes none and reads none. *"This record leaves the requirement and the option as they are"* is true of ADR-206 and is history. *"Whether the requirement goes is open, and is put to the operator"*: answered here.
 - §7, under Reworded: *"the refusal of `vespera label --auto` with no root, which loses its closing clause … A root is still never guessed (ADR-066)."* **Gone for this command.** No sentence takes its place: the command no longer refuses for want of a root, so there is nothing to word. *"A root is never guessed"* remains true of `vespera run`, the only command that takes one.
 
 **Not amended.** ADR-206 §4's other bullets and its §5, which describe what `label --auto` reads; ADR-066, which this record keeps; ADR-204 §6, whose row for `AutoLabelling` names its statements and no root.
@@ -168,7 +168,7 @@ Written with this record, before the code, because each held before the change a
 - `LabelAutoUnderAConfiguredRootInvocationTest`: with `vespera.corpus-root` naming a directory nobody created and no `--root`, the labelling succeeds, the directory still does not exist, and nothing is said about a root (§5).
 - `UnconfiguredRootTest.saysWhatToSupplyAndThatARootIsNeverGuessed`: `vespera run` with no root exits 2 with its sentence (§6). Until this record only its exit code was held.
 
-Moved into `src/test` with the code. Each failed against the code as it was, so until the code landed it was kept as a complete file under `docs/adr/0208/tests/`, followed by the path it takes in the repository, as ADR-193's Tests describe. **All four have landed and pass unedited; nothing remains under `docs/adr/0208/tests/`** (note corrected with [#451](https://github.com/algernon28/vespera/issues/451), when the code landed). That includes the two tests of the refused option, which could not be run before it: picocli's unknown-option error reaches standard error and names `--root`.
+Moved into `src/test` with the code. Each failed against the code as it was, so until the code landed it was kept as a complete file under `docs/adr/0208/tests/`, followed by the path it takes in the repository, as ADR-193's Tests describe. **All four landed at `ff763d5` byte for byte as the parked copies, and nothing remains under `docs/adr/0208/tests/`.** Afterwards only the javadoc of `LabelAutoNeedsNoRootInvocationTest` was put in the past tense (`b0b2d1a`); no claim, assertion or invocation of any of the four changed (note corrected with [#451](https://github.com/algernon28/vespera/issues/451), when the code landed, and again after its gate). That includes the two tests of the refused option, which could not be run before it: picocli's unknown-option error reaches standard error and names `--root`.
 
 - `LabelAutoNeedsNoRootInvocationTest`, new:
   - `runsWithNoRootNamedAndNoneConfigured`: §1.
