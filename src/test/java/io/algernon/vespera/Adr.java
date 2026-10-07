@@ -1167,6 +1167,16 @@ public final class Adr {
     public static final String PART_B_OF_THE_STATEMENTS_WRITTEN_OUT = FILE
             + "0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md";
 
+    /**
+     * ADR-205 -- the relevance report's loop over the answers a local model gave gets a counter of its
+     * own, {@code Stage 5 (relevance report, model answers matched)}: one item an answer looked up in this
+     * walk, matched or not, its total the answers a model gave for the seed set, opened after the timed
+     * read of those answers has ended, and writing nothing over none (extends ADR-192 section 4; rests on
+     * ADR-197 section 3 and ADR-204 sections 2 and 7; settles #444).
+     */
+    public static final String THE_REPORT_COUNTS_THE_ANSWERS_A_MODEL_GAVE = FILE
+            + "0205-the-relevance-report-counts-the-answers-a-model-gave-as-it-looks-each-up.md";
+
     private Adr() {
     }
 }
