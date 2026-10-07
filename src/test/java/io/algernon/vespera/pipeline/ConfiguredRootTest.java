@@ -92,7 +92,7 @@ class ConfiguredRootTest {
         claim(
                 "the " + CONFIGURED_ROOT_FILES + " files under the configured root were recorded, so an"
                         + " archive that does not move need not be retyped",
-                () -> assertThat(ledger.occurrenceCount(walkOver(configuredRoot)))
+                () -> assertThat(ledger.occurrences().occurrenceCount(walkOver(configuredRoot)))
                         .isEqualTo(CONFIGURED_ROOT_FILES));
     }
 
@@ -107,7 +107,7 @@ class ConfiguredRootTest {
 
         claim(
                 "the " + NAMED_ROOT_FILES + " file under the root the argument named was recorded",
-                () -> assertThat(ledger.occurrenceCount(walkOver(namedRoot))).isEqualTo(NAMED_ROOT_FILES));
+                () -> assertThat(ledger.occurrences().occurrenceCount(walkOver(namedRoot))).isEqualTo(NAMED_ROOT_FILES));
         claim(
                 "and configuration was not consulted at all, adding no walk of the configured root beside"
                         + " the one the operator asked for",

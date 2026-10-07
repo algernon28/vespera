@@ -1,5 +1,7 @@
 # ADR-200 — Stage 1 reads its survivors by size and holds one size at a time
 
+> **Partly amended — see [ADR-209](0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md).** In §1, `Ledger.survivorsBySize` is `Verdicts.survivorsBySize` and returns an `Iterable<SizedOccurrence>`, not an `ItemStreamReader`, and the class `SurvivorsBySize` no longer exists. The statement, its order, its paging by keyset and the plan stand.
+
 > **Partly amended — see [ADR-207](0207-a-file-is-hashed-through-a-fixed-buffer-so-its-size-sets-no-limit.md).** One sentence of Context below, "Hashing already streams, so this is ids, not file contents", was not true when written: each hash held its whole file in memory. It is true from ADR-207. The decision does not rest on it and stands.
 
 - **Date**: 2026-10-05

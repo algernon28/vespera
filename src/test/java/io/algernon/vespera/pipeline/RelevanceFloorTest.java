@@ -220,9 +220,9 @@ class RelevanceFloorTest {
      */
     private void aLabelGivenUnder(String embedderIdentity) {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus-" + System.nanoTime()));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-" + System.nanoTime()));
         OccurrencePath path = new OccurrencePath("labelled-" + System.nanoTime() + ".txt");
-        RunId runId = ledger.startRun("embedding-scoring", "abc" + System.nanoTime(), "{}", walkId, List.of());
+        RunId runId = ledger.runs().startRun("embedding-scoring", "abc" + System.nanoTime(), "{}", walkId, List.of());
         new RelevanceLabels(jdbcTemplate)
                 .record(path, Walk.canonicalRoot(seedFolder).toString(), true, runId, 0.9, embedderIdentity);
     }

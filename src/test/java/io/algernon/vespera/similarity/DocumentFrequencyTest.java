@@ -179,10 +179,10 @@ class DocumentFrequencyTest {
     @Link(name = "ADR-191", url = Adr.STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ, type = "adr")
     void theBoundForARunWrittenInOneStretchIsItsOwnRowCount() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus-bound-one-stretch"));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-bound-one-stretch"));
         OccurrenceId occurrence = occurrence(ledger, walkId, "one.txt");
-        RunId earlier = ledger.startRun("extraction", "earlier-build", "{}", walkId, List.of());
-        RunId later = ledger.startRun("extraction", "later-build", "{}", walkId, List.of());
+        RunId earlier = ledger.runs().startRun("extraction", "earlier-build", "{}", walkId, List.of());
+        RunId later = ledger.runs().startRun("extraction", "later-build", "{}", walkId, List.of());
         claim(
                 "the fixture holds two different runs, so the table holds more rows than either",
                 () -> assertThat(later).isNotEqualTo(earlier));
@@ -211,10 +211,10 @@ class DocumentFrequencyTest {
     @Link(name = "ADR-191", url = Adr.STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ, type = "adr")
     void theBoundForARunWithNoShingleRowIsEmpty() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus-bound-no-rows"));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-bound-no-rows"));
         OccurrenceId occurrence = occurrence(ledger, walkId, "one.txt");
-        RunId withRows = ledger.startRun("extraction", "earlier-build", "{}", walkId, List.of());
-        RunId withNone = ledger.startRun("extraction", "later-build", "{}", walkId, List.of());
+        RunId withRows = ledger.runs().startRun("extraction", "earlier-build", "{}", walkId, List.of());
+        RunId withNone = ledger.runs().startRun("extraction", "later-build", "{}", walkId, List.of());
         writeRows(occurrence, withRows, ROWS_OF_THE_EARLIER_RUN);
 
         OptionalLong bound = new DocumentFrequency(jdbcTemplate, ledger).shingleRowsUpTo(withNone);
@@ -236,10 +236,10 @@ class DocumentFrequencyTest {
     @Link(name = "ADR-191", url = Adr.STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ, type = "adr")
     void theBoundForARunAnotherRunWroteInBetweenIsMoreThanItsRowCount() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus-bound-interleaved"));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-bound-interleaved"));
         OccurrenceId occurrence = occurrence(ledger, walkId, "one.txt");
-        RunId resumed = ledger.startRun("extraction", "earlier-build", "{}", walkId, List.of());
-        RunId between = ledger.startRun("extraction", "later-build", "{}", walkId, List.of());
+        RunId resumed = ledger.runs().startRun("extraction", "earlier-build", "{}", walkId, List.of());
+        RunId between = ledger.runs().startRun("extraction", "later-build", "{}", walkId, List.of());
         writeRows(occurrence, resumed, ROWS_OF_THE_EARLIER_RUN);
         writeRows(occurrence, between, ROWS_OF_THE_LATER_RUN);
         writeRows(occurrence, resumed, ROWS_OF_THE_EARLIER_RUN);
@@ -285,8 +285,8 @@ class DocumentFrequencyTest {
     /** One walk, one stage-2 run, and the occurrences/shingle rows every test above shares. */
     private Fixture fixture() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        RunId stage2RunId = ledger.startRun("extraction", "abc123", "{}", walkId, List.of());
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        RunId stage2RunId = ledger.runs().startRun("extraction", "abc123", "{}", walkId, List.of());
 
         OccurrenceId survivorOne = occurrence(ledger, walkId, "survivor-one.txt");
         OccurrenceId survivorTwo = occurrence(ledger, walkId, "survivor-two.txt");
@@ -309,10 +309,10 @@ class DocumentFrequencyTest {
         shingle(degenerateOutput, stage2RunId, SHARED_HASH);
         shingle(degenerateOutput, stage2RunId, BLOCKED_ONLY_HASH_B);
 
-        ledger.verdict(extractionFailed, stage2RunId, VerdictKind.EXTRACTION_FAILED, "could not read it");
-        ledger.verdict(degenerateOutput, stage2RunId, VerdictKind.DEGENERATE_OUTPUT, "below the floor");
+        ledger.verdicts().verdict(extractionFailed, stage2RunId, VerdictKind.EXTRACTION_FAILED, "could not read it");
+        ledger.verdicts().verdict(degenerateOutput, stage2RunId, VerdictKind.DEGENERATE_OUTPUT, "below the floor");
 
-        RunId stage3RunId = ledger.startRun("content-census", "def456", "{}", walkId, List.of(stage2RunId));
+        RunId stage3RunId = ledger.runs().startRun("content-census", "def456", "{}", walkId, List.of(stage2RunId));
 
         return new Fixture(ledger, stage2RunId, stage3RunId);
     }
@@ -335,13 +335,13 @@ class DocumentFrequencyTest {
     }
 
     private OccurrenceId occurrence(Ledger ledger, WalkId walkId, String path) {
-        ledger.fileOccurrence(
+        ledger.occurrences().fileOccurrence(
                 walkId,
                 new OccurrencePath(path),
                 1,
                 Instant.parse("2026-08-29T10:15:30Z"),
                 Instant.parse("2026-08-20T08:00:00Z"));
-        return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+        return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
     }
 
     private void shingle(OccurrenceId occurrenceId, RunId runId, long hash) {

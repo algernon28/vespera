@@ -101,7 +101,7 @@ class WalkRecorderTest {
 
         claim(
                 "the one file written was recorded as an occurrence under the walk's own id",
-                () -> assertThat(ledger.occurrencesForWalk(walkId))
+                () -> assertThat(ledger.occurrences().occurrencesForWalk(walkId))
                         .extracting(RecordedOccurrence::path)
                         .containsExactly(new OccurrencePath("a.txt")));
     }
@@ -150,12 +150,12 @@ class WalkRecorderTest {
                 () -> assertThat(resumed).isEqualTo(stopped));
         claim(
                 "both files are recorded exactly once between the two sessions",
-                () -> assertThat(ledger.occurrencesForWalk(resumed))
+                () -> assertThat(ledger.occurrences().occurrencesForWalk(resumed))
                         .extracting(RecordedOccurrence::path)
                         .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
         claim(
                 "the walk is now finished, and so eligible as run input",
-                () -> assertThat(ledger.walkFinished(resumed)).isTrue());
+                () -> assertThat(ledger.walks().walkFinished(resumed)).isTrue());
     }
 
     @Test
@@ -174,10 +174,10 @@ class WalkRecorderTest {
 
         claim(
                 "a walk that did not reach the end of the tree is not marked finished",
-                () -> assertThat(ledger.walkFinished(stopped)).isFalse());
+                () -> assertThat(ledger.walks().walkFinished(stopped)).isFalse());
         claim(
                 "it is still offered for continuation, under the id it already has",
-                () -> assertThat(ledger.unfinishedWalk(Walk.canonicalRoot(root)).orElseThrow().walkId())
+                () -> assertThat(ledger.walks().unfinishedWalk(Walk.canonicalRoot(root)).orElseThrow().walkId())
                         .isEqualTo(stopped));
     }
 
@@ -219,10 +219,10 @@ class WalkRecorderTest {
 
         claim(
                 "the three files written are recorded once each, no session having repeated another's work",
-                () -> assertThat(ledger.occurrenceCount(walkId)).isEqualTo(3));
+                () -> assertThat(ledger.occurrences().occurrenceCount(walkId)).isEqualTo(3));
         claim(
                 "reconciliation passed, which is the only way walk() returns at all once a walk finishes",
-                () -> assertThat(ledger.walkFinished(walkId)).isTrue());
+                () -> assertThat(ledger.walks().walkFinished(walkId)).isTrue());
     }
 
     @Test
@@ -250,10 +250,10 @@ class WalkRecorderTest {
                 () -> assertThat(anomalyLog.anomalyCount(walkId)).isEqualTo(1));
         claim(
                 "the other became an occurrence",
-                () -> assertThat(ledger.occurrenceCount(walkId)).isEqualTo(1));
+                () -> assertThat(ledger.occurrences().occurrenceCount(walkId)).isEqualTo(1));
         claim(
                 "and the walk finished, which it only does once reconciliation has balanced",
-                () -> assertThat(ledger.walkFinished(walkId)).isTrue());
+                () -> assertThat(ledger.walks().walkFinished(walkId)).isTrue());
     }
 
     @Test
@@ -273,7 +273,7 @@ class WalkRecorderTest {
         claim(
                 "nothing was written for the entries the stopped session had reported, because it never"
                         + " reached a commit — which is what leaves the database at a point worth resuming from",
-                () -> assertThat(ledger.occurrenceCount(stopped)).isZero());
+                () -> assertThat(ledger.occurrences().occurrenceCount(stopped)).isZero());
 
         WalkId resumed = recorder().walk(root);
 
@@ -283,7 +283,7 @@ class WalkRecorderTest {
         claim(
                 "both files are recorded exactly once: the entry the first session reported and dropped was"
                         + " walked again, not lost and not doubled",
-                () -> assertThat(ledger.occurrencesForWalk(resumed))
+                () -> assertThat(ledger.occurrences().occurrencesForWalk(resumed))
                         .extracting(RecordedOccurrence::path)
                         .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
     }
@@ -326,7 +326,7 @@ class WalkRecorderTest {
         claim(
                 "and the one file that was there is recorded once beneath it, not " + TWO_LOOKS + " times:"
                         + " the second look's copy of it went with the look that was discarded",
-                () -> assertThat(ledger().occurrencesForWalk(first)).hasSize(THE_ONE_FILE));
+                () -> assertThat(ledger().occurrences().occurrencesForWalk(first)).hasSize(THE_ONE_FILE));
     }
 
     @Test

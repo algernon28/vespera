@@ -33,15 +33,15 @@ final class OccurrencesUnderARun {
     /** {@code count} occurrences, recorded under paths {@code corpus/occurrence-<i>.txt}, and a run over them. */
     static OccurrencesUnderARun of(JdbcTemplate jdbcTemplate, int count) {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus-" + System.nanoTime()));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-" + System.nanoTime()));
         List<OccurrenceId> occurrences = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             OccurrencePath path = new OccurrencePath(pathOf(i));
-            ledger.fileOccurrence(
+            ledger.occurrences().fileOccurrence(
                     walkId, path, 1, Instant.parse("2026-10-04T10:15:30Z"), Instant.parse("2026-10-01T08:00:00Z"));
-            occurrences.add(ledger.occurrenceId(walkId, path).orElseThrow());
+            occurrences.add(ledger.occurrences().occurrenceId(walkId, path).orElseThrow());
         }
-        RunId run = ledger.startRun("extraction", "judging-" + System.nanoTime(), "{}", walkId, List.of());
+        RunId run = ledger.runs().startRun("extraction", "judging-" + System.nanoTime(), "{}", walkId, List.of());
         return new OccurrencesUnderARun(List.copyOf(occurrences), run);
     }
 

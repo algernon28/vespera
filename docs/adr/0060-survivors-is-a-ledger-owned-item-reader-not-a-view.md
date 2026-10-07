@@ -1,5 +1,7 @@
 # ADR-060 — `survivors` is a `ledger`-owned item reader, not a view
 
+> **Partly amended — see [ADR-209](0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md).** The survivors are handed out as an `Iterable<OccurrenceId>` read a page at a time, not as a Spring Batch `ItemReader`, and `ledger` names no Spring Batch type, so the consumer contract and the Consequence on `ledger`'s dependency below no longer hold as written. That `survivors` is a method of `ledger` and never a view, and that no caller is handed a materialized list, stand.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

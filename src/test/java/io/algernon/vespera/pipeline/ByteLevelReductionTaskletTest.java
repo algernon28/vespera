@@ -193,7 +193,7 @@ class ByteLevelReductionTaskletTest {
     }
 
     private io.algernon.vespera.ledger.OccurrenceId occurrence(Ledger ledger, WalkId walkId, String fileName) {
-        return ledger.occurrenceId(walkId, new OccurrencePath(fileName)).orElseThrow();
+        return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(fileName)).orElseThrow();
     }
 
     private io.algernon.vespera.ledger.RunId theRun() {
@@ -869,7 +869,7 @@ class ByteLevelReductionTaskletTest {
 
     private List<String> verdictReasonsFor(Ledger ledger, WalkId walkId, String fileName) {
         long occurrenceId =
-                ledger.occurrenceId(walkId, new OccurrencePath(fileName)).orElseThrow().value();
+                ledger.occurrences().occurrenceId(walkId, new OccurrencePath(fileName)).orElseThrow().value();
         return jdbcTemplate.query(
                 "SELECT reason FROM verdict WHERE occurrence_id = ?",
                 (resultSet, rowNumber) -> resultSet.getString("reason"),
@@ -878,7 +878,7 @@ class ByteLevelReductionTaskletTest {
 
     private List<String> verdictKindsFor(Ledger ledger, WalkId walkId, String fileName) {
         long occurrenceId =
-                ledger.occurrenceId(walkId, new OccurrencePath(fileName)).orElseThrow().value();
+                ledger.occurrences().occurrenceId(walkId, new OccurrencePath(fileName)).orElseThrow().value();
         return jdbcTemplate.query(
                 "SELECT kind FROM verdict WHERE occurrence_id = ?",
                 (resultSet, rowNumber) -> resultSet.getString("kind"),

@@ -1210,6 +1210,20 @@ public final class Adr {
     public static final String LABEL_AUTO_NEEDS_NO_CORPUS_ROOT = FILE
             + "0208-vespera-label-auto-needs-no-corpus-root-and-root-is-no-longer-an-option-of-label.md";
 
+    /**
+     * ADR-209 -- {@code Ledger} holds four records, {@code Walks}, {@code Occurrences}, {@code Runs} and
+     * {@code Verdicts}, and no method of its own; the survivors and a walk's occurrences are an {@code
+     * Iterable} read a page of 1,000 at a time, so no module but {@code pipeline} names a Spring Batch
+     * type; a table is named in SQL only by the module {@code schema.sql} says owns it, which moves five
+     * statements and leaves ADR-198's counting exception standing; the schema stays one file and the six
+     * schema-version classes stay; and every run id from stage 1 to 6b moves once (amends ADR-060's
+     * consumer contract, ADR-059's "schema.sql per module", ADR-041's enforcement gap and ADR-049 as
+     * the architecture document read it, ADR-193 section 7 in where three statements are written, and
+     * ADR-200 section 1 in the reader's type; settles #350).
+     */
+    public static final String THE_LEDGER_IS_FOUR_RECORDS_AND_A_TABLES_SQL_IS_ITS_OWNERS = FILE
+            + "0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md";
+
     private Adr() {
     }
 }

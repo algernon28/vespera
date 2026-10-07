@@ -200,7 +200,7 @@ class RelevanceLabelsTest {
      */
     private RunId aRun() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        return ledger.startRun("embedding-scoring", "abc" + System.nanoTime(), "{}", walkId, List.of());
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        return ledger.runs().startRun("embedding-scoring", "abc" + System.nanoTime(), "{}", walkId, List.of());
     }
 }

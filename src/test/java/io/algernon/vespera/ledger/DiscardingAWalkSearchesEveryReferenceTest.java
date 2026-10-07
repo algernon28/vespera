@@ -24,7 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * {@link Ledger#discardWalk} under {@code foreign_keys=on}, over a walk of a few thousand occurrences
+ * {@link Walks#discardWalk} under {@code foreign_keys=on}, over a walk of a few thousand occurrences
  * while an earlier walk's derived rows reference that earlier walk's occurrences (ADR-115, ADR-173).
  *
  * <p>The delete finishing is not what this pins: in memory, and at this size, it finishes with or
@@ -32,9 +32,9 @@ import org.springframework.test.context.ActiveProfiles;
  * EXPLAIN QUERY PLAN} of the {@code DELETE} does not show the foreign key check, so the check is asked
  * about in the form SQLite documents it as running: {@code SELECT ... FROM <child> WHERE <column> = ?},
  * once per parent row. {@code SEARCH} is that lookup going through an index; {@code SCAN} is it
- * reading the whole child table, which on the archive's ledger is what ADR-173 measured. The
- * {@code walk_anomaly} delete is a statement of {@code discardWalk}'s own, so its plan is asked for
- * directly.
+ * reading the whole child table, which on the archive's ledger is what ADR-173 measured. The walk's
+ * anomalies are deleted beside it by the module that owns them, in a statement of its own
+ * ({@code AnomalyLog#discardForWalk}), so that statement's plan is asked for directly.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -62,19 +62,19 @@ class DiscardingAWalkSearchesEveryReferenceTest {
     @DisplayName("Discarding a duplicate walk under foreign keys finds each reference to what it deletes through an index")
     void discardingADuplicateWalkSearchesEveryReferenceThroughAnIndex() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId earlier = ledger.startWalk(Path.of("C:/corpus"));
+        WalkId earlier = ledger.walks().startWalk(Path.of("C:/corpus"));
         recordOccurrences(ledger, earlier);
-        RunId run = ledger.startRun("resolution", "a version", "{}", earlier, List.of());
-        OccurrenceId representative = ledger.occurrenceId(earlier, path(0)).orElseThrow();
+        RunId run = ledger.runs().startRun("resolution", "a version", "{}", earlier, List.of());
+        OccurrenceId representative = ledger.occurrences().occurrenceId(earlier, path(0)).orElseThrow();
         for (int i = 1; i < OCCURRENCES_PER_WALK; i++) {
-            OccurrenceId superseded = ledger.occurrenceId(earlier, path(i)).orElseThrow();
+            OccurrenceId superseded = ledger.occurrences().occurrenceId(earlier, path(i)).orElseThrow();
             jdbcTemplate.update(
                     "INSERT INTO superseded_by (occurrence_id, run_id, representative_occurrence_id) VALUES (?, ?, ?)",
                     superseded.value(),
                     run.value(),
                     representative.value());
         }
-        WalkId duplicate = ledger.startWalk(Path.of("C:/corpus"));
+        WalkId duplicate = ledger.walks().startWalk(Path.of("C:/corpus"));
         recordOccurrences(ledger, duplicate);
 
         claim(
@@ -83,12 +83,12 @@ class DiscardingAWalkSearchesEveryReferenceTest {
                 () -> assertThat(jdbcTemplate.queryForObject("PRAGMA foreign_keys", Integer.class))
                         .isEqualTo(1));
 
-        ledger.discardWalk(duplicate);
+        ledger.walks().discardWalk(duplicate);
 
         claim(
                 "the duplicate walk's occurrences are gone, and its walk row with them",
                 () -> {
-                    assertThat(ledger.occurrenceCount(duplicate)).isZero();
+                    assertThat(ledger.occurrences().occurrenceCount(duplicate)).isZero();
                     assertThat(jdbcTemplate.queryForObject(
                                     "SELECT count(*) FROM walk WHERE id = ?", Integer.class, duplicate.value()))
                             .isZero();
@@ -96,7 +96,7 @@ class DiscardingAWalkSearchesEveryReferenceTest {
         claim(
                 "the earlier walk, its occurrences and the rows referencing them are untouched",
                 () -> {
-                    assertThat(ledger.occurrenceCount(earlier)).isEqualTo(OCCURRENCES_PER_WALK);
+                    assertThat(ledger.occurrences().occurrenceCount(earlier)).isEqualTo(OCCURRENCES_PER_WALK);
                     assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM superseded_by", Integer.class))
                             .isEqualTo(OCCURRENCES_PER_WALK - 1);
                 });
@@ -117,14 +117,14 @@ class DiscardingAWalkSearchesEveryReferenceTest {
                             .startsWith("SEARCH"));
         }
         claim(
-                "discardWalk's own delete of the walk's anomalies finds them through an index, not by reading"
-                        + " the whole table",
+                "the delete of the walk's anomalies, which goes with the discard, finds them through an index,"
+                        + " not by reading the whole table",
                 () -> assertThat(plan("DELETE FROM walk_anomaly WHERE walk_id = ?")).startsWith("SEARCH"));
     }
 
     private static void recordOccurrences(Ledger ledger, WalkId walkId) {
         for (int i = 0; i < OCCURRENCES_PER_WALK; i++) {
-            ledger.fileOccurrence(walkId, path(i), i, WHEN, WHEN);
+            ledger.occurrences().fileOccurrence(walkId, path(i), i, WHEN, WHEN);
         }
     }
 

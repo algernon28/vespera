@@ -128,7 +128,7 @@ class CensusRunningCountCadenceTest {
         claim(
                 "and the ledger holds none of the 1,500 file occurrences the walk reported: no checkpoint was"
                         + " taken and the walk did not finish, so nothing it buffered was committed",
-                () -> assertThat(new Ledger(jdbcTemplate).occurrenceCount(walk)).isZero());
+                () -> assertThat(new Ledger(jdbcTemplate).occurrences().occurrenceCount(walk)).isZero());
     }
 
     @Test
@@ -144,7 +144,7 @@ class CensusRunningCountCadenceTest {
         claim(
                 "and the checkpoint still committed what the walk had buffered: the ledger holds the 1,500 file"
                         + " occurrences, though the walk did not finish",
-                () -> assertThat(new Ledger(jdbcTemplate).occurrenceCount(walk)).isEqualTo(FIFTEEN_HUNDRED));
+                () -> assertThat(new Ledger(jdbcTemplate).occurrences().occurrenceCount(walk)).isEqualTo(FIFTEEN_HUNDRED));
     }
 
     @Test

@@ -97,8 +97,8 @@ class BoilerplateShinglesTest {
     @DisplayName("With no shingle_corpus_size row, nothing is boilerplate rather than everything")
     void treatsAnUnmeasuredCorpusAsHavingNoBoilerplate() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        RunId stage3RunId = ledger.startRun("content-census", "unmeasured", "{}", walkId, List.of());
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        RunId stage3RunId = ledger.runs().startRun("content-census", "unmeasured", "{}", walkId, List.of());
         documentFrequency(stage3RunId, HASH_AT_THE_FLOOR, SHINGLED_DOCUMENTS);
 
         Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(stage3RunId, FLOOR);
@@ -114,8 +114,8 @@ class BoilerplateShinglesTest {
     /** One walk and one stage-3 run, with the corpus size stage 3 would have measured. */
     private RunId fixture() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        RunId stage3RunId = ledger.startRun("content-census", "abc123", "{}", walkId, List.of());
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        RunId stage3RunId = ledger.runs().startRun("content-census", "abc123", "{}", walkId, List.of());
         jdbcTemplate.update(
                 "INSERT INTO shingle_corpus_size (run_id, shingle_parameter_identity, shingled_document_count)"
                         + " VALUES (?, ?, ?)",

@@ -43,7 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * its own database.
  *
  * <p>What this exists to catch is the defect ADR-089 records: a run whose upstream skips a stage.
- * That was found by a person reading {@link Ledger#survivors}'s javadoc while writing a spec, not by
+ * That was found by a person reading {@link Verdicts#survivors}'s javadoc while writing a spec, not by
  * the build, and it produced two run ids that would each have claimed a different corpus was the
  * same one. One query over two tables is a cheap place to make the next one fail loudly.
  */
@@ -280,7 +280,7 @@ class RunUpstreamChainTest {
     }
 
     private WalkId theWalkOf(Path root) {
-        return ledger.finishedWalkFor(Walk.canonicalRoot(root))
+        return ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))
                 .orElseThrow(() -> new IllegalStateException("no finished walk was recorded for " + root));
     }
 }

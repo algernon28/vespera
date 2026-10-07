@@ -105,9 +105,9 @@ class RedundancySignaturesTest {
 
     private Fixture fixture() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        RunId stage2RunId = ledger.startRun("extraction", "abc123", "{}", walkId, List.of());
-        RunId stage4RunId = ledger.startRun("content-redundancy", "ghi789", "{}", walkId, List.of(stage2RunId));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        RunId stage2RunId = ledger.runs().startRun("extraction", "abc123", "{}", walkId, List.of());
+        RunId stage4RunId = ledger.runs().startRun("content-redundancy", "ghi789", "{}", walkId, List.of(stage2RunId));
         return new Fixture(ledger, walkId, stage2RunId, stage4RunId);
     }
 
@@ -125,14 +125,14 @@ class RedundancySignaturesTest {
         }
 
         OccurrenceId occurrence(String path, Set<Long> shingleHashes) {
-            ledger.fileOccurrence(
+            ledger.occurrences().fileOccurrence(
                     walkId,
                     new OccurrencePath(path),
                     1,
                     Instant.parse("2026-08-29T10:15:30Z"),
                     Instant.parse("2026-08-20T08:00:00Z"));
             OccurrenceId occurrenceId =
-                    ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+                    ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
             for (long hash : shingleHashes) {
                 jdbcTemplate.update(
                         "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"

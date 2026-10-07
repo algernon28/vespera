@@ -81,13 +81,13 @@ class SynthesisStatementProgressOrderTest {
         generation =
                 new ClusterGeneration(new ClusterSynthesis(neverAsked), synthesisDocs, new ClusterFaults(jdbcTemplate));
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.startWalk(Path.of("C:/corpus-" + System.nanoTime()));
-        ledger.fileOccurrence(walk, new OccurrencePath(SEED_PATH), 1, Instant.EPOCH, Instant.EPOCH);
-        seed = ledger.occurrenceId(walk, new OccurrencePath(SEED_PATH)).orElseThrow();
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-" + System.nanoTime()));
+        ledger.occurrences().fileOccurrence(walk, new OccurrencePath(SEED_PATH), 1, Instant.EPOCH, Instant.EPOCH);
+        seed = ledger.occurrences().occurrenceId(walk, new OccurrencePath(SEED_PATH)).orElseThrow();
         OccurrencePath documentPath = new OccurrencePath("corpus/document.txt");
-        ledger.fileOccurrence(walk, documentPath, 1, Instant.EPOCH, Instant.EPOCH);
-        document = ledger.occurrenceId(walk, documentPath).orElseThrow();
-        run = ledger.startRun("generation", "g" + System.nanoTime(), "{}", walk, List.of());
+        ledger.occurrences().fileOccurrence(walk, documentPath, 1, Instant.EPOCH, Instant.EPOCH);
+        document = ledger.occurrences().occurrenceId(walk, documentPath).orElseThrow();
+        run = ledger.runs().startRun("generation", "g" + System.nanoTime(), "{}", walk, List.of());
         calls.clear();
     }
 

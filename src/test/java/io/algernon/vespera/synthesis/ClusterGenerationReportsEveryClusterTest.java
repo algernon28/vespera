@@ -100,10 +100,10 @@ class ClusterGenerationReportsEveryClusterTest {
         generation = new ClusterGeneration(new ClusterSynthesis(engine), synthesisDocs, new ClusterFaults(jdbcTemplate));
         documents.clear();
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus-" + System.nanoTime()));
-        ledger.fileOccurrence(walkId, new OccurrencePath(SEED_PATH), 1, Instant.EPOCH, Instant.EPOCH);
-        seed = ledger.occurrenceId(walkId, new OccurrencePath(SEED_PATH)).orElseThrow();
-        run = ledger.startRun("generation", "g" + System.nanoTime(), "{}", walkId, List.of());
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-" + System.nanoTime()));
+        ledger.occurrences().fileOccurrence(walkId, new OccurrencePath(SEED_PATH), 1, Instant.EPOCH, Instant.EPOCH);
+        seed = ledger.occurrences().occurrenceId(walkId, new OccurrencePath(SEED_PATH)).orElseThrow();
+        run = ledger.runs().startRun("generation", "g" + System.nanoTime(), "{}", walkId, List.of());
         events.clear();
         documentsOf.clear();
     }
@@ -231,8 +231,8 @@ class ClusterGenerationReportsEveryClusterTest {
             WalkId walkId = new WalkId(jdbcTemplate.queryForObject(
                     "SELECT walk_id FROM file_occurrence WHERE id = ?", Long.class, seed.value()));
             OccurrencePath path = new OccurrencePath("corpus/document-" + at + ".txt");
-            ledger.fileOccurrence(walkId, path, 1, Instant.EPOCH, Instant.EPOCH);
-            return ledger.occurrenceId(walkId, path).orElseThrow();
+            ledger.occurrences().fileOccurrence(walkId, path, 1, Instant.EPOCH, Instant.EPOCH);
+            return ledger.occurrences().occurrenceId(walkId, path).orElseThrow();
         });
     }
 

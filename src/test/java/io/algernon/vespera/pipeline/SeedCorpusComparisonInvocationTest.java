@@ -260,12 +260,12 @@ class SeedCorpusComparisonInvocationTest {
     }
 
     private WalkId theCorpusWalkOf(Path root) {
-        return ledger.finishedWalkFor(Walk.canonicalRoot(root))
+        return ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))
                 .orElseThrow(() -> new IllegalStateException("census recorded no finished walk of " + root));
     }
 
     private WalkId theSeedWalkOf(Path seeds) {
-        return ledger.finishedWalkFor(Walk.canonicalRoot(seeds))
+        return ledger.walks().finishedWalkFor(Walk.canonicalRoot(seeds))
                 .orElseThrow(() -> new IllegalStateException("census recorded no finished walk of " + seeds));
     }
 

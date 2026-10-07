@@ -45,13 +45,13 @@ class LedgerTest {
         Instant lastModified = Instant.parse("2026-08-29T10:15:30Z");
         Instant creationTime = Instant.parse("2026-08-20T08:00:00Z");
 
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        ledger.fileOccurrence(walkId, new OccurrencePath("a/b.txt"), 10, lastModified, creationTime);
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        ledger.occurrences().fileOccurrence(walkId, new OccurrencePath("a/b.txt"), 10, lastModified, creationTime);
 
         claim(
                 "the occurrence recorded against this walk is read back exactly as it was written, creation"
                         + " time included",
-                () -> assertThat(ledger.occurrencesForWalk(walkId))
+                () -> assertThat(ledger.occurrences().occurrencesForWalk(walkId))
                         .containsExactly(new RecordedOccurrence(
                                 new OccurrencePath("a/b.txt"), 10, lastModified, creationTime)));
     }
@@ -75,10 +75,10 @@ class LedgerTest {
     @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
     void askingTwiceForOnePieceOfWorkCarriesOnUnderTheRecordAlreadyThere() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
 
-        RunId first = ledger.startRun(A_STAGE, UNCHANGED_SINCE_LAST_TIME, "{}", walkId, List.of());
-        RunId second = ledger.startRun(A_STAGE, UNCHANGED_SINCE_LAST_TIME, "{}", walkId, List.of());
+        RunId first = ledger.runs().startRun(A_STAGE, UNCHANGED_SINCE_LAST_TIME, "{}", walkId, List.of());
+        RunId second = ledger.runs().startRun(A_STAGE, UNCHANGED_SINCE_LAST_TIME, "{}", walkId, List.of());
 
         claim(
                 "the second ask answers with the same name as the first: what a piece of work is called is"
@@ -99,18 +99,18 @@ class LedgerTest {
     @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
     void givesBackTheStageNameARunWasRecordedUnder() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        RunId run = ledger.startRun(A_STAGE, UNCHANGED_SINCE_LAST_TIME, "{}", walkId, List.of());
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        RunId run = ledger.runs().startRun(A_STAGE, UNCHANGED_SINCE_LAST_TIME, "{}", walkId, List.of());
 
         claim(
                 "the stage name given when the run was recorded is the one read back, letter for letter:"
                         + " a caller following a run's upstream runs tells by this which one it was"
                         + " looking for, and the ledger gives the text back without reading anything"
                         + " into it",
-                () -> assertThat(ledger.stageOf(run)).contains(A_STAGE));
+                () -> assertThat(ledger.runs().stageOf(run)).contains(A_STAGE));
         claim(
                 "and a name no run was recorded under has no stage, as an answer and not a failure",
-                () -> assertThat(ledger.stageOf(new RunId(A_RUN_NOBODY_RECORDED))).isEmpty());
+                () -> assertThat(ledger.runs().stageOf(new RunId(A_RUN_NOBODY_RECORDED))).isEmpty());
     }
 
     /** How many rows the run table holds under one name. */
