@@ -104,7 +104,7 @@ class OllamaRefusalInvocationTest {
         AtomicInteger chatCalls = new AtomicInteger();
         CURRENT.set(OllamaLabellerFixture.over("gpt-oss:120b-cloud", LOCAL_URL, builder, chatCalls));
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim("the invocation exits 1", () -> assertThat(cli.getExitCode()).isEqualTo(1));
         claim(
@@ -135,7 +135,7 @@ class OllamaRefusalInvocationTest {
         AtomicInteger chatCalls = new AtomicInteger();
         CURRENT.set(OllamaLabellerFixture.over("qwen3:8b", LOCAL_URL, builder, chatCalls));
 
-        cli.run("label", "--auto", "--root", root.toString());
+        cli.run("label", "--auto");
 
         claim("the invocation exits 1", () -> assertThat(cli.getExitCode()).isEqualTo(1));
         claim(

@@ -101,7 +101,7 @@ class AutoLabelling {
         this.workingDirectory = workingDirectory;
     }
 
-    Outcome run(Path root) {
+    Outcome run() {
         Optional<String> refusal = labeller.refusal();
         if (refusal.isPresent()) {
             return Outcome.refused(labeller.identity() + " must not be used: " + refusal.get());

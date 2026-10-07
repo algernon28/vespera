@@ -228,7 +228,6 @@ public class VesperaCommand implements Callable<Integer> {
         private final NextAction nextAction;
         private final Path workingDirectoryInUse;
         private final ObjectProvider<AutoLabelling> autoLabelling;
-        private final String configuredRoot;
 
         @Option(
                 names = "--auto",
@@ -236,13 +235,6 @@ public class VesperaCommand implements Callable<Integer> {
                         + " relevanceScoreFloor by the rule that loses no documentation (ADR-197). An answer a"
                         + " person gave is never replaced.")
         private boolean auto;
-
-        @Option(
-                names = "--root",
-                paramLabel = "<root>",
-                description = "With --auto, the corpus root the label file's documents are under. Falls back to "
-                        + Run.ROOT_PROPERTY + " when omitted.")
-        private Path root;
 
         @Parameters(
                 index = "0",
@@ -270,20 +262,17 @@ public class VesperaCommand implements Callable<Integer> {
                 LabelIngestion labelIngestion,
                 NextAction nextAction,
                 @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
-                ObjectProvider<AutoLabelling> autoLabelling,
-                @Value("${" + Run.ROOT_PROPERTY + ":}") String configuredRoot) {
+                ObjectProvider<AutoLabelling> autoLabelling) {
             this.labelIngestion = labelIngestion;
             this.nextAction = nextAction;
             this.workingDirectoryInUse = workingDirectoryInUse;
             this.autoLabelling = autoLabelling;
-            this.configuredRoot = configuredRoot;
         }
 
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             file = null;
             auto = false;
-            root = null;
             databaseDirectory = new WorkingDirectoryOption();
         }
 
@@ -322,8 +311,8 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /**
-         * {@code --auto} (ADR-197 §6): the root is named by the option or by configuration and never
-         * guessed (ADR-066).
+         * {@code --auto} (ADR-197 §6): it needs no corpus root and takes none (ADR-208). It finds each
+         * opening under the key stage 2 recorded and opens no archive file (ADR-206 §4).
          */
         private Integer callAuto() {
             AutoLabelling labelling = autoLabelling.getIfAvailable();
@@ -332,16 +321,7 @@ public class VesperaCommand implements Callable<Integer> {
                         + " this build.");
                 return CommandLine.ExitCode.SOFTWARE;
             }
-            Path corpusRoot = root != null
-                    ? root
-                    : configuredRoot == null || configuredRoot.isBlank() ? null : Path.of(configuredRoot.strip());
-            if (corpusRoot == null) {
-                System.err.println("vespera label --auto named no root and " + Run.ROOT_PROPERTY + " is not set:"
-                        + " give the corpus root with --root <root>, or set " + Run.ROOT_PROPERTY + ". A root"
-                        + " is never guessed.");
-                return CommandLine.ExitCode.USAGE;
-            }
-            AutoLabelling.Outcome outcome = labelling.run(corpusRoot);
+            AutoLabelling.Outcome outcome = labelling.run();
             if (outcome.refused()) {
                 System.err.println("vespera label --auto recorded nothing: " + outcome.message());
                 return CommandLine.ExitCode.SOFTWARE;
