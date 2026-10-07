@@ -330,11 +330,14 @@ class SimilarityStatementProgressOrderTest {
     /** The one signature row the two tests of a read that throws give the run, so resolution has something signed. */
     private static final int ONE_ROW = 1;
 
+    /** An occurrence number far above any this fixture's walk holds; foreign keys are not enforced on this pool. */
+    private static final long AN_OCCURRENCE_NO_WALK_HOLDS = 1_000_000L;
+
     private void oneSignatureRow() throws SQLException {
         try (Connection connection = pool.connection();
                 PreparedStatement insert = connection.prepareStatement("INSERT INTO minhash_signature"
                         + " (occurrence_id, run_id, signature_identity, signature) VALUES (?, ?, 'identity', x'00')")) {
-            insert.setLong(1, 1_000_000L);
+            insert.setLong(1, AN_OCCURRENCE_NO_WALK_HOLDS);
             insert.setString(2, stage4.value());
             insert.executeUpdate();
         }
