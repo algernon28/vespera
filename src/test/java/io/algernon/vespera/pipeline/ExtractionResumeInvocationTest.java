@@ -84,6 +84,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("Stage 2 step")
 @Issue("379")
 @Link(name = "ADR-181", url = Adr.A_STOPPED_STAGE_2_RESUMES_FROM_WHAT_ITS_COMMITTED_CHUNKS_RECORDED, type = "adr")
+@Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
 class ExtractionResumeInvocationTest {
 
     /** How many occurrences one commit of stage 2 holds. */
@@ -230,6 +231,14 @@ class ExtractionResumeInvocationTest {
                 "the measurements kept from the first invocation and the ones added by the second come to"
                         + " exactly one per document, as many as the same corpus gets in one go",
                 () -> assertThat(metricRowsUnder(run)).isEqualTo(metricRowsUnder(reference)));
+        claim(
+                "every document measured under the resumed stage has exactly one cache key on record, and no"
+                        + " other document has one: the keys the first invocation saved were kept with its"
+                        + " measurements and not written again, and the second invocation wrote the rest",
+                () -> {
+                    assertThat(keyRowsUnder(run)).isEqualTo(metricRowsUnder(run));
+                    assertThat(measuredWithoutAKeyUnder(run)).isZero();
+                });
         claim(
                 "the word sequences recorded for later comparison number exactly what the same corpus gets in"
                         + " one go: none is missing and none is recorded twice",
@@ -612,6 +621,18 @@ class ExtractionResumeInvocationTest {
 
     private long metricRowsUnder(String run) {
         return countUnder("SELECT COUNT(*) FROM extraction_metric WHERE run_id = ?", run);
+    }
+
+    private long keyRowsUnder(String run) {
+        return countUnder("SELECT COUNT(*) FROM extraction_cache_key WHERE run_id = ?", run);
+    }
+
+    /** Documents with a measurement under {@code run} and no cache key under it (ADR-206 section 2). */
+    private long measuredWithoutAKeyUnder(String run) {
+        return countUnder(
+                "SELECT COUNT(*) FROM extraction_metric m WHERE m.run_id = ? AND NOT EXISTS (SELECT 1 FROM"
+                        + " extraction_cache_key k WHERE k.occurrence_id = m.occurrence_id AND k.run_id = m.run_id)",
+                run);
     }
 
     private long shingleRowsUnder(String run) {

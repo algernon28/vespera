@@ -1,15 +1,13 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.Clustering;
 import io.algernon.vespera.embedding.ClusteringProgress;
 import io.algernon.vespera.embedding.RetainedEdgeSpread;
 import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.extraction.ChunkingRule;
-import io.algernon.vespera.extraction.DoclingExtractor;
+import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -31,6 +29,7 @@ import org.springframework.batch.core.step.tasklet.Tasklet;
 import io.algernon.vespera.ledger.RunId;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -71,11 +70,10 @@ class ClusteringTasklet implements Tasklet {
     private final UsableSeedGate usableSeedGate;
     private final StageRuns stageRuns;
     private final Ledger ledger;
-    private final DoclingExtractor extractor;
     private final HybridChunker hybridChunker;
     private final Clustering clustering;
     private final DocumentClusters documentClusters;
-    private final Path root;
+    private final ExtractionCacheKeys cacheKeys;
     private final Path workingDirectory;
 
     ClusteringTasklet(
@@ -84,22 +82,20 @@ class ClusteringTasklet implements Tasklet {
             UsableSeedGate usableSeedGate,
             StageRuns stageRuns,
             Ledger ledger,
-            DoclingExtractor extractor,
             HybridChunker hybridChunker,
             Clustering clustering,
             DocumentClusters documentClusters,
-            @Value("#{jobParameters['root']}") Path root,
+            JdbcTemplate jdbcTemplate,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
         this.ledger = ledger;
-        this.extractor = extractor;
         this.hybridChunker = hybridChunker;
         this.clustering = clustering;
         this.documentClusters = documentClusters;
-        this.root = root;
+        this.cacheKeys = new ExtractionCacheKeys(jdbcTemplate);
         this.workingDirectory = workingDirectory;
     }
 
@@ -138,7 +134,7 @@ class ClusteringTasklet implements Tasklet {
 
                     documentClusters.discardForRun(scoring);
 
-                    Path canonicalRoot = Walk.canonicalRoot(root);
+                    RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
                     String chunkerIdentity = hybridChunker.identity();
                     String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
 
@@ -156,10 +152,10 @@ class ClusteringTasklet implements Tasklet {
                             scoring.value(),
                             partitions.size());
                     // Every partition's members are asked for and filtered before the first partition is
-                    // clustered, so the counter over the files hashed has one total across all of them
+                    // clustered, so the counter over the cache keys read has one total across all of them
                     // (ADR-192 section 5). One membersOf statement per partition, moved earlier, not added.
                     List<List<OccurrenceId>> membersByPartition = new ArrayList<>(partitions.size());
-                    long filesToHash = 0;
+                    long keysToRead = 0;
                     for (OccurrenceId winningSeed : partitions) {
                         String whichPartition =
                                 "partition " + (membersByPartition.size() + 1) + " of " + partitions.size();
@@ -171,12 +167,12 @@ class ClusteringTasklet implements Tasklet {
                                 .filter(survivors::contains)
                                 .toList();
                         membersByPartition.add(members);
-                        filesToHash += members.size();
+                        keysToRead += members.size();
                     }
                     StageProgress partitionsDone =
                             StageProgress.over("Stage 5f (clustering, seed partitions)", partitions.size());
-                    StageProgress filesHashed =
-                            StageProgress.over("Stage 5f (clustering, files hashed)", filesToHash);
+                    StageProgress keysRead =
+                            StageProgress.over("Stage 5f (clustering, cache keys read)", keysToRead);
                     List<ClusterSizeReport.Partition> reported = new ArrayList<>();
                     for (int partition = 0; partition < partitions.size(); partition++) {
                         OccurrenceId winningSeed = partitions.get(partition);
@@ -195,7 +191,7 @@ class ClusteringTasklet implements Tasklet {
                         Optional<RetainedEdgeSpread> spread = clustering.clusterAndRecord(
                                 scoring,
                                 winningSeed,
-                                contentHashesOf(canonicalRoot, members, filesHashed),
+                                contentHashesOf(extractionRun, members, keysRead),
                                 chunkerIdentity,
                                 chunkingRuleIdentity,
                                 modelName,
@@ -228,20 +224,18 @@ class ClusteringTasklet implements Tasklet {
     /**
      * Each partition member's content hash, in the order clustering visits them.
      *
-     * <p>Resolved here because only {@code pipeline} can reach a file, exactly as the scoring step
-     * before it does. This is a hash per document rather than a vector per document, which is what
+     * <p>Read here from the key stage 2 recorded under {@code extractionRun}, because only {@code
+     * pipeline} reads that table for another module, exactly as the scoring step before it does (ADR-206).
+     * No file is opened. This is a hash per document rather than a vector per document, which is what
      * ADR-085's ceiling is about: it is what lets {@link Clustering} address a block without holding
      * the partition.
      */
     private Map<OccurrenceId, String> contentHashesOf(
-            Path canonicalRoot, List<OccurrenceId> members, StageProgress filesHashed) {
+            RunId extractionRun, List<OccurrenceId> members, StageProgress keysRead) {
         Map<OccurrenceId, String> contentHashes = new LinkedHashMap<>();
         for (OccurrenceId member : members) {
-            OccurrenceFacts facts = ledger.factsFor(member)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "no facts recorded for occurrence " + member.value()));
-            contentHashes.put(member, extractor.contentHashFor(canonicalRoot.resolve(facts.path().value())));
-            filesHashed.itemDone();
+            contentHashes.put(member, cacheKeys.requireForOccurrence(member, extractionRun));
+            keysRead.itemDone();
         }
         return contentHashes;
     }

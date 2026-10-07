@@ -1,6 +1,5 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.ChunkEmbedder;
 import io.algernon.vespera.embedding.LocalOllamaModel;
 import io.algernon.vespera.embedding.OllamaClient;
@@ -10,13 +9,12 @@ import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.ChunkingRule;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
+import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -31,7 +29,7 @@ import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -43,11 +41,12 @@ import org.springframework.stereotype.Component;
  * (ADR-080's rule, applied a third time).
  *
  * <p>Once the model is named and stage 5's earlier gates are open, every corpus survivor <em>and</em>
- * every usable seed is re-chunked from {@code extraction_cache} — {@link
- * DoclingExtractor#convert(Path, String, ExtractorIdentity)}'s cache hit means zero Docling calls —
- * and each chunk is embedded and stored as a vector via {@link ChunkEmbedder}, under gate 3's own run
- * row (ADR-084). Both sides go through the same path with no instruction: a seed chunk against a
- * corpus chunk is two documents, not a query against a document.
+ * every usable seed is re-chunked from {@code extraction_cache}, read through {@link
+ * DoclingExtractor#cached} under the key stage 2 (or seed extraction) recorded for it (ADR-206): no file
+ * is opened and nothing is converted, so there are zero Docling calls — and each chunk is embedded and
+ * stored as a vector via {@link ChunkEmbedder}, under gate 3's own run row (ADR-084). Both sides go
+ * through the same path with no instruction: a seed chunk against a corpus chunk is two documents, not
+ * a query against a document.
  *
  * <p><b>It sends nothing under a model Ollama does not serve on this machine</b> (ADR-202). Once the
  * gates are open and before the measurement run or the scoring run is resolved, the embedding model's name
@@ -75,7 +74,7 @@ class EmbeddingScoringTasklet implements Tasklet {
     private final ChunkEmbedder chunkEmbedder;
     private final UnusableSeeds unusableSeeds;
     private final OllamaClient ollamaClient;
-    private final Path root;
+    private final ExtractionCacheKeys cacheKeys;
 
     EmbeddingScoringTasklet(
             EmbeddingModelGate embeddingModelGate,
@@ -89,7 +88,7 @@ class EmbeddingScoringTasklet implements Tasklet {
             ChunkEmbedder chunkEmbedder,
             UnusableSeeds unusableSeeds,
             OllamaClient ollamaClient,
-            @Value("#{jobParameters['root']}") Path root) {
+            JdbcTemplate jdbcTemplate) {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
@@ -101,7 +100,7 @@ class EmbeddingScoringTasklet implements Tasklet {
         this.chunkEmbedder = chunkEmbedder;
         this.unusableSeeds = unusableSeeds;
         this.ollamaClient = ollamaClient;
-        this.root = root;
+        this.cacheKeys = new ExtractionCacheKeys(jdbcTemplate);
     }
 
     @Override
@@ -136,7 +135,7 @@ class EmbeddingScoringTasklet implements Tasklet {
                 () -> LOG.info("Stage 5c (embedding scoring) was already recorded under run {}", scoring.value()),
                 () -> {},
                 () -> {
-                    Path canonicalRoot = Walk.canonicalRoot(root);
+                    RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
                     Set<OccurrenceId> survivors = TimedStatement.of(
                             STAGE, "reading", "read", "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(measurementRun)));
                     Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk, measurementRun);
@@ -151,14 +150,14 @@ class EmbeddingScoringTasklet implements Tasklet {
                     StageProgress survivorChunks =
                             StageProgress.running("Stage 5c (embedding scoring, corpus survivor chunks)");
                     for (OccurrenceId occurrenceId : survivors) {
-                        rechunkAndEmbed(canonicalRoot, occurrenceId, modelName, survivorChunks);
+                        rechunkAndEmbed(extractionRun, occurrenceId, modelName, survivorChunks);
                         survivorsDone.itemDone();
                     }
                     StageProgress seedsDone =
                             StageProgress.over("Stage 5c (embedding scoring, seeds)", usableSeeds.size());
                     StageProgress seedChunks = StageProgress.running("Stage 5c (embedding scoring, seed chunks)");
                     for (OccurrenceId occurrenceId : usableSeeds) {
-                        rechunkAndEmbed(seedWalk.canonicalRoot(), occurrenceId, modelName, seedChunks);
+                        rechunkAndEmbed(measurementRun, occurrenceId, modelName, seedChunks);
                         seedsDone.itemDone();
                     }
                     LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.value());
@@ -203,13 +202,19 @@ class EmbeddingScoringTasklet implements Tasklet {
         return allSeeds;
     }
 
+    /**
+     * Re-chunks one document from the conversion on record for it and embeds each chunk. The key the
+     * conversion is kept under is read from {@code keyRun}, the run that recorded it: stage 2's for a corpus
+     * survivor, the measurement run's for a seed (ADR-206 section 4). No file is opened, and nothing is
+     * converted: a conversion missing under a recorded key stops the step.
+     */
     private void rechunkAndEmbed(
-            Path canonicalRoot, OccurrenceId occurrenceId, String modelName, StageProgress chunksEmbedded) {
-        OccurrenceFacts facts = ledger.factsFor(occurrenceId)
-                .orElseThrow(() -> new IllegalStateException("no facts recorded for occurrence " + occurrenceId.value()));
-        Path file = canonicalRoot.resolve(facts.path().value());
-        String contentHash = extractor.contentHashFor(file);
-        DoclingResponse response = SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
+            RunId keyRun, OccurrenceId occurrenceId, String modelName, StageProgress chunksEmbedded) {
+        String contentHash = cacheKeys.requireForOccurrence(occurrenceId, keyRun);
+        DoclingResponse response = extractor.cached(contentHash, extractorIdentity)
+                .orElseThrow(() -> new IllegalStateException("no conversion is cached under key " + contentHash
+                        + ", recorded for occurrence " + occurrenceId.value() + " under run " + keyRun.value()
+                        + ", for extractor identity " + extractorIdentity.value()));
         List<Chunk> chunks = hybridChunker.chunk(response.rawResponse(), contentHash, ChunkingRule.DEFAULT);
         for (Chunk chunk : chunks) {
             chunkEmbedder.embed(

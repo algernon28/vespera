@@ -249,6 +249,22 @@ CREATE TABLE IF NOT EXISTS extraction_metric (
 -- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS extraction_metric_by_run_id ON extraction_metric (run_id);
 
+-- extraction's own table (ADR-206): the key -- the SHA-256 of the file's bytes -- under which stage 2 (or
+-- seed extraction, under the measurement run) looked the extraction cache up for one file occurrence, so
+-- that no step after it opens an archive file to find that key again. A row exists exactly where an
+-- extraction_metric row does. It is not a foreign key into extraction_cache, which is keyed by content
+-- and instrument outside any run; and it is an address, not a second byte identity: corpus's content_hash
+-- table is the one stage 1 decides duplicates by. The check refuses anything that is not a key, which a
+-- later lookup would otherwise see only as a miss.
+CREATE TABLE IF NOT EXISTS extraction_cache_key (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    content_hash TEXT NOT NULL CHECK (length(content_hash) = 64 AND content_hash NOT GLOB '*[^0-9a-f]*'),
+    PRIMARY KEY (occurrence_id, run_id)
+);
+
+CREATE INDEX IF NOT EXISTS extraction_cache_key_by_run_id ON extraction_cache_key (run_id);
+
 -- extraction's own table (ADR-075): stage 3's corpus-wide distribution of extraction_metric's
 -- mean_score, bucketed against QualityGrade's own cut-points (0.5/0.8/0.9) so a bucket boundary here
 -- is one an operator already recognises from Docling's own grade. Keyed by stage 3's own run_id, not

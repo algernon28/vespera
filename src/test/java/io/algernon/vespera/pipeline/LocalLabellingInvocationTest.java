@@ -17,7 +17,9 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -63,6 +65,15 @@ class LocalLabellingInvocationTest {
     /** Questions the scripted labeller was asked since the test began. */
     static final AtomicInteger QUESTIONS = new AtomicInteger();
 
+    /** The opening each of those questions put to the labeller, empty where none could be read. */
+    static final List<Optional<String>> OPENINGS_PUT = new CopyOnWriteArrayList<>();
+
+    /** A path written into the label file by hand, which no file of the fixture corpus has. */
+    private static final String A_PATH_THE_RUN_NEVER_WALKED = "a-path-the-run-never-walked.txt";
+
+    /** The words every scripted conversion carries, so finding them means a document's opening was put. */
+    private static final String WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH = "stubbed but real content";
+
     @TestConfiguration
     static class Beans {
         @Bean
@@ -81,6 +92,7 @@ class LocalLabellingInvocationTest {
                 @Override
                 public Optional<Boolean> answer(LabelQuestion question) {
                     QUESTIONS.incrementAndGet();
+                    OPENINGS_PUT.add(question.opening());
                     return Optional.of(true);
                 }
             };
@@ -107,6 +119,77 @@ class LocalLabellingInvocationTest {
     @BeforeEach
     void forgetQuestions() {
         QUESTIONS.set(0);
+        OPENINGS_PUT.clear();
+    }
+
+    /**
+     * The document is rewritten in place after the run that scored it, with nothing a directory listing
+     * shows changed, and the model is still put its opening (ADR-206 sections 4 and 5).
+     *
+     * <p>{@code label --auto} runs no job, so it has no run of its own to read the key under: it follows
+     * the recorded chain upstream from the scoring run its label file names to the run that converted the
+     * document. Until ADR-206 it hashed the file as it is now, found no conversion under that, and asked
+     * the model about a document with no opening.
+     */
+    @Test
+    @Issue("349")
+    @Story("The model is put the document as it was converted")
+    @DisplayName("A document rewritten in place since it was scored is still put to the model with its opening")
+    @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
+    void putsTheOpeningOfADocumentRewrittenInPlace(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aScoredCorpus(root, seeds);
+        UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("corpus.txt"));
+
+        cli.run("label", "--auto", "--root", root.toString());
+
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the model was asked about the one document in the sample (" + ONE_DOCUMENT_IN_THE_SAMPLE
+                        + "), and the question carried the opening of the text its score was computed"
+                        + " from: the opening is found by the key recorded when the document was"
+                        + " converted, not by what its file holds now. A question with no opening would"
+                        + " have the model judge a document by its name alone",
+                () -> assertThat(OPENINGS_PUT)
+                        .singleElement()
+                        .satisfies(opening -> assertThat(opening)
+                                .hasValueSatisfying(text ->
+                                        assertThat(text).contains(WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH))));
+    }
+
+    /**
+     * A label file edited by hand to name a path the run never walked (ADR-206 section 5).
+     *
+     * <p>{@code label --auto} finds a document's opening through its occurrence in the walk of the run
+     * the file names, and such a path has none. It arises only from a hand edit: every path a run writes
+     * into the file is one of its own walk.
+     */
+    @Test
+    @Issue("349")
+    @Story("The model is put the document as it was converted")
+    @DisplayName("A path in the label file that the run never walked is asked about with no opening, and a warning names it")
+    @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
+    void asksAboutAPathTheRunNeverWalkedWithNoOpening(
+            @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
+        aScoredCorpus(root, seeds);
+        Path labels = workingDirectory.resolve(LABEL_FILE);
+        Files.writeString(labels, Files.readString(labels).replace("corpus.txt", A_PATH_THE_RUN_NEVER_WALKED));
+
+        cli.run("label", "--auto", "--root", root.toString());
+
+        claim(
+                "the invocation reports success: a file somebody edited is theirs to correct, and one"
+                        + " path nothing is known about is no reason to stop",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the model was asked about the one entry in the file (" + ONE_DOCUMENT_IN_THE_SAMPLE
+                        + ", renamed here), and the question carried no opening: nothing was converted"
+                        + " under that path, so there is nothing to show",
+                () -> assertThat(OPENINGS_PUT).containsExactly(Optional.empty()));
+        claim(
+                "and a warning names the path, so whoever edited the file can see which entry it was",
+                () -> assertThat(output.getAll())
+                        .contains(A_PATH_THE_RUN_NEVER_WALKED)
+                        .contains("is in the label file but not in the walk"));
     }
 
     @Test

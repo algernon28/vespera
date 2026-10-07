@@ -1291,8 +1291,10 @@ class GenerationFaultInvocationTest {
         GenerationScriptedBeans.answerFor(
                 theOnlyCluster(), anOrdinaryAnswer().stoppedForRoomAfter(THE_WHOLE_ANSWER_ALLOWANCE));
         cli.run("run", root.toString());
-        UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("corpus.txt"));
-        UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("another-corpus-document.txt"));
+        // Nothing is on record for either document any more, so nothing of the group can be sent. Until
+        // ADR-206 both were rewritten in place, which obstructed 6b only while it hashed each file again.
+        ConversionOffTheRecordFixture.takenOffTheRecord(jdbcTemplate, root.resolve("corpus.txt"));
+        ConversionOffTheRecordFixture.takenOffTheRecord(jdbcTemplate, root.resolve("another-corpus-document.txt"));
         GenerationScriptedBeans.forgetScriptedAnswers();
 
         cli.run("run", root.toString());

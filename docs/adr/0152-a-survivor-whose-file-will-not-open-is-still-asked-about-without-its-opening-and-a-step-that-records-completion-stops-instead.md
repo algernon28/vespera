@@ -1,5 +1,7 @@
 # ADR-152 — A survivor whose file will not open is still asked about, without its opening, and a step that records completion stops instead
 
+> **Partly amended — see [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md).** No step after stage 2 opens a survivor's file, so §1's fallback is withdrawn, §3's is reworded and read under the recorded key, and §4's steps neither stop nor tolerate. §2 stands.
+
 - **Date**: 2026-09-25
 - **Status**: accepted
 - **Extends**: [ADR-149](0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md) §9, and the rule `GenerationTasklet.openingChunkOf` states in its javadoc. A file the archive will not open is a fact about that document. It is not a fault in the run. This record applies that rule to stage 5's labelling page, and records where the rule stops.

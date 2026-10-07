@@ -286,6 +286,18 @@ public class Ledger {
                 .findFirst();
     }
 
+    /**
+     * The stage name a run was minted under, as recorded, for a caller following {@link #upstreamRuns}
+     * from a run and looking for the one of a stage it can name. {@code ledger} gives the text back and
+     * decides nothing from it: what a stage is belongs to {@code pipeline} (ADR-040).
+     */
+    public Optional<String> stageOf(RunId runId) {
+        return jdbcTemplate
+                .queryForList("SELECT stage FROM run WHERE id = ?", String.class, runId.value())
+                .stream()
+                .findFirst();
+    }
+
     /** The id of an occurrence within a walk, for a stage holding a path and needing the key. */
     public Optional<OccurrenceId> occurrenceId(WalkId walkId, OccurrencePath path) {
         return jdbcTemplate

@@ -1177,6 +1177,17 @@ public final class Adr {
     public static final String THE_REPORT_COUNTS_THE_ANSWERS_A_MODEL_GAVE = FILE
             + "0205-the-relevance-report-counts-the-answers-a-model-gave-as-it-looks-each-up.md";
 
+    /**
+     * ADR-206 -- stage 2 records, for every file occurrence it writes a metric row for, the key it looked
+     * the extraction cache up under, in {@code extraction_cache_key}, and seed extraction does the same
+     * under the measurement run; every step after reads that key, so none opens an archive file, and a
+     * file changed or gone since stage 2 is not noticed; {@code extraction}'s schema version moves to 6
+     * (amends ADR-151, ADR-152, ADR-149, ADR-192 section 4 and the reason in ADR-197 section 6; restores
+     * two sentences of ADR-104; settles #349).
+     */
+    public static final String STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY = FILE
+            + "0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md";
+
     private Adr() {
     }
 }

@@ -76,6 +76,16 @@ class SeedScriptedExtractionBeans {
      */
     static final String CONVERTER_FAULT = "converter-fault.txt";
 
+    /**
+     * A file the converter answers about with a timeout of its own reporting. One such answer, with none
+     * before or after it, is a verdict against the file and is measured like any other answer; it is
+     * never kept in the extraction cache (ADR-071, ADR-183).
+     */
+    static final String REPORTED_TIMEOUT = "converter-reported-timeout.txt";
+
+    /** What the converter said when it reported that timeout. */
+    static final String REPORTED_TIMEOUT_MESSAGE = "the converter reported that it ran out of time on this file";
+
     /** What the converter said when it blamed itself, named once for the test asserting the whole reason. */
     static final String CONVERTER_FAULT_MESSAGE = "the converter reported a fault of its own";
 
@@ -152,6 +162,7 @@ class SeedScriptedExtractionBeans {
                 .answering(EMPTY_SEED, response(WITHOUT_TEXT))
                 .answering(REFUSED_CONVERSION, refused())
                 .answering(CONVERTER_FAULT, failing(FailureCategory.INTERNAL, CONVERTER_FAULT_MESSAGE))
+                .answering(REPORTED_TIMEOUT, failing(FailureCategory.TIMEOUT, REPORTED_TIMEOUT_MESSAGE))
                 .beforeHashing(MOVED_AWAY_WHEN_READ, SeedScriptedExtractionBeans::moveAwayIfArmed);
         REFUSED_ONE_AFTER_ANOTHER.forEach(name -> extractor.answering(name, refused()));
         return extractor.otherwiseAnswering(response(WITH_TEXT));

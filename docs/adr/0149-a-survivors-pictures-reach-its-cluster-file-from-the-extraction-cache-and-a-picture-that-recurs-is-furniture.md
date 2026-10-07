@@ -1,5 +1,7 @@
 # ADR-149 — A survivor's pictures reach its cluster file from the extraction cache, and a picture that recurs is furniture
 
+> **Partly amended — see [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md).** A survivor's pictures are found by the key stage 2 recorded, so §9's hash of every listed survivor's file, its full read of every original on each tree write, and §10's second amendment of ADR-104 no longer hold.
+
 - **Date**: 2026-09-25
 - **Status**: accepted
 - **Amends**: [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md), on two points (§10). First, where it refuses the extracted text ("Why not the extracted text either"): a survivor's pictures are carved out of that refusal, within the rule and the budget below. The extracted text stays refused, and so does any copy of an original, a standalone image file included (§4). Second, where it says 6b does not check that the originals are still there: writing the tree now reads every listed survivor's original in full, once, to hash it. That read still records no verdict and still keeps the entry. It is a read, not an existence check.

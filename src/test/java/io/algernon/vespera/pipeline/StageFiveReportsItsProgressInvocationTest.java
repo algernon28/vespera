@@ -102,12 +102,12 @@ class StageFiveReportsItsProgressInvocationTest {
     private static final String SEEDS_RECORDED = "Stage 5a (seed extraction, seeds recorded)";
     private static final String EMBEDDING_SURVIVORS = "Stage 5c (embedding scoring, corpus survivors)";
     private static final String EMBEDDING_SEEDS = "Stage 5c (embedding scoring, seeds)";
-    private static final String SEED_FILES = "Stage 5d (relevance scoring, seed files hashed)";
+    private static final String SEED_KEYS = "Stage 5d (relevance scoring, seed cache keys read)";
     private static final String SEED_VECTORS = "Stage 5d (relevance scoring, seed vectors read)";
     private static final String SCORING_SURVIVORS = "Stage 5d (relevance scoring, corpus survivors)";
     private static final String RELEVANCE_FLOOR = "Stage 5e (relevance floor, below-threshold verdicts)";
     private static final String PARTITIONS = "Stage 5f (clustering, seed partitions)";
-    private static final String FILES_HASHED = "Stage 5f (clustering, files hashed)";
+    private static final String KEYS_READ = "Stage 5f (clustering, cache keys read)";
     private static final String BLOCKS = "Stage 5f (clustering, comparison blocks, partition 1 of 1)";
     private static final String MEMBERS_RECORDED = "Stage 5f (clustering, members recorded)";
     private static final String REPORT_SAMPLE = "Stage 5 (relevance report, sampled survivors)";
@@ -271,7 +271,9 @@ class StageFiveReportsItsProgressInvocationTest {
 
     @Test
     @Story("Relevance scoring says how far it has got")
-    @DisplayName("Relevance scoring counts the seed files it hashes, the seed vectors it reads and the survivors it scores")
+    @DisplayName("Relevance scoring counts the seed keys it reads, the seed vectors it reads and the survivors it scores")
+    @Issue("349")
+    @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
     void relevanceScoringCountsItsThreeLoops(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         profile(seeds, null);
@@ -280,9 +282,9 @@ class StageFiveReportsItsProgressInvocationTest {
 
         theStageRan(RELEVANCE_SCORING_FINISHED);
         claim(
-                "the one usable seed is hashed and its stored vectors are read, each a counter of one of one",
+                "the one usable seed's recorded key is read and its stored vectors are read, each a counter of one of one",
                 () -> {
-                    assertThat(progressOf(SEED_FILES)).containsExactlyElementsOf(ProgressLines.expected(SEED_FILES, ONE_SEED));
+                    assertThat(progressOf(SEED_KEYS)).containsExactlyElementsOf(ProgressLines.expected(SEED_KEYS, ONE_SEED));
                     assertThat(progressOf(SEED_VECTORS))
                             .containsExactlyElementsOf(ProgressLines.expected(SEED_VECTORS, ONE_SEED));
                 });
@@ -290,10 +292,10 @@ class StageFiveReportsItsProgressInvocationTest {
                 "and the counter over the survivors reads one, two and three of three",
                 () -> assertThat(progressOf(SCORING_SURVIVORS))
                         .containsExactlyElementsOf(ProgressLines.expected(SCORING_SURVIVORS, CORPUS_DOCUMENTS)));
-        everyLineIsTheCounters(SEED_FILES, SEED_VECTORS, SCORING_SURVIVORS);
+        everyLineIsTheCounters(SEED_KEYS, SEED_VECTORS, SCORING_SURVIVORS);
         claim(
                 "scoring says what it is reading and how long each read took, each line once, in the order it"
-                        + " reads: the seed folder's files and the unusable seeds, for the seeds it hashes, and"
+                        + " reads: the seed folder's files and the unusable seeds, for the seeds whose keys it reads, and"
                         + " then the documents left",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_D))
                         .containsExactlyElementsOf(StatementLines.inOrder(
@@ -397,8 +399,10 @@ class StageFiveReportsItsProgressInvocationTest {
 
     @Test
     @Story("Grouping says how far it has got")
-    @DisplayName("Grouping counts its partitions, the files it hashes across them, and the pairs of blocks of each")
-    void clusteringCountsItsPartitionsFilesAndBlocks(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @DisplayName("Grouping counts its partitions, the recorded keys it reads across them, and the pairs of blocks of each")
+    @Issue("349")
+    @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
+    void clusteringCountsItsPartitionsKeysAndBlocks(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         profile(seeds, null);
 
@@ -410,10 +414,10 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(PARTITIONS))
                         .containsExactlyElementsOf(ProgressLines.expected(PARTITIONS, ONE_PARTITION)));
         claim(
-                "the files of all " + CORPUS_DOCUMENTS + " members are hashed, in one counter whose total is every"
+                "the recorded keys of all " + CORPUS_DOCUMENTS + " members are read, in one counter whose total is every"
                         + " partition's members",
-                () -> assertThat(progressOf(FILES_HASHED))
-                        .containsExactlyElementsOf(ProgressLines.expected(FILES_HASHED, CORPUS_DOCUMENTS)));
+                () -> assertThat(progressOf(KEYS_READ))
+                        .containsExactlyElementsOf(ProgressLines.expected(KEYS_READ, CORPUS_DOCUMENTS)));
         claim(
                 "the partition's three documents fit one block, so it has one pair of blocks to compare, and its"
                         + " counter names the partition and how many there are",
@@ -423,7 +427,7 @@ class StageFiveReportsItsProgressInvocationTest {
                 "and the members whose group is recorded have no counter of their own: their inserts are left to"
                         + " the partition's counter",
                 () -> assertThat(progressOf(MEMBERS_RECORDED)).isEmpty());
-        everyLineIsTheCounters(PARTITIONS, FILES_HASHED, BLOCKS);
+        everyLineIsTheCounters(PARTITIONS, KEYS_READ, BLOCKS);
         claim(
                 "grouping says what it is reading and how long each read took, each line once, in the order it"
                         + " reads: the seed partitions, the documents left, the members of the one partition,"
@@ -743,9 +747,9 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(PARTITIONS))
                         .containsExactlyElementsOf(ProgressLines.expected(PARTITIONS, TWO_PARTITIONS)));
         claim(
-                "the files hashed are one counter over both partitions' members, " + CORPUS_DOCUMENTS + " in all",
-                () -> assertThat(progressOf(FILES_HASHED))
-                        .containsExactlyElementsOf(ProgressLines.expected(FILES_HASHED, CORPUS_DOCUMENTS)));
+                "the recorded keys read are one counter over both partitions' members, " + CORPUS_DOCUMENTS + " in all",
+                () -> assertThat(progressOf(KEYS_READ))
+                        .containsExactlyElementsOf(ProgressLines.expected(KEYS_READ, CORPUS_DOCUMENTS)));
         claim(
                 "each partition's counter over its pairs of blocks names the partition and how many there are:"
                         + " partition 1 of 2 and partition 2 of 2, one pair of blocks each",

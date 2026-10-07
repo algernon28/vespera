@@ -35,10 +35,21 @@ public class ExtractionMetrics {
 
     private final JdbcTemplate jdbcTemplate;
     private final LanguageDetection languageDetection;
+    private final ExtractionCacheKeys cacheKeys;
 
     public ExtractionMetrics(JdbcTemplate jdbcTemplate, LanguageDetection languageDetection) {
         this.jdbcTemplate = jdbcTemplate;
         this.languageDetection = languageDetection;
+        this.cacheKeys = new ExtractionCacheKeys(jdbcTemplate);
+    }
+
+    /**
+     * The table of cache keys, which is written wherever a metrics row is and nowhere else (ADR-206
+     * section 2). It is reached from here because every step that writes a metrics row holds this class
+     * and none holds a second collaborator for the keys: the writer of a row writes its key beside it.
+     */
+    public ExtractionCacheKeys cacheKeys() {
+        return cacheKeys;
     }
 
     /** Records the metrics row for {@code response}, without judging {@code degenerate-output}. */

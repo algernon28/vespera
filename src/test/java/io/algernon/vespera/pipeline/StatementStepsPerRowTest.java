@@ -419,6 +419,11 @@ class StatementStepsPerRowTest {
                     String type = types.get(i);
                     if (column.equals("run_id")) {
                         insert.setString(i + 1, run);
+                    } else if (column.equals("content_hash")) {
+                        // extraction_cache_key takes only a SHA-256 written as 64 lowercase hexadecimal
+                        // characters (ADR-206 section 1), so every content hash here has that shape, a
+                        // different one for each row.
+                        insert.setString(i + 1, String.format("%064x", row));
                     } else if (column.equals("shingle_parameter_identity")) {
                         insert.setString(i + 1, "granularity");
                     } else if (column.equals("winning_seed_occurrence_id")) {

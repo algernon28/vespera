@@ -67,9 +67,12 @@ public class DoclingExtractor {
 
     /**
      * The content hash {@link #convert(Path, ExtractorIdentity)} would compute and key its cache row
-     * under for {@code file} — exposed so a caller needing the same hash, #49's chunk cache or the
-     * manifest's {@code content_hash} column (ADR-151), never re-implements or diverges from this
-     * class's own hashing.
+     * under for {@code file} — exposed so the three steps that read a file for the first time, stage 2's
+     * reader and per-document step and seed extraction's per-seed step, never re-implement or diverge
+     * from this class's own hashing. Stage 2's reader files the key with the call it dispatches, and its
+     * per-document step writes it to {@link ExtractionCacheKeys} (ADR-206); seed extraction records its
+     * own there. Every later step reads the key from there and opens no file, whether it is looking up a
+     * conversion, the chunk cache (#49), or filling the manifest's {@code content_hash} column (ADR-151).
      */
     public String contentHashFor(Path file) {
         return ContentHashing.sha256(file);

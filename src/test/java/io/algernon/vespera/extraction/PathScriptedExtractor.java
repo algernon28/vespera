@@ -4,8 +4,10 @@ import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedSubtype;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /**
@@ -44,6 +46,9 @@ public final class PathScriptedExtractor extends DoclingExtractor {
 
     private DoclingResponse defaultAnswer;
 
+    /** Every file {@link #contentHashFor} was asked to hash, in the order asked, once for each time. */
+    private final List<Path> filesHashed = new CopyOnWriteArrayList<>();
+
     private ExtractionCache cache;
 
     public PathScriptedExtractor() {
@@ -76,6 +81,20 @@ public final class PathScriptedExtractor extends DoclingExtractor {
     public PathScriptedExtractor beforeHashing(String fileName, Consumer<Path> action) {
         beforeHashingByFileName.put(fileName, action);
         return this;
+    }
+
+    /**
+     * Every file this double was asked to hash since {@link #forgetFilesHashed}, once for each time it
+     * was asked, so a test can claim how often a step read a file to find its conversion (ADR-206). A
+     * file whose hash stage 1 recorded is never asked about here, since stage 2 uses that hash.
+     */
+    public List<Path> filesHashed() {
+        return List.copyOf(filesHashed);
+    }
+
+    /** Forgets what {@link #filesHashed} holds: the bean outlives a test, and so would its record. */
+    public void forgetFilesHashed() {
+        filesHashed.clear();
     }
 
     /** What every other file gets, so a fixture need not predict which files a pass will see. */
@@ -118,6 +137,24 @@ public final class PathScriptedExtractor extends DoclingExtractor {
         return cache == null ? Optional.empty() : cache.get(contentHash, extractorIdentity);
     }
 
+    /**
+     * Stores {@code response} as the real extractor does: this is how stage 2 keeps the answer of a
+     * call it dispatched (ADR-140), once the answer is in hand. The inherited method writes into
+     * {@link DoclingExtractor}'s own cache, which is always null here, so without this override the
+     * double kept nothing stage 2 converted and held a document's conversion only once a later step
+     * converted it again through {@link #convert}. No step after stage 2 converts (ADR-206 section 4),
+     * so every later step would find nothing on record.
+     *
+     * <p>It goes through {@link ExtractionCache#put}, the call the real {@code remember} makes, so what
+     * is kept and what is not is the shipped rule and not a second copy of it (ADR-183).
+     */
+    @Override
+    public void remember(String contentHash, ExtractorIdentity extractorIdentity, DoclingResponse response) {
+        if (cache != null) {
+            cache.put(contentHash, extractorIdentity, response);
+        }
+    }
+
     /** The real hash of the real file, after whatever {@link #beforeHashing} asked to be done to it. */
     @Override
     public String contentHashFor(Path file) {
@@ -125,6 +162,7 @@ public final class PathScriptedExtractor extends DoclingExtractor {
         if (action != null) {
             action.accept(file);
         }
+        filesHashed.add(file);
         return super.contentHashFor(file);
     }
 

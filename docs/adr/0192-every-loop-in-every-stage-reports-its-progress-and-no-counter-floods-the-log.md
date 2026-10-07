@@ -4,6 +4,8 @@
 
 > **Extended — see [ADR-205](0205-the-relevance-report-counts-the-answers-a-model-gave-as-it-looks-each-up.md).** The relevance report has a third counter, `Stage 5 (relevance report, model answers matched)`, over a loop ADR-197 added after this record's survey: a row more in §4, and *three* where Consequences say the report writes *its two counters*.
 
+> **Partly amended — see [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md).** No file is hashed after stage 2, so two counters of §4 are renamed, `Stage 5d (relevance scoring, seed cache keys read)` and `Stage 5f (clustering, cache keys read)`, and the units of four read *key* where they say a file is hashed.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-093](0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md), its section *"Stage progress is reported on a percentage/count cadence, where a denominator exists"*, in its cadence and nothing else. Its sentence *"that stage logs a progress line at INFO whenever it crosses **5% or 1,000 items, whichever comes first** since the last report"* now reads: whichever comes first, except that over a total of more than 100,000 items a line is written every 1% of the total, so that no counter over a known total writes more than 100 lines. Its sentence that the walk *"logs a running count only"* now reads with a cadence: a running count writes a line every 1,000 items below 100,000, and from there every tenth of the power of ten at or below the count reached (§8). The line `<label>: N of M (x%)`, its INFO level, and everything else in ADR-093 stand.

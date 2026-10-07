@@ -15,12 +15,11 @@ import java.nio.file.Path;
  * here instead, so a seed is converted as what its bytes say exactly as a corpus document is — which
  * is the whole of ADR-100 applied to the one input that arrives outside the cascade.
  *
- * <p>Held in one place because the two passes that call it — the seed step, and the embedding-scoring
- * tasklet, which converts every survivor and every usable seed through this same byte-level detection
- * rather than reading stage 1's recorded {@code detected_format} — would otherwise each carry the same
- * five lines, and changing how a format is found would mean editing two files to keep one answer. The
- * relevance report called this too, once; ADR-152 moved its preview onto the extraction cache alone,
- * with no conversion of its own, so it is no longer a caller.
+ * <p>Seed extraction is its one caller (ADR-206 section 4), because a seed is the one input with no earlier
+ * stage to have recorded what it is. The embedding-scoring tasklet called it too, for every survivor and
+ * every usable seed, which read each file again even where its conversion was on record; it now reads
+ * the cached conversion under the recorded key and converts nothing. The relevance report called it
+ * once; ADR-152 moved its preview onto the extraction cache alone.
  */
 final class SeedConversions {
 

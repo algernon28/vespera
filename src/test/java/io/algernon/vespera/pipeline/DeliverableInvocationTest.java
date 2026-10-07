@@ -7,6 +7,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.extraction.DoclingExtractor;
+import io.algernon.vespera.extraction.PathScriptedExtractor;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
@@ -110,6 +112,19 @@ class DeliverableInvocationTest {
     /** The two documents this fixture's corpus holds, which are the two the listing has to carry. */
     private static final int TWO_DOCUMENTS = 2;
 
+    /** The seed folder {@link #aCorpus} writes holds this many seeds. */
+    private static final int ONE_SEED = 1;
+
+    /** How often a document is hashed over a campaign: by the stage that converts it, and by no other. */
+    private static final int ONCE = 1;
+
+    /**
+     * The invocations of the campaign {@link #hashesEachDocumentOnceAndEachSeedOnceAnInvocation} runs: the one that
+     * converts, scores and arranges, and the one that writes. Seed extraction reads every seed in each
+     * of them, finished or not, because that read is what says the seed set is usable (ADR-155 section 5).
+     */
+    private static final int INVOCATIONS = 2;
+
     /** How many clusters the one seed of this fixture breaks into once a second is put beside it. */
     private static final int TWO_CLUSTERS = 2;
 
@@ -196,6 +211,10 @@ class DeliverableInvocationTest {
 
     @Autowired
     private Clusters clusters;
+
+    /** The extraction double this class imports, which records each file it is asked to hash. */
+    @Autowired
+    private DoclingExtractor doclingExtractor;
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
@@ -572,12 +591,15 @@ class DeliverableInvocationTest {
     @Test
     @Issue("287")
     @Story("Whatever comes after the hand-off can be built without reading the prose")
-    @DisplayName("A document gone from the archive before the tree is written is still listed, with a blank content hash and a warning")
+    @Issue("349")
+    @DisplayName("A document gone from the archive before the tree is written is still listed, with the content hash it was converted under")
+    @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
     @Link(name = "ADR-151", url = Adr.THE_MANIFESTS_CONTENT_HASH_IS_EVERY_SURVIVORS_SHA_256, type = "adr")
-    void leavesTheContentHashBlankForADocumentGoneBeforeTheTreeIsWritten(@TempDir Path root, @TempDir Path seeds)
+    void fillsTheContentHashOfADocumentGoneBeforeTheTreeIsWritten(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
         Path gone = root.resolve("corpus.txt");
+        String theHashOfWhatItHeld = sha256Of(gone);
         GenerationScriptedBeans.duringEachCall(() -> {
             try {
                 Files.deleteIfExists(gone);
@@ -595,28 +617,146 @@ class DeliverableInvocationTest {
                         + " goes away during 6b's model calls falls into",
                 () -> assertThat(gone).doesNotExist());
         claim(
-                "both of the " + TWO_DOCUMENTS + " survivors are still listed: a document the archive no"
-                        + " longer opens is a fact about that document, and the tree is written anyway",
+                "both of the " + TWO_DOCUMENTS + " survivors are still listed: the tree is written from"
+                        + " what was recorded about each document, and never opens one to write it",
                 () -> assertThat(rowsOfTheListing(root)).hasSize(TWO_DOCUMENTS));
         claim(
-                "the gone document's content_hash cell is blank rather than a value from anywhere else,"
-                        + " and the other document's cell is still the SHA-256 of its own bytes, computed"
-                        + " here with the JDK",
+                "the gone document's content_hash cell is the SHA-256 of the bytes it held, computed here"
+                        + " with the JDK before it was deleted: the cell is the value recorded when the"
+                        + " document was converted, so it does not need the file. The other document's"
+                        + " cell is the SHA-256 of its own bytes, as before. No cell is blank",
                 () -> assertThat(contentHashesOfTheListing(root))
                         .hasSize(TWO_DOCUMENTS)
-                        .containsEntry("corpus.txt", "")
+                        .containsEntry("corpus.txt", theHashOfWhatItHeld)
                         .containsEntry(
                                 "another-corpus-document.txt", sha256Of(root.resolve("another-corpus-document.txt"))));
         claim(
-                "and one warning names the file and the content_hash cell it left blank, so the gap in the"
-                        + " listing is explained where the operator reads the run",
+                "and no warning names the gone file: nothing is missing from the listing, so there is no"
+                        + " gap to explain",
                 () -> assertThat(logged.list)
                         .filteredOn(event -> event.getLevel() == ch.qos.logback.classic.Level.WARN)
                         .map(ILoggingEvent::getFormattedMessage)
-                        .filteredOn(line -> line.contains("content_hash"))
-                        .singleElement()
-                        .asString()
-                        .contains(gone.getFileName().toString()));
+                        .noneMatch(line -> line.contains(gone.getFileName().toString())));
+    }
+
+    /**
+     * A document rewritten in place between the invocation that arranged it and the one that writes
+     * about it, with nothing a directory listing shows changed (ADR-206 section 5).
+     *
+     * <p>Until ADR-206 the generation step hashed each file again to find its text, found nothing on
+     * record under the new hash, left the document out of the call, and listed it under the hash of
+     * bytes nothing had been computed from. It now reads the key stage 2 recorded.
+     */
+    @Test
+    @Issue("349")
+    @Story("What is written and listed describes the documents as they were converted")
+    @DisplayName("A document rewritten in place since it was converted is still written from, and listed under the hash it was converted under")
+    @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
+    void writesFromAndListsADocumentRewrittenInPlaceAsItWasConverted(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+        Path rewritten = root.resolve("corpus.txt");
+        String theHashItWasConvertedUnder = sha256Of(rewritten);
+        UnseenEditFixture.editedWithoutTheWalkNoticing(rewritten);
+        logged.list.clear();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the precondition: the file no longer holds the bytes that were converted, so a value"
+                        + " equal to their hash below cannot have come from reading the file now",
+                () -> assertThat(sha256Of(rewritten)).isNotEqualTo(theHashItWasConvertedUnder));
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "both of the " + TWO_DOCUMENTS + " documents were among those the writing was made from,"
+                        + " the rewritten one included: its text is found by the key recorded when it"
+                        + " was converted, so it is sent as it was scored and arranged",
+                () -> assertThat(documentsTheWritingWasMadeFrom(root))
+                        .containsExactlyInAnyOrder("corpus.txt", "another-corpus-document.txt"));
+        claim(
+                "the rewritten document is listed under the SHA-256 of the bytes that were converted,"
+                        + " computed here with the JDK before the rewrite: the listing states what the"
+                        + " scores and the writing beside it were computed from, so whoever recomputes"
+                        + " the file's hash finds that the file has changed since",
+                () -> assertThat(contentHashesOfTheListing(root))
+                        .containsEntry("corpus.txt", theHashItWasConvertedUnder));
+        claim(
+                "and no warning names the rewritten file: nothing about it was left out",
+                () -> assertThat(logged.list)
+                        .filteredOn(event -> event.getLevel() == ch.qos.logback.classic.Level.WARN)
+                        .map(ILoggingEvent::getFormattedMessage)
+                        .noneMatch(line -> line.contains(rewritten.getFileName().toString())));
+    }
+
+    /**
+     * How often each file is read to find its conversion over a whole campaign: the invocation that
+     * converts, scores, groups and arranges, and the one that writes (ADR-206 section 4).
+     *
+     * <p>The two documents differ in size, so stage 1 hashed neither and stage 2 hashes each once. Until
+     * ADR-206 the embedding step, the scoring step, the grouping step, the labelling page, the
+     * arrangement and both halves of the generation step each hashed a document again, and the first
+     * two hashed the seed again.
+     *
+     * <p>The seed is hashed once in each invocation and not once in all. Seed extraction reads every
+     * seed on every invocation, whether or not its step is finished, since that read is what answers
+     * whether the seed set is usable for the rest of the invocation (ADR-155 section 5), and ADR-206
+     * section 3 leaves that read where it is. What ADR-206 removes is every read of a seed after it.
+     */
+    @Test
+    @Issue("349")
+    @Story("A stage reads what an earlier stage recorded instead of the archive")
+    @DisplayName("Over a whole campaign each document is hashed once, and each seed once in each invocation, by seed extraction alone")
+    @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
+    void hashesEachDocumentOnceAndEachSeedOnceAnInvocation(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        PathScriptedExtractor extractor = (PathScriptedExtractor) doclingExtractor;
+        extractor.forgetFilesHashed();
+
+        anApprovedCorpus(root, seeds);
+        cli.run("run", root.toString());
+
+        claim(
+                "the campaign ran to its end: the second invocation reports success and wrote a tree, so"
+                        + " every step between conversion and the tree had its turn to read a file",
+                () -> {
+                    assertThat(cli.getExitCode()).isZero();
+                    assertThat(rowsOfTheListing(root)).hasSize(TWO_DOCUMENTS);
+                });
+        claim(
+                "each of the " + TWO_DOCUMENTS + " documents was hashed exactly " + ONCE + " time over"
+                        + " the " + INVOCATIONS + " invocations: by the stage that converts it, which is"
+                        + " the first to read it. Every later step reads the key that stage recorded, so"
+                        + " none reads the archive again to work the same value out. The " + ONE_SEED
+                        + " seed was hashed " + INVOCATIONS + " times, once in each invocation, which is"
+                        + " seed extraction reading it to say the seed set is usable, and nothing else:"
+                        + " the steps that embed and score against the seed read its recorded key",
+                () -> assertThat(timesEachFileWasHashed(extractor, root, seeds))
+                        .containsOnly(
+                                Map.entry("corpus.txt", ONCE),
+                                Map.entry("another-corpus-document.txt", ONCE),
+                                Map.entry("seed.txt", INVOCATIONS)));
+    }
+
+    /** The paths of the documents the latest writing over {@code root} was made from. */
+    private List<String> documentsTheWritingWasMadeFrom(Path root) {
+        return jdbcTemplate.queryForList(
+                "SELECT fo.path FROM call_exemplar ce JOIN file_occurrence fo ON fo.id = ce.occurrence_id"
+                        + " WHERE ce.run_id = ?",
+                String.class,
+                generationRuns(root).getLast());
+    }
+
+    /** How many times each file under {@code root} or {@code seeds} was hashed, by file name. */
+    private static Map<String, Integer> timesEachFileWasHashed(PathScriptedExtractor extractor, Path root, Path seeds)
+            throws IOException {
+        Path corpus = root.toRealPath();
+        Path seedFolder = seeds.toRealPath();
+        Map<String, Integer> times = new LinkedHashMap<>();
+        for (Path hashed : extractor.filesHashed()) {
+            if (hashed.startsWith(corpus) || hashed.startsWith(seedFolder)) {
+                times.merge(hashed.getFileName().toString(), 1, Integer::sum);
+            }
+        }
+        return times;
     }
 
     @Test
