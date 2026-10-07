@@ -394,7 +394,7 @@ class GenerationInvocationTest {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
-        theArchiveNoLongerHandsOverItsDocuments(root);
+        nothingIsOnRecordForEitherDocument(root);
         GenerationScriptedBeans.forgetScriptedAnswers();
 
         cli.run("run", root.toString());
@@ -419,8 +419,8 @@ class GenerationInvocationTest {
                         + " a hole in the finished work that nothing anywhere reports and nothing retries",
                 () -> assertThat(theWorkIsRecordedAsFinished(root)).isFalse());
         claim(
-                "the invocation still reports success: an archive that moved underneath a run is something"
-                        + " to look at and run again, not a broken tool",
+                "the invocation still reports success: a group nothing could be sent for is something to"
+                        + " look at and run again, not a broken tool",
                 () -> assertThat(cli.getExitCode()).isZero());
     }
 
@@ -558,11 +558,11 @@ class GenerationInvocationTest {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
         approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
-        byte[] whatItHeld =
+        ConversionOffTheRecordFixture.Held whatWasOnRecord =
                 aClusterNothingCanBeSentFor(theApprovedArrangement(root), root, A_CLUSTER_NO_DOCUMENT_HAS_REACHED_YET);
         GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
         cli.run("run", root.toString());
-        theSecondClustersDocumentCanBeSentAgain(theApprovedArrangement(root), root, whatItHeld);
+        theSecondClustersDocumentCanBeSentAgain(whatWasOnRecord);
 
         GenerationScriptedBeans.forgetScriptedAnswers();
         cli.run("run", root.toString());
@@ -618,19 +618,23 @@ class GenerationInvocationTest {
      * the one document its count says it does, in the membership the scoring run records, so the
      * arrangement stays total and its page can be drawn from it (ADR-112, ADR-154 §2).
      *
-     * <p>What leaves the second cluster with nothing to send is an ordinary cause rather than a row no
-     * run would write: its one document is rewritten in place between the invocations, with its length
-     * and timestamps unchanged, so the walk still sees the same archive and the approval still stands,
-     * and stage 6b finds nothing cached under the text it now reads ({@link UnseenEditFixture}).
+     * <p>What leaves the second cluster with nothing to send is that its one document's conversion and
+     * chunks are taken out of the caches between the invocations ({@link ConversionOffTheRecordFixture}).
+     * Its file is untouched, so the walk still sees the same archive and the approval still stands, and
+     * stage 6b finds no chunk on record for it. Until ADR-206 the document was rewritten in place instead,
+     * which left 6b nothing cached under the text it then read; 6b no longer reads the file, so that
+     * leaves a cluster nothing short.
      *
-     * @return the bytes that document held before, so a test can put them back
+     * @return what was on record for that document, so a test can put it back
      */
-    private byte[] aClusterNothingCanBeSentFor(RunId arrangement, Path root) throws IOException {
+    private ConversionOffTheRecordFixture.Held aClusterNothingCanBeSentFor(RunId arrangement, Path root)
+            throws IOException {
         return aClusterNothingCanBeSentFor(arrangement, root, A_CLUSTER_WITH_NOTHING_TO_SEND);
     }
 
     /** The same, under a name of the caller's choosing, so two tests can tell their clusters apart. */
-    private byte[] aClusterNothingCanBeSentFor(RunId arrangement, Path root, String label) throws IOException {
+    private ConversionOffTheRecordFixture.Held aClusterNothingCanBeSentFor(
+            RunId arrangement, Path root, String label) throws IOException {
         jdbcTemplate.update(
                 "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
                         + " document_count, partition_order, cluster_order)"
@@ -647,20 +651,19 @@ class GenerationInvocationTest {
                         + " AND run_id = (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)",
                 moved,
                 arrangement.value());
-        return UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve(pathOf(moved)));
+        return ConversionOffTheRecordFixture.takenOffTheRecord(jdbcTemplate, root.resolve(pathOf(moved)));
     }
 
     /**
-     * Puts back the bytes the second cluster's document held when it was arranged, so a cluster nothing
-     * could be sent for now has something to send.
+     * Puts back the conversion and the chunks the second cluster's document had on record when it was
+     * arranged, so a cluster nothing could be sent for now has something to send.
      *
-     * <p>This is the obstruction being lifted. What left that cluster unwritten was that nothing its
-     * document then held had ever been read into the cache; with its own text back, the very same
-     * invocation, asking the very same question again, finishes the job.
+     * <p>This is the obstruction being lifted. What left that cluster unwritten was that nothing was on
+     * record for its document; with that back, the very same invocation, asking the very same question
+     * again, finishes the job.
      */
-    private void theSecondClustersDocumentCanBeSentAgain(RunId arrangement, Path root, byte[] whatItHeld)
-            throws IOException {
-        UnseenEditFixture.restored(root.resolve(pathOf(theLastDocumentOf(arrangement))), whatItHeld);
+    private void theSecondClustersDocumentCanBeSentAgain(ConversionOffTheRecordFixture.Held whatWasOnRecord) {
+        ConversionOffTheRecordFixture.putBack(jdbcTemplate, whatWasOnRecord);
     }
 
     /**
@@ -682,18 +685,18 @@ class GenerationInvocationTest {
     }
 
     /**
-     * Rewrites both corpus documents in place, so nothing in the cluster can be sent when the call is
-     * built.
+     * Takes both corpus documents' conversions and chunks out of the caches, so nothing in the cluster
+     * can be sent when the call is built ({@link ConversionOffTheRecordFixture}).
      *
-     * <p>An archive is a live filesystem and this is an ordinary version of that: a document rewritten
-     * between being walked and being written about, by something that put its timestamp back. The walk
-     * sees the same archive, so the approval still names the arrangement and the step really runs; it is
-     * the text 6b now reads that nothing was ever cached under ({@link UnseenEditFixture}). Deleting the
-     * documents instead would be a different archive, whose gate is shut before the step is reached.
+     * <p>The files are untouched, so the walk sees the same archive, the approval still names the
+     * arrangement and the step really runs; it is the chunks 6b looks for that are no longer on record.
+     * Until ADR-206 this rewrote both documents in place, which obstructed 6b only while it found a
+     * document's chunks by hashing its file again. Deleting the documents instead would be a different
+     * archive, whose gate is shut before the step is reached.
      */
-    private void theArchiveNoLongerHandsOverItsDocuments(Path root) throws IOException {
-        UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("corpus.txt"));
-        UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve("another-corpus-document.txt"));
+    private void nothingIsOnRecordForEitherDocument(Path root) throws IOException {
+        ConversionOffTheRecordFixture.takenOffTheRecord(jdbcTemplate, root.resolve("corpus.txt"));
+        ConversionOffTheRecordFixture.takenOffTheRecord(jdbcTemplate, root.resolve("another-corpus-document.txt"));
     }
 
     /** Whether this step's own work is recorded as complete under the run it wrote. */

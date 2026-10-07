@@ -22,13 +22,19 @@ import io.algernon.vespera.ledger.OccurrenceId;
  * outcome carries no {@code extraction_metric} row at all, only an {@code unusable_seed} row under
  * {@link #FILE_COULD_NOT_BE_OPENED}.
  *
+ * <p>{@code contentHash} travels with the measurement, for the same seeds and the same reason: the key the
+ * cache was looked up under is recorded beside the {@code extraction_metric} row, under the measurement
+ * run (ADR-206 section 3), so that no later step hashes a seed file again.
+ *
  * @param occurrenceId the seed occurrence
+ * @param contentHash the key the seed's conversion was looked up under, or {@code null} for a seed whose
+ *     file would not open
  * @param measurement the row measured off what the extractor answered with, for every seed it
  *     converted, or {@code null} for a seed whose file would not open
  * @param unusableReason why it produced no text, or {@code null} for a seed that did
  */
 record SeedExtractionOutcome(
-        OccurrenceId occurrenceId, ExtractionMetrics.Measurement measurement, String unusableReason) {
+        OccurrenceId occurrenceId, String contentHash, ExtractionMetrics.Measurement measurement, String unusableReason) {
 
     /**
      * The reason recorded for a seed whose file would not open when seed extraction read it (ADR-155
@@ -39,14 +45,15 @@ record SeedExtractionOutcome(
     static final String FILE_COULD_NOT_BE_OPENED = "the file could not be opened when seed extraction read it";
 
     /** A seed that produced text, and is therefore something ADR-020's maximum can be taken over. */
-    static SeedExtractionOutcome usable(OccurrenceId occurrenceId, ExtractionMetrics.Measurement measurement) {
-        return new SeedExtractionOutcome(occurrenceId, measurement, null);
+    static SeedExtractionOutcome usable(
+            OccurrenceId occurrenceId, String contentHash, ExtractionMetrics.Measurement measurement) {
+        return new SeedExtractionOutcome(occurrenceId, contentHash, measurement, null);
     }
 
     /** A seed that produced no text, recorded as data rather than judged. */
     static SeedExtractionOutcome unusable(
-            OccurrenceId occurrenceId, ExtractionMetrics.Measurement measurement, String reason) {
-        return new SeedExtractionOutcome(occurrenceId, measurement, reason);
+            OccurrenceId occurrenceId, String contentHash, ExtractionMetrics.Measurement measurement, String reason) {
+        return new SeedExtractionOutcome(occurrenceId, contentHash, measurement, reason);
     }
 
     /**
@@ -54,7 +61,7 @@ record SeedExtractionOutcome(
      * attempted and no measurement was taken, so this outcome carries no row for {@link #measurement()}.
      */
     static SeedExtractionOutcome couldNotOpen(OccurrenceId occurrenceId) {
-        return new SeedExtractionOutcome(occurrenceId, null, FILE_COULD_NOT_BE_OPENED);
+        return new SeedExtractionOutcome(occurrenceId, null, null, FILE_COULD_NOT_BE_OPENED);
     }
 
     boolean usable() {

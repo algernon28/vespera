@@ -10,8 +10,8 @@ import io.algernon.vespera.embedding.OllamaClient;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.embedding.ScoringProgress;
 import io.algernon.vespera.extraction.Chunk;
-import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DocumentPictures;
+import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.LeadingChunks;
 import io.algernon.vespera.extraction.PicturePlace;
@@ -47,7 +47,6 @@ import io.algernon.vespera.synthesis.SurvivorPictures;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.algernon.vespera.synthesis.SynthesisStatement;
 import io.algernon.vespera.synthesis.Unwritten;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -141,7 +140,7 @@ class GenerationTasklet implements Tasklet {
     private final DocumentClusters documentClusters;
     private final RelevanceScoring relevanceScoring;
     private final LeadingChunks leadingChunks;
-    private final DoclingExtractor extractor;
+    private final ExtractionCacheKeys cacheKeys;
     private final DocumentPictures documentPictures;
     private final ExtractorIdentity extractorIdentity;
     private final DetectedFormats detectedFormats;
@@ -163,7 +162,6 @@ class GenerationTasklet implements Tasklet {
             DocumentClusters documentClusters,
             RelevanceScoring relevanceScoring,
             LeadingChunks leadingChunks,
-            DoclingExtractor extractor,
             ExtractorIdentity extractorIdentity,
             DetectedFormats detectedFormats,
             ClusterGeneration clusterGeneration,
@@ -183,7 +181,7 @@ class GenerationTasklet implements Tasklet {
         this.documentClusters = documentClusters;
         this.relevanceScoring = relevanceScoring;
         this.leadingChunks = leadingChunks;
-        this.extractor = extractor;
+        this.cacheKeys = new ExtractionCacheKeys(jdbcTemplate);
         this.extractorIdentity = extractorIdentity;
         this.detectedFormats = detectedFormats;
         this.clusterGeneration = clusterGeneration;
@@ -272,7 +270,6 @@ class GenerationTasklet implements Tasklet {
                                 List<Exemplar> exemplars = exemplarsOf(
                                         byCluster.getOrDefault(ClusterKey.of(recorded), List.of()),
                                         scores,
-                                        canonicalRoot,
                                         documentsOpened);
                                 return new ClusterMaterial(pathOf(recorded.cluster().winningSeed()), exemplars);
                             },
@@ -494,11 +491,11 @@ class GenerationTasklet implements Tasklet {
      * eight profile keys the run consumed, every survivor's path, content hash and score, and the
      * arrangement and the writing produced under this run.
      *
-     * <p>The content hash is taken from each survivor's file through {@code extraction}'s own hash, the
-     * key its conversion is cached under (ADR-151). Stage 1 hashes only within size-matched groups, so
-     * its record covers only some survivors. The same read serves the picture chain (ADR-149 §9): the
-     * manifest and the pictures share the one hash computed per survivor, kept in {@code hashes} for the
-     * length of this write, so a listed survivor's file is read at most once.
+     * <p>The content hash is the key {@code extraction} recorded for each survivor, the one its conversion
+     * is cached under (ADR-151, ADR-206). Stage 1 hashes only within size-matched groups, so its own record
+     * covers only some survivors, and stage 2's covers every one. The same read serves the picture chain
+     * (ADR-149 §9): the manifest and the pictures share the one key read per survivor, kept in {@code
+     * hashes} for the length of this write. No archive file is opened.
      */
     private Path writeDeliverable(
             RunId generation,
@@ -509,7 +506,7 @@ class GenerationTasklet implements Tasklet {
             List<DocumentCluster> membership,
             Map<OccurrenceId, Double> scores,
             Map<ClusterSlot, Unwritten> foundThisRun) {
-        Map<OccurrenceId, Optional<String>> hashes = new HashMap<>();
+        Map<OccurrenceId, String> hashes = new HashMap<>();
         List<RecordedSynthesisDoc> written =
                 TimedStatement.of(STAGE, "reading", "read", "the clusters written", () -> synthesisDocs.forRun(generation));
         DeliverableProvenance provenance = new DeliverableProvenance(
@@ -519,8 +516,8 @@ class GenerationTasklet implements Tasklet {
                 provenance,
                 recordedClusters,
                 written,
-                survivorsFor(membership, scores, canonicalRoot, hashes),
-                survivorPictures(canonicalRoot, byteLevelReductionRun, hashes),
+                survivorsFor(membership, scores, hashes),
+                survivorPictures(byteLevelReductionRun, hashes),
                 whyUnwritten(generation, recordedClusters, written, foundThisRun),
                 treeProgress());
     }
@@ -565,10 +562,10 @@ class GenerationTasklet implements Tasklet {
      * #openingChunkOf} follows to reach a document's cached conversion, joined to {@link
      * DocumentPictures} instead of {@link LeadingChunks}.
      *
-     * <p><b>The same value as {@link ListedSurvivor#contentHash()}, not a second hash of the file.</b>
-     * Both the manifest's column and this lookup are keyed on {@code extraction}'s own hash of the
-     * survivor's file (ADR-151), and {@code hashes} is the one cache {@link #writeDeliverable} builds
-     * and hands to both {@link #survivorsFor} and this method, so the same survivor is hashed once no
+     * <p><b>The same value as {@link ListedSurvivor#contentHash()}, and no hash of the file.</b>
+     * Both the manifest's column and this lookup are keyed on the hash {@code extraction} recorded for
+     * the survivor (ADR-151, ADR-206), and {@code hashes} is the one cache {@link #writeDeliverable} builds
+     * and hands to both {@link #survivorsFor} and this method, so the same survivor's key is read once no
      * matter how many of the manifest, the recurring-bytes count and the picture lookup ask about it.
      *
      * <p>The pixels themselves are not cached: {@link #picturesFor}'s query and decode run on every
@@ -584,8 +581,7 @@ class GenerationTasklet implements Tasklet {
      * {@link #execute} resolves once, rather than re-derived from the current implementation version,
      * which would match nothing after that version changes.
      */
-    private SurvivorPictures survivorPictures(
-            Path canonicalRoot, RunId byteLevelReductionRun, Map<OccurrenceId, Optional<String>> hashes) {
+    private SurvivorPictures survivorPictures(RunId byteLevelReductionRun, Map<OccurrenceId, String> hashes) {
         return occurrenceId -> {
             boolean showsNoPictures = detectedFormats
                     .formatFor(occurrenceId, byteLevelReductionRun)
@@ -596,42 +592,28 @@ class GenerationTasklet implements Tasklet {
             if (showsNoPictures) {
                 return List.of();
             }
-            return hashOf(occurrenceId, canonicalRoot, hashes).map(this::picturesFor).orElseGet(List::of);
+            return picturesFor(keyOf(occurrenceId, hashes));
         };
     }
 
     /**
-     * The content hash of a survivor's file (ADR-151), read once per occurrence and cached, or empty
-     * where the file cannot be read. The manifest's {@code content_hash} cell and the picture lookup of
-     * ADR-149 §9 both read through this cache, so a survivor's file is read and warned about at most once
-     * per tree write regardless of which of them asks first.
+     * The content hash recorded for a survivor (ADR-151, ADR-206), read once per occurrence and cached.
+     * The manifest's {@code content_hash} cell and the picture lookup of ADR-149 §9 both read through this
+     * cache, so a survivor's key is read at most once per tree write regardless of which of them asks first.
      *
-     * <p>A file the archive will no longer open earns a blank {@code content_hash} cell and no pictures,
-     * rather than failing the tree, for {@link #openingChunkOf}'s reason: an archive is a live
-     * filesystem, and a document gone since the walk is a fact about that document, not about this run.
+     * <p>No file is opened, so no cell is blank and no survivor loses its pictures to a file that has gone:
+     * the key is the one stage 2 converted the document under. A survivor with no key is the ledger
+     * disagreeing with itself and stops the step.
      */
-    private Optional<String> hashOf(
-            OccurrenceId occurrenceId, Path canonicalRoot, Map<OccurrenceId, Optional<String>> cache) {
-        return cache.computeIfAbsent(occurrenceId, id -> {
-            Path file = canonicalRoot.resolve(pathOf(id));
-            try {
-                return Optional.of(extractor.contentHashFor(file));
-            } catch (UncheckedIOException e) {
-                LOG.warn(
-                        "occurrence {} is a survivor listed in the deliverable but {} could not be read, so"
-                                + " its content_hash cell is left blank and none of its pictures reach the"
-                                + " tree",
-                        id.value(),
-                        file,
-                        e);
-                return Optional.empty();
-            }
-        });
+    private String keyOf(OccurrenceId occurrenceId, Map<OccurrenceId, String> cache) {
+        return cache.computeIfAbsent(
+                occurrenceId,
+                id -> cacheKeys.requireForOccurrence(id, stageRuns.upstream(StageModules.EXTRACTION)));
     }
 
     /**
      * A survivor's pictures with pixels, read out of {@code extraction}'s cache through the content
-     * hash of the file on disk today. The query and the decode run on every call; nothing here is
+     * hash stage 2 recorded for it. The query and the decode run on every call; nothing here is
      * cached, so a document's pixels never outlive the call that produced them (ADR-149 §9).
      */
     private List<ListedPicture> picturesFor(String contentHash) {
@@ -676,14 +658,13 @@ class GenerationTasklet implements Tasklet {
 
     /**
      * Every survivor of the arrangement, as {@code documents.csv} carries it (ADR-104, ADR-112):
-     * gathered from {@code document_cluster}, the ledger's own facts, {@code extraction}'s content hash
-     * and the scores already read for this pass.
+     * gathered from {@code document_cluster}, the ledger's own facts, the content hash {@code extraction}
+     * recorded for each (ADR-206) and the scores already read for this pass.
      */
     private List<ListedSurvivor> survivorsFor(
             List<DocumentCluster> membership,
             Map<OccurrenceId, Double> scores,
-            Path canonicalRoot,
-            Map<OccurrenceId, Optional<String>> hashes) {
+            Map<OccurrenceId, String> hashes) {
         List<ListedSurvivor> survivors = new ArrayList<>();
         StageProgress listed = StageProgress.over("Stage 6b (generation, survivors listed)", membership.size());
         for (DocumentCluster member : membership) {
@@ -695,7 +676,7 @@ class GenerationTasklet implements Tasklet {
                     .map(OccurrenceFacts::path)
                     .orElseThrow(() -> new IllegalStateException("no facts recorded for seed occurrence "
                             + member.winningSeedOccurrenceId().value()));
-            String contentHash = hashOf(member.occurrenceId(), canonicalRoot, hashes).orElse("");
+            String contentHash = keyOf(member.occurrenceId(), hashes);
             double score = scores.getOrDefault(member.occurrenceId(), 0.0);
             survivors.add(new ListedSurvivor(
                     member.occurrenceId(),
@@ -815,11 +796,11 @@ class GenerationTasklet implements Tasklet {
      * decides the order they are sent in.
      *
      * <p>A document nothing was ever chunked from contributes nothing and is left out rather than sent
-     * empty, and so does one the archive will no longer hand over. Either is a fact about that one
-     * document rather than a fault of the cluster or a reason to stop the run — and a drop here is
-     * exactly why the documents the call carries are recorded one by one under the ordinals they were
-     * given (ADR-133): the sent set is not in general a prefix of this list, so nothing downstream
-     * could work out which document a citation meant.
+     * empty. That is a fact about that one document rather than a fault of the cluster or a reason to
+     * stop the run — and a drop here is exactly why the documents the call carries are recorded one by
+     * one under the ordinals they were given (ADR-133): the sent set is not in general a prefix of this
+     * list, so nothing downstream could work out which document a citation meant. A document whose file
+     * the archive will no longer hand over is not left out: no file is opened here (ADR-206).
      *
      * <p><b>A member carrying no score stops instead</b>, which is {@code Arrangement.partitionsOf}'s
      * rule one stage along and for its reason: the order these are sent in <em>is</em> the score, so a
@@ -829,7 +810,6 @@ class GenerationTasklet implements Tasklet {
     private List<Exemplar> exemplarsOf(
             List<DocumentCluster> members,
             Map<OccurrenceId, Double> scores,
-            Path canonicalRoot,
             StageProgress documentsOpened) {
         List<Exemplar> exemplars = new ArrayList<>();
         for (DocumentCluster member : members) {
@@ -839,7 +819,7 @@ class GenerationTasklet implements Tasklet {
                         + " is in a cluster being written over but carries no relevance score, so the"
                         + " documents of that cluster cannot be put in order");
             }
-            Optional<Chunk> opening = openingChunkOf(member.occurrenceId(), canonicalRoot);
+            Optional<Chunk> opening = openingChunkOf(member.occurrenceId());
             documentsOpened.itemDone();
             if (opening.isEmpty()) {
                 continue;
@@ -851,28 +831,16 @@ class GenerationTasklet implements Tasklet {
     }
 
     /**
-     * The chunk one document opens with, or empty where this run cannot reach one.
+     * The chunk one document opens with, or empty where nothing was ever chunked from it.
      *
-     * <p>The cache is keyed by content hash, so reaching it means hashing the file again — and a file
-     * the archive will no longer open is the ordinary case rather than a broken one: an archive is a
-     * live filesystem, and a document deleted, renamed or locked since the walk is a fact about that
-     * document. It drops out of the call it would have been an exemplar in, and every other document
-     * in that cluster is still written about.
+     * <p>The cache is keyed by content hash, which is read from the key stage 2 recorded for the
+     * occurrence (ADR-206): the file is not opened, so a document deleted, renamed or locked since the
+     * walk is still sent, as it was converted. The only document that drops out of the call it would have
+     * been an exemplar in is one nothing was chunked from, and every other document in that cluster is
+     * still written about.
      */
-    private Optional<Chunk> openingChunkOf(OccurrenceId occurrenceId, Path canonicalRoot) {
-        Path file = canonicalRoot.resolve(pathOf(occurrenceId));
-        String contentHash;
-        try {
-            contentHash = extractor.contentHashFor(file);
-        } catch (UncheckedIOException e) {
-            LOG.warn(
-                    "occurrence {} is in a cluster being written over but {} could not be read, so it is"
-                            + " not among the documents this call was written from",
-                    occurrenceId.value(),
-                    file,
-                    e);
-            return Optional.empty();
-        }
+    private Optional<Chunk> openingChunkOf(OccurrenceId occurrenceId) {
+        String contentHash = cacheKeys.requireForOccurrence(occurrenceId, stageRuns.upstream(StageModules.EXTRACTION));
         Optional<Chunk> opening = leadingChunks.forContentHash(contentHash);
         if (opening.isEmpty()) {
             LOG.warn(

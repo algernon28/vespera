@@ -21,13 +21,16 @@ import org.springframework.stereotype.Component;
  * {@code extraction_fault} (ADR-139): a database written before it holds no record of a refused
  * conversion, which is a fact absent rather than a fact wrongly shaped, so nothing here forces a
  * re-extraction on its own -- the version still moves, on the same rule every prior bump followed.
+ * {@code VERSION} 6 is {@code extraction_cache_key} (ADR-206): a database written before it holds no key
+ * for any occurrence, and none can be filled in without reading every file again, so it is refused and
+ * the upgrade is a fresh working directory.
  */
 @Component
 @DependsOnDatabaseInitialization
 class ExtractionSchema {
 
     /** The version of extraction's tables this code expects. */
-    static final int VERSION = 5;
+    static final int VERSION = 6;
 
     /** The module name the version is recorded under, matching the package name. */
     static final String MODULE = "extraction";

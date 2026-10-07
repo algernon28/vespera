@@ -1,18 +1,15 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.embedding.ScoringProgress;
 import io.algernon.vespera.embedding.UnusableSeed;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ChunkingRule;
-import io.algernon.vespera.extraction.DoclingExtractor;
+import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +22,7 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -41,7 +38,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Nothing here re-chunks or re-embeds: gate 3's step already wrote every vector this step reads,
  * keyed by content hash, chunker identity, chunking-rule identity and embedder identity, so this step
- * only ever recomputes the content hash — a local file hash, not a Docling call — to find them again.
+ * only ever reads the content hash that stage 2 (for a survivor) or seed extraction (for a seed) recorded,
+ * to find them again (ADR-206): no file is hashed, and none is opened.
  */
 @Component
 @StepScope
@@ -57,11 +55,10 @@ class RelevanceScoringTasklet implements Tasklet {
     private final UsableSeedGate usableSeedGate;
     private final StageRuns stageRuns;
     private final Ledger ledger;
-    private final DoclingExtractor extractor;
     private final HybridChunker hybridChunker;
     private final RelevanceScoring relevanceScoring;
     private final UnusableSeeds unusableSeeds;
-    private final Path root;
+    private final ExtractionCacheKeys cacheKeys;
 
     RelevanceScoringTasklet(
             EmbeddingModelGate embeddingModelGate,
@@ -69,21 +66,19 @@ class RelevanceScoringTasklet implements Tasklet {
             UsableSeedGate usableSeedGate,
             StageRuns stageRuns,
             Ledger ledger,
-            DoclingExtractor extractor,
             HybridChunker hybridChunker,
             RelevanceScoring relevanceScoring,
             UnusableSeeds unusableSeeds,
-            @Value("#{jobParameters['root']}") Path root) {
+            JdbcTemplate jdbcTemplate) {
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
         this.ledger = ledger;
-        this.extractor = extractor;
         this.hybridChunker = hybridChunker;
         this.relevanceScoring = relevanceScoring;
         this.unusableSeeds = unusableSeeds;
-        this.root = root;
+        this.cacheKeys = new ExtractionCacheKeys(jdbcTemplate);
     }
 
     @Override
@@ -109,7 +104,8 @@ class RelevanceScoringTasklet implements Tasklet {
                 () -> LOG.info("Stage 5d (relevance scoring) was already recorded under run {}", scoring.value()),
                 () -> relevanceScoring.discardForRun(scoring),
                 () -> {
-                    Path canonicalRoot = Walk.canonicalRoot(root);
+                    // The key each survivor's vectors are stored under is the one stage 2 recorded (ADR-206).
+                    RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
                     String chunkerIdentity = hybridChunker.identity();
                     String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
 
@@ -138,15 +134,10 @@ class RelevanceScoringTasklet implements Tasklet {
                     StageProgress scored =
                             StageProgress.over("Stage 5d (relevance scoring, corpus survivors)", survivors.size());
                     for (OccurrenceId occurrenceId : survivors) {
-                        OccurrenceFacts facts = ledger.factsFor(occurrenceId)
-                                .orElseThrow(() -> new IllegalStateException(
-                                        "no facts recorded for occurrence " + occurrenceId.value()));
-                        Path file = canonicalRoot.resolve(facts.path().value());
-                        String contentHash = extractor.contentHashFor(file);
                         relevanceScoring.scoreAndRecord(
                                 occurrenceId,
                                 scoring,
-                                contentHash,
+                                cacheKeys.requireForOccurrence(occurrenceId, extractionRun),
                                 chunkerIdentity,
                                 chunkingRuleIdentity,
                                 modelName,
@@ -158,7 +149,10 @@ class RelevanceScoringTasklet implements Tasklet {
                 });
     }
 
-    /** Every usable seed's own content hash, resolved once so {@link RelevanceScoring} never has to touch a file. */
+    /**
+     * Every usable seed's own content hash, read once from the key seed extraction recorded under the
+     * measurement run (ADR-206 section 3), so {@link RelevanceScoring} never has to touch a file.
+     */
     private Map<OccurrenceId, String> seedContentHashes(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
         Set<OccurrenceId> allSeeds = TimedStatement.of(
                 STAGE, "reading", "read", "the seed walk's occurrences", () -> ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId())));
@@ -169,14 +163,11 @@ class RelevanceScoringTasklet implements Tasklet {
         allSeeds.removeAll(unusable);
 
         Map<OccurrenceId, String> contentHashes = new LinkedHashMap<>();
-        StageProgress hashed = StageProgress.over("Stage 5d (relevance scoring, seed files hashed)", allSeeds.size());
+        StageProgress read =
+                StageProgress.over("Stage 5d (relevance scoring, seed cache keys read)", allSeeds.size());
         for (OccurrenceId seedOccurrenceId : allSeeds) {
-            OccurrenceFacts facts = ledger.factsFor(seedOccurrenceId)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "no facts recorded for seed occurrence " + seedOccurrenceId.value()));
-            Path file = seedWalk.canonicalRoot().resolve(facts.path().value());
-            contentHashes.put(seedOccurrenceId, extractor.contentHashFor(file));
-            hashed.itemDone();
+            contentHashes.put(seedOccurrenceId, cacheKeys.requireForOccurrence(seedOccurrenceId, measurementRun));
+            read.itemDone();
         }
         return contentHashes;
     }

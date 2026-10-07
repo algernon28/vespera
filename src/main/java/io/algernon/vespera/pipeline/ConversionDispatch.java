@@ -171,11 +171,12 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
 
         Optional<DoclingResponse> hit = extractor.cached(contentHash, extractorIdentity);
         if (hit.isPresent()) {
-            pending.dispatchCached(occurrenceId, hit.get());
+            pending.dispatchCached(occurrenceId, contentHash, hit.get());
             return;
         }
         pending.dispatch(
                 occurrenceId,
+                contentHash,
                 workers.submit(() -> extractor.convertUncached(file, resolvedFormat, subtype)),
                 response -> extractor.remember(contentHash, extractorIdentity, response));
     }

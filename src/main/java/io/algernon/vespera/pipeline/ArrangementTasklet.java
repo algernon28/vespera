@@ -1,8 +1,8 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DocumentTitles;
+import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.embedding.RelevanceScoring;
@@ -39,6 +39,7 @@ import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -90,7 +91,7 @@ class ArrangementTasklet implements Tasklet {
     private final RelevanceScoring relevanceScoring;
     private final Clusters clusters;
     private final Ledger ledger;
-    private final DoclingExtractor extractor;
+    private final ExtractionCacheKeys cacheKeys;
     private final DocumentTitles documentTitles;
     private final Path root;
     private final Path workingDirectory;
@@ -104,7 +105,7 @@ class ArrangementTasklet implements Tasklet {
             RelevanceScoring relevanceScoring,
             Clusters clusters,
             Ledger ledger,
-            DoclingExtractor extractor,
+            JdbcTemplate jdbcTemplate,
             DocumentTitles documentTitles,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${vespera.working-dir}") Path workingDirectory) {
@@ -116,7 +117,7 @@ class ArrangementTasklet implements Tasklet {
         this.relevanceScoring = relevanceScoring;
         this.clusters = clusters;
         this.ledger = ledger;
-        this.extractor = extractor;
+        this.cacheKeys = new ExtractionCacheKeys(jdbcTemplate);
         this.documentTitles = documentTitles;
         this.root = root;
         this.workingDirectory = workingDirectory;
@@ -291,13 +292,13 @@ class ArrangementTasklet implements Tasklet {
      * The lead document's own title, read out of the conversion {@code extraction} already cached for
      * it (ADR-106).
      *
-     * <p>Resolved here because only {@code pipeline} can reach a file and only it may name both
-     * modules — {@code synthesis} is handed the string (ADR-110). It costs no conversion: the response
-     * is in the cache, keyed by the content hash this resolves the same way every other step does.
+     * <p>Resolved here because only {@code pipeline} may name both modules — {@code synthesis} is handed
+     * the string (ADR-110). It costs no conversion and opens no file: the response is in the cache, keyed
+     * by the content hash stage 2 recorded for the document (ADR-206), which is read from there.
      */
     private Optional<String> titleOf(OccurrenceId occurrenceId) {
-        Path file = Walk.canonicalRoot(root).resolve(pathObjectOf(occurrenceId).value());
-        return documentTitles.forContentHash(extractor.contentHashFor(file));
+        return documentTitles.forContentHash(
+                cacheKeys.requireForOccurrence(occurrenceId, stageRuns.upstream(StageModules.EXTRACTION)));
     }
 
     /**

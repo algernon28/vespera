@@ -323,7 +323,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         /**
          * {@code --auto} (ADR-197 §6): the root is named by the option or by configuration and never
-         * guessed (ADR-066), because the openings put to the model are read from the corpus.
+         * guessed (ADR-066).
          */
         private Integer callAuto() {
             AutoLabelling labelling = autoLabelling.getIfAvailable();
@@ -338,7 +338,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (corpusRoot == null) {
                 System.err.println("vespera label --auto named no root and " + Run.ROOT_PROPERTY + " is not set:"
                         + " give the corpus root with --root <root>, or set " + Run.ROOT_PROPERTY + ". A root"
-                        + " is never guessed, because the openings put to the model are read from it.");
+                        + " is never guessed.");
                 return CommandLine.ExitCode.USAGE;
             }
             AutoLabelling.Outcome outcome = labelling.run(corpusRoot);

@@ -7,11 +7,13 @@ import io.algernon.vespera.embedding.RelevanceLabel;
 import io.algernon.vespera.embedding.RelevanceLabeller;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.extraction.DoclingExtractor;
+import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.io.IOException;
@@ -19,14 +21,19 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -70,6 +77,7 @@ class AutoLabelling {
     /** Asked for only when openings are read: building it asks the converter what it is built from. */
     private final ObjectProvider<ExtractorIdentity> extractorIdentity;
     private final HybridChunker hybridChunker;
+    private final ExtractionCacheKeys cacheKeys;
     private final Path workingDirectory;
 
     AutoLabelling(
@@ -80,6 +88,7 @@ class AutoLabelling {
             DoclingExtractor extractor,
             ObjectProvider<ExtractorIdentity> extractorIdentity,
             HybridChunker hybridChunker,
+            JdbcTemplate jdbcTemplate,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.labeller = labeller;
         this.relevanceLabels = relevanceLabels;
@@ -88,6 +97,7 @@ class AutoLabelling {
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
         this.hybridChunker = hybridChunker;
+        this.cacheKeys = new ExtractionCacheKeys(jdbcTemplate);
         this.workingDirectory = workingDirectory;
     }
 
@@ -147,9 +157,15 @@ class AutoLabelling {
                     + " vespera label first");
         }
 
-        Path canonicalRoot = Walk.canonicalRoot(root);
-        DocumentOpening documentOpening =
-                new DocumentOpening(extractor, extractorIdentity.getObject(), hybridChunker);
+        // This command runs no job, so it has no run of its own to read keys under: the stage-2 run is the one
+        // the label file's scoring run was derived from, found by following the recorded upstream runs
+        // (ADR-206 section 4), and the survivors are the occurrences of that run's walk. No file under the
+        // corpus root is opened.
+        RunId extractionRun = extractionRunUpstreamOf(run);
+        WalkId walk = ledger.walkOf(run)
+                .orElseThrow(() -> new IllegalStateException("run " + run.value() + " has no walk recorded"));
+        DocumentOpening documentOpening = new DocumentOpening(
+                extractor, extractorIdentity.getObject(), hybridChunker, cacheKeys);
         int questions = 0;
         int relevant = 0;
         int notRelevant = 0;
@@ -163,9 +179,18 @@ class AutoLabelling {
                 byAPerson++;
                 continue;
             }
-            Optional<String> opening = documentOpening
-                    .of(canonicalRoot, path.value(), "document " + path.value())
-                    .asRead();
+            Optional<String> opening = ledger.occurrenceId(walk, path)
+                    .map(occurrence -> documentOpening
+                            .of(occurrence, extractionRun, "document " + path.value())
+                            .asRead())
+                    .orElseGet(() -> {
+                        LOG.warn(
+                                "document {} is in the label file but not in the walk of run {}, so its opening"
+                                        + " is not shown",
+                                path.value(),
+                                run.value());
+                        return Optional.empty();
+                    });
             Optional<Boolean> answer;
             try {
                 answer = labeller.answer(new LabelQuestion(path.value(), text(entry, "closestSeed"), opening));
@@ -213,6 +238,29 @@ class AutoLabelling {
         message.append('\n').append(setTheFloor(fileSeedSet, embedder));
         LOG.info("{}", message);
         return new Outcome(false, message.toString());
+    }
+
+    /**
+     * The run of stage 2 that {@code scoring} was derived from, found by following {@link
+     * Ledger#upstreamRuns} breadth-first, however many steps back (ADR-048). It is where the key of every
+     * survivor of {@code scoring}'s walk was recorded.
+     */
+    private RunId extractionRunUpstreamOf(RunId scoring) {
+        Set<String> visited = new HashSet<>();
+        Deque<RunId> toVisit = new ArrayDeque<>();
+        toVisit.add(scoring);
+        while (!toVisit.isEmpty()) {
+            RunId current = toVisit.poll();
+            if (!visited.add(current.value())) {
+                continue;
+            }
+            if (ledger.stageOf(current).filter(StageModules.EXTRACTION.stage()::equals).isPresent()) {
+                return current;
+            }
+            toVisit.addAll(ledger.upstreamRuns(current));
+        }
+        throw new IllegalStateException("run " + scoring.value()
+                + " has no stage-2 run upstream of it, so no extraction cache key can be read for its documents");
     }
 
     /** The label file with every recorded answer in it and who set each one, so a person can read and correct. */

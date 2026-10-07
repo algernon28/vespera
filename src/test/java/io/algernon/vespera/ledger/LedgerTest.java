@@ -65,6 +65,9 @@ class LedgerTest {
     /** The implementation version and configuration these two calls share, so both derive one name. */
     private static final String UNCHANGED_SINCE_LAST_TIME = "a version";
 
+    /** A run id of the right shape, 64 hexadecimal characters, that no test here records a run under. */
+    private static final String A_RUN_NOBODY_RECORDED = "f".repeat(64);
+
     @Test
     @Story("What the ledger records")
     @DisplayName("Asking twice for a record of the same work carries on under the one already there")
@@ -87,6 +90,27 @@ class LedgerTest {
                         + " agree with the first in every column it has, and the one thing it could do is"
                         + " break the rule that a name identifies one piece of work",
                 () -> assertThat(rowsUnder(first)).isEqualTo(ONE_RECORD));
+    }
+
+    @Test
+    @Story("What the ledger records")
+    @DisplayName("A run is read back with the stage name it was recorded under, and an unknown run with none")
+    @Issue("349")
+    @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
+    void givesBackTheStageNameARunWasRecordedUnder() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        RunId run = ledger.startRun(A_STAGE, UNCHANGED_SINCE_LAST_TIME, "{}", walkId, List.of());
+
+        claim(
+                "the stage name given when the run was recorded is the one read back, letter for letter:"
+                        + " a caller following a run's upstream runs tells by this which one it was"
+                        + " looking for, and the ledger gives the text back without reading anything"
+                        + " into it",
+                () -> assertThat(ledger.stageOf(run)).contains(A_STAGE));
+        claim(
+                "and a name no run was recorded under has no stage, as an answer and not a failure",
+                () -> assertThat(ledger.stageOf(new RunId(A_RUN_NOBODY_RECORDED))).isEmpty());
     }
 
     /** How many rows the run table holds under one name. */

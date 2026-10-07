@@ -759,10 +759,11 @@ class GenerationBreakerInvocationTest {
      *
      * <p>The cluster at {@code theClusterHoldingNothing} is given its document like every other, so the
      * arrangement stays total and its page can be drawn from it (ADR-112, ADR-154 §2). What leaves it
-     * with nothing to send is that its document is then rewritten in place, its length and timestamps
-     * unchanged, so the walk still sees the same archive and the approval still stands, while the step
-     * finds nothing cached under the text it now reads ({@link UnseenEditFixture}). It meets the
-     * cluster, finds nothing to send, and makes no call.
+     * with nothing to send is that its document's conversion and chunks are then taken out of the caches
+     * ({@link ConversionOffTheRecordFixture}). Its file is untouched, so the walk still sees the same
+     * archive and the approval still stands, while the step finds no chunk on record for it. It meets
+     * the cluster, finds nothing to send, and makes no call. Until ADR-206 the document was rewritten in
+     * place instead, which obstructed the step only while it hashed the file again.
      */
     private void oneClusterPerDocument(RunId arrangement, int clusters, int theClusterHoldingNothing, Path root)
             throws IOException {
@@ -819,10 +820,12 @@ class GenerationBreakerInvocationTest {
                     cluster);
         }
         if (theClusterHoldingNothing != EVERY_CLUSTER_HOLDS_A_DOCUMENT) {
-            UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve(jdbcTemplate.queryForObject(
-                    "SELECT path FROM file_occurrence WHERE id = ?",
-                    String.class,
-                    documents.get(theClusterHoldingNothing))));
+            ConversionOffTheRecordFixture.takenOffTheRecord(
+                    jdbcTemplate,
+                    root.resolve(jdbcTemplate.queryForObject(
+                            "SELECT path FROM file_occurrence WHERE id = ?",
+                            String.class,
+                            documents.get(theClusterHoldingNothing))));
         }
     }
 

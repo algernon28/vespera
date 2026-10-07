@@ -40,6 +40,13 @@ class PendingConversionsTest {
     /** The document the dispatched call was for; nothing here turns on which. */
     private static final OccurrenceId OCCURRENCE = new OccurrenceId(7);
 
+    /**
+     * The key every dispatched call is filed with, as stage 2's reader files it (ADR-206 section 2): a
+     * SHA-256 written as 64 lowercase hexadecimal characters. No claim here reads it; a call filed
+     * without one is a state the reader never produces.
+     */
+    private static final String A_KEY = "0123456789abcdef".repeat(4);
+
     /** The file that document was read from; it is never opened here. */
     private static final Path FILE = Path.of("archive", "document.pdf");
 
@@ -72,9 +79,9 @@ class PendingConversionsTest {
         List<DoclingResponse> stored = new ArrayList<>();
 
         PendingConversions afterARejection = new PendingConversions();
-        afterARejection.dispatch(OCCURRENCE, CompletableFuture.failedFuture(rejected), stored::add);
+        afterARejection.dispatch(OCCURRENCE, A_KEY, CompletableFuture.failedFuture(rejected), stored::add);
         PendingConversions afterALostConnection = new PendingConversions();
-        afterALostConnection.dispatch(OCCURRENCE, CompletableFuture.failedFuture(lost), stored::add);
+        afterALostConnection.dispatch(OCCURRENCE, A_KEY, CompletableFuture.failedFuture(lost), stored::add);
 
         claim(
                 "a rejection is thrown to the step as the very rejection the worker met, not wrapped in"
@@ -97,7 +104,7 @@ class PendingConversionsTest {
         CompletableFuture<DoclingResponse> stillConverting = new CompletableFuture<>();
         List<DoclingResponse> stored = new ArrayList<>();
         PendingConversions pending = new PendingConversions();
-        pending.dispatch(OCCURRENCE, stillConverting, stored::add);
+        pending.dispatch(OCCURRENCE, A_KEY, stillConverting, stored::add);
 
         pending.abandon(OCCURRENCE);
 
@@ -122,7 +129,7 @@ class PendingConversionsTest {
         CompletableFuture<DoclingResponse> stillConverting = new CompletableFuture<>();
         List<DoclingResponse> stored = new ArrayList<>();
         PendingConversions pending = new PendingConversions();
-        pending.dispatch(OCCURRENCE, stillConverting, stored::add);
+        pending.dispatch(OCCURRENCE, A_KEY, stillConverting, stored::add);
 
         CompletableFuture<Void> waited = CompletableFuture.runAsync(pending::awaitAllDispatched);
 
@@ -162,9 +169,9 @@ class PendingConversionsTest {
         CompletableFuture<DoclingResponse> cancelled = new CompletableFuture<>();
         cancelled.cancel(true);
         PendingConversions pending = new PendingConversions();
-        pending.dispatch(OCCURRENCE, cancelled, answer -> { });
-        pending.dispatch(ANOTHER_OCCURRENCE, CompletableFuture.failedFuture(lost), answer -> { });
-        pending.dispatch(A_THIRD_OCCURRENCE, CompletableFuture.completedFuture(CONVERTED), answer -> { });
+        pending.dispatch(OCCURRENCE, A_KEY, cancelled, answer -> { });
+        pending.dispatch(ANOTHER_OCCURRENCE, A_KEY, CompletableFuture.failedFuture(lost), answer -> { });
+        pending.dispatch(A_THIRD_OCCURRENCE, A_KEY, CompletableFuture.completedFuture(CONVERTED), answer -> { });
 
         claim(
                 "the wait returns, and does not throw: how a conversion ended is for the step to read when it"

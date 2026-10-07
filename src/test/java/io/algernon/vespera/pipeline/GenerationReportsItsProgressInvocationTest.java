@@ -436,8 +436,9 @@ class GenerationReportsItsProgressInvocationTest {
      * will be written over, as {@code GenerationBreakerInvocationTest} does and for the reasons its javadoc
      * gives: every document under the run is first moved to an ordinal no cluster is arranged at, and only
      * then are this walk's documents placed one per cluster, each under the cluster rows' winning seed. The
-     * cluster at {@code theClusterHoldingNothing} has its document rewritten in place with the walk none the
-     * wiser, so the step finds nothing cached to send for it.
+     * cluster at {@code theClusterHoldingNothing} has its document's conversion and chunks taken out of the
+     * caches with its file untouched ({@link ConversionOffTheRecordFixture}), so the walk is none the wiser
+     * and the step finds nothing on record to send for it.
      */
     private void oneClusterPerDocument(RunId arrangement, int clusters, int theClusterHoldingNothing, Path root)
             throws IOException {
@@ -483,10 +484,12 @@ class GenerationReportsItsProgressInvocationTest {
                     cluster);
         }
         if (theClusterHoldingNothing != EVERY_CLUSTER_HOLDS_A_DOCUMENT) {
-            UnseenEditFixture.editedWithoutTheWalkNoticing(root.resolve(jdbcTemplate.queryForObject(
-                    "SELECT path FROM file_occurrence WHERE id = ?",
-                    String.class,
-                    documents.get(theClusterHoldingNothing))));
+            ConversionOffTheRecordFixture.takenOffTheRecord(
+                    jdbcTemplate,
+                    root.resolve(jdbcTemplate.queryForObject(
+                            "SELECT path FROM file_occurrence WHERE id = ?",
+                            String.class,
+                            documents.get(theClusterHoldingNothing))));
         }
     }
 

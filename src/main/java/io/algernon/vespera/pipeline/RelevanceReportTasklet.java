@@ -5,6 +5,7 @@ import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceLabel;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.extraction.DoclingExtractor;
+import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
@@ -35,6 +36,7 @@ import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -85,7 +87,6 @@ class RelevanceReportTasklet implements Tasklet {
     private final RelevanceFloor relevanceFloor;
     private final Ledger ledger;
     private final ProfileStore profileStore;
-    private final Path root;
     private final Path workingDirectory;
 
     RelevanceReportTasklet(
@@ -101,9 +102,10 @@ class RelevanceReportTasklet implements Tasklet {
             ExtractorIdentity extractorIdentity,
             HybridChunker hybridChunker,
             ProfileStore profileStore,
-            @Value("#{jobParameters['root']}") Path root,
+            JdbcTemplate jdbcTemplate,
             @Value("${vespera.working-dir}") Path workingDirectory) {
-        this.documentOpening = new DocumentOpening(extractor, extractorIdentity, hybridChunker);
+        this.documentOpening =
+                new DocumentOpening(extractor, extractorIdentity, hybridChunker, new ExtractionCacheKeys(jdbcTemplate));
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
@@ -113,7 +115,6 @@ class RelevanceReportTasklet implements Tasklet {
         this.relevanceFloor = relevanceFloor;
         this.ledger = ledger;
         this.profileStore = profileStore;
-        this.root = root;
         this.workingDirectory = workingDirectory;
     }
 
@@ -165,7 +166,10 @@ class RelevanceReportTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        Path canonicalRoot = Walk.canonicalRoot(root);
+        // A sampled survivor's opening is read back from the extraction cache under the key stage 2 recorded
+        // for it (ADR-206, amending ADR-152): the file is not opened and nothing is converted, so a page for
+        // a person to read spends no Docling call, and shows the text its score was computed from.
+        RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
         List<RelevanceLabellingReport.Preview> previews = new ArrayList<>();
         List<RelevanceLabelFile.Entry> entries = new ArrayList<>();
         StageProgress sampledOpened = StageProgress.over(
@@ -173,7 +177,9 @@ class RelevanceReportTasklet implements Tasklet {
         for (RelevanceDistribution.Sampled sampled : distribution.sample()) {
             String path = pathOf(sampled.occurrenceId());
             String seedPath = pathOf(sampled.winningSeedOccurrenceId());
-            String opening = textOpeningOf(canonicalRoot, sampled.occurrenceId());
+            String opening = documentOpening
+                    .of(sampled.occurrenceId(), extractionRun, "occurrence " + sampled.occurrenceId().value())
+                    .text();
             previews.add(new RelevanceLabellingReport.Preview(sampled.occurrenceId(), path, seedPath, opening));
             entries.add(new RelevanceLabelFile.Entry(path, sampled, seedPath));
             sampledOpened.itemDone();
@@ -316,33 +322,6 @@ class RelevanceReportTasklet implements Tasklet {
                 .map(OccurrenceFacts::path)
                 .map(path -> path.value())
                 .orElse("(path not recorded)");
-    }
-
-    /**
-     * The start of a document's extracted text, taken from its first chunk (ADR-152).
-     *
-     * <p>Read back through the extraction cache only, never converted: gate 3's step already converted
-     * every survivor, and a cache hit under the file's own current hash is what {@link
-     * DoclingExtractor#cached} answers. A page for a person to read is not a place to spend a Docling
-     * call, and on a survivor whose bytes changed since stage 2 that call would convert bytes no score
-     * was computed from.
-     *
-     * <p><b>A file that cannot be opened is a fact about that document, not a fault in this run.</b>
-     * Hashing the file is the one archive access this method makes, and only the {@link
-     * UncheckedIOException} it can throw is tolerated — the survivor stays in the sample and on the
-     * page, with {@link DocumentOpening#FILE_COULD_NOT_BE_OPENED_FALLBACK} standing in for its opening and
-     * one warning naming it. A cache miss under the hash that was read is tolerated the same way, with
-     * {@link DocumentOpening#NO_CONVERSION_ON_RECORD_FALLBACK} in its place. Neither ever reaches Docling.
-     * The reading itself is {@link DocumentOpening}'s, shared with {@code vespera label --auto}.
-     */
-    private String textOpeningOf(Path canonicalRoot, OccurrenceId occurrenceId) {
-        Optional<OccurrenceFacts> facts = ledger.factsFor(occurrenceId);
-        if (facts.isEmpty()) {
-            return "(no text was extracted)";
-        }
-        return documentOpening
-                .of(canonicalRoot, facts.get().path().value(), "occurrence " + occurrenceId.value())
-                .text();
     }
 
     /**

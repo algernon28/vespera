@@ -34,21 +34,36 @@ class PendingConversions {
      * Files {@code future} as the eventual answer for {@code occurrenceId}, dispatched ahead of it.
      * {@code onResolved} runs on whichever thread calls {@link #take}, never on the worker that
      * completed {@code future} -- it is the write half of a cache hit or miss the reader already
-     * decided on its own thread (ADR-140 section 3), placed once the answer is in hand.
+     * decided on its own thread (ADR-140 section 3), placed once the answer is in hand. {@code
+     * contentHash} is the key the reader looked the cache up under, which {@link #keyOf} hands to the
+     * processor so that it records that value and hashes no file a second time (ADR-206 section 2).
      */
-    void dispatch(OccurrenceId occurrenceId, Future<DoclingResponse> future, Consumer<DoclingResponse> onResolved) {
-        pending.put(occurrenceId.value(), new Entry(future, onResolved, false));
+    void dispatch(
+            OccurrenceId occurrenceId,
+            String contentHash,
+            Future<DoclingResponse> future,
+            Consumer<DoclingResponse> onResolved) {
+        pending.put(occurrenceId.value(), new Entry(future, onResolved, false, contentHash));
     }
 
     /**
      * Files {@code response}, which the extraction cache already held, as the answer for {@code
      * occurrenceId}: complete at once, and told apart by {@link #answeredFromCache}, because an answer
      * read from the cache says nothing about whether the converter answers now (ADR-184 section 4).
+     * {@code contentHash} is the key the cache was read under, filed as for {@link #dispatch}.
      */
-    void dispatchCached(OccurrenceId occurrenceId, DoclingResponse response) {
+    void dispatchCached(OccurrenceId occurrenceId, String contentHash, DoclingResponse response) {
         pending.put(
                 occurrenceId.value(),
-                new Entry(CompletableFuture.completedFuture(response), cached -> { }, true));
+                new Entry(CompletableFuture.completedFuture(response), cached -> { }, true, contentHash));
+    }
+
+    /**
+     * The key the reader looked the cache up under for {@code occurrenceId}, empty where nothing is held
+     * for it. Read before {@link #take}, which removes the entry.
+     */
+    Optional<String> keyOf(OccurrenceId occurrenceId) {
+        return Optional.ofNullable(pending.get(occurrenceId.value())).map(Entry::contentHash);
     }
 
     /** Whether the answer held for {@code occurrenceId} came from the cache. False if nothing is held. */
@@ -130,5 +145,8 @@ class PendingConversions {
 
     /** One dispatched answer, and what to do with it -- on the taking thread -- once it arrives. */
     private record Entry(
-            Future<DoclingResponse> future, Consumer<DoclingResponse> onResolved, boolean fromCache) {}
+            Future<DoclingResponse> future,
+            Consumer<DoclingResponse> onResolved,
+            boolean fromCache,
+            String contentHash) {}
 }

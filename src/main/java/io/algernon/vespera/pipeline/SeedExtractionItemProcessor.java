@@ -130,9 +130,10 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
             // Recorded, never judged, and it does not stop the run: scoring proceeds against whatever
             // survived extraction, and a corrected seed folder is a different run because the seed
             // folder is part of what that run's identity is derived from (ADR-083).
-            return SeedExtractionOutcome.unusable(occurrenceId, measurement, UsableText.NO_ALPHANUMERIC_CONTENT);
+            return SeedExtractionOutcome.unusable(
+                    occurrenceId, contentHash, measurement, UsableText.NO_ALPHANUMERIC_CONTENT);
         }
-        return SeedExtractionOutcome.usable(occurrenceId, measurement);
+        return SeedExtractionOutcome.usable(occurrenceId, contentHash, measurement);
     }
 
     /**

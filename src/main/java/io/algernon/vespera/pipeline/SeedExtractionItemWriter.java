@@ -176,6 +176,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         // this step's own rows before working is ADR-115's other half (ADR-116) -- extraction_metric is
         // keyed (occurrence_id, run_id), so a second write would otherwise collide on the first seed.
         extractionMetrics.discardForRun(runId);
+        extractionMetrics.cacheKeys().discardForRun(runId);
         unusableSeeds.discardForRun(runId);
 
         long couldNotOpenCount = 0;
@@ -183,6 +184,9 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         for (SeedExtractionOutcome outcome : outcomes) {
             if (outcome.hasMeasurement()) {
                 extractionMetrics.write(outcome.occurrenceId(), runId, outcome.measurement());
+                // Beside the metrics row, so that a seed has a key exactly where it has a measurement
+                // (ADR-206 section 3): 5c and 5d read it from here and hash no seed file again.
+                extractionMetrics.cacheKeys().record(outcome.occurrenceId(), runId, outcome.contentHash());
             } else {
                 couldNotOpenCount++;
             }

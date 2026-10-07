@@ -11,6 +11,7 @@ import io.algernon.vespera.extraction.DoclingConnectionLostException;
 import io.algernon.vespera.extraction.DoclingDocumentTexts;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
+import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.extraction.FailuresInARow;
@@ -73,6 +74,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private final SidecarRecovery sidecarRecovery;
     private final FailuresInARow failuresInARow;
     private final OccurrenceJudge judge;
+    private final ExtractionCacheKeys cacheKeys;
 
     /**
      * Stage 2's progress line (ADR-093), counted here because this is the per-item seam the step has:
@@ -145,6 +147,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.pending = pending;
         this.sidecarRecovery = sidecarRecovery;
         this.failuresInARow = failuresInARow;
+        this.cacheKeys = extractionMetrics.cacheKeys();
         // Nothing is deleted here. ExtractionJobConfiguration's reader deletes the fault rows and the
         // verdicts that resolved them, where a delete is outside the chunk transaction and so cannot be
         // rolled back by a chunk that fails (ADR-181 section 1, amending ADR-115's discard half and
@@ -188,6 +191,10 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             log.info("[extraction] {}", unreadable.reason());
             return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, unreadable.reason());
         }
+        // The key the cache is looked up under, and the one recorded beside the metrics row (ADR-206
+        // section 2). Where ConversionDispatch dispatched the call it resolved the key there and filed it
+        // with the call, so nothing is hashed here; otherwise it is stage 1's hash, or this file's own.
+        String contentHash = pending.keyOf(occurrenceId).orElseGet(() -> contentHashOf(occurrenceId, file));
         try {
             // Read before the answer is taken: taking it removes what says it came from the cache.
             boolean fromCache = pending.answeredFromCache(occurrenceId);
@@ -198,15 +205,15 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             // pay for a value nothing reads). Nothing dispatches ahead of a processor built by
             // ExtractionItemProcessorTest's own constructor, so pending is always empty there and this
             // falls back to placing the call itself, exactly as it always has.
-            DoclingResponse response =
-                    pending.take(occurrenceId).orElseGet(() -> convertNow(occurrenceId, file, format.get()));
-            return acting(occurrenceId, judge.answered(occurrenceId, response, fromCache), response);
+            DoclingResponse response = pending.take(occurrenceId)
+                    .orElseGet(() -> convertNow(occurrenceId, file, contentHash, format.get()));
+            return acting(occurrenceId, judge.answered(occurrenceId, response, fromCache), response, contentHash);
         } catch (DoclingConnectionLostException lost) {
-            return retryAfterDrop(occurrenceId, file, format.get());
+            return retryAfterDrop(occurrenceId, file, contentHash, format.get());
         } catch (DoclingCallTimeoutException timedOut) {
             // No converted document came back, whichever side gave up first: nothing for #48's metrics
-            // pass to measure.
-            return acting(occurrenceId, judge.timedOut(occurrenceId, timedOut.getMessage()), null);
+            // pass to measure, and so no key to record beside one.
+            return acting(occurrenceId, judge.timedOut(occurrenceId, timedOut.getMessage()), null, contentHash);
         } catch (DoclingCallRejectedException rejected) {
             return rejectedOutcome(occurrenceId, rejected);
         }
@@ -227,11 +234,12 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      * and converts nothing, which neither the wait nor ADR-071's breaker sees. If it converts, each of
      * the five keeps its {@code crashed the converter} verdict and the count starts again.
      */
-    private ExtractionOutcome retryAfterDrop(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
+    private ExtractionOutcome retryAfterDrop(
+            OccurrenceId occurrenceId, Path file, String contentHash, DetectedFormat format) {
         sidecarRecovery.awaitHealthy();
         try {
-            DoclingResponse response = convertNow(occurrenceId, file, format);
-            return acting(occurrenceId, judge.answered(occurrenceId, response, false), response);
+            DoclingResponse response = convertNow(occurrenceId, file, contentHash, format);
+            return acting(occurrenceId, judge.answered(occurrenceId, response, false), response, contentHash);
         } catch (DoclingConnectionLostException again) {
             sidecarRecovery.awaitHealthy();
             OccurrenceDecision.DroppedTwice dropped = (OccurrenceDecision.DroppedTwice) judge.droppedTwice(
@@ -261,7 +269,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         } catch (DoclingCallRejectedException rejected) {
             return rejectedOutcome(occurrenceId, rejected);
         } catch (DoclingCallTimeoutException timedOut) {
-            return acting(occurrenceId, judge.timedOut(occurrenceId, timedOut.getMessage()), null);
+            return acting(occurrenceId, judge.timedOut(occurrenceId, timedOut.getMessage()), null, contentHash);
         }
     }
 
@@ -281,8 +289,17 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      * verdict, and returns {@code degenerate-output} or {@code null} for a survivor; a failure is
      * {@code extraction-failed}; a set-aside is thrown, for the step to skip (ADR-139).
      * {@code response} is {@code null} where the call brought none, and nothing here reads it then.
+     *
+     * <p>The key {@code contentHash} is recorded exactly where the judge wrote a metrics row: where there
+     * is a response and the decision is not a set-aside (ADR-206 section 2). It is written here, on the
+     * step's thread and in the chunk transaction that writes the row, the shingles and the verdict, never
+     * by a conversion worker (ADR-127, ADR-140). A faulted conversion gets none (ADR-139).
      */
-    private ExtractionOutcome acting(OccurrenceId occurrenceId, OccurrenceDecision decision, DoclingResponse response) {
+    private ExtractionOutcome acting(
+            OccurrenceId occurrenceId, OccurrenceDecision decision, DoclingResponse response, String contentHash) {
+        if (response != null && !(decision instanceof OccurrenceDecision.SetAside)) {
+            cacheKeys.record(occurrenceId, stageRuns.extraction(), contentHash);
+        }
         return switch (decision) {
             case OccurrenceDecision.Converted converted -> {
                 shingler.write(occurrenceId, stageRuns.extraction(), DoclingDocumentTexts.lines(response.rawResponse()));
@@ -300,15 +317,22 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     }
 
     /** Places the call from this thread, through the cache: the fallback above, and a retry's one call. */
-    private DoclingResponse convertNow(OccurrenceId occurrenceId, Path file, DetectedFormat format) {
+    private DoclingResponse convertNow(OccurrenceId occurrenceId, Path file, String contentHash, DetectedFormat format) {
         RunId byteLevelReductionRunId = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
-        String contentHash = contentIdentity
-                .hashFor(occurrenceId, byteLevelReductionRunId)
-                .orElseGet(() -> extractor.contentHashFor(file));
         DetectedSubtype subtype = detectedFormats
                 .subtypeFor(occurrenceId, byteLevelReductionRunId)
                 .orElse(null);
         return extractor.convert(file, contentHash, extractorIdentity, format, subtype);
+    }
+
+    /**
+     * The key of {@code occurrenceId}'s file: stage 1's hash where it recorded one (ADR-067), and this file's
+     * own otherwise. They are one digest over the same bytes (ADR-151).
+     */
+    private String contentHashOf(OccurrenceId occurrenceId, Path file) {
+        return contentIdentity
+                .hashFor(occurrenceId, stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION))
+                .orElseGet(() -> extractor.contentHashFor(file));
     }
 
     /** The path census recorded the occurrence under, relative to the corpus root. */
