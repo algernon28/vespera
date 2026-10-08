@@ -91,7 +91,7 @@ So three of the four places a file is read already fail the wrong way for an arc
 
 ### 5. Stage 2
 
-**A file stage 2 cannot hash, that does not open when its call has lost its connection, or that cannot be read whole when it is converted in parts, earns `extraction-failed` at once**, with a reason that begins `could not be read: ` and goes on with what the file system reported: the cause beneath `could not hash <path>`, the exception the opening check met, or the `IOException` of the whole-file read.
+**A file stage 2 cannot hash, that does not open when its call has lost its connection, or that cannot be read whole when it is converted in parts, earns `extraction-failed` at once**, with a reason that begins `could not be read: ` and goes on with what the file system reported, as `could not be read: <kind>: <message>`, the kind being the simple name of the exception and the message left out where it has none: the exception beneath `could not hash <path>`, the one the opening check met, or the `IOException` of the whole-file read. The kind is what tells a file that is gone from one that is locked or whose permission was removed, whose messages are often only the path.
 
 - **It is not an extraction fault.** A fault is a call the converter got and blamed on itself (ADR-139). The converter was never asked about this file, or never received it.
 - **No metric row, no key row, no cache row** (ADR-183, ADR-206 §2): no response came back. ADR-206 §2's table gains the row (§8.5).
