@@ -228,7 +228,7 @@ It did not measure a real walk. How long a page of `survivors` takes on the arch
 
 **The size of the change is recorded by the commit that lands it, and not estimated here.** The plan's *"about −300 lines"* was a guess and is not repeated. The commit that builds `src/main` writes three numbers into this section, in place of the line below: the lines it adds under `src/main`, the lines it removes there, and the net, as `git diff --numstat` counts them between the `main` commit it lands on and itself, restricted to `src/main`.
 
-- **`src/main`, measured**: 1,376 lines added, 1,144 removed, net +232, from `git diff --numstat d168a6e 095c032 -- src/main`, 095c032 being the commit that builds it.
+- **`src/main`, measured**: 1,379 lines added, 1,147 removed, net +232, from `git diff --numstat d168a6e c4d010a -- src/main`; 095c032 builds it and c4d010a is the last commit to touch it.
 
 ## What the commit that builds `src/main` owes
 
