@@ -49,7 +49,7 @@ import org.springframework.stereotype.Component;
  * same value as the HTML file, so the two outputs can never silently disagree (ADR-075).
  *
  * <p>Reads {@code extraction_metric} rows under stage 2's own run id, restricted to stage 2's
- * survivors — the same survivor set {@code similarity.DocumentFrequency} already computes off {@link
+ * survivors — the same survivor set {@code similarity.DocumentFrequency} already computes off {@code
  * Verdicts#survivors(RunId)}, reused here rather than re-invented.
  */
 @Component

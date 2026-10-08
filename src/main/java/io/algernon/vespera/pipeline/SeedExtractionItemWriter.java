@@ -49,7 +49,7 @@ import org.springframework.stereotype.Component;
  * <p><b>A seed whose file would not open (ADR-155) carries no {@code extraction_metric} row</b> --
  * nothing was converted, so there is nothing measured -- but it still carries an {@code unusable_seed}
  * row, under {@link SeedExtractionOutcome#FILE_COULD_NOT_BE_OPENED}. While the step is not yet
- * recorded as finished and at least one such seed was met, this class does not call {@link
+ * recorded as finished and at least one such seed was met, this class does not call {@code
  * Runs#finishStep}, so stage 5 goes no further in this invocation (ADR-155 section 2) and the next
  * invocation discards and rewrites these same rows rather than walking past a seed set with a hole in
  * it.

@@ -241,7 +241,7 @@ class AutoLabelling {
     }
 
     /**
-     * The run of stage 2 that {@code scoring} was derived from, found by following {@link
+     * The run of stage 2 that {@code scoring} was derived from, found by following {@code
      * Runs#upstreamRuns} breadth-first, however many steps back (ADR-048). It is where the key of every
      * survivor of {@code scoring}'s walk was recorded.
      */
