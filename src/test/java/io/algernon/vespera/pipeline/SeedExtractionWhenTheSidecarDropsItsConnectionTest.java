@@ -152,7 +152,7 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
                 "and seed extraction is recorded as finished under the one measurement run over this corpus",
                 () -> assertThat(measurementRunsOver(root))
                         .singleElement()
-                        .satisfies(run -> assertThat(ledger.stepFinished(run, "seed-extraction")).isTrue()));
+                        .satisfies(run -> assertThat(ledger.runs().stepFinished(run, "seed-extraction")).isTrue()));
     }
 
     @Test

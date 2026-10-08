@@ -327,7 +327,7 @@ public class ExtractionJobConfiguration {
         // This step's own work under this run is already recorded, so it runs in its usual place and
         // reads nothing (ADR-115, ADR-116) -- the shape a shut gate already uses, for a different
         // reason.
-        if (ledger.stepFinished(extractionRun, StepNames.EXTRACTION)) {
+        if (ledger.runs().stepFinished(extractionRun, StepNames.EXTRACTION)) {
             return OccurrenceReader.yieldingNothing();
         }
 
@@ -356,7 +356,7 @@ public class ExtractionJobConfiguration {
         // The queries are extraction's (ADR-041); the one delete against verdict is the ledger's.
         ExtractionFaults extractionFaults = new ExtractionFaults(jdbcTemplate);
         Set<OccurrenceId> faulted = extractionFaults.occurrencesForRun(extractionRun, faultReadProgress());
-        ledger.discardVerdictsAgainst(extractionRun, faulted, VerdictKind.EXTRACTION_FAILED);
+        ledger.verdicts().discardVerdictsAgainst(extractionRun, faulted, VerdictKind.EXTRACTION_FAILED);
         extractionFaults.discardForRun(extractionRun);
 
         // shingle_by_hash is not maintained while shingles are written (ADR-182 section 2.2): every new row
@@ -394,9 +394,9 @@ public class ExtractionJobConfiguration {
                     faulted.size());
         }
         if (!recorded.isEmpty()) {
-            return new OccurrenceReader(new UnrecordedOccurrences(ledger.survivors(extractionRun), recorded));
+            return new OccurrenceReader(new UnrecordedOccurrences(ledger.verdicts().survivors(extractionRun), recorded));
         }
-        return new OccurrenceReader(ledger.survivors(extractionRun));
+        return new OccurrenceReader(ledger.verdicts().survivors(extractionRun));
     }
 
     /**

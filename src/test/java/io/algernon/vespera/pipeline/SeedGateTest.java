@@ -102,7 +102,7 @@ class SeedGateTest {
     @DisplayName("A seed folder whose walk has not finished closes the gate")
     void closesWhenTheSeedWalkHasNotFinished(@TempDir Path seeds) {
         profile(seeds.toString(), BOILERPLATE_FLOOR);
-        ledger.startWalk(Walk.canonicalRoot(seeds));
+        ledger.walks().startWalk(Walk.canonicalRoot(seeds));
 
         claim(
                 "an unfinished walk closes the gate exactly as an unnamed folder does. A walk that has"
@@ -164,8 +164,8 @@ class SeedGateTest {
 
     /** A walk of {@code root} that census would have finished. */
     private WalkId finishedWalkOf(Path root) {
-        WalkId walkId = ledger.startWalk(Walk.canonicalRoot(root));
-        ledger.finishWalk(walkId, new WalkCounts(0, 1));
+        WalkId walkId = ledger.walks().startWalk(Walk.canonicalRoot(root));
+        ledger.walks().finishWalk(walkId, new WalkCounts(0, 1));
         return walkId;
     }
 }

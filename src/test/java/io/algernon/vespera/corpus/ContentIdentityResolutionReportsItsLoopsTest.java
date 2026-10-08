@@ -138,17 +138,17 @@ class ContentIdentityResolutionReportsItsLoopsTest {
 
         Corpus(Path root) {
             this.root = root;
-            this.walk = ledger.startWalk(root);
+            this.walk = ledger.walks().startWalk(root);
         }
 
         void occurrence(String name, String content, Instant created) throws IOException {
             Path file = root.resolve(name);
             Files.writeString(file, content);
-            ledger.fileOccurrence(walk, new OccurrencePath(name), Files.size(file), created, created);
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath(name), Files.size(file), created, created);
         }
 
         RunId run() {
-            return ledger.startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
+            return ledger.runs().startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
         }
 
         ContentIdentityResolution resolution() {

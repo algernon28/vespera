@@ -88,7 +88,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
                 .orElseThrow(() -> new IllegalStateException(
                         "the seed extraction processor must not be instantiated while the seed gate is closed"));
         this.progress =
-                StageProgress.over("Stage 5a (seed extraction)", ledger.occurrenceCount(seedWalk.walkId()));
+                StageProgress.over("Stage 5a (seed extraction)", ledger.occurrences().occurrenceCount(seedWalk.walkId()));
     }
 
     @Override
@@ -157,7 +157,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
     }
 
     private Path resolvePath(OccurrenceId occurrenceId) {
-        OccurrenceFacts facts = ledger.factsFor(occurrenceId)
+        OccurrenceFacts facts = ledger.occurrences().factsFor(occurrenceId)
                 .orElseThrow(() ->
                         new IllegalStateException("no facts are recorded for occurrence " + occurrenceId.value()));
         return seedWalk.canonicalRoot().resolve(facts.path().value());

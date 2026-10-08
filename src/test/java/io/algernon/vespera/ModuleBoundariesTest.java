@@ -23,7 +23,10 @@ import org.springframework.modulith.core.ApplicationModules;
  *
  * <p>One limit worth knowing rather than discovering: this verifies Java type references, via
  * ArchUnit over bytecode. A raw SQL string reaching into a table another capability owns is
- * invisible to it. ADR-041 records that gap, and it stays a matter for review by eye.
+ * invisible to it. ADR-041 records that gap, and {@code EachTableIsNamedOnlyByItsOwnerTest} is what
+ * closes it (ADR-209): it reads which module's statements name which table. A library type crossing
+ * into a capability module is invisible here too, and {@code OnlyPipelineNamesSpringBatchTest} holds
+ * the one that did.
  *
  * <p>Every assertion sits inside a {@code claim(...)}, which names it in the report. Two of these
  * assert that a list is empty, and an empty list is exactly the case a report cannot render: the

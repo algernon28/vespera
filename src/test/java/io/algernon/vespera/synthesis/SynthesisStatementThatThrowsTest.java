@@ -66,8 +66,8 @@ class SynthesisStatementThatThrowsTest {
         pool = new PoolOfTwo(folder);
         jdbcTemplate = pool.jdbcTemplate();
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.startWalk(Path.of("C:/corpus-statements"));
-        run = ledger.startRun("generation", "g-statements", "{}", walk, List.of());
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-statements"));
+        run = ledger.runs().startRun("generation", "g-statements", "{}", walk, List.of());
     }
 
     @AfterEach

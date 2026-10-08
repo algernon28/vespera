@@ -9,9 +9,11 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.ledger.Occurrences;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.SizedOccurrence;
 import io.algernon.vespera.ledger.VerdictKind;
+import io.algernon.vespera.ledger.Verdicts;
 import io.algernon.vespera.ledger.WalkId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -28,7 +30,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -109,13 +110,7 @@ class ContentIdentityResolutionCountsItsSurvivorsFirstTest {
         List<String> events = new ArrayList<>();
         RunId run = threeSurvivorsUnder(root);
         IllegalStateException failure = new IllegalStateException("the count could not be taken");
-        Ledger failing = new RecordingLedger(jdbcTemplate, events) {
-            @Override
-            public long survivorCount(RunId runId) {
-                super.survivorCount(runId);
-                throw failure;
-            }
-        };
+        Ledger failing = new RecordingLedger(jdbcTemplate, events, failure);
 
         claim(
                 "the failure of the count reaches the caller as it was thrown",
@@ -130,56 +125,80 @@ class ContentIdentityResolutionCountsItsSurvivorsFirstTest {
     /** Two occurrences of eleven bytes and one of five, recorded under a walk of {@code root}, and its run. */
     private RunId threeSurvivorsUnder(Path root) throws IOException {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.startWalk(root);
+        WalkId walk = ledger.walks().startWalk(root);
         record(ledger, walk, root, "first.txt", "a".repeat(11));
         record(ledger, walk, root, "second.txt", "b".repeat(11));
         record(ledger, walk, root, "alone.txt", "c".repeat(5));
-        return ledger.startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
+        return ledger.runs().startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
     }
 
     private static void record(Ledger ledger, WalkId walk, Path root, String name, String content) throws IOException {
         Path written = root.resolve(name);
         Files.writeString(written, content);
-        ledger.fileOccurrence(walk, new OccurrencePath(name), Files.size(written), CREATED, CREATED);
+        ledger.occurrences().fileOccurrence(walk, new OccurrencePath(name), Files.size(written), CREATED, CREATED);
     }
 
     /** The real ledger, writing down each thing content identity asks of it before answering. */
     private static class RecordingLedger extends Ledger {
         private final List<String> events;
 
+        private final Verdicts recordingVerdicts;
+        private final Occurrences recordingOccurrences;
+
         RecordingLedger(JdbcTemplate jdbcTemplate, List<String> events) {
+            this(jdbcTemplate, events, null);
+        }
+
+        /** As above, and the count, once taken and written down, throws {@code countFailure} where one is given. */
+        RecordingLedger(JdbcTemplate jdbcTemplate, List<String> events, RuntimeException countFailure) {
             super(jdbcTemplate);
             this.events = events;
+            this.recordingVerdicts = new Verdicts(jdbcTemplate) {
+                @Override
+                public long survivorCount(RunId runId) {
+                    events.add(COUNTED);
+                    long counted = super.survivorCount(runId);
+                    if (countFailure != null) {
+                        throw countFailure;
+                    }
+                    return counted;
+                }
+
+                @Override
+                public Iterable<SizedOccurrence> survivorsBySize(RunId runId) {
+                    events.add(READ_BY_SIZE);
+                    return super.survivorsBySize(runId);
+                }
+
+                @Override
+                public Iterable<OccurrenceId> survivors(RunId runId) {
+                    events.add(READ_BY_ID);
+                    return super.survivors(runId);
+                }
+
+                @Override
+                public void verdict(OccurrenceId occurrenceId, RunId runId, VerdictKind kind, String reason) {
+                    events.add(VERDICT);
+                    super.verdict(occurrenceId, runId, kind, reason);
+                }
+            };
+            this.recordingOccurrences = new Occurrences(jdbcTemplate) {
+                @Override
+                public Optional<OccurrenceFacts> factsFor(OccurrenceId occurrenceId) {
+                    events.add(FACTS);
+                    return super.factsFor(occurrenceId);
+                }
+            };
         }
 
         @Override
-        public long survivorCount(RunId runId) {
-            events.add(COUNTED);
-            return super.survivorCount(runId);
+        public Verdicts verdicts() {
+            return recordingVerdicts;
         }
 
         @Override
-        public ItemStreamReader<SizedOccurrence> survivorsBySize(RunId runId) {
-            events.add(READ_BY_SIZE);
-            return super.survivorsBySize(runId);
-        }
-
-        @Override
-        public ItemStreamReader<OccurrenceId> survivors(RunId runId) {
-            events.add(READ_BY_ID);
-            return super.survivors(runId);
-        }
-
-        @Override
-        public Optional<OccurrenceFacts> factsFor(OccurrenceId occurrenceId) {
-            events.add(FACTS);
-            return super.factsFor(occurrenceId);
-        }
-
-        @Override
-        public void verdict(OccurrenceId occurrenceId, RunId runId, VerdictKind kind, String reason) {
-            events.add(VERDICT);
-            super.verdict(occurrenceId, runId, kind, reason);
+        public Occurrences occurrences() {
+            return recordingOccurrences;
         }
     }
 

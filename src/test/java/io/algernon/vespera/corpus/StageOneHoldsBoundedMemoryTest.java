@@ -9,6 +9,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.SizedOccurrence;
+import io.algernon.vespera.ledger.Verdicts;
 import io.algernon.vespera.ledger.WalkId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -19,13 +20,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.batch.infrastructure.item.ExecutionContext;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -237,75 +237,94 @@ class StageOneHoldsBoundedMemoryTest {
                 () -> assertThat(heldAheadOfChecking).allMatch(ahead -> ahead <= 0));
     }
 
-    /** The size-ordered reader, counting what it has handed out since it was opened. */
+    /**
+     * The size-ordered read, counting what it has handed out since it was begun. It is open from the moment
+     * a read of it begins until that read says nothing is left.
+     */
     private static final class SizeOrderLedger extends Ledger {
         boolean open;
         int handedOut;
+        private final Verdicts counted;
 
         SizeOrderLedger(JdbcTemplate jdbcTemplate) {
             super(jdbcTemplate);
+            this.counted = new Verdicts(jdbcTemplate) {
+                @Override
+                public Iterable<SizedOccurrence> survivorsBySize(RunId runId) {
+                    return counting(super.survivorsBySize(runId));
+                }
+            };
         }
 
         @Override
-        public ItemStreamReader<SizedOccurrence> survivorsBySize(RunId runId) {
-            ItemStreamReader<SizedOccurrence> real = super.survivorsBySize(runId);
-            return new ItemStreamReader<>() {
-                @Override
-                public void open(ExecutionContext executionContext) {
-                    real.open(executionContext);
-                    open = true;
-                    handedOut = 0;
-                }
+        public Verdicts verdicts() {
+            return counted;
+        }
 
-                @Override
-                public SizedOccurrence read() throws Exception {
-                    SizedOccurrence next = real.read();
-                    if (next != null) {
-                        handedOut++;
+        private Iterable<SizedOccurrence> counting(Iterable<SizedOccurrence> all) {
+            return () -> {
+                Iterator<SizedOccurrence> real = all.iterator();
+                open = true;
+                handedOut = 0;
+                return new Iterator<>() {
+                    @Override
+                    public boolean hasNext() {
+                        boolean more = real.hasNext();
+                        if (!more) {
+                            open = false;
+                        }
+                        return more;
                     }
-                    return next;
-                }
 
-                @Override
-                public void close() {
-                    open = false;
-                    real.close();
-                }
+                    @Override
+                    public SizedOccurrence next() {
+                        SizedOccurrence next = real.next();
+                        handedOut++;
+                        return next;
+                    }
+                };
             };
         }
     }
 
-    /** The id-ordered reader, counting what it has handed out since it was opened. */
+    /** The id-ordered read, counting what it has handed out since it was begun. */
     private static final class SurvivorsCountingLedger extends Ledger {
         int handedOut;
+        private final Verdicts counted;
 
         SurvivorsCountingLedger(JdbcTemplate jdbcTemplate) {
             super(jdbcTemplate);
+            this.counted = new Verdicts(jdbcTemplate) {
+                @Override
+                public Iterable<OccurrenceId> survivors(RunId runId) {
+                    return counting(super.survivors(runId));
+                }
+            };
         }
 
         @Override
-        public ItemStreamReader<OccurrenceId> survivors(RunId runId) {
-            ItemStreamReader<OccurrenceId> real = super.survivors(runId);
-            return new ItemStreamReader<>() {
-                @Override
-                public void open(ExecutionContext executionContext) {
-                    real.open(executionContext);
-                    handedOut = 0;
-                }
+        public Verdicts verdicts() {
+            return counted;
+        }
 
-                @Override
-                public OccurrenceId read() throws Exception {
-                    OccurrenceId next = real.read();
-                    if (next != null) {
-                        handedOut++;
+        private Iterable<OccurrenceId> counting(Iterable<OccurrenceId> all) {
+            return () -> {
+                Iterator<OccurrenceId> real = all.iterator();
+                handedOut = 0;
+                return new Iterator<>() {
+                    @Override
+                    public boolean hasNext() {
+                        boolean more = real.hasNext();
+                        return more;
                     }
-                    return next;
-                }
 
-                @Override
-                public void close() {
-                    real.close();
-                }
+                    @Override
+                    public OccurrenceId next() {
+                        OccurrenceId next = real.next();
+                        handedOut++;
+                        return next;
+                    }
+                };
             };
         }
     }
@@ -373,17 +392,17 @@ class StageOneHoldsBoundedMemoryTest {
 
         Corpus(Path root) {
             this.root = root;
-            this.walk = ledger.startWalk(root);
+            this.walk = ledger.walks().startWalk(root);
         }
 
         void occurrence(String name, String content, Instant created) throws IOException {
             Path file = root.resolve(name);
             Files.writeString(file, content);
-            ledger.fileOccurrence(walk, new OccurrencePath(name), Files.size(file), created, created);
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath(name), Files.size(file), created, created);
         }
 
         RunId run() {
-            return ledger.startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
+            return ledger.runs().startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
         }
 
         ContentIdentityResolution resolution(Ledger through) {

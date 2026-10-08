@@ -9,6 +9,7 @@
 
 -- One row per module, each checked and refused independently (ADR-059). Owned by ledger, because
 -- every module depends on ledger and the check itself lives there.
+-- owner: ledger
 CREATE TABLE IF NOT EXISTS schema_version (
     module TEXT PRIMARY KEY,
     version INTEGER NOT NULL
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 -- completed subtrees instead of re-stat'ing them. entries_seen and directories_entered are the
 -- cumulative counts the excludes-nothing reconciliation checks at finish (ADR-056); they are
 -- cumulative across resume sessions, which is why they live on the row rather than in memory.
+-- owner: ledger
 CREATE TABLE IF NOT EXISTS walk (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     root TEXT NOT NULL,
@@ -41,6 +43,7 @@ CREATE TABLE IF NOT EXISTS walk (
 --
 -- creation_time is ADR-069's: last_modified is a last-write time, unreliable for stage 1's
 -- duplicate-resolution rule because it reflects copy-tool behaviour rather than content history.
+-- owner: ledger
 CREATE TABLE IF NOT EXISTS file_occurrence (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     walk_id INTEGER NOT NULL REFERENCES walk (id),
@@ -68,6 +71,7 @@ CREATE INDEX IF NOT EXISTS file_occurrence_by_walk_and_size ON file_occurrence (
 -- measurement's two, stage 5's scoring half's five), so a flag here would say "all of this run's
 -- work is recorded" on the strength of whichever step reached the end first. Completion is recorded
 -- per step instead, in finished_step below (ADR-116, amending ADR-115's run half).
+-- owner: ledger
 CREATE TABLE IF NOT EXISTS run (
     id TEXT PRIMARY KEY,
     stage TEXT NOT NULL,
@@ -80,6 +84,7 @@ CREATE TABLE IF NOT EXISTS run (
 CREATE INDEX IF NOT EXISTS run_by_walk_id ON run (walk_id);
 
 -- A run's upstream runs, as rows rather than a delimited column so the chain stays queryable.
+-- owner: ledger
 CREATE TABLE IF NOT EXISTS run_upstream (
     run_id TEXT NOT NULL REFERENCES run (id),
     upstream_run_id TEXT NOT NULL REFERENCES run (id),
@@ -101,6 +106,7 @@ CREATE INDEX IF NOT EXISTS run_upstream_by_upstream_run_id ON run_upstream (upst
 -- one of those gets the same honest answer: do the work. A step that meets its own row here does
 -- nothing and writes nothing; a step that does not discards its own rows under that run and does the
 -- work again (ADR-115's two rules, re-keyed word for word).
+-- owner: ledger
 CREATE TABLE IF NOT EXISTS finished_step (
     run_id TEXT NOT NULL REFERENCES run (id),
     step TEXT NOT NULL,
@@ -112,6 +118,7 @@ CREATE TABLE IF NOT EXISTS finished_step (
 -- verdict needs belongs to corpus's own content_hash/superseded_by tables below (ADR-067, ADR-069);
 -- the score a below-threshold verdict needs will belong to embedding's own table. Both join back by
 -- occurrence and run (ADR-041) -- which is what keeps this shape unchanged when embedding arrives.
+-- owner: ledger
 CREATE TABLE IF NOT EXISTS verdict (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
@@ -128,6 +135,7 @@ CREATE INDEX IF NOT EXISTS verdict_by_run_id ON verdict (run_id);
 CREATE INDEX IF NOT EXISTS verdict_by_occurrence ON verdict (occurrence_id, kind);
 
 -- corpus's own table (ADR-041): a walk anomaly is not a verdict, so it is not in the ledger.
+-- owner: corpus
 CREATE TABLE IF NOT EXISTS walk_anomaly (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     walk_id INTEGER NOT NULL REFERENCES walk (id),
@@ -143,6 +151,7 @@ CREATE INDEX IF NOT EXISTS walk_anomaly_by_walk_id ON walk_anomaly (walk_id);
 -- occurrences sharing a size with at least one other survivor of broken (grouping by size first is
 -- a free filter -- different sizes can never be identical, so a lone size never pays for a hash).
 -- One row per run, since a later run may recompute against a changed implementation.
+-- owner: corpus
 CREATE TABLE IF NOT EXISTS content_hash (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -156,6 +165,7 @@ CREATE INDEX IF NOT EXISTS content_hash_by_run_id ON content_hash (run_id);
 -- corpus's own table (ADR-069): which occurrence a superseded occurrence's content identity
 -- resolved to -- the representative, chosen by earliest creation_time then lexicographically-
 -- lowest path within a content_hash group. The representative itself has no row here.
+-- owner: corpus
 CREATE TABLE IF NOT EXISTS superseded_by (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -177,6 +187,7 @@ CREATE INDEX IF NOT EXISTS superseded_by_by_representative_occurrence_id ON supe
 -- null wherever nothing named one. A row is written for every occurrence stage 1 examines, including
 -- the ones it verdicts broken, and FLOOR_STOPPED records one the floor stopped before any byte was
 -- read -- distinct from UNRECOGNISED, which means detection ran and matched nothing.
+-- owner: corpus
 CREATE TABLE IF NOT EXISTS detected_format (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -201,6 +212,7 @@ CREATE INDEX IF NOT EXISTS detected_format_by_run_id ON detected_format (run_id)
 -- are broken out from response_json so a verdict decision can read them without deserialising the
 -- whole payload; response_json is the full response body verbatim, which is what makes the cache
 -- usable by a later metrics/degeneracy/chunking pass without a second Docling call.
+-- owner: extraction
 CREATE TABLE IF NOT EXISTS extraction_cache (
     content_hash TEXT NOT NULL,
     extractor_identity TEXT NOT NULL,
@@ -220,6 +232,7 @@ CREATE TABLE IF NOT EXISTS extraction_cache (
 -- categories, free text like verdict.reason, not a re-parse of errors_json -- extraction_cache
 -- already owns the response verbatim (ADR-070). page_count is nullable: confidence aggregation and
 -- pagination are both properties of the paginated pipeline, absent for the simple one (.docx, .txt).
+-- owner: extraction
 CREATE TABLE IF NOT EXISTS extraction_metric (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -256,6 +269,7 @@ CREATE INDEX IF NOT EXISTS extraction_metric_by_run_id ON extraction_metric (run
 -- and instrument outside any run; and it is an address, not a second byte identity: corpus's content_hash
 -- table is the one stage 1 decides duplicates by. The check refuses anything that is not a key, which a
 -- later lookup would otherwise see only as a miss.
+-- owner: extraction
 CREATE TABLE IF NOT EXISTS extraction_cache_key (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -280,6 +294,7 @@ CREATE INDEX IF NOT EXISTS extraction_cache_key_by_run_id ON extraction_cache_ke
 -- say which score a row summarizes (ADR-078, amending ADR-070 and ADR-075). Tier 2 is a floor on the
 -- mean alone, so a worst-page distribution would calibrate no threshold; low_score stays in
 -- extraction_metric as re-analyzable data.
+-- owner: extraction
 CREATE TABLE IF NOT EXISTS confidence_distribution (
     run_id TEXT NOT NULL REFERENCES run (id),
     grade TEXT NOT NULL,
@@ -305,6 +320,7 @@ CREATE TABLE IF NOT EXISTS confidence_distribution (
 -- therefore records no faults and no completion for the step either, so a re-run discards this run's
 -- rows (the primary key would otherwise collide on the second write) and does the work again
 -- (ADR-115, ADR-116) -- deterministically refused again, since the refusal is a property of the file.
+-- owner: extraction
 CREATE TABLE IF NOT EXISTS extraction_fault (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -324,6 +340,7 @@ CREATE INDEX IF NOT EXISTS extraction_fault_by_run_id ON extraction_fault (run_i
 -- its own rows rather than overwriting the previous rule's, and word_count is a count of
 -- whitespace-separated words, never of tokens. No chunk_count column exists anywhere (ADR-073): the
 -- count is a query over this table, comparable only within one chunker plus rule identity.
+-- owner: extraction
 CREATE TABLE IF NOT EXISTS chunk_cache (
     content_hash TEXT NOT NULL,
     chunker_identity TEXT NOT NULL,
@@ -345,6 +362,7 @@ CREATE TABLE IF NOT EXISTS chunk_cache (
 -- needs. shingle_parameter_identity is part of the addressing key precisely so a granularity change
 -- (see similarity.ShingleParameters for today's provisional default) mints new rows under a new
 -- identity instead of migrating or overwriting the ones already stored.
+-- owner: similarity
 CREATE TABLE IF NOT EXISTS shingle (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -383,6 +401,7 @@ CREATE INDEX IF NOT EXISTS shingle_by_run_id ON shingle (run_id);
 -- One row per stage-3 run: keying on run_id (rather than pointing back at the stage-2 run it was
 -- measured over) is enough, because RunId.of already folds the upstream stage-2 run id into stage 3's
 -- own identity (ADR-048), so two different stage-2 runs never collide under one stage-3 run id.
+-- owner: similarity
 CREATE TABLE IF NOT EXISTS shingle_document_frequency (
     run_id TEXT NOT NULL REFERENCES run (id),
     shingle_parameter_identity TEXT NOT NULL,
@@ -396,6 +415,7 @@ CREATE TABLE IF NOT EXISTS shingle_document_frequency (
 -- computed against -- how many stage-2-surviving occurrences carried at least one shingle row under a
 -- given granularity, as of this stage-3 run. Kept apart from shingle_document_frequency rather than
 -- folded into it as a sentinel row, since that table's grain is one row per hash, not per corpus.
+-- owner: similarity
 CREATE TABLE IF NOT EXISTS shingle_corpus_size (
     run_id TEXT NOT NULL REFERENCES run (id),
     shingle_parameter_identity TEXT NOT NULL,
@@ -414,6 +434,7 @@ CREATE TABLE IF NOT EXISTS shingle_corpus_size (
 -- count and seed, boilerplate floor. It is deliberately redundant with run_id, which already folds
 -- all three in: a reader holding one of these rows can say what it is without first resolving the
 -- run row it belongs to.
+-- owner: similarity
 CREATE TABLE IF NOT EXISTS minhash_signature (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -431,6 +452,7 @@ CREATE INDEX IF NOT EXISTS minhash_signature_by_run_id ON minhash_signature (run
 -- candidates when they share a (band_ordinal, band_hash), and the index below is what answers that.
 -- Candidates are only candidates -- every pair is then scored exactly from the shingle sets, since
 -- signatures retrieve and shingle sets judge (ADR-081).
+-- owner: similarity
 CREATE TABLE IF NOT EXISTS signature_band (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -455,6 +477,7 @@ CREATE INDEX IF NOT EXISTS signature_band_by_bucket ON signature_band (run_id, b
 -- The candidate pairs LSH generated are not stored anywhere. Most of a candidate list exists to be
 -- rejected by exact scoring, it would be the largest table in the database, and it is not a
 -- measurement (ADR-082).
+-- owner: similarity
 CREATE TABLE IF NOT EXISTS redundant_with (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -484,6 +507,7 @@ CREATE INDEX IF NOT EXISTS redundant_with_by_redundant_with_occurrence_id ON red
 -- records its own row set rather than overwriting this one. That is what keeps scores taken against
 -- a partial seed set from ever being mistaken for scores against a complete one, by identity rather
 -- than by a check.
+-- owner: embedding
 CREATE TABLE IF NOT EXISTS unusable_seed (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -513,6 +537,7 @@ CREATE INDEX IF NOT EXISTS unusable_seed_by_run_id ON unusable_seed (run_id);
 -- drift apart. seed_document_count and corpus_document_count on every row repeat the same two
 -- populations (SeedCorpusComparison.Comparison carries them once); repeating them is cheap against a
 -- few dozen rows and lets one row be read on its own without a second query for its denominator.
+-- owner: embedding
 CREATE TABLE IF NOT EXISTS seed_corpus_comparison (
     run_id TEXT NOT NULL REFERENCES run (id),
     comparison TEXT NOT NULL,
@@ -550,6 +575,7 @@ CREATE TABLE IF NOT EXISTS seed_corpus_comparison (
 -- vector. Truncation is derivable from the full vector; the reverse is not (ADR-079's survivor rule,
 -- worn as a storage decision), so a truncated dimension mints its own row set under its own identity
 -- later rather than reinterpreting what is stored here.
+-- owner: embedding
 CREATE TABLE IF NOT EXISTS vector (
     content_hash TEXT NOT NULL,
     chunker_identity TEXT NOT NULL,
@@ -570,6 +596,7 @@ CREATE TABLE IF NOT EXISTS vector (
 --
 -- No verdict is written alongside this row: the floor that would read it into a below-threshold
 -- verdict is a later ticket, and until it lands nothing here removes anything.
+-- owner: embedding
 CREATE TABLE IF NOT EXISTS relevance_score (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -595,6 +622,7 @@ CREATE INDEX IF NOT EXISTS relevance_score_by_winning_seed_occurrence_id ON rele
 --
 -- No cluster count is stored anywhere, because none was ever supplied: the count falls out of the
 -- structure, and the ordinals here are what it fell out as.
+-- owner: embedding
 CREATE TABLE IF NOT EXISTS document_cluster (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
@@ -641,6 +669,7 @@ CREATE INDEX IF NOT EXISTS document_cluster_by_winning_seed_occurrence_id ON doc
 --
 -- A hard negative is a query over this table -- a row marked not relevant carrying a high score --
 -- and not a thing with a table of its own.
+-- owner: embedding
 CREATE TABLE IF NOT EXISTS relevance_label (
     path TEXT NOT NULL,
     seed_set TEXT NOT NULL,
@@ -659,6 +688,7 @@ CREATE INDEX IF NOT EXISTS relevance_label_by_run_id ON relevance_label (run_id)
 -- No row anywhere depends on it, so no schema version moves (ADR-197 amends ADR-059 and ADR-049). A
 -- person's answer that is new or changed deletes the row; a model's answer never replaces a label
 -- that has no row.
+-- owner: embedding
 CREATE TABLE IF NOT EXISTS relevance_label_provenance (
     path TEXT NOT NULL,
     seed_set TEXT NOT NULL,
@@ -701,6 +731,7 @@ CREATE INDEX IF NOT EXISTS relevance_label_provenance_by_run_id ON relevance_lab
 --
 -- The two order columns are deliberately distinct from cluster_ordinal. Identity never moves; order
 -- is a judgement 6a makes. Conflating them would mean a re-ordering rewrote primary keys.
+-- owner: synthesis
 CREATE TABLE IF NOT EXISTS cluster (
     run_id TEXT NOT NULL REFERENCES run (id),
     winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
@@ -746,6 +777,7 @@ CREATE INDEX IF NOT EXISTS cluster_by_winning_seed_occurrence_id ON cluster (win
 --
 -- No verdict is ever written because of a row here, for the reason the table above carries none:
 -- generation removes nothing from anything.
+-- owner: synthesis
 CREATE TABLE IF NOT EXISTS synthesis_doc (
     run_id TEXT NOT NULL REFERENCES run (id),
     winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
@@ -781,6 +813,7 @@ CREATE INDEX IF NOT EXISTS synthesis_doc_by_winning_seed_occurrence_id ON synthe
 --
 -- Rows are written before the synthesis_doc row above and any standing under the same key are
 -- cleared first (ADR-133), because that row is what tells a later invocation the cluster is done.
+-- owner: synthesis
 CREATE TABLE IF NOT EXISTS call_exemplar (
     run_id TEXT NOT NULL REFERENCES run (id),
     winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
@@ -821,6 +854,7 @@ CREATE INDEX IF NOT EXISTS call_exemplar_by_occurrence_id ON call_exemplar (occu
 -- A cluster nothing could be sent for earns no row here (ADR-121): that is a call never made, and
 -- the four kinds above are things that happen to a call that came back. That case stays legible from
 -- the absence of a row in either table, as it already was before this table existed.
+-- owner: synthesis
 CREATE TABLE IF NOT EXISTS cluster_fault (
     run_id TEXT NOT NULL REFERENCES run (id),
     winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),

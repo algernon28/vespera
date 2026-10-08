@@ -10,6 +10,7 @@ import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -124,7 +125,13 @@ class RelevanceScoringTasklet implements Tasklet {
                     }
 
                     Set<OccurrenceId> survivors = TimedStatement.of(
-                            STAGE, "reading", "read", "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(measurementRun)));
+                            STAGE, "reading", "read", "the corpus survivors", () -> {
+                                Set<OccurrenceId> ids = new HashSet<>();
+                                for (OccurrenceId id : ledger.verdicts().survivors(measurementRun)) {
+                                    ids.add(id);
+                                }
+                                return ids;
+                            });
                     LOG.info(
                             "Stage 5d (relevance scoring) starting under scoring run {}: scoring {} corpus"
                                     + " survivor(s) against {} resident seed document(s)",
@@ -155,7 +162,13 @@ class RelevanceScoringTasklet implements Tasklet {
      */
     private Map<OccurrenceId, String> seedContentHashes(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
         Set<OccurrenceId> allSeeds = TimedStatement.of(
-                STAGE, "reading", "read", "the seed walk's occurrences", () -> ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId())));
+                STAGE, "reading", "read", "the seed walk's occurrences", () -> {
+                    Set<OccurrenceId> ids = new HashSet<>();
+                    for (OccurrenceId id : ledger.occurrences().occurrencesOf(seedWalk.walkId())) {
+                        ids.add(id);
+                    }
+                    return ids;
+                });
         Set<OccurrenceId> unusable = TimedStatement.of(STAGE, "reading", "read", "the unusable seeds", () -> unusableSeeds.forRun(measurementRun))
                 .stream()
                 .map(UnusableSeed::occurrenceId)

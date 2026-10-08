@@ -127,7 +127,7 @@ class AutoLabelling {
                     + " Regenerate it by running vespera against the corpus.");
         }
         RunId run = new RunId(runName);
-        if (ledger.walkOf(run).isEmpty()) {
+        if (ledger.runs().walkOf(run).isEmpty()) {
             return Outcome.refused("the label file names run " + runName + ", which this database does not"
                     + " hold. Nothing was recorded.");
         }
@@ -162,7 +162,7 @@ class AutoLabelling {
         // (ADR-206 section 4), and the survivors are the occurrences of that run's walk. No file under the
         // corpus root is opened.
         RunId extractionRun = extractionRunUpstreamOf(run);
-        WalkId walk = ledger.walkOf(run)
+        WalkId walk = ledger.runs().walkOf(run)
                 .orElseThrow(() -> new IllegalStateException("run " + run.value() + " has no walk recorded"));
         DocumentOpening documentOpening = new DocumentOpening(
                 extractor, extractorIdentity.getObject(), hybridChunker, cacheKeys);
@@ -179,7 +179,7 @@ class AutoLabelling {
                 byAPerson++;
                 continue;
             }
-            Optional<String> opening = ledger.occurrenceId(walk, path)
+            Optional<String> opening = ledger.occurrences().occurrenceId(walk, path)
                     .map(occurrence -> documentOpening
                             .of(occurrence, extractionRun, "document " + path.value())
                             .asRead())
@@ -241,8 +241,8 @@ class AutoLabelling {
     }
 
     /**
-     * The run of stage 2 that {@code scoring} was derived from, found by following {@link
-     * Ledger#upstreamRuns} breadth-first, however many steps back (ADR-048). It is where the key of every
+     * The run of stage 2 that {@code scoring} was derived from, found by following {@code
+     * Runs#upstreamRuns} breadth-first, however many steps back (ADR-048). It is where the key of every
      * survivor of {@code scoring}'s walk was recorded.
      */
     private RunId extractionRunUpstreamOf(RunId scoring) {
@@ -254,10 +254,10 @@ class AutoLabelling {
             if (!visited.add(current.value())) {
                 continue;
             }
-            if (ledger.stageOf(current).filter(StageModules.EXTRACTION.stage()::equals).isPresent()) {
+            if (ledger.runs().stageOf(current).filter(StageModules.EXTRACTION.stage()::equals).isPresent()) {
                 return current;
             }
-            toVisit.addAll(ledger.upstreamRuns(current));
+            toVisit.addAll(ledger.runs().upstreamRuns(current));
         }
         throw new IllegalStateException("run " + scoring.value()
                 + " has no stage-2 run upstream of it, so no extraction cache key can be read for its documents");

@@ -241,11 +241,11 @@ class RedundancyResolutionReportsItsCountsTest {
 
     private Fixture fixture() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus-" + System.nanoTime()));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-" + System.nanoTime()));
         String suffix = Long.toString(System.nanoTime());
-        RunId stage2RunId = ledger.startRun("extraction", "x" + suffix, "{}", walkId, List.of());
-        RunId stage3RunId = ledger.startRun("content-census", "y" + suffix, "{}", walkId, List.of(stage2RunId));
-        RunId stage4RunId = ledger.startRun("content-redundancy", "z" + suffix, "{}", walkId, List.of(stage3RunId));
+        RunId stage2RunId = ledger.runs().startRun("extraction", "x" + suffix, "{}", walkId, List.of());
+        RunId stage3RunId = ledger.runs().startRun("content-census", "y" + suffix, "{}", walkId, List.of(stage2RunId));
+        RunId stage4RunId = ledger.runs().startRun("content-redundancy", "z" + suffix, "{}", walkId, List.of(stage3RunId));
         return new Fixture(ledger, walkId, stage2RunId, stage3RunId, stage4RunId);
     }
 
@@ -334,10 +334,10 @@ class RedundancyResolutionReportsItsCountsTest {
         }
 
         OccurrenceId document(String path, Set<Long> shingleHashes) {
-            ledger.fileOccurrence(
+            ledger.occurrences().fileOccurrence(
                     walkId, new OccurrencePath(path), 1, Instant.parse("2026-08-29T10:15:30Z"),
                     Instant.parse("2021-01-01T00:00:00Z"));
-            OccurrenceId occurrenceId = ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+            OccurrenceId occurrenceId = ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
             for (long hash : shingleHashes) {
                 jdbcTemplate.update(
                         "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"
@@ -368,7 +368,13 @@ class RedundancyResolutionReportsItsCountsTest {
                 signatures.write(new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
             }
             new RedundancyResolution(jdbcTemplate, ledger)
-                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), progress);
+                    .resolve(
+                            stage4RunId,
+                            stage3RunId,
+                            stage2RunId,
+                            Set.of(),
+                            RecordedAlphanumericCounts.over(jdbcTemplate),
+                            progress);
         }
 
         long pairsSharingABand() {

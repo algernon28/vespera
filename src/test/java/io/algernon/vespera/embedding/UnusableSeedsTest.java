@@ -91,7 +91,7 @@ class UnusableSeedsTest {
     void keepsEachRunsUnusableSeedsApart() {
         Ledger ledger = new Ledger(jdbcTemplate);
         Fixture fixture = fixture(ledger);
-        RunId laterRun = ledger.startRun("seed-measurement", "later", "{}", fixture.walkId(), List.of());
+        RunId laterRun = ledger.runs().startRun("seed-measurement", "later", "{}", fixture.walkId(), List.of());
         UnusableSeeds unusableSeeds = new UnusableSeeds(jdbcTemplate);
 
         unusableSeeds.record(fixture.seed(), fixture.runId(), REASON);
@@ -108,12 +108,12 @@ class UnusableSeedsTest {
 
     /** One seed walk, one occurrence in it, and a measurement run over it. */
     private Fixture fixture(Ledger ledger) {
-        WalkId walkId = ledger.startWalk(Path.of("C:/seeds"));
-        ledger.fileOccurrence(
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/seeds"));
+        ledger.occurrences().fileOccurrence(
                 walkId, new OccurrencePath("empty.pdf"), 1L, Instant.EPOCH, Instant.EPOCH);
-        OccurrenceId seed = ledger.occurrenceId(walkId, new OccurrencePath("empty.pdf"))
+        OccurrenceId seed = ledger.occurrences().occurrenceId(walkId, new OccurrencePath("empty.pdf"))
                 .orElseThrow(() -> new IllegalStateException("the fixture's own occurrence was not recorded"));
-        RunId runId = ledger.startRun("seed-measurement", "abc123", "{}", walkId, List.of());
+        RunId runId = ledger.runs().startRun("seed-measurement", "abc123", "{}", walkId, List.of());
         return new Fixture(walkId, seed, runId);
     }
 

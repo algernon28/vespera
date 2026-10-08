@@ -150,8 +150,8 @@ class ArrangementGateTest {
 
     private WalkId aWalk() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus-" + System.nanoTime()));
-        ledger.fileOccurrence(
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-" + System.nanoTime()));
+        ledger.occurrences().fileOccurrence(
                 walkId,
                 new OccurrencePath("a.txt"),
                 1,
@@ -162,6 +162,6 @@ class ArrangementGateTest {
 
     private RunId anArrangement(WalkId walkId) {
         return new Ledger(jdbcTemplate)
-                .startRun("arrangement", "v" +System.nanoTime(), "{}", walkId, List.of());
+                .runs().startRun("arrangement", "v" +System.nanoTime(), "{}", walkId, List.of());
     }
 }

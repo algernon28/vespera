@@ -73,14 +73,21 @@ public class RedundancyResolution {
      * Resolves every {@code redundant-with} verdict for {@code stage4RunId}: reads {@code stage2RunId}'s
      * shingle rows and {@code stage3RunId}'s document-frequency measurement, both stripped by {@code
      * boilerplateHashes}, and writes one verdict plus one {@code redundant_with} row per occurrence that
-     * loses to another.
+     * loses to another. {@code alphanumericCounts} is how the survivor rule learns how much text each
+     * member of a component holds (ADR-209 section 3.2).
      */
-    public void resolve(RunId stage4RunId, RunId stage3RunId, RunId stage2RunId, Set<Long> boilerplateHashes) {
-        resolve(stage4RunId, stage3RunId, stage2RunId, boilerplateHashes, ResolutionProgress.NONE);
+    public void resolve(
+            RunId stage4RunId,
+            RunId stage3RunId,
+            RunId stage2RunId,
+            Set<Long> boilerplateHashes,
+            AlphanumericCounts alphanumericCounts) {
+        resolve(
+                stage4RunId, stage3RunId, stage2RunId, boilerplateHashes, alphanumericCounts, ResolutionProgress.NONE);
     }
 
     /**
-     * As {@link #resolve(RunId, RunId, RunId, Set)}, and tells {@code progress} about each loop (ADR-192
+     * As {@link #resolve(RunId, RunId, RunId, Set, AlphanumericCounts)}, and tells {@code progress} about each loop (ADR-192
      * section 5): once before its first item with its total, zero included, and after each item. It also
      * tells it about the four reads among the loops (ADR-193 section 7, ADR-204 sections 3 and 4), each
      * started once before it and ended once after it, and not ended where it throws: the signed
@@ -94,6 +101,7 @@ public class RedundancyResolution {
             RunId stage3RunId,
             RunId stage2RunId,
             Set<Long> boilerplateHashes,
+            AlphanumericCounts alphanumericCounts,
             ResolutionProgress progress) {
         Set<Long> signedOccurrenceIds = loadSignedOccurrenceIds(stage4RunId, progress);
         if (signedOccurrenceIds.isEmpty()) {
@@ -101,8 +109,8 @@ public class RedundancyResolution {
         }
 
         ShingleSetCache shingleSets = new ShingleSetCache(stage2RunId, boilerplateHashes);
-        Set<Long> removed =
-                resolveNearDuplicates(stage4RunId, stage2RunId, signedOccurrenceIds, shingleSets, progress);
+        Set<Long> removed = resolveNearDuplicates(
+                stage4RunId, stage2RunId, signedOccurrenceIds, shingleSets, alphanumericCounts, progress);
         resolveContainment(
                 stage4RunId, stage3RunId, stage2RunId, signedOccurrenceIds, shingleSets, removed, progress);
     }
@@ -164,6 +172,7 @@ public class RedundancyResolution {
             RunId stage2RunId,
             Set<Long> signedOccurrenceIds,
             ShingleSetCache shingleSets,
+            AlphanumericCounts alphanumericCounts,
             ResolutionProgress progress) {
         RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
 
@@ -189,7 +198,7 @@ public class RedundancyResolution {
             componentMembers.addAll(component);
         }
 
-        Map<Long, OccurrenceProfile> profiles = loadOccurrenceProfiles(stage2RunId, componentMembers, progress);
+        Map<Long, OccurrenceProfile> profiles = loadOccurrenceProfiles(stage2RunId, componentMembers, alphanumericCounts, progress);
         progress.toResolveComponents(resolvableComponents.size());
         // Summed and announced once: every member of every component but its survivor (ADR-192 section 5).
         progress.toWriteNearDuplicateVerdicts(componentMembers.size() - resolvableComponents.size());
@@ -265,32 +274,24 @@ public class RedundancyResolution {
 
     /** Only the columns the survivor rule needs, for only the occurrences a component actually names. */
     private Map<Long, OccurrenceProfile> loadOccurrenceProfiles(
-            RunId stage2RunId, Set<Long> occurrenceIds, ResolutionProgress progress) {
+            RunId stage2RunId,
+            Set<Long> occurrenceIds,
+            AlphanumericCounts alphanumericCounts,
+            ResolutionProgress progress) {
         progress.toReadProfiles(occurrenceIds.size());
         if (occurrenceIds.isEmpty()) {
             return Map.of();
         }
-        Map<Long, Long> alphanumericCounts = new HashMap<>();
-        String placeholders = occurrenceIds.stream().map(id -> "?").collect(Collectors.joining(","));
-        List<Object> args = new ArrayList<>();
-        args.add(stage2RunId.value());
-        args.addAll(occurrenceIds);
-        // Timed: an IN list has no cheap total (ADR-193 section 1).
+        // Timed: an IN list has no cheap total (ADR-193 section 1). The statement is extraction's (ADR-209).
         progress.statementStarting(SimilarityStatement.NEAR_DUPLICATE_METRICS, OptionalLong.empty());
-        jdbcTemplate.query(
-                "SELECT occurrence_id, alphanumeric_char_count FROM extraction_metric"
-                        + " WHERE run_id = ? AND occurrence_id IN (" + placeholders + ")",
-                resultSet -> {
-                    alphanumericCounts.put(
-                            resultSet.getLong("occurrence_id"), resultSet.getLong("alphanumeric_char_count"));
-                },
-                args.toArray());
+        Map<OccurrenceId, Long> counts = alphanumericCounts.recordedUnder(
+                stage2RunId, occurrenceIds.stream().map(OccurrenceId::new).toList());
         progress.statementEnded(SimilarityStatement.NEAR_DUPLICATE_METRICS);
 
         Map<Long, OccurrenceProfile> profiles = new HashMap<>();
         for (long occurrenceId : occurrenceIds) {
-            long alphanumericCharCount = alphanumericCounts.getOrDefault(occurrenceId, 0L);
-            OccurrenceFacts facts = ledger.factsFor(new OccurrenceId(occurrenceId))
+            long alphanumericCharCount = counts.getOrDefault(new OccurrenceId(occurrenceId), 0L);
+            OccurrenceFacts facts = ledger.occurrences().factsFor(new OccurrenceId(occurrenceId))
                     .orElseThrow(() ->
                             new IllegalStateException("no file_occurrence recorded for id " + occurrenceId));
             profiles.put(
@@ -474,7 +475,7 @@ public class RedundancyResolution {
 
     private void writeVerdict(
             RunId stage4RunId, long occurrenceId, long redundantWithOccurrenceId, String relation, double score, String reason) {
-        ledger.verdict(new OccurrenceId(occurrenceId), stage4RunId, VerdictKind.REDUNDANT_WITH, reason);
+        ledger.verdicts().verdict(new OccurrenceId(occurrenceId), stage4RunId, VerdictKind.REDUNDANT_WITH, reason);
         jdbcTemplate.update(
                 "INSERT INTO redundant_with (occurrence_id, run_id, redundant_with_occurrence_id, relation, score)"
                         + " VALUES (?, ?, ?, ?, ?)",

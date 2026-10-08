@@ -79,9 +79,9 @@ class ConfidenceDistributionStatementProgressOrderTest {
         pool = new PoolOfTwo(folder);
         jdbcTemplate = pool.jdbcTemplate();
         ledger = new Ledger(jdbcTemplate);
-        walk = ledger.startWalk(Path.of("C:/corpus-statements"));
-        stage2 = ledger.startRun("extraction", "abc123", "{}", walk, List.of());
-        stage3 = ledger.startRun("content-census", "def456", "{}", walk, List.of(stage2));
+        walk = ledger.walks().startWalk(Path.of("C:/corpus-statements"));
+        stage2 = ledger.runs().startRun("extraction", "abc123", "{}", walk, List.of());
+        stage3 = ledger.runs().startRun("content-census", "def456", "{}", walk, List.of(stage2));
     }
 
     @AfterEach
@@ -94,9 +94,9 @@ class ConfidenceDistributionStatementProgressOrderTest {
     @DisplayName("The confidence spread's drain is started and ended with no total, and then its read of the metrics with the span of the run's rows")
     void theDrainIsStartedAndEndedAndThenTheRead() {
         for (String path : List.of("a.txt", "b.txt")) {
-            ledger.fileOccurrence(walk, new OccurrencePath(path), 1, Instant.EPOCH, Instant.EPOCH);
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath(path), 1, Instant.EPOCH, Instant.EPOCH);
             jdbcTemplate.update(
-                    METRIC_ROW, ledger.occurrenceId(walk, new OccurrencePath(path)).orElseThrow().value(), stage2.value());
+                    METRIC_ROW, ledger.occurrences().occurrenceId(walk, new OccurrencePath(path)).orElseThrow().value(), stage2.value());
         }
         Recorder recorder = new Recorder();
 
@@ -189,9 +189,9 @@ class ConfidenceDistributionStatementProgressOrderTest {
     @Story("Measuring the confidence spread says what it is reading")
     @DisplayName("A read of the metrics that throws is not said to have ended, and leaves no handler behind")
     void aReadThatThrowsIsNotSaidToHaveEnded() {
-        ledger.fileOccurrence(walk, new OccurrencePath("a.txt"), 1, Instant.EPOCH, Instant.EPOCH);
+        ledger.occurrences().fileOccurrence(walk, new OccurrencePath("a.txt"), 1, Instant.EPOCH, Instant.EPOCH);
         jdbcTemplate.update(
-                METRIC_ROW, ledger.occurrenceId(walk, new OccurrencePath("a.txt")).orElseThrow().value(), stage2.value());
+                METRIC_ROW, ledger.occurrences().occurrenceId(walk, new OccurrencePath("a.txt")).orElseThrow().value(), stage2.value());
         Recorder recorder = new Recorder() {
             @Override
             public void statementStarting(ExtractionStatement statement, OptionalLong rowsUpTo) {

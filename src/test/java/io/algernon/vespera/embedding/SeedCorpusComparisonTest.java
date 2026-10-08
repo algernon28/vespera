@@ -731,10 +731,10 @@ class SeedCorpusComparisonTest {
      */
     private Fixture fixture(String name) {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId corpusWalk = ledger.startWalk(Path.of("C:/corpus/" + name));
-        WalkId seedWalk = ledger.startWalk(Path.of("C:/seeds/" + name));
-        RunId extractionRunId = ledger.startRun("extraction", "extraction-" + name, "{}", corpusWalk, List.of());
-        RunId measurementRunId = ledger.startRun(
+        WalkId corpusWalk = ledger.walks().startWalk(Path.of("C:/corpus/" + name));
+        WalkId seedWalk = ledger.walks().startWalk(Path.of("C:/seeds/" + name));
+        RunId extractionRunId = ledger.runs().startRun("extraction", "extraction-" + name, "{}", corpusWalk, List.of());
+        RunId measurementRunId = ledger.runs().startRun(
                 "seed-measurement", "measurement-" + name, "{}", corpusWalk, List.of(extractionRunId));
         return new Fixture(ledger, corpusWalk, seedWalk, extractionRunId, measurementRunId);
     }
@@ -825,22 +825,22 @@ class SeedCorpusComparisonTest {
         void blocked(String path, MetricRow row, VerdictKind kind) {
             OccurrenceId occurrenceId = occurrence(corpusWalk, path);
             insert(occurrenceId, extractionRunId, row);
-            ledger.verdict(occurrenceId, extractionRunId, kind, "ruled out by this test's fixture");
+            ledger.verdicts().verdict(occurrenceId, extractionRunId, kind, "ruled out by this test's fixture");
         }
 
         SeedCorpusComparison.Comparison measure() {
             return new SeedCorpusComparison(jdbcTemplate, ledger)
-                    .measure(measurementRunId, extractionRunId, seedWalk);
+                    .measure(measurementRunId, extractionRunId, seedWalk, RecordedForms.over(jdbcTemplate));
         }
 
         private OccurrenceId occurrence(WalkId walkId, String path) {
-            ledger.fileOccurrence(
+            ledger.occurrences().fileOccurrence(
                     walkId,
                     new OccurrencePath(path),
                     1L,
                     Instant.parse("2026-09-06T10:15:30Z"),
                     Instant.parse("2026-09-01T08:00:00Z"));
-            return ledger.occurrenceId(walkId, new OccurrencePath(path))
+            return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path))
                     .orElseThrow(() -> new IllegalStateException("the fixture's own occurrence was not recorded"));
         }
 

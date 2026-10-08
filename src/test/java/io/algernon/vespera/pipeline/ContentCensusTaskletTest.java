@@ -390,7 +390,7 @@ class ContentCensusTaskletTest {
 
         for (int i = 0; i < meanScores.length; i++) {
             OccurrenceId occurrenceId =
-                    ledger.occurrenceId(walkId, new OccurrencePath("document-" + i + ".txt")).orElseThrow();
+                    ledger.occurrences().occurrenceId(walkId, new OccurrencePath("document-" + i + ".txt")).orElseThrow();
             jdbcTemplate.update(
                     "INSERT INTO extraction_metric"
                             + " (occurrence_id, run_id, status, processing_time, character_count,"

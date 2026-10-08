@@ -201,7 +201,7 @@ class GenerationTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         Path canonicalRoot = Walk.canonicalRoot(root);
-        Optional<WalkId> walk = ledger.finishedWalkFor(canonicalRoot);
+        Optional<WalkId> walk = ledger.walks().finishedWalkFor(canonicalRoot);
         if (walk.isEmpty()) {
             LOG.info("the generation step is gated: no finished walk is recorded for {}. Nothing was"
                     + " generated.", canonicalRoot);
@@ -668,11 +668,11 @@ class GenerationTasklet implements Tasklet {
         List<ListedSurvivor> survivors = new ArrayList<>();
         StageProgress listed = StageProgress.over("Stage 6b (generation, survivors listed)", membership.size());
         for (DocumentCluster member : membership) {
-            OccurrencePath path = ledger.factsFor(member.occurrenceId())
+            OccurrencePath path = ledger.occurrences().factsFor(member.occurrenceId())
                     .map(OccurrenceFacts::path)
                     .orElseThrow(() -> new IllegalStateException(
                             "no facts recorded for occurrence " + member.occurrenceId().value()));
-            OccurrencePath seedPath = ledger.factsFor(member.winningSeedOccurrenceId())
+            OccurrencePath seedPath = ledger.occurrences().factsFor(member.winningSeedOccurrenceId())
                     .map(OccurrenceFacts::path)
                     .orElseThrow(() -> new IllegalStateException("no facts recorded for seed occurrence "
                             + member.winningSeedOccurrenceId().value()));
@@ -783,7 +783,7 @@ class GenerationTasklet implements Tasklet {
      * the ledger has already answered, and the two could disagree.
      */
     private RunId scoringRunBehind(RunId arrangement) {
-        List<RunId> upstream = ledger.upstreamRuns(arrangement);
+        List<RunId> upstream = ledger.runs().upstreamRuns(arrangement);
         if (upstream.size() != 1) {
             throw new IllegalStateException("the approved arrangement " + arrangement.value() + " records "
                     + upstream.size() + " upstream runs; exactly one scoring run is expected");
@@ -852,7 +852,7 @@ class GenerationTasklet implements Tasklet {
     }
 
     private String pathOf(OccurrenceId occurrenceId) {
-        return ledger.factsFor(occurrenceId)
+        return ledger.occurrences().factsFor(occurrenceId)
                 .map(OccurrenceFacts::path)
                 .orElseThrow(() -> new IllegalStateException(
                         "no facts recorded for occurrence " + occurrenceId.value()))

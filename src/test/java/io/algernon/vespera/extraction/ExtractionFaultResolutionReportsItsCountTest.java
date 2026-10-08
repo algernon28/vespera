@@ -92,15 +92,15 @@ class ExtractionFaultResolutionReportsItsCountTest {
     }
 
     private RunId aRun(Ledger ledger) {
-        WalkId walk = ledger.startWalk(Path.of("C:/corpus-" + System.nanoTime()));
-        return ledger.startRun("extraction", "e" + System.nanoTime(), "{}", walk, List.of());
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-" + System.nanoTime()));
+        return ledger.runs().startRun("extraction", "e" + System.nanoTime(), "{}", walk, List.of());
     }
 
     private OccurrenceId anOccurrence(Ledger ledger, RunId run, String path) {
         WalkId walk = new WalkId(jdbcTemplate.queryForObject(
                 "SELECT walk_id FROM run WHERE id = ?", Long.class, run.value()));
-        ledger.fileOccurrence(walk, new OccurrencePath(path), 1, Instant.EPOCH, Instant.EPOCH);
-        return ledger.occurrenceId(walk, new OccurrencePath(path)).orElseThrow();
+        ledger.occurrences().fileOccurrence(walk, new OccurrencePath(path), 1, Instant.EPOCH, Instant.EPOCH);
+        return ledger.occurrences().occurrenceId(walk, new OccurrencePath(path)).orElseThrow();
     }
 
     private static FaultResolutionProgress recording(List<String> events) {

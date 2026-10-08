@@ -11,8 +11,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
-import org.springframework.batch.infrastructure.item.ExecutionContext;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -59,7 +57,12 @@ public class DocumentFrequency {
      */
     public void measure(RunId stage3RunId, RunId stage2RunId, FrequencyProgress progress) {
         progress.statementStarting(SimilarityStatement.FREQUENCY_SURVIVORS, OptionalLong.empty());
-        Set<Long> survivorIds = drainSurvivors(stage2RunId);
+        // The whole survivor set is needed to test every shingle row against, not one page of it: a
+        // departure from ADR-060 that ADR-209 section 2 states.
+        Set<Long> survivorIds = new HashSet<>();
+        for (OccurrenceId survivor : ledger.verdicts().survivors(stage2RunId)) {
+            survivorIds.add(survivor.value());
+        }
         progress.statementEnded(SimilarityStatement.FREQUENCY_SURVIVORS);
 
         Map<Hash, Counts> byHash = new HashMap<>();
@@ -162,28 +165,6 @@ public class DocumentFrequency {
     public void discardForRun(RunId stage3RunId) {
         jdbcTemplate.update("DELETE FROM shingle_document_frequency WHERE run_id = ?", stage3RunId.value());
         jdbcTemplate.update("DELETE FROM shingle_corpus_size WHERE run_id = ?", stage3RunId.value());
-    }
-
-    /**
-     * Reads {@code stage2RunId}'s survivors to exhaustion — the whole set is needed to test shingle
-     * rows against, not one chunk of it.
-     */
-    private Set<Long> drainSurvivors(RunId stage2RunId) {
-        ItemStreamReader<OccurrenceId> reader = ledger.survivors(stage2RunId);
-        Set<Long> ids = new HashSet<>();
-        try {
-            reader.open(new ExecutionContext());
-            try {
-                for (OccurrenceId id = reader.read(); id != null; id = reader.read()) {
-                    ids.add(id.value());
-                }
-            } finally {
-                reader.close();
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException("could not read stage 2's survivors for run " + stage2RunId.value(), e);
-        }
-        return ids;
     }
 
     /** One shingle hash within one granularity — the grain document frequency is grouped by. */

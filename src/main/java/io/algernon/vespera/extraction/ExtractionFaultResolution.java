@@ -58,7 +58,7 @@ public final class ExtractionFaultResolution {
         for (Held fault : held) {
             faults.write(fault.occurrence(), run, fault.category(), fault.detail());
             if (completed) {
-                ledger.verdict(
+                ledger.verdicts().verdict(
                         fault.occurrence(),
                         run,
                         VerdictKind.EXTRACTION_FAILED,

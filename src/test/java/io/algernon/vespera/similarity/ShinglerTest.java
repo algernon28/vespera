@@ -263,18 +263,18 @@ class ShinglerTest {
 
     private OccurrenceId anOccurrence() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
         String path = "occurrence-" + jdbcTemplate.queryForObject("SELECT COUNT(*) FROM file_occurrence", Long.class);
-        ledger.fileOccurrence(
+        ledger.occurrences().fileOccurrence(
                 walkId, new OccurrencePath(path), 1, Instant.parse("2026-08-29T10:15:30Z"), Instant.parse(
                         "2026-08-20T08:00:00Z"));
-        return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+        return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
     }
 
     private RunId aRun(OccurrenceId anyOccurrenceInTheWalk) {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = new WalkId(jdbcTemplate.queryForObject(
                 "SELECT walk_id FROM file_occurrence WHERE id = ?", Long.class, anyOccurrenceInTheWalk.value()));
-        return ledger.startRun("extraction", "abc123", "{}", walkId, List.of());
+        return ledger.runs().startRun("extraction", "abc123", "{}", walkId, List.of());
     }
 }

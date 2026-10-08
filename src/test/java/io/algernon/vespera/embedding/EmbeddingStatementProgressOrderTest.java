@@ -75,10 +75,10 @@ class EmbeddingStatementProgressOrderTest {
         pool = new PoolOfTwo(folder);
         jdbcTemplate = pool.jdbcTemplate();
         ledger = new Ledger(jdbcTemplate);
-        corpusWalk = ledger.startWalk(Path.of("C:/corpus/statements"));
-        seedWalk = ledger.startWalk(Path.of("C:/seeds/statements"));
-        extractionRun = ledger.startRun("extraction", "extraction-statements", "{}", corpusWalk, List.of());
-        measurementRun = ledger.startRun(
+        corpusWalk = ledger.walks().startWalk(Path.of("C:/corpus/statements"));
+        seedWalk = ledger.walks().startWalk(Path.of("C:/seeds/statements"));
+        extractionRun = ledger.runs().startRun("extraction", "extraction-statements", "{}", corpusWalk, List.of());
+        measurementRun = ledger.runs().startRun(
                 "seed-measurement", "measurement-statements", "{}", corpusWalk, List.of(extractionRun));
     }
 
@@ -97,7 +97,7 @@ class EmbeddingStatementProgressOrderTest {
         new UnusableSeeds(jdbcTemplate).record(unusable, measurementRun, "recorded unusable by this test");
         Recorder recorder = new Recorder();
 
-        new SeedCorpusComparison(jdbcTemplate, ledger).measure(measurementRun, extractionRun, seedWalk, recorder);
+        new SeedCorpusComparison(jdbcTemplate, ledger).measure(measurementRun, extractionRun, seedWalk, RecordedForms.over(jdbcTemplate), recorder);
 
         claim(
                 "each statement is started and ended once, in the order the comparison issues them: the two drains"
@@ -125,7 +125,7 @@ class EmbeddingStatementProgressOrderTest {
         measured(seedWalk, "seed.txt", measurementRun);
         Recorder recorder = new Recorder();
 
-        new SeedCorpusComparison(jdbcTemplate, ledger).measure(measurementRun, extractionRun, seedWalk, recorder);
+        new SeedCorpusComparison(jdbcTemplate, ledger).measure(measurementRun, extractionRun, seedWalk, RecordedForms.over(jdbcTemplate), recorder);
 
         claim(
                 "the read of the unusable seeds is started with an empty total and ended, between the drains and"
@@ -149,7 +149,7 @@ class EmbeddingStatementProgressOrderTest {
         many(METRIC_ROW, measurementRun);
         Recorder recorder = new Recorder();
 
-        new SeedCorpusComparison(jdbcTemplate, ledger).measure(measurementRun, extractionRun, seedWalk, recorder);
+        new SeedCorpusComparison(jdbcTemplate, ledger).measure(measurementRun, extractionRun, seedWalk, RecordedForms.over(jdbcTemplate), recorder);
 
         for (EmbeddingStatement read :
                 List.of(EmbeddingStatement.UNUSABLE_SEEDS, EmbeddingStatement.CORPUS_METRICS, EmbeddingStatement.SEED_METRICS)) {
@@ -187,7 +187,7 @@ class EmbeddingStatementProgressOrderTest {
         claim(
                 "the comparison fails as the template reports any statement's failure, once the table is gone",
                 () -> assertThatThrownBy(() -> new SeedCorpusComparison(jdbcTemplate, ledger)
-                                .measure(measurementRun, extractionRun, seedWalk, recorder))
+                                .measure(measurementRun, extractionRun, seedWalk, RecordedForms.over(jdbcTemplate), recorder))
                         .isInstanceOf(DataAccessException.class));
         claim(
                 "the caller was told both drains started and ended and the read started, over the "
@@ -217,7 +217,7 @@ class EmbeddingStatementProgressOrderTest {
         claim(
                 "the comparison fails on the database's own refusal, the table the drain reads being gone",
                 () -> assertThatThrownBy(() -> new SeedCorpusComparison(jdbcTemplate, ledger)
-                                .measure(measurementRun, extractionRun, seedWalk, recorder))
+                                .measure(measurementRun, extractionRun, seedWalk, RecordedForms.over(jdbcTemplate), recorder))
                         .hasRootCauseInstanceOf(SQLException.class));
         claim(
                 "the caller was told the first drain started and ended and the second started, with no total, and"
@@ -292,10 +292,10 @@ class EmbeddingStatementProgressOrderTest {
 
     /** An occurrence of {@code walk} at {@code path}, with a metric row under {@code run}. */
     private OccurrenceId measured(WalkId walk, String path, RunId run) {
-        ledger.fileOccurrence(
+        ledger.occurrences().fileOccurrence(
                 walk, new OccurrencePath(path), 1L, Instant.parse("2026-09-06T10:15:30Z"),
                 Instant.parse("2026-09-01T08:00:00Z"));
-        OccurrenceId occurrence = ledger.occurrenceId(walk, new OccurrencePath(path)).orElseThrow();
+        OccurrenceId occurrence = ledger.occurrences().occurrenceId(walk, new OccurrencePath(path)).orElseThrow();
         jdbcTemplate.update(METRIC_ROW, occurrence.value(), run.value());
         return occurrence;
     }

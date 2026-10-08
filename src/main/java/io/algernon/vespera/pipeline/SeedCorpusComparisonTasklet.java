@@ -1,13 +1,17 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.embedding.EmbeddingStatement;
+import io.algernon.vespera.embedding.MeasuredForms;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.OptionalLong;
+import java.util.function.LongConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -54,6 +58,7 @@ class SeedCorpusComparisonTasklet implements Tasklet {
     private final UsableSeedGate usableSeedGate;
     private final StageRuns stageRuns;
     private final SeedCorpusComparison seedCorpusComparison;
+    private final ExtractionMetrics extractionMetrics;
     private final Ledger ledger;
     private final Path workingDirectory;
 
@@ -62,12 +67,14 @@ class SeedCorpusComparisonTasklet implements Tasklet {
             UsableSeedGate usableSeedGate,
             StageRuns stageRuns,
             SeedCorpusComparison seedCorpusComparison,
+            ExtractionMetrics extractionMetrics,
             Ledger ledger,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
         this.seedCorpusComparison = seedCorpusComparison;
+        this.extractionMetrics = extractionMetrics;
         this.ledger = ledger;
         this.workingDirectory = workingDirectory;
     }
@@ -105,6 +112,8 @@ class SeedCorpusComparisonTasklet implements Tasklet {
                             measurementRun,
                             extractionRunId,
                             seedWalk.walkId(),
+                            // extraction reads its own table and hands the rows over (ADR-209 section 3.2).
+                            measuredForms(),
                             ReportedStatements.saying()
                                     .timed(EmbeddingStatement.CORPUS_SURVIVORS, stage, "the corpus survivors")
                                     .timed(EmbeddingStatement.SEED_OCCURRENCES, stage, "the seed walk's occurrences")
@@ -131,6 +140,21 @@ class SeedCorpusComparisonTasklet implements Tasklet {
                             reportFile);
                     return true;
                 });
+    }
+
+    /** The two reads of {@code extraction_metric} the comparison needs, {@code extraction}'s own. */
+    private MeasuredForms measuredForms() {
+        return new MeasuredForms() {
+            @Override
+            public OptionalLong rowsUpTo(RunId runId) {
+                return extractionMetrics.metricRowsUpTo(runId);
+            }
+
+            @Override
+            public void each(RunId runId, LongConsumer stepsTaken, Row row) {
+                extractionMetrics.eachMeasuredForm(runId, stepsTaken, row::read);
+            }
+        };
     }
 
     /**

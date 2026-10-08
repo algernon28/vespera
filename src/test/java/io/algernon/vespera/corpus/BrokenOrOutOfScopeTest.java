@@ -356,16 +356,16 @@ class BrokenOrOutOfScopeTest {
 
         Corpus(Path root) {
             this.root = root;
-            this.walk = ledger.startWalk(root);
+            this.walk = ledger.walks().startWalk(root);
         }
 
         OccurrenceId occurrence(String name) throws IOException {
-            ledger.fileOccurrence(walk, new OccurrencePath(name), Files.size(root.resolve(name)), CREATED, CREATED);
-            return ledger.occurrenceId(walk, new OccurrencePath(name)).orElseThrow();
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath(name), Files.size(root.resolve(name)), CREATED, CREATED);
+            return ledger.occurrences().occurrenceId(walk, new OccurrencePath(name)).orElseThrow();
         }
 
         RunId run() {
-            return ledger.startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
+            return ledger.runs().startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
         }
 
         BrokenOrOutOfScope pass() {

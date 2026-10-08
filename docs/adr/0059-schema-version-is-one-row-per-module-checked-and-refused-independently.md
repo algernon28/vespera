@@ -1,5 +1,7 @@
 # ADR-059 — `schema_version` is one row per module, checked and refused independently
 
+> **Partly amended — see [ADR-209](0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md).** There is one `schema.sql`, with a line above each table naming the module that owns it, so "`schema.sql` per module" in Context and "Every module needs both a `schema.sql`" in Consequences are no longer true as written. The row per module, the check and the refusal stand.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

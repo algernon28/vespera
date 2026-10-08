@@ -91,10 +91,10 @@ class CensusInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
                 "the " + CORPUS_FILES + " files under the root the operator named were recorded",
-                () -> assertThat(ledger.occurrenceCount(theWalk())).isEqualTo(CORPUS_FILES));
+                () -> assertThat(ledger.occurrences().occurrenceCount(theWalk())).isEqualTo(CORPUS_FILES));
         claim(
                 "the walk finished, so what it recorded may be judged",
-                () -> assertThat(ledger.walkFinished(theWalk())).isTrue());
+                () -> assertThat(ledger.walks().walkFinished(theWalk())).isTrue());
         claim(
                 "the profile was written to the working directory rather than into the corpus",
                 () -> assertThat(profileStore.file().startsWith(workingDirectory)).isTrue());

@@ -11,7 +11,7 @@ import org.springframework.batch.core.step.StepExecution;
  * completion listener for both {@code extractionStep} and {@code redundancySignatureStep}, and {@code
  * SignatureStepCompletion} is gone).
  *
- * <p><b>{@code afterStep} records {@code ledger.finishStep(run, step)} only where two things hold:</b>
+ * <p><b>{@code afterStep} records {@code ledger.runs().finishStep(run, step)} only where two things hold:</b>
  * the step's exit status is {@code COMPLETED}, and this invocation holds a run of {@code stage}, read
  * as {@code new InvocationRuns(...).runOf(stage.stage())} from the job execution's own context. It
  * holds no supplier and no provider, and it has no scope of its own — it cannot mint, because it only
@@ -48,7 +48,7 @@ class RunCompletion implements StepExecutionListener {
         if (ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())) {
             new InvocationRuns(stepExecution.getJobExecution().getExecutionContext())
                     .runOf(stage.stage())
-                    .ifPresent(run -> ledger.finishStep(run, step));
+                    .ifPresent(run -> ledger.runs().finishStep(run, step));
         }
         return stepExecution.getExitStatus();
     }
