@@ -164,7 +164,7 @@ Earlier records are not edited. Each correction is made here.
 - **An archive that goes away stops the step at the next file that cannot be read**, in stage 1's hashing, its first pass and stage 2, with a line naming the corpus root and saying to reconnect it. Where it stopped nothing before (stage 2's call) or marked every remaining file (stage 1's first pass, stage 2's call), it now removes nothing, apart from the one file §2's exception can leave marked.
 - **A file gone after stage 1 hashed it is no longer taken for a converter that drops connections**, so it costs no wait, no second call and no place in a row of five.
 - **Every stage's run id from 1 to 6b moves once**, and the working directory is kept (§7).
-- **`AGENTS.md`** counts this record, and says the defect it decides is decided and not yet shipped until the implementation lands.
+- **`AGENTS.md`** counts this record, and says the defect it decides is decided and not yet shipped until the implementation lands, and then that it is closed, with what this record leaves open.
 
 **What the implementation owes** (`spec-implementer`):
 
@@ -179,7 +179,7 @@ Earlier records are not edited. Each correction is made here.
 - the constructors the tests build, kept as they are: `ExtractionItemProcessor`'s ten-argument one, which `ExtractionItemProcessorTest` calls, and `ByteLevelReductionTasklet`'s;
 - `ReviewListReport`'s sentence of §8.2, and the class javadoc that lists the same reasons;
 - the javadoc that states the old rule: `ContentIdentityResolution`, `HashingProgress`, `CheckingProgress`, `BrokenCheck.check`, `ConversionDispatch`, `ExtractionItemProcessor`'s class javadoc and `retryAfterDrop`'s;
-- not `AGENTS.md`: its paragraph on the open defect, which says ADR-210 is decided and not yet built, is rewritten by the `analyst` once the code has landed, to say #452 is closed by ADR-210, because `spec-implementer` does not edit Markdown.
+- not `AGENTS.md`: its paragraph on the open defect, which said ADR-210 was decided and not yet built, is rewritten by the `analyst` once the code has landed, to say #452 is closed by ADR-210 and to name what this record leaves open, because `spec-implementer` does not edit Markdown.
 
 **What pins it.** Each test below was run against `6eb88a2`, except the one for the read of a text converted in parts, which was measured at `abadff8`, as Rests on says. Every one fails there for the reason given, except the two marked green, which pass there and must still pass after.
 
