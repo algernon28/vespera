@@ -19,7 +19,10 @@ import org.springframework.stereotype.Component;
  * <p>Also carries stage 2's own step start/end logging (ADR-093): the natural place, since it already
  * runs at both boundaries Spring Batch offers a step-scoped listener. The end line says how the step
  * ended, because {@link #afterStep} runs after a failed step too: "finished" only when it completed,
- * and otherwise that it failed, with the same counts and what failed it (#311).
+ * and otherwise that it failed, with the same counts and what failed it (#311). It ends by telling the
+ * operator what to do about that failure: reconnect the archive where the corpus root can no longer be
+ * listed (ADR-210), close what holds the database file where one does (ADR-177), and otherwise fix what
+ * the line names, bringing the sidecar back if it stopped answering.
  */
 @Component
 class ExtractionHealthCheckListener implements StepExecutionListener {
@@ -44,6 +47,22 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
         log.info("Stage 2 (extraction) sidecar is healthy");
     }
 
+    /**
+     * What the closing line tells the operator to do: reconnect the archive where the corpus root can no
+     * longer be listed (ADR-210), close whatever else has the database file open where it is locked
+     * (ADR-177), and otherwise fix what the failure names, the sidecar included.
+     */
+    private static String closingAdvice(StepExecution stepExecution) {
+        if (StepFailure.archiveGone(stepExecution)) {
+            return "Reconnect the archive and run the same command again.";
+        }
+        if (StepFailure.lockedDatabaseFile(stepExecution)) {
+            return "Close whatever else has the database file open and run the same command again.";
+        }
+        return "Fix what that names -- if docling-serve stopped answering, bring it back -- and run"
+                + " the same command again.";
+    }
+
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
         if (!ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())) {
@@ -61,10 +80,7 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
                     stepExecution.getSkipCount(),
                     stepExecution.getFilterCount(),
                     StepFailure.named(stepExecution),
-                    StepFailure.lockedDatabaseFile(stepExecution)
-                            ? "Close whatever else has the database file open and run the same command again."
-                            : "Fix what that names -- if docling-serve stopped answering, bring it back -- and run"
-                                    + " the same command again.");
+                    closingAdvice(stepExecution));
             return stepExecution.getExitStatus();
         }
         log.info(

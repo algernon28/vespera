@@ -11,6 +11,7 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Optional;
@@ -71,6 +72,12 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
  * <p>An occurrence stage 1 recorded no format for is not dispatched at all; the processor's own check
  * finds the same absence and reports it exactly as it always has (ADR-100's case is not this class's
  * to decide).
+ *
+ * <p>A file this reader cannot hash is no longer a failure of the step (ADR-210 section 5, which amends
+ * ADR-206 section 7): the reader asks whether the corpus root can still be listed, which stops the step
+ * from {@link #read} if it cannot, and otherwise files the occurrence in {@link PendingConversions} as one
+ * that could not be read, with the cause, and dispatches no call. The processor finds it there before it
+ * hashes anything and gives it its verdict on its turn.
  *
  * <p><b>Nothing here asks for the sidecar or the run until {@link #open}</b> (#319). Spring Batch opens
  * a step's streams only once every {@code beforeStep} has passed, so a step whose health check failed
@@ -161,9 +168,22 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
             return;
         }
         Path file = resolvePath(occurrenceId);
-        String contentHash = contentIdentity
-                .hashFor(occurrenceId, byteLevelReductionRunId)
-                .orElseGet(() -> extractor.contentHashFor(file));
+        String contentHash;
+        Optional<String> recorded = contentIdentity.hashFor(occurrenceId, byteLevelReductionRunId);
+        if (recorded.isPresent()) {
+            contentHash = recorded.get();
+        } else {
+            try {
+                contentHash = extractor.contentHashFor(file);
+            } catch (UncheckedIOException cannotHash) {
+                // ADR-210: ask whether the archive has gone, which stops the step from read(); if it has
+                // not, file the occurrence as one that could not be read and dispatch no call. The
+                // processor gives it the verdict on its turn, so the drain's order is unchanged.
+                new CorpusRootCheck(stageRuns.canonicalRoot()).requireListable();
+                pending.dispatchCouldNotBeRead(occurrenceId, CorpusRootCheck.reported(cannotHash.getCause()));
+                return;
+            }
+        }
         DetectedSubtype subtype = detectedFormats
                 .subtypeFor(occurrenceId, byteLevelReductionRunId)
                 .orElse(null);

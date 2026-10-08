@@ -122,30 +122,40 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 walk,
                 Optional.empty());
 
-        return TaskletSteps.once(
-                ledger,
-                runId,
-                StepNames.BYTE_LEVEL_REDUCTION,
-                // This step's own work under this run is already written, so there is nothing here to
-                // do (ADR-115, ADR-116). This is what a content-derived identity was always for: the
-                // same inputs name the same work, and work already done is recognised rather than
-                // repeated.
-                () -> log.info("Stage 1 (byte-level reduction) was already recorded under run {}", runId.value()),
-                // Not finished: an invocation that stopped partway may have left rows behind under this
-                // same run id. Discarding this step's own rows before working is ADR-115's other half
-                // (ADR-116).
-                () -> {
-                    ledger.verdicts().discardVerdicts(runId, VerdictKind.BROKEN, VerdictKind.OUT_OF_SCOPE, VerdictKind.SUPERSEDED_BY);
-                    detectedFormats.discardForRun(runId);
-                    contentIdentity.discardForRun(runId);
-                },
-                () -> {
-                    log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
-                    verdictBrokenSurvivors(runId, canonicalRoot, logFloor);
-                    resolveDuplicates(runId, canonicalRoot);
-                    log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
-                    return true;
-                });
+        try {
+            return TaskletSteps.once(
+                    ledger,
+                    runId,
+                    StepNames.BYTE_LEVEL_REDUCTION,
+                    // This step's own work under this run is already written, so there is nothing here to
+                    // do (ADR-115, ADR-116). This is what a content-derived identity was always for: the
+                    // same inputs name the same work, and work already done is recognised rather than
+                    // repeated.
+                    () -> log.info("Stage 1 (byte-level reduction) was already recorded under run {}", runId.value()),
+                    // Not finished: an invocation that stopped partway may have left rows behind under this
+                    // same run id. Discarding this step's own rows before working is ADR-115's other half
+                    // (ADR-116).
+                    () -> {
+                        ledger.verdicts().discardVerdicts(runId, VerdictKind.BROKEN, VerdictKind.OUT_OF_SCOPE, VerdictKind.SUPERSEDED_BY);
+                        detectedFormats.discardForRun(runId);
+                        contentIdentity.discardForRun(runId);
+                    },
+                    () -> {
+                        log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
+                        verdictBrokenSurvivors(runId, canonicalRoot, logFloor);
+                        resolveDuplicates(runId, canonicalRoot);
+                        log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
+                        return true;
+                    });
+        } catch (ArchiveGoneException archiveGone) {
+            // Stage 1 has no closing line of its own, so the one an operator needs is written here, before
+            // the exception leaves the step and its transaction rolls everything back (ADR-210 section 2).
+            log.error(
+                    "Stage 1 (byte-level reduction) failed and is not recorded as finished: {}. Reconnect the"
+                            + " archive and run the same command again.",
+                    archiveGone.getMessage());
+            throw archiveGone;
+        }
     }
 
     /**
@@ -181,6 +191,13 @@ public class ByteLevelReductionTasklet implements Tasklet {
                                 "[byte-level-reduction] could not read {} to see whether it is a log, so it is not one: {}",
                                 occurrence.value(),
                                 cause.toString());
+                    }
+
+                    @Override
+                    public void couldNotRead(OccurrenceId occurrence, String reason) {
+                        // Before the verdict is written: if the archive has gone, nothing is marked for it
+                        // (ADR-210 section 2). Otherwise the file is marked broken, as it always was.
+                        new CorpusRootCheck(canonicalRoot).requireListable();
                     }
                 });
         writeFormatMix(new FormatMixReport.Mix(
@@ -238,6 +255,19 @@ public class ByteLevelReductionTasklet implements Tasklet {
             @Override
             public void hashed(OccurrenceId occurrence, String sha256) {
                 log.info("[byte-level-reduction] hashed {} -> {}", occurrence.value(), sha256);
+                progress.itemDone();
+            }
+
+            @Override
+            public void notHashed(OccurrenceId occurrence, IOException cause) {
+                // The question first: a disk that has gone stops the step and nothing is left half done
+                // (ADR-210 section 2). Otherwise the file is left unhashed, with no verdict, for stage 2 to
+                // read, and counted as gone through so the total is still reached.
+                new CorpusRootCheck(canonicalRoot).requireListable();
+                log.warn(
+                        "[byte-level-reduction] could not read {} to hash it, so it is left unhashed for stage 2: {}",
+                        occurrence.value(),
+                        cause.toString());
                 progress.itemDone();
             }
 

@@ -49,6 +49,23 @@ final class StepFailure {
         return false;
     }
 
+    /**
+     * Whether the failure {@link #named} reads is the corpus root no longer being listable (ADR-210 section
+     * 2), for a closing line to say to reconnect the archive in place of advice about the sidecar.
+     */
+    static boolean archiveGone(StepExecution stepExecution) {
+        List<Throwable> failures = stepExecution.getFailureExceptions();
+        if (failures.isEmpty()) {
+            return false;
+        }
+        for (Throwable cause = firstBeneathTheFramework(failures.getFirst()); cause != null; cause = cause.getCause()) {
+            if (cause instanceof ArchiveGoneException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static Throwable firstBeneathTheFramework(Throwable failure) {
         while (failure.getCause() != null && failure.getClass().getName().startsWith("org.springframework.batch.")) {
             failure = failure.getCause();

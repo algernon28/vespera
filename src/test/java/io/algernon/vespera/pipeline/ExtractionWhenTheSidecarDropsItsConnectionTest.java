@@ -344,6 +344,7 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     @Test
     @Story("The list of files extraction could not read")
     @DisplayName("When extraction ends having removed a document it could not read, it writes a page listing that document and why, and says how many there are and where the page is")
+    @Link(name = "ADR-210", url = Adr.A_FILE_THAT_CANNOT_BE_READ_IS_MARKED_AND_THE_STEP_GOES_ON, type = "adr")
     void theFilesExtractionCouldNotReadAreListedForReview(@TempDir Path root) throws IOException {
         writeTheCorpus(root);
         sidecar.rejecting(THE_FAILING_DOCUMENT, NOT_FOUND);
@@ -363,16 +364,18 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
                         .contains(nameOf(THE_FAILING_DOCUMENT))
                         .contains("rejected: docling-serve answered HTTP " + NOT_FOUND)
                         .doesNotContain(nameOf(THE_FAILING_DOCUMENT + 1)));
+        // The sentence names "could not be read" since ADR-210: a file that would not open when it was
+        // hashed or sent left nothing stored either, so a new run of the stage reads it again (ADR-185).
         claim(
                 "it says each was marked and skipped, that they stay removed under this run, and which of"
                         + " them the next run of the stage asks the converter about again: only those the"
-                        + " converter gave no answer about",
+                        + " converter gave no answer about, a file that could not be read among them",
                 () -> assertThat(written)
                         .contains("Each was marked and skipped; the run went on.")
                         .contains("They stay removed under this run.")
-                        .contains("A file whose reason begins with rejected, crashed the converter, timeout,"
-                                + " capacity, target_unavailable or internal left nothing stored, so the next"
-                                + " run of this stage asks the converter about it again."));
+                        .contains("A file whose reason begins with could not be read, rejected, crashed the"
+                                + " converter, timeout, capacity, target_unavailable or internal left nothing"
+                                + " stored, so the next run of this stage asks the converter about it again."));
         claim(
                 "and the log says that " + ONCE + " file could not be read, and where the list is",
                 () -> assertThat(lines())

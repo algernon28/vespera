@@ -212,32 +212,51 @@ public final class BrokenCheck {
      * <p>{@code format} is always the bytes' answer and is never null; {@code subtype} is the
      * filename's, present only within the two classes ADR-094 lets a name narrow. No branch of the
      * structural check reads a subtype, which is the third of ADR-094's limits on the name.
+     *
+     * <p>{@code readFailed} is true on exactly the four branches where the file system would not hand
+     * over bytes the check asked for: the size, the leading bytes, the zip container's
+     * {@code IOException} that is not a {@code ZipException}, and the PDF trailer. Those are still
+     * {@code broken}, with the reason they carry (ADR-210 section 4); the flag lets the caller ask
+     * whether the archive has gone before the verdict is written.
      */
-    public record Result(boolean broken, String reason, DetectedFormat format, Optional<DetectedSubtype> subtype) {
+    public record Result(
+            boolean broken,
+            String reason,
+            DetectedFormat format,
+            Optional<DetectedSubtype> subtype,
+            boolean readFailed) {
 
         private static Result ok(DetectedFormat format) {
-            return new Result(false, null, format, Optional.empty());
+            return new Result(false, null, format, Optional.empty(), false);
         }
 
         private static Result ok(DetectedFormat format, DetectedSubtype subtype) {
-            return new Result(false, null, format, Optional.of(subtype));
+            return new Result(false, null, format, Optional.of(subtype), false);
         }
 
         private static Result broken(String reason, DetectedFormat format) {
-            return new Result(true, reason, format, Optional.empty());
+            return new Result(true, reason, format, Optional.empty(), false);
+        }
+
+        private static Result brokenForWantOfBytes(String reason, DetectedFormat format) {
+            return new Result(true, reason, format, Optional.empty(), true);
         }
     }
 
     /**
      * Checks {@code file} against the cross-format floor, then decides what it is from one prefix
      * read and applies the structural check that class carries (ADR-094).
+     *
+     * <p>A file whose bytes the file system will not hand over is still {@code broken}, with the reason
+     * it always carried, and its result says so through {@link Result#readFailed()}; the caller asks
+     * whether the archive has gone before it writes that verdict (ADR-210 section 4).
      */
     public static Result check(Path file) {
         long size;
         try {
             size = Files.size(file);
         } catch (IOException e) {
-            return Result.broken("the file could not be read: " + e.getMessage(), DetectedFormat.FLOOR_STOPPED);
+            return Result.brokenForWantOfBytes("the file could not be read: " + e.getMessage(), DetectedFormat.FLOOR_STOPPED);
         }
         if (size == 0) {
             return Result.broken("the file is empty", DetectedFormat.FLOOR_STOPPED);
@@ -247,7 +266,7 @@ public final class BrokenCheck {
         try {
             prefix = readPrefix(file, DETECTION_PREFIX);
         } catch (IOException e) {
-            return Result.broken("the file could not be opened: " + e.getMessage(), DetectedFormat.FLOOR_STOPPED);
+            return Result.brokenForWantOfBytes("the file could not be opened: " + e.getMessage(), DetectedFormat.FLOOR_STOPPED);
         }
 
         if (startsWith(prefix, PDF_HEADER)) {
@@ -434,7 +453,8 @@ public final class BrokenCheck {
         } catch (ZipException e) {
             return Result.broken("zip central directory unreadable: " + e.getMessage(), DetectedFormat.ZIP_CONTAINER);
         } catch (IOException e) {
-            return Result.broken("the zip container could not be opened: " + e.getMessage(), DetectedFormat.ZIP_CONTAINER);
+            return Result.brokenForWantOfBytes(
+                    "the zip container could not be opened: " + e.getMessage(), DetectedFormat.ZIP_CONTAINER);
         }
     }
 
@@ -449,7 +469,7 @@ public final class BrokenCheck {
             }
             return Result.ok(DetectedFormat.PDF);
         } catch (IOException e) {
-            return Result.broken("the pdf could not be read: " + e.getMessage(), DetectedFormat.PDF);
+            return Result.brokenForWantOfBytes("the pdf could not be read: " + e.getMessage(), DetectedFormat.PDF);
         }
     }
 

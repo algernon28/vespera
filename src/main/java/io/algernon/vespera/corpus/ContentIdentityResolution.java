@@ -7,6 +7,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.SizedOccurrence;
 import io.algernon.vespera.ledger.VerdictKind;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,6 +42,10 @@ public final class ContentIdentityResolution {
      * <p>The first read sizes every survivor and adds up what the second will hash, a size's members
      * counting only when two or more share it, so the hash pass's total is known before its first hash
      * (ADR-057, ADR-192). The second read resolves each size with more than one member.
+     *
+     * <p>A file that cannot be read when it is hashed is left unhashed, with no hash and no verdict, and
+     * the rest of its size resolve among themselves; the caller's {@link HashingProgress#notHashed} is
+     * told, and is where the archive having gone stops the step (ADR-210 section 4).
      */
     public void resolve(RunId runId, Path canonicalRoot, HashingProgress progress) throws Exception {
         progress.toSize(ledger.verdicts().survivorCount(runId));
@@ -108,7 +113,16 @@ public final class ContentIdentityResolution {
         Map<String, List<Candidate>> byHash = new HashMap<>();
         for (OccurrenceId occurrenceId : sameSize) {
             OccurrenceFacts facts = factsFor(occurrenceId);
-            String sha256 = ContentHash.sha256(canonicalRoot.resolve(facts.path().value()));
+            String sha256;
+            try {
+                sha256 = ContentHash.sha256(canonicalRoot.resolve(facts.path().value()));
+            } catch (IOException cannotBeRead) {
+                // Left unhashed, with no verdict: stage 2 reads every survivor with no recorded hash and
+                // marks the file itself if it still cannot be read (ADR-210 section 4). An Error is not
+                // caught here (ADR-207 section 3).
+                progress.notHashed(occurrenceId, cannotBeRead);
+                continue;
+            }
             contentIdentity.recordHash(occurrenceId, runId, sha256);
             byHash.computeIfAbsent(sha256, ignored -> new ArrayList<>())
                     .add(new Candidate(occurrenceId, facts.path(), facts.creationTime()));

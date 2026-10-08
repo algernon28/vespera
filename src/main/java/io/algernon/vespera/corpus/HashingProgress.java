@@ -31,4 +31,13 @@ public interface HashingProgress {
 
     /** After each file occurrence is hashed and its hash recorded. */
     void hashed(OccurrenceId occurrence, String sha256);
+
+    /**
+     * Called once, in place of {@link #hashed}, for a file occurrence the file system would not hand over
+     * when it was hashed. No hash and no verdict is recorded for it: stage 2 reads every survivor stage 1
+     * recorded no hash for and marks the file itself if it still cannot be read (ADR-210 section 4). The
+     * caller asks whether the archive has gone, and stops the step if it has; otherwise it counts the file
+     * as gone through, so the hashing total is still reached.
+     */
+    default void notHashed(OccurrenceId occurrence, java.io.IOException cause) {}
 }

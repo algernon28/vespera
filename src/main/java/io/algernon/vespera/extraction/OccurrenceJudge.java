@@ -124,6 +124,18 @@ public final class OccurrenceJudge {
     }
 
     /**
+     * What an occurrence earns when its file could not be read (ADR-210 section 5): its file would not hash,
+     * would not open when its call lost its connection, or would not read whole to be converted in parts.
+     * The converter was never asked, or never received the file, so this is no evidence about it: it
+     * neither ends nor extends any row (ADR-184 section 4). {@code cause} is what the file system
+     * reported.
+     */
+    public OccurrenceDecision couldNotBeRead(String cause) {
+        failuresInARow.noEvidence();
+        return new OccurrenceDecision.Failed("could not be read: " + cause);
+    }
+
+    /**
      * ADR-071: a timeout is document scope while it is isolated, and flips to the converter's once three
      * land in a row. {@code response} is {@code null} for a call that brought none; non-null for a
      * timeout the converter reported, which earns a metric row like any other document-scoped failure.
