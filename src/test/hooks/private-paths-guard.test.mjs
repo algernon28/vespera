@@ -1,6 +1,6 @@
 // The private-paths guard, held to its record: docs/adr/0196. No agent reads the operator's documents,
 // and a PreToolUse hook refuses any path outside an allow list and fails closed. docs/adr/0201 amends
-// that record, and the L and G cases are held to it. docs/adr/0212, proposed, admits one exact command
+// that record, and the L and G cases are held to it. docs/adr/0212, accepted and not yet built, admits one exact command
 // that starts the counting script beside the guard on a working directory, and the K cases are held to
 // it: K101 to K106 are refused until that script and the guard's rule are built.
 //
