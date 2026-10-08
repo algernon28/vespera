@@ -211,15 +211,12 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
         long signatureRows = rowSpanUnder("minhash_signature", run);
         claim(
                 "stage 3 says what it is reading and how long each read took, each line once, in the order it"
-                        + " reads: the documents stage 2 left, for the shingle frequencies; the shingle rows; the"
-                        + " documents stage 2 left again, for the confidence spread; and the extraction metrics,"
-                        + " over up to the " + metricRows + " rows stage 2's run holds",
+                        + " reads: the shingle rows, and the extraction metrics, over up to the " + metricRows
+                        + " rows stage 2's run holds. It says nothing of reading the documents stage 2 left: it"
+                        + " reads them a page at a time inside each of those two reads, and holds no list of them",
                 () -> assertThat(shingleRowsLineShortened(StatementLines.of(operatorLines(), STAGE_THREE)))
                         .containsExactlyElementsOf(StatementLines.inOrder(
-                                StatementLines.timedRead(STAGE_THREE, "stage 2's survivors for the shingle frequencies"),
                                 List.of(READING_UP_TO),
-                                StatementLines.timedRead(
-                                        STAGE_THREE, "stage 2's survivors for the confidence distribution"),
                                 StatementLines.countedRead(STAGE_THREE, "the extraction metrics", metricRows))));
         claim(
                 "resolving says what it is reading and how long each read took, each line once, in the order it"

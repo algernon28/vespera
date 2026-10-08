@@ -35,12 +35,22 @@ import org.junit.jupiter.api.Test;
  * bundled SQLite, and for ADR-199's two reads {@link UncoveredStatementsStepsPerRowTest}'s. This test only
  * holds the declarations to them, so a ratio changed in one place and not the other fails here. ADR-199's
  * three timed survivor counts are in no enum: {@code pipeline} times each where it makes the call.
+ *
+ * <p><b>Three reads take ADR-211's form, and declare no ratio.</b> Stage 3's reads of the shingle rows and of
+ * the extraction metrics, and 5b's of the corpus survivors' extraction metrics, are made a page of survivors
+ * at a time, one statement a page, and are told the rows they have read rather than SQLite's steps. So none
+ * of them has a ratio to declare, and none is a timed statement either: each still has its total.
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
 @Issue("411")
 @Link(name = "ADR-193", url = Adr.STATEMENTS_REPORT_THEIR_PROGRESS, type = "adr")
+@Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
 class StatementStepsPerRowAreTheDeclaredOnesTest {
+
+    /** The reads made a page of survivors at a time, which count the rows they read themselves (ADR-211). */
+    private static final List<Enum<?>> READ_A_PAGE_OF_SURVIVORS_AT_A_TIME = List.of(
+            SimilarityStatement.SHINGLE_ROWS, ExtractionStatement.EXTRACTION_METRICS, EmbeddingStatement.CORPUS_METRICS);
 
     @Test
     @Story("A long statement inside the database reports how far it has gone")
@@ -49,16 +59,12 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
         Map<Enum<?>, Integer> measured = Map.of(
                 SimilarityStatement.SHINGLE_HASH_INDEX_BUILD,
                         StatementStepsPerRowTest.BUILD_STEPS_BEYOND_COLUMNS + 3,
-                SimilarityStatement.SHINGLE_ROWS, StatementStepsPerRowTest.SHINGLE_ROWS_STEPS,
                 SimilarityStatement.SIGNED_OCCURRENCES, StatementStepsPerRowTest.SIGNED_OCCURRENCES_STEPS,
-                ExtractionStatement.EXTRACTION_METRICS, StatementStepsPerRowTest.CONFIDENCE_METRICS_STEPS,
-                // ADR-199's two counted reads of stage 2's resume, measured by their own test. Nine pairs of
-                // Map.of's ten: one more counted statement moves this to Map.ofEntries.
+                // ADR-199's two counted reads of stage 2's resume, measured by their own test.
                 ExtractionStatement.FAULTED_OCCURRENCES, UncoveredStatementsStepsPerRowTest.FAULTED_OCCURRENCES_STEPS,
                 ExtractionStatement.RECORDED_OCCURRENCES,
                         UncoveredStatementsStepsPerRowTest.RECORDED_OCCURRENCES_STEPS,
                 EmbeddingStatement.UNUSABLE_SEEDS, StatementStepsPerRowTest.UNUSABLE_SEEDS_STEPS,
-                EmbeddingStatement.CORPUS_METRICS, StatementStepsPerRowTest.COMPARISON_METRICS_STEPS,
                 EmbeddingStatement.SEED_METRICS, StatementStepsPerRowTest.COMPARISON_METRICS_STEPS);
 
         for (Map.Entry<Enum<?>, Integer> statement : measured.entrySet()) {
@@ -71,8 +77,16 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
                 () -> assertThat(StartUpIndexAnnouncement.INDEX_BUILD_STEPS_BEYOND_COLUMNS)
                         .isEqualTo(StatementStepsPerRowTest.BUILD_STEPS_BEYOND_COLUMNS));
 
+        for (Enum<?> read : READ_A_PAGE_OF_SURVIVORS_AT_A_TIME) {
+            claim(
+                    read + " is read a page of surviving documents at a time and counts the rows it reads itself,"
+                            + " so it declares no steps a row",
+                    () -> assertThat(stepsPerRowOf(read)).isEmpty());
+        }
+
         List<Enum<?>> timed = everyStatement()
                 .filter(statement -> !measured.containsKey(statement))
+                .filter(statement -> !READ_A_PAGE_OF_SURVIVORS_AT_A_TIME.contains(statement))
                 .toList();
         for (Enum<?> statement : timed) {
             claim(
