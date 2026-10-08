@@ -99,6 +99,9 @@ public final class BrokenOrOutOfScope {
                         }
                     }
                 }
+                if (result.readFailed()) {
+                    progress.couldNotRead(occurrenceId, result.reason());
+                }
                 if (result.broken()) {
                     ledger.verdict(occurrenceId, runId, VerdictKind.BROKEN, result.reason());
                 } else if (leftOut.isPresent()) {

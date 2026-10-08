@@ -272,13 +272,16 @@ public final class TextParts {
      * <p>The first part that does not convert ends the file: no later part is sent, and the answer is
      * that part's, its errors named by part. Whatever a call throws is rethrown as it is. A file with a
      * line longer than a part is never sent, and answers a failure about the document.
+     *
+     * @throws CouldNotBeReadException when the read of the whole file fails, before any part is posted
+     *     (ADR-210 section 3); no other failure here is that
      */
     static DoclingResponse convertInParts(DoclingClient client, Path file, DetectedFormat format, DetectedSubtype subtype) {
         byte[] bytes;
         try {
             bytes = Files.readAllBytes(file);
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new CouldNotBeReadException(e);
         }
         List<Part> parts;
         try {

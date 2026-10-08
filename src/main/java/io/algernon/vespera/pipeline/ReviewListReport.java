@@ -13,8 +13,9 @@ import java.util.List;
  * <p>It does not say that running the same command again asks about these files again, which #326 asked
  * it to say: a finished stage 2 reads nothing under the same run (ADR-115), and a resumed one keeps the
  * verdicts its committed chunks wrote (ADR-181). What is true is what it says, and it says it only of
- * the rows it is true of: a call that failed, a timeout, and a failure the converter blamed on itself
- * leave nothing in the extraction cache (ADR-183), so a new stage-2 run asks again. A failure the
+ * the rows it is true of: a file that could not be read (ADR-210), a call that failed, a timeout, and a
+ * failure the converter blamed on itself leave nothing in the extraction cache (ADR-183), so a new
+ * stage-2 run asks again. A failure the
  * converter blamed on the document is stored and is not asked about again, and the page promises
  * nothing for it.
  */
@@ -32,7 +33,7 @@ final class ReviewListReport {
         }
         body.append(ReportPage.paragraph("Files that could not be read: " + failures.size()
                         + ". Each was marked and skipped; the run went on. They stay removed under this"
-                        + " run. A file whose reason begins with rejected, crashed the converter, timeout,"
+                        + " run. A file whose reason begins with could not be read, rejected, crashed the converter, timeout,"
                         + " capacity, target_unavailable or internal left nothing stored, so the next run of"
                         + " this stage asks the converter about it again."));
         StringBuilder rows = new StringBuilder();

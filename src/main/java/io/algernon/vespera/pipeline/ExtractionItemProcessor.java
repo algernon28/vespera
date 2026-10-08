@@ -5,6 +5,7 @@ import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.extraction.ControlConversion;
+import io.algernon.vespera.extraction.CouldNotBeReadException;
 import io.algernon.vespera.extraction.DoclingCallRejectedException;
 import io.algernon.vespera.extraction.DoclingCallTimeoutException;
 import io.algernon.vespera.extraction.DoclingConnectionLostException;
@@ -24,6 +25,10 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.similarity.Shingler;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -47,6 +52,13 @@ import org.springframework.stereotype.Component;
  * stops the step from here is a sidecar that does not come back, or one that drops the connection twice
  * under {@link FailuresInARow#CONSECUTIVE_DROPPED_TWICE_COUNT} occurrences in a row and then does not
  * convert the control conversion either (ADR-184).
+ *
+ * <p>A fourth outcome is not the converter's at all (ADR-210): a file that could not be read. One that will
+ * not hash, one that does not open when its first call lost its connection, and a text converted in parts
+ * whose whole read failed each earn {@code extraction-failed} under a reason beginning {@code could not be
+ * read: }, with no wait and no second call, and count for nothing towards any row of failures. Before any
+ * of them is marked, the corpus root is asked whether it can still be listed, and if it cannot the step
+ * stops and removes nothing.
  *
  * <p>Nothing is chunked here (ADR-091). Chunk boundaries depend on a budget whose only reader is
  * an embedding model, and none is named: a chunk cut now is work guaranteed to be discarded, so
@@ -194,7 +206,28 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         // The key the cache is looked up under, and the one recorded beside the metrics row (ADR-206
         // section 2). Where ConversionDispatch dispatched the call it resolved the key there and filed it
         // with the call, so nothing is hashed here; otherwise it is stage 1's hash, or this file's own.
-        String contentHash = pending.keyOf(occurrenceId).orElseGet(() -> contentHashOf(occurrenceId, file));
+        // ADR-210: an occurrence the reader could not read is found in pending before anything is hashed
+        // here, so the file is not hashed a second time, and it is given its verdict on its own turn.
+        Optional<String> unreadByTheReader = pending.takeCouldNotBeRead(occurrenceId);
+        if (unreadByTheReader.isPresent()) {
+            return couldNotBeRead(occurrenceId, unreadByTheReader.get());
+        }
+        String contentHash;
+        Optional<String> key = pending.keyOf(occurrenceId);
+        if (key.isPresent()) {
+            contentHash = key.get();
+        } else {
+            Optional<String> recorded = contentIdentity.hashFor(occurrenceId, byteLevelReductionRun);
+            if (recorded.isPresent()) {
+                contentHash = recorded.get();
+            } else {
+                try {
+                    contentHash = extractor.contentHashFor(file);
+                } catch (UncheckedIOException cannotHash) {
+                    return couldNotBeRead(occurrenceId, CorpusRootCheck.reported(cannotHash.getCause()));
+                }
+            }
+        }
         try {
             // Read before the answer is taken: taking it removes what says it came from the cache.
             boolean fromCache = pending.answeredFromCache(occurrenceId);
@@ -216,12 +249,37 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             return acting(occurrenceId, judge.timedOut(occurrenceId, timedOut.getMessage()), null, contentHash);
         } catch (DoclingCallRejectedException rejected) {
             return rejectedOutcome(occurrenceId, rejected);
+        } catch (CouldNotBeReadException unreadable) {
+            // A text converted in parts whose whole read failed, before any part was posted: the call never
+            // began, so nothing waits and nothing is asked again (ADR-210 section 3).
+            return couldNotBeRead(occurrenceId, CorpusRootCheck.reported(unreadable.getCause()));
         }
+    }
+
+    /**
+     * What a file that could not be read earns its occurrence (ADR-210 section 5): first the question
+     * whether the archive has gone, which stops the step and removes nothing, and then
+     * {@code extraction-failed} under a reason beginning {@code could not be read: }. No metric, key or
+     * cache row, and no evidence about the converter.
+     */
+    private ExtractionOutcome couldNotBeRead(OccurrenceId occurrenceId, String cause) {
+        new CorpusRootCheck(stageRuns.canonicalRoot()).requireListable();
+        OccurrenceDecision.Failed failed = (OccurrenceDecision.Failed) judge.couldNotBeRead(cause);
+        log.info("[extraction] occurrence {} could not be read: {}", occurrenceId.value(), failed.reason());
+        return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, failed.reason());
     }
 
     /**
      * What a dropped connection earns an occurrence (ADR-175 section 2): the sidecar is waited for, and
      * the call is placed once more, here on the step thread. An answer is judged like any other.
+     *
+     * <p>Before it waits, the first drop asks two questions about the file (ADR-210 section 3): whether the
+     * corpus root can still be listed, which stops the step if it cannot, and whether the file opens. The
+     * production client reads a file as it posts it, so a file that is gone or locked fails the call and is
+     * reported as a lost connection; a file that does not open is marked {@code could not be read} with no
+     * wait and no second call. The opening check reads no byte, so it sees a lock that refuses the open and
+     * not a byte-range lock, and it is made once: a second drop is read as the converter's, which is wrong
+     * for a disk lost during the wait (left open by ADR-210).
      *
      * <p>A second drop is read as the file's doing: the sidecar is waited for again, so that the next
      * occurrences find it up, and this one is removed. It can be wrong. Up to eight calls are in flight
@@ -236,10 +294,18 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      */
     private ExtractionOutcome retryAfterDrop(
             OccurrenceId occurrenceId, Path file, String contentHash, DetectedFormat format) {
+        new CorpusRootCheck(stageRuns.canonicalRoot()).requireListable();
+        try (InputStream opens = Files.newInputStream(file)) {
+            // Opened and closed, no byte read: the file is there to be sent.
+        } catch (IOException cannotOpen) {
+            return couldNotBeRead(occurrenceId, CorpusRootCheck.reported(cannotOpen));
+        }
         sidecarRecovery.awaitHealthy();
         try {
             DoclingResponse response = convertNow(occurrenceId, file, contentHash, format);
             return acting(occurrenceId, judge.answered(occurrenceId, response, false), response, contentHash);
+        } catch (CouldNotBeReadException unreadable) {
+            return couldNotBeRead(occurrenceId, CorpusRootCheck.reported(unreadable.getCause()));
         } catch (DoclingConnectionLostException again) {
             sidecarRecovery.awaitHealthy();
             OccurrenceDecision.DroppedTwice dropped = (OccurrenceDecision.DroppedTwice) judge.droppedTwice(
@@ -323,16 +389,6 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                 .subtypeFor(occurrenceId, byteLevelReductionRunId)
                 .orElse(null);
         return extractor.convert(file, contentHash, extractorIdentity, format, subtype);
-    }
-
-    /**
-     * The key of {@code occurrenceId}'s file: stage 1's hash where it recorded one (ADR-067), and this file's
-     * own otherwise. They are one digest over the same bytes (ADR-151).
-     */
-    private String contentHashOf(OccurrenceId occurrenceId, Path file) {
-        return contentIdentity
-                .hashFor(occurrenceId, stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION))
-                .orElseGet(() -> extractor.contentHashFor(file));
     }
 
     /** The path census recorded the occurrence under, relative to the corpus root. */

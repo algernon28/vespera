@@ -25,6 +25,9 @@ class PendingConversions {
 
     private final Map<Long, Entry> pending = new ConcurrentHashMap<>();
 
+    /** The occurrences whose file could not be read by the reader, each with the cause the file system gave. */
+    private final Map<Long, String> couldNotBeRead = new ConcurrentHashMap<>();
+
     /** An instance that never holds anything dispatched, so every {@link #take} finds nothing pending. */
     static PendingConversions none() {
         return new PendingConversions();
@@ -56,6 +59,24 @@ class PendingConversions {
         pending.put(
                 occurrenceId.value(),
                 new Entry(CompletableFuture.completedFuture(response), cached -> { }, true, contentHash));
+    }
+
+    /**
+     * Files {@code occurrenceId} as one whose file could not be read when the reader hashed it, with what
+     * the file system reported (ADR-210 section 5). No call is dispatched for it and nothing is written;
+     * {@link #takeCouldNotBeRead} hands the cause to the processor on the occurrence's turn, before it
+     * hashes anything, so the drain's order is unchanged (ADR-140 section 2).
+     */
+    void dispatchCouldNotBeRead(OccurrenceId occurrenceId, String cause) {
+        couldNotBeRead.put(occurrenceId.value(), cause);
+    }
+
+    /**
+     * What the file system reported when the reader could not read {@code occurrenceId}'s file, removed from
+     * what is held, or empty where the reader filed no such thing.
+     */
+    Optional<String> takeCouldNotBeRead(OccurrenceId occurrenceId) {
+        return Optional.ofNullable(couldNotBeRead.remove(occurrenceId.value()));
     }
 
     /**
@@ -101,7 +122,9 @@ class PendingConversions {
      * @throws DoclingCallTimeoutException if that is how the dispatched call ended, unwrapped so it
      *     reads exactly as it would have from a direct, synchronous call to {@code convert}
      * @throws RuntimeException whatever else the dispatched call threw, unwrapped for the same reason:
-     *     the processor tells a rejected call and a lost connection apart by type (ADR-175)
+     *     the processor tells a rejected call and a lost connection apart by type (ADR-175), and a text
+     *     converted in parts whose whole read failed ({@code CouldNotBeReadException}, ADR-210) arrives as
+     *     that, from here, as it would from a direct call
      */
     Optional<DoclingResponse> take(OccurrenceId occurrenceId) {
         Entry entry = pending.remove(occurrenceId.value());
@@ -137,6 +160,7 @@ class PendingConversions {
      * pending, where the entry left in place would be waited on for a call that will never run.
      */
     void abandon(OccurrenceId occurrenceId) {
+        couldNotBeRead.remove(occurrenceId.value());
         Entry entry = pending.remove(occurrenceId.value());
         if (entry != null) {
             entry.future().cancel(true);
