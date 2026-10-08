@@ -1,6 +1,8 @@
 // The private-paths guard, held to its record: docs/adr/0196. No agent reads the operator's documents,
 // and a PreToolUse hook refuses any path outside an allow list and fails closed. docs/adr/0201 amends
-// that record, and the L and G cases are held to it.
+// that record, and the L and G cases are held to it. docs/adr/0212, proposed, admits one exact command
+// that starts the counting script beside the guard on a working directory, and the K cases are held to
+// it: K101 to K106 are refused until that script and the guard's rule are built.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -34,6 +36,9 @@
 //   home/                ${HOME}: .m2/settings.xml (allowed), Documents/x.txt (not),
 //                        .jdks/ (allowed) holding 10,050 empty folders
 //   outside/doc.txt      under no allowed root
+//   outside/counted/     vespera.db: a working directory under no allowed root
+//   temp/scratch/working-directory-counts.mjs, a copy of the counting script outside .claude/hooks
+//   altered-counts/checkout/ a ${REPO} whose counting script has one line the pinned one does not
 //   with space/checkout/ a second ${REPO}, whose path holds a space
 //   no-guard/checkout/   the wrapper without private-paths-guard.mjs
 //   main/                a git checkout whose worktree, .claude/worktrees/wt, has no copy of the hook
@@ -71,6 +76,11 @@ const HOOKS = ".claude/hooks";
 const WRAPPER = `${HOOKS}/run-private-paths-guard.sh`;
 const GUARD = `${HOOKS}/private-paths-guard.mjs`;
 const ALLOW_LIST = ".claude/allowed-paths.txt";
+// The counting script of docs/adr/0212, which the guard admits by one exact command. Copied into a
+// fixture checkout only when the repository has one: until it is built, the K1 cases are refused.
+const COUNTS = `${HOOKS}/working-directory-counts.mjs`;
+const countsShipped = existsSync(`${repo}/${COUNTS}`);
+const countsText = () => (countsShipped ? readFileSync(`${repo}/${COUNTS}`, "utf8") : "// a stand-in: the counting script is not built yet\n");
 
 /* ---------- the fixture ---------- */
 
@@ -87,6 +97,7 @@ function buildCheckout(dir, { guard = true, wrapper = true } = {}) {
   mkdirSync(`${dir}/${HOOKS}`, { recursive: true });
   if (wrapper) copyFileSync(`${repo}/${WRAPPER}`, `${dir}/${WRAPPER}`);
   if (guard) copyFileSync(`${repo}/${GUARD}`, `${dir}/${GUARD}`);
+  if (countsShipped) copyFileSync(`${repo}/${COUNTS}`, `${dir}/${COUNTS}`);
   copyFileSync(`${repo}/${ALLOW_LIST}`, `${dir}/${ALLOW_LIST}`);
   put(`${dir}/README.md`, "# fixture\n");
   put(`${dir}/src/Example.java`, "class Example {}\n");
@@ -120,6 +131,13 @@ put(`${T}/my runs/vespera.db`);
 put(`${T}/my runs/report.html`, "<p>fixture</p>\n");
 put(`${C}/my notes/readme.txt`, "fixture\n");
 put(`${C}/src/main/App.java`, "class App {}\n");
+// docs/adr/0212: a working directory under no allowed root, which the counting command may name; a copy
+// of the counting script where the guard does not admit it; and a checkout whose counting script differs
+// from the pinned one by one line.
+put(`${O}/counted/vespera.db`);
+put(`${T}/scratch/working-directory-counts.mjs`, countsText());
+const ALTERED = buildCheckout(`${base}/altered-counts/checkout`);
+writeFileSync(`${ALTERED}/${COUNTS}`, countsText() + "\n// one line the pinned script does not have\n");
 // Under temp/mirror, the temp folder's own path from its drive's root, ending in a working directory:
 // where C:Users/.../temp/scratch lands when it is read as a relative path from temp/mirror.
 if (windows) put(`${T}/mirror/${T.slice(3)}/scratch/vespera.db`);
@@ -677,6 +695,56 @@ const cases = [
   ["G704", "cat of a variable whose word is a variable whose word climbs into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${VESPERA_GUARD_NOR_THIS:-../working-directory/report.html}}" }, REFUSED, { cwd: `${T}/scratch` }],
   ["G705", "cat of a variable whose word is ${TMPDIR} and a path into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/working-directory/report.html}" }, REFUSED],
   ["G706", "cat of a variable whose word is ${TMPDIR} and a path under the temp folder", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/scratch/out.log}" }, ALLOWED],
+
+  /* K1. docs/adr/0212: node, the counting script beside the guard, and a folder that directly holds
+     vespera.db, and nothing else, is admitted. Refused until the script and the guard's rule are built.
+     The working directory is named relatively from the temp folder wherever the case allows it, so that
+     the ordinary reading refuses it on every platform: a rooted POSIX path in a command is not read
+     (ADR-196 section 5), so on Linux K102 and K106 are let through by the ordinary reading already. */
+  ["K101", "the counting command, naming the working directory by a relative path", "Bash", { command: `node ${C}/${COUNTS} working-directory` }, ALLOWED, { cwd: T }],
+  ["K102", "the counting command, naming the script by a relative path and the working directory by an absolute one", "Bash", { command: `node ${COUNTS} ${WD}` }, ALLOWED],
+  ["K103", "the counting command, naming a working directory whose name holds a space, in single quotes", "Bash", { command: `node ${C}/${COUNTS} 'my runs'` }, ALLOWED, { cwd: T }],
+  ["K104", "the counting command, naming the script in single quotes", "Bash", { command: `node '${C}/${COUNTS}' working-directory` }, ALLOWED, { cwd: T }],
+  ["K105", "the counting command in PowerShell, with the script written with backslashes", "PowerShell", { command: `node ${back(`${C}/${COUNTS}`)} working-directory` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["K106", "the counting command, naming a working directory under no allowed root", "Bash", { command: `node ${COUNTS} ${O}/counted` }, ALLOWED],
+
+  /* K2. Every other form stays refused: the command is three words, two of them bare or single-quoted,
+     naming the pinned script and a folder that directly holds vespera.db, run from an allowed current
+     directory. Each is read as before and refused as a path into a working directory. */
+  ["K201", "the counting script given vespera.db itself, a file inside the working directory", "Bash", { command: `node ${C}/${COUNTS} working-directory/vespera.db` }, REFUSED, { cwd: T }],
+  ["K202", "the counting script given a folder inside the working directory", "Bash", { command: `node ${C}/${COUNTS} working-directory/deliverable` }, REFUSED, { cwd: T }],
+  ["K203", "the counting script given a folder holding vespera.lock and no vespera.db", "Bash", { command: `node ${C}/${COUNTS} locked` }, REFUSED, { cwd: T }],
+  ["K204", "the counting script given a folder under no allowed root that holds no vespera.db, by a path that climbs to it", "Bash", { command: `node ${C}/${COUNTS} ../outside` }, REFUSED, { cwd: T }],
+  ["K205", "the counting command with a second argument", "Bash", { command: `node ${C}/${COUNTS} working-directory extra` }, REFUSED, { cwd: T }],
+  ["K206", "the counting command followed by && and a read of the log", "Bash", { command: `node ${C}/${COUNTS} working-directory && cat working-directory/vespera.log` }, REFUSED, { cwd: T }],
+  ["K207", "the counting command followed by ; and another command", "Bash", { command: `node ${C}/${COUNTS} working-directory; ls` }, REFUSED, { cwd: T }],
+  ["K208", "the counting command followed by a newline and another command", "Bash", { command: `node ${C}/${COUNTS} working-directory\nls` }, REFUSED, { cwd: T }],
+  ["K209", "the counting command piped into another program", "Bash", { command: `node ${C}/${COUNTS} working-directory | head -5` }, REFUSED, { cwd: T }],
+  ["K210", "the counting command with its output redirected to a file", "Bash", { command: `node ${C}/${COUNTS} working-directory > scratch/counts.txt` }, REFUSED, { cwd: T }],
+  ["K211", "the counting command with an option to node before the script", "Bash", { command: `node --no-warnings ${C}/${COUNTS} working-directory` }, REFUSED, { cwd: T }],
+  ["K212", "the counting command with an assignment before node", "Bash", { command: `NODE_OPTIONS=--no-warnings node ${C}/${COUNTS} working-directory` }, REFUSED, { cwd: T }],
+  ["K213", "the counting command with the working directory in double quotes", "Bash", { command: `node ${C}/${COUNTS} "working-directory"` }, REFUSED, { cwd: T }],
+  ["K214", "the counting command with the working directory behind a variable", "Bash", { command: `node ${C}/${COUNTS} $TMPDIR/working-directory` }, REFUSED],
+  ["K215", "the counting command with the working directory from a command substitution", "Bash", { command: `node ${C}/${COUNTS} $(echo working-directory)` }, REFUSED, { cwd: T }],
+  ["K216", "the counting command with a .. in the working directory's path", "Bash", { command: `node ${C}/${COUNTS} scratch/../working-directory` }, REFUSED, { cwd: T }],
+  ["K217", "the counting command in Bash with the working directory written with backslashes outside quotes", "Bash", { command: `node ${C}/${COUNTS} ${back(WD)}` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["K218", "another script of the hooks folder given a working directory", "Bash", { command: `node ${C}/${GUARD} working-directory` }, REFUSED, { cwd: T }],
+  ["K219", "a copy of the counting script outside the hooks folder given a working directory", "Bash", { command: "node scratch/working-directory-counts.mjs working-directory" }, REFUSED, { cwd: T }],
+  ["K220", "node -e given vespera.db", "Bash", { command: `node -e "require('node:sqlite')" working-directory/vespera.db` }, REFUSED, { cwd: T }],
+  ["K221", "sqlite3 asking vespera.db for a count", "Bash", { command: `sqlite3 working-directory/vespera.db "SELECT COUNT(*) FROM verdict"` }, REFUSED, { cwd: T }],
+  ["K222", "the counting command run with a working directory as the current directory", "Bash", { command: `node ${C}/${COUNTS} .` }, REFUSED, { cwd: WD }],
+  ["K223", "the counting command inside bash -c", "Bash", { command: `bash -c 'node ${C}/${COUNTS} working-directory'` }, REFUSED, { cwd: T }],
+
+  /* K3. What docs/adr/0212 still refuses, named in one place: every file a working directory holds. */
+  ["K301", "Read of profile.yaml in a working directory", "Read", { file_path: `${WD}/profile.yaml` }, REFUSED],
+  ["K302", "Read of relevance-labels.yaml in a working directory", "Read", { file_path: `${WD}/relevance-labels.yaml` }, REFUSED],
+  ["K303", "Read of the labelling page, which carries document openings", "Read", { file_path: `${WD}/relevance-labelling.html` }, REFUSED],
+  ["K304", "Read of the review list", "Read", { file_path: `${WD}/extraction-failures.html` }, REFUSED],
+  ["K305", "Read of the arrangement page", "Read", { file_path: `${WD}/arrangement.html` }, REFUSED],
+  ["K306", "Read of vespera.log", "Read", { file_path: `${WD}/vespera.log` }, REFUSED],
+  ["K307", "Read of a log vespera.log has rolled into", "Read", { file_path: `${WD}/vespera.2026-10-08.0.log` }, REFUSED],
+  ["K308", "Read of the deliverable's CSV", "Read", { file_path: `${WD}/deliverable/run/documents.csv` }, REFUSED],
+  ["K309", "Grep of vespera.db", "Grep", { pattern: "COUNT", path: `${WD}/vespera.db` }, REFUSED],
 ];
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
@@ -703,6 +771,15 @@ test("R506 allowed: Read of a repository file when the checkout's path holds a s
 test("R507 refused: Read under no allowed root when the checkout's path holds a space", () => {
   const result = startGuard({ projectDir: SPACED, stdin: hookInput("Read", { file_path: `${O}/doc.txt` }, SPACED) });
   claim(result, REFUSED, `Read of ${O}/doc.txt, the checkout being ${SPACED}`);
+});
+
+/* ---------- the counting script is pinned by its hash ---------- */
+
+// docs/adr/0212: the same command K101 admits, in a checkout whose counting script has one line more than
+// the one the guard pins, is read as before and refused.
+test("K224 refused: the counting command when the script beside the guard is not the pinned one", () => {
+  const call = hookInput("Bash", { command: `node ${ALTERED}/${COUNTS} working-directory` }, T);
+  claim(startGuard({ projectDir: ALTERED, stdin: call }), REFUSED, `the counting command through ${ALTERED}/${WRAPPER}, whose counting script was altered`);
 });
 
 /* ---------- failing closed ---------- */
