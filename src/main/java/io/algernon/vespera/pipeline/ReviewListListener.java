@@ -60,7 +60,7 @@ class ReviewListListener implements StepExecutionListener {
         List<RemovedOccurrence> failures = TimedStatement.of(
                 "Stage 2 (extraction)", "reading", "read",
                 "the occurrences it could not read",
-                () -> ledger.extractionFailures(stageRuns.extraction()));
+                () -> ledger.verdicts().extractionFailures(stageRuns.extraction()));
         Path page = workingDirectory.resolve(FILE_NAME);
         try {
             Files.createDirectories(workingDirectory);

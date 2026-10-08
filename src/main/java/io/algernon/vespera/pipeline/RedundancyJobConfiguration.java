@@ -117,7 +117,7 @@ public class RedundancyJobConfiguration {
         // This step's own work under this run is already recorded, so it reads nothing (ADR-115,
         // ADR-116) -- content-redundancy, the step after it, is not asked: the two share a run but
         // each answers only for itself.
-        if (ledger.stepFinished(redundancyRun, StepNames.REDUNDANCY_SIGNATURE)) {
+        if (ledger.runs().stepFinished(redundancyRun, StepNames.REDUNDANCY_SIGNATURE)) {
             LoggerFactory.getLogger(RedundancyJobConfiguration.class)
                     .info("Stage 4a (redundancy signatures) was already recorded under run {}", redundancyRun.value());
             return OccurrenceReader.yieldingNothing();
@@ -128,7 +128,7 @@ public class RedundancyJobConfiguration {
         // constructed whether or not this reader yields anything -- doing it there emptied the table on
         // an invocation that then correctly wrote nothing (ADR-115's discard half, ADR-116).
         redundancySignatures.discardForRun(redundancyRun);
-        return new OccurrenceReader(ledger.survivors(redundancyRun));
+        return new OccurrenceReader(ledger.verdicts().survivors(redundancyRun));
     }
 
     /**
@@ -199,7 +199,7 @@ public class RedundancyJobConfiguration {
             if (redundancyGate.floor().isEmpty()) {
                 return;
             }
-            if (ledger.stepFinished(stageRuns.contentRedundancy(), StepNames.CONTENT_REDUNDANCY)) {
+            if (ledger.runs().stepFinished(stageRuns.contentRedundancy(), StepNames.CONTENT_REDUNDANCY)) {
                 return;
             }
             if (shingleHashIndex.exists()) {

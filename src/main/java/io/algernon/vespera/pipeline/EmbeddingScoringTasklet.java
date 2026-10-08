@@ -15,6 +15,7 @@ import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -137,7 +138,13 @@ class EmbeddingScoringTasklet implements Tasklet {
                 () -> {
                     RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
                     Set<OccurrenceId> survivors = TimedStatement.of(
-                            STAGE, "reading", "read", "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(measurementRun)));
+                            STAGE, "reading", "read", "the corpus survivors", () -> {
+                                Set<OccurrenceId> ids = new HashSet<>();
+                                for (OccurrenceId id : ledger.verdicts().survivors(measurementRun)) {
+                                    ids.add(id);
+                                }
+                                return ids;
+                            });
                     Set<OccurrenceId> usableSeeds = usableSeedOccurrences(seedWalk, measurementRun);
                     LOG.info(
                             "Stage 5c (embedding scoring) starting under scoring run {}: re-chunking and"
@@ -193,7 +200,13 @@ class EmbeddingScoringTasklet implements Tasklet {
      */
     private Set<OccurrenceId> usableSeedOccurrences(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
         Set<OccurrenceId> allSeeds = TimedStatement.of(
-                STAGE, "reading", "read", "the seed walk's occurrences", () -> ItemStreamReaders.drain(ledger.occurrencesOf(seedWalk.walkId())));
+                STAGE, "reading", "read", "the seed walk's occurrences", () -> {
+                    Set<OccurrenceId> ids = new HashSet<>();
+                    for (OccurrenceId id : ledger.occurrences().occurrencesOf(seedWalk.walkId())) {
+                        ids.add(id);
+                    }
+                    return ids;
+                });
         Set<OccurrenceId> unusable = TimedStatement.of(STAGE, "reading", "read", "the unusable seeds", () -> unusableSeeds.forRun(measurementRun))
                 .stream()
                 .map(UnusableSeed::occurrenceId)

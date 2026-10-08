@@ -322,7 +322,7 @@ class ArrangementTasklet implements Tasklet {
     }
 
     private io.algernon.vespera.ledger.OccurrencePath pathObjectOf(OccurrenceId occurrenceId) {
-        Optional<OccurrenceFacts> facts = ledger.factsFor(occurrenceId);
+        Optional<OccurrenceFacts> facts = ledger.occurrences().factsFor(occurrenceId);
         return facts.map(OccurrenceFacts::path)
                 .orElseThrow(() -> new IllegalStateException(
                         "no facts recorded for occurrence " + occurrenceId.value()));

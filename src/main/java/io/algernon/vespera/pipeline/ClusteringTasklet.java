@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -144,7 +145,13 @@ class ClusteringTasklet implements Tasklet {
                     // in the archive. ADR-060 keeps the verdict join in the ledger, so the filter is
                     // here rather than in the partition query embedding owns.
                     Set<OccurrenceId> survivors = TimedStatement.of(
-                            STAGE, "reading", "read", "the corpus survivors", () -> ItemStreamReaders.drain(ledger.survivors(scoring)));
+                            STAGE, "reading", "read", "the corpus survivors", () -> {
+                                Set<OccurrenceId> ids = new HashSet<>();
+                                for (OccurrenceId id : ledger.verdicts().survivors(scoring)) {
+                                    ids.add(id);
+                                }
+                                return ids;
+                            });
 
                     LOG.info(
                             "Stage 5f (clustering) starting under scoring run {}: {} seed partition(s) to"
@@ -263,7 +270,7 @@ class ClusteringTasklet implements Tasklet {
     }
 
     private String pathOf(OccurrenceId occurrenceId) {
-        return ledger.factsFor(occurrenceId)
+        return ledger.occurrences().factsFor(occurrenceId)
                 .map(facts -> facts.path().value())
                 .orElse("(path not recorded)");
     }

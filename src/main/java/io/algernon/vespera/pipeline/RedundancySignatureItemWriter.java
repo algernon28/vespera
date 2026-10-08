@@ -51,7 +51,7 @@ class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
                 "counting",
                 "counted",
                 "the survivors it signs",
-                () -> ledger.survivorCount(runId));
+                () -> ledger.verdicts().survivorCount(runId));
         this.progress = StageProgress.over("Stage 4a (redundancy signatures)", survivors);
     }
 

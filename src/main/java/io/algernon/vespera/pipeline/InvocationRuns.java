@@ -9,7 +9,7 @@ import org.springframework.batch.infrastructure.item.ExecutionContext;
 /**
  * The record of the runs this invocation minted or continued, one id per stage (ADR-154 §1).
  *
- * <p>{@link RunMint} records every run here at the moment {@code Ledger.startRun} returns (ADR-157 §2)
+ * <p>{@link RunMint} records every run here at the moment {@code Runs.startRun} returns (ADR-157 §2)
  * -- including stage 1's inline mint in {@link ByteLevelReductionTasklet}, which builds a {@code
  * RunMint} of its own. A later stage that
  * needs an upstream run's id, or a place that reports what this invocation arrived at ({@link

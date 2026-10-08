@@ -109,9 +109,9 @@ public class WalkRecorder {
      */
     public WalkId walk(Path root) throws IOException {
         Path canonical = Walk.canonicalRoot(root);
-        Optional<ResumableWalk> unfinished = ledger.unfinishedWalk(canonical);
+        Optional<ResumableWalk> unfinished = ledger.walks().unfinishedWalk(canonical);
 
-        WalkId walkId = unfinished.map(ResumableWalk::walkId).orElseGet(() -> ledger.startWalk(canonical));
+        WalkId walkId = unfinished.map(ResumableWalk::walkId).orElseGet(() -> ledger.walks().startWalk(canonical));
         Optional<Checkpoint> resumeFrom =
                 unfinished.flatMap(walk -> Checkpoint.of(walk.checkpointOrdinals(), walk.checkpointPath()));
         WalkCounts alreadyCounted = unfinished.map(ResumableWalk::counts).orElse(new WalkCounts(0, 0));
@@ -150,7 +150,7 @@ public class WalkRecorder {
      * changed back is looked at afresh.
      */
     private WalkId discardIfNothingNewWasSeen(Path canonical, WalkId walkId) {
-        Optional<WalkId> previous = ledger.finishedWalkBefore(canonical, walkId);
+        Optional<WalkId> previous = ledger.walks().finishedWalkBefore(canonical, walkId);
         if (previous.isEmpty() || !sawTheSameThing(previous.get(), walkId)) {
             return walkId;
         }
@@ -159,7 +159,12 @@ public class WalkRecorder {
                 walkId.value(),
                 canonical,
                 previous.get().value());
-        transactions.executeWithoutResult(status -> ledger.discardWalk(walkId));
+        // The anomalies first: they refer to the walk, so its row cannot go while one stands (ADR-209
+        // section 3.1). Both in the one transaction, so a failure between them leaves neither deleted.
+        transactions.executeWithoutResult(status -> {
+            anomalyLog.discardForWalk(walkId);
+            ledger.walks().discardWalk(walkId);
+        });
         return previous.get();
     }
 
@@ -178,10 +183,10 @@ public class WalkRecorder {
      * statements drift apart.
      */
     private boolean sawTheSameThing(WalkId earlier, WalkId later) {
-        return ledger.occurrencesForWalk(earlier).equals(ledger.occurrencesForWalk(later))
+        return ledger.occurrences().occurrencesForWalk(earlier).equals(ledger.occurrences().occurrencesForWalk(later))
                 && anomalyLog.anomaliesForWalk(earlier).equals(anomalyLog.anomaliesForWalk(later))
-                && ledger.countsFor(earlier).directoriesEntered()
-                        == ledger.countsFor(later).directoriesEntered();
+                && ledger.walks().countsFor(earlier).directoriesEntered()
+                        == ledger.walks().countsFor(later).directoriesEntered();
     }
 
     /**
@@ -194,8 +199,8 @@ public class WalkRecorder {
      * indistinguishable from a symlink.
      */
     private void reconcile(WalkId walkId) {
-        WalkCounts counts = ledger.countsFor(walkId);
-        long occurrences = ledger.occurrenceCount(walkId);
+        WalkCounts counts = ledger.walks().countsFor(walkId);
+        long occurrences = ledger.occurrences().occurrenceCount(walkId);
         long anomalies = anomalyLog.anomalyCount(walkId);
 
         // The arithmetic itself is Progress's, not restated here: what the ledger holds is the whole
@@ -254,7 +259,7 @@ public class WalkRecorder {
             }
             transactions.executeWithoutResult(status -> {
                 writeBuffered();
-                ledger.recordProgress(walkId, at.encodedOrdinals(), at.pathRendering(), cumulative(progress));
+                ledger.walks().recordProgress(walkId, at.encodedOrdinals(), at.pathRendering(), cumulative(progress));
             });
             entriesAtLastCommit = progress.entriesSeen();
         }
@@ -287,7 +292,7 @@ public class WalkRecorder {
         private void finish(Walk.Progress progress) {
             transactions.executeWithoutResult(status -> {
                 writeBuffered();
-                ledger.finishWalk(walkId, cumulative(progress));
+                ledger.walks().finishWalk(walkId, cumulative(progress));
             });
 
             // The walk's end line carries the counts the progress lines were building towards
@@ -309,7 +314,7 @@ public class WalkRecorder {
 
         private void writeBuffered() {
             for (PendingOccurrence occurrence : occurrences) {
-                ledger.fileOccurrence(
+                ledger.occurrences().fileOccurrence(
                         walkId,
                         occurrence.path(),
                         occurrence.sizeInBytes(),

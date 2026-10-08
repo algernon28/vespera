@@ -11,7 +11,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The one sequence every stage's mint used to repeat, written once (ADR-157 §2): find the finished
- * walk or refuse, serialise a private {@code ConfigConsumed}, call {@link Ledger#startRun} with a
+ * walk or refuse, serialise a private {@code ConfigConsumed}, call {@code Runs#startRun} with a
  * module list, and record the id into {@link InvocationRuns} the moment {@code startRun} returns
  * (ADR-154 §1).
  *
@@ -39,7 +39,7 @@ final class RunMint {
      * @throws IllegalStateException naming {@code beforeWhat}, if census has not yet finished walking it
      */
     WalkId finishedWalk(Path canonicalRoot, String beforeWhat) {
-        return ledger.finishedWalkFor(canonicalRoot)
+        return ledger.walks().finishedWalkFor(canonicalRoot)
                 .orElseThrow(() -> new IllegalStateException(
                         "no finished walk is recorded for " + canonicalRoot + "; census must run before " + beforeWhat));
     }
@@ -57,7 +57,7 @@ final class RunMint {
      * before returning it — ADR-154 §1's "at the moment {@code startRun} returns".
      */
     RunId mint(StageModules stage, String configConsumed, WalkId walk, Optional<RunId> upstream) {
-        RunId runId = ledger.startRun(
+        RunId runId = ledger.runs().startRun(
                 stage.stage(),
                 implementationVersions.of(stage.modules().toArray(new String[0])),
                 configConsumed,

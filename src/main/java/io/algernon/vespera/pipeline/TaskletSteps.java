@@ -118,13 +118,13 @@ final class TaskletSteps {
     static RepeatStatus once(
             Ledger ledger, RunId run, String step, StepAction alreadyRecorded, StepAction discard, StepWork work)
             throws Exception {
-        if (ledger.stepFinished(run, step)) {
+        if (ledger.runs().stepFinished(run, step)) {
             alreadyRecorded.run();
             return RepeatStatus.FINISHED;
         }
         discard.run();
         if (work.run()) {
-            ledger.finishStep(run, step);
+            ledger.runs().finishStep(run, step);
         }
         return RepeatStatus.FINISHED;
     }

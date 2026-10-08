@@ -13,8 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
-import org.springframework.batch.infrastructure.item.ExecutionContext;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -52,7 +50,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>Reads {@code extraction_metric} rows under stage 2's own run id, restricted to stage 2's
  * survivors — the same survivor set {@code similarity.DocumentFrequency} already computes off {@link
- * Ledger#survivors(RunId)}, reused here rather than re-invented.
+ * Verdicts#survivors(RunId)}, reused here rather than re-invented.
  */
 @Component
 public class ConfidenceDistribution {
@@ -84,7 +82,12 @@ public class ConfidenceDistribution {
      */
     public Distribution measure(RunId stage3RunId, RunId extractionRunId, ExtractionStatementProgress progress) {
         progress.statementStarting(ExtractionStatement.SURVIVORS, OptionalLong.empty());
-        Set<Long> survivorIds = drainSurvivors(extractionRunId);
+        // The whole survivor set is needed to test every extraction_metric row against, not one page of
+        // it: a departure from ADR-060 that ADR-209 section 2 states.
+        Set<Long> survivorIds = new HashSet<>();
+        for (OccurrenceId survivor : ledger.verdicts().survivors(extractionRunId)) {
+            survivorIds.add(survivor.value());
+        }
         progress.statementEnded(ExtractionStatement.SURVIVORS);
 
         Map<QualityGrade, Long> countsByGrade = new EnumMap<>(QualityGrade.class);
@@ -158,30 +161,6 @@ public class ConfidenceDistribution {
                     bucket.upperBound(),
                     bucket.documentCount());
         }
-    }
-
-    /**
-     * Reads {@code extractionRunId}'s survivors to exhaustion, the same shape {@code
-     * similarity.DocumentFrequency.drainSurvivors} already uses — the whole survivor set is needed to
-     * test every {@code extraction_metric} row against, not one chunk of it.
-     */
-    private Set<Long> drainSurvivors(RunId extractionRunId) {
-        ItemStreamReader<OccurrenceId> reader = ledger.survivors(extractionRunId);
-        Set<Long> ids = new HashSet<>();
-        try {
-            reader.open(new ExecutionContext());
-            try {
-                for (OccurrenceId id = reader.read(); id != null; id = reader.read()) {
-                    ids.add(id.value());
-                }
-            } finally {
-                reader.close();
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "could not read extraction's survivors for run " + extractionRunId.value(), e);
-        }
-        return ids;
     }
 
     /**

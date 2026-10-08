@@ -269,7 +269,7 @@ class RelevanceReportTasklet implements Tasklet {
      * answer that was still true every time a document was re-scanned or re-exported.
      */
     private Map<OccurrenceId, Boolean> answersInThisWalk(String seedSet, RunId runId) {
-        Optional<WalkId> walk = ledger.walkOf(runId);
+        Optional<WalkId> walk = ledger.runs().walkOf(runId);
         if (walk.isEmpty()) {
             return Map.of();
         }
@@ -278,7 +278,7 @@ class RelevanceReportTasklet implements Tasklet {
                 TimedStatement.of(STAGE, "reading", "read", "the recorded answers", () -> relevanceLabels.forSeedSet(seedSet));
         StageProgress matched = StageProgress.over("Stage 5 (relevance report, answers matched)", recorded.size());
         for (RelevanceLabel label : recorded) {
-            ledger.occurrenceId(walk.get(), label.path())
+            ledger.occurrences().occurrenceId(walk.get(), label.path())
                     .ifPresent(occurrence -> answers.putIfAbsent(occurrence, label.relevant()));
             matched.itemDone();
         }
@@ -291,7 +291,7 @@ class RelevanceReportTasklet implements Tasklet {
      * model gave for the seed set, matched to this walk or not (ADR-205).
      */
     private Map<OccurrenceId, String> modelAnswersInThisWalk(String seedSet, RunId runId) {
-        Optional<WalkId> walk = ledger.walkOf(runId);
+        Optional<WalkId> walk = ledger.runs().walkOf(runId);
         if (walk.isEmpty()) {
             return Map.of();
         }
@@ -301,7 +301,7 @@ class RelevanceReportTasklet implements Tasklet {
         StageProgress matched =
                 StageProgress.over("Stage 5 (relevance report, model answers matched)", modelAnswers.size());
         for (Map.Entry<String, String> answer : modelAnswers.entrySet()) {
-            ledger.occurrenceId(walk.get(), new OccurrencePath(answer.getKey()))
+            ledger.occurrences().occurrenceId(walk.get(), new OccurrencePath(answer.getKey()))
                     .ifPresent(occurrence -> byOccurrence.put(occurrence, answer.getValue()));
             matched.itemDone();
         }
@@ -318,7 +318,7 @@ class RelevanceReportTasklet implements Tasklet {
     }
 
     private String pathOf(OccurrenceId occurrenceId) {
-        return ledger.factsFor(occurrenceId)
+        return ledger.occurrences().factsFor(occurrenceId)
                 .map(OccurrenceFacts::path)
                 .map(path -> path.value())
                 .orElse("(path not recorded)");

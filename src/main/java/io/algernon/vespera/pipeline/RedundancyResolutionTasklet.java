@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
@@ -40,6 +41,7 @@ class RedundancyResolutionTasklet implements Tasklet {
     private final StageRuns stageRuns;
     private final ObjectProvider<RedundancyBoilerplate> redundancyBoilerplateProvider;
     private final RedundancyResolution redundancyResolution;
+    private final ExtractionMetrics extractionMetrics;
     private final Ledger ledger;
 
     RedundancyResolutionTasklet(
@@ -47,11 +49,13 @@ class RedundancyResolutionTasklet implements Tasklet {
             StageRuns stageRuns,
             ObjectProvider<RedundancyBoilerplate> redundancyBoilerplateProvider,
             RedundancyResolution redundancyResolution,
+            ExtractionMetrics extractionMetrics,
             Ledger ledger) {
         this.redundancyGate = redundancyGate;
         this.stageRuns = stageRuns;
         this.redundancyBoilerplateProvider = redundancyBoilerplateProvider;
         this.redundancyResolution = redundancyResolution;
+        this.extractionMetrics = extractionMetrics;
         this.ledger = ledger;
     }
 
@@ -76,14 +80,20 @@ class RedundancyResolutionTasklet implements Tasklet {
                 // answers only for itself.
                 () -> LOG.info("Stage 4b (redundancy resolution) was already recorded under run {}", runId.value()),
                 () -> {
-                    ledger.discardVerdicts(runId, VerdictKind.REDUNDANT_WITH);
+                    ledger.verdicts().discardVerdicts(runId, VerdictKind.REDUNDANT_WITH);
                     redundancyResolution.discardForRun(runId);
                 },
                 () -> {
                     LOG.info("Stage 4b (redundancy resolution) starting under run {}", runId.value());
                     Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();
                     redundancyResolution.resolve(
-                            runId, stage3RunId, extractionRunId, boilerplateHashes, resolutionProgress());
+                            runId,
+                            stage3RunId,
+                            extractionRunId,
+                            boilerplateHashes,
+                            // extraction reads its own table and hands the counts over (ADR-209 section 3.2).
+                            extractionMetrics::alphanumericCharCounts,
+                            resolutionProgress());
                     LOG.info("Stage 4b (redundancy resolution) finished under run {}", runId.value());
                     return true;
                 });

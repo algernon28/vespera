@@ -5,11 +5,16 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.StatementSteps;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -106,8 +111,72 @@ public class ExtractionMetrics {
      * The span of {@code runId}'s metrics rows, empty where it holds none: two statements, each one descent of
      * {@code extraction_metric_by_run_id}.
      */
-    OptionalLong metricRowsUpTo(RunId runId) {
+    public OptionalLong metricRowsUpTo(RunId runId) {
         return metricRowsUpTo(jdbcTemplate, runId);
+    }
+
+    /**
+     * The alphanumeric character count recorded under {@code runId} for each of {@code occurrences},
+     * holding only those that have a row (ADR-209 section 3.2): what redundancy resolution ranks the
+     * members of a component by. Asking about no occurrence makes no statement.
+     */
+    public Map<OccurrenceId, Long> alphanumericCharCounts(RunId runId, Collection<OccurrenceId> occurrences) {
+        Map<OccurrenceId, Long> counts = new HashMap<>();
+        if (occurrences.isEmpty()) {
+            return counts;
+        }
+        String placeholders = occurrences.stream().map(id -> "?").collect(Collectors.joining(","));
+        List<Object> args = new ArrayList<>();
+        args.add(runId.value());
+        occurrences.forEach(id -> args.add(id.value()));
+        jdbcTemplate.query(
+                "SELECT occurrence_id, alphanumeric_char_count FROM extraction_metric"
+                        + " WHERE run_id = ? AND occurrence_id IN (" + placeholders + ")",
+                resultSet -> {
+                    counts.put(
+                            new OccurrenceId(resultSet.getLong("occurrence_id")),
+                            resultSet.getLong("alphanumeric_char_count"));
+                },
+                args.toArray());
+        return counts;
+    }
+
+    /**
+     * Gives each metrics row of {@code runId} to {@code row} as it is read, and the steps SQLite has taken
+     * to {@code stepsTaken} (ADR-193): the values the seed/corpus comparison measures form from
+     * (ADR-209 section 3.2). Nothing is held: the caller keeps what it wants.
+     */
+    public void eachMeasuredForm(RunId runId, LongConsumer stepsTaken, MeasuredFormRow row) {
+        StatementSteps.counted(jdbcTemplate, stepsTaken, connection -> {
+            try (PreparedStatement select = connection.prepareStatement(
+                    "SELECT occurrence_id, primary_language, mean_score, word_count, page_count,"
+                            + " vowelless_word_count, single_character_word_count FROM extraction_metric"
+                            + " WHERE run_id = ?")) {
+                select.setString(1, runId.value());
+                try (ResultSet resultSet = select.executeQuery()) {
+                    while (resultSet.next()) {
+                        long occurrenceId = resultSet.getLong("occurrence_id");
+                        String primaryLanguage = resultSet.getString("primary_language");
+                        resultSet.getDouble("mean_score");
+                        boolean meanScoreIsNull = resultSet.wasNull();
+                        int wordCount = resultSet.getInt("word_count");
+                        int pageCount = resultSet.getInt("page_count");
+                        boolean pageCountIsNull = resultSet.wasNull();
+                        int vowellessWordCount = resultSet.getInt("vowelless_word_count");
+                        int singleCharacterWordCount = resultSet.getInt("single_character_word_count");
+                        row.read(
+                                new OccurrenceId(occurrenceId),
+                                primaryLanguage,
+                                meanScoreIsNull,
+                                wordCount,
+                                pageCountIsNull ? null : pageCount,
+                                vowellessWordCount,
+                                singleCharacterWordCount);
+                    }
+                }
+            }
+            return null;
+        });
     }
 
     /** The same span, for a caller that holds a {@link JdbcTemplate} and no instance of this class. */

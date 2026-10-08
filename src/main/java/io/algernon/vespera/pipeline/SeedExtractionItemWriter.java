@@ -50,7 +50,7 @@ import org.springframework.stereotype.Component;
  * nothing was converted, so there is nothing measured -- but it still carries an {@code unusable_seed}
  * row, under {@link SeedExtractionOutcome#FILE_COULD_NOT_BE_OPENED}. While the step is not yet
  * recorded as finished and at least one such seed was met, this class does not call {@link
- * Ledger#finishStep}, so stage 5 goes no further in this invocation (ADR-155 section 2) and the next
+ * Runs#finishStep}, so stage 5 goes no further in this invocation (ADR-155 section 2) and the next
  * invocation discards and rewrites these same rows rather than walking past a seed set with a hole in
  * it.
  *
@@ -167,7 +167,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
         // every invocation regardless of whether this step's own rows are rewritten. A seed file that
         // stops opening after this step finished costs only the processor's own warning (ADR-155
         // section 2): the rows already written stand, and this branch sets no new fact.
-        if (ledger.stepFinished(runId, StepNames.SEED_EXTRACTION)) {
+        if (ledger.runs().stepFinished(runId, StepNames.SEED_EXTRACTION)) {
             log.info("Stage 5a (seed extraction) was already recorded under run {}", runId.value());
             return stepExecution.getExitStatus();
         }
@@ -212,7 +212,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             return stepExecution.getExitStatus();
         }
 
-        ledger.finishStep(runId, StepNames.SEED_EXTRACTION);
+        ledger.runs().finishStep(runId, StepNames.SEED_EXTRACTION);
         log.info(
                 "Stage 5 extracted the seed set under run {}: {} usable, {} recorded as unusable",
                 runId.value(),
