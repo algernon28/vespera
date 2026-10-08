@@ -54,7 +54,7 @@ public class SeedExtractionJobConfiguration {
     /**
      * Every occurrence of the seed folder's finished walk — or nothing at all, while the gate is shut.
      *
-     * <p>{@link Ledger#occurrencesOf} rather than {@code survivors}: no verdict is ever written against
+     * <p>{@code Occurrences#occurrencesOf} rather than {@code survivors}: no verdict is ever written against
      * a seed occurrence, so there is no survivor set to read, and filtering seeds through the corpus's
      * removals would drop a seed that happens to duplicate a corpus file.
      */
@@ -65,6 +65,6 @@ public class SeedExtractionJobConfiguration {
         if (seedWalk.isEmpty()) {
             return OccurrenceReader.yieldingNothing();
         }
-        return new OccurrenceReader(ledger.occurrencesOf(seedWalk.get().walkId()));
+        return new OccurrenceReader(ledger.occurrences().occurrencesOf(seedWalk.get().walkId()));
     }
 }

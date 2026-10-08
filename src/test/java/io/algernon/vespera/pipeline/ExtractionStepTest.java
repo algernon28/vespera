@@ -253,8 +253,8 @@ class ExtractionStepTest {
     }
 
     private OccurrenceId occurrenceOf(Path root, String fileName) {
-        WalkId walkId = ledger.finishedWalkFor(Walk.canonicalRoot(root)).orElseThrow();
-        return ledger.occurrenceId(walkId, new OccurrencePath(fileName)).orElseThrow();
+        WalkId walkId = ledger.walks().finishedWalkFor(Walk.canonicalRoot(root)).orElseThrow();
+        return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(fileName)).orElseThrow();
     }
 
     private List<String> verdictKindsFor(OccurrenceId occurrenceId) {

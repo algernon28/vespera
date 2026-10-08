@@ -56,9 +56,9 @@ class FrequencyProgressTest {
     @DisplayName("The loop is announced once with the number of distinct hashes, and each is reported, a row written or not")
     void announcesTheDistinctHashesOnceAndReportsEach() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.startWalk(Path.of("C:/corpus-frequency"));
-        RunId stage2 = ledger.startRun("extraction", "abc123", "{}", walk, List.of());
-        RunId stage3 = ledger.startRun("content-census", "def456", "{}", walk, List.of(stage2));
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-frequency"));
+        RunId stage2 = ledger.runs().startRun("extraction", "abc123", "{}", walk, List.of());
+        RunId stage3 = ledger.runs().startRun("content-census", "def456", "{}", walk, List.of(stage2));
         document(ledger, walk, stage2, "a.txt", 0, 10);
         document(ledger, walk, stage2, "b.txt", 5, 10);
         List<String> events = new ArrayList<>();
@@ -87,9 +87,9 @@ class FrequencyProgressTest {
     @DisplayName("With no shingle row the loop is still announced, with zero, and reports nothing")
     void aLoopWithNothingToGoThroughIsAnnouncedWithZero() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.startWalk(Path.of("C:/corpus-empty"));
-        RunId stage2 = ledger.startRun("extraction", "abc124", "{}", walk, List.of());
-        RunId stage3 = ledger.startRun("content-census", "def457", "{}", walk, List.of(stage2));
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-empty"));
+        RunId stage2 = ledger.runs().startRun("extraction", "abc124", "{}", walk, List.of());
+        RunId stage3 = ledger.runs().startRun("content-census", "def457", "{}", walk, List.of(stage2));
         List<String> events = new ArrayList<>();
 
         new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2, recording(events));
@@ -115,8 +115,8 @@ class FrequencyProgressTest {
     }
 
     private void document(Ledger ledger, WalkId walk, RunId stage2, String path, long from, int count) {
-        ledger.fileOccurrence(walk, new OccurrencePath(path), 1, Instant.EPOCH, Instant.EPOCH);
-        long occurrence = ledger.occurrenceId(walk, new OccurrencePath(path)).orElseThrow().value();
+        ledger.occurrences().fileOccurrence(walk, new OccurrencePath(path), 1, Instant.EPOCH, Instant.EPOCH);
+        long occurrence = ledger.occurrences().occurrenceId(walk, new OccurrencePath(path)).orElseThrow().value();
         for (long hash = from; hash < from + count; hash++) {
             jdbcTemplate.update(
                     "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"

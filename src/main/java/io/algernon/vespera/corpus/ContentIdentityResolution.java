@@ -13,8 +13,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.batch.infrastructure.item.ExecutionContext;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 
 /**
  * Stage 1's second pass: content identity over what the first pass left (ADR-188, moved from
@@ -36,8 +34,8 @@ public final class ContentIdentityResolution {
     }
 
     /**
-     * Reads the survivor set twice, in ascending size and never as a whole: the anti-join {@link
-     * Ledger#survivorsBySize} always runs excludes what the first pass verdicted, so this pass's own
+     * Reads the survivor set twice, in ascending size and never as a whole: the anti-join {@code
+     * Verdicts.survivorsBySize} always runs excludes what the first pass verdicted, so this pass's own
      * boundary needs no application-level filtering. The first read holds no survivor, only a count,
      * and the second holds one size at a time (ADR-200).
      *
@@ -50,7 +48,7 @@ public final class ContentIdentityResolution {
      * told, and is where the archive having gone stops the step (ADR-210 section 4).
      */
     public void resolve(RunId runId, Path canonicalRoot, HashingProgress progress) throws Exception {
-        progress.toSize(ledger.survivorCount(runId));
+        progress.toSize(ledger.verdicts().survivorCount(runId));
 
         progress.toHash(sizeEverySurvivor(runId, progress));
 
@@ -69,24 +67,18 @@ public final class ContentIdentityResolution {
      */
     private long sizeEverySurvivor(RunId runId, HashingProgress progress) throws Exception {
         long toHash = 0;
-        ItemStreamReader<SizedOccurrence> survivors = ledger.survivorsBySize(runId);
-        survivors.open(new ExecutionContext());
-        try {
-            long size = 0;
-            long sharingIt = 0;
-            for (SizedOccurrence next = survivors.read(); next != null; next = survivors.read()) {
-                if (sharingIt > 0 && next.sizeBytes() != size) {
-                    toHash += sharingIt >= 2 ? sharingIt : 0;
-                    sharingIt = 0;
-                }
-                size = next.sizeBytes();
-                sharingIt++;
-                progress.sized();
+        long size = 0;
+        long sharingIt = 0;
+        for (SizedOccurrence next : ledger.verdicts().survivorsBySize(runId)) {
+            if (sharingIt > 0 && next.sizeBytes() != size) {
+                toHash += sharingIt >= 2 ? sharingIt : 0;
+                sharingIt = 0;
             }
-            toHash += sharingIt >= 2 ? sharingIt : 0;
-        } finally {
-            survivors.close();
+            size = next.sizeBytes();
+            sharingIt++;
+            progress.sized();
         }
+        toHash += sharingIt >= 2 ? sharingIt : 0;
         return toHash;
     }
 
@@ -101,24 +93,18 @@ public final class ContentIdentityResolution {
      * one size and that one survivor are held.
      */
     private void eachSize(RunId runId, SizeVisitor visitor) throws Exception {
-        ItemStreamReader<SizedOccurrence> survivors = ledger.survivorsBySize(runId);
-        survivors.open(new ExecutionContext());
-        try {
-            List<OccurrenceId> sameSize = new ArrayList<>();
-            long size = 0;
-            for (SizedOccurrence next = survivors.read(); next != null; next = survivors.read()) {
-                if (!sameSize.isEmpty() && next.sizeBytes() != size) {
-                    visitor.visit(sameSize);
-                    sameSize = new ArrayList<>();
-                }
-                size = next.sizeBytes();
-                sameSize.add(next.occurrenceId());
-            }
-            if (!sameSize.isEmpty()) {
+        List<OccurrenceId> sameSize = new ArrayList<>();
+        long size = 0;
+        for (SizedOccurrence next : ledger.verdicts().survivorsBySize(runId)) {
+            if (!sameSize.isEmpty() && next.sizeBytes() != size) {
                 visitor.visit(sameSize);
+                sameSize = new ArrayList<>();
             }
-        } finally {
-            survivors.close();
+            size = next.sizeBytes();
+            sameSize.add(next.occurrenceId());
+        }
+        if (!sameSize.isEmpty()) {
+            visitor.visit(sameSize);
         }
     }
 
@@ -161,7 +147,7 @@ public final class ContentIdentityResolution {
                 .value();
         for (OccurrenceId superseded : resolution.superseded()) {
             contentIdentity.recordSupersededBy(superseded, runId, resolution.representative());
-            ledger.verdict(
+            ledger.verdicts().verdict(
                     superseded,
                     runId,
                     VerdictKind.SUPERSEDED_BY,
@@ -171,7 +157,7 @@ public final class ContentIdentityResolution {
     }
 
     private OccurrenceFacts factsFor(OccurrenceId occurrenceId) {
-        return ledger.factsFor(occurrenceId)
+        return ledger.occurrences().factsFor(occurrenceId)
                 .orElseThrow(() -> new IllegalStateException("no facts are recorded for occurrence " + occurrenceId.value()));
     }
 }

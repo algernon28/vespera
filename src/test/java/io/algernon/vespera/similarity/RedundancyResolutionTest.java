@@ -382,10 +382,10 @@ class RedundancyResolutionTest {
 
     private Fixture fixture() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        RunId stage2RunId = ledger.startRun("extraction", "abc123", "{}", walkId, List.of());
-        RunId stage3RunId = ledger.startRun("content-census", "def456", "{}", walkId, List.of(stage2RunId));
-        RunId stage4RunId = ledger.startRun("content-redundancy", "ghi789", "{}", walkId, List.of(stage3RunId));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        RunId stage2RunId = ledger.runs().startRun("extraction", "abc123", "{}", walkId, List.of());
+        RunId stage3RunId = ledger.runs().startRun("content-census", "def456", "{}", walkId, List.of(stage2RunId));
+        RunId stage4RunId = ledger.runs().startRun("content-redundancy", "ghi789", "{}", walkId, List.of(stage3RunId));
         return new Fixture(ledger, walkId, stage2RunId, stage3RunId, stage4RunId);
     }
 
@@ -407,10 +407,10 @@ class RedundancyResolutionTest {
 
         /** A stage-2 survivor with an explicit shingle set, a measured text size, and a creation time. */
         OccurrenceId document(String path, Set<Long> shingleHashes, long alphanumericCharCount, Instant createdAt) {
-            ledger.fileOccurrence(
+            ledger.occurrences().fileOccurrence(
                     walkId, new OccurrencePath(path), 1, Instant.parse("2026-08-29T10:15:30Z"), createdAt);
             OccurrenceId occurrenceId =
-                    ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+                    ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
             for (long hash : shingleHashes) {
                 jdbcTemplate.update(
                         "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"
@@ -451,7 +451,8 @@ class RedundancyResolutionTest {
                 signatures.write(
                         new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
             }
-            new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4RunId, stage3RunId, stage2RunId, Set.of());
+            new RedundancyResolution(jdbcTemplate, ledger)
+                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate));
         }
 
         /** The same pass, with resolution reading the store through {@code resolutionTemplate}. */
@@ -468,7 +469,8 @@ class RedundancyResolutionTest {
                 signatures.write(
                         new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
             }
-            new RedundancyResolution(resolutionTemplate, ledger).resolve(stage4RunId, stage3RunId, stage2RunId, Set.of());
+            new RedundancyResolution(resolutionTemplate, ledger)
+                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(resolutionTemplate));
         }
     }
 

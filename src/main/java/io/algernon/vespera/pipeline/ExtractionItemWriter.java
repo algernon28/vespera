@@ -26,7 +26,7 @@ class ExtractionItemWriter implements ItemWriter<ExtractionOutcome> {
     @Override
     public void write(Chunk<? extends ExtractionOutcome> outcomes) {
         for (ExtractionOutcome outcome : outcomes) {
-            ledger.verdict(outcome.occurrenceId(), stageRuns.extraction(), outcome.kind(), outcome.reason());
+            ledger.verdicts().verdict(outcome.occurrenceId(), stageRuns.extraction(), outcome.kind(), outcome.reason());
         }
     }
 }

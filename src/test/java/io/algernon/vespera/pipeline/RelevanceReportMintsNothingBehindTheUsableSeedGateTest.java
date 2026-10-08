@@ -211,7 +211,7 @@ class RelevanceReportMintsNothingBehindTheUsableSeedGateTest {
      * class shares one database with whatever else runs in its context.
      */
     private List<String> stagesOfRunsOver(Path root) {
-        long walkId = ledger.finishedWalkFor(Walk.canonicalRoot(root))
+        long walkId = ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))
                 .orElseThrow(() -> new IllegalStateException("census recorded no finished walk of " + root))
                 .value();
         return jdbcTemplate.queryForList("SELECT stage FROM run WHERE walk_id = ?", String.class, walkId);

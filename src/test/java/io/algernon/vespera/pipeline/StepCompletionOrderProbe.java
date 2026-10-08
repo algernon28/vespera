@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.Runs;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
@@ -18,7 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * both are committed by the time the job ends, so every assertion made after the run is true in
  * either order. Nothing in the pipeline reads {@code finished_step} again within one step execution
  * either, which is why the wrong order costs nothing a green run would show. The order is only
- * observable from inside, between the two writes, and {@link Ledger#finishStep} is the second of
+ * observable from inside, between the two writes, and {@link Runs#finishStep} is the second of
  * them -- so overriding it is the seam that sees the first one's result or its absence.
  *
  * <p>{@code @Primary} over the real {@code Ledger} bean rather than in place of it, because the
@@ -49,7 +50,7 @@ class StepCompletionOrderProbe {
     @Primary
     @DependsOnDatabaseInitialization
     Ledger stepCompletionOrderProbingLedger(JdbcTemplate jdbcTemplate) {
-        return new Ledger(jdbcTemplate) {
+        Runs probing = new Runs(jdbcTemplate) {
             @Override
             public void finishStep(RunId runId, String step) {
                 // Stage 2's step, by its persisted name: the probe watches the name the completion
@@ -60,6 +61,12 @@ class StepCompletionOrderProbe {
                     FAULT_ROWS_VISIBLE_WHEN_STAGE_2_WAS_RECORDED_COMPLETE.add(faults == null ? 0 : faults);
                 }
                 super.finishStep(runId, step);
+            }
+        };
+        return new Ledger(jdbcTemplate) {
+            @Override
+            public Runs runs() {
+                return probing;
             }
         };
     }

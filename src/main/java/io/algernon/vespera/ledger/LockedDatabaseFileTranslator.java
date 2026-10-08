@@ -16,8 +16,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Spring Boot hands the {@code JdbcTemplate} it builds, which every {@code JdbcTemplate} statement
  * uses, the application's {@link SQLExceptionTranslator} bean, when there is exactly one. This is that
- * bean. Ledger's two {@code JdbcPagingItemReader} reads ({@code survivors}, {@code occurrencesOf}) build
- * their own template inside Spring Batch, so they are not translated (ADR-177 §2.1). A failure with an
+ * bean. Every read of the ledger goes through that template, the three long reads ({@code survivors},
+ * {@code survivorsBySize}, {@code occurrencesOf}) included, a page at a time (ADR-209 §2). A failure with an
  * {@link SQLiteException} anywhere in its causes whose primary result code is {@code SQLITE_BUSY} (5) or
  * {@code SQLITE_LOCKED} (6) becomes a {@link DatabaseFileLockedException}, which covers the extended
  * codes too, {@code SQLITE_BUSY_SNAPSHOT} (517) among them. Anything else is translated as the template

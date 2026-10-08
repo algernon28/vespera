@@ -83,7 +83,7 @@ class CensusTaskletTest {
 
         claim(
                 "the " + CORPUS_FILES + " files under the corpus root were recorded as occurrences",
-                () -> assertThat(ledger.occurrenceCount(onlyWalk())).isEqualTo(CORPUS_FILES));
+                () -> assertThat(ledger.occurrences().occurrenceCount(onlyWalk())).isEqualTo(CORPUS_FILES));
         claim(
                 "the profile now exists, carrying the seed-folder key nobody has answered",
                 () -> assertThat(profileStore.load().seedFolder().isSet()).isFalse());
@@ -164,7 +164,7 @@ class CensusTaskletTest {
                 () -> assertThatCode(() -> census.execute(null, null)).doesNotThrowAnyException());
         claim(
                 "the corpus was recorded",
-                () -> assertThat(new Ledger(jdbcTemplate).occurrenceCount(onlyWalk())).isEqualTo(1));
+                () -> assertThat(new Ledger(jdbcTemplate).occurrences().occurrenceCount(onlyWalk())).isEqualTo(1));
         claim(
                 "and the profile carries why no seed walk happened",
                 () -> assertThat(profileStore.load().seedFolder().measurement().source())
@@ -237,6 +237,6 @@ class CensusTaskletTest {
     }
 
     private long occurrenceCountForRoot(Ledger ledger, Path root) throws IOException {
-        return ledger.occurrenceCount(new WalkId(walkIdForRoot(root)));
+        return ledger.occurrences().occurrenceCount(new WalkId(walkIdForRoot(root)));
     }
 }

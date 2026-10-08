@@ -73,7 +73,7 @@ class SeedGate {
             // already recorded why it could not walk it, so this is not a second report of one typo.
             return Optional.empty();
         }
-        return ledger.finishedWalkFor(canonicalSeedFolder)
+        return ledger.walks().finishedWalkFor(canonicalSeedFolder)
                 .map(walkId -> new SeedWalk(walkId, canonicalSeedFolder));
     }
 

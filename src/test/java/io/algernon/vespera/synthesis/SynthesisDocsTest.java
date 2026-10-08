@@ -172,21 +172,21 @@ class SynthesisDocsTest {
     private OccurrenceId anOccurrence(String path) {
         Ledger ledger = new Ledger(jdbcTemplate);
         if (walk == null) {
-            walk = ledger.startWalk(Path.of("C:/corpus"));
+            walk = ledger.walks().startWalk(Path.of("C:/corpus"));
         }
-        ledger.fileOccurrence(
+        ledger.occurrences().fileOccurrence(
                 walk,
                 new OccurrencePath(path),
                 1,
                 Instant.parse("2026-09-15T10:15:30Z"),
                 Instant.parse("2026-09-01T08:00:00Z"));
-        return ledger.occurrenceId(walk, new OccurrencePath(path)).orElseThrow();
+        return ledger.occurrences().occurrenceId(walk, new OccurrencePath(path)).orElseThrow();
     }
 
     private RunId aRun(OccurrenceId anyOccurrenceInTheWalk) {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = new WalkId(jdbcTemplate.queryForObject(
                 "SELECT walk_id FROM file_occurrence WHERE id = ?", Long.class, anyOccurrenceInTheWalk.value()));
-        return ledger.startRun("generation", "abc" + System.nanoTime(), "{}", walkId, List.of());
+        return ledger.runs().startRun("generation", "abc" + System.nanoTime(), "{}", walkId, List.of());
     }
 }

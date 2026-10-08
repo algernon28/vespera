@@ -18,8 +18,6 @@ import java.util.Objects;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.batch.infrastructure.item.ExecutionContext;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -66,19 +64,19 @@ class SurvivorsBySizeTest {
     @DisplayName("The survivors arrive by ascending size, then id, and the ruled-out ones are absent, across several pages")
     void arrivesBySizeThenIdAcrossPages() throws Exception {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.startWalk(Path.of("C:/corpus"));
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus"));
         List<SizedOccurrence> recorded = new ArrayList<>();
         for (int i = 0; i < OCCURRENCES_RECORDED; i++) {
             long size = (i * 13L) % DISTINCT_SIZES;
             OccurrencePath path = new OccurrencePath("f" + i + ".txt");
-            ledger.fileOccurrence(walk, path, size, WHEN, WHEN);
-            recorded.add(new SizedOccurrence(ledger.occurrenceId(walk, path).orElseThrow(), size));
+            ledger.occurrences().fileOccurrence(walk, path, size, WHEN, WHEN);
+            recorded.add(new SizedOccurrence(ledger.occurrences().occurrenceId(walk, path).orElseThrow(), size));
         }
-        RunId run = ledger.startRun("byte-level-reduction", "abc123", "{}", walk, List.of());
+        RunId run = ledger.runs().startRun("byte-level-reduction", "abc123", "{}", walk, List.of());
         List<SizedOccurrence> survivors = new ArrayList<>();
         for (int i = 0; i < recorded.size(); i++) {
             if (i % EVERY_SEVENTH == 0) {
-                ledger.verdict(recorded.get(i).occurrenceId(), run, VerdictKind.BROKEN, "ruled out");
+                ledger.verdicts().verdict(recorded.get(i).occurrenceId(), run, VerdictKind.BROKEN, "ruled out");
             } else {
                 survivors.add(recorded.get(i));
             }
@@ -87,7 +85,7 @@ class SurvivorsBySizeTest {
         expected.sort(Comparator.comparingLong(SizedOccurrence::sizeBytes)
                 .thenComparingLong(entry -> entry.occurrenceId().value()));
 
-        List<SizedOccurrence> read = readAll(ledger.survivorsBySize(run));
+        List<SizedOccurrence> read = readAll(ledger.verdicts().survivorsBySize(run));
 
         claim(
                 "every survivor arrives once, by ascending recorded size and then ascending id, and none that carries a"
@@ -100,22 +98,16 @@ class SurvivorsBySizeTest {
     @DisplayName("A verdict written for each survivor as it arrives loses no survivor still to come")
     void aVerdictWrittenMidReadRemovesNothingToCome() throws Exception {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.startWalk(Path.of("C:/corpus"));
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus"));
         for (int i = 0; i < OCCURRENCES_RECORDED; i++) {
-            ledger.fileOccurrence(walk, new OccurrencePath("f" + i + ".txt"), i % DISTINCT_SIZES, WHEN, WHEN);
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath("f" + i + ".txt"), i % DISTINCT_SIZES, WHEN, WHEN);
         }
-        RunId run = ledger.startRun("byte-level-reduction", "abc123", "{}", walk, List.of());
+        RunId run = ledger.runs().startRun("byte-level-reduction", "abc123", "{}", walk, List.of());
 
         int seen = 0;
-        ItemStreamReader<SizedOccurrence> reader = ledger.survivorsBySize(run);
-        reader.open(new ExecutionContext());
-        try {
-            for (SizedOccurrence entry = reader.read(); entry != null; entry = reader.read()) {
-                ledger.verdict(entry.occurrenceId(), run, VerdictKind.BROKEN, "written while reading");
-                seen++;
-            }
-        } finally {
-            reader.close();
+        for (SizedOccurrence entry : ledger.verdicts().survivorsBySize(run)) {
+            ledger.verdicts().verdict(entry.occurrenceId(), run, VerdictKind.BROKEN, "written while reading");
+            seen++;
         }
         int seenAll = seen;
 
@@ -131,12 +123,12 @@ class SurvivorsBySizeTest {
     void aPageNeedsNoSort() throws Exception {
         StatementsIssued issued = new StatementsIssued(Objects.requireNonNull(jdbcTemplate.getDataSource()));
         Ledger ledger = new Ledger(issued);
-        WalkId walk = ledger.startWalk(Path.of("C:/corpus"));
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus"));
         for (int i = 0; i < OCCURRENCES_RECORDED; i++) {
-            ledger.fileOccurrence(walk, new OccurrencePath("f" + i + ".txt"), i % DISTINCT_SIZES, WHEN, WHEN);
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath("f" + i + ".txt"), i % DISTINCT_SIZES, WHEN, WHEN);
         }
-        RunId run = ledger.startRun("byte-level-reduction", "abc123", "{}", walk, List.of());
-        ItemStreamReader<SizedOccurrence> reader = ledger.survivorsBySize(run);
+        RunId run = ledger.runs().startRun("byte-level-reduction", "abc123", "{}", walk, List.of());
+        Iterable<SizedOccurrence> reader = ledger.verdicts().survivorsBySize(run);
 
         // Only what the reader issues while it is read: the statement as shipped, with the arguments it was
         // given, and not a copy of it kept here that a change to the shipped one would leave passing.
@@ -196,15 +188,10 @@ class SurvivorsBySizeTest {
         }
     }
 
-    private static List<SizedOccurrence> readAll(ItemStreamReader<SizedOccurrence> reader) throws Exception {
+    private static List<SizedOccurrence> readAll(Iterable<SizedOccurrence> reader) {
         List<SizedOccurrence> read = new ArrayList<>();
-        reader.open(new ExecutionContext());
-        try {
-            for (SizedOccurrence entry = reader.read(); entry != null; entry = reader.read()) {
-                read.add(entry);
-            }
-        } finally {
-            reader.close();
+        for (SizedOccurrence entry : reader) {
+            read.add(entry);
         }
         return read;
     }

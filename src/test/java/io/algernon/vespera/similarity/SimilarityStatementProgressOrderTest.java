@@ -86,10 +86,10 @@ class SimilarityStatementProgressOrderTest {
         pool = new PoolOfTwo(folder);
         jdbcTemplate = pool.jdbcTemplate();
         ledger = new Ledger(jdbcTemplate);
-        walk = ledger.startWalk(Path.of("C:/corpus-statements"));
-        stage2 = ledger.startRun("extraction", "x1", "{}", walk, List.of());
-        stage3 = ledger.startRun("content-census", "y1", "{}", walk, List.of(stage2));
-        stage4 = ledger.startRun("content-redundancy", "z1", "{}", walk, List.of(stage3));
+        walk = ledger.walks().startWalk(Path.of("C:/corpus-statements"));
+        stage2 = ledger.runs().startRun("extraction", "x1", "{}", walk, List.of());
+        stage3 = ledger.runs().startRun("content-census", "y1", "{}", walk, List.of(stage2));
+        stage4 = ledger.runs().startRun("content-redundancy", "z1", "{}", walk, List.of(stage3));
     }
 
     @AfterEach
@@ -138,7 +138,7 @@ class SimilarityStatementProgressOrderTest {
         long signatureRows = spanOf("minhash_signature", stage4);
         Recorder recorder = new Recorder();
 
-        new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4, stage3, stage2, Set.of(), recorder);
+        new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder);
 
         claim(
                 "the four reads are reported once each, in the order resolution makes them: the signed"
@@ -178,7 +178,7 @@ class SimilarityStatementProgressOrderTest {
     void withNothingSignedOnlyTheFirstReadIsReported() {
         Recorder recorder = new Recorder();
 
-        new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4, stage3, stage2, Set.of(), recorder);
+        new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder);
 
         claim(
                 "the one read is started with an empty total and ended, and resolution returns: no later read is"
@@ -220,7 +220,7 @@ class SimilarityStatementProgressOrderTest {
         };
 
         assertThatThrownBy(() -> new RedundancyResolution(jdbcTemplate, ledger)
-                        .resolve(stage4, stage3, stage2, Set.of(), recorder))
+                        .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder))
                 .isInstanceOf(StoppedByTheTest.class);
 
         claim(
@@ -292,7 +292,7 @@ class SimilarityStatementProgressOrderTest {
         claim(
                 "resolution fails as the template reports any statement's failure, once the table is gone",
                 () -> assertThatThrownBy(() -> new RedundancyResolution(jdbcTemplate, ledger)
-                                .resolve(stage4, stage3, stage2, Set.of(), recorder))
+                                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder))
                         .isInstanceOf(DataAccessException.class));
         claim(
                 "the caller was told the read was starting, over the " + ONE_ROW + " row the run held, and never"
@@ -315,7 +315,7 @@ class SimilarityStatementProgressOrderTest {
         claim(
                 "resolution fails as the template reports any statement's failure, once the table is gone",
                 () -> assertThatThrownBy(() -> new RedundancyResolution(jdbcTemplate, ledger)
-                                .resolve(stage4, stage3, stage2, Set.of(), recorder))
+                                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder))
                         .isInstanceOf(DataAccessException.class));
         claim(
                 "the caller was told the read of the signed occurrences started and ended, and that the read of"
@@ -469,10 +469,10 @@ class SimilarityStatementProgressOrderTest {
 
     /** A document of a hundred shingle hashes from {@code from} on, with the metric row the survivor rule reads. */
     private void document(String path, long from) {
-        ledger.fileOccurrence(
+        ledger.occurrences().fileOccurrence(
                 walk, new OccurrencePath(path), 1, Instant.parse("2026-08-29T10:15:30Z"),
                 Instant.parse("2021-01-01T00:00:00Z"));
-        long occurrence = ledger.occurrenceId(walk, new OccurrencePath(path)).orElseThrow().value();
+        long occurrence = ledger.occurrences().occurrenceId(walk, new OccurrencePath(path)).orElseThrow().value();
         for (long hash = from; hash < from + A_HUNDRED_SHINGLES; hash++) {
             jdbcTemplate.update(
                     "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"

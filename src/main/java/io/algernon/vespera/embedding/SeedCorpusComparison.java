@@ -18,8 +18,6 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
-import org.springframework.batch.infrastructure.item.ExecutionContext;
-import org.springframework.batch.infrastructure.item.ItemStreamReader;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -29,12 +27,12 @@ import org.springframework.stereotype.Component;
  * in words that name both figures and judge neither. A measurement and a report — never a verdict,
  * never a gate, never a block (ADR-086's own words).
  *
- * <p><b>Corpus side is survivors</b>, not every occurrence: {@link Ledger#survivors} over the
+ * <p><b>Corpus side is survivors</b>, not every occurrence: {@code Verdicts#survivors} over the
  * measurement run, whose upstream is stage 4's run (ADR-089), because what matters is whether the
  * seeds resemble what would actually be scored (ADR-156).
  *
  * <p><b>Seed side is measured, usable seeds</b> (ADR-092, amending the premise ADR-086 stated).
- * {@link Ledger#occurrencesOf} the seed walk names every candidate; a candidate with no {@code
+ * {@code Occurrences#occurrencesOf} the seed walk names every candidate; a candidate with no {@code
  * extraction_metric} row under the measurement run was never measured at all and is counted, never
  * silently folded into a category ("cannot say" is a measurement that was taken; no row is not); a
  * candidate recorded in {@code unusable_seed} under this run was measured but is outside the
@@ -87,14 +85,16 @@ public class SeedCorpusComparison {
      * survivors, writes the comparison under {@code measurementRunId}, and returns the same value —
      * the value {@code pipeline} then renders as the HTML report (ADR-075). {@code extractionRunId}
      * names the run whose {@code extraction_metric} rows carry the corpus side's measurements
-     * (ADR-086); it is not the run survivors are read through (ADR-156).
+     * (ADR-086); it is not the run survivors are read through (ADR-156). {@code forms} reads those rows,
+     * which are {@code extraction}'s (ADR-209 section 3.2).
      */
-    public Comparison measure(RunId measurementRunId, RunId extractionRunId, WalkId seedWalkId) {
-        return measure(measurementRunId, extractionRunId, seedWalkId, EmbeddingStatementProgress.NONE);
+    public Comparison measure(
+            RunId measurementRunId, RunId extractionRunId, WalkId seedWalkId, MeasuredForms forms) {
+        return measure(measurementRunId, extractionRunId, seedWalkId, forms, EmbeddingStatementProgress.NONE);
     }
 
     /**
-     * As {@link #measure(RunId, RunId, WalkId)}, and tells {@code progress} about the five statements that
+     * As {@link #measure(RunId, RunId, WalkId, MeasuredForms)}, and tells {@code progress} about the five statements that
      * wait, each started once before it and ended once after it, in the order they are issued (ADR-193
      * section 7): the two drains, {@link EmbeddingStatement#CORPUS_SURVIVORS} and {@link
      * EmbeddingStatement#SEED_OCCURRENCES}, timed, so with no total; then the three counted reads, {@link
@@ -108,19 +108,20 @@ public class SeedCorpusComparison {
             RunId measurementRunId,
             RunId extractionRunId,
             WalkId seedWalkId,
+            MeasuredForms forms,
             EmbeddingStatementProgress progress) {
         progress.statementStarting(EmbeddingStatement.CORPUS_SURVIVORS, OptionalLong.empty());
-        Set<Long> corpusSurvivorIds = drain(ledger.survivors(measurementRunId));
+        Set<Long> corpusSurvivorIds = idsOf(ledger.verdicts().survivors(measurementRunId));
         progress.statementEnded(EmbeddingStatement.CORPUS_SURVIVORS);
         progress.statementStarting(EmbeddingStatement.SEED_OCCURRENCES, OptionalLong.empty());
-        Set<Long> seedCandidateIds = drain(ledger.occurrencesOf(seedWalkId));
+        Set<Long> seedCandidateIds = idsOf(ledger.occurrences().occurrencesOf(seedWalkId));
         progress.statementEnded(EmbeddingStatement.SEED_OCCURRENCES);
         Set<Long> unusableSeedIds = unusableSeedIds(measurementRunId, progress);
 
         List<MetricRow> corpusRows =
-                metricRows(extractionRunId, corpusSurvivorIds, EmbeddingStatement.CORPUS_METRICS, progress);
+                metricRows(forms, extractionRunId, corpusSurvivorIds, EmbeddingStatement.CORPUS_METRICS, progress);
         List<MetricRow> allSeedRows =
-                metricRows(measurementRunId, seedCandidateIds, EmbeddingStatement.SEED_METRICS, progress);
+                metricRows(forms, measurementRunId, seedCandidateIds, EmbeddingStatement.SEED_METRICS, progress);
         List<MetricRow> seedRows = allSeedRows.stream()
                 .filter(row -> !unusableSeedIds.contains(row.occurrenceId()))
                 .toList();
@@ -399,44 +400,30 @@ public class SeedCorpusComparison {
      * call made, where there is no candidate.
      */
     private List<MetricRow> metricRows(
-            RunId runId, Set<Long> candidateIds, EmbeddingStatement statement, EmbeddingStatementProgress progress) {
+            MeasuredForms forms,
+            RunId runId,
+            Set<Long> candidateIds,
+            EmbeddingStatement statement,
+            EmbeddingStatementProgress progress) {
         if (candidateIds.isEmpty()) {
             return List.of();
         }
-        progress.statementStarting(statement, spanOfRun("extraction_metric", runId));
-        List<MetricRow> rows = StatementSteps.counted(
-                jdbcTemplate, steps -> progress.stepsTaken(statement, steps), connection -> {
-                    List<MetricRow> read = new ArrayList<>();
-                    try (PreparedStatement select = connection.prepareStatement(
-                            "SELECT occurrence_id, primary_language, mean_score, word_count, page_count,"
-                                    + " vowelless_word_count, single_character_word_count FROM extraction_metric"
-                                    + " WHERE run_id = ?")) {
-                        select.setString(1, runId.value());
-                        try (ResultSet resultSet = select.executeQuery()) {
-                            while (resultSet.next()) {
-                                long occurrenceId = resultSet.getLong("occurrence_id");
-                                String primaryLanguage = resultSet.getString("primary_language");
-                                resultSet.getDouble("mean_score");
-                                boolean meanScoreIsNull = resultSet.wasNull();
-                                int wordCount = resultSet.getInt("word_count");
-                                int pageCount = resultSet.getInt("page_count");
-                                boolean pageCountIsNull = resultSet.wasNull();
-                                int vowellessWordCount = resultSet.getInt("vowelless_word_count");
-                                int singleCharacterWordCount = resultSet.getInt("single_character_word_count");
-                                if (candidateIds.contains(occurrenceId)) {
-                                    read.add(new MetricRow(
-                                            occurrenceId,
-                                            primaryLanguage,
-                                            meanScoreIsNull,
-                                            wordCount,
-                                            pageCountIsNull ? null : pageCount,
-                                            vowellessWordCount,
-                                            singleCharacterWordCount));
-                                }
-                            }
-                        }
+        progress.statementStarting(statement, forms.rowsUpTo(runId));
+        List<MetricRow> rows = new ArrayList<>();
+        forms.each(
+                runId,
+                steps -> progress.stepsTaken(statement, steps),
+                (occurrence, language, meanScoreIsNull, words, pages, vowelless, singleCharacter) -> {
+                    if (candidateIds.contains(occurrence.value())) {
+                        rows.add(new MetricRow(
+                                occurrence.value(),
+                                language,
+                                meanScoreIsNull,
+                                words,
+                                pages,
+                                vowelless,
+                                singleCharacter));
                     }
-                    return read;
                 });
         progress.statementEnded(statement);
         return rows;
@@ -445,7 +432,8 @@ public class SeedCorpusComparison {
     /**
      * The span of {@code run}'s rowids in {@code table}, greatest less least plus one, as two statements and
      * never one (ADR-191 section 2): each is one descent of the index on {@code run_id} alone. Empty for a
-     * run that holds no row. {@code table} is a constant of this class, never a caller's text.
+     * run that holds no row. {@code table} is a constant of this class, never a caller's text, and one
+     * of this module's own (ADR-209 section 3).
      */
     private OptionalLong spanOfRun(String table, RunId run) {
         Long least = jdbcTemplate.queryForObject(
@@ -459,23 +447,14 @@ public class SeedCorpusComparison {
     }
 
     /**
-     * Drains a survivor-shaped reader to exhaustion — the same shape {@code
-     * extraction.ConfidenceDistribution.drainSurvivors} already uses — because the whole population is
-     * needed to test every {@code extraction_metric} row against, not one chunk of it.
+     * Every id of {@code occurrences} in a set, because the whole population is needed to test every
+     * {@code extraction_metric} row against, not one page of it (a departure from ADR-060 that ADR-209
+     * section 2 states).
      */
-    private static Set<Long> drain(ItemStreamReader<OccurrenceId> reader) {
+    private static Set<Long> idsOf(Iterable<OccurrenceId> occurrences) {
         Set<Long> ids = new HashSet<>();
-        try {
-            reader.open(new ExecutionContext());
-            try {
-                for (OccurrenceId id = reader.read(); id != null; id = reader.read()) {
-                    ids.add(id.value());
-                }
-            } finally {
-                reader.close();
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException("could not read the seed/corpus comparison's own population", e);
+        for (OccurrenceId id : occurrences) {
+            ids.add(id.value());
         }
         return ids;
     }

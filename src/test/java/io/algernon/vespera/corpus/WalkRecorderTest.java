@@ -47,6 +47,13 @@ import org.springframework.transaction.support.TransactionTemplate;
  * is what census returns. What "exactly" covers is the whole of what a walk records — the occurrence
  * rows, the anomaly rows and {@code directories_entered} — so one of the four differs in nothing but
  * an anomaly, and one changes the root and changes it back.
+ *
+ * <p>One more looks twice at a root holding an anomaly, and holds the discard to deleting it (ADR-209
+ * section 3.1): {@code corpus} deletes the discarded walk's anomalies, and only then does the ledger
+ * delete the walk, since an anomaly refers to its walk and the database refuses the walk's delete while
+ * one stands. It drives a scripted traversal that reports the anomaly, because the tests here that
+ * create a name with an unpaired surrogate abort on a file system that refuses one, Linux's among them,
+ * and this one has to run there.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -101,7 +108,7 @@ class WalkRecorderTest {
 
         claim(
                 "the one file written was recorded as an occurrence under the walk's own id",
-                () -> assertThat(ledger.occurrencesForWalk(walkId))
+                () -> assertThat(ledger.occurrences().occurrencesForWalk(walkId))
                         .extracting(RecordedOccurrence::path)
                         .containsExactly(new OccurrencePath("a.txt")));
     }
@@ -150,12 +157,12 @@ class WalkRecorderTest {
                 () -> assertThat(resumed).isEqualTo(stopped));
         claim(
                 "both files are recorded exactly once between the two sessions",
-                () -> assertThat(ledger.occurrencesForWalk(resumed))
+                () -> assertThat(ledger.occurrences().occurrencesForWalk(resumed))
                         .extracting(RecordedOccurrence::path)
                         .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
         claim(
                 "the walk is now finished, and so eligible as run input",
-                () -> assertThat(ledger.walkFinished(resumed)).isTrue());
+                () -> assertThat(ledger.walks().walkFinished(resumed)).isTrue());
     }
 
     @Test
@@ -174,10 +181,10 @@ class WalkRecorderTest {
 
         claim(
                 "a walk that did not reach the end of the tree is not marked finished",
-                () -> assertThat(ledger.walkFinished(stopped)).isFalse());
+                () -> assertThat(ledger.walks().walkFinished(stopped)).isFalse());
         claim(
                 "it is still offered for continuation, under the id it already has",
-                () -> assertThat(ledger.unfinishedWalk(Walk.canonicalRoot(root)).orElseThrow().walkId())
+                () -> assertThat(ledger.walks().unfinishedWalk(Walk.canonicalRoot(root)).orElseThrow().walkId())
                         .isEqualTo(stopped));
     }
 
@@ -219,10 +226,10 @@ class WalkRecorderTest {
 
         claim(
                 "the three files written are recorded once each, no session having repeated another's work",
-                () -> assertThat(ledger.occurrenceCount(walkId)).isEqualTo(3));
+                () -> assertThat(ledger.occurrences().occurrenceCount(walkId)).isEqualTo(3));
         claim(
                 "reconciliation passed, which is the only way walk() returns at all once a walk finishes",
-                () -> assertThat(ledger.walkFinished(walkId)).isTrue());
+                () -> assertThat(ledger.walks().walkFinished(walkId)).isTrue());
     }
 
     @Test
@@ -250,10 +257,10 @@ class WalkRecorderTest {
                 () -> assertThat(anomalyLog.anomalyCount(walkId)).isEqualTo(1));
         claim(
                 "the other became an occurrence",
-                () -> assertThat(ledger.occurrenceCount(walkId)).isEqualTo(1));
+                () -> assertThat(ledger.occurrences().occurrenceCount(walkId)).isEqualTo(1));
         claim(
                 "and the walk finished, which it only does once reconciliation has balanced",
-                () -> assertThat(ledger.walkFinished(walkId)).isTrue());
+                () -> assertThat(ledger.walks().walkFinished(walkId)).isTrue());
     }
 
     @Test
@@ -273,7 +280,7 @@ class WalkRecorderTest {
         claim(
                 "nothing was written for the entries the stopped session had reported, because it never"
                         + " reached a commit — which is what leaves the database at a point worth resuming from",
-                () -> assertThat(ledger.occurrenceCount(stopped)).isZero());
+                () -> assertThat(ledger.occurrences().occurrenceCount(stopped)).isZero());
 
         WalkId resumed = recorder().walk(root);
 
@@ -283,7 +290,7 @@ class WalkRecorderTest {
         claim(
                 "both files are recorded exactly once: the entry the first session reported and dropped was"
                         + " walked again, not lost and not doubled",
-                () -> assertThat(ledger.occurrencesForWalk(resumed))
+                () -> assertThat(ledger.occurrences().occurrencesForWalk(resumed))
                         .extracting(RecordedOccurrence::path)
                         .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
     }
@@ -326,7 +333,41 @@ class WalkRecorderTest {
         claim(
                 "and the one file that was there is recorded once beneath it, not " + TWO_LOOKS + " times:"
                         + " the second look's copy of it went with the look that was discarded",
-                () -> assertThat(ledger().occurrencesForWalk(first)).hasSize(THE_ONE_FILE));
+                () -> assertThat(ledger().occurrences().occurrencesForWalk(first)).hasSize(THE_ONE_FILE));
+    }
+
+    /** The one entry the scripted look meets and cannot take in as a file, which it writes down instead. */
+    private static final int THE_ONE_NOTE = 1;
+
+    /** How the scripted look renders that entry, so its rows can be counted whichever look wrote them. */
+    private static final String THE_SCRIPTED_NOTE = "orphan-whose-name-has-no-utf-8-encoding.txt";
+
+    @Test
+    @Story("Looking twice at a folder nothing has happened to is one look")
+    @DisplayName("Looking again at an unchanged folder holding something not taken in as a file keeps one note of it")
+    @Issue("350")
+    @Link(name = "ADR-209", url = Adr.THE_LEDGER_IS_FOUR_RECORDS_AND_A_TABLES_SQL_IS_ITS_OWNERS, type = "adr")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void aSecondLookAtAnUnchangedFolderHoldingAnAnomalyKeepsOneRecordOfIt(@TempDir Path root) throws IOException {
+        WalkId first = recorder(oneFileAndOneAnomaly()).walk(root);
+        WalkId second = recorder(oneFileAndOneAnomaly()).walk(root);
+
+        claim(
+                "the second look answers with the first look's own record: it met the same file, and the same"
+                        + " thing it could not take in as a file and wrote down instead, so it saw nothing new",
+                () -> assertThat(second).isEqualTo(first));
+        claim(
+                "exactly " + ONE_LOOK + " record of looking at this folder is kept, so the second look's own"
+                        + " record was removed",
+                () -> assertThat(looksAt(root)).isEqualTo(ONE_LOOK));
+        claim(
+                "and the note of what could not be taken in as a file is kept " + THE_ONE_NOTE + " time, not"
+                        + " " + TWO_LOOKS + ": the second look's copy of it was removed first, and only then the"
+                        + " look, which cannot be removed while a note still refers to it",
+                () -> assertThat(notesRenderedAs(THE_SCRIPTED_NOTE)).isEqualTo(THE_ONE_NOTE));
+        claim(
+                "the note kept is the first look's",
+                () -> assertThat(anomalyLog().anomalyCount(first)).isEqualTo(THE_ONE_NOTE));
     }
 
     @Test
@@ -434,6 +475,26 @@ class WalkRecorderTest {
                 "SELECT COUNT(*) FROM walk WHERE root = ?",
                 Integer.class,
                 Walk.canonicalRoot(root).toString());
+    }
+
+    /** How many walk anomaly rows, under any walk, carry {@code pathRendering}. */
+    private int notesRenderedAs(String pathRendering) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM walk_anomaly WHERE path_rendering = ?", Integer.class, pathRendering);
+    }
+
+    /**
+     * A finished look at a folder holding one file and one entry it cannot take in as a file, which it
+     * reports as an anomaly: two entries beneath the root and the root itself entered, so the walk's counts
+     * balance (ADR-056). Scripted, so that it runs on every file system.
+     */
+    private static WalkRecorder.Traversal oneFileAndOneAnomaly() {
+        return (root, observer, resumeFrom) -> {
+            observer.fileOccurrence(
+                    new OccurrencePath("a.txt"), 2, java.time.Instant.EPOCH, java.time.Instant.EPOCH);
+            observer.anomaly(THE_SCRIPTED_NOTE, WalkAnomalyKind.UNENCODABLE_PATH, "no UTF-8 encoding");
+            return new Walk.Outcome(root, new Walk.Progress(2, 1, 1, 1), true, null);
+        };
     }
 
     /**

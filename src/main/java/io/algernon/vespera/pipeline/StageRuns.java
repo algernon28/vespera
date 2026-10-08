@@ -41,7 +41,7 @@ import org.springframework.stereotype.Component;
  * property of each call site rather than of scoping. A caller checks its own gate and only past it
  * calls the accessor here; an accessor whose input is a gate's value throws {@link
  * IllegalStateException} if called while that value is absent, so a caller that forgets its gate fails
- * loudly, before {@code Ledger.startRun}, rather than minting.
+ * loudly, before {@code Runs.startRun}, rather than minting.
  *
  * <p>Each stage keeps its own private {@code ConfigConsumed} record and its own module list, in the
  * exact shape and order the run class it replaces used — that is what keeps {@code

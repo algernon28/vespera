@@ -21,7 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * {@link Ledger#extractionFailures}: what stage 2's review list is read from (ADR-175 section 7). It
+ * {@link Verdicts#extractionFailures}: what stage 2's review list is read from (ADR-175 section 7). It
  * returns the occurrences carrying {@code extraction-failed} under one run, each with its path and the
  * verdict's reason, in path order, and nothing else.
  *
@@ -69,19 +69,19 @@ class ExtractionFailuresOfARunTest {
     @DisplayName("Asking which documents a run failed to convert returns those documents by path with the reason for each, and none removed for another reason or under another run")
     void returnsTheRunsFailedConversionsInPathOrderAndNothingElse() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus-of-392"));
-        RunId asked = ledger.startRun(STAGE, "a version", "{}", walkId, List.of());
-        RunId other = ledger.startRun(STAGE, "another version", "{}", walkId, List.of());
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-of-392"));
+        RunId asked = ledger.runs().startRun(STAGE, "a version", "{}", walkId, List.of());
+        RunId other = ledger.runs().startRun(STAGE, "another version", "{}", walkId, List.of());
         OccurrenceId first = record(ledger, walkId, RECORDED_FIRST);
         OccurrenceId second = record(ledger, walkId, RECORDED_SECOND);
         OccurrenceId anotherKind = record(ledger, walkId, REMOVED_AS_ANOTHER_KIND);
         OccurrenceId anotherRun = record(ledger, walkId, REMOVED_UNDER_ANOTHER_RUN);
-        ledger.verdict(first, asked, VerdictKind.EXTRACTION_FAILED, WHY_THE_FIRST);
-        ledger.verdict(second, asked, VerdictKind.EXTRACTION_FAILED, WHY_THE_SECOND);
-        ledger.verdict(anotherKind, asked, VerdictKind.DEGENERATE_OUTPUT, "another kind");
-        ledger.verdict(anotherRun, other, VerdictKind.EXTRACTION_FAILED, "another run");
+        ledger.verdicts().verdict(first, asked, VerdictKind.EXTRACTION_FAILED, WHY_THE_FIRST);
+        ledger.verdicts().verdict(second, asked, VerdictKind.EXTRACTION_FAILED, WHY_THE_SECOND);
+        ledger.verdicts().verdict(anotherKind, asked, VerdictKind.DEGENERATE_OUTPUT, "another kind");
+        ledger.verdicts().verdict(anotherRun, other, VerdictKind.EXTRACTION_FAILED, "another run");
 
-        List<RemovedOccurrence> failures = ledger.extractionFailures(asked);
+        List<RemovedOccurrence> failures = ledger.verdicts().extractionFailures(asked);
 
         claim(
                 "the two documents the run failed to convert are returned, each with its path and the reason"
@@ -99,15 +99,15 @@ class ExtractionFailuresOfARunTest {
                         .doesNotContain(REMOVED_AS_ANOTHER_KIND, REMOVED_UNDER_ANOTHER_RUN));
         claim(
                 "asked of the other run, it returns that run's one failed conversion and nothing of this one's",
-                () -> assertThat(ledger.extractionFailures(other))
+                () -> assertThat(ledger.verdicts().extractionFailures(other))
                         .extracting(RemovedOccurrence::path)
                         .containsExactly(REMOVED_UNDER_ANOTHER_RUN));
     }
 
     private static OccurrenceId record(Ledger ledger, WalkId walkId, String path) {
         OccurrencePath occurrencePath = new OccurrencePath(path);
-        ledger.fileOccurrence(
+        ledger.occurrences().fileOccurrence(
                 walkId, occurrencePath, 1, Instant.parse("2026-10-03T10:15:30Z"), Instant.parse("2026-10-03T08:00:00Z"));
-        return ledger.occurrenceId(walkId, occurrencePath).orElseThrow();
+        return ledger.occurrences().occurrenceId(walkId, occurrencePath).orElseThrow();
     }
 }

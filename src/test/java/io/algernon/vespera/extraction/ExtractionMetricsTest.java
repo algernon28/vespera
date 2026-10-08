@@ -121,16 +121,16 @@ class ExtractionMetricsTest {
 
     private OccurrenceId anOccurrence() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        ledger.fileOccurrence(
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        ledger.occurrences().fileOccurrence(
                 walkId, new OccurrencePath("document.txt"), 10, Instant.parse("2026-01-01T00:00:00Z"), Instant.parse(
                         "2026-01-01T00:00:00Z"));
-        return ledger.occurrenceId(walkId, new OccurrencePath("document.txt")).orElseThrow();
+        return ledger.occurrences().occurrenceId(walkId, new OccurrencePath("document.txt")).orElseThrow();
     }
 
     private RunId aRun() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/another-corpus"));
-        return ledger.startRun("extraction", "abc123", "{}", walkId, List.of());
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/another-corpus"));
+        return ledger.runs().startRun("extraction", "abc123", "{}", walkId, List.of());
     }
 }

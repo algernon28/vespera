@@ -198,7 +198,7 @@ class NextAction {
             return Optional.empty();
         }
         Path tree = workingDirectory.resolve(Deliverable.DIRECTORY_NAME).resolve(generation.value());
-        List<RunId> upstream = ledger.upstreamRuns(generation);
+        List<RunId> upstream = ledger.runs().upstreamRuns(generation);
         if (upstream.size() != 1) {
             throw new IllegalStateException("generation run " + generation.value() + " records "
                     + upstream.size() + " upstream runs; exactly one arrangement is expected");

@@ -41,7 +41,7 @@ class AnomalyLogTest {
     @Link(name = "ADR-053", url = Adr.WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS, type = "adr")
     @Link(name = "ADR-041", url = Adr.LEDGER_OWNS_IDENTITY_AND_VERDICTS, type = "adr")
     void recordsAWalkAnomalyAndReadsItBackByWalkId() {
-        WalkId walkId = new Ledger(jdbcTemplate).startWalk(Path.of("C:/corpus"));
+        WalkId walkId = new Ledger(jdbcTemplate).walks().startWalk(Path.of("C:/corpus"));
         AnomalyLog anomalyLog = new AnomalyLog(jdbcTemplate);
 
         anomalyLog.anomaly(walkId, "orphan.txt", WalkAnomalyKind.UNENCODABLE_PATH, "no UTF-8 encoding");

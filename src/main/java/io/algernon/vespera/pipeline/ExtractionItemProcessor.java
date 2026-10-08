@@ -393,7 +393,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
 
     /** The path census recorded the occurrence under, relative to the corpus root. */
     private String recordedPath(OccurrenceId occurrenceId) {
-        OccurrenceFacts facts = ledger.factsFor(occurrenceId)
+        OccurrenceFacts facts = ledger.occurrences().factsFor(occurrenceId)
                 .orElseThrow(
                         () -> new IllegalStateException("no facts are recorded for occurrence " + occurrenceId.value()));
         return facts.path().value();

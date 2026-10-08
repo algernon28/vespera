@@ -42,6 +42,15 @@ public class AnomalyLog {
         return count == null ? 0 : count;
     }
 
+    /**
+     * Deletes the walk anomalies recorded against {@code walkId} and no other walk's (ADR-209 section
+     * 3.1). An anomaly refers to its walk, so with foreign keys on the walk's row cannot be discarded
+     * while one stands: the caller deletes these first.
+     */
+    void discardForWalk(WalkId walkId) {
+        jdbcTemplate.update("DELETE FROM walk_anomaly WHERE walk_id = ?", walkId.value());
+    }
+
     /** The walk anomalies recorded against {@code walkId}. */
     List<RecordedAnomaly> anomaliesForWalk(WalkId walkId) {
         return jdbcTemplate.query(

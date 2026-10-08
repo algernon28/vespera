@@ -202,7 +202,7 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
     }
 
     private Path resolvePath(OccurrenceId occurrenceId) {
-        OccurrenceFacts facts = ledger.factsFor(occurrenceId)
+        OccurrenceFacts facts = ledger.occurrences().factsFor(occurrenceId)
                 .orElseThrow(
                         () -> new IllegalStateException(
                                 "no facts are recorded for occurrence " + occurrenceId.value()));

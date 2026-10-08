@@ -171,7 +171,7 @@ class ContentIdentityResolutionTest {
         OccurrenceId removed = corpus.occurrence("copy-1.txt", "identical copies", EARLIER);
         OccurrenceId copy = corpus.occurrence("copy-2.txt", "identical copies", LATER);
         RunId run = corpus.run();
-        corpus.ledger.verdict(removed, run, VerdictKind.BROKEN, "removed earlier in the same stage, by this test");
+        corpus.ledger.verdicts().verdict(removed, run, VerdictKind.BROKEN, "removed earlier in the same stage, by this test");
 
         corpus.resolution().resolve(run, root, new RecordedHashing());
 
@@ -255,18 +255,18 @@ class ContentIdentityResolutionTest {
 
         Corpus(Path root) {
             this.root = root;
-            this.walk = ledger.startWalk(root);
+            this.walk = ledger.walks().startWalk(root);
         }
 
         OccurrenceId occurrence(String name, String content, Instant created) throws IOException {
             Path file = root.resolve(name);
             Files.writeString(file, content);
-            ledger.fileOccurrence(walk, new OccurrencePath(name), Files.size(file), created, created);
-            return ledger.occurrenceId(walk, new OccurrencePath(name)).orElseThrow();
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath(name), Files.size(file), created, created);
+            return ledger.occurrences().occurrenceId(walk, new OccurrencePath(name)).orElseThrow();
         }
 
         RunId run() {
-            return ledger.startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
+            return ledger.runs().startRun("byte-level-reduction", "corpus-under-test", "{}", walk, List.of());
         }
 
         ContentIdentityResolution resolution() {

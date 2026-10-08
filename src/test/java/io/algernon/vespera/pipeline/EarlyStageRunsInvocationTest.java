@@ -136,7 +136,7 @@ class EarlyStageRunsInvocationTest {
                 "extraction records as what it read exactly one piece of work, the byte-level reduction"
                         + " this invocation did over this archive, so what a judgement was derived from is"
                         + " answerable later without re-deriving it",
-                () -> assertThat(ledger.upstreamRuns(theRunOf("extraction", root)))
+                () -> assertThat(ledger.runs().upstreamRuns(theRunOf("extraction", root)))
                         .containsExactly(theRunOf("byte-level-reduction", root)));
     }
 
@@ -152,7 +152,7 @@ class EarlyStageRunsInvocationTest {
                 "stage 3 records as what it read the extraction this invocation did over this archive, so"
                         + " a later question about what its document frequency was measured over is"
                         + " answerable from the run row itself",
-                () -> assertThat(ledger.upstreamRuns(theRunOf("content-census", root)))
+                () -> assertThat(ledger.runs().upstreamRuns(theRunOf("content-census", root)))
                         .containsExactly(theRunOf("extraction", root)));
     }
 
@@ -182,9 +182,9 @@ class EarlyStageRunsInvocationTest {
                 "and stage 3 over each archive names that archive's own extraction -- nothing in it"
                         + " hard-codes which archive was walked",
                 () -> {
-                    assertThat(ledger.upstreamRuns(theRunOf("content-census", firstArchive)))
+                    assertThat(ledger.runs().upstreamRuns(theRunOf("content-census", firstArchive)))
                             .containsExactly(theRunOf("extraction", firstArchive));
-                    assertThat(ledger.upstreamRuns(theRunOf("content-census", secondArchive)))
+                    assertThat(ledger.runs().upstreamRuns(theRunOf("content-census", secondArchive)))
                             .containsExactly(theRunOf("extraction", secondArchive));
                 });
     }

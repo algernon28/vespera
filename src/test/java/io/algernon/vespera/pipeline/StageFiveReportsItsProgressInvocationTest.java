@@ -862,7 +862,7 @@ class StageFiveReportsItsProgressInvocationTest {
 
     /** {@code files} recorded under a walk of a folder that does not exist: in no run's survivors. */
     private List<Long> filesOfAFolderNobodyWalked(int files) {
-        WalkId walk = ledger.startWalk(Path.of("C:/synthetic-" + System.nanoTime()));
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/synthetic-" + System.nanoTime()));
         List<Object[]> rows = new ArrayList<>();
         for (int file = 0; file < files; file++) {
             rows.add(new Object[] {walk.value(), "synthetic-" + file + ".txt"});

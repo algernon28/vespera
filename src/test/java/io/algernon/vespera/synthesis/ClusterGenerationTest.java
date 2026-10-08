@@ -153,7 +153,7 @@ class ClusterGenerationTest {
         engine = new ScriptedEngine();
         generation = new ClusterGeneration(new ClusterSynthesis(engine), synthesisDocs, clusterFaults);
         seed = anOccurrence(SEED_PATH);
-        run = new Ledger(jdbcTemplate).startRun("generation", "g" + System.nanoTime(), "{}", theWalkOf(seed), List.of());
+        run = new Ledger(jdbcTemplate).runs().startRun("generation", "g" + System.nanoTime(), "{}", theWalkOf(seed), List.of());
         askedForDocuments.clear();
         reported.clear();
         documentsOf.clear();
@@ -614,18 +614,18 @@ class ClusterGenerationTest {
     private OccurrenceId anOccurrence(String path) {
         documents.clear();
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        ledger.fileOccurrence(
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        ledger.occurrences().fileOccurrence(
                 walkId, new OccurrencePath(path), 1, Instant.parse("2026-09-15T10:15:30Z"), Instant.parse("2026-09-01T08:00:00Z"));
-        return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+        return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
     }
 
     private OccurrenceId anotherOccurrenceInTheWalkOf(OccurrenceId sibling, String path) {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = theWalkOf(sibling);
-        ledger.fileOccurrence(
+        ledger.occurrences().fileOccurrence(
                 walkId, new OccurrencePath(path), 1, Instant.parse("2026-09-15T10:15:30Z"), Instant.parse("2026-09-01T08:00:00Z"));
-        return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+        return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
     }
 
     private WalkId theWalkOf(OccurrenceId occurrence) {

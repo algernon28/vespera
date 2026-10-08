@@ -142,11 +142,11 @@ class SurvivalOverAReusedWalkTest {
         claim(
                 "and they still remove both documents from the strict run's own survivors, so a verdict"
                         + " under the run it was written under keeps its force",
-                () -> assertThat(ItemStreamReaders.drain(ledger.survivors(new RunId(theStrictRun))))
+                () -> assertThat(ledger.verdicts().survivors(new RunId(theStrictRun)))
                         .isEmpty());
         claim(
                 "while the loose run's survivors hold both",
-                () -> assertThat(ItemStreamReaders.drain(ledger.survivors(new RunId(theLooseRun))))
+                () -> assertThat(ledger.verdicts().survivors(new RunId(theLooseRun)))
                         .hasSize(CORPUS_DOCUMENTS));
     }
 
@@ -181,7 +181,7 @@ class SurvivalOverAReusedWalkTest {
                         + " that run is the one the profile names now",
                 () -> {
                     assertThat(belowThresholdCountUnder(theStrictRun)).isEqualTo(CORPUS_DOCUMENTS);
-                    assertThat(ItemStreamReaders.drain(ledger.survivors(new RunId(theStrictRun))))
+                    assertThat(ledger.verdicts().survivors(new RunId(theStrictRun)))
                             .isEmpty();
                 });
     }
@@ -199,7 +199,7 @@ class SurvivalOverAReusedWalkTest {
         OccurrenceId removedByStageFour = anOccurrenceIn(root);
         String removedContentHash = ContentHash.sha256(root.resolve(aDocumentIn(root)));
         String keptContentHash = ContentHash.sha256(root.resolve(theOtherDocumentIn(root)));
-        ledger.verdict(
+        ledger.verdicts().verdict(
                 removedByStageFour,
                 new RunId(theOnlyRunOf(root, "content-redundancy")),
                 VerdictKind.REDUNDANT_WITH,

@@ -210,7 +210,7 @@ class EmbeddingScoringInvocationTest {
     /** Whether embedding scoring is recorded as finished under any scoring run over this test's corpus. */
     private boolean scoringFinishedOver(Path root) {
         return runIdsOver("embedding-scoring", root).stream()
-                .anyMatch(runId -> ledger.stepFinished(new RunId(runId), "embedding-scoring"));
+                .anyMatch(runId -> ledger.runs().stepFinished(new RunId(runId), "embedding-scoring"));
     }
 
     private long chunkCacheRowCount() {
@@ -231,7 +231,7 @@ class EmbeddingScoringInvocationTest {
      * database and another method's run would otherwise be counted.
      */
     private List<String> runIdsOver(String stage, Path root) {
-        long walkId = ledger.finishedWalkFor(Walk.canonicalRoot(root))
+        long walkId = ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))
                 .orElseThrow(() -> new IllegalStateException("census recorded no finished walk of " + root))
                 .value();
         return jdbcTemplate.queryForList(

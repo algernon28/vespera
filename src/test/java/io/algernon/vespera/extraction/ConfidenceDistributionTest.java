@@ -261,9 +261,9 @@ class ConfidenceDistributionTest {
     /** One walk, one stage-2 run, and the occurrences every test above populates with its own scores. */
     private Fixture fixture() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        RunId stage2RunId = ledger.startRun("extraction", "abc123", "{}", walkId, List.of());
-        RunId stage3RunId = ledger.startRun("content-census", "def456", "{}", walkId, List.of(stage2RunId));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        RunId stage2RunId = ledger.runs().startRun("extraction", "abc123", "{}", walkId, List.of());
+        RunId stage3RunId = ledger.runs().startRun("content-census", "def456", "{}", walkId, List.of(stage2RunId));
         return new Fixture(ledger, walkId, stage2RunId, stage3RunId);
     }
 
@@ -324,7 +324,7 @@ class ConfidenceDistributionTest {
         void blockedOccurrenceWithScore(String path, double meanScore, VerdictKind kind) {
             OccurrenceId occurrenceId = occurrence(path);
             insertMetric(occurrenceId, meanScore, null);
-            ledger.verdict(occurrenceId, stage2RunId, kind, "excluded for this test");
+            ledger.verdicts().verdict(occurrenceId, stage2RunId, kind, "excluded for this test");
         }
 
         ConfidenceDistribution.Distribution measure() {
@@ -332,13 +332,13 @@ class ConfidenceDistributionTest {
         }
 
         private OccurrenceId occurrence(String path) {
-            ledger.fileOccurrence(
+            ledger.occurrences().fileOccurrence(
                     walkId,
                     new OccurrencePath(path),
                     1,
                     Instant.parse("2026-08-29T10:15:30Z"),
                     Instant.parse("2026-08-20T08:00:00Z"));
-            return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+            return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
         }
 
         private void insertMetric(OccurrenceId occurrenceId, Double meanScore, String storedGrade) {

@@ -22,7 +22,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * {@link Ledger#discardVerdictsAgainst}: the deletion a resumed stage 2 makes before it reads its
+ * {@link Verdicts#discardVerdictsAgainst}: the deletion a resumed stage 2 makes before it reads its
  * faulted occurrences again (ADR-181 §1). It removes the verdicts of one kind, under one run, against
  * exactly the occurrences it is handed, and nothing else.
  *
@@ -61,21 +61,21 @@ class DiscardingVerdictsAgainstOccurrencesTest {
     @DisplayName("Taking back the failed-conversion removals of named documents under one run takes back those and nothing else, however many are named")
     void removesOnlyTheNamedOccurrencesVerdictsOfThatKindUnderThatRun() {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
-        RunId resumed = ledger.startRun(STAGE, "a version", "{}", walkId, List.of());
-        RunId other = ledger.startRun(STAGE, "another version", "{}", walkId, List.of());
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
+        RunId resumed = ledger.runs().startRun(STAGE, "a version", "{}", walkId, List.of());
+        RunId other = ledger.runs().startRun(STAGE, "another version", "{}", walkId, List.of());
         List<OccurrenceId> named = record(ledger, walkId, "named", NAMED);
         List<OccurrenceId> notNamed = record(ledger, walkId, "not-named", NOT_NAMED);
         for (OccurrenceId occurrence : named) {
-            ledger.verdict(occurrence, resumed, VerdictKind.EXTRACTION_FAILED, "resolved fault");
-            ledger.verdict(occurrence, resumed, VerdictKind.DEGENERATE_OUTPUT, "another kind");
-            ledger.verdict(occurrence, other, VerdictKind.EXTRACTION_FAILED, "another run");
+            ledger.verdicts().verdict(occurrence, resumed, VerdictKind.EXTRACTION_FAILED, "resolved fault");
+            ledger.verdicts().verdict(occurrence, resumed, VerdictKind.DEGENERATE_OUTPUT, "another kind");
+            ledger.verdicts().verdict(occurrence, other, VerdictKind.EXTRACTION_FAILED, "another run");
         }
         for (OccurrenceId occurrence : notNamed) {
-            ledger.verdict(occurrence, resumed, VerdictKind.EXTRACTION_FAILED, "not named");
+            ledger.verdicts().verdict(occurrence, resumed, VerdictKind.EXTRACTION_FAILED, "not named");
         }
 
-        ledger.discardVerdictsAgainst(resumed, named, VerdictKind.EXTRACTION_FAILED);
+        ledger.verdicts().discardVerdictsAgainst(resumed, named, VerdictKind.EXTRACTION_FAILED);
 
         claim(
                 "none of the " + NAMED + " named documents keeps its failed-conversion removal under the run"
@@ -97,9 +97,9 @@ class DiscardingVerdictsAgainstOccurrencesTest {
         List<OccurrenceId> recorded = new ArrayList<>(count);
         for (int n = 1; n <= count; n++) {
             OccurrencePath path = new OccurrencePath(prefix + "-" + n + ".txt");
-            ledger.fileOccurrence(
+            ledger.occurrences().fileOccurrence(
                     walkId, path, 1, Instant.parse("2026-10-03T10:15:30Z"), Instant.parse("2026-10-03T08:00:00Z"));
-            recorded.add(ledger.occurrenceId(walkId, path).orElseThrow());
+            recorded.add(ledger.occurrences().occurrenceId(walkId, path).orElseThrow());
         }
         return recorded;
     }

@@ -123,7 +123,7 @@ class RelevanceFloorTasklet implements Tasklet {
         // turn either way between two invocations: a threshold that became applicable removes
         // documents, and one that stopped being applicable must withdraw the removals it already made.
         // Discarding only inside the applicable branch would keep the harsher half of that.
-        ledger.discardVerdicts(scoring, VerdictKind.BELOW_THRESHOLD);
+        ledger.verdicts().discardVerdicts(scoring, VerdictKind.BELOW_THRESHOLD);
 
         switch (state) {
             case RelevanceFloor.Unset ignored -> {
@@ -146,7 +146,7 @@ class RelevanceFloorTasklet implements Tasklet {
                 StageProgress written = StageProgress.over(
                         "Stage 5e (relevance floor, below-threshold verdicts)", below.size());
                 for (OccurrenceId occurrenceId : below) {
-                    ledger.verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, REASON);
+                    ledger.verdicts().verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, REASON);
                     written.itemDone();
                 }
                 LOG.info(

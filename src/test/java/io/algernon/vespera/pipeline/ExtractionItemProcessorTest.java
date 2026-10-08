@@ -367,7 +367,7 @@ class ExtractionItemProcessorTest {
                 invocation);
         stageRuns.extraction();
         List<OccurrenceId> occurrences = paths.stream()
-                .map(path -> ledger.occurrenceId(walkId, path).orElseThrow())
+                .map(path -> ledger.occurrences().occurrenceId(walkId, path).orElseThrow())
                 .toList();
         return new Corpus(ledger, new InvocationRuns(invocation), stageRuns, occurrences);
     }

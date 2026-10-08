@@ -110,7 +110,7 @@ class LabelIngestion {
         // this database holds. Nothing below resolves a path into it, because a label is keyed by the
         // path itself (ADR-097) -- so a document renamed or gone since the question was put is not this
         // command's problem, and the answer is recorded either way.
-        if (ledger.walkOf(run).isEmpty()) {
+        if (ledger.runs().walkOf(run).isEmpty()) {
             return Outcome.refused("the label file names run " + run.value() + ", which this database does"
                     + " not hold. Nothing was recorded.");
         }

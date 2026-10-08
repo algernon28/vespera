@@ -257,9 +257,9 @@ class RelevanceDistributionTest {
     /** A scoring run over a walk holding one occurrence per score, each scored as given. */
     private RunId aScoringRunScoring(double[] scores) {
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.startWalk(Path.of("C:/corpus"));
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
         OccurrenceId seed = anOccurrence(ledger, walkId, "seed.txt");
-        RunId scoringRun = ledger.startRun("embedding-scoring", "abc123", "{}", walkId, List.of());
+        RunId scoringRun = ledger.runs().startRun("embedding-scoring", "abc123", "{}", walkId, List.of());
         for (int i = 0; i < scores.length; i++) {
             OccurrenceId scored = anOccurrence(ledger, walkId, "document-" + i + ".txt");
             jdbcTemplate.update(
@@ -274,12 +274,12 @@ class RelevanceDistributionTest {
     }
 
     private OccurrenceId anOccurrence(Ledger ledger, WalkId walkId, String path) {
-        ledger.fileOccurrence(
+        ledger.occurrences().fileOccurrence(
                 walkId,
                 new OccurrencePath(path),
                 1,
                 Instant.parse("2026-08-29T10:15:30Z"),
                 Instant.parse("2026-08-20T08:00:00Z"));
-        return ledger.occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
+        return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
     }
 }
