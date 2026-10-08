@@ -24,9 +24,15 @@ final class CorpusRootCheck {
         this.canonicalRoot = canonicalRoot;
     }
 
-    /** What the file system reported for a file that could not be read: its message, or the exception's name. */
+    /**
+     * What the file system reported for a file that could not be read: the kind of exception, by its simple
+     * name, then its message, or the simple name alone where it has no message. The kind is what tells a
+     * file that is gone from one that is locked or whose permission was removed, since the message of
+     * those is often only the path.
+     */
     static String reported(IOException cause) {
-        return cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+        String kind = cause.getClass().getSimpleName();
+        return cause.getMessage() != null ? kind + ": " + cause.getMessage() : kind;
     }
 
     /** Returns when the root can still be listed. */

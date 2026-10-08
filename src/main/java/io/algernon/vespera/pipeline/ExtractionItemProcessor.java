@@ -265,7 +265,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private ExtractionOutcome couldNotBeRead(OccurrenceId occurrenceId, String cause) {
         new CorpusRootCheck(stageRuns.canonicalRoot()).requireListable();
         OccurrenceDecision.Failed failed = (OccurrenceDecision.Failed) judge.couldNotBeRead(cause);
-        log.info("[extraction] occurrence {} could not be read: {}", occurrenceId.value(), failed.reason());
+        log.info("[extraction] occurrence {} -> {}", occurrenceId.value(), failed.reason());
         return new ExtractionOutcome(occurrenceId, VerdictKind.EXTRACTION_FAILED, failed.reason());
     }
 
