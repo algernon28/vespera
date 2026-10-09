@@ -1237,6 +1237,17 @@ public final class Adr {
     public static final String A_FILE_THAT_CANNOT_BE_READ_IS_MARKED_AND_THE_STEP_GOES_ON = FILE
             + "0210-a-file-that-cannot-be-read-is-marked-and-the-step-goes-on-and-a-corpus-root-that-can-no-longer-be-listed-stops-it.md";
 
+    /**
+     * ADR-214 -- Chroma is removed with everything that existed for it: the starter and the test
+     * container in the pom, the configuration class that deferred the store, its property, its compose
+     * service and its test container; the requirement that a vector database be kept for a later reader is
+     * withdrawn with it, so a reader that wants one is a decision of its own; vectors live in SQLite alone,
+     * where scoring and clustering already read them (supersedes ADR-142; amends ADR-039, ADR-032 and
+     * ADR-085's decision to keep Chroma; settles #352's Chroma point).
+     */
+    public static final String CHROMA_IS_REMOVED_AND_VECTORS_LIVE_IN_SQLITE_ALONE = FILE
+            + "0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md";
+
     private Adr() {
     }
 }

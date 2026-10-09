@@ -1,5 +1,7 @@
 # ADR-085 — Vectors live in SQLite as a content-addressed cache, and the pairwise matrix is never materialised
 
+> **Partly amended — see [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** In *"Chroma is retained on speculation, and stage 5 does not use it"*, *"It is nevertheless kept"* no longer holds, and the obligation it put on the next map is discharged: 6a and 6b iterate over the clusters stage 5 computed, and Chroma is removed with its compose service, its test container and the integration test's Chroma half. The Consequence *"Chroma is carried without a caller, on the record"* is history. The measurement, and the paragraph on what would bring a vector database back, stand. Everything else in this record stands.
+
 - **Date**: 2026-09-06
 - **Status**: accepted
 - **Amends**: none — settles the sizing [ADR-039](0039-chroma-is-derived-sqlite-is-authoritative-for-vectors.md) left open and [ADR-045](0045-clustering-runs-within-each-seed-partition.md) claimed to resolve, and gives [ADR-027](0027-clustering-moves-to-stage-5.md)'s "nearly free" a number

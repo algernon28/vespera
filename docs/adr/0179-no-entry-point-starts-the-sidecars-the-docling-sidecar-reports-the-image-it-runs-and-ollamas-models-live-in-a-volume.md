@@ -1,5 +1,7 @@
 # ADR-179 — No entry point starts the sidecars, the Docling sidecar reports the image it runs, and Ollama's models live in a volume
 
+> **Read with [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** Chroma is removed, so §5's *"Chroma stays without a volume"* has no object, and the Context's account of three tests setting `spring.docker.compose.enabled=false`, `VectorStoreIsReachedOnFirstUseTest` among them, is what was measured then. The note on `anIdeRunStartsNoContainer`, which names Chroma's connection-details class, is corrected when that test drops it, with ADR-214's implementation. This record's decision stands.
+
 - **Date**: 2026-10-03
 - **Status**: accepted
 - **Amends**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md). Its *"ADR-011's single-command start still holds where Spring Boot's compose support is on the classpath, which is the development entry points only"* stops being true. No entry point starts or stops a sidecar any more. The operator starts them with the `up` line the README gives, and that holds for the jar, the IDE and `spring-boot:run` alike. Its *Keeps ADR-046* paragraph is replaced by §1 here: the two compose artifacts leave `pom.xml`.
