@@ -20,7 +20,7 @@ This file is what an agent needs to start working. Everything it points at is au
 
 **The cascade is built end to end.** `vespera run <root>` walks a corpus and takes it as far as the next missing value, through one Spring Batch job of fifteen steps, each behind its own gate; `vespera label` records the answers written into the relevance label file. Stages 0 to 4 judge, stage 5 measures without judging, stage 6a names and orders what stage 5 measured for the operator to approve, and stage 6b writes the deliverable under `deliverable/<run-id>/` in the working directory. What each stage judges and writes is `docs/architecture.md` §1; the invocations an operator makes, and the value each stop wants, are the README's.
 
-**No defect is known and open against what ships, except the cases ADR-210 leaves open by the operator's decision**: two wrong readings and three limits, each stated there. A defect is opened as an issue on the tracker. A closed one is recorded by its ADR and its issue, and is not added here (ADR-216 §9); `docs/closed-defects.md` keeps, closed to edits, what this file said of the thirty-five closed before.
+**No defect is known and open against what ships, except the cases ADR-210 leaves open by the operator's decision, and stage 3's grouping where it meets `shingle_by_hash`**: of ADR-210's, two wrong readings and three limits, each stated there; and the grouping is slower where it meets that index, with one of stage 3's lines untrue there, until ADR-219's clause ships ([#473](https://github.com/algernon28/vespera/issues/473)). A defect is opened as an issue on the tracker. A closed one is recorded by its ADR and its issue, and is not added here (ADR-216 §9); `docs/closed-defects.md` keeps, closed to edits, what this file said of the thirty-five closed before.
 
 Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no batch metadata tables), Spring Modulith for boundary verification only, SQLite as the single store, every vector included, with no vector database (ADR-214: Chroma was removed with the requirement for one, and a reader that wants one is a decision of its own), Docling out-of-process as the document converter (ADR-010) with Ollama as its default serving engine (ADR-012, ADR-013), picocli for a two-command CLI.
 
@@ -32,7 +32,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 - Prose written for a reader outside this project is free of the lists altogether; ADR-122 enumerates the audiences, and this is deliberately not a second copy of that list. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
 - **Cluster** renders as *group*.
 
-**`docs/adr/`** holds 218 decisions, ADR-001 to ADR-218, and two things about it are invisible from the files:
+**`docs/adr/`** holds 219 decisions, ADR-001 to ADR-219, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.

@@ -1333,6 +1333,19 @@ public final class Adr {
     public static final String EVERY_STATEMENT_WHOSE_TEMPORARY_FILES_GROW_IS_AN_EXCEPTION_WITH_ITS_SIZE = FILE
             + "0218-every-statement-whose-temporary-files-grow-with-the-corpus-is-an-exception-to-adr-060-with-its-size.md";
 
+    /**
+     * ADR-219 -- stage 3's grouping of the shingle rows runs with {@code shingle_by_hash} present after a
+     * build that moves {@code pipeline} alone, and after a stop of stage 3 over one corpus root while
+     * another reaches stage 4b; SQLite then answers it through that index, writing no temporary file and
+     * taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk. The statement is to
+     * name its index, {@code INDEXED BY shingle_by_run_id}, by the operator's choice, and the clause ships
+     * with the next change that moves {@code similarity}; until then stage 3 is slow in that state. No run
+     * id moves now; stages 2 to 6b move when the clause ships (amends ADR-182, ADR-211 and ADR-218; decides
+     * #473, which stays open until the clause ships).
+     */
+    public static final String STAGE_3S_GROUPING_IS_PINNED_TO_THE_INDEX_ON_THE_RUN = FILE
+            + "0219-stage-3s-grouping-names-the-index-on-the-run-and-the-clause-ships-with-the-next-change-to-similarity.md";
+
     private Adr() {
     }
 }
