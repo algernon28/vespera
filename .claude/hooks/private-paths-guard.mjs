@@ -4,7 +4,7 @@
 // shell command, a path in a .claude folder that is closed (below). The operator's archives can hold
 // sensitive documents, and nothing that reads a document may reach a hosted model: a document is read
 // only by local models. ADR-196 (docs/adr/0196) is the record, ADR-201 (docs/adr/0201), ADR-215
-// (docs/adr/0215) and ADR-216 (docs/adr/0216) amend it, and src/test/hooks/private-paths-guard.test.mjs
+// (docs/adr/0215) and ADR-217 (docs/adr/0217) amend it, and src/test/hooks/private-paths-guard.test.mjs
 // holds this file to all four.
 //
 // It is registered for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell.
@@ -111,7 +111,7 @@
 // UNC paths.
 //
 // On Windows each reading of a path, as text and as walked, is read once more as PowerShell opens it
-// (ADR-216, docs/adr/0216): each of its names with a stream name after a colon taken off and then the
+// (ADR-217, docs/adr/0217): each of its names with a stream name after a colon taken off and then the
 // dots and spaces that end it, so wd.\report.html is read as wd\report.html, which Node answers "not
 // there" for and PowerShell opens. That reading is judged by every check the others are, the allow list,
 // a read line, a closed .claude folder, links and a working directory above or below, and refuses as
@@ -237,7 +237,7 @@ const isClaudeFolder = (name) => withoutTrailing((windows ? name.replace(/:.*$/,
 // spaces that end it. Elsewhere the name as written.
 const asOpened = (name) => withoutTrailing(windows ? name.replace(/:.*$/, "") : name);
 
-// An absolute path as PowerShell opens it (ADR-216): on Windows each name after its root is taken as
+// An absolute path as PowerShell opens it (ADR-217): on Windows each name after its root is taken as
 // asOpened takes it, so wd.\report.html is wd\report.html, the name Node answers "not there" for. The
 // path itself where no name changes, and everywhere but Windows. null where a name is made only of dots,
 // spaces and a stream name and is neither . nor .., since what Windows opens for one is not known.
@@ -909,7 +909,7 @@ function refusalsOf(call) {
   // a refused path is looked up, and not when it is the first again, which is every path with no link on
   // the way. A base that was itself read as walked is a real path, so every reading made against it is
   // judged as walked, and each reading says whether it was, so that a folder reached by it carries that on.
-  // On Windows each reading is also judged as PowerShell opens its names (ADR-216), and a reading with a
+  // On Windows each reading is also judged as PowerShell opens its names (ADR-217), and a reading with a
   // name whose opening is not known is refused.
   const checkReadings = (label, text, base, searchRoot = false, baseWalked = false) => {
     const asText = absoluteOf(text, base);
@@ -1009,9 +1009,9 @@ function refusalsOf(call) {
           // A plain name that is not there is no more than the folder it would be in, which was checked.
           // The name of a .claude folder is not plain: the folder is closed whether or not it is there,
           // and PowerShell opens .claude. as .claude where Node says it is not there.
-          // Nor is a name Windows opens as another name, wd. as wd (ADR-216): it is read for that name.
+          // Nor is a name Windows opens as another name, wd. as wd (ADR-217): it is read for that name.
           // A token that is only spaces, as the ' ' of tr '\n' ' ', is plain: PowerShell was measured to
-          // open the folder it is read against for one, and nothing else (ADR-216 section 2).
+          // open the folder it is read against for one, and nothing else (ADR-217 section 2).
           const plain = !/[\\/]/.test(rel) && rel !== "." && rel !== ".." && !isClaudeFolder(rel) && (asOpened(rel) === rel || /^ +$/.test(rel));
           const named = entry.key === norm(cwd) ? label : `${label}, read against ${entry.path}`;
           const asText = absoluteOf("./" + rel, entry.path);
