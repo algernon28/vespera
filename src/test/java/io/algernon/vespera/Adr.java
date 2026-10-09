@@ -1278,6 +1278,19 @@ public final class Adr {
     public static final String EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS = FILE
             + "0213-each-rule-the-deliverable-is-written-by-has-one-class-and-the-cluster-key-the-citation-pattern-and-the-filename-stem-are-each-written-once.md";
 
+    /**
+     * ADR-215 -- no agent writes into a {@code .claude} folder: the allow list names four places under
+     * the home folder's and no longer the folder whole, two of them for reading only; every folder named
+     * {@code .claude} is closed to Edit, Write, NotebookEdit and a shell command but beneath {@code
+     * projects}, {@code plans} and {@code worktrees}, whatever a list says; and a shell command is refused
+     * for any token whose text spells a closed path, whether or not the token is read as a path. ADR-212's
+     * one command stays admitted, recognised before any path or text of it is read (amends ADR-196
+     * sections 2, 4 and 5, and ADR-212 sections 4 and 5; keeps ADR-201; settles #459). Its tests are Node
+     * tests under {@code src/test/hooks}.
+     */
+    public static final String NO_AGENT_WRITES_INTO_A_CLAUDE_FOLDER = FILE
+            + "0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md";
+
     private Adr() {
     }
 }

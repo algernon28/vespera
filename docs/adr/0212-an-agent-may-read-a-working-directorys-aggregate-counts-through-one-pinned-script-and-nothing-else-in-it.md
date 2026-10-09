@@ -1,5 +1,7 @@
 # ADR-212 — An agent may read a working directory's aggregate counts through one pinned script, and nothing else in it
 
+> **Partly amended — see [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md).** These passages below are no longer the whole of the decision, and that record's §10 says what replaces each: §4.4's "inside the allow list and outside every working directory", since the ordinary check of the current directory now also turns down a closed `.claude` folder; §4's "without the guard reading its command for paths" and its "Any call that fails one of these is read as before", since the admission now also stands before the reading of every token's text, and a call that fails it is read with that reading too; and §5's "That is ADR-196's position, unchanged" with the three items of "What the pin does not cover", of which the third, that `~/.claude/settings.json` can be written, is closed for a call whose text names the file, and the first two are narrowed and not closed. Everything else in this record stands.
+
 - **Date**: 2026-10-08
 - **Status**: accepted on 2026-10-08, and built on 2026-10-09: the counting script and the guard's admission (§4) are in `.claude/hooks`, and K101 to K107 are green. Where this record calls a case red or the script not yet built, it states a measurement at `4b99a03`, before that build.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:
@@ -238,7 +240,7 @@ The cases:
   - a working directory under no allowed root;
   - and, K107, the checkout whose script has CR LF line ends.
 
-  *Red at `4b99a03`, measured on Windows: the script does not exist and the guard has no such rule, so each is refused as a path into a working directory.* On Linux, where ADR-196 §5 leaves a rooted path in a command unread, K102 and K106 are let through by the ordinary reading already. The others name the working directory relatively, so they are refused on both platforms.
+  *Red at `4b99a03`, measured on Windows: the script does not exist and the guard has no such rule, so each is refused as a path into a working directory.* On Linux, where ADR-196 §5 leaves a rooted path in a command unread, K102 and K106 were let through by the ordinary reading already when this was written; since ADR-215 the ordinary reading refuses the script's own path, which lies in a closed `.claude` folder, on every platform, so K101 to K107 are each let through by the admission and by nothing else ([#459](https://github.com/algernon28/vespera/issues/459)). The others name the working directory relatively, so they are refused on both platforms.
 - **K201 to K230, refused**:
   - the script given `vespera.db` itself, a folder inside a working directory, a folder holding only `vespera.lock`, and a folder that is none;
   - a second argument; a second command after `&&`, `;` or a newline; a pipe; a redirect;
