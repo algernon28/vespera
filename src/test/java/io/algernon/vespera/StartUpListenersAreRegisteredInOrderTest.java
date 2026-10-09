@@ -39,8 +39,11 @@ import org.springframework.context.ApplicationListener;
  * its two refusals and throws again, so it never reaches {@code System.exit}.
  *
  * <p><b>What of {@code main} runs here</b> is the building of the {@code SpringApplication}, the registration
- * read below, and the beginning of {@code run}: a bootstrap context that is thrown away and the {@code
- * java.awt.headless} system property, which every Spring Boot test sets too. No event is published, not
+ * read below, and the beginning of {@code run}, read in Boot 4.1.1's source: the object that times the start;
+ * {@code enableShutdownHookAddition()}, which sets a flag in a static field of Boot's and by itself adds no
+ * hook to the JVM, one being added only when a context is registered, and none is here; a bootstrap context
+ * that is thrown away; and the {@code java.awt.headless} system property, which every Spring Boot test sets
+ * too. No event is published, not
  * even that a start has begun, so no listener of {@code main}'s is called: no working directory is created,
  * no lock taken, no connection opened and SQLite's setting not touched. The test holds each of those: it
  * hands {@code main} a working directory that does not exist and finds it still missing, hears no event

@@ -32,8 +32,9 @@ import org.slf4j.LoggerFactory;
  * rows alone, so it may end below a hundred percent, and it never writes a build's line that its rows are
  * gone through. {@link #expected} restates the rule and does not read it off the class.
  *
- * <p><b>Parked</b> under {@code docs/adr/0211/tests/}: it names the two methods ADR-211 adds to {@code
- * StatementProgress}, and would stop the test tree compiling before they exist.
+ * <p>It was parked under {@code docs/adr/0211/tests/} until the two methods ADR-211 adds to {@code
+ * StatementProgress} existed, since it names them and would have stopped the test tree compiling, and came
+ * into {@code src/test} with the commit that built them.
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")

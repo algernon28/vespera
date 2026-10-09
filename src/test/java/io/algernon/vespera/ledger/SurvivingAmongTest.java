@@ -39,8 +39,8 @@ import org.springframework.test.context.ActiveProfiles;
  * occurrences' own numbers, not a search of the walk (ADR-211 section 8, where the walk search cost every
  * ask a read of the whole walk).
  *
- * <p>Parked under {@code docs/adr/0211/tests/} until the method exists: it names it, and would stop the test
- * tree compiling.
+ * <p>It was parked under {@code docs/adr/0211/tests/} until the method existed, since it names it and would
+ * have stopped the test tree compiling, and came into {@code src/test} with the commit that built ADR-211.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

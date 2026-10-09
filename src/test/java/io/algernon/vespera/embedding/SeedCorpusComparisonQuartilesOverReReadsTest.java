@@ -63,8 +63,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
  *       schema says so;
  *   <li>three fifths of the page counts tied at one, the usual shape of page counts, which must cost two reads
  *       and not four;
- *   <li>two word counts one apart with over a thousand documents at each, the one shape that needs all four.
+ *   <li>two word counts one apart with over a thousand documents at each, which take all four: the third read
+ *       tells them apart, and the fourth finds every value that could be each quartile the same one.
  * </ul>
+ *
+ * <p>Values that differ only in the last 16 bits of their keys, which the fourth read itself has to tell apart,
+ * are {@link SignalQuartilesFourthReadTest}'s: no two whole numbers this ledger can hold lie that close.
  *
  * <p>The equality of each spread with {@code Quartiles.of} holds at {@code 4b99a03} too, where every value is
  * held and sorted. What fails there is how the rows are asked for.
@@ -366,9 +370,10 @@ class SeedCorpusComparisonQuartilesOverReReadsTest {
     }
 
     /**
-     * The one shape that needs the fourth read: two values so close that their first 32 bits as numbers are the
+     * A shape that needs the fourth read: two values so close that their first 32 bits as numbers are the
      * same, each shared by more than 1,000 documents, so no reading can gather the candidates and none before the
-     * fourth finds them all equal.
+     * fourth finds them all equal. They differ in the third 16 bits, so the third read has already told them
+     * apart; values the fourth read has to tell apart itself are {@link SignalQuartilesFourthReadTest}'s.
      */
     @Test
     @Story("Comparing the seeds with the collection")

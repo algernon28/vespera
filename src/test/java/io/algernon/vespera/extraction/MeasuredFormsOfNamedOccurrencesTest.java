@@ -35,8 +35,8 @@ import org.springframework.test.context.ActiveProfiles;
  * (ADR-211 section 2). The seven columns are {@code eachMeasuredForm}'s, held by {@code
  * MetricsReadForAnotherModuleTest}; what is held here is which rows come back.
  *
- * <p>Parked under {@code docs/adr/0211/tests/} until the method exists: it names it, and would stop the test
- * tree compiling.
+ * <p>It was parked under {@code docs/adr/0211/tests/} until the method existed, since it names it and would
+ * have stopped the test tree compiling, and came into {@code src/test} with the commit that built ADR-211.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

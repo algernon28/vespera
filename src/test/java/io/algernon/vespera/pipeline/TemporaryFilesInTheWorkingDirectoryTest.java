@@ -67,8 +67,9 @@ import org.springframework.mock.env.MockEnvironment;
  * <p>The last test looks for the file itself and runs on Windows only: on Unix SQLite is expected to remove
  * a temporary file's name as soon as it has opened it, so there is nothing to find in the folder there.
  *
- * <p><b>Parked</b> under {@code docs/adr/0211/tests/}: it names the listener ADR-211 adds, and would stop the
- * test tree compiling before it exists.
+ * <p>It was parked under {@code docs/adr/0211/tests/} until the listener ADR-211 adds existed, since it names
+ * it and would have stopped the test tree compiling, and came into {@code src/test} with the commit that built
+ * it.
  */
 @Epic("Architecture")
 @Feature("Shipped configuration")
