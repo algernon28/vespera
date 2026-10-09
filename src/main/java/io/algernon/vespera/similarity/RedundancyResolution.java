@@ -56,8 +56,12 @@ import org.springframework.stereotype.Component;
  * removal or of every frequency (ADR-220 section 4).</b> The signed occurrences are counted once and read a
  * page of 1,000 at a time; the pairs of a page are found by one statement and let go before the next page;
  * whether an occurrence is signed or was removed is asked of the database by key; an occurrence's rarest
- * shingles are found with its own rows; and what is still held is the components of the pairs at or above
- * the cut with their members' profiles, and the shingle-set cache within its budget.
+ * shingles are found with its own rows; and what is still held (ADR-220 section 9) is the components of the
+ * pairs at or above the cut with their members' profiles, the shingle-set cache within its budget, the
+ * candidate pairs of one page until they are scored, and one occurrence's containment candidates until it
+ * is checked: the set {@code containmentCandidates} answers and the {@code others}, {@code signed} and
+ * {@code removedCandidates} collections {@code resolveContainment} makes from it. Neither a page's pairs nor an
+ * occurrence's candidates are bounded by the page; both are held as they stand until #476.
  */
 @Component
 public class RedundancyResolution {

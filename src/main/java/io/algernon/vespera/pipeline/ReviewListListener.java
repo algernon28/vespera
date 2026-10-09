@@ -58,16 +58,18 @@ class ReviewListListener implements StepExecutionListener {
             return stepExecution.getExitStatus();
         }
         RunId run = stageRuns.extraction();
-        long failures = TimedStatement.of(
-                "Stage 2 (extraction)", "reading", "read",
-                "the occurrences it could not read",
-                () -> ledger.verdicts().extractionFailureCount(run));
+        // The timed span covers the count and the writing of the page, so the sorted read of
+        // eachExtractionFailure is issued before the line after (ADR-220 section 6).
+        TimedStatement.Started timed = TimedStatement.begin(
+                "Stage 2 (extraction)", "reading", "read", "the occurrences it could not read");
+        long failures = ledger.verdicts().extractionFailureCount(run);
         Path page = workingDirectory.resolve(FILE_NAME);
         try {
             Files.createDirectories(workingDirectory);
             try (Writer out = Files.newBufferedWriter(page, StandardCharsets.UTF_8)) {
                 ReviewListReport.write(out, failures, each -> ledger.verdicts().eachExtractionFailure(run, each));
             }
+            timed.end();
         } catch (IOException e) {
             // Said, not thrown: Spring Batch only logs what an afterStep throws, with a stack trace, and
             // skips the listeners after it. The verdicts are in the ledger either way.
