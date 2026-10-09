@@ -54,7 +54,7 @@ class ExtractionFaultResolutionReportsItsCountTest {
     @Test
     @Story("Stage 2 tells its caller how many faults it resolves")
     @DisplayName("Two recorded faults are announced once, and each is reported after its verdict is written, on a completed step")
-    void announcesTheHeldFaultsAndReportsEachOnCompletion() {
+    void announcesTheRecordedFaultsAndReportsEachOnCompletion() {
         reportsTwoFaults(true);
     }
 
@@ -80,7 +80,7 @@ class ExtractionFaultResolutionReportsItsCountTest {
     @Test
     @Story("Stage 2 tells its caller how many faults it resolves")
     @DisplayName("With no fault recorded the loop is announced with zero and nothing is reported")
-    void announcesZeroWithNothingHeld() {
+    void announcesZeroWithNothingRecorded() {
         Ledger ledger = new Ledger(jdbcTemplate);
         RunId run = aRun(ledger);
         List<String> events = new ArrayList<>();

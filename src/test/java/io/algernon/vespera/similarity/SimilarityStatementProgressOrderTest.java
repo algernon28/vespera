@@ -493,12 +493,7 @@ class SimilarityStatementProgressOrderTest {
             calls.add("toScorePairs");
         }
 
-        /** Written without {@code @Override}: it is gone once ADR-220 is built. */
-        public void pairScored() {
-            calls.add("pairScored");
-        }
-
-        /** ADR-220's callback, written without {@code @Override} so the class compiles before it exists. */
+        @Override
         public void candidatesScored() {
             calls.add("candidatesScored");
         }

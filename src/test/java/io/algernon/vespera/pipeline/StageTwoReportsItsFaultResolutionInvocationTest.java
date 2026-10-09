@@ -158,8 +158,8 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
 
     @Test
     @Story("Stage 2 says how many of the faults it held it has resolved")
-    @DisplayName("A stage 2 that held no fault resolves nothing and writes no fault counter")
-    void writesNothingWhereNoFaultWasHeld(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @DisplayName("A stage 2 that recorded no fault resolves nothing and writes no fault counter")
+    void writesNothingWhereNoFaultWasRecorded(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profile(seeds);

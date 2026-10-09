@@ -103,7 +103,7 @@ class ASetAsideIsHeardInsideItsChunksTransactionTest {
     @Test
     @Story("A file set aside is recorded when it is set aside, and resolved at the end of the stage")
     @DisplayName("A file set aside is heard inside its chunk's transaction, so its fault row commits with the chunk")
-    void theSkipIsHeardInsideTheChunksTransaction() throws Exception {
+    void theSetAsideIsHeardInsideTheChunksTransaction() throws Exception {
         DataSource dataSource = pool.jdbcTemplate().getDataSource();
         JdbcTemplate chunks = new JdbcTemplate(dataSource);
         ExtractionFaults faults = new ExtractionFaults(chunks);

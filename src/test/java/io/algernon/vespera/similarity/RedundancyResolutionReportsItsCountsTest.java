@@ -278,12 +278,7 @@ class RedundancyResolutionReportsItsCountsTest {
             events.add(SCORE + pairs);
         }
 
-        /** Written without {@code @Override}: it is gone once ADR-220 is built. */
-        public void pairScored() {
-            events.add("pair");
-        }
-
-        /** ADR-220's callback, written without {@code @Override} so the class compiles before it exists. */
+        @Override
         public void candidatesScored() {
             events.add(CANDIDATES);
         }
