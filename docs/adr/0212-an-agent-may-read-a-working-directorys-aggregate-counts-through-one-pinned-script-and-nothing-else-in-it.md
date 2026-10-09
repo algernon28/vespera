@@ -1,7 +1,7 @@
 # ADR-212 — An agent may read a working directory's aggregate counts through one pinned script, and nothing else in it
 
 - **Date**: 2026-10-08
-- **Status**: accepted on 2026-10-08, and not yet built. It is in force once the counting script and the guard's admission (§4) land. Until then the hook still refuses every path in a working directory, and no agent reads anything in one. **This branch does not merge before that build**: its K101 to K107 cases are red until the guard admits the command, and CI starts the guard's test file.
+- **Status**: accepted on 2026-10-08, and built on 2026-10-09: the counting script and the guard's admission (§4) are in `.claude/hooks`, and K101 to K107 are green. Where this record calls a case red or the script not yet built, it states a measurement at `4b99a03`, before that build.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:
   - §1's third bullet and the sentence after the list ("The working directory is on the list because…"), which no longer refuse the counts §3 below lists;
   - §2's second bullet ("inside a working directory, wherever that is"), which gains the one exception of §4 below;
@@ -168,10 +168,16 @@ A partition folder of the deliverable is named after a seed, so its name is neve
      - a single-quoted word holds only those characters, `\` and the space;
      - in either, a `:` is allowed only as a drive colon: second in the word, after one ASCII letter, and followed by `/` or `\`. So `counts.mjs:x`, an alternate data stream, is refused, and so is `X:rel`, a path from a drive's own current directory.
    - So there is no `$`, backtick, double quote, `~`, wildcard, brace, comma, `=`, `@`, `%` or `#`. In a Bash command there is no backslash outside single quotes, where Bash would take it as an escape and pass the program a path other than the one the guard read. Neither word has a `..` segment.
+   - **Two words that pass the above are not admitted either**, added with the build on 2026-10-09 so that §4.2's path is the one `node` opens:
+     - on Windows, a word that begins with `/` or `\`. Git Bash rewrites `/d/x` into `D:/x` before `node` sees it, and does not when `MSYS_NO_PATHCONV` is set, which the guard cannot see. A word such as `/dev/x` it rewrites to a path under Git's own folder, so the guard would read the sibling and `node` would open another file. The rule holds for a PowerShell command on Windows too, where it costs only a spelling;
+     - off Windows, a word that holds a `\`, which is part of a name there and parts no folders, so the `..` check above, which reads it as a separator, would be reading a path `node` does not open.
 2. **The script word.**
    - Read against the call's current directory, with its separators made one, it is the absolute path `node` will open.
    - That path must equal the path of `working-directory-counts.mjs` beside the guard that is running. They are compared as text, character for character, folded to one case on Windows only.
    - No link and no other spelling stands in for it.
+   - **Two spellings the grammar passes are accepted here**, on the operator's answer of 2026-10-09 after the architect's gate, because neither runs any code but the pinned script's:
+     - a trailing separator or a doubled one, which reading the word against the current directory drops. `node` then opens the same file, or none;
+     - a script word that begins with `-`, which `node` reads as an option. It can equal the script's path only when the checkout lies under a folder whose name begins with `-` and the command is run from above that folder.
 3. **The hash.** The bytes of the file at that path, which are the bytes `node` will run, have the guard's pinned SHA-256 (§5).
 4. **The current directory.** It passes the guard's ordinary check: inside the allow list and outside every working directory.
 5. **The working-directory word**: read against the call's current directory, it is a folder, after links are followed, that directly holds a file named `vespera.db`.
@@ -228,7 +234,7 @@ The cases:
   - the script by a relative and by an absolute path;
   - a working directory whose path holds a space, in single quotes;
   - a relative working directory;
-  - PowerShell's spelling;
+  - PowerShell's spelling (Windows only);
   - a working directory under no allowed root;
   - and, K107, the checkout whose script has CR LF line ends.
 
@@ -343,7 +349,7 @@ The draft of this record left six choices open, each with a recommendation. On 2
 
 ## What the implementation owes
 
-**Two files sit under `.claude/hooks`**: the script and the guard. Where an agent cannot write there, **the operator** writes them from this list. `build.yml` is not under `.claude/hooks`, and `spec-implementer` writes it. **The branch merges only once all three have landed**: until then K101 to K107 are red in CI.
+**Two files sit under `.claude/hooks`**: the script and the guard. Where an agent cannot write there, **the operator** writes them from this list. `build.yml` is not under `.claude/hooks`, and `spec-implementer` writes it. All three landed together on 2026-10-09; before that, K101 to K107 were red.
 
 - **`.claude/hooks/working-directory-counts.mjs`**, new, as §2 and §3 state:
   - It imports only `node:` modules (W11).
@@ -357,5 +363,5 @@ The draft of this record left six choices open, each with a recommendation. On 2
   - §5's constant, named `COUNTING_SCRIPT_SHA256`, taken over the script with CR LF read as LF;
   - one paragraph in its header comment saying what is admitted, what §5 does not cover, and citing this record.
 - **`.github/workflows/build.yml`**: in both jobs, `node --test src/test/hooks/working-directory-counts.test.mjs`, beside the line that starts the guard's test.
-- **Not `AGENTS.md`**: its section on the operator's documents says this record is accepted and that the hook still refuses until the script and the guard's admission land. It is rewritten by the `analyst` once both have landed, to state the one admitted form and the second test command, because `spec-implementer` does not edit Markdown.
+- **`AGENTS.md`**: its section on the operator's documents was rewritten with the build on 2026-10-09, to state the one admitted form and the second test command.
 - **Not `.claude/settings.json` and not `.claude/allowed-paths.txt`**: the matcher and the allow list stay as they are (§9.2).

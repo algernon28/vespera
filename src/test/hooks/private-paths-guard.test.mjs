@@ -1,8 +1,8 @@
 // The private-paths guard, held to its record: docs/adr/0196. No agent reads the operator's documents,
 // and a PreToolUse hook refuses any path outside an allow list and fails closed. docs/adr/0201 amends
-// that record, and the L and G cases are held to it. docs/adr/0212, accepted and not yet built, admits one exact command
+// that record, and the L and G cases are held to it. docs/adr/0212 admits one exact command
 // that starts the counting script beside the guard on a working directory, and the K cases are held to
-// it: K101 to K107 are refused until that script and the guard's rule are built.
+// it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -78,7 +78,7 @@ const WRAPPER = `${HOOKS}/run-private-paths-guard.sh`;
 const GUARD = `${HOOKS}/private-paths-guard.mjs`;
 const ALLOW_LIST = ".claude/allowed-paths.txt";
 // The counting script of docs/adr/0212, which the guard admits by one exact command. Copied into a
-// fixture checkout only when the repository has one: until it is built, the K1 cases are refused.
+// fixture checkout only when the repository has one: without it, the K1 cases are refused.
 const COUNTS = `${HOOKS}/working-directory-counts.mjs`;
 const countsShipped = existsSync(`${repo}/${COUNTS}`);
 const countsText = () => (countsShipped ? readFileSync(`${repo}/${COUNTS}`, "utf8") : "// a stand-in: the counting script is not built yet\n");
@@ -702,7 +702,7 @@ const cases = [
   ["G706", "cat of a variable whose word is ${TMPDIR} and a path under the temp folder", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/scratch/out.log}" }, ALLOWED],
 
   /* K1. docs/adr/0212: node, the counting script beside the guard, and a folder that directly holds
-     vespera.db, and nothing else, is admitted. Refused until the script and the guard's rule are built.
+     vespera.db, and nothing else, is admitted.
      The working directory is named relatively from the temp folder wherever the case allows it, so that
      the ordinary reading refuses it on every platform: a rooted POSIX path in a command is not read
      (ADR-196 section 5), so on Linux K102 and K106 are let through by the ordinary reading already. */
@@ -794,7 +794,7 @@ test("K224 refused: the counting command when the script beside the guard is not
 });
 
 // The same command again, in a checkout whose counting script has CR LF line ends: the pin reads CR LF as
-// LF, so the script is the pinned one and the command is admitted. Refused until the script is built.
+// LF, so the script is the pinned one and the command is admitted.
 test("K107 allowed: the counting command when the script beside the guard has CR LF line ends", () => {
   const call = hookInput("Bash", { command: `node ${CRLF}/${COUNTS} working-directory` }, T);
   claim(startGuard({ projectDir: CRLF, stdin: call }), ALLOWED, `the counting command through ${CRLF}/${WRAPPER}, whose counting script has CR LF line ends`);

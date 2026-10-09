@@ -1,4 +1,4 @@
-// The counting script, held to its record: docs/adr/0212, accepted and not yet built. An agent may read what
+// The counting script, held to its record: docs/adr/0212. An agent may read what
 // .claude/hooks/working-directory-counts.mjs prints about a working directory, and nothing else in it:
 // counts and sums out of vespera.db by fixed statements, keyed by walk ids, run ids and closed
 // vocabularies, and how many files the working directory holds and their size.
