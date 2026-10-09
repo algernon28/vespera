@@ -1,7 +1,7 @@
 package io.algernon.vespera.synthesis;
 
 /**
- * A filename without its folders or its extension, written once (ADR-212 §4). {@link ClusterLabel}
+ * A filename without its folders or its extension, written once (ADR-213 §4). {@link ClusterLabel}
  * names a cluster from it where the lead document has no title, and the deliverable names a partition
  * directory and a picture directory from it.
  */

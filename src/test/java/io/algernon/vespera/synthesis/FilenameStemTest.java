@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 /**
  * A path's filename stem: its last {@code /}-separated segment without its last extension. One rule,
  * read by a cluster label's second tier (ADR-106) and by the deliverable's partition and picture
- * directories (ADR-212 §4).
+ * directories (ADR-213 §4).
  *
  * <p><b>Every expected stem here is what both {@code Deliverable.stemOf} and {@code
  * ClusterLabel.filenameStemOf} gave at {@code 4b99a03}</b>; the two bodies were the same.
@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Synthesis")
 @Feature("Naming a cluster")
 @Issue("351")
-@Link(name = "ADR-212", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
+@Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-106", url = Adr.A_CLUSTER_GETS_A_DERIVED_LABEL_AND_A_GENERATED_TITLE, type = "adr")
 class FilenameStemTest {
 

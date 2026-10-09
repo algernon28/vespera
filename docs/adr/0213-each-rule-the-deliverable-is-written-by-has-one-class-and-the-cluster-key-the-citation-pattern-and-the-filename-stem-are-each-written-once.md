@@ -1,4 +1,4 @@
-# ADR-212 — Each rule the deliverable is written by has one class, and the cluster key, the citation pattern and the filename stem are each written once
+# ADR-213 — Each rule the deliverable is written by has one class, and the cluster key, the citation pattern and the filename stem are each written once
 
 - **Date**: 2026-10-09
 - **Status**: accepted

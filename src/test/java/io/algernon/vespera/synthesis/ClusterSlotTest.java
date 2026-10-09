@@ -17,13 +17,13 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The one key a cluster is named by in {@code synthesis}: its winning seed and its ordinal in that
- * seed's partition (ADR-212 §3). Each value that carries a cluster's identity is read into the key in
+ * seed's partition (ADR-213 §3). Each value that carries a cluster's identity is read into the key in
  * the key's own class, so nothing pairs a seed with an ordinal by hand.
  */
 @Epic("Synthesis")
 @Feature("The key a cluster is named by")
 @Issue("351")
-@Link(name = "ADR-212", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
+@Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
 class ClusterSlotTest {
 

@@ -17,12 +17,12 @@ import org.junit.jupiter.api.Test;
 /**
  * A citation as the model writes it: a bracketed ordinal into the documents one call sent (ADR-109).
  * One pattern, read by the range check in {@code ClusterSynthesis} and by the link rewrite on a
- * cluster's page (ADR-212 §4), so the two can never disagree about what a citation is.
+ * cluster's page (ADR-213 §4), so the two can never disagree about what a citation is.
  */
 @Epic("Synthesis")
 @Feature("How writing points at a document")
 @Issue("351")
-@Link(name = "ADR-212", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
+@Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
 class CitationTest {
 

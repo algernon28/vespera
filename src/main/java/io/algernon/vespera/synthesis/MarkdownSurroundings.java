@@ -2,7 +2,7 @@ package io.algernon.vespera.synthesis;
 
 /**
  * Every Markdown text surrounding a value lands in, and the one rule each is escaped by (ADR-134,
- * ADR-136, ADR-138, ADR-148; ADR-212 §2).
+ * ADR-136, ADR-138, ADR-148; ADR-213 §2).
  *
  * <p><b>A value is only ever dangerous with respect to the structure it lands in</b>, which is why there
  * is one constant per surrounding and not one rule: a table cell, an ATX heading and a membership entry

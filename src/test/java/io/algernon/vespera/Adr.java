@@ -1238,7 +1238,7 @@ public final class Adr {
             + "0210-a-file-that-cannot-be-read-is-marked-and-the-step-goes-on-and-a-corpus-root-that-can-no-longer-be-listed-stops-it.md";
 
     /**
-     * ADR-212 -- each rule the deliverable is written by has one package-private class in {@code
+     * ADR-213 -- each rule the deliverable is written by has one package-private class in {@code
      * synthesis}: {@code MarkdownSurroundings} (one constant per Markdown text surrounding),
      * {@code ArchiveLink}, {@code ManifestCsv}, {@code ClusterPage}, {@code IndexPage} and {@code
      * EntryPictures}, with {@code Deliverable} orchestrating; the one cluster key is {@code ClusterSlot},
@@ -1247,7 +1247,7 @@ public final class Adr {
      * gains a test (settles #351).
      */
     public static final String EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS = FILE
-            + "0212-each-rule-the-deliverable-is-written-by-has-one-class-and-the-cluster-key-the-citation-pattern-and-the-filename-stem-are-each-written-once.md";
+            + "0213-each-rule-the-deliverable-is-written-by-has-one-class-and-the-cluster-key-the-citation-pattern-and-the-filename-stem-are-each-written-once.md";
 
     private Adr() {
     }

@@ -35,7 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code Deliverable.writeTo} and the whole tree, and is left as it is. This one holds the collaborator
  * itself, so a rule can be read without a tree around it. The class was named {@code EntryPictures}
  * rather than {@code DeliverablePictures} so that the two test classes are not read as one another's
- * unit test (ADR-212 §1).
+ * unit test (ADR-213 §1).
  *
  * <p><b>Every expected line here is what {@code Deliverable.appendPictures} wrote at {@code 4b99a03}</b>;
  * one file name is pinned as a literal, read off a tree that commit wrote.
@@ -43,7 +43,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Synthesis")
 @Feature("The pictures a document carries")
 @Issue("351")
-@Link(name = "ADR-212", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
+@Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-149", url = Adr.A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE, type = "adr")
 class EntryPicturesTest {
 

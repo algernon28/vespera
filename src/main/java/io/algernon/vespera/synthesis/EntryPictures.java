@@ -27,7 +27,7 @@ import java.util.Set;
  * ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d). {@link #appendUnder} is the second, one entry at a time: the
  * source is asked again, and what passes the furniture rule is written beside the cluster file.
  *
- * <p><b>One SHA-256 per picture per pass</b> (ADR-212 §5). The second pass digests each picture once, and
+ * <p><b>One SHA-256 per picture per pass</b> (ADR-213 §5). The second pass digests each picture once, and
  * that one digest answers the furniture check and names the file. The first pass's digests are not
  * carried into it: the second answer is a new answer, and a picture's file is named from its own bytes
  * (ADR-149 §3), so the bytes digested must be the bytes written.

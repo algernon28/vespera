@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Each rule the deliverable is written by has one class in {@code synthesis}, and nothing is written
- * twice (ADR-212). Read off the compiled classes, as {@link OnlyPipelineNamesSpringBatchTest} reads them,
+ * twice (ADR-213). Read off the compiled classes, as {@link OnlyPipelineNamesSpringBatchTest} reads them,
  * so a copy is found wherever it is put.
  *
  * <p><b>ADR-134's reopen trigger, held by a test for the first time.</b> ADR-134 §2 reads: <em>a second
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Architecture")
 @Feature("Where the deliverable's rules live")
 @Issue("351")
-@Link(name = "ADR-212", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
+@Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-134", url = Adr.A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND, type = "adr")
 @Link(name = "ADR-137", url = Adr.A_DESTINATIONS_AMPERSAND_IS_PERCENT_ENCODED, type = "adr")
 class DeliverableRulesHaveOneHomeTest {
@@ -65,7 +65,7 @@ class DeliverableRulesHaveOneHomeTest {
     /** A quote doubled inside a quoted CSV field (RFC 4180). */
     private static final String A_DOUBLED_QUOTE = "\"\"";
 
-    /** The package-private collaborators ADR-212 §1 and §4 name, each carrying one rule. */
+    /** The package-private collaborators ADR-213 §1 and §4 name, each carrying one rule. */
     private static final List<String> THE_COLLABORATORS = List.of(
             "MarkdownSurroundings",
             "ArchiveLink",
@@ -84,7 +84,7 @@ class DeliverableRulesHaveOneHomeTest {
         for (String collaborator : THE_COLLABORATORS) {
             claim(
                     collaborator + " is a class of synthesis and is not public: it carries one rule of the"
-                            + " deliverable, and Deliverable is the module's one door to them (ADR-212 §1)",
+                            + " deliverable, and Deliverable is the module's one door to them (ADR-213 §1)",
                     () -> {
                         assertThat(classes).contains(IN_SYNTHESIS + collaborator);
                         assertThat(Modifier.isPublic(loaded(IN_SYNTHESIS + collaborator).getModifiers()))
@@ -133,7 +133,7 @@ class DeliverableRulesHaveOneHomeTest {
 
         claim(
                 "one class holds the citation pattern, Citation, so the range check and the link rewrite cannot"
-                        + " come to disagree about what a citation is (ADR-212 §4)",
+                        + " come to disagree about what a citation is (ADR-213 §4)",
                 () -> assertThat(holding).containsExactly(IN_SYNTHESIS + "Citation"));
     }
 
@@ -152,7 +152,7 @@ class DeliverableRulesHaveOneHomeTest {
 
         claim(
                 "no method under synthesis is named for a stem: ClusterLabel and the deliverable both call"
-                        + " FilenameStem.of, where the one rule is (ADR-212 §4)",
+                        + " FilenameStem.of, where the one rule is (ADR-213 §4)",
                 () -> assertThat(declaring).isEmpty());
     }
 
@@ -174,7 +174,7 @@ class DeliverableRulesHaveOneHomeTest {
 
         claim(
                 "the only record under synthesis made of a winning seed and an ordinal is ClusterSlot: the"
-                        + " private keys Deliverable and SynthesisDocs kept are gone into it (ADR-212 §3)",
+                        + " private keys Deliverable and SynthesisDocs kept are gone into it (ADR-213 §3)",
                 () -> assertThat(keys).containsExactly(IN_SYNTHESIS + "ClusterSlot"));
     }
 

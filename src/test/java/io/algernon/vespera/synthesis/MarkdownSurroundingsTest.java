@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The Markdown text surroundings a value this tool did not compose is written into, as one table with
- * one constant per surrounding (ADR-212 §2): ADR-138 §5's table, its three Markdown rows made code.
+ * one constant per surrounding (ADR-213 §2): ADR-138 §5's table, its three Markdown rows made code.
  *
  * <p><b>Every expected value here is what {@code Deliverable} wrote at {@code 4b99a03}</b>, read off
  * its {@code inACell}, {@code inAHeading}, {@code escapeLinkText} and {@code onOneLine} before the move,
@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Synthesis")
 @Feature("The surroundings a value is written into")
 @Issue("351")
-@Link(name = "ADR-212", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
+@Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-134", url = Adr.A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND, type = "adr")
 @Link(name = "ADR-138", url = Adr.A_BRACKET_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN, type = "adr")
 class MarkdownSurroundingsTest {
