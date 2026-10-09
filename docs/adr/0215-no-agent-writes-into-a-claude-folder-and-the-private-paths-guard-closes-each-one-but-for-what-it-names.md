@@ -1,6 +1,6 @@
 # ADR-215 — No agent writes into a `.claude` folder, and the private-paths guard closes each one but for what it names
 
-> **Partly amended — see [ADR-216](0216-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md).** §8's item "A `read` line beneath a plain line, where the folder is written with a dot after its name" is closed on Windows, the one platform where it arises, and the first item of "What this does not decide" is decided there. Everything else in this record stands.
+> **Partly amended — see [ADR-217](0217-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md).** §8's item "A `read` line beneath a plain line, where the folder is written with a dot after its name" is closed on Windows, the one platform where it arises, and the first item of "What this does not decide" is decided there. Everything else in this record stands.
 
 - **Date**: 2026-10-09
 - **Status**: accepted. The guard, the shipped allow list and this record land in one change.

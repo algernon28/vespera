@@ -1,4 +1,4 @@
-# ADR-216 — On Windows the private-paths guard reads every path as Windows opens its names, without the dots, spaces and stream name that end each
+# ADR-217 — On Windows the private-paths guard reads every path as Windows opens its names, without the dots, spaces and stream name that end each
 
 - **Date**: 2026-10-09
 - **Status**: accepted. The guard's change is drafted outside every `.claude` folder and put in place by the operator, as [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) §7 has it. This record, its cases and the guard land in one change.

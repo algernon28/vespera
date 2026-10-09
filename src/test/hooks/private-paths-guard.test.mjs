@@ -4,7 +4,7 @@
 // that starts the counting script beside the guard on a working directory, and the K cases are held to
 // it. docs/adr/0215 closes the .claude folders, the home folder's and a checkout's, and the H, J, M, Q,
 // T, U, V, W, X, Y and L4 cases are held to it; K231 and J1601 to J1611 hold where the two records meet.
-// docs/adr/0216 reads every path once more on Windows, as Windows opens its names, without the stream
+// docs/adr/0217 reads every path once more on Windows, as Windows opens its names, without the stream
 // name, dots and spaces that end each, and the Z cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
@@ -1234,7 +1234,7 @@ for (const [nn, rel, whatItIs, asPath, asText] of BOTH_ROUTES) {
   );
 }
 
-/* ---------- names Windows opens as other names, held to docs/adr/0216 ---------- */
+/* ---------- names Windows opens as other names, held to docs/adr/0217 ---------- */
 
 // Measured on Windows while docs/adr/0215 was settled: PowerShell opens wd.\report.html as wd\report.html,
 // and Node answers "not there" for the dotted name, so the guard found no working directory above it.
@@ -1388,7 +1388,7 @@ test("W09 allowed: Read of ~/.claude/.credentials.json when the local allow list
   claim(widened("Read", { file_path: `${HC}/.credentials.json` }), ALLOWED, `Read of ${HC}/.credentials.json under ${WIDENED_LIST}`);
 });
 
-/* ---------- a read line beneath a plain line, held to docs/adr/0216 ---------- */
+/* ---------- a read line beneath a plain line, held to docs/adr/0217 ---------- */
 
 // A folder the local allow list names to read lies beneath one it names plainly. Written with a dot after
 // its name, its text falls under the plain line only, and PowerShell opens the folder the read line names.

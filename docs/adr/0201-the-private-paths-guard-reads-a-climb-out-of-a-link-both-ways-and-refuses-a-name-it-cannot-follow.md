@@ -1,6 +1,6 @@
 # ADR-201 — The private-paths guard reads a climb out of a link both ways, and refuses a name it cannot follow
 
-> **Partly amended — see [ADR-216](0216-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md).** §1's "A path that holds `..` is read twice, and either reading refuses" is no longer the whole of the readings: on Windows each of the two is read once more, as Windows opens its names, and any of them refuses. Everything else in this record stands.
+> **Partly amended — see [ADR-217](0217-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md).** §1's "A path that holds `..` is read twice, and either reading refuses" is no longer the whole of the readings: on Windows each of the two is read once more, as Windows opens its names, and any of them refuses. Everything else in this record stands.
 
 - **Date**: 2026-10-05
 - **Status**: accepted

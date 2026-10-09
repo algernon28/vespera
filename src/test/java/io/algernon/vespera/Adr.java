@@ -1292,7 +1292,7 @@ public final class Adr {
             + "0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md";
 
     /**
-     * ADR-216 -- on Windows the private-paths guard reads every path once more as Windows opens its
+     * ADR-217 -- on Windows the private-paths guard reads every path once more as Windows opens its
      * names, each without the stream name after a colon and then without the dots and spaces that end
      * it, so {@code wd.\report.html} is {@code wd\report.html}; that reading is judged as every other is,
      * the allow list and its {@code read} lines, the closed {@code .claude} folders, links and the working
@@ -1301,7 +1301,7 @@ public final class Adr {
      * tests are Node tests under {@code src/test/hooks}.
      */
     public static final String THE_GUARD_READS_EVERY_PATH_AS_WINDOWS_OPENS_ITS_NAMES = FILE
-            + "0216-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md";
+            + "0217-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md";
 
     private Adr() {
     }
