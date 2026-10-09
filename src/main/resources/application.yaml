@@ -16,10 +16,10 @@ vespera:
   # outside every working directory.
   # account-dir:
   docling:
-    # docling-serve is a managed sidecar (ADR-011), same as Chroma and Ollama, but unlike them
+    # docling-serve is a managed sidecar (ADR-011), same as Ollama, but unlike it
     # carries no Spring Boot auto-configuration or ServiceConnection support -- there is no
     # published connection-details factory for it to derive a URL from a running container the way
-    # spring-ai's starters do for Chroma/Ollama. compose.yaml pins its host port to match, so this
+    # Spring AI's starter does for Ollama. compose.yaml pins its host port to match, so this
     # default is correct for `vespera run` against the sidecar compose.yaml declares; a test
     # overrides it from the Testcontainers-mapped port instead (see TestcontainersConfiguration).
     base-url: http://localhost:5001
@@ -114,8 +114,3 @@ spring:
           # It lives here, where Spring AI's own auto-configuration reads it, rather than under a
           # vespera.* key, so the chat model bean and the call name one model instead of two.
           model: qwen3:8b
-    vectorstore:
-      chroma:
-        # Chroma is a derived, disposable projection of the vectors SQLite holds
-        # authoritatively (ADR-039), so it may be created and rebuilt at will.
-        initialize-schema: true

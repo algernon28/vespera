@@ -5,8 +5,8 @@ name: build
 # Two jobs and not one, because the test suite is deliberately split across two filesystems
 # (ADR-065) and no single runner offers both:
 #
-#   * The integration test starts Chroma and Ollama through Testcontainers, which needs a Docker
-#     daemon running Linux containers. GitHub's Windows runners cannot do that.
+#   * The integration tests start Ollama and docling-serve through Testcontainers, which needs a
+#     Docker daemon running Linux containers. GitHub's Windows runners cannot do that.
 #   * The identity tests build their fixtures on NTFS -- an entry whose name has no UTF-8 encoding,
 #     an ACL-denied directory, a path too long to open. On Linux each one aborts by design, so a
 #     Linux-only build would report success having run none of them.

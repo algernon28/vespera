@@ -1,5 +1,7 @@
 # ADR-142 — The vector store connects to Chroma when it is first used
 
+> **Superseded — see ADR-214.** [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md) **supersedes this record**: Chroma and the vector store are removed, `VectorStoreConfiguration` with them, and the requirement that the store stay configured for its first reader is withdrawn. A reader that wants a vector database is a decision of its own. The tests named in the Consequences below go or change with that record's implementation.
+
 - **Date**: 2026-09-23
 - **Status**: accepted
 - **Keeps**: [ADR-039](0039-chroma-is-derived-sqlite-is-authoritative-for-vectors.md) — Chroma stays configured as the derived projection; only the moment it is first reached moves.

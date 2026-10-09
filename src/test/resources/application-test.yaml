@@ -10,8 +10,7 @@ vespera:
 # Loaded on top of src/main/resources/application.yaml when the "test" profile is active,
 # because a profile-specific file layers rather than replaces. An identically named
 # application.yaml here would shadow the main one entirely instead — same classpath
-# resource name, test-classes first — which is how the Chroma setting below went missing
-# once already.
+# resource name, test-classes first — and every shipped setting would silently stop applying.
 #
 # The datasource is test-only. Where the real database lives is still an open decision
 # (issue #11), so nothing here settles it: this exists so the context can be built at all,
