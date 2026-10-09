@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.embedding.EmbeddingStatement;
 import io.algernon.vespera.embedding.MeasuredForms;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
@@ -10,6 +11,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.OptionalLong;
 import java.util.function.LongConsumer;
 import org.slf4j.Logger;
@@ -104,9 +106,10 @@ class SeedCorpusComparisonTasklet implements Tasklet {
                 () -> seedCorpusComparison.discardForRun(measurementRun),
                 () -> {
                     LOG.info("Stage 5b (seed/corpus comparison) starting under run {}", measurementRun.value());
-                    // Five statements that wait, said as SeedCorpusComparison reports each (ADR-193 section 7,
-                    // ADR-204 section 3): two drains, timed, and three reads of a run's rows, counted, the
-                    // first of which says nothing where no seed is recorded unusable.
+                    // The statements that wait, said as SeedCorpusComparison reports each (ADR-193 section 7,
+                    // ADR-204 section 3, ADR-211 section 9): one drain, timed; reads of a run's rows counted by
+                    // SQLite's steps, the first of which says nothing where no seed is recorded unusable; and
+                    // the corpus survivors' reads, made a page at a time and counted by the rows read.
                     String stage = "Stage 5b (seed/corpus comparison)";
                     SeedCorpusComparison.Comparison comparison = seedCorpusComparison.measure(
                             measurementRun,
@@ -115,18 +118,22 @@ class SeedCorpusComparisonTasklet implements Tasklet {
                             // extraction reads its own table and hands the rows over (ADR-209 section 3.2).
                             measuredForms(),
                             ReportedStatements.saying()
-                                    .timed(EmbeddingStatement.CORPUS_SURVIVORS, stage, "the corpus survivors")
                                     .timed(EmbeddingStatement.SEED_OCCURRENCES, stage, "the seed walk's occurrences")
                                     .counted(
                                             EmbeddingStatement.UNUSABLE_SEEDS,
                                             stage,
                                             "the unusable seeds",
                                             "Stage 5b (seed/corpus comparison, reading unusable seeds)")
-                                    .counted(
+                                    .paged(
                                             EmbeddingStatement.CORPUS_METRICS,
                                             stage,
                                             "the corpus survivors' extraction metrics",
                                             "Stage 5b (seed/corpus comparison, reading corpus metrics)")
+                                    .paged(
+                                            EmbeddingStatement.CORPUS_METRICS_AGAIN,
+                                            stage,
+                                            "the corpus survivors' extraction metrics again",
+                                            "Stage 5b (seed/corpus comparison, reading corpus metrics again)")
                                     .counted(
                                             EmbeddingStatement.SEED_METRICS,
                                             stage,
@@ -153,6 +160,11 @@ class SeedCorpusComparisonTasklet implements Tasklet {
             @Override
             public void each(RunId runId, LongConsumer stepsTaken, Row row) {
                 extractionMetrics.eachMeasuredForm(runId, stepsTaken, row::read);
+            }
+
+            @Override
+            public void eachOf(RunId runId, Collection<OccurrenceId> occurrences, Row row) {
+                extractionMetrics.eachMeasuredFormOf(runId, occurrences, row::read);
             }
         };
     }

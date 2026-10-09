@@ -15,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -139,51 +138,30 @@ class ClusteringTasklet implements Tasklet {
                     String chunkerIdentity = hybridChunker.identity();
                     String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
 
-                    // The survivor set as it stands after the floor step, drained once: a document
-                    // removed as below-threshold still carries the score row that put it in a partition,
-                    // and clustering it would give a page to a document this run has just decided is not
-                    // in the archive. ADR-060 keeps the verdict join in the ledger, so the filter is
-                    // here rather than in the partition query embedding owns.
-                    Set<OccurrenceId> survivors = TimedStatement.of(
-                            STAGE, "reading", "read", "the corpus survivors", () -> {
-                                Set<OccurrenceId> ids = new HashSet<>();
-                                for (OccurrenceId id : ledger.verdicts().survivors(scoring)) {
-                                    ids.add(id);
-                                }
-                                return ids;
-                            });
-
                     LOG.info(
                             "Stage 5f (clustering) starting under scoring run {}: {} seed partition(s) to"
                                     + " cluster",
                             scoring.value(),
                             partitions.size());
-                    // Every partition's members are asked for and filtered before the first partition is
-                    // clustered, so the counter over the cache keys read has one total across all of them
-                    // (ADR-192 section 5). One membersOf statement per partition, moved earlier, not added.
-                    List<List<OccurrenceId>> membersByPartition = new ArrayList<>(partitions.size());
-                    long keysToRead = 0;
-                    for (OccurrenceId winningSeed : partitions) {
-                        String whichPartition =
-                                "partition " + (membersByPartition.size() + 1) + " of " + partitions.size();
-                        List<OccurrenceId> members = TimedStatement.of(
-                                        STAGE, "reading", "read",
-                                        "the members of " + whichPartition,
-                                        () -> clustering.membersOf(scoring, winningSeed))
-                                .stream()
-                                .filter(survivors::contains)
-                                .toList();
-                        membersByPartition.add(members);
-                        keysToRead += members.size();
-                    }
                     StageProgress partitionsDone =
                             StageProgress.over("Stage 5f (clustering, seed partitions)", partitions.size());
-                    StageProgress keysRead =
-                            StageProgress.over("Stage 5f (clustering, cache keys read)", keysToRead);
                     List<ClusterSizeReport.Partition> reported = new ArrayList<>();
                     for (int partition = 0; partition < partitions.size(); partition++) {
                         OccurrenceId winningSeed = partitions.get(partition);
-                        List<OccurrenceId> members = membersByPartition.get(partition);
+                        String whichPartition = "partition " + (partition + 1) + " of " + partitions.size();
+                        // One partition's members at a time, held until it is clustered and let go before the
+                        // next is read (ADR-211 section 5). A document removed as below-threshold still
+                        // carries the score row that put it in a partition, and clustering it would give a
+                        // page to a document this run has just decided is not in the archive; ADR-060 keeps
+                        // the verdict join in the ledger, so the filter is a question put to it, in the order
+                        // the members came.
+                        List<OccurrenceId> read = TimedStatement.of(
+                                STAGE, "reading", "read",
+                                "the members of " + whichPartition,
+                                () -> clustering.membersOf(scoring, winningSeed));
+                        Set<OccurrenceId> surviving = ledger.verdicts().survivingAmong(scoring, read);
+                        List<OccurrenceId> members =
+                                read.stream().filter(surviving::contains).toList();
                         if (members.isEmpty()) {
                             // Every document this seed won was removed by the floor. A partition of
                             // nothing is not a partition, and a heading with no page under it is not
@@ -195,6 +173,11 @@ class ClusteringTasklet implements Tasklet {
                         // because that is the only place the similarities exist: recovering them
                         // afterwards would mean the N-squared-over-two pass a second time (ADR-096).
                         // Nothing reads it but the page.
+                        int place = partition + 1;
+                        int of = partitions.size();
+                        StageProgress keysRead = StageProgress.over(
+                                "Stage 5f (clustering, cache keys read, partition " + place + " of " + of + ")",
+                                members.size());
                         Optional<RetainedEdgeSpread> spread = clustering.clusterAndRecord(
                                 scoring,
                                 winningSeed,
@@ -210,7 +193,7 @@ class ClusteringTasklet implements Tasklet {
                                 pathOf(winningSeed),
                                 TimedStatement.of(
                                         STAGE, "reading", "read",
-                                        "the cluster sizes of partition " + (partition + 1) + " of " + partitions.size(),
+                                        "the cluster sizes of " + whichPartition,
                                         () -> documentClusters.sizesFor(scoring, winningSeed)),
                                 spread));
                         partitionsDone.itemDone();

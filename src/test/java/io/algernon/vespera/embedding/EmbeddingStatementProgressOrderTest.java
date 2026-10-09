@@ -35,20 +35,25 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * What {@code embedding} tells its caller around each statement of {@code SeedCorpusComparison.measure}, and
- * in which order (ADR-193 sections 6 to 8, ADR-204 section 4, #411): its two drains, of the corpus survivors
- * and of the seed walk's occurrences, each started with no total and ended; then its three counted reads, of
- * the unusable seeds, of the corpus survivors' extraction metrics under stage 2's run and of the seeds' under
- * the measurement run, each started with the span of its run's rows, or with an empty total where the run
- * holds none, and ended.
+ * in which order (ADR-193 sections 6 to 8, ADR-204 section 4, ADR-211 section 9): its drain of the seed walk's
+ * occurrences, started with no total and ended; then its three reads, of the unusable seeds, of the corpus
+ * survivors' extraction metrics under stage 2's run and of the seeds' under the measurement run, each started
+ * with the span of its run's rows, or with an empty total where the run holds none, and ended.
+ *
+ * <p>Since ADR-211 no drain of the corpus survivors comes first: the read of their metrics is made a page of
+ * survivors at a time, and is told the rows it has read after each page, through {@code rowsRead}, where the
+ * two other reads are told SQLite's steps. {@code rowsRead} is written without {@code @Override}: it is the
+ * callback ADR-211 adds, and this class compiles before it exists.
  *
  * <p>It runs on {@link PoolOfTwo}, so a counted read handed back to the template would report no steps over
  * many rows.
  */
 @Epic("Relevance")
 @Feature("Progress reporting")
-@Issue("411")
+@Issue("456")
 @Link(name = "ADR-193", url = Adr.STATEMENTS_REPORT_THEIR_PROGRESS, type = "adr")
 @Link(name = "ADR-204", url = Adr.PART_B_OF_THE_STATEMENTS_WRITTEN_OUT, type = "adr")
+@Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
 class EmbeddingStatementProgressOrderTest {
 
     /** Enough rows, at 5 or at 12 steps a row, for at least one callback of SQLite's handler in each read. */
@@ -89,8 +94,8 @@ class EmbeddingStatementProgressOrderTest {
 
     @Test
     @Story("Comparing the seeds with the collection says what it is reading")
-    @DisplayName("The comparison starts and ends its two drains with no total, and then its three reads with the span of each run's rows")
-    void theFiveStatementsAreReportedInTheOrderTheyAreIssued() {
+    @DisplayName("The comparison starts and ends its read of the seed folder's files with no total, and then its three reads with the span of each run's rows, the surviving documents' told the rows they read")
+    void theFourStatementsAreReportedInTheOrderTheyAreIssued() {
         measured(corpusWalk, "kept.txt", extractionRun);
         measured(seedWalk, "seed.txt", measurementRun);
         OccurrenceId unusable = measured(seedWalk, "empty.pdf", measurementRun);
@@ -100,18 +105,19 @@ class EmbeddingStatementProgressOrderTest {
         new SeedCorpusComparison(jdbcTemplate, ledger).measure(measurementRun, extractionRun, seedWalk, RecordedForms.over(jdbcTemplate), recorder);
 
         claim(
-                "each statement is started and ended once, in the order the comparison issues them: the two drains"
-                        + " with no total, the one unusable seed, the one metric row under stage 2's run, and"
-                        + " the two under the measurement run, the unusable seed's among them",
+                "each statement is started and ended once, in the order the comparison issues them: the seed"
+                        + " folder's files with no total, the one unusable seed, the one metric row under stage 2's"
+                        + " run, told the one row read once its page of survivors is done, and the two under the"
+                        + " measurement run, the unusable seed's among them. No drain of the corpus survivors comes"
+                        + " first",
                 () -> assertThat(recorder.calls)
                         .containsExactly(
-                                starting(EmbeddingStatement.CORPUS_SURVIVORS, OptionalLong.empty()),
-                                ended(EmbeddingStatement.CORPUS_SURVIVORS),
                                 starting(EmbeddingStatement.SEED_OCCURRENCES, OptionalLong.empty()),
                                 ended(EmbeddingStatement.SEED_OCCURRENCES),
                                 starting(EmbeddingStatement.UNUSABLE_SEEDS, OptionalLong.of(1)),
                                 ended(EmbeddingStatement.UNUSABLE_SEEDS),
                                 starting(EmbeddingStatement.CORPUS_METRICS, OptionalLong.of(1)),
+                                rowsReadCall(EmbeddingStatement.CORPUS_METRICS, 1),
                                 ended(EmbeddingStatement.CORPUS_METRICS),
                                 starting(EmbeddingStatement.SEED_METRICS, OptionalLong.of(2)),
                                 ended(EmbeddingStatement.SEED_METRICS)));
@@ -140,7 +146,7 @@ class EmbeddingStatementProgressOrderTest {
 
     @Test
     @Story("Comparing the seeds with the collection says what it is reading")
-    @DisplayName("Each of the comparison's three reads over many rows reports its steps between its start and its end")
+    @DisplayName("Over many rows, the comparison's two reads of the seeds' side report their steps, and its read of the surviving documents' metrics goes through their rows alone")
     void eachCountedReadOverManyRowsReportsItsSteps() throws SQLException {
         measured(corpusWalk, "kept.txt", extractionRun);
         measured(seedWalk, "seed.txt", measurementRun);
@@ -151,8 +157,7 @@ class EmbeddingStatementProgressOrderTest {
 
         new SeedCorpusComparison(jdbcTemplate, ledger).measure(measurementRun, extractionRun, seedWalk, RecordedForms.over(jdbcTemplate), recorder);
 
-        for (EmbeddingStatement read :
-                List.of(EmbeddingStatement.UNUSABLE_SEEDS, EmbeddingStatement.CORPUS_METRICS, EmbeddingStatement.SEED_METRICS)) {
+        for (EmbeddingStatement read : List.of(EmbeddingStatement.UNUSABLE_SEEDS, EmbeddingStatement.SEED_METRICS)) {
             claim(
                     "the steps of " + read + " are reported after it is started and before it is ended, a"
                             + " hundred thousand first: with a second connection in the pool and no transaction,"
@@ -167,6 +172,18 @@ class EmbeddingStatementProgressOrderTest {
                                 .allMatch(call -> call.startsWith("stepsTaken(" + read + ", "));
                     });
         }
+        claim(
+                "the read of the surviving documents' metrics is told the one row it read, the one surviving"
+                        + " document's, and nothing else between its start and its end: the " + MANY + " rows of"
+                        + " documents no walk holds are never gone through",
+                () -> {
+                    int started = indexOfCallOpening(
+                            recorder.calls, "statementStarting(" + EmbeddingStatement.CORPUS_METRICS + ", ");
+                    int ended = recorder.calls.indexOf(ended(EmbeddingStatement.CORPUS_METRICS));
+                    assertThat(started).isNotNegative();
+                    assertThat(recorder.calls.subList(started + 1, ended))
+                            .containsExactly(rowsReadCall(EmbeddingStatement.CORPUS_METRICS, 1));
+                });
         claim("and neither connection of the pool carries a handler afterwards", () -> assertThat(pool.handlersLeft())
                 .isZero());
     }
@@ -190,12 +207,10 @@ class EmbeddingStatementProgressOrderTest {
                                 .measure(measurementRun, extractionRun, seedWalk, RecordedForms.over(jdbcTemplate), recorder))
                         .isInstanceOf(DataAccessException.class));
         claim(
-                "the caller was told both drains started and ended and the read started, over the "
-                        + ONE_UNUSABLE_SEED + " row the run held, and never that the read ended",
+                "the caller was told the drain of the seed folder's files started and ended and the read started,"
+                        + " over the " + ONE_UNUSABLE_SEED + " row the run held, and never that the read ended",
                 () -> assertThat(recorder.calls)
                         .containsExactly(
-                                starting(EmbeddingStatement.CORPUS_SURVIVORS, OptionalLong.empty()),
-                                ended(EmbeddingStatement.CORPUS_SURVIVORS),
                                 starting(EmbeddingStatement.SEED_OCCURRENCES, OptionalLong.empty()),
                                 ended(EmbeddingStatement.SEED_OCCURRENCES),
                                 starting(EmbeddingStatement.UNUSABLE_SEEDS, OptionalLong.of(ONE_UNUSABLE_SEED))));
@@ -220,13 +235,10 @@ class EmbeddingStatementProgressOrderTest {
                                 .measure(measurementRun, extractionRun, seedWalk, RecordedForms.over(jdbcTemplate), recorder))
                         .hasRootCauseInstanceOf(SQLException.class));
         claim(
-                "the caller was told the first drain started and ended and the second started, with no total, and"
-                        + " never that it ended; no read was announced after it",
+                "the caller was told the drain started, with no total, and never that it ended; no read was"
+                        + " announced after it",
                 () -> assertThat(recorder.calls)
-                        .containsExactly(
-                                starting(EmbeddingStatement.CORPUS_SURVIVORS, OptionalLong.empty()),
-                                ended(EmbeddingStatement.CORPUS_SURVIVORS),
-                                starting(EmbeddingStatement.SEED_OCCURRENCES, OptionalLong.empty())));
+                        .containsExactly(starting(EmbeddingStatement.SEED_OCCURRENCES, OptionalLong.empty())));
     }
 
     /** The one unusable seed the test of a read that throws records. */
@@ -269,6 +281,10 @@ class EmbeddingStatementProgressOrderTest {
         return "statementEnded(" + statement + ")";
     }
 
+    private static String rowsReadCall(EmbeddingStatement statement, long rows) {
+        return "rowsRead(" + statement + ", " + rows + ")";
+    }
+
     /** Every callback, in the order it came, written as the call it was. */
     private static class Recorder implements EmbeddingStatementProgress {
 
@@ -282,6 +298,11 @@ class EmbeddingStatementProgressOrderTest {
         @Override
         public void stepsTaken(EmbeddingStatement statement, long steps) {
             calls.add("stepsTaken(" + statement + ", " + steps + ")");
+        }
+
+        /** ADR-211's callback, written without {@code @Override} so the class compiles before it exists. */
+        public void rowsRead(EmbeddingStatement statement, long rows) {
+            calls.add(rowsReadCall(statement, rows));
         }
 
         @Override

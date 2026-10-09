@@ -49,7 +49,7 @@ class StatementProgressTest {
     /** The build of {@code shingle_by_hash}: 8 steps a row and one for each of its three columns. */
     private static final int BUILD_STEPS_PER_ROW = 11;
 
-    /** Stage 3's read of its shingle rows. */
+    /** What stage 3's read of its shingle rows took until ADR-211 had the database group them: a sample ratio now. */
     private static final int READ_STEPS_PER_ROW = 7;
 
     /** The shingle rows stage 4b's line stated on 2026-10-04: the largest build on record. */
@@ -66,7 +66,11 @@ class StatementProgressTest {
 
     private static final String BUILD = "Stage 4b (redundancy resolution, building shingle_by_hash)";
 
-    private static final String READ = "Stage 3 (content census, reading shingle rows)";
+    /**
+     * A made-up label: the class under test only repeats what it is given. It was stage 3's {@code reading
+     * shingle rows} until ADR-211 section 9 retired that line.
+     */
+    private static final String READ = "A stage (its step, reading some rows)";
 
     private static final String GONE_THROUGH = " rows gone through; writing the index says nothing more until it ends";
 

@@ -106,6 +106,8 @@ One command at a time uses a working directory. A second command started on it w
 
 While a command is running, two more files sit beside `vespera.db`: `vespera.db-wal`, SQLite's write-ahead log, which holds the most recent changes, and `vespera.db-shm`, its index. When the command ends they are folded back into `vespera.db` and deleted, unless something else, such as a database browser, still has the database open. To copy the working directory, copy it after the command has ended and `vespera.db-wal` is gone. If `vespera.db-wal` is still there, or you have to copy while a command is running, copy all three files together, or the copy is missing the latest changes. Keep the working directory on a disk attached to the machine that runs Vespera, not on a network share: the database relies on shared memory that only works on a local disk.
 
+The database also keeps its temporary files in the working directory, not in the system's temporary folder. It writes them while a step has it sort a great many rows and removes them itself; on Windows they show there under names beginning `etilqs_`, and they are no part of a copy. They grow with the archive and can run to gigabytes on a large one, so the disk that holds the working directory needs that much free while a command runs.
+
 ## Commands
 
 ```

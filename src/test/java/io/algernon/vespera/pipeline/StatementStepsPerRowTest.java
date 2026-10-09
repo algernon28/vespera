@@ -64,19 +64,18 @@ class StatementStepsPerRowTest {
     /** Steps an index build takes for every row, beyond one for each column it indexes. */
     static final int BUILD_STEPS_BEYOND_COLUMNS = 8;
 
-    /** Stage 3's read of one stage-2 run's shingle rows. */
-    static final int SHINGLE_ROWS_STEPS = 7;
-
-    /** Stage 3's read of the extraction metrics, for the confidence distribution. */
-    static final int CONFIDENCE_METRICS_STEPS = 7;
-
     /** Stage 4b's read of the occurrences signed under its run. */
     static final int SIGNED_OCCURRENCES_STEPS = 5;
 
     /** Stage 5b's read of the unusable seeds of its run. */
     static final int UNUSABLE_SEEDS_STEPS = 5;
 
-    /** Stage 5b's two reads of the extraction metrics, seven columns each. */
+    /**
+     * Stage 5b's read of the seeds' extraction metrics, seven columns. Its read of the corpus survivors' took
+     * the same until ADR-211 made it a page of survivors at a time, told the rows it reads and no steps; stage
+     * 3's two reads, of the shingle rows and of the extraction metrics, took 7 a row until then, and are not
+     * measured here since: no code issues them.
+     */
     static final int COMPARISON_METRICS_STEPS = 12;
 
     /** The interval every handler is set at, in steps (ADR-193 section 2). */
@@ -185,10 +184,6 @@ class StatementStepsPerRowTest {
     @Story("A long statement inside the database reports how far it has gone")
     @DisplayName("Each read whose rows are counted takes the same number of steps for every row of its run")
     void eachCountedReadTakesItsStepsARow() throws SQLException {
-        measureRead("shingle", "SELECT occurrence_id, shingle_parameter_identity, shingle_hash FROM shingle WHERE run_id = ?",
-                "shingle_by_run_id", SHINGLE_ROWS_STEPS);
-        measureRead("extraction_metric", "SELECT occurrence_id, mean_score FROM extraction_metric WHERE run_id = ?",
-                "extraction_metric_by_run_id", CONFIDENCE_METRICS_STEPS);
         measureRead("minhash_signature", "SELECT DISTINCT occurrence_id FROM minhash_signature WHERE run_id = ?",
                 "minhash_signature_by_run_id", SIGNED_OCCURRENCES_STEPS);
         measureRead("unusable_seed", "SELECT occurrence_id FROM unusable_seed WHERE run_id = ?",

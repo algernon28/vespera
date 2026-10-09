@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-207](0207-a-file-is-hashed-through-a-fixed-buffer-so-its-size-sets-no-limit.md).** One sentence of Context below, "Hashing already streams, so this is ids, not file contents", was not true when written: each hash held its whole file in memory. It is true from ADR-207. The decision does not rest on it and stands.
 
+> **Partly amended — see [ADR-211](0211-no-class-holds-every-survivor-of-a-run-another-tables-rows-are-read-a-page-of-survivors-at-a-time.md).** The Consequence "Other stages that drain survivors into a `Set` are not touched. `SeedCorpusComparison` and `ConfidenceDistribution` do, each for a stated reason of its own" no longer describes the code: since ADR-211 neither drains its survivors into a set, and no class holds a set of every survivor of a run. Their rows in ADR-193 §6, which the same Consequence says stand, are struck by that record. What this record decided for stage 1 stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-188](0188-stage-1s-verdict-rules-and-content-identity-live-in-corpus-which-still-knows-no-stage.md) §1 and §2, in what they say of the drain and nothing else. §1's *"with their behaviour unchanged"* stands for every rule and no longer for how either pass reads its survivors: the second pass is changed here, and the first in how it is fed. §1's fifth thing moved, *"`drain`, which both passes use"*, and §2's package-private `SurvivorDrain`, *"which holds `drain` for both passes"*, are deleted: `corpus` has no such type. §1's *"Both passes still drain the survivor reader into a `List`, which departs from ADR-060. Fixing that is #405's job"* is what this record does.

@@ -4,13 +4,15 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.StatementSteps;
+import io.algernon.vespera.ledger.WalkId;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -25,9 +27,16 @@ import org.springframework.stereotype.Component;
  * an occurrence carrying a blocking verdict from stage 2 ({@code extraction-failed},
  * {@code degenerate-output}) contributes to neither count, while a {@code partial_success} document
  * is a survivor by design and is included.
+ *
+ * <p>Counted in the database, in one grouping of the run's rows and then a check of the walk's occurrences
+ * a page at a time that takes off what the ruled-out ones contributed (ADR-211 section 3). Nothing here
+ * grows with the corpus in the heap: a page of ids and one count for each granularity.
  */
 @Component
 public class DocumentFrequency {
+
+    /** The most occurrences one statement of the check names: the ledger's own page. */
+    private static final int PAGE = 1_000;
 
     private final JdbcTemplate jdbcTemplate;
     private final Ledger ledger;
@@ -46,83 +55,127 @@ public class DocumentFrequency {
     }
 
     /**
-     * As {@link #measure(RunId, RunId)}, and tells {@code progress}, in this order: that the drain of stage
-     * 2's survivors starts and ends ({@link SimilarityStatement#FREQUENCY_SURVIVORS}, timed, so with no
-     * total); that the read of the shingle rows starts, with {@link #shingleRowsUpTo} as its total, empty
-     * where the run holds no shingle row, the steps SQLite has taken at each of that read's callbacks, and
-     * that it ends ({@link SimilarityStatement#SHINGLE_ROWS}); then the number of distinct (granularity,
-     * hash) pairs counted in memory once, before the first is gone through (zero included), and each one
-     * gone through, a row written for it or not (ADR-192 section 5, ADR-193 section 7). A statement that
+     * As {@link #measure(RunId, RunId)}, and tells {@code progress}, in this order: that the grouping of the
+     * run's shingle rows starts, with {@link #shingleRowsUpTo} as its total, the steps SQLite has taken at
+     * each of its callbacks, and that it ends ({@link SimilarityStatement#SHINGLE_ROWS}); then the number of
+     * the walk's occurrences checked after each page of them (ADR-211 sections 3 and 9). A run with no shingle
+     * row is told started with an empty total and ended at once, and nothing else is done. A statement that
      * throws is not told to have ended.
      */
     public void measure(RunId stage3RunId, RunId stage2RunId, FrequencyProgress progress) {
-        progress.statementStarting(SimilarityStatement.FREQUENCY_SURVIVORS, OptionalLong.empty());
-        // The whole survivor set is needed to test every shingle row against, not one page of it: a
-        // departure from ADR-060 that ADR-209 section 2 states.
-        Set<Long> survivorIds = new HashSet<>();
-        for (OccurrenceId survivor : ledger.verdicts().survivors(stage2RunId)) {
-            survivorIds.add(survivor.value());
+        OptionalLong rowsUpTo = shingleRowsUpTo(stage2RunId);
+        progress.statementStarting(SimilarityStatement.SHINGLE_ROWS, rowsUpTo);
+        if (rowsUpTo.isEmpty()) {
+            progress.statementEnded(SimilarityStatement.SHINGLE_ROWS);
+            return;
         }
-        progress.statementEnded(SimilarityStatement.FREQUENCY_SURVIVORS);
 
-        Map<Hash, Counts> byHash = new HashMap<>();
-        Map<String, Set<Long>> shingledOccurrencesByParameter = new HashMap<>();
-
-        // The one statement that reads every shingle row of stage 2's run, counted by SQLite's progress
-        // handler (ADR-193). It runs on the connection the template hands over and is never handed back to it.
-        progress.statementStarting(SimilarityStatement.SHINGLE_ROWS, shingleRowsUpTo(stage2RunId));
+        // The one grouping of every shingle row of stage 2's run, counted by SQLite's progress handler
+        // (ADR-193, ADR-211 section 9). It runs on the connection the template hands over and is never
+        // handed back to it.
         StatementSteps.counted(
                 jdbcTemplate,
                 steps -> progress.stepsTaken(SimilarityStatement.SHINGLE_ROWS, steps),
                 connection -> {
-                    try (PreparedStatement statement = connection.prepareStatement(
-                            "SELECT occurrence_id, shingle_parameter_identity, shingle_hash FROM shingle"
-                                    + " WHERE run_id = ?")) {
-                        statement.setString(1, stage2RunId.value());
-                        try (ResultSet resultSet = statement.executeQuery()) {
-                            while (resultSet.next()) {
-                                long occurrenceId = resultSet.getLong("occurrence_id");
-                                if (!survivorIds.contains(occurrenceId)) {
-                                    continue;
-                                }
-                                String parameterIdentity = resultSet.getString("shingle_parameter_identity");
-                                long hash = resultSet.getLong("shingle_hash");
-                                byHash.computeIfAbsent(new Hash(parameterIdentity, hash), ignored -> new Counts())
-                                        .record(occurrenceId);
-                                shingledOccurrencesByParameter
-                                        .computeIfAbsent(parameterIdentity, ignored -> new HashSet<>())
-                                        .add(occurrenceId);
-                            }
-                        }
+                    try (PreparedStatement grouping = connection.prepareStatement(
+                            "INSERT INTO shingle_document_frequency"
+                                    + " (run_id, shingle_parameter_identity, shingle_hash, document_count, total_count)"
+                                    + " SELECT ?, shingle_parameter_identity, shingle_hash,"
+                                    + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle WHERE run_id = ?"
+                                    + " GROUP BY shingle_parameter_identity, shingle_hash"
+                                    + " HAVING COUNT(DISTINCT occurrence_id) >= 2")) {
+                        grouping.setString(1, stage3RunId.value());
+                        grouping.setString(2, stage2RunId.value());
+                        grouping.executeUpdate();
                     }
                     return null;
                 });
         progress.statementEnded(SimilarityStatement.SHINGLE_ROWS);
 
-        progress.toGoThrough(byHash.size());
-        byHash.forEach((hash, counts) -> {
-            // The omission rule schema.sql's own comment states: only a hash seen in two or more
-            // surviving documents earns a row (ADR-074) -- an absent hash means exactly one, never zero.
-            if (counts.documentCount() >= 2) {
-                jdbcTemplate.update(
-                        "INSERT INTO shingle_document_frequency"
-                                + " (run_id, shingle_parameter_identity, shingle_hash, document_count, total_count)"
-                                + " VALUES (?, ?, ?, ?, ?)",
-                        stage3RunId.value(),
-                        hash.parameterIdentity(),
-                        hash.shingleHash(),
-                        counts.documentCount(),
-                        counts.totalCount());
+        WalkId walk = ledger.runs()
+                .walkOf(stage2RunId)
+                .orElseThrow(() -> new IllegalStateException("Run " + stage2RunId.value() + " has no walk"));
+        Map<String, Long> shingledSurvivors = new LinkedHashMap<>();
+        List<OccurrenceId> page = new ArrayList<>(PAGE);
+        for (OccurrenceId occurrence : ledger.occurrences().occurrencesOf(walk)) {
+            page.add(occurrence);
+            if (page.size() == PAGE) {
+                check(stage3RunId, stage2RunId, page, shingledSurvivors);
+                progress.occurrencesChecked(page.size());
+                page.clear();
             }
-            progress.hashGoneThrough();
-        });
+        }
+        if (!page.isEmpty()) {
+            check(stage3RunId, stage2RunId, page, shingledSurvivors);
+            progress.occurrencesChecked(page.size());
+        }
 
-        shingledOccurrencesByParameter.forEach((parameterIdentity, occurrenceIds) -> jdbcTemplate.update(
+        // A granularity no surviving occurrence carries was never counted and earns no row (ADR-074).
+        shingledSurvivors.forEach((parameterIdentity, shingledDocuments) -> jdbcTemplate.update(
                 "INSERT INTO shingle_corpus_size (run_id, shingle_parameter_identity, shingled_document_count)"
                         + " VALUES (?, ?, ?)",
                 stage3RunId.value(),
                 parameterIdentity,
-                occurrenceIds.size()));
+                shingledDocuments));
+    }
+
+    /**
+     * One page of the walk's occurrences: counts the survivors' granularities into {@code shingledSurvivors},
+     * and takes off the frequency rows what the page's ruled-out occurrences contributed to the grouping,
+     * deleting each hash that falls below two.
+     */
+    private void check(RunId stage3RunId, RunId stage2RunId, List<OccurrenceId> page, Map<String, Long> shingledSurvivors) {
+        Set<OccurrenceId> surviving = ledger.verdicts().survivingAmong(stage2RunId, page);
+        List<Object> survivors = new ArrayList<>();
+        List<Object> ruledOut = new ArrayList<>();
+        for (OccurrenceId occurrence : page) {
+            (surviving.contains(occurrence) ? survivors : ruledOut).add(occurrence.value());
+        }
+        if (!survivors.isEmpty()) {
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(stage2RunId.value());
+            arguments.addAll(survivors);
+            jdbcTemplate.query(
+                    "SELECT shingle_parameter_identity, COUNT(DISTINCT occurrence_id) FROM shingle"
+                            + " WHERE run_id = ? AND occurrence_id IN (" + placeholders(survivors.size()) + ")"
+                            + " GROUP BY shingle_parameter_identity",
+                    resultSet -> {
+                        shingledSurvivors.merge(resultSet.getString(1), resultSet.getLong(2), Long::sum);
+                    },
+                    arguments.toArray());
+        }
+        if (!ruledOut.isEmpty()) {
+            String names = placeholders(ruledOut.size());
+            List<Object> takeOff = new ArrayList<>();
+            takeOff.add(stage3RunId.value());
+            takeOff.add(stage2RunId.value());
+            takeOff.addAll(ruledOut);
+            jdbcTemplate.update(
+                    "INSERT INTO shingle_document_frequency"
+                            + " (run_id, shingle_parameter_identity, shingle_hash, document_count, total_count)"
+                            + " SELECT ?, shingle_parameter_identity, shingle_hash,"
+                            + " -COUNT(DISTINCT occurrence_id), -COUNT(*) FROM shingle"
+                            + " WHERE run_id = ? AND occurrence_id IN (" + names + ")"
+                            + " GROUP BY shingle_parameter_identity, shingle_hash"
+                            + " ON CONFLICT (run_id, shingle_parameter_identity, shingle_hash) DO UPDATE SET"
+                            + " document_count = document_count + excluded.document_count,"
+                            + " total_count = total_count + excluded.total_count",
+                    takeOff.toArray());
+            List<Object> deletion = new ArrayList<>();
+            deletion.add(stage3RunId.value());
+            deletion.add(stage2RunId.value());
+            deletion.addAll(ruledOut);
+            jdbcTemplate.update(
+                    "DELETE FROM shingle_document_frequency WHERE run_id = ? AND document_count < 2"
+                            + " AND (shingle_parameter_identity, shingle_hash) IN"
+                            + " (SELECT shingle_parameter_identity, shingle_hash FROM shingle"
+                            + " WHERE run_id = ? AND occurrence_id IN (" + names + "))",
+                    deletion.toArray());
+        }
+    }
+
+    private static String placeholders(int count) {
+        return java.util.stream.IntStream.range(0, count).mapToObj(i -> "?").collect(Collectors.joining(", "));
     }
 
     /**
@@ -134,8 +187,8 @@ public class DocumentFrequency {
      * between them, because the span then takes in that run's rows. Hence "up to", not "exactly".
      * Writes nothing and logs nothing: {@code similarity} knows no stage, and what is said about the
      * bound, and when, is the caller's. {@link #measure} asks for it itself and hands it to its {@link
-     * FrequencyProgress} in {@code statementStarting}, immediately before the read and after the drain of
-     * stage 2's survivors (ADR-193 section 7).
+     * FrequencyProgress} in {@code statementStarting}, immediately before the grouping of the rows, the
+     * total its progress lines are a share of (ADR-193 section 7, ADR-211 section 3).
      */
     public OptionalLong shingleRowsUpTo(RunId stage2RunId) {
         // Two statements on purpose, never one. Each is one descent of shingle_by_run_id: 2 ms and
@@ -165,28 +218,5 @@ public class DocumentFrequency {
     public void discardForRun(RunId stage3RunId) {
         jdbcTemplate.update("DELETE FROM shingle_document_frequency WHERE run_id = ?", stage3RunId.value());
         jdbcTemplate.update("DELETE FROM shingle_corpus_size WHERE run_id = ?", stage3RunId.value());
-    }
-
-    /** One shingle hash within one granularity — the grain document frequency is grouped by. */
-    private record Hash(String parameterIdentity, long shingleHash) {}
-
-    /** Running totals for one {@link Hash}: distinct documents seen, and how many times overall. */
-    private static final class Counts {
-
-        private final Set<Long> occurrencesSeen = new HashSet<>();
-        private int totalCount;
-
-        void record(long occurrenceId) {
-            occurrencesSeen.add(occurrenceId);
-            totalCount++;
-        }
-
-        int documentCount() {
-            return occurrencesSeen.size();
-        }
-
-        int totalCount() {
-            return totalCount;
-        }
     }
 }

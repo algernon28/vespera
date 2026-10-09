@@ -2,6 +2,7 @@ package io.algernon.vespera;
 
 import io.algernon.vespera.pipeline.MisshapenProfileRefusal;
 import io.algernon.vespera.pipeline.ProfileShapeCheck;
+import io.algernon.vespera.pipeline.TemporaryFilesInTheWorkingDirectory;
 import io.algernon.vespera.pipeline.WorkingDirectoryInUseRefusal;
 import io.algernon.vespera.pipeline.WorkingDirectoryLock;
 import io.algernon.vespera.pipeline.WorkingDirectoryPreparer;
@@ -19,8 +20,15 @@ public class VesperaApplication {
         // inside the directory it creates (ADR-054), the lock after it, because the directory must
         // exist, and before the datasource opens vespera.db, so a second invocation is refused before it
         // touches the file (ADR-177), the check before a bean reads a profile.yaml that does not load
-        // and fails the context under its own name (#321).
-        application.addListeners(new WorkingDirectoryPreparer(), new WorkingDirectoryLock(), new ProfileShapeCheck());
+        // and fails the context under its own name (#321). The fourth sets SQLite's directory for temporary
+        // files to the working directory, once, before any connection pool exists and after the others, so
+        // that a start they refuse opens no connection to SQLite and changes nothing of the process's
+        // (ADR-211 section 12). None declares an order: each hears the event in the order it is added here.
+        application.addListeners(
+                new WorkingDirectoryPreparer(),
+                new WorkingDirectoryLock(),
+                new ProfileShapeCheck(),
+                new TemporaryFilesInTheWorkingDirectory());
         ConfigurableApplicationContext context;
         try {
             context = application.run(args);

@@ -107,7 +107,12 @@ class StageFiveReportsItsProgressInvocationTest {
     private static final String SCORING_SURVIVORS = "Stage 5d (relevance scoring, corpus survivors)";
     private static final String RELEVANCE_FLOOR = "Stage 5e (relevance floor, below-threshold verdicts)";
     private static final String PARTITIONS = "Stage 5f (clustering, seed partitions)";
-    private static final String KEYS_READ = "Stage 5f (clustering, cache keys read)";
+    /** 5f's counter of the keys it reads, one for each partition since ADR-211 section 5. */
+    private static final String KEYS_READ_OF_THE_ONE = "Stage 5f (clustering, cache keys read, partition 1 of 1)";
+
+    private static final String KEYS_READ_OF_THE_FIRST_OF_TWO = "Stage 5f (clustering, cache keys read, partition 1 of 2)";
+    private static final String KEYS_READ_OF_THE_SECOND_OF_TWO =
+            "Stage 5f (clustering, cache keys read, partition 2 of 2)";
     private static final String BLOCKS = "Stage 5f (clustering, comparison blocks, partition 1 of 1)";
     private static final String MEMBERS_RECORDED = "Stage 5f (clustering, members recorded)";
     private static final String REPORT_SAMPLE = "Stage 5 (relevance report, sampled survivors)";
@@ -245,22 +250,23 @@ class StageFiveReportsItsProgressInvocationTest {
         everyLineIsTheCounters(EMBEDDING_SURVIVORS, EMBEDDING_SEEDS);
         claim(
                 "the comparison of the seeds with the collection says what it is reading and how long each read"
-                        + " took, each line once, in the order it reads: the documents left, the seed folder's"
-                        + " files, and the extraction metrics of each side; and nothing about unusable seeds,"
-                        + " none being recorded",
+                        + " took, each line once, in the order it reads: the seed folder's files, and the"
+                        + " extraction metrics of each side; nothing about reading the documents left, which it"
+                        + " reads a page at a time inside its read of their metrics; and nothing about unusable"
+                        + " seeds, none being recorded",
                 () -> assertThat(StatementLines.withoutTotals(StatementLines.of(operatorLines(), STAGE_FIVE_B)))
                         .containsExactlyElementsOf(StatementLines.inOrder(
-                                StatementLines.timedRead(STAGE_FIVE_B, CORPUS_SURVIVORS),
                                 StatementLines.timedRead(STAGE_FIVE_B, SEED_OCCURRENCES),
                                 StatementLines.countedRead(STAGE_FIVE_B, "the corpus survivors' extraction metrics"),
                                 StatementLines.countedRead(STAGE_FIVE_B, "the seeds' extraction metrics"))));
         claim(
-                "embedding says the same of its three reads, in the order it makes them, before it embeds"
-                        + " anything",
+                "embedding says it counts the documents left, and then reads the seed folder's files and the"
+                        + " unusable seeds, each line once and in that order, before it embeds anything: it goes"
+                        + " through the documents left as it reads them, and holds no list of them",
                 () -> {
                     assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_C))
                             .containsExactlyElementsOf(StatementLines.inOrder(
-                                    StatementLines.timedRead(STAGE_FIVE_C, CORPUS_SURVIVORS),
+                                    StatementLines.timedCount(STAGE_FIVE_C, CORPUS_SURVIVORS),
                                     StatementLines.timedRead(STAGE_FIVE_C, SEED_OCCURRENCES),
                                     StatementLines.timedRead(STAGE_FIVE_C, UNUSABLE_SEEDS)));
                     assertThat(String.join("\n", operatorLines()))
@@ -296,12 +302,12 @@ class StageFiveReportsItsProgressInvocationTest {
         claim(
                 "scoring says what it is reading and how long each read took, each line once, in the order it"
                         + " reads: the seed folder's files and the unusable seeds, for the seeds whose keys it reads, and"
-                        + " then the documents left",
+                        + " then that it counts the documents left, which it goes through as it reads them",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_D))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_D, SEED_OCCURRENCES),
                                 StatementLines.timedRead(STAGE_FIVE_D, UNUSABLE_SEEDS),
-                                StatementLines.timedRead(STAGE_FIVE_D, CORPUS_SURVIVORS))));
+                                StatementLines.timedCount(STAGE_FIVE_D, CORPUS_SURVIVORS))));
     }
 
     @Test
@@ -365,13 +371,13 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(BLOCKS)).isEmpty());
         everyLineIsTheCounters(RELEVANCE_FLOOR, REPORT_ANSWERS, PARTITIONS);
         claim(
-                "grouping says it read the seed partitions, the documents left and the members of the one"
-                        + " partition, and says nothing of that partition's group sizes: it kept no member, so"
-                        + " nothing was grouped and no sizes were read",
+                "grouping says it read the seed partitions and the members of the one partition, and says"
+                        + " nothing of the documents left, asking only which of that partition's members are left,"
+                        + " and nothing of its group sizes: it kept no member, so nothing was grouped and no sizes"
+                        + " were read",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_F))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
-                                StatementLines.timedRead(STAGE_FIVE_F, CORPUS_SURVIVORS),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 1"))));
         claim(
                 "with a threshold that is a number and applies, the floor step makes three reads and says so of"
@@ -399,9 +405,10 @@ class StageFiveReportsItsProgressInvocationTest {
 
     @Test
     @Story("Grouping says how far it has got")
-    @DisplayName("Grouping counts its partitions, the recorded keys it reads across them, and the pairs of blocks of each")
+    @DisplayName("Grouping counts its partitions, and the recorded keys and the pairs of blocks of each partition")
     @Issue("349")
     @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
+    @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
     void clusteringCountsItsPartitionsKeysAndBlocks(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         profile(seeds, null);
@@ -414,10 +421,11 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(PARTITIONS))
                         .containsExactlyElementsOf(ProgressLines.expected(PARTITIONS, ONE_PARTITION)));
         claim(
-                "the recorded keys of all " + CORPUS_DOCUMENTS + " members are read, in one counter whose total is every"
-                        + " partition's members",
-                () -> assertThat(progressOf(KEYS_READ))
-                        .containsExactlyElementsOf(ProgressLines.expected(KEYS_READ, CORPUS_DOCUMENTS)));
+                "the recorded keys of all " + CORPUS_DOCUMENTS + " members are read, in a counter that names the"
+                        + " partition and how many there are, its total that partition's members: one partition is"
+                        + " held at a time",
+                () -> assertThat(progressOf(KEYS_READ_OF_THE_ONE))
+                        .containsExactlyElementsOf(ProgressLines.expected(KEYS_READ_OF_THE_ONE, CORPUS_DOCUMENTS)));
         claim(
                 "the partition's three documents fit one block, so it has one pair of blocks to compare, and its"
                         + " counter names the partition and how many there are",
@@ -427,15 +435,14 @@ class StageFiveReportsItsProgressInvocationTest {
                 "and the members whose group is recorded have no counter of their own: their inserts are left to"
                         + " the partition's counter",
                 () -> assertThat(progressOf(MEMBERS_RECORDED)).isEmpty());
-        everyLineIsTheCounters(PARTITIONS, KEYS_READ, BLOCKS);
+        everyLineIsTheCounters(PARTITIONS, KEYS_READ_OF_THE_ONE, BLOCKS);
         claim(
                 "grouping says what it is reading and how long each read took, each line once, in the order it"
-                        + " reads: the seed partitions, the documents left, the members of the one partition,"
-                        + " and, once that partition is grouped, the sizes of its groups",
+                        + " reads: the seed partitions, the members of the one partition, and, once that partition"
+                        + " is grouped, the sizes of its groups; and nothing of reading the documents left",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_F))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
-                                StatementLines.timedRead(STAGE_FIVE_F, CORPUS_SURVIVORS),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 1"),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the cluster sizes of partition 1 of 1"))));
     }
@@ -584,6 +591,12 @@ class StageFiveReportsItsProgressInvocationTest {
      * converted document coming back alike, so what is held here is that the synthetic signatures added none;
      * {@code RedundancyResolutionReportsItsProgressInvocationTest} holds the same over a run that does hold a
      * verdict. It claims nothing about what any other stage decides.
+     *
+     * <p>Since ADR-211 two of the five are no longer counted by SQLite: stage 3's read of the extraction
+     * metrics and 5b's of the collection's are made a page of surviving documents at a time and told their
+     * rows. So the first invocation, before any synthetic row is written, is where each says how far it has
+     * gone, once, over the collection's own rows (ADR-211 section 9); and in the second, over the tens of
+     * thousands of rows of a folder nobody walked, each says nothing, never going through them.
      */
     @Test
     @Story("A long read inside the database reports how far it has gone")
@@ -598,6 +611,11 @@ class StageFiveReportsItsProgressInvocationTest {
         String census = theLatestRunOf(StageModules.CONTENT_CENSUS.stage());
         String redundancy = theLatestRunOf(StageModules.CONTENT_REDUNDANCY.stage());
         String measurement = theLatestRunOf(StageModules.SEED_MEASUREMENT.stage());
+        saidHowFarOnceOverItsOwnRows(
+                "Stage 3 (content census, reading extraction metrics)", rowSpanUnder("extraction_metric", extraction));
+        saidHowFarOnceOverItsOwnRows(
+                "Stage 5b (seed/corpus comparison, reading corpus metrics)",
+                rowSpanUnder("extraction_metric", extraction));
         List<String> verdictsOfTheFirstInvocation = verdictsUnder(redundancy);
         List<Long> nobodysFiles = filesOfAFolderNobodyWalked(ROWS_PAST_ONE_CALLBACK_AT_FIVE_STEPS);
         List<Long> fewer = nobodysFiles.subList(0, ROWS_PAST_ONE_CALLBACK_AT_SEVEN_STEPS);
@@ -633,14 +651,13 @@ class StageFiveReportsItsProgressInvocationTest {
                                 nobodysFiles.getFirst(),
                                 nobodysFiles.getLast()))
                         .isZero());
-        saidAboutHowFar("Stage 3 (content census, reading extraction metrics)", rowSpanUnder("extraction_metric", extraction));
+        saidNothingAboutHowFar("Stage 3 (content census, reading extraction metrics)");
         saidAboutHowFar(
                 "Stage 4b (redundancy resolution, reading signed occurrences)",
                 rowSpanUnder("minhash_signature", redundancy));
         saidAboutHowFar(
                 "Stage 5b (seed/corpus comparison, reading unusable seeds)", rowSpanUnder("unusable_seed", measurement));
-        saidAboutHowFar(
-                "Stage 5b (seed/corpus comparison, reading corpus metrics)", rowSpanUnder("extraction_metric", extraction));
+        saidNothingAboutHowFar("Stage 5b (seed/corpus comparison, reading corpus metrics)");
         saidAboutHowFar(
                 "Stage 5b (seed/corpus comparison, reading seed metrics)", rowSpanUnder("extraction_metric", measurement));
         claim(
@@ -649,7 +666,6 @@ class StageFiveReportsItsProgressInvocationTest {
                         + " reads of the metrics",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_B))
                         .containsExactlyElementsOf(StatementLines.inOrder(
-                                StatementLines.timedRead(STAGE_FIVE_B, CORPUS_SURVIVORS),
                                 StatementLines.timedRead(STAGE_FIVE_B, SEED_OCCURRENCES),
                                 StatementLines.countedRead(
                                         STAGE_FIVE_B, UNUSABLE_SEEDS, rowSpanUnder("unusable_seed", measurement)),
@@ -697,9 +713,10 @@ class StageFiveReportsItsProgressInvocationTest {
     }
 
     /**
-     * ADR-204 section 3, for 5f over two partitions: the members of every partition are read before the first
-     * is grouped, each read naming its partition and how many there are, and the sizes of a partition's groups
-     * are read once that partition is grouped.
+     * ADR-204 section 3, for 5f over two partitions, as ADR-211 section 5 changes it: each partition's members
+     * are read just before that partition is grouped, each read naming its partition and how many there are,
+     * and the sizes of a partition's groups once that partition is grouped. One partition is held at a time, so
+     * the keys read are counted for each partition, as the pairs of blocks are.
      *
      * <p>The scripted embedder answers every chunk alike, so one seed wins every document and no corpus here
      * makes two partitions of its own. So a first invocation scores the collection against two seeds, the
@@ -709,8 +726,10 @@ class StageFiveReportsItsProgressInvocationTest {
      */
     @Test
     @Story("Grouping says what it is reading")
-    @DisplayName("Over two partitions, grouping reads the members of both before it groups either, and then the group sizes of each")
-    void clusteringOverTwoPartitionsReadsTheMembersOfBothBeforeItGroupsEither(@TempDir Path root, @TempDir Path seeds)
+    @DisplayName("Over two partitions, grouping reads each partition's members just before it groups that partition, and counts each partition's keys on its own")
+    @Issue("456")
+    @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
+    void clusteringOverTwoPartitionsReadsEachPartitionsMembersJustBeforeItClustersIt(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpus(root, seeds);
         Files.writeString(seeds.resolve("second-seed.txt"), "a second seed document, about something else");
@@ -747,9 +766,19 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(PARTITIONS))
                         .containsExactlyElementsOf(ProgressLines.expected(PARTITIONS, TWO_PARTITIONS)));
         claim(
-                "the recorded keys read are one counter over both partitions' members, " + CORPUS_DOCUMENTS + " in all",
-                () -> assertThat(progressOf(KEYS_READ))
-                        .containsExactlyElementsOf(ProgressLines.expected(KEYS_READ, CORPUS_DOCUMENTS)));
+                "the recorded keys read are one counter for each partition, naming it and how many there are,"
+                        + " each over that partition's own members, " + CORPUS_DOCUMENTS + " in all between them",
+                () -> {
+                    int first = progressOf(KEYS_READ_OF_THE_FIRST_OF_TWO).size();
+                    int second = progressOf(KEYS_READ_OF_THE_SECOND_OF_TWO).size();
+                    assertThat(first).isPositive();
+                    assertThat(second).isPositive();
+                    assertThat(first + second).isEqualTo(CORPUS_DOCUMENTS);
+                    assertThat(progressOf(KEYS_READ_OF_THE_FIRST_OF_TWO))
+                            .containsExactlyElementsOf(ProgressLines.expected(KEYS_READ_OF_THE_FIRST_OF_TWO, first));
+                    assertThat(progressOf(KEYS_READ_OF_THE_SECOND_OF_TWO))
+                            .containsExactlyElementsOf(ProgressLines.expected(KEYS_READ_OF_THE_SECOND_OF_TWO, second));
+                });
         claim(
                 "each partition's counter over its pairs of blocks names the partition and how many there are:"
                         + " partition 1 of 2 and partition 2 of 2, one pair of blocks each",
@@ -763,26 +792,27 @@ class StageFiveReportsItsProgressInvocationTest {
                 });
         claim(
                 "it says what it is reading and how long each read took, each line once, in the order it reads:"
-                        + " the seed partitions, the documents left, the members of partition 1 of 2 and of"
-                        + " partition 2 of 2, and only then the group sizes of partition 1 of 2 and of partition"
-                        + " 2 of 2",
+                        + " the seed partitions; the members of partition 1 of 2 and, once it is grouped, its group"
+                        + " sizes; then the same of partition 2 of 2; and nothing of reading the documents left",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_F))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
-                                StatementLines.timedRead(STAGE_FIVE_F, CORPUS_SURVIVORS),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 2"),
-                                StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 2 of 2"),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the cluster sizes of partition 1 of 2"),
+                                StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 2 of 2"),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the cluster sizes of partition 2 of 2"))));
         claim(
-                "and each partition's group sizes are read before that partition is counted as done, the first's"
-                        + " before the second's: the sizes follow the partition's own grouping, where the"
-                        + " members of both were read before either",
+                "and each partition is gone through whole before the next one's members are read: its members,"
+                        + " its keys, its group sizes and its being counted as done, the first partition before the"
+                        + " second",
                 () -> assertThat(String.join("\n", operatorLines()))
                         .containsSubsequence(
-                                STAGE_FIVE_F + " read the members of partition 2 of 2 in ",
+                                STAGE_FIVE_F + " read the members of partition 1 of 2 in ",
+                                KEYS_READ_OF_THE_FIRST_OF_TWO + ": 1 of ",
                                 STAGE_FIVE_F + " read the cluster sizes of partition 1 of 2 in ",
                                 PARTITIONS + ": 1 of 2",
+                                STAGE_FIVE_F + " read the members of partition 2 of 2 in ",
+                                KEYS_READ_OF_THE_SECOND_OF_TWO + ": 1 of ",
                                 STAGE_FIVE_F + " read the cluster sizes of partition 2 of 2 in ",
                                 PARTITIONS + ": 2 of 2"));
     }
@@ -841,6 +871,35 @@ class StageFiveReportsItsProgressInvocationTest {
             + " processing_time, character_count, alphanumeric_char_count, word_count,"
             + " word_character_length_total, vowelless_word_count, single_character_word_count)"
             + " VALUES (?, ?, 'success', 1.0, 1, 1, 1, 1, 0, 0)";
+
+    /**
+     * ADR-211 section 9: a read made a page of surviving documents at a time goes through their rows alone, so
+     * the rows of a folder nobody walked bring it no nearer its first progress line, which the collection's own
+     * few rows are far short of. Its line before and its line after are still written, over up to every row of
+     * the run.
+     */
+    private void saidNothingAboutHowFar(String label) {
+        claim(
+                label + " says nothing about how far it has gone: it reads only the rows of the documents left, a"
+                        + " page at a time, and never goes through the tens of thousands of rows of files no walk of"
+                        + " this collection holds",
+                () -> assertThat(operatorLines()).noneMatch(line -> line.startsWith(label + ": ")));
+    }
+
+    /**
+     * ADR-211 section 9, the other side of the same rule: such a read is told its rows after each page and
+     * waits for no hundred thousand steps, so over a run that holds the collection's own rows and no other, its
+     * one page writes one line, at a hundred percent, every document having survived.
+     */
+    private void saidHowFarOnceOverItsOwnRows(String label, long rowsUpTo) {
+        String total = String.format(Locale.ROOT, "%,d", rowsUpTo);
+        claim(
+                label + " says how far it has gone once, after its one page: all of the " + total + " rows its"
+                        + " run holds, which are the collection's own documents' and every one of them read",
+                () -> assertThat(operatorLines())
+                        .filteredOn(line -> line.startsWith(label + ": "))
+                        .containsExactly(label + ": about 100% of " + total + " rows"));
+    }
 
     /** That the read labelled {@code label} wrote a progress line, and every one over {@code rowsUpTo} rows. */
     private void saidAboutHowFar(String label, long rowsUpTo) {
