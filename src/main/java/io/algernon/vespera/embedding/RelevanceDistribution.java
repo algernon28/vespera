@@ -211,13 +211,8 @@ public class RelevanceDistribution {
                 "SELECT DISTINCT embedder_identity FROM vector WHERE embedder_identity LIKE ? ESCAPE '\\'"
                         + " ORDER BY embedder_identity",
                 (resultSet, rowNumber) -> resultSet.getString("embedder_identity"),
-                "model=" + escapeLikePattern(modelName) + ";%");
+                EmbedderIdentity.likePatternFor(modelName));
         return identities.size() == 1 ? Optional.of(identities.getFirst()) : Optional.empty();
-    }
-
-    /** Escapes {@code %}, {@code _} and the escape character itself, so a name matches only literally. */
-    private static String escapeLikePattern(String value) {
-        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /**

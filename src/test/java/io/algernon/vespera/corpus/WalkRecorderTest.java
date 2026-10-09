@@ -162,7 +162,7 @@ class WalkRecorderTest {
                         .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
         claim(
                 "the walk is now finished, and so eligible as run input",
-                () -> assertThat(ledger.walks().walkFinished(resumed)).isTrue());
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(resumed));
     }
 
     @Test
@@ -181,7 +181,7 @@ class WalkRecorderTest {
 
         claim(
                 "a walk that did not reach the end of the tree is not marked finished",
-                () -> assertThat(ledger.walks().walkFinished(stopped)).isFalse());
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).isEmpty());
         claim(
                 "it is still offered for continuation, under the id it already has",
                 () -> assertThat(ledger.walks().unfinishedWalk(Walk.canonicalRoot(root)).orElseThrow().walkId())
@@ -229,7 +229,7 @@ class WalkRecorderTest {
                 () -> assertThat(ledger.occurrences().occurrenceCount(walkId)).isEqualTo(3));
         claim(
                 "reconciliation passed, which is the only way walk() returns at all once a walk finishes",
-                () -> assertThat(ledger.walks().walkFinished(walkId)).isTrue());
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(walkId));
     }
 
     @Test
@@ -260,7 +260,7 @@ class WalkRecorderTest {
                 () -> assertThat(ledger.occurrences().occurrenceCount(walkId)).isEqualTo(1));
         claim(
                 "and the walk finished, which it only does once reconciliation has balanced",
-                () -> assertThat(ledger.walks().walkFinished(walkId)).isTrue());
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(walkId));
     }
 
     @Test

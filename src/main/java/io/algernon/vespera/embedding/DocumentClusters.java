@@ -73,13 +73,4 @@ public class DocumentClusters {
                 runId.value(),
                 winningSeed.value());
     }
-
-    /** The seeds whose partitions this run clustered, in occurrence order. */
-    public List<OccurrenceId> partitionsFor(RunId runId) {
-        return jdbcTemplate.query(
-                "SELECT DISTINCT winning_seed_occurrence_id FROM document_cluster WHERE run_id = ?"
-                        + " ORDER BY winning_seed_occurrence_id",
-                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
-                runId.value());
-    }
 }

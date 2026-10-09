@@ -26,8 +26,9 @@ import org.springframework.transaction.PlatformTransactionManager;
  *
  * <p>There is no job repository bean here and that is deliberate. Spring Batch's own default is
  * already {@code ResourcelessJobRepository}, so the decision to keep batch metadata out of the
- * database (ADR-036) is carried by the absence of the JDBC starter rather than by configuration —
- * adding the starter is what would break it, and the pom is where that is visible.
+ * database (ADR-036) is carried by the absence of Spring Boot's batch JDBC starter,
+ * {@code spring-boot-starter-batch-jdbc}, rather than by configuration — adding that starter is what
+ * would break it, and the pom is where that is visible.
  *
  * <p>The job does not run at startup: {@code spring.batch.job.enabled} is false, because an
  * invocation is a person running a command against a root they named, never a side effect of the
