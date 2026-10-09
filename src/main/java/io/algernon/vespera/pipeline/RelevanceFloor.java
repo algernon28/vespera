@@ -48,13 +48,7 @@ class RelevanceFloor {
     }
 
     /** What the floor entitles this run to do. */
-    sealed interface State {
-
-        /** Nothing is removed, whatever the reason — the two non-judging states share this answer. */
-        default boolean removesAnything() {
-            return this instanceof Applicable;
-        }
-    }
+    sealed interface State {}
 
     /** Nobody has answered the key. Stage 5 scores, clusters and reports, and removes nothing. */
     record Unset() implements State {}

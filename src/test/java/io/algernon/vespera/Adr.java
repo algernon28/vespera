@@ -44,10 +44,6 @@ public final class Adr {
     public static final String MODULITH_RETAINED_FOR_BOUNDARY_CHECKS =
             FILE + "0037-spring-modulith-event-publication-registry-dropped.md";
 
-    /** ADR-039 — Chroma is derived; SQLite is authoritative for vectors. */
-    public static final String CHROMA_IS_DERIVED =
-            FILE + "0039-chroma-is-derived-sqlite-is-authoritative-for-vectors.md";
-
     /** ADR-040 — modules are capability-shaped, not stage-shaped. */
     public static final String MODULES_ARE_CAPABILITY_SHAPED =
             FILE + "0040-modules-are-capability-shaped-not-stage-shaped.md";
@@ -637,10 +633,6 @@ public final class Adr {
      */
     public static final String THE_CLI_EXITS_WITH_THE_COMMANDS_EXIT_CODE = FILE
             + "0141-the-cli-exits-with-the-commands-exit-code-and-the-scheduler-no-feature-uses-is-removed-at-its-source.md";
-
-    /** ADR-142 -- the vector store connects to Chroma when it is first used, not at startup. */
-    public static final String THE_VECTOR_STORE_CONNECTS_WHEN_FIRST_USED = FILE
-            + "0142-the-vector-store-connects-to-chroma-when-it-is-first-used.md";
 
     /**
      * ADR-143 -- a conversion Docling failed and gave no category for is a verdict against the file,
@@ -1279,6 +1271,17 @@ public final class Adr {
             + "0213-each-rule-the-deliverable-is-written-by-has-one-class-and-the-cluster-key-the-citation-pattern-and-the-filename-stem-are-each-written-once.md";
 
     /**
+     * ADR-214 -- Chroma is removed with everything that existed for it: the starter and the test
+     * container in the pom, the configuration class that deferred the store, its property, its compose
+     * service and its test container; the requirement that a vector database be kept for a later reader is
+     * withdrawn with it, so a reader that wants one is a decision of its own; vectors live in SQLite alone,
+     * where scoring and clustering already read them (supersedes ADR-142; amends ADR-001's vector
+     * database, ADR-039, ADR-032 and ADR-085's decision to keep Chroma; settles #352's Chroma point).
+     */
+    public static final String CHROMA_IS_REMOVED_AND_VECTORS_LIVE_IN_SQLITE_ALONE = FILE
+            + "0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md";
+
+    /**
      * ADR-215 -- no agent writes into a {@code .claude} folder: the allow list names four places under
      * the home folder's and no longer the folder whole, two of them for reading only; every folder named
      * {@code .claude} is closed to Edit, Write, NotebookEdit and a shell command but beneath {@code
@@ -1290,6 +1293,18 @@ public final class Adr {
      */
     public static final String NO_AGENT_WRITES_INTO_A_CLAUDE_FOLDER = FILE
             + "0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md";
+
+    /**
+     * ADR-216 -- the rest of #352: the actuator starter and its test starter, the batch test starter, Lombok
+     * and the compiler configuration that only named annotation processors leave the pom; three methods
+     * nothing shipped calls leave the code, and the embedding module's model-name pattern is written once;
+     * the LLM chunking seam, the windowed fallback and a second Docling reference resolver are decided gone
+     * and leave with the next change to extraction, and a test-only content-identity read with the next
+     * change to corpus; a javadoc states its own contract and cites its ADR; AGENTS.md carries no history
+     * (amends ADR-029 and ADR-046; read with ADR-209 section 1).
+     */
+    public static final String NOTHING_SHIPS_THAT_NO_DECISION_REQUIRES_AND_NOTHING_CALLS = FILE
+            + "0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md";
 
     /**
      * ADR-217 -- on Windows the private-paths guard reads every path once more as Windows opens its

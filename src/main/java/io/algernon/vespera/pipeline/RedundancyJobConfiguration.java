@@ -40,9 +40,8 @@ import org.springframework.transaction.PlatformTransactionManager;
  * <p><b>The gate is checked in both steps, before either touches a run.</b> The signature step's reader
  * yields no items at all when the gate is closed, which is what keeps its writer — and the {@link
  * StageRuns} it depends on — from ever minting stage 4's run; the resolution tasklet checks the same
- * gate directly. Neither behaves differently for "stage 4 is the last step today" versus "stage 4 has a
- * successor" — that distinction is a Spring Batch flow transition to build once stage 5 actually exists
- * (#75's own comment), not before.
+ * gate directly. A closed gate fails neither step: the job goes on to the next step, as it does after
+ * every step, and each later step asks its own gates.
  */
 @Configuration
 public class RedundancyJobConfiguration {

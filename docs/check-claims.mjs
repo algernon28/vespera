@@ -513,7 +513,7 @@ function readmeSection(heading, name) {
     const nextTopLevel = fromServices.slice("services:".length).search(/^[\w-]+:/m);
     const body = nextTopLevel === -1 ? fromServices : fromServices.slice(0, "services:".length + nextTopLevel);
     const services = [...body.matchAll(/^ {2}([\w-]+):\s*$/gm)].map((m) => m[1]);
-    const said = { chroma: /\bChroma\b/, ollama: /\bOllama\b/, "docling-serve": /\bdocling-serve\b/ };
+    const said = { ollama: /\bOllama\b/, "docling-serve": /\bdocling-serve\b/ };
     for (const s of services) {
       if (!said[s]) wrong.push(`${COMPOSE} runs ${s} and the section does not know it`);
       else if (!said[s].test(section)) wrong.push(`${COMPOSE} runs ${s} and the section never names it`);
@@ -574,7 +574,7 @@ function readmeSection(heading, name) {
 // that misreading is saying so in the same breath.
 const UNCHECKED = [
   'the whole of "The shape of the system" — the ledger model, the two identities, the module rule',
-  '"The cascade is built end to end", and the per-stage sentences under it',
+  '"The cascade is built end to end", and what it says the two commands and the stages do',
   "the fifteen job steps and their order, and that a later stage is a step on that same job",
   "the ADR-052 test conventions, and whether the report a run produces actually reads that way",
   "the ADR index table's rows — each ADR adds its own by hand, and only the range line above it and the boundary sentence are checked",

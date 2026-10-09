@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileStore;
@@ -36,8 +37,8 @@ import picocli.CommandLine;
  * job, that the job's one step reaches census, and that the root the operator typed arrives as the
  * root that gets walked. Everything census then does is pinned by {@link CensusTaskletTest}.
  *
- * <p>It is a slice rather than the whole application, because the whole application starts Chroma
- * and Ollama and this question does not involve either. The one non-obvious piece is
+ * <p>It is a slice rather than the whole application, because the whole application builds Ollama's
+ * clients and this question does not involve them. The one non-obvious piece is
  * {@code @Transactional(NOT_SUPPORTED)}: the census step deliberately runs outside a transaction so
  * that a walk commits at its own checkpoints, and a test-managed transaction wrapped around it would
  * be suspended and then hold the only connection the test datasource has.
@@ -94,7 +95,7 @@ class CensusInvocationTest {
                 () -> assertThat(ledger.occurrences().occurrenceCount(theWalk())).isEqualTo(CORPUS_FILES));
         claim(
                 "the walk finished, so what it recorded may be judged",
-                () -> assertThat(ledger.walks().walkFinished(theWalk())).isTrue());
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(theWalk()));
         claim(
                 "the profile was written to the working directory rather than into the corpus",
                 () -> assertThat(profileStore.file().startsWith(workingDirectory)).isTrue());

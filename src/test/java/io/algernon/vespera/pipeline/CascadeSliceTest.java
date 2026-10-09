@@ -47,7 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The whole job, from the command line down to the rows, in a context narrow enough to need neither
- * Chroma nor a live Ollama nor a Docling sidecar: the one slice every whole-job test in this package
+ * a live Ollama nor a Docling sidecar: the one slice every whole-job test in this package
  * is built on (ADR-153, amending ADR-131).
  *
  * <p><b>What a test adds on top of it is what makes it that test, and nothing else.</b> This carries
@@ -76,8 +76,8 @@ import org.springframework.transaction.annotation.Transactional;
  * stage runs and nothing it asks about needed them. It is on this annotation too: the three are
  * constructed and never called there, and its claims are about the refusal, not about what is wired.
  *
- * <p>Why a slice at all rather than the whole application: the whole application starts Chroma and
- * Ollama, and none of these tests is about either. The one non-obvious piece is
+ * <p>Why a slice at all rather than the whole application: the whole application builds Ollama's
+ * clients, and none of these tests is about them. The one non-obvious piece is
  * {@code @Transactional(NOT_SUPPORTED)}: census deliberately runs outside a transaction so that a
  * walk commits at its own checkpoints, and a test-managed transaction wrapped around it would be
  * suspended and then hold the only connection the test datasource has.

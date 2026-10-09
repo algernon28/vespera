@@ -111,7 +111,7 @@ class RelevanceFloorTest {
         claim(
                 "and nothing is removed -- an unset floor is not a gate, and the run proceeds to score,"
                         + " cluster and report exactly as it would with one set",
-                () -> assertThat(state.removesAnything()).isFalse());
+                () -> assertThat(state).isNotInstanceOf(RelevanceFloor.Applicable.class));
     }
 
     @Test
@@ -127,7 +127,7 @@ class RelevanceFloorTest {
                 "the number is set and still nothing is removed: a threshold is a number on a scale, the"
                         + " model is the scale, and applying it here would write deletions against a"
                         + " distribution it was never calibrated on",
-                () -> assertThat(state.removesAnything()).isFalse());
+                () -> assertThat(state).isNotInstanceOf(RelevanceFloor.Applicable.class));
         claim(
                 "and the state carries both identities rather than merely refusing, so the report can say"
                         + " why a value an operator did set is being ignored -- a number silently skipped"
@@ -154,7 +154,9 @@ class RelevanceFloorTest {
                 "the floor applies, and its value is the number the operator wrote: this is the one state"
                         + " in which stage 5 removes anything at all",
                 () -> assertThat(state).isEqualTo(new RelevanceFloor.Applicable(0.42)));
-        claim("and it says so", () -> assertThat(state.removesAnything()).isTrue());
+        claim(
+                "and it is the applicable outcome, the only one the floor's step removes anything by",
+                () -> assertThat(state).isInstanceOf(RelevanceFloor.Applicable.class));
     }
 
     @Test
@@ -202,7 +204,7 @@ class RelevanceFloorTest {
                 "answers spanning two models are a half-re-ingested pass, and the honest reading is that"
                         + " they record no single scale rather than whichever one was encountered first --"
                         + " so nothing is removed, which is the direction that loses no archive",
-                () -> assertThat(state.removesAnything()).isFalse());
+                () -> assertThat(state).isNotInstanceOf(RelevanceFloor.Applicable.class));
     }
 
     private void profileWithFloor(String value) {

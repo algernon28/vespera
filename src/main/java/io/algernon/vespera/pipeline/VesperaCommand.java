@@ -103,9 +103,9 @@ public class VesperaCommand implements Callable<Integer> {
         });
     }
 
-    /** Walks a corpus and records what it holds — everything this slice does. */
+    /** Walks a corpus and takes it as far as the next missing value: the whole job, each step behind its own gate (ADR-101). */
     @Component
-    @Command(name = "run", description = "Walks a corpus and records what it holds.")
+    @Command(name = "run", description = "Walks a corpus and takes it as far as the next missing value.")
     public static class Run implements Callable<Integer> {
 
         /** The root an invocation that names none falls back to (ADR-066). Ships unset. */
