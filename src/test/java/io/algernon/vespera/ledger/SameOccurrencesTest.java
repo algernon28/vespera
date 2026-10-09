@@ -34,7 +34,9 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>Each walk is 2,500 occurrences, so each is read in three pages of 1,000, and they are compared on what the
  * walk observed: the path, the size and the two times, and not the numbers the ledger gave the rows.
  *
- * <p>It names a method ADR-220 adds, so the test tree does not compile until that method exists.
+ * <p>Two more tests compare walks of exactly two full pages, where the page after the last full one is empty:
+ * a comparison that took a full page for the last, or an empty one for a difference, would answer wrongly only
+ * there.
  */
 @Epic("Census")
 @Feature("Ledger")
@@ -59,6 +61,12 @@ class SameOccurrencesTest {
     private static final int ON_THE_FIRST_PAGE = 10;
 
     private static final String PAGE = "a page of a walk";
+
+    /** Exactly two full pages, so the third page each walk is asked for is empty. */
+    private static final int TWO_FULL_PAGES = 2 * A_PAGE;
+
+    /** The last occurrence of {@link #TWO_FULL_PAGES}: the last row of the second, full, page. */
+    private static final int THE_LAST_ONE = TWO_FULL_PAGES - 1;
 
     @TempDir
     Path folder;
@@ -143,6 +151,48 @@ class SameOccurrencesTest {
                         + " pages, one of each walk",
                 () -> assertThat(log.said().stream().filter(SameOccurrencesTest::isAPage).toList())
                         .hasSize(ONE_PAGE_OF_EACH));
+    }
+
+    @Test
+    @Story("A walk that saw nothing new is discarded")
+    @DisplayName("Two walks of exactly two thousand files are the same, the empty page after the second full one ending the comparison")
+    void twoWalksOfAnExactNumberOfPagesAreTheSame() throws SQLException {
+        WalkId earlier = walk("earlier-exact", TWO_FULL_PAGES, i -> "dir/f" + i + ".pdf", i -> i);
+        WalkId later = walk("later-exact", TWO_FULL_PAGES, i -> "dir/f" + i + ".pdf", i -> i);
+        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
+
+        boolean same = new Ledger(log.jdbcTemplate()).occurrences().sameOccurrences(earlier, later);
+
+        claim(
+                "two walks of exactly " + TWO_FULL_PAGES + " of the same files are the same: a second page that is"
+                        + " full is not taken for the last, and the empty page after it is not taken for a"
+                        + " difference",
+                () -> assertThat(same).isTrue());
+        claim(
+                "each walk was read in three pages, two full and one empty, six in all, and no more",
+                () -> assertThat(log.said().stream().filter(SameOccurrencesTest::isAPage).toList())
+                        .hasSize(3 * ONE_PAGE_OF_EACH));
+    }
+
+    @Test
+    @Story("A walk that saw nothing new is discarded")
+    @DisplayName("Of two walks of exactly two thousand files, one differing in its last file or holding one file more is not the same")
+    void aDifferenceAtTheEdgeOfAnExactNumberOfPagesMakesTwoWalksDifferent() throws SQLException {
+        WalkId earlier = walk("earlier-edge", TWO_FULL_PAGES, i -> "dir/f" + i + ".pdf", i -> i);
+        WalkId lastDiffers =
+                walk("last-edge", TWO_FULL_PAGES, i -> "dir/f" + i + ".pdf", i -> i == THE_LAST_ONE ? i + 1 : i);
+        WalkId oneMore = walk("more-edge", TWO_FULL_PAGES + 1, i -> "dir/f" + i + ".pdf", i -> i);
+
+        claim(
+                "a walk whose last file, the last row of its second full page, has another size is not the same",
+                () -> assertThat(ledger.occurrences().sameOccurrences(earlier, lastDiffers)).isFalse());
+        claim(
+                "a walk holding one file more, alone on a third page where the other walk's third page is empty,"
+                        + " is not the same, whichever of the two is asked about first",
+                () -> {
+                    assertThat(ledger.occurrences().sameOccurrences(earlier, oneMore)).isFalse();
+                    assertThat(ledger.occurrences().sameOccurrences(oneMore, earlier)).isFalse();
+                });
     }
 
     /** A finished-looking walk of {@code count} occurrences, written in one batch, the i-th named and sized by the two functions. */
