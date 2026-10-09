@@ -1238,14 +1238,14 @@ public final class Adr {
             + "0210-a-file-that-cannot-be-read-is-marked-and-the-step-goes-on-and-a-corpus-root-that-can-no-longer-be-listed-stops-it.md";
 
     /**
-     * ADR-211 -- no class holds a set of every survivor of a run: stage 3's two measurements and the
-     * seed/corpus comparison read their own table's rows a page of survivors at a time, by key, the shingle
-     * rows in occurrence order so the counts per hash need no set; grouping asks the ledger which members of
-     * one partition at a time survive; embedding and scoring go through the survivors as they are read; each
-     * page of the survivors and of a walk's occurrences is planned by the primary key and sorts nothing; the
-     * three reads keep their lines, their progress taken from the rows read; and the run ids of stages 2 to
-     * 6b move once (amends ADR-209 section 2, ADR-193 sections 1, 3, 6 and 7, ADR-204, ADR-192 section 4 for
-     * 5f; takes up #456).
+     * ADR-211 -- no class holds a set of every survivor of a run: stage 3's confidence distribution and the
+     * seed/corpus comparison read their own table's rows a page of survivors at a time, by key; stage 3's
+     * document frequency is one grouping in the database, what ruled-out occurrences contributed taken off a page
+     * at a time; the comparison's quartiles are exact over at most four reads; grouping asks the ledger which
+     * members of one partition at a time survive; embedding and scoring go through the survivors as they are read;
+     * each page of the survivors and of a walk's occurrences is planned by the primary key and sorts nothing; and
+     * the run ids of stages 2 to 6b move once (amends ADR-209 section 2, ADR-193 sections 1, 3, 6 and 7, ADR-204,
+     * ADR-192 sections 4 and 5, ADR-191; settles #456).
      */
     public static final String NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN = FILE
             + "0211-no-class-holds-every-survivor-of-a-run-another-tables-rows-are-read-a-page-of-survivors-at-a-time.md";

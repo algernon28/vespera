@@ -26,35 +26,41 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * The contract of {@code FrequencyProgress} (ADR-192 section 5, #412): {@code DocumentFrequency.measure(RunId,
- * RunId, FrequencyProgress)} calls {@code toGoThrough(long)} once, with the distinct (granularity, hash) pairs
- * it counted in memory, before the first frequency row, and {@code hashGoneThrough()} after each, whether or
- * not a row was written for it: a hash seen in one surviving document earns none (ADR-074's omission rule).
+ * The contract of {@code FrequencyProgress} (ADR-192 section 5, #412, as ADR-211 section 3 changes it).
  *
- * <p><b>Part (b) of ADR-192.</b> Does not compile until the interface and the overload exist; part (b) moves it
- * into {@code src/test}.
+ * <p>Since ADR-211 the frequency rows are written by one statement in the database, so there is no loop over
+ * the distinct hashes to announce, and {@code toGoThrough} and {@code hashGoneThrough} are gone. What is left
+ * that loops is the check of the run's shingled occurrences, a page of 1,000 at a time, against the ledger:
+ * {@code shingledOccurrencesChecked(int)} is called once after each page, with that page's number of
+ * occurrences, so the calls add up to the shingled occurrences of the run. A run with no shingle row has no
+ * page and makes no call.
+ *
+ * <p>Every method of the recorder is written without {@code @Override}: the two old ones still have to be
+ * implemented at {@code 4b99a03} and no longer exist after ADR-211, and the new one exists only after it.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
 @Epic("Redundancy")
 @Feature("Progress reporting")
-@Issue("412")
+@Issue("456")
 @Link(name = "ADR-192", url = Adr.EVERY_LOOP_REPORTS_ITS_PROGRESS, type = "adr")
+@Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
 class FrequencyProgressTest {
 
-    /** Hashes 0 to 9 and 5 to 14: fifteen distinct, five of them in both documents. */
-    private static final int FIFTEEN_DISTINCT_HASHES = 15;
-
+    /** Hashes 0 to 9 and 5 to 14: five of them in both documents. */
     private static final int FIVE_SHARED_HASHES = 5;
+
+    /** The two shingled documents, one page of them. */
+    private static final int TWO_SHINGLED_DOCUMENTS = 2;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @Story("Measuring document frequency tells its caller how many hashes it will go through")
-    @DisplayName("The loop is announced once with the number of distinct hashes, and each is reported, a row written or not")
-    void announcesTheDistinctHashesOnceAndReportsEach() {
+    @Story("Measuring document frequency tells its caller how many documents it has checked")
+    @DisplayName("The documents carrying passages are reported as checked, a page at a time, and no loop over the distinct passages is announced")
+    void reportsTheShingledOccurrencesCheckedAndNoLoopOverHashes() {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-frequency"));
         RunId stage2 = ledger.runs().startRun("extraction", "abc123", "{}", walk, List.of());
@@ -66,15 +72,11 @@ class FrequencyProgressTest {
         new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2, recording(events));
 
         claim(
-                "the loop is announced once with " + FIFTEEN_DISTINCT_HASHES + ", then each hash is reported once",
-                () -> {
-                    assertThat(events.getFirst()).isEqualTo("to-go-through " + FIFTEEN_DISTINCT_HASHES);
-                    assertThat(events.subList(1, events.size()))
-                            .hasSize(FIFTEEN_DISTINCT_HASHES)
-                            .allMatch("gone-through"::equals);
-                });
+                "the one page of the " + TWO_SHINGLED_DOCUMENTS + " documents that carry passages is reported as"
+                        + " checked, once, and nothing is said of the distinct passages",
+                () -> assertThat(events).containsExactly("checked " + TWO_SHINGLED_DOCUMENTS));
         claim(
-                "though only the " + FIVE_SHARED_HASHES + " hashes both documents hold earned a row",
+                "and only the " + FIVE_SHARED_HASHES + " passages both documents hold earned a row",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM shingle_document_frequency WHERE run_id = ?",
                                 Integer.class,
@@ -83,9 +85,9 @@ class FrequencyProgressTest {
     }
 
     @Test
-    @Story("Measuring document frequency tells its caller how many hashes it will go through")
-    @DisplayName("With no shingle row the loop is still announced, with zero, and reports nothing")
-    void aLoopWithNothingToGoThroughIsAnnouncedWithZero() {
+    @Story("Measuring document frequency tells its caller how many documents it has checked")
+    @DisplayName("With no passage recorded nothing is reported")
+    void aRunWithNoShingleRowReportsNothing() {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-empty"));
         RunId stage2 = ledger.runs().startRun("extraction", "abc124", "{}", walk, List.of());
@@ -95,21 +97,23 @@ class FrequencyProgressTest {
         new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2, recording(events));
 
         claim(
-                "measurement has no early return before this loop, so a run with no shingle row announces zero and"
-                        + " reports nothing",
-                () -> assertThat(events).containsExactly("to-go-through 0"));
+                "a run with no shingle row has no page of shingled documents to check, so nothing is reported",
+                () -> assertThat(events).isEmpty());
     }
 
     private static FrequencyProgress recording(List<String> events) {
         return new FrequencyProgress() {
-            @Override
             public void toGoThrough(long hashes) {
                 events.add("to-go-through " + hashes);
             }
 
-            @Override
             public void hashGoneThrough() {
                 events.add("gone-through");
+            }
+
+            /** ADR-211's callback: after each page of the run's shingled occurrences, with the page's count. */
+            public void shingledOccurrencesChecked(int occurrences) {
+                events.add("checked " + occurrences);
             }
         };
     }

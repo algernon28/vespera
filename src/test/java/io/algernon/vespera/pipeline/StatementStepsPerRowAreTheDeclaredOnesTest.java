@@ -36,10 +36,12 @@ import org.junit.jupiter.api.Test;
  * holds the declarations to them, so a ratio changed in one place and not the other fails here. ADR-199's
  * three timed survivor counts are in no enum: {@code pipeline} times each where it makes the call.
  *
- * <p><b>Three reads take ADR-211's form, and declare no ratio.</b> Stage 3's reads of the shingle rows and of
- * the extraction metrics, and 5b's of the corpus survivors' extraction metrics, are made a page of survivors
- * at a time, one statement a page, and are told the rows they have read rather than SQLite's steps. So none
- * of them has a ratio to declare, and none is a timed statement either: each still has its total.
+ * <p><b>ADR-211 changes three of them.</b> Stage 3's read of the extraction metrics and 5b's reads of the
+ * corpus survivors' extraction metrics, the first and every later one, are made a page of survivors at a time,
+ * one statement a page, and are told the rows they have read rather than SQLite's steps: none has a ratio to
+ * declare, and none is a timed statement either, each having its total. They are named here by their names,
+ * since 5b's later reads have a constant only once ADR-211 is built. Stage 3's shingle rows are grouped in the
+ * database, in statements that sort, and so are timed.
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -49,8 +51,8 @@ import org.junit.jupiter.api.Test;
 class StatementStepsPerRowAreTheDeclaredOnesTest {
 
     /** The reads made a page of survivors at a time, which count the rows they read themselves (ADR-211). */
-    private static final List<Enum<?>> READ_A_PAGE_OF_SURVIVORS_AT_A_TIME = List.of(
-            SimilarityStatement.SHINGLE_ROWS, ExtractionStatement.EXTRACTION_METRICS, EmbeddingStatement.CORPUS_METRICS);
+    private static final List<String> READ_A_PAGE_OF_SURVIVORS_AT_A_TIME =
+            List.of("EXTRACTION_METRICS", "CORPUS_METRICS", "CORPUS_METRICS_AGAIN");
 
     @Test
     @Story("A long statement inside the database reports how far it has gone")
@@ -77,7 +79,18 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
                 () -> assertThat(StartUpIndexAnnouncement.INDEX_BUILD_STEPS_BEYOND_COLUMNS)
                         .isEqualTo(StatementStepsPerRowTest.BUILD_STEPS_BEYOND_COLUMNS));
 
-        for (Enum<?> read : READ_A_PAGE_OF_SURVIVORS_AT_A_TIME) {
+        List<String> embedding = Arrays.stream(EmbeddingStatement.values()).map(Enum::name).toList();
+        claim(
+                "the comparison's later reads of the surviving documents' metrics have a statement of their own,"
+                        + " named straight after the first read's, the order they are issued in",
+                () -> assertThat(embedding).containsSubsequence("CORPUS_METRICS", "CORPUS_METRICS_AGAIN")
+                        .contains("CORPUS_METRICS_AGAIN")
+                        .satisfies(names -> assertThat(names.indexOf("CORPUS_METRICS_AGAIN"))
+                                .isEqualTo(names.indexOf("CORPUS_METRICS") + 1)));
+        List<Enum<?>> readAPage = everyStatement()
+                .filter(statement -> READ_A_PAGE_OF_SURVIVORS_AT_A_TIME.contains(statement.name()))
+                .toList();
+        for (Enum<?> read : readAPage) {
             claim(
                     read + " is read a page of surviving documents at a time and counts the rows it reads itself,"
                             + " so it declares no steps a row",
@@ -86,7 +99,7 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
 
         List<Enum<?>> timed = everyStatement()
                 .filter(statement -> !measured.containsKey(statement))
-                .filter(statement -> !READ_A_PAGE_OF_SURVIVORS_AT_A_TIME.contains(statement))
+                .filter(statement -> !READ_A_PAGE_OF_SURVIVORS_AT_A_TIME.contains(statement.name()))
                 .toList();
         for (Enum<?> statement : timed) {
             claim(

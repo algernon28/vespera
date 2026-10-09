@@ -236,17 +236,14 @@ class StatementProgressInvocationTest {
         int measuredAt = indexOf(lines, MEASURED);
         List<String> readProgress = between(lines, readingAt, measuredAt, READ_LABEL + ": about ");
         claim(
-                "the content census's read of the extraction's word sequences reports how far it has gone"
-                        + " between the line that announces it and the line that it has measured",
-                () -> assertThat(readProgress).isNotEmpty());
+                "the content census still announces its read of the extraction's word sequences, over up to the"
+                        + " rows of the run, and says when it has measured them",
+                () -> assertThat(readingAt).isNotNegative().isLessThan(measuredAt));
         claim(
-                "each of those lines states the same total the announcing line does",
-                () -> assertThat(readProgress).allSatisfy(line -> assertThat(totalOf(line).replace(",", ""))
-                        .isEqualTo(String.valueOf(rowSpanOf(extractionRun)))));
-        claim(
-                "and their shares rise and stay below a hundred",
-                () -> assertThat(percentagesOf(readProgress)).isSorted().doesNotHaveDuplicates().allSatisfy(
-                        percentage -> assertThat(percentage).isLessThan(100)));
+                "and says nothing about how far it has gone between the two: since the database itself counts how"
+                        + " many documents carry each word sequence, sorting them as it goes, there is no count of"
+                        + " rows it could give, so the read is timed rather than counted",
+                () -> assertThat(readProgress).isEmpty());
 
         String invocation = String.join("\n", lines);
         int readingBoilerplateAt = indexOf(lines, READING_BOILERPLATE);
@@ -425,13 +422,6 @@ class StatementProgressInvocationTest {
     private long shingleRowsUnder(String run) {
         Long rows = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shingle WHERE run_id = ?", Long.class, run);
         return rows == null ? 0 : rows;
-    }
-
-    private long rowSpanOf(String run) {
-        Long least = jdbcTemplate.queryForObject("SELECT MIN(rowid) FROM shingle WHERE run_id = ?", Long.class, run);
-        Long greatest =
-                jdbcTemplate.queryForObject("SELECT MAX(rowid) FROM shingle WHERE run_id = ?", Long.class, run);
-        return least == null || greatest == null ? 0 : greatest - least + 1;
     }
 
     private long greatestShingleRow() {

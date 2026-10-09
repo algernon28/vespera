@@ -40,9 +40,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * total for a counted one and an empty total for a timed one; {@code stepsTaken} at each callback of SQLite's
  * handler; {@code statementEnded} once after it, on every path but one that throws.
  *
- * <p>The statements are the build of {@code shingle_by_hash}; {@code DocumentFrequency.measure}'s read of the
- * shingle rows, made a page of stage 2's survivors at a time since ADR-211 and told its rows read where a
- * counted statement is told its steps; and the four of {@code
+ * <p>The statements are the build of {@code shingle_by_hash}; {@code DocumentFrequency.measure}'s grouping of
+ * the shingle rows, in the database since ADR-211, and timed, its sorts giving no count; and the four of {@code
  * RedundancyResolution.resolve}, among the loops ADR-192 section 5 already reports: the signed occurrences,
  * counted, then the signature bands, the near-duplicates' extraction metrics and the shingle document
  * frequencies, each timed.
@@ -59,11 +58,11 @@ class SimilarityStatementProgressOrderTest {
 
     private static final double NO_BOILERPLATE_FLOOR = 0.9;
 
-    /** Measuring reports one read, started once and ended once: two callbacks about statements. */
+    /** Measuring reports one statement, started once and ended once: two callbacks about statements. */
     private static final int A_START_AND_AN_END = 2;
 
-    /** Two documents of a hundred shingle rows each, all surviving. */
-    private static final long TWO_SURVIVORS_OF_A_HUNDRED_ROWS = 200;
+    /** The two shingled documents of the first test, one page of them. */
+    private static final int TWO_SHINGLED_DOCUMENTS = 2;
 
     /** The interval ADR-193 section 2 fixes. */
     private static final long EVERY_HUNDRED_THOUSAND_STEPS = 100_000L;
@@ -102,16 +101,17 @@ class SimilarityStatementProgressOrderTest {
     }
 
     /**
-     * ADR-211 section 7: the read of the shingle rows is made a page of stage 2's survivors at a time, no drain
-     * of the survivors is reported before it, and it is told the rows it has read after each page, never
-     * SQLite's steps.
+     * ADR-211 sections 3 and 7: the shingle rows are grouped by the database, in statements that sort and so are
+     * timed, started with the span of the run's rows for ADR-191's line and ended, with no steps between; no drain
+     * of the survivors comes before them; and the check of the shingled occurrences against the ledger follows,
+     * a page at a time.
      */
     @Test
     @Story("Measuring document frequency says what it is reading")
-    @DisplayName("Measuring starts its read of the shingle rows with their span, is told the rows it read, and ends it, before it announces its loop, with nothing before the read")
+    @DisplayName("Measuring starts its grouping of the shingle rows with their span and ends it, with nothing before it and no steps between, and then checks the documents carrying them a page at a time")
     @Issue("456")
     @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
-    void measuringStartsItsReadIsToldItsRowsAndEndsIt() {
+    void measuringStartsAndEndsItsGroupingAndThenChecksTheShingledOccurrences() {
         document("a.pdf", 0);
         document("b.pdf", 1);
         long shingleRows = spanOf("shingle", stage2);
@@ -120,19 +120,17 @@ class SimilarityStatementProgressOrderTest {
         new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2, recorder);
 
         claim(
-                "the read of the shingle rows is the first thing the caller hears of, started over up to the "
-                        + shingleRows + " rows of stage 2's run; it is told the " + TWO_SURVIVORS_OF_A_HUNDRED_ROWS
-                        + " rows of the two surviving documents once their one page has been read; it is ended;"
-                        + " and only then is the loop over the hashes announced",
-                () -> assertThat(recorder.calls.subList(0, 4))
+                "the grouping of the shingle rows is the first thing the caller hears of, started over up to the "
+                        + shingleRows + " rows of stage 2's run and ended with nothing between; then the one page of"
+                        + " the " + TWO_SHINGLED_DOCUMENTS + " documents carrying them is checked; and nothing else"
+                        + " is reported",
+                () -> assertThat(recorder.calls)
                         .containsExactly(
                                 starting(SimilarityStatement.SHINGLE_ROWS, OptionalLong.of(shingleRows)),
-                                rowsReadCall(SimilarityStatement.SHINGLE_ROWS, TWO_SURVIVORS_OF_A_HUNDRED_ROWS),
                                 ended(SimilarityStatement.SHINGLE_ROWS),
-                                "toGoThrough"));
+                                "shingledOccurrencesChecked(" + TWO_SHINGLED_DOCUMENTS + ")"));
         claim(
-                "and no statement is reported after the loop is announced: the callbacks about statements are"
-                        + " the " + A_START_AND_AN_END + " above, a start and an end for measuring's one read",
+                "the callbacks about statements are the " + A_START_AND_AN_END + " above",
                 () -> assertThat(recorder.statements()).hasSize(A_START_AND_AN_END));
     }
 
@@ -381,10 +379,6 @@ class SimilarityStatementProgressOrderTest {
         return "statementEnded(" + statement + ")";
     }
 
-    private static String rowsReadCall(SimilarityStatement statement, long rows) {
-        return "rowsRead(" + statement + ", " + rows + ")";
-    }
-
     /** What stops a resolution this test does not need the rest of. */
     private static final class StoppedByTheTest extends RuntimeException {}
 
@@ -410,24 +404,24 @@ class SimilarityStatementProgressOrderTest {
             calls.add("stepsTaken(" + statement + ", " + steps + ")");
         }
 
-        /** ADR-211's callback, written without {@code @Override} so the class compiles before it exists. */
-        public void rowsRead(SimilarityStatement statement, long rows) {
-            calls.add(rowsReadCall(statement, rows));
-        }
-
         @Override
         public void statementEnded(SimilarityStatement statement) {
             calls.add(ended(statement));
         }
 
-        @Override
+        /** Written without {@code @Override}: it is gone once ADR-211 is built. */
         public void toGoThrough(long hashes) {
             calls.add("toGoThrough");
         }
 
-        @Override
+        /** Written without {@code @Override}: it is gone once ADR-211 is built. */
         public void hashGoneThrough() {
             calls.add("hashGoneThrough");
+        }
+
+        /** ADR-211's callback, written without {@code @Override} so the class compiles before it exists. */
+        public void shingledOccurrencesChecked(int occurrences) {
+            calls.add("shingledOccurrencesChecked(" + occurrences + ")");
         }
 
         @Override

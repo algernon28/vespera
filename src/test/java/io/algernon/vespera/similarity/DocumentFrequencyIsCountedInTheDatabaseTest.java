@@ -31,33 +31,34 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Stage 3's document frequency reads stage 2's shingle rows a page of survivors at a time, in occurrence
- * order, and counts each hash's occurrences without a set of them (ADR-211 sections 1, 2 and 5).
+ * Stage 3's document frequency is counted in the database, by {@code similarity} in its own tables, and no
+ * class holds a map of the corpus's distinct hashes or a set of its survivors (ADR-211 sections 1 and 3).
  *
- * <p>Every statement the measurement makes is kept, in order, through {@link StatementLog}. At {@code
- * 4b99a03} the three pages of the survivors are read first, into a set, and then one read goes through every
- * shingle row of the run. After ADR-211 each page is followed by one read of that page's rows, by key and
- * ordered by occurrence.
+ * <p>One statement groups every shingle row of stage 2's run into {@code shingle_document_frequency}, keeping
+ * the hashes two or more occurrences carry, and one more counts each granularity's shingled occurrences into
+ * {@code shingle_corpus_size}. Then the run's shingled occurrences are read a page of 1,000 at a time, each
+ * page asked of the ledger, and what those that do not survive contributed is taken off. At {@code 4b99a03}
+ * every survivor's id is read into a set, every shingle row of the run is brought into Java and counted in a
+ * map with an entry for each distinct hash, and the rows are written from the map.
  *
- * <p>The shingle rows are written so that no occurrence's rows lie together in the table: every occurrence's
- * shared hash first, then every occurrence's own hash, then the second copy of the shared hash that one
- * occurrence in seven carries. So a count that relied on the order rows were written in would be wrong, and
- * only rows read in occurrence order, each occurrence's together, can be counted by the last occurrence seen.
- * Fifty occurrences ruled out under stage 2 carry the same shared hashes, so counting one would show.
+ * <p>Every statement is kept, in order, through {@link StatementLog}. The shingle rows are written so that no
+ * occurrence's rows lie together in the table, and fifty occurrences ruled out under stage 2 carry the same
+ * shared hashes as the survivors, so a count that did not take them off would show.
  */
 @Epic("Redundancy")
 @Feature("Content census")
 @Issue("456")
 @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
-class DocumentFrequencyReadsAPageOfSurvivorsAtATimeTest {
+@Link(name = "ADR-074", url = Adr.STAGE_3_MEASURES_SHINGLE_DOCUMENT_FREQUENCY, type = "adr")
+class DocumentFrequencyIsCountedInTheDatabaseTest {
 
-    /** Two full pages of the ledger's 1,000 and a short third. */
+    /** Two full pages of 1,000 and a short third, once the ruled-out ones are counted in. */
     private static final int SURVIVORS = 2_500;
 
     /** One occurrence in every 51 is ruled out under stage 2, so they lie among the survivors' ids. */
     private static final int ONE_IN = 51;
 
-    /** The occurrences recorded: the survivors and one ruled out after every fifty of them. */
+    /** The occurrences recorded, every one of them shingled: the survivors and one ruled out after every fifty. */
     private static final int RECORDED = SURVIVORS + SURVIVORS / (ONE_IN - 1);
 
     /** How many shared hashes there are: survivor j carries shared hash j modulo this, so each is carried two or three times. */
@@ -69,11 +70,12 @@ class DocumentFrequencyReadsAPageOfSurvivorsAtATimeTest {
     /** Where each occurrence's own hash, carried by it alone, is numbered from. */
     private static final long OWN_HASHES_FROM = 10_000_000L;
 
-    /** The most occurrences a page of the ledger holds, and so the most one read of rows may name. */
-    private static final int A_PAGE = 1_000;
+    /** The 2,550 shingled occurrences, read 1,000 at a time: two full pages and a short third. */
+    private static final int PAGES_OF_SHINGLED_OCCURRENCES = 3;
 
-    private static final String PAGE = "a page of the survivors";
-    private static final String ROWS = "the shingle rows";
+    private static final String GROUPING = "the grouping of the run's shingle rows";
+    private static final String PAGE = "a page of the run's shingled occurrences";
+    private static final String ASK = "a question to the ledger about one page";
 
     @TempDir
     Path folder;
@@ -91,7 +93,7 @@ class DocumentFrequencyReadsAPageOfSurvivorsAtATimeTest {
         pool = new PoolOfTwo(folder);
         jdbcTemplate = pool.jdbcTemplate();
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-frequency-pages"));
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-frequency-counted"));
         stage2 = ledger.runs().startRun("extraction", "x211", "{}", walk, List.of());
         stage3 = ledger.runs().startRun("content-census", "y211", "{}", walk, List.of(stage2));
         try (Connection connection = pool.connection()) {
@@ -121,6 +123,7 @@ class DocumentFrequencyReadsAPageOfSurvivorsAtATimeTest {
             if (i % ONE_IN == ONE_IN - 1) {
                 ruledOut.add(id);
                 shared.add(new long[] {id, i % SHARED_HASHES});
+                second.add(new long[] {id, i % SHARED_HASHES});
                 continue;
             }
             long hash = survivor % SHARED_HASHES;
@@ -143,8 +146,8 @@ class DocumentFrequencyReadsAPageOfSurvivorsAtATimeTest {
                     PreparedStatement verdict = connection.prepareStatement(
                             "INSERT INTO verdict (occurrence_id, run_id, kind, reason)"
                                     + " VALUES (?, ?, 'DEGENERATE_OUTPUT', 'ruled out by this test')")) {
-                for (List<long[]> pass : List.of(shared, own, second)) {
-                    for (long[] shingle : pass) {
+                for (List<long[]> written : List.of(shared, own, second)) {
+                    for (long[] shingle : written) {
                         row.setLong(1, shingle[0]);
                         row.setString(2, stage2.value());
                         row.setString(3, ShingleParameters.DEFAULT.identity());
@@ -172,8 +175,8 @@ class DocumentFrequencyReadsAPageOfSurvivorsAtATimeTest {
 
     @Test
     @Story("Stage 3 measures how often each passage recurs")
-    @DisplayName("Document frequency reads the passages of one page of surviving documents at a time, in document order, and counts only theirs")
-    void readsTheShingleRowsOfOnePageOfSurvivorsAtATime() {
+    @DisplayName("Document frequency is counted by the database over the run's passages, and what documents that did not survive contributed is taken off")
+    void countedInTheDatabaseWithTheRuledOutTakenOff() {
         StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
         JdbcTemplate logged = log.jdbcTemplate();
 
@@ -191,54 +194,73 @@ class DocumentFrequencyReadsAPageOfSurvivorsAtATimeTest {
                         + " document alone",
                 () -> assertThat(written.keySet()).containsExactlyInAnyOrderElementsOf(expected.keySet()));
         claim(
-                "each row counts the surviving documents that carry its passage, and how many times in all, the"
-                        + " second copy in one document in seven included and every ruled-out document left out,"
-                        + " though no document's rows were written together",
+                "each row counts the surviving documents that carry its passage, and how many times in all: the"
+                        + " second copy in one document in seven included, and the ruled-out documents' copies,"
+                        + " each of them carried twice, taken off",
                 () -> assertThat(written).allSatisfy((hash, counts) -> assertThat(counts)
                         .as("the counts of passage %d", hash)
                         .containsExactly(expected.get(hash))));
         claim(
                 "the measure of how many documents carry any passage at all is the " + SURVIVORS + " survivors,"
-                        + " none of the ruled-out ones",
+                        + " the ruled-out ones taken off",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT shingled_document_count FROM shingle_corpus_size WHERE run_id = ?",
                                 Long.class,
                                 stage3.value()))
                         .isEqualTo(SURVIVORS));
-        List<String> reads = log.said().stream()
-                .map(DocumentFrequencyReadsAPageOfSurvivorsAtATimeTest::kind)
+
+        List<String> said = log.said();
+        claim(
+                "no statement brings the run's passages out of the database: none selects the passages' hashes"
+                        + " for the application to count",
+                () -> assertThat(said).noneMatch(sql -> sql.startsWith("SELECT") && sql.contains("FROM shingle")
+                        && sql.contains("shingle_hash")));
+        claim(
+                "the surviving documents are never read as such: no page of them is asked for",
+                () -> assertThat(said).noneMatch(sql -> sql.contains("FROM file_occurrence") && sql.contains("NOT EXISTS")
+                        && sql.contains(" LIMIT ")));
+        List<String> order = said.stream()
+                .map(DocumentFrequencyIsCountedInTheDatabaseTest::kind)
                 .filter(kind -> !kind.isEmpty())
                 .toList();
+        List<String> expectedOrder = new ArrayList<>(List.of(GROUPING));
+        for (int page = 0; page < PAGES_OF_SHINGLED_OCCURRENCES; page++) {
+            expectedOrder.add(PAGE);
+            expectedOrder.add(ASK);
+        }
         claim(
-                "each page of the survivors is followed by one read of that page's passages, before the next page"
-                        + " is asked for: three of each, alternating, so no more than a page of survivors is ever"
-                        + " held",
-                () -> assertThat(reads).containsExactly(PAGE, ROWS, PAGE, ROWS, PAGE, ROWS));
+                "one statement groups the run's passages, over every one of its rows; then the shingled documents"
+                        + " are read a thousand at a time, each page followed by one question to the ledger about"
+                        + " which of them survive",
+                () -> assertThat(order).containsExactlyElementsOf(expectedOrder));
         claim(
-                "each read of the passages names the documents it wants, at most " + A_PAGE + " of them, and asks"
-                        + " for their rows in document order, each document's together",
-                () -> assertThat(log.said().stream().filter(sql -> kind(sql).equals(ROWS)).toList())
+                "each page of shingled documents goes on from the last one read, through the index on the"
+                        + " document, and sorts nothing",
+                () -> assertThat(said.stream().filter(sql -> kind(sql).equals(PAGE)).toList())
                         .isNotEmpty()
                         .allSatisfy(sql -> {
-                            assertThat(sql).contains("occurrence_id IN (").contains("ORDER BY occurrence_id");
-                            assertThat(occurrencesNamedBy(sql)).isBetween(1, A_PAGE);
+                            List<String> plan = jdbcTemplate.query(
+                                    "EXPLAIN QUERY PLAN " + sql,
+                                    (resultSet, rowNumber) -> resultSet.getString("detail"),
+                                    stage2.value(),
+                                    Long.MIN_VALUE);
+                            assertThat(plan).anyMatch(detail -> detail.contains("shingle_by_occurrence"));
+                            assertThat(plan).noneMatch(detail -> detail.contains("TEMP B-TREE"));
                         }));
     }
 
     private static String kind(String sql) {
-        if (sql.contains("FROM file_occurrence") && sql.contains("NOT EXISTS") && sql.contains(" LIMIT ")) {
+        if (sql.startsWith("INSERT INTO shingle_document_frequency") && sql.contains("FROM shingle")
+                && sql.contains("GROUP BY") && !sql.contains("occurrence_id IN (")) {
+            return GROUPING;
+        }
+        if (sql.startsWith("SELECT") && sql.contains("FROM shingle") && sql.contains(" LIMIT ")) {
             return PAGE;
         }
-        if (sql.contains("FROM shingle WHERE") && sql.contains("shingle_hash") && !sql.contains("(rowid)")) {
-            return ROWS;
+        if (sql.contains("FROM file_occurrence") && sql.contains("NOT EXISTS") && sql.contains("id IN (")
+                && !sql.contains(" LIMIT ")) {
+            return ASK;
         }
         return "";
-    }
-
-    /** The placeholders inside the statement's list of occurrences, and no other. */
-    private static int occurrencesNamedBy(String sql) {
-        int from = sql.indexOf("occurrence_id IN (") + "occurrence_id IN (".length();
-        String list = sql.substring(from, sql.indexOf(')', from));
-        return (int) list.chars().filter(character -> character == '?').count();
     }
 }
