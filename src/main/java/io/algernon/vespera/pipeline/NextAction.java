@@ -203,8 +203,8 @@ class NextAction {
             throw new IllegalStateException("generation run " + generation.value() + " records "
                     + upstream.size() + " upstream runs; exactly one arrangement is expected");
         }
-        int arranged = clustersBean.forRun(upstream.getFirst()).size();
-        int written = synthesisDocsBean.forRun(generation).size();
+        int arranged = clustersBean.countForRun(upstream.getFirst());
+        int written = synthesisDocsBean.countForRun(generation);
         return Optional.of(new DeliverableSummary(tree, Math.max(0, arranged - written)));
     }
 

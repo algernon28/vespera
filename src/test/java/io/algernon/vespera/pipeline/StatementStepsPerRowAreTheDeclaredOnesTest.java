@@ -43,17 +43,27 @@ import org.junit.jupiter.api.Test;
  * since 5b's later reads have a constant only once ADR-211 is built. Stage 3's shingle rows are grouped in the
  * database in one statement, which stays counted: it declares the most steps a row that statement takes,
  * where the read it replaces declared the 7 it always took ({@link GroupingStepsPerRowTest}).
+ *
+ * <p><b>ADR-220 changes one more.</b> Stage 2's read of a stopped run's faults is made a page of the run's
+ * fault rows at a time, each page's verdicts deleted before the next is read, and is told the rows it has
+ * read: it joins the reads that declare no steps a row and are not timed. The other of ADR-199's two reads,
+ * of the occurrences a stopped run measured, keeps its statement and its measured ratio, and counts the rows
+ * where it held them.
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
 @Issue("411")
 @Link(name = "ADR-193", url = Adr.STATEMENTS_REPORT_THEIR_PROGRESS, type = "adr")
 @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
+@Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class StatementStepsPerRowAreTheDeclaredOnesTest {
 
-    /** The reads made a page of survivors at a time, which count the rows they read themselves (ADR-211). */
+    /**
+     * The reads made a page at a time, which count the rows they read themselves: three a page of survivors at a
+     * time (ADR-211), and the faults of a stopped run a page of its fault rows at a time (ADR-220).
+     */
     private static final List<String> READ_A_PAGE_OF_SURVIVORS_AT_A_TIME =
-            List.of("EXTRACTION_METRICS", "CORPUS_METRICS", "CORPUS_METRICS_AGAIN");
+            List.of("EXTRACTION_METRICS", "CORPUS_METRICS", "CORPUS_METRICS_AGAIN", "FAULTED_OCCURRENCES");
 
     @Test
     @Story("A long statement inside the database reports how far it has gone")
@@ -65,8 +75,8 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
                 SimilarityStatement.SIGNED_OCCURRENCES, StatementStepsPerRowTest.SIGNED_OCCURRENCES_STEPS,
                 // ADR-211's grouping: a ceiling, not a constant, measured over rows of several shapes.
                 SimilarityStatement.SHINGLE_ROWS, GroupingStepsPerRowTest.GROUPING_STEPS_A_ROW_AT_MOST,
-                // ADR-199's two counted reads of stage 2's resume, measured by their own test.
-                ExtractionStatement.FAULTED_OCCURRENCES, UncoveredStatementsStepsPerRowTest.FAULTED_OCCURRENCES_STEPS,
+                // The one of ADR-199's two counted reads of stage 2's resume that stays counted, measured by its
+                // own test; the other is read a page at a time since ADR-220.
                 ExtractionStatement.RECORDED_OCCURRENCES,
                         UncoveredStatementsStepsPerRowTest.RECORDED_OCCURRENCES_STEPS,
                 EmbeddingStatement.UNUSABLE_SEEDS, StatementStepsPerRowTest.UNUSABLE_SEEDS_STEPS,
@@ -95,8 +105,8 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
                 .toList();
         for (Enum<?> read : readAPage) {
             claim(
-                    read + " is read a page of surviving documents at a time and counts the rows it reads itself,"
-                            + " so it declares no steps a row",
+                    read + " is read a page at a time and counts the rows it reads itself, so it declares no steps"
+                            + " a row",
                     () -> assertThat(stepsPerRowOf(read)).isEmpty());
         }
 

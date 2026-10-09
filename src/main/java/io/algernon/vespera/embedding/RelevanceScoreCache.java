@@ -4,6 +4,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +20,9 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class RelevanceScoreCache {
+
+    /** The most occurrences one page of {@link #eachPageScoredBelow} holds. */
+    private static final int OCCURRENCES_IN_A_PAGE = 1_000;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -70,19 +74,50 @@ class RelevanceScoreCache {
     }
 
     /**
-     * The occurrences {@code runId} scored strictly below {@code floor}, in occurrence order.
+     * How many occurrences {@code runId} scored strictly below {@code floor}.
      *
      * <p>Strictly below: a document scoring exactly the floor survives it. The profile calls the key
      * a floor and describes the value as the score "below which" a survivor is removed, so the
-     * boundary belongs to the documents that stay — which is the reading that removes less.
+     * boundary belongs to the documents that stay -- which is the reading that removes less.
      */
-    List<OccurrenceId> scoredBelow(RunId runId, double floor) {
-        return jdbcTemplate.query(
-                "SELECT occurrence_id FROM relevance_score WHERE run_id = ? AND score < ?"
-                        + " ORDER BY occurrence_id",
-                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
+    long countScoredBelow(RunId runId, double floor) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM relevance_score WHERE run_id = ? AND score < ?",
+                Long.class,
                 runId.value(),
                 floor);
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * Hands the occurrences {@code runId} scored strictly below {@code floor} to {@code page}, a page of up
+     * to {@value #OCCURRENCES_IN_A_PAGE} at a time in the order the scores were written (ADR-220 section 5),
+     * each page once its statement has finished and before the next is asked for. Strictly below, as {@link
+     * #countScoredBelow}. Each page is planned by {@code relevance_score_by_run_id (run_id=? AND rowid>?)},
+     * sorting nothing.
+     */
+    void eachPageScoredBelow(RunId runId, double floor, Consumer<List<OccurrenceId>> page) {
+        long after = Long.MIN_VALUE;
+        while (true) {
+            long[] last = {after};
+            List<OccurrenceId> occurrences = jdbcTemplate.query(
+                    "SELECT rowid, occurrence_id FROM relevance_score WHERE run_id = ? AND score < ?"
+                            + " AND rowid > ? ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
+                    (resultSet, rowNumber) -> {
+                        last[0] = resultSet.getLong(1);
+                        return new OccurrenceId(resultSet.getLong("occurrence_id"));
+                    },
+                    runId.value(),
+                    floor,
+                    after);
+            if (!occurrences.isEmpty()) {
+                page.accept(occurrences);
+            }
+            if (occurrences.size() < OCCURRENCES_IN_A_PAGE) {
+                return;
+            }
+            after = last[0];
+        }
     }
 
     /**

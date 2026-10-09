@@ -239,6 +239,7 @@ class UncoveredStatementsInvocationTest {
     @Story("A read of a stopped run's faults reports how far it has gone")
     @Story("A read of the occurrences a stopped run measured reports how far it has gone")
     @DisplayName("A resumed extraction says it is reading the faults the stopped run recorded and the occurrences it measured, and how long each took, and a first invocation says nothing of either")
+    @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
     void theResumeReadsSayWhatTheyReadOnlyWhereTheRunHoldsARow(CapturedOutput output, @TempDir Path root)
             throws IOException, SQLException {
         ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, CONVERTER_FAULT_AT);
@@ -291,10 +292,14 @@ class UncoveredStatementsInvocationTest {
                         .asString()
                         .containsPattern(SECONDS_TO_ONE_DECIMAL));
         claim(
-                "so few rows take far fewer than the steps at which SQLite calls back, and the read writes no"
-                        + " progress line between its two",
+                "the faults are read a page at a time and the read is told the rows it has read after each page,"
+                        + " so between its two lines it writes one progress line, all " + faults + " of its rows read"
+                        + " in the one page, where a read counted by SQLite's steps wrote none over so few",
                 () -> assertThat(linesBetween(second, READING_FAULTS, READ_FAULTS))
-                        .noneMatch(line -> line.contains(ABOUT)));
+                        .filteredOn(line -> line.contains(ABOUT))
+                        .singleElement()
+                        .asString()
+                        .endsWith(ABOUT + "100% of " + faults + " rows"));
         claim(
                 "the resumed invocation says, once, that it is reading the occurrences the stopped run measured,"
                         + " over up to the " + measured + " rows from the run's first to its last",

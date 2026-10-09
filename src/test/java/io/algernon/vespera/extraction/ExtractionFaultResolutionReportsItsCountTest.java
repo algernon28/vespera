@@ -28,9 +28,12 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * The contract of {@code FaultResolutionProgress} (ADR-192 section 5, #412): {@code
- * ExtractionFaultResolution.resolve(RunId, boolean, FaultResolutionProgress)} calls {@code toResolve(long)}
- * once with the faults held, before writing the first, and {@code faultResolved()} after each fault's row,
- * and its verdict where the step completed, is written.
+ * ExtractionFaultResolution.resolve(RunId, boolean, FaultResolutionProgress)}, on a step that completed, calls
+ * {@code toResolve(long)} once with the run's fault rows, before resolving the first, and {@code faultResolved()}
+ * after each fault's verdict is written.
+ *
+ * <p>Since ADR-220, §14, a fault's row is written when it is recorded, so a step that stopped has nothing left to
+ * do at its end: its rows stand, it judges none of them, and it announces no loop.
  *
  * <p><b>Part (b) of ADR-192.</b> Does not compile until the interface and the overload exist; part (b) moves it
  * into {@code src/test}. What is written is {@code ExtractionFaultResolutionTest}'s to pin.
@@ -50,21 +53,33 @@ class ExtractionFaultResolutionReportsItsCountTest {
 
     @Test
     @Story("Stage 2 tells its caller how many faults it resolves")
-    @DisplayName("Two held faults are announced once, and each is reported after it is written, on a completed step")
+    @DisplayName("Two recorded faults are announced once, and each is reported after its verdict is written, on a completed step")
     void announcesTheHeldFaultsAndReportsEachOnCompletion() {
         reportsTwoFaults(true);
     }
 
     @Test
     @Story("Stage 2 tells its caller how many faults it resolves")
-    @DisplayName("Two held faults are announced and reported the same way on a step that stopped, which writes no verdict")
-    void announcesTheHeldFaultsAndReportsEachOnAStop() {
-        reportsTwoFaults(false);
+    @DisplayName("A step that stopped has nothing to resolve at its end, and announces nothing")
+    @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
+    void announcesNothingOnAStop() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        RunId run = aRun(ledger);
+        ExtractionFaultResolution resolution = new ExtractionFaultResolution(new ExtractionFaults(jdbcTemplate), ledger);
+        resolution.record(anOccurrence(ledger, run, "first.pdf"), run, "internal", "the converter failed");
+        List<String> events = new ArrayList<>();
+
+        resolution.resolve(run, false, recording(events));
+
+        claim(
+                "the fault was written when it was recorded and stays unjudged, so the end of a stopped step"
+                        + " announces no loop and reports nothing",
+                () -> assertThat(events).isEmpty());
     }
 
     @Test
     @Story("Stage 2 tells its caller how many faults it resolves")
-    @DisplayName("With no fault held the loop is announced with zero and nothing is reported")
+    @DisplayName("With no fault recorded the loop is announced with zero and nothing is reported")
     void announcesZeroWithNothingHeld() {
         Ledger ledger = new Ledger(jdbcTemplate);
         RunId run = aRun(ledger);
@@ -79,15 +94,15 @@ class ExtractionFaultResolutionReportsItsCountTest {
         Ledger ledger = new Ledger(jdbcTemplate);
         RunId run = aRun(ledger);
         ExtractionFaultResolution resolution = new ExtractionFaultResolution(new ExtractionFaults(jdbcTemplate), ledger);
-        resolution.hold(anOccurrence(ledger, run, "first.pdf"), "internal", "the converter failed");
-        resolution.hold(anOccurrence(ledger, run, "second.pdf"), "capacity", "the converter was busy");
+        resolution.record(anOccurrence(ledger, run, "first.pdf"), run, "internal", "the converter failed");
+        resolution.record(anOccurrence(ledger, run, "second.pdf"), run, "capacity", "the converter was busy");
         List<String> events = new ArrayList<>();
 
         resolution.resolve(run, completed, recording(events));
 
         claim(
-                "the loop is announced once with the two faults held, before the first is written, and each is"
-                        + " reported once after it",
+                "the loop is announced once with the run's two fault rows, before the first is resolved, and"
+                        + " each is reported once after its verdict",
                 () -> assertThat(events).containsExactly("to-resolve 2", "resolved", "resolved"));
     }
 

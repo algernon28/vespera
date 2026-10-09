@@ -70,76 +70,83 @@ public final class LabelledSpread {
      * re-score under a new model re-reads the answers already given and re-bands them against the new
      * scores, without a person being asked anything again. An answer about a document this run did not
      * score contributes nothing rather than being counted in a band it is not in.
+     *
+     * <p>{@code scored} is gone through once, whatever reads it a page at a time (ADR-220 section 13).
      */
     static Spread of(
             RelevanceDistribution.Distribution distribution,
-            List<RelevanceDistribution.Scored> scored,
+            Iterable<RelevanceDistribution.Scored> scored,
             Map<OccurrenceId, Boolean> answers) {
+        int bands = distribution.bands().size();
         double lowest = distribution.lowestScore();
         double highest = distribution.highestScore();
-        double width = (highest - lowest) / distribution.bands().size();
+        double width = (highest - lowest) / bands;
 
-        int[] labelled = new int[distribution.bands().size()];
-        int[] relevant = new int[distribution.bands().size()];
+        // The candidate cuts are the boundaries between the bands, not every boundary there is: a cut at the
+        // lowest bound discards nothing and is not a choice anybody is making. Both the bands' answers and
+        // every cut's numbers are counted in the one pass over the scores (ADR-220 section 13).
+        int cutCount = bands - 1;
+        double[] cutScores = new double[cutCount];
+        for (int cut = 0; cut < cutCount; cut++) {
+            cutScores[cut] = distribution.bands().get(cut + 1).lowerBound();
+        }
+        int[] surviving = new int[cutCount];
+        int[] discarded = new int[cutCount];
+        int[] labelledAbove = new int[cutCount];
+        int[] relevantAbove = new int[cutCount];
+        int[] labelledBelow = new int[cutCount];
+        int[] relevantBelow = new int[cutCount];
+
+        int[] labelled = new int[bands];
+        int[] relevant = new int[bands];
         int counted = 0;
         for (RelevanceDistribution.Scored document : scored) {
             Boolean answer = answers.get(document.occurrenceId());
-            if (answer == null) {
-                continue;
+            if (answer != null) {
+                int band = RelevanceDistribution.bandOf(document.score(), lowest, width, bands);
+                labelled[band]++;
+                if (answer) {
+                    relevant[band]++;
+                }
+                counted++;
             }
-            int band = RelevanceDistribution.bandOf(document.score(), lowest, width, distribution.bands().size());
-            labelled[band]++;
-            if (answer) {
-                relevant[band]++;
+            for (int cut = 0; cut < cutCount; cut++) {
+                // At or above the cut survives, matching the floor the verdict step applies: it removes a
+                // document scoring strictly below the number, so a document sitting exactly on it stays.
+                boolean survives = document.score() >= cutScores[cut];
+                if (survives) {
+                    surviving[cut]++;
+                } else {
+                    discarded[cut]++;
+                }
+                if (answer == null) {
+                    continue;
+                }
+                if (survives) {
+                    labelledAbove[cut]++;
+                    relevantAbove[cut] += answer ? 1 : 0;
+                } else {
+                    labelledBelow[cut]++;
+                    relevantBelow[cut] += answer ? 1 : 0;
+                }
             }
-            counted++;
         }
 
         List<BandLabels> bandLabels = new java.util.ArrayList<>();
-        for (int band = 0; band < distribution.bands().size(); band++) {
+        for (int band = 0; band < bands; band++) {
             bandLabels.add(new BandLabels(band, labelled[band], relevant[band]));
         }
-
-        // A cut at the lowest bound discards nothing and is not a choice anybody is making, so the
-        // candidates are the boundaries between the bands rather than every boundary there is.
         List<CandidateCut> cuts = new java.util.ArrayList<>();
-        for (int band = 1; band < distribution.bands().size(); band++) {
-            cuts.add(cutAt(distribution.bands().get(band).lowerBound(), scored, answers));
+        for (int cut = 0; cut < cutCount; cut++) {
+            cuts.add(new CandidateCut(
+                    cutScores[cut],
+                    surviving[cut],
+                    discarded[cut],
+                    labelledAbove[cut],
+                    relevantAbove[cut],
+                    labelledBelow[cut],
+                    relevantBelow[cut]));
         }
         return new Spread(List.copyOf(bandLabels), List.copyOf(cuts), counted);
-    }
-
-    /** What cutting at {@code score} would keep and remove, in documents and in answers. */
-    private static CandidateCut cutAt(
-            double score, List<RelevanceDistribution.Scored> scored, Map<OccurrenceId, Boolean> answers) {
-        int surviving = 0;
-        int discarded = 0;
-        int labelledAbove = 0;
-        int relevantAbove = 0;
-        int labelledBelow = 0;
-        int relevantBelow = 0;
-        for (RelevanceDistribution.Scored document : scored) {
-            // At or above the cut survives, matching the floor the verdict step applies: it removes a
-            // document scoring strictly below the number, so a document sitting exactly on it stays.
-            boolean survives = document.score() >= score;
-            if (survives) {
-                surviving++;
-            } else {
-                discarded++;
-            }
-            Boolean answer = answers.get(document.occurrenceId());
-            if (answer == null) {
-                continue;
-            }
-            if (survives) {
-                labelledAbove++;
-                relevantAbove += answer ? 1 : 0;
-            } else {
-                labelledBelow++;
-                relevantBelow += answer ? 1 : 0;
-            }
-        }
-        return new CandidateCut(
-                score, surviving, discarded, labelledAbove, relevantAbove, labelledBelow, relevantBelow);
     }
 }

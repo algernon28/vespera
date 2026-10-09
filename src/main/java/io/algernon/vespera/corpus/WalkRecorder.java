@@ -183,8 +183,8 @@ public class WalkRecorder {
      * statements drift apart.
      */
     private boolean sawTheSameThing(WalkId earlier, WalkId later) {
-        return ledger.occurrences().occurrencesForWalk(earlier).equals(ledger.occurrences().occurrencesForWalk(later))
-                && anomalyLog.anomaliesForWalk(earlier).equals(anomalyLog.anomaliesForWalk(later))
+        return ledger.occurrences().sameOccurrences(earlier, later)
+                && anomalyLog.sameAnomalies(earlier, later)
                 && ledger.walks().countsFor(earlier).directoriesEntered()
                         == ledger.walks().countsFor(later).directoriesEntered();
     }

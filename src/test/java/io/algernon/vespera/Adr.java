@@ -1333,6 +1333,21 @@ public final class Adr {
     public static final String EVERY_STATEMENT_WHOSE_TEMPORARY_FILES_GROW_IS_AN_EXCEPTION_WITH_ITS_SIZE = FILE
             + "0218-every-statement-whose-temporary-files-grow-with-the-corpus-is-an-exception-to-adr-060-with-its-size.md";
 
+    /**
+     * ADR-220 -- no class holds every occurrence of a run: a resumed stage 2 asks a page of survivors at a time
+     * which it already recorded, and reads a stopped run's faults a page at a time; the census compares two walks a
+     * page of each at a time; stage 4b finds its candidate pairs a page of signed occurrences at a time, an
+     * occurrence's rarest shingles with its own rows, and asks by key which candidates are signed and which phase 1
+     * removed; 5e counts the scores below the floor and writes a page at a time; the relevance report reads a page
+     * of scores at a time and each band gives its twelve of least key; a stage-2 fault is written where its
+     * set-aside is heard and resolved a page at a time; the review list is written as its rows come; a count reads
+     * no row. 5f's cluster sizes, 6a and 6b are held for a ticket of their own (amends ADR-181 section 1, ADR-199
+     * sections 1 and 2, ADR-193 sections 6 and 7, ADR-192 sections 2, 4 and 5, ADR-088's draw, ADR-139 section 2's
+     * mechanism; #458).
+     */
+    public static final String NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN = FILE
+            + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
+
     private Adr() {
     }
 }

@@ -11,7 +11,7 @@ import java.util.OptionalInt;
  * except {@code SHINGLE_ROWS}, whose 45 is a ceiling held by {@code GroupingStepsPerRowTest}.
  *
  * <p>The constants are in the order ADR-204 section 4 lists them: the build of {@code shingle_by_hash}, stage
- * 3's grouping, then the four reads of stage 4b's resolution. That is the order they are issued in, except
+ * 3's grouping, then the two reads of stage 4b's resolution (ADR-220 section 4 struck the other two). That is the order they are issued in, except
  * that the build stands first and stage 4b issues it after stage 3's grouping.
  */
 public enum SimilarityStatement {
@@ -31,14 +31,8 @@ public enum SimilarityStatement {
     /** {@link RedundancyResolution}'s read of the occurrences a signature exists for under stage 4's run. */
     SIGNED_OCCURRENCES(5),
 
-    /** {@link RedundancyResolution}'s read of the {@code signature_band} rows its candidate pairs come from. Timed. */
-    SIGNATURE_BANDS,
-
     /** {@link RedundancyResolution}'s read of the extraction metrics of the occurrences in a near-duplicate component. Timed. */
-    NEAR_DUPLICATE_METRICS,
-
-    /** {@link RedundancyResolution}'s read of stage 3's shingle document frequencies, for containment. Timed. */
-    DOCUMENT_FREQUENCY;
+    NEAR_DUPLICATE_METRICS;
 
     private final OptionalInt stepsPerRow;
 
