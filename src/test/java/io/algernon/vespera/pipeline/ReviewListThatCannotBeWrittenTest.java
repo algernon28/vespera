@@ -36,6 +36,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * failure thrown from the end of a step would only be logged with its stack trace, and would skip
  * whatever runs at the end of the step after it.
  *
+ * <p>Since ADR-220 section 6 the two timed lines of the read for that page span the page's writing, so a
+ * page that cannot be written leaves the line before and no line after: nothing was read and written whose
+ * seconds could be stated.
+ *
  * <p>A class of its own because it needs a working directory in which the page's name is taken by a
  * folder, which would break every other test sharing that working directory. The converter is a
  * {@link LoopbackSidecar} that answers one document with an error status, so there is one file to
@@ -46,8 +50,18 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Extraction")
 @Feature("Stage 2 step")
 @Issue("392")
+@Issue("458")
 @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
+@Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class ReviewListThatCannotBeWrittenTest {
+
+    /** The line stage 2 writes before it reads the files it could not read, for the page. */
+    private static final String THE_LINE_BEFORE_THE_READ =
+            "Stage 2 (extraction) is reading the occurrences it could not read";
+
+    /** How the line that states the seconds that read took opens. */
+    private static final String THE_LINE_AFTER_THE_READ_OPENS =
+            "Stage 2 (extraction) read the occurrences it could not read in ";
 
     /** A loopback port that was free when the class loaded; the test's sidecar listens on it. */
     private static final int SIDECAR_PORT = LoopbackSidecar.aFreePort();
@@ -147,6 +161,14 @@ class ReviewListThatCannotBeWrittenTest {
         claim(
                 "nothing claims the page was written",
                 () -> assertThat(lines()).noneMatch(line -> line.contains("they are listed in")));
+        claim(
+                "extraction said, once, that it was reading the files it could not read, and no line says how"
+                        + " long reading them and writing the page took: the page was not written, so there"
+                        + " is no such time to state",
+                () -> {
+                    assertThat(lines()).containsOnlyOnce(THE_LINE_BEFORE_THE_READ);
+                    assertThat(lines()).noneMatch(line -> line.startsWith(THE_LINE_AFTER_THE_READ_OPENS));
+                });
         claim(
                 "extraction completed and the invocation succeeded: a page that cannot be written stops"
                         + " nothing",

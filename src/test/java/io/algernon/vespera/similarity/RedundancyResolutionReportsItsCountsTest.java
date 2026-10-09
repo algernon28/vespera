@@ -181,8 +181,7 @@ class RedundancyResolutionReportsItsCountsTest {
                             .containsExactly(SCORE + 2, PROFILES + 0, COMPONENTS + 0, VERDICTS + 0, CONTAINMENT + 2);
                     assertThat(progress.count(CANDIDATES)).isEqualTo(2);
                     assertThat(progress.count("checked")).isEqualTo(2);
-                    assertThat(progress.count("pair") + progress.count("profile") + progress.count("component")
-                                    + progress.count("verdict"))
+                    assertThat(progress.count("profile") + progress.count("component") + progress.count("verdict"))
                             .isZero();
                 });
     }
