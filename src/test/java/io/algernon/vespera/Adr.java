@@ -1294,6 +1294,18 @@ public final class Adr {
     public static final String NO_AGENT_WRITES_INTO_A_CLAUDE_FOLDER = FILE
             + "0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md";
 
+    /**
+     * ADR-216 -- the rest of #352: the actuator starter and its test starter, the batch test starter, Lombok
+     * and the compiler configuration that only named annotation processors leave the pom; three methods
+     * nothing shipped calls leave the code, and the embedding module's model-name pattern is written once;
+     * the LLM chunking seam, the windowed fallback and a second Docling reference resolver are decided gone
+     * and leave with the next change to extraction, and a test-only content-identity read with the next
+     * change to corpus; a javadoc states its own contract and cites its ADR; AGENTS.md carries no history
+     * (amends ADR-029 and ADR-046; read with ADR-209 section 1).
+     */
+    public static final String NOTHING_SHIPS_THAT_NO_DECISION_REQUIRES_AND_NOTHING_CALLS = FILE
+            + "0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md";
+
     private Adr() {
     }
 }

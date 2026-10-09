@@ -487,8 +487,8 @@ class GenerationTasklet implements Tasklet {
      * the deliverable is the report (ADR-111, ADR-103, #186).
      *
      * <p>{@code synthesis} may not read {@code Profile}, a stage, or {@code ledger}'s own tables
-     * (ADR-110), so everything {@link Deliverable#writeTo} needs is gathered here as plain values: the
-     * eight profile keys the run consumed, every survivor's path, content hash and score, and the
+     * (ADR-110), so everything {@link Deliverable#writeTo} needs is gathered here as plain values:
+     * every key of the profile, read off its record, every survivor's path, content hash and score, and the
      * arrangement and the writing produced under this run.
      *
      * <p>The content hash is the key {@code extraction} recorded for each survivor, the one its conversion
