@@ -22,8 +22,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Where {@code Deliverable.writeTo} stops for a partition whose seed no survivor names (ADR-213 §6): before
- * any partition directory, page or progress total is written, because the index is composed first and the
- * index is what refuses such a partition.
+ * any partition directory, page or total of partitions, cluster files or membership entries is written,
+ * because the index is composed first and the index is what refuses such a partition.
  *
  * <p><b>The one order the split moved.</b> At {@code 4b99a03} the same exception was thrown from inside
  * the loop over partitions, after the partitions, the cluster files and the membership entries had been
@@ -54,7 +54,7 @@ class PartitionNoSurvivorNamesStopsTheWriterTest {
 
     @Test
     @Story("A partition whose seed no survivor names stops the writer")
-    @DisplayName("The writer stops before any partition's directory, any page or the index is written, and before it announces a total")
+    @DisplayName("The writer stops before any partition's directory, any page or the index is written, and before it announces how many partitions, cluster files or membership entries it will write")
     void stopsBeforeAnyPartitionIsWrittenOrAnnounced(@TempDir Path workingDirectory) {
         List<String> events = new ArrayList<>();
         ListedSurvivor theOneSurvivor = new ListedSurvivor(

@@ -208,7 +208,7 @@ public final class Deliverable {
             DeliverableProgress progress)
             throws IOException {
         // Composed first, so a partition no survivor names stops the writer before any partition
-        // directory, page or progress total is written.
+        // directory or page is written and before any of the three totals below is announced.
         String indexContents = IndexPage.contents(provenance, arrangement, written, survivors);
 
         Map<ClusterSlot, RecordedSynthesisDoc> writtenByCluster = new LinkedHashMap<>();

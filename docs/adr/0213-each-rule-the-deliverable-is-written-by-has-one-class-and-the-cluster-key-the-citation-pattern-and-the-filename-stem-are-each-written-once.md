@@ -38,7 +38,7 @@ No test held ADR-134's reopen trigger. It was a sentence, checked by whoever rea
 
 `Deliverable` keeps its public surface, its four `writeTo` overloads and every constant a test reads (`DIRECTORY_NAME`, `INDEX_FILE_NAME`, `MANIFEST_FILE_NAME`, `NOTHING_WAS_WRITTEN_OVER_IT`, `THE_CLUSTER_NO_LONGER_HOLDS_IT`, `PICTURES_PER_DOCUMENT`), so `DeliverableTest` passes unedited. Each rule is moved out of `Deliverable`, not copied.
 
-**The pictures collaborator is `EntryPictures`, not the plan's `DeliverablePictures`.** `DeliverablePicturesTest` already exists and holds the pictures through `Deliverable.writeTo`, end to end, in twenty cases. A class named `DeliverablePictures` would make that file read as its unit test. The unit test is `EntryPicturesTest`, and `DeliverablePicturesTest` stays where it is, unedited.
+**The pictures collaborator is `EntryPictures`, not the plan's `DeliverablePictures`.** `DeliverablePicturesTest` already exists and holds the pictures through `Deliverable.writeTo`, end to end, in nineteen cases. A class named `DeliverablePictures` would make that file read as its unit test. The unit test is `EntryPicturesTest`, and `DeliverablePicturesTest` stays where it is, unedited.
 
 ### 2. The table keeps ADR-134, ADR-137 §4 and ADR-138 §5 as written
 

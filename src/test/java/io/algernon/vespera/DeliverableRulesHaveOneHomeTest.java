@@ -77,7 +77,8 @@ class DeliverableRulesHaveOneHomeTest {
     /**
      * A backslash straight before a value, in a text built at run time: the compiler holds such a text as
      * its fixed parts with the character U+0001 where each value goes, so {@code "\\" + c} is held as a
-     * backslash and that mark.
+     * backslash and that mark. A compiler that stopped holding it so would leave a lone backslash constant
+     * or an appended backslash character instead, which {@link #A_BACKSLASH} and the appended characters catch.
      */
     private static final String A_BACKSLASH_BEFORE_A_VALUE = A_BACKSLASH + '\u0001';
 
