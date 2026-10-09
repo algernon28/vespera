@@ -3,7 +3,6 @@ package io.algernon.vespera.synthesis;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -153,9 +152,6 @@ public class ClusterSynthesis {
      * currently available to the model} ({@code docs/research/ollama-generation-surface.md} §2).
      */
     private static final String OLLAMA_REFUSES_PAST_THE_WINDOW = "the prompt is longer than the context length";
-
-    /** A citation: the bracketed ordinal a reader is meant to follow back to a document (ADR-109). */
-    private static final Pattern CITATION = Pattern.compile("\\[(\\d+)\\]");
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
@@ -592,7 +588,7 @@ public class ClusterSynthesis {
      */
     private static void checkCitations(String prose, int documentsSent) {
         List<String> citations =
-                CITATION.matcher(prose).results().map(match -> match.group(1)).toList();
+                Citation.AS_WRITTEN.matcher(prose).results().map(match -> match.group(1)).toList();
         if (citations.isEmpty()) {
             throw new ClusterFaultException(new ClusterFault(
                     ClusterFaultKind.CITATION_NOT_IN_RANGE,
@@ -774,7 +770,7 @@ public class ClusterSynthesis {
      *
      * <p><b>The citation form is named, with an example, rather than left to "the bracketed
      * numbers"</b> (ADR-159 §2). Asked only that, and under the answer schema, the shipped model
-     * cited every document as {@code {1}} — never {@code [1]} — so {@link #CITATION} found nothing
+     * cited every document as {@code {1}} — never {@code [1]} — so {@link Citation#AS_WRITTEN} found nothing
      * and 8 clusters of 9 were turned down as uncited. The example is derived from {@code
      * inScoreOrder.size()} rather than fixed, so a group of one is never shown a number past 1: a
      * probe of 12 calls carrying one, two and three documents each, against the same serving engine,
