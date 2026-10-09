@@ -97,7 +97,20 @@ No test holds this. Nothing the tree contains shows how many digests were taken.
 
 Before, at `4b99a03`: `Deliverable.java` 1,271 lines, and `synthesis` 42 main files.
 
-After: the change that builds `src/main` measures with `wc -l` and records the figures here, in this section, before this record is merged. That change owes the line counts of `Deliverable.java` and of each collaborator, and the net line change of `synthesis`. They replace the plan's estimate, *"neutral in lines; the largest class goes"*.
+After, measured with `wc -l` over `src/main/java/io/algernon/vespera/synthesis` once the build was green: `Deliverable.java` 270 lines (from 1,271), and `synthesis` 50 main files. The collaborators:
+
+| File | Lines |
+| --- | --- |
+| `EntryPictures.java` | 323 |
+| `ClusterPage.java` | 237 |
+| `IndexPage.java` | 186 |
+| `ArchiveLink.java` | 99 |
+| `MarkdownSurroundings.java` | 91 |
+| `ManifestCsv.java` | 88 |
+| `FilenameStem.java` | 27 |
+| `Citation.java` | 17 |
+
+`ClusterSlot.java` grew to 32 lines with its three overloads. All of `synthesis` main went from 3,815 lines to 3,875, a net of 60 more: the split is close to neutral in lines, as the plan's estimate said, and the largest class is gone, `EntryPictures` at 323 lines being the largest now.
 
 ## Tests
 
