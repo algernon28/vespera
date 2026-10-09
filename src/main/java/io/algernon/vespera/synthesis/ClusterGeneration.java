@@ -61,7 +61,7 @@ public class ClusterGeneration {
         // total, so the caller is told it starts and ends, and nothing between.
         progress.statementStarting(SynthesisStatement.WRITTEN, OptionalLong.empty());
         Set<ClusterSlot> alreadyWritten = synthesisDocs.forRun(generation).stream()
-                .map(doc -> new ClusterSlot(doc.winningSeed(), doc.clusterOrdinal()))
+                .map(ClusterSlot::of)
                 .collect(Collectors.toSet());
         progress.statementEnded(SynthesisStatement.WRITTEN);
         progress.toGoThrough(clusters.size());

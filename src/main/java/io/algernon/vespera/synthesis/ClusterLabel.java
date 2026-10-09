@@ -35,7 +35,7 @@ public record ClusterLabel(String value) {
         if (doclingTitle != null && !doclingTitle.isBlank()) {
             return new ClusterLabel(doclingTitle);
         }
-        String stem = filenameStemOf(leadDocument);
+        String stem = FilenameStem.of(leadDocument.value());
         if (!stem.isBlank()) {
             return new ClusterLabel(stem);
         }
@@ -48,20 +48,4 @@ public record ClusterLabel(String value) {
      * {@code 3} beside labels reading like documents is one a reader cannot place.
      */
     private static final String ORDINAL_ONLY = "Cluster %d";
-
-    /**
-     * The lead document's filename without its folders or its extension.
-     *
-     * <p>A stored path is separator-normalised to {@code /} already (ADR-051), so the last segment is
-     * the filename whatever the walk found it on.
-     *
-     * <p>A name that is <em>only</em> an extension yields a blank stem rather than itself, which is
-     * what makes the third tier reachable at all. Left the other way the chain would have had a tier
-     * nothing could arrive at — the defect ADR-096 was written about one stage earlier.
-     */
-    private static String filenameStemOf(OccurrencePath path) {
-        String filename = path.value().substring(path.value().lastIndexOf('/') + 1);
-        int extension = filename.lastIndexOf('.');
-        return extension < 0 ? filename : filename.substring(0, extension);
-    }
 }

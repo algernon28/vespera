@@ -101,12 +101,29 @@
 // link, or in a folder it cannot list is therefore not found. A search that would need more than
 // WALK_LIMIT folders is refused: it cannot be ruled out.
 //
+// One Bash or PowerShell command is admitted without being read for paths (ADR-212, docs/adr/0212):
+// node, working-directory-counts.mjs beside this file, and a folder that directly holds vespera.db, and
+// nothing else. That script prints a working directory's aggregate counts by statements fixed in it, and
+// they are all an agent may read of one. The command is three words parted by spaces or tabs, the two
+// after node bare or single-quoted, of letters, digits and _ . / - (and \ and the space where the shell
+// takes them as written), with a colon only as a drive's and no .. segment. The script word, read against
+// the current directory, is this file's sibling character for character, folded to one case on Windows
+// only, and the bytes there have the SHA-256 pinned in COUNTING_SCRIPT_SHA256, CR LF read as LF. The
+// current directory passes the ordinary check. Last of all the file system is asked whether the folder
+// directly holds vespera.db: the one path this file touches that the allow list need not name. So that
+// the script word is the path node opens, a word that begins with a separator is not admitted on Windows,
+// where Git Bash rewrites one, nor a word with a backslash elsewhere, where it is part of a name. A call
+// that fails any of this is read as every other command is. The pin does not cover the moment between
+// this check and node reading the script, which node runs and how it is started (NODE_OPTIONS, PATH, an
+// alias), or a write to ~/.claude/settings.json; for those the written rule is all there is.
+//
 // It fails closed. Input it cannot read, input that names no tool, and any exception end in exit
 // code 2, which is the only code Claude Code treats as a refusal.
 //
 // Protocol: Claude Code passes the tool call as JSON on stdin. Exit code 2 refuses it, exit code 0
 // lets it through, and stderr is what Claude reads.
 
+import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, parse, resolve } from "node:path";
@@ -610,6 +627,59 @@ function staticPrefix(pattern) {
   return prefix;
 }
 
+// The counting script of ADR-212, and the SHA-256 of its bytes with every CR LF read as LF. A change to
+// that script is a change to this constant, and is reviewed as one.
+const COUNTING_SCRIPT = join(here, "working-directory-counts.mjs");
+const COUNTING_SCRIPT_SHA256 = "66c4b8e4c71c18ed4111417be6f8410f266563b87846d0ef73e62727f289efd8";
+// node and two words, each single-quoted or with no quote and no white space in it, and nothing else.
+const COUNTING_COMMAND = /^[ \t]*node[ \t]+('[^']*'|[^\s']+)[ \t]+('[^']*'|[^\s']+)[ \t]*$/;
+
+// A word of the counting command as node receives it, or null when ADR-212 section 4.1 does not admit
+// it. A backslash outside single quotes is an escape to Bash, which would hand node another path.
+function countingWord(written, bash) {
+  const quoted = /^'([A-Za-z0-9_.\/\\: -]+)'$/.exec(written);
+  if (!quoted && !(bash ? /^[A-Za-z0-9_.\/:-]+$/ : /^[A-Za-z0-9_.\/\\:-]+$/).test(written)) return null;
+  const word = quoted ? quoted[1] : written;
+  // A colon only as a drive's: one, second in the word, after a letter and before a separator.
+  if (word.includes(":") && (word.indexOf(":") !== word.lastIndexOf(":") || !/^[A-Za-z]:[\\/]/.test(word))) return null;
+  if (word.split(/[\\/]/).includes("..")) return null;
+  // So that the word read here is the path node opens: Git Bash rewrites a word that begins with a
+  // separator, and a backslash is part of a name where it parts no folders.
+  if (windows ? /^[\\/]/.test(word) : word.includes("\\")) return null;
+  return word;
+}
+
+// The folder a command asks the counting script about, when the command is that script's one admitted
+// form (ADR-212 section 4.1), names this file's sibling (4.2) and the sibling's bytes are the pinned ones
+// (4.3); null otherwise. It asks the file system about nothing but the script.
+function countedFolder(command, bash, cwd) {
+  const form = COUNTING_COMMAND.exec(command);
+  if (!form) return null;
+  const script = countingWord(form[1], bash);
+  const folder = countingWord(form[2], bash);
+  if (script === null || folder === null) return null;
+  const fold = (p) => (windows ? p.toLowerCase() : p);
+  const opened = resolve(cwd, script);
+  if (fold(opened) !== fold(COUNTING_SCRIPT)) return null;
+  let bytes;
+  try {
+    bytes = readFileSync(opened, "latin1");
+  } catch {
+    return null;
+  }
+  if (createHash("sha256").update(bytes.replace(/\r\n/g, "\n"), "latin1").digest("hex") !== COUNTING_SCRIPT_SHA256) return null;
+  return resolve(cwd, folder);
+}
+
+// Whether it is a folder, after links are followed, that directly holds a file named vespera.db.
+function directlyHoldsDatabase(folder) {
+  try {
+    return statSync(folder).isDirectory() && lstatSync(join(folder, "vespera.db")).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function refusalsOf(call) {
   const tool = call.tool_name;
   const input = call.tool_input && typeof call.tool_input === "object" ? call.tool_input : {};
@@ -676,8 +746,13 @@ function refusalsOf(call) {
   const currentLabel = `the current directory, ${currentDirectory}`;
 
   if (tool === "Bash" || tool === "PowerShell") {
+    const command = String(input.command ?? "");
+    // ADR-212 section 4, in its order: the form, the script and its hash, then the current directory, and
+    // the folder last, so that a lookup that hangs can let through only the pinned script.
+    const counted = countedFolder(command, tool === "Bash", cwd);
     const currentChecked = checkReadings(currentLabel, currentDirectory, checkout);
-    const { absolute, relative } = pathsInCommand(String(input.command ?? ""), tool === "Bash");
+    if (counted !== null && currentChecked.every(({ turnedDown }) => !turnedDown) && directlyHoldsDatabase(counted)) return refused;
+    const { absolute, relative } = pathsInCommand(command, tool === "Bash");
 
     // The folders the command names, which a relative path may be read against, each with the least use
     // of every relative token over the chains of tokens that reach it. A folder that is refused is not

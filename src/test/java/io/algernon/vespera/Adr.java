@@ -1255,6 +1255,29 @@ public final class Adr {
     public static final String NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN = FILE
             + "0211-no-class-holds-every-survivor-of-a-run-another-tables-rows-are-read-a-page-of-survivors-at-a-time.md";
 
+    /**
+     * ADR-212 (accepted, and built on 2026-10-09) -- an agent may read what one script beside the private-paths guard prints about
+     * a working directory, and nothing else in it: counts and sums out of {@code vespera.db} by fixed
+     * statements, keyed by walk ids, run ids and the code's closed vocabularies, and how many files the
+     * working directory holds and their size; the guard admits only the exact command that starts that
+     * script, whose hash it pins; {@code vespera.log} stays refused (amends ADR-196 sections 1 and 2;
+     * keeps ADR-201 and ADR-198). Its tests are Node tests under {@code src/test/hooks}.
+     */
+    public static final String AGGREGATE_COUNTS_THROUGH_ONE_PINNED_SCRIPT = FILE
+            + "0212-an-agent-may-read-a-working-directorys-aggregate-counts-through-one-pinned-script-and-nothing-else-in-it.md";
+
+    /**
+     * ADR-213 -- each rule the deliverable is written by has one package-private class in {@code
+     * synthesis}: {@code MarkdownSurroundings} (one constant per Markdown text surrounding),
+     * {@code ArchiveLink}, {@code ManifestCsv}, {@code ClusterPage}, {@code IndexPage} and {@code
+     * EntryPictures}, with {@code Deliverable} orchestrating; the one cluster key is {@code ClusterSlot},
+     * the citation pattern is {@code Citation.AS_WRITTEN} and the filename stem {@code FilenameStem.of};
+     * ADR-134, ADR-137 section 4 and ADR-138 section 5 stand as written, and ADR-134's reopen trigger
+     * gains a test (settles #351).
+     */
+    public static final String EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS = FILE
+            + "0213-each-rule-the-deliverable-is-written-by-has-one-class-and-the-cluster-key-the-citation-pattern-and-the-filename-stem-are-each-written-once.md";
+
     private Adr() {
     }
 }

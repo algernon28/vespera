@@ -32,7 +32,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 - Prose written for a reader outside this project is free of the lists altogether; ADR-122 enumerates the audiences, and this is deliberately not a second copy of that list. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
 - **Cluster** renders as *group*.
 
-**`docs/adr/`** holds 211 decisions, ADR-001 to ADR-211, and two things about it are invisible from the files:
+**`docs/adr/`** holds 213 decisions, ADR-001 to ADR-213, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.
@@ -90,14 +90,21 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 
 ## The operator's documents are never read by an agent
 
-**No agent opens an archive, walked or not, a seed set, a working directory, or anything in them**: no document, no `vespera.db`, no `vespera.log`, no report and no deliverable. The archives can hold sensitive documents, and a document is read only by the local models Vespera runs (Docling, and the models Ollama serves). This holds for every agent and subagent, whatever its task, including a run it is driving: labels, floors and approvals are the operator's, or a local model's ([#423](https://github.com/algernon28/vespera/issues/423)), never an agent's.
+**No agent opens an archive, walked or not, a seed set, a working directory, or anything in them**: no document, no `vespera.db`, no `vespera.log`, no report and no deliverable. The archives can hold sensitive documents, and a document is read only by the local models Vespera runs (Docling, and the models Ollama serves). This holds for every agent and subagent, whatever its task, including a run it is driving: labels, floors and approvals are the operator's, or a local model's ([#423](https://github.com/algernon28/vespera/issues/423)), never an agent's. The one thing an agent may read of a working directory is the counts a pinned script prints (ADR-212, below).
 
 `.claude/hooks/private-paths-guard.mjs` enforces it for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell. It refuses a call that names a path outside `.claude/allowed-paths.txt`, or inside a folder holding `vespera.db` or `vespera.lock`. In a shell command it reads drive paths, relative paths and paths headed by a variable of the environment, and the command's current directory; a relative path is read against every folder the command names, so `cd` to a folder the hook reads does not get round it. It also refuses a Grep or Glob that starts in a folder holding a working directory at any depth, so name `src` or `docs`, not the repository root, once a run has written `.vespera` there. It is an allow list, so an archive on a new path is refused without being named. A refused path that is legitimate and holds no document goes in `.claude/allowed-paths.local.txt` (gitignored), by the operator. The hook does not see an `mcp__*` tool, Monitor, a path a script builds at run time, or a rooted POSIX path such as `/tmp/x` in a shell command; this rule covers those, and ADR-196 lists the others that are known, which is not all there are.
 
-ADR-196 is the record: what the hook must refuse, how it fails closed, and what it does not cover. ADR-201 amends it for links, and for four spellings it read wrongly. `src/test/hooks/private-paths-guard.test.mjs` holds the hook to both, with no path of the operator's in it:
+ADR-196 is the record: what the hook must refuse, how it fails closed, and what it does not cover. ADR-201 amends it for links, and for four spellings it read wrongly. ADR-212 amends it for one thing: **an agent may read the counts one pinned script prints about a working directory, and nothing else in one.** The hook admits exactly this command, and reads every other as before:
+
+```
+node .claude/hooks/working-directory-counts.mjs <working directory>
+```
+
+It is three words and nothing else: no pipe, redirect, second command, option, variable or `..`, the last two words bare or single-quoted, run from an allowed current directory. On Windows neither word begins with `/` or `\`, so name a drive path or a relative one. The script must be the one beside the guard, with the bytes the guard pins by SHA-256, so a change to the script is a change to the guard. It prints counts and sums keyed by walk id, run id and closed vocabularies, and how many files the working directory holds and their size: no path, no file or folder name but a run id's, and no text of the operator's. A count may be cited and compared; it is never a label, a floor or an approval, and a statement an agent writes is refused even when it returns only numbers. `src/test/hooks/private-paths-guard.test.mjs` holds the hook to all three records and `src/test/hooks/working-directory-counts.test.mjs` holds the script to ADR-212, with no path of the operator's in either:
 
 ```
 node --test src/test/hooks/private-paths-guard.test.mjs
+node --test src/test/hooks/working-directory-counts.test.mjs
 ```
 
 ## Conventions worth knowing

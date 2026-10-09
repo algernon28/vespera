@@ -4,9 +4,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.ClassModel;
+import java.lang.classfile.CodeElement;
+import java.lang.classfile.CodeModel;
+import java.lang.classfile.Instruction;
+import java.lang.classfile.MethodModel;
 import java.lang.classfile.constantpool.PoolEntry;
 import java.lang.classfile.constantpool.StringEntry;
 import java.lang.classfile.constantpool.Utf8Entry;
+import java.lang.classfile.instruction.ConstantInstruction;
+import java.lang.classfile.instruction.InvokeInstruction;
+import java.lang.constant.ConstantDescs;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +58,16 @@ final class ShippedClasses {
         return byClass(entry -> entry instanceof StringEntry text ? text.stringValue() : null);
     }
 
+    /**
+     * The characters each shipped class appends to a text it is building, by class name in order: every
+     * character written as a constant and handed straight to a method named {@code append} that takes
+     * one {@code char}, which is how {@code StringBuilder.append('x')} is compiled. A character put in a
+     * variable first is not among them, and neither is one passed to any other method.
+     */
+    static Map<String, List<String>> appendedCharactersByClass() throws ClassNotFoundException, IOException {
+        return readByClass(ShippedClasses::appendedCharactersOf);
+    }
+
     /** The module a shipped class belongs to: the package segment after {@code io.algernon.vespera}. */
     static String moduleOf(String className) {
         String rest = className.substring(SHIPPED_PACKAGE.length() + 1);
@@ -59,6 +76,44 @@ final class ShippedClasses {
     }
 
     private static Map<String, List<String>> byClass(Function<PoolEntry, String> kept)
+            throws ClassNotFoundException, IOException {
+        return readByClass(compiled -> {
+            List<String> entries = new ArrayList<>();
+            for (PoolEntry entry : compiled.constantPool()) {
+                String text = kept.apply(entry);
+                if (text != null) {
+                    entries.add(text);
+                }
+            }
+            return entries;
+        });
+    }
+
+    private static List<String> appendedCharactersOf(ClassModel compiled) {
+        List<String> appended = new ArrayList<>();
+        for (MethodModel method : compiled.methods()) {
+            Integer loaded = null;
+            for (CodeElement element : method.code().map(CodeModel::elementList).orElse(List.of())) {
+                // A label or a line number sits between two instructions and is neither.
+                if (!(element instanceof Instruction)) {
+                    continue;
+                }
+                if (loaded != null
+                        && element instanceof InvokeInstruction call
+                        && call.name().equalsString("append")
+                        && call.typeSymbol().parameterList().equals(List.of(ConstantDescs.CD_char))) {
+                    appended.add(String.valueOf((char) loaded.intValue()));
+                }
+                loaded = element instanceof ConstantInstruction constant
+                                && constant.constantValue() instanceof Integer value
+                        ? value
+                        : null;
+            }
+        }
+        return appended;
+    }
+
+    private static Map<String, List<String>> readByClass(Function<ClassModel, List<String>> read)
             throws ClassNotFoundException, IOException {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false) {
             @Override
@@ -75,7 +130,7 @@ final class ShippedClasses {
             if (compiledFromTheTestTree(type)) {
                 continue;
             }
-            held.put(type.getName(), entriesOf(type, kept));
+            held.put(type.getName(), read.apply(compiledFormOf(type)));
         }
         if (held.isEmpty()) {
             throw new IllegalStateException(
@@ -92,21 +147,13 @@ final class ShippedClasses {
                 .contains("test-classes");
     }
 
-    private static List<String> entriesOf(Class<?> type, Function<PoolEntry, String> kept) throws IOException {
+    private static ClassModel compiledFormOf(Class<?> type) throws IOException {
         String resource = "/" + type.getName().replace('.', '/') + ".class";
         try (InputStream in = type.getResourceAsStream(resource)) {
             if (in == null) {
                 throw new IllegalStateException("the compiled class of " + type.getName() + " could not be read");
             }
-            ClassModel compiled = ClassFile.of().parse(in.readAllBytes());
-            List<String> entries = new ArrayList<>();
-            for (PoolEntry entry : compiled.constantPool()) {
-                String text = kept.apply(entry);
-                if (text != null) {
-                    entries.add(text);
-                }
-            }
-            return entries;
+            return ClassFile.of().parse(in.readAllBytes());
         }
     }
 }
