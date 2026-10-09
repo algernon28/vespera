@@ -1237,6 +1237,17 @@ public final class Adr {
     public static final String A_FILE_THAT_CANNOT_BE_READ_IS_MARKED_AND_THE_STEP_GOES_ON = FILE
             + "0210-a-file-that-cannot-be-read-is-marked-and-the-step-goes-on-and-a-corpus-root-that-can-no-longer-be-listed-stops-it.md";
 
+    /**
+     * ADR-212 (accepted, and built on 2026-10-09) -- an agent may read what one script beside the private-paths guard prints about
+     * a working directory, and nothing else in it: counts and sums out of {@code vespera.db} by fixed
+     * statements, keyed by walk ids, run ids and the code's closed vocabularies, and how many files the
+     * working directory holds and their size; the guard admits only the exact command that starts that
+     * script, whose hash it pins; {@code vespera.log} stays refused (amends ADR-196 sections 1 and 2;
+     * keeps ADR-201 and ADR-198). Its tests are Node tests under {@code src/test/hooks}.
+     */
+    public static final String AGGREGATE_COUNTS_THROUGH_ONE_PINNED_SCRIPT = FILE
+            + "0212-an-agent-may-read-a-working-directorys-aggregate-counts-through-one-pinned-script-and-nothing-else-in-it.md";
+
     private Adr() {
     }
 }
