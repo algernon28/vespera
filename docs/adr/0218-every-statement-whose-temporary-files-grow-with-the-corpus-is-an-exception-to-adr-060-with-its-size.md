@@ -75,10 +75,10 @@ Each row is a statement, or a group of statements of one plan. The two sizes are
 | 4,500,000 | 411,327,650 | 412,477,952 | 410,054,656 | 822,532,608 |
 | 9,000,000 | 824,323,660 | 825,013,552 | 820,187,136 | 1,645,785,772 |
 
-- **At the two larger sizes a row costs 91.4 to 91.6 bytes of temporary files, 91.7 of write-ahead log, and 91.1 of index in the file**, and 182.8 to 182.9 at the peak: two of the three at once, first the temporary files with the log, then the log with the file's growth.
+- **At the two larger sizes a row costs 91.4 to 91.6 bytes of temporary files, 91.7 of write-ahead log, and 91.1 of index in the file**, and 182.8 to 182.9 at the peak: two of the three at once, first the temporary files with the log, then the log with the file's growth. A second run of the build over the larger ledger, made for the measurement of stage 3 with the index present, peaked at 1,646,931,132 bytes, 183.0 a row, so the range over the runs made is 182.8 to 183.0.
 - **At 100,000 rows the figures are 87.7, 92.2 and 91.5, and 183.7 at the peak**, above §5's 183: what a sort keeps in memory before it writes, and the fixed parts of the log and of the file, show at that size and not at the larger two. §5's figure is the larger sizes'.
 - **The log stays its full size when the statement returns.** It was cut to 536,870,912 bytes, the shipped `journal_size_limit`, by the next write on that connection at the larger size, and stood at its 412,477,952 after the next write at the smaller, which is under the limit. It was empty once the connection closed.
-- **Stage 3's grouping wrote 37,112 bytes of log** at both sizes, and grew the file by nothing: its temporary files are all it needs.
+- **Stage 3's grouping wrote 37,112 bytes of log** at all three sizes, and grew the file by nothing: its temporary files are all it needs.
 - The `shingle` table with its two shipped indexes took 277.5 to 278.0 bytes a row of database file.
 
 ### What sorts and is bounded by something other than the corpus
@@ -132,6 +132,8 @@ The statements of *What sorts and is bounded by something other than the corpus*
 
 > free bytes ≥ 183 × S, where S is the number stage 4b's line states, `MAX(rowid)` of `shingle`
 
+The 183 is the greatest peak measured, rounded to a whole byte, and carries no margin: the greatest of the runs at the two larger sizes was 182.99 a row.
+
 Of the 183, 91.1 stay in `vespera.db`, as the index; the rest is given back. When stage 2 next drops the index those bytes stay in the file as free pages, nothing in `src/main` setting `auto_vacuum`, and whether a later build takes them up again, so that the file does not grow a second time, was not measured. The write-ahead log gives its share back at the next write, down to 512 MiB, or when the invocation ends.
 
 The statements of an invocation run one at a time, so the need is the largest statement's and not their sum, and no other statement comes near the build's. Stage 3's grouping needs 23.3 × the run's rows. A start-up build of `shingle_by_occurrence` would need as much as stage 4b's, by its temporary files; its log was not measured.
@@ -166,7 +168,7 @@ The statements of an invocation run one at a time, so the need is the largest st
 
 | Class | What it holds |
 | --- | --- |
-| `EveryStatementThatSortsIsRecordedTest` | that the shipped statements SQLite plans through a temp B-tree, a materialised subquery or a list for `IN (SELECT …)`, and the one that builds an index, are in the classes this record names, as many in each as it lists: rows 1, 2, 6 to 13 and 15 to 20, and the four that are bounded; that this holds in both states of a working directory, as `schema.sql` leaves the database and with `shingle_by_hash` built by the statement `ShingleHashIndex` ships; that the only texts opening as a statement does that it cannot plan are six read by hand, five reading the least or greatest rowid of a table named at run time and one the message of an exception, none of them a statement that sorts; and that `schema.sql`'s indexes are the thirty-one of rows 3 to 5. A text is read as a statement where it opens, in either case and after any white space, with `SELECT`, `INSERT`, `DELETE`, `UPDATE`, `REPLACE`, `WITH`, `CREATE INDEX`, `CREATE UNIQUE INDEX`, `DROP INDEX` or `CREATE TABLE` |
+| `EveryStatementThatSortsIsRecordedTest` | that the shipped statements SQLite plans through a temp B-tree, a materialised subquery or a list for `IN (SELECT …)`, and the one that builds an index, are in the classes this record names, as many in each as it lists: rows 1, 2, 6 to 13 and 15 to 20, and the four that are bounded; that this holds in both states of a working directory, as `schema.sql` leaves the database and with `shingle_by_hash` built by the statement `ShingleHashIndex` ships; that the only texts opening as a statement does that it cannot plan are six read by hand, five reading the least or greatest rowid of a table named at run time and one the message of an exception, none of them a statement that sorts; and that `schema.sql`'s indexes are the thirty-one of rows 3 to 5. A text is read as a statement where it opens, in either case and after any white space, with `SELECT`, `INSERT`, `DELETE`, `UPDATE`, `REPLACE`, `WITH`, `CREATE INDEX`, `CREATE UNIQUE INDEX`, `DROP INDEX` or `CREATE TABLE`, the last with `TEMP` or `TEMPORARY` too |
 
 **What no test holds.**
 
@@ -198,4 +200,5 @@ The statements of an invocation run one at a time, so the need is the largest st
 - **Whether `shingle` should keep the rows of earlier stage-2 runs, and whether the build should cover them**: [#468](https://github.com/algernon28/vespera/issues/468).
 - **Whether any read of §3 stays as it is**: after [#458](https://github.com/algernon28/vespera/issues/458), which is about what those reads put on the heap.
 - **Whether an invocation should check the drive's free space, or say what it needs, before stage 4b builds.**
+- **Whether stage 3's grouping should ever run with `shingle_by_hash` present.** In the probe it then wrote no temporary file and took six to seven times as long (Measured). This record measures that and decides nothing about it, no ticket holds it, and whether the 45 steps a row ADR-211 declares for that statement's progress hold under that plan was not looked at.
 - **Whether the progress callbacks keep coming on a slow disk**, which ADR-211 left open and this record does not take up.
