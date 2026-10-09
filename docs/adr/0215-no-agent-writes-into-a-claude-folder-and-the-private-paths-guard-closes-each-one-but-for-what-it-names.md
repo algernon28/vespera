@@ -10,7 +10,11 @@
 
   ADR-196's rule (§1), its working-directory refusal, its bounds, every way §6 makes the hook fail closed, and all of [ADR-201](0201-the-private-paths-guard-reads-a-climb-out-of-a-link-both-ways-and-refuses-a-name-it-cannot-follow.md) stand as written.
 - **Settles**: [#459](https://github.com/algernon28/vespera/issues/459).
-- **Related**: ADR-212, not merged when this was written. Its §5 lists `~/.claude/settings.json` under "What the pin does not cover" and leaves it "to be added to ADR-196 §5 by a later record". This is that record. §10 says how the two meet.
+- **Amends**: [ADR-212](0212-an-agent-may-read-a-working-directorys-aggregate-counts-through-one-pinned-script-and-nothing-else-in-it.md), which landed while this record was being built, in these places and no others. §10 below says what replaces each.
+  - §4.4, "inside the allow list and outside every working directory": the ordinary check of the counting command's current directory now also turns down a closed `.claude` folder;
+  - §4's "without the guard reading its command for paths" and its "Any call that fails one of these is read as before": the admission now also stands before the reading of every token's text (§3(c) below), and a call that fails it is read with that reading too;
+  - §5's "That is ADR-196's position, unchanged", and the three items of its "What the pin does not cover": the third, that `~/.claude/settings.json` can be written, is closed for a call whose text names the file, and the first two are narrowed and not closed. ADR-212 left that third item "to be added to ADR-196 §5 by a later record", and this is that record.
+- **Keeps**: the rest of ADR-212: the one command it admits, the counting script and what it prints, the pin by hash, and the expectation of every K case as ADR-212 wrote it.
 
 ## Context
 
@@ -212,10 +216,10 @@ A worktree gets a changed guard as it gets any other change, by merging the bran
 
 ### 9. The test
 
-`src/test/hooks/private-paths-guard.test.mjs` gains 505 cases and holds 783. The first 407 were run against the guard before this build: all 278 cases written before this record passed, 91 of the 407 passed, and 316 failed, each a call that guard let through. The other 98, U, V and Y, were written against the guard as it was being built, to hold §3(c) by execution. The guard this record ships with holds all 783.
+`src/test/hooks/private-paths-guard.test.mjs` gains 517 cases from this record and holds 841 with the 46 K cases ADR-212 brought: 278 before either, 46 of ADR-212's, and 517 of this record's. The first 407 of the 517 were run against the guard before this build: all 278 cases written before this record passed, 91 of the 407 passed, and 316 failed, each a call that guard let through. Another 98, U, V and Y, were written against the guard as it was being built, to hold §3(c) by execution. The last 12, K231 and J1601 to J1611, hold where this record meets ADR-212 (§10). The guard this record ships with holds all 841, in about 107 s: 108 s and 107 s on two runs alone against the draft of the merged guard, on the operator's machine. The run on the merged tree itself is the operator's.
 
 - **H0101 to H1111**: §3(a). Eleven paths under `~/.claude` that the allow list no longer names, the last a kind of file nobody listed, each through Read, Edit, Write, NotebookEdit, Grep, Glob, a Bash command written with `~`, one with `$HOME`, one with `${HOME}`, one by a relative path that climbs out of the memory directory, and a PowerShell command with `$env:USERPROFILE`. All refused; all 121 were red against the guard before this build.
-- **J0101 to J1511**: §3(b) and §4. Fifteen closed paths: the checkout's two settings files, the guard, the script that starts it, a file beside them that is not there yet, the two allow lists, an agent definition, a workflow, a skill, an unnamed file, three in a worktree's `.claude`, and the settings of a `.claude` folder that is no checkout's. Each is refused to Edit, Write, NotebookEdit, a Write by a relative path, a Bash command by a relative path, `cd` to its folder and `rm` by its name, a Bash command by its absolute path and a PowerShell command (120 cases, red before this build), and let through for Read, Grep and Glob (45 cases, green before and after).
+- **J0101 to J1611**: §3(b) and §4. Sixteen closed paths, the last added for §10 after the counts below were taken: the checkout's two settings files, the guard, the script that starts it, a file beside them that is not there yet, the two allow lists, an agent definition, a workflow, a skill, an unnamed file, three in a worktree's `.claude`, the settings of a `.claude` folder that is no checkout's, and ADR-212's counting script. Each is refused to Edit, Write, NotebookEdit, a Write by a relative path, a Bash command by a relative path, `cd` to its folder and `rm` by its name, a Bash command by its absolute path and a PowerShell command (120 cases, red before this build), and let through for Read, Grep and Glob (45 cases, green before and after).
 - **M101 to M116**: §2. The memory directory, a transcript, a tool result, a project folder that is not there yet and a plan stay usable, through Write, Edit, Read, Grep, both shells and as a current directory; and `projects` and `plans` in the checkout's `.claude` are open. Green before and after.
 - **M211 to M229**: §3(a)'s `read` lines. A skill's file and a plugin's are let through for Read, Grep and Glob (green before and after) and refused to Edit, Write, NotebookEdit and both shells (12 cases, red before this build).
 - **Q101 to Q118**: the `.claude` folder itself and a closed folder in it, as what a shell command names and as its current directory, for a Write by a plain name too; `git add` of the guard by name and a commit message that names the allow list, which are costs held on purpose; the folder a worktree's copy of the guard is in; `.CLAUDE` as a plain name; and `~/.claude` itself. Q106, a Grep from the folder the guard is in, is let through.
@@ -233,7 +237,23 @@ A worktree gets a changed guard as it gets any other change, by merging the bran
 
 ### 10. Where this meets ADR-212
 
-ADR-212 puts its counting script in `.claude/hooks`, "so whatever protects the guard from an edit protects the script too". §3(b) is that protection. Its admitted command names that script in a Bash command, which §3(c) and §4 would refuse; but ADR-212 §4 admits the command "without the guard reading its command for paths", so neither reading is made of it, and whoever builds ADR-212 keeps §3(c) behind that admission. Its cases K101 to K107 and the ones of §9 are both run before it merges.
+ADR-212 admits one shell command: `node`, the counting script `.claude/hooks/working-directory-counts.mjs`, and a folder that directly holds `vespera.db`. This record refuses a shell command that names a path in `.claude/hooks`. The two were built apart and landed a day apart, and they compose as follows.
+
+**The admitted command is recognised before any path or text of it is read, and stays admitted.** ADR-212 §4 admits it "without the guard reading its command for paths", and that now reads: without §3(b)'s reading of its paths and without §3(c)'s reading of its tokens. The guard settles ADR-212 §4's form, script word and hash first; then the current directory; then asks whether the folder holds `vespera.db`; and only a command that fails one of those goes on to be read as every other command is. **Nothing else that names `.claude/hooks` is let through**: a command that is the counting command and one thing more fails the form, is read, and is refused twice over, as a path into a working directory and as a path in a closed folder. K201 to K230 claimed the first before this record and still hold.
+
+**The current directory of the counting command passes the ordinary check, and the ordinary check is now this record's.** ADR-212 §4.4 says the current directory is "inside the allow list and outside every working directory". A closed `.claude` folder does not pass it either (§4 above), so the counting command started from `.claude/hooks`, naming the script by its bare name, is refused. Nothing is lost: the command is run from the checkout's root or from the temp folder. K231 holds it.
+
+**No expectation of ADR-212's cases changes.** K101 to K107 are let through and K201 to K230 and K301 to K309 are refused, as ADR-212 wrote them. One thing about them does change: before this record the ordinary reading had nothing to refuse in K102 and K106 on a system that is not Windows, where a rooted working directory is not read; it now refuses the script's own path on every platform, so each of K101 to K107 is let through by the admission and by nothing else.
+
+**The pinned script lies in a closed folder, so no agent edits it.** ADR-212 §5 puts the script in `.claude/hooks`, "so whatever protects the guard from an edit protects the script too", and adds that "an agent that can edit both can admit anything … That is ADR-196's position, unchanged". It is changed now: Edit, Write and NotebookEdit of the script are refused, and so is every shell command that names it but the admitted one. Read, Grep and Glob of it are let through. A change to the script is drafted and installed as §7 has it, together with the guard's constant that pins its hash. J1601 to J1611 hold it.
+
+**Of ADR-212 §5's "What the pin does not cover", this record closes the third item and narrows the other two.**
+
+- **"`~/.claude` is on the allow list, so `~/.claude/settings.json` can be written."** Closed, for a call whose text names the file: `~/.claude` is off the allow list but for four lines (§3(a)), and its settings are closed whatever a list says (§3(b), §3(c)). What §8 lists is what remains.
+- **"The moment between the guard's check and `node` reading the script."** Narrowed, not closed. ADR-212 says anything that can write to `.claude/hooks` in that moment can put another script there. An agent's file tools and a shell command that names the folder no longer can. A program that writes there without naming it still can (§8).
+- **"Which `node` runs, and how it is started."** Narrowed, not closed. `NODE_OPTIONS` reached every command through `env` in a settings file, and those files are now closed (§6). Still not covered: the order of `PATH`, a shell alias or function named `node`, a variable in the environment Claude Code was started in, and the script that starts the guard, which does not clear `NODE_OPTIONS` (§6).
+
+ADR-212's §5 says that `~/.claude/settings.json` can be written and that an agent that can edit the guard can admit anything. It is a settled record and its decision is not edited; it takes a pointer to this one at its top, as ADR-196 does. One note of its §8 on which reading lets K102 and K106 through on Linux is corrected in place, citing #459, as the index's rule has it for a note on the tests that hold a record.
 
 ## Decided here, open to the operator's overruling
 
@@ -255,6 +275,7 @@ ADR-212 puts its counting script in `.claude/hooks`, "so whatever protects the g
 14. **§8: `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md` and `AGENTS.md` stay writable.** Agents maintain `AGENTS.md` in almost every change.
 15. **Two places Claude Code's documentation names are not opened**: `.claude/agent-memory/`, since no agent definition here declares a memory, and `~/.claude/jobs/<id>/tmp/`, a background session's scratch folder.
 16. **The word `read` and one space** is how a line names a place for reading, and a line that is that word and no path admits nothing.
+17. **§10: ADR-212's counting command is not admitted from a current directory that is a closed `.claude` folder.** The other choice was to let ADR-212 §4.4 mean what it meant the day it was written, the allow list and the working directories alone, which admits the command from `.claude/hooks` and makes one shell command whose current directory is a closed folder.
 
 ## Consequences
 
@@ -262,8 +283,9 @@ ADR-212 puts its counting script in `.claude/hooks`, "so whatever protects the g
 - **An agent no longer writes anything in a checkout's `.claude` but beneath `worktrees`**, and beneath `projects` and `plans`, which hold nothing there. A change to the guard, the allow lists, the settings, an agent definition, a workflow or a project skill is drafted and installed by the operator (§7).
 - **Some harmless commands are refused**, each to be reworded: `ls .claude`; `git add`, `git diff`, `git log` or `git blame` with a path in `.claude` other than beneath the three open names; `git show <revision>:.claude/…`; an option whose first name only ends in `.claude`, as in `--author=someone.claude`; `curl` or `gh` with a URL whose path names a closed `.claude` path; `cat` or `head` of the guard, where Read is used instead; a commit message, a pull request body or an issue comment written on the command line that names such a path, where `-F` and `--body-file` are used instead; `ls ../..` from a worktree's root; and any command whose current directory is a `.claude` folder or a closed folder in one.
 - **A session cannot work with a `.claude` folder as its current directory**, as ADR-196 has it for a working directory.
-- **The guard's test file takes about 100 s for its 783 cases** where 278 took 39 s, on the operator's machine: 93 s on a quiet run, and 98 s and 106 s on two others at 777. CI pays it in each of its two jobs.
-- **The count in ADR-201 §9 is behind**: the table holds 783 cases.
+- **The guard's test file took about 100 s for 783 cases** where 278 took 39 s, on the operator's machine: 93 s on a quiet run, and 98 s and 106 s on two others at 777. That was before ADR-212's cases joined it. The 841 it holds now take about 107 s against the draft of the merged guard, 108 s and 107 s on two runs alone; the run on the merged tree itself is the operator's. CI pays it in each of its two jobs.
+- **The count in ADR-201 §9 is behind**: the table holds 841 cases.
+- **The counting command of ADR-212 is the one shell command that may name a path in `.claude/hooks`**, and it is not admitted from a current directory that is a closed `.claude` folder (§10).
 - **Nothing under `src/main` changes, and no run id moves.**
 
 ## Alternatives weighed
@@ -293,6 +315,6 @@ ADR-212 puts its counting script in `.claude/hooks`, "so whatever protects the g
 ## What the build changed
 
 1. `.claude/allowed-paths.txt`: the four lines of §3(a) in place of `${HOME}/.claude`, and its comment.
-2. `.claude/hooks/private-paths-guard.mjs`: `read` lines, and a line that is that word alone (§3(a)); the closed `.claude` folder on every reading (§3(b)); the reading of every token's text (§3(c)); the table of §4 for the eight tools, the current directory and the folders a command names included; the refusal's text; and its header comment.
+2. `.claude/hooks/private-paths-guard.mjs`: `read` lines, and a line that is that word alone (§3(a)); the closed `.claude` folder on every reading (§3(b)); the reading of every token's text (§3(c)); the table of §4 for the eight tools, the current directory and the folders a command names included; the refusal's text; and its header comment. ADR-212's admission stands before all of it, in the order §10 gives, and the header no longer says a write to `~/.claude/settings.json` is left to the written rule.
 3. `src/test/hooks/private-paths-guard.test.mjs`: §9's cases, and `VESPERA_GUARD_DRAFT`.
 4. `.claude/settings.json` and `.claude/hooks/run-private-paths-guard.sh` are not changed.
