@@ -84,7 +84,11 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
     private static final String VERDICTS = "Stage 4b (redundancy resolution, near-duplicate verdicts)";
     private static final String CONTAINMENT = "Stage 4b (redundancy resolution, containment)";
 
-    /** Every counter this class names, for the claims about who wrote their lines. */
+    /** The counters that write a line when 4b runs: stage 3 has none over its frequency rows (ADR-211 §9). */
+    private static final List<String> COUNTERS_THAT_WRITE =
+            List.of(PAIRS, PROFILES, COMPONENTS, VERDICTS, CONTAINMENT);
+
+    /** Every counter this class names, for the claim that none writes once 4b is recorded. */
     private static final List<String> EVERY_COUNTER =
             List.of(FREQUENCY_ROWS, PAIRS, PROFILES, COMPONENTS, VERDICTS, CONTAINMENT);
 
@@ -244,7 +248,7 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                                 STAGE_FOUR_B + " read the shingle document frequencies in ",
                                 CONTAINMENT + ": 1 of ",
                                 FINISHED));
-        for (String counter : EVERY_COUNTER) {
+        for (String counter : COUNTERS_THAT_WRITE) {
             claim(
                     "every line of " + counter + " was written by the progress counter itself",
                     () -> assertThat(ProgressLines.loggersOf(logged.list, counter))
