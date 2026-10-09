@@ -36,9 +36,9 @@ import org.springframework.util.StreamUtils;
  * the record has it.
  *
  * <p>ADR-220 section 15 amends what ADR-218 lists: two of its reads are gone, and stage 4b holds two
- * statements that sort and are in none of its tables. A record having a statement is not that statement
- * meeting the bound: one of those two is recorded as growing with the corpus, not measured, and neither
- * excepted nor bounded until the operator answers the question put there.
+ * statements that sort and are in none of its tables. One is bounded by one occurrence. The other grows
+ * with the corpus and is excepted as it stands by the operator's choice, with no measured size: its size
+ * and its bounded form are #476's.
  *
  * <p>Every text a shipped class holds is read from its compiled form, as {@link
  * EachTableIsNamedOnlyByItsOwnerTest} reads them, so a statement written as several joined literals is one
@@ -139,8 +139,8 @@ class EveryStatementThatSortsIsRecordedTest {
             Map.entry("similarity.ShingleHashIndex", 1),
             // Row 6, the containment candidates, and the two of ADR-220 section 15: an occurrence's rarest
             // shingles, bounded by one occurrence's shingle rows; and a page's candidate pairs, whose rows
-            // grow with the signed occurrences that share a bucket, which nobody has measured and which is
-            // neither excepted nor bounded until the operator answers that section's question.
+            // grow with the signed occurrences that share a bucket, excepted as it stands by the operator's
+            // choice, which nobody has measured: its size and its bounded form are #476's.
             Map.entry("similarity.RedundancyResolution", 3),
             // Row 7: the files stage 2 could not read, by path.
             Map.entry("ledger.Verdicts", 1),

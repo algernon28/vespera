@@ -1346,7 +1346,7 @@ public final class Adr {
      * mechanism; #458). Its section 15 reads it against ADR-218: two of that record's sorting reads are gone, and
      * of the two sorting statements stage 4b gains, an occurrence's rarest shingles is bounded by one occurrence,
      * and a page's candidate pairs grows with the signed occurrences that share a bucket, is not measured, and is
-     * neither excepted nor bounded until the operator answers the question put there.
+     * excepted as it stands by the operator's choice, its size and its bounded form being #476's.
      */
     public static final String NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN = FILE
             + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
