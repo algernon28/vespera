@@ -1307,6 +1307,18 @@ public final class Adr {
             + "0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md";
 
     /**
+     * ADR-217 -- on Windows the private-paths guard reads every path once more as Windows opens its
+     * names, each without the stream name after a colon and then without the dots and spaces that end
+     * it, so {@code wd.\report.html} is {@code wd\report.html}; that reading is judged as every other is,
+     * the allow list and its {@code read} lines, the closed {@code .claude} folders, links and the working
+     * directories included, and a name made only of dots, spaces or a stream name is refused there
+     * (amends ADR-196 sections 3, 4 and 5, ADR-201 section 1 and ADR-215 section 8; settles #465). Its
+     * tests are Node tests under {@code src/test/hooks}.
+     */
+    public static final String THE_GUARD_READS_EVERY_PATH_AS_WINDOWS_OPENS_ITS_NAMES = FILE
+            + "0217-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md";
+
+    /**
      * ADR-218 -- every statement of {@code src/main} whose temporary files grow with the corpus is an
      * exception to the bound read into the survivors record, by the operator's choice, each with its
      * measured bytes a row, or, for three reads and ten index builds whose rows were too few, or none, to

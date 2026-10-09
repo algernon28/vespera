@@ -1,5 +1,7 @@
 # ADR-201 — The private-paths guard reads a climb out of a link both ways, and refuses a name it cannot follow
 
+> **Partly amended — see [ADR-217](0217-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md).** §1's "A path that holds `..` is read twice, and either reading refuses" is no longer the whole of the readings: on Windows each of the two is read once more, as Windows opens its names, and any of them refuses. Everything else in this record stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others: §3's sentence "A link is followed before the check"; §4's cut at `,`, `{` and `}`, its clause on a path headed by `@`, and its paragraph "How the count is kept, and where it counts too much"; §5's list of what the hook does not cover; §6's sentence "A hook that runs out of time is not known to fail closed", its two measurements and its paragraph on the bound on readings; and Consequences. ADR-196's rule (§1), its allow list (§2), its bounds and every way §6 makes the hook fail closed stand as written.

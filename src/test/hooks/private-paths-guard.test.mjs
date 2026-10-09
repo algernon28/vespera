@@ -4,6 +4,8 @@
 // that starts the counting script beside the guard on a working directory, and the K cases are held to
 // it. docs/adr/0215 closes the .claude folders, the home folder's and a checkout's, and the H, J, M, Q,
 // T, U, V, W, X, Y and L4 cases are held to it; K231 and J1601 to J1611 hold where the two records meet.
+// docs/adr/0217 reads every path once more on Windows, as Windows opens its names, without the stream
+// name, dots and spaces that end each, and the Z cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -57,6 +59,8 @@
 //   no-guard/checkout/   the wrapper without private-paths-guard.mjs
 //   main/                a git checkout whose worktree, .claude/worktrees/wt, has no copy of the hook
 //   widened/checkout/    a ${REPO} whose local allow list names ${HOME}/.claude whole, and Documents to read
+//   read-beneath-plain/checkout/ a ${REPO} whose local allow list names ${HOME}/shelf, and shelf/reference
+//                        beneath it to read; home/shelf/ holds note.txt and reference/doc.txt
 //
 // And in checkout/.claude, beside the guard's files: settings.json, settings.local.json, agents/,
 // workflows/, skills/, a-kind-nobody-named.json, and worktrees/wt, a checkout with a .claude of its own.
@@ -1230,6 +1234,73 @@ for (const [nn, rel, whatItIs, asPath, asText] of BOTH_ROUTES) {
   );
 }
 
+/* ---------- names Windows opens as other names, held to docs/adr/0217 ---------- */
+
+// Measured on Windows while docs/adr/0215 was settled: PowerShell opens wd.\report.html as wd\report.html,
+// and Node answers "not there" for the dotted name, so the guard found no working directory above it.
+// On Windows every path is now read once more as Windows opens it: each name without a stream name after a
+// colon, and then without the dots and spaces that end it. That reading is judged as every other is, and a
+// name made only of dots, spaces or a stream name, which Windows opens as nothing anyone has measured, is
+// refused. Elsewhere a dot, a space and a colon are characters of a name, so a case whose outcome rests on
+// that reading is started on Windows alone. A case started everywhere claims the same outcome on every
+// platform, for the reason its words give.
+cases.push(
+  /* Z1. A PowerShell command that names a working directory with a dot, two dots, a space or a stream
+     name after its name, or after the name of a file in it. Z101 is the call the issue measured. */
+  ["Z101", "Get-Content of a report through the working directory's name with a dot after it", "PowerShell", { command: "Get-Content working-directory./report.html" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z102", "Get-Content of a report through the working directory's name with two dots after it, written with a backslash", "PowerShell", { command: String.raw`Get-Content working-directory..\report.html` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z103", "Get-Content, quoted, with a space after the working directory's name, whose token is cut at the space and is then the working directory itself", "PowerShell", { command: String.raw`Get-Content 'working-directory \report.html'` }, REFUSED, { cwd: T }],
+  ["Z104", "Get-Content, quoted, with a space after the name of a working directory whose name holds a space", "PowerShell", { command: String.raw`Get-Content 'my runs \report.html'` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z105", "Get-Content, quoted, with a dot after the name of a working directory whose name holds a space", "PowerShell", { command: String.raw`Get-Content 'my runs.\report.html'` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z106", "Get-Content, quoted, through the working directory's own stream name", "PowerShell", { command: String.raw`Get-Content 'working-directory::$INDEX_ALLOCATION\report.html'` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z107", "Get-Content with a dot after the file's name, in a folder that is the working directory by its plain name", "PowerShell", { command: "Get-Content working-directory/report.html." }, REFUSED, { cwd: T }],
+  ["Z108", "Get-Content, quoted, of the file's data stream, in a folder that is the working directory by its plain name", "PowerShell", { command: "Get-Content 'working-directory/report.html::$DATA'" }, REFUSED, { cwd: T }],
+  ["Z109", "Get-Content of the log through the name of a folder holding only vespera.lock, with a dot after it", "PowerShell", { command: String.raw`Get-Content locked.\vespera.log` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z110", "Set-Location to the working directory's name with a dot and a space after it, whose dot ends the token and is taken off", "PowerShell", { command: "Set-Location working-directory. ; Get-Content report.html" }, REFUSED, { cwd: T }],
+  ["Z111", "Set-Location to the working directory's name with a dot and a backslash after it, then Get-Content of a plain name", "PowerShell", { command: String.raw`Set-Location working-directory.\; Get-Content report.html` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z112", "Set-Location to an allowed folder named with a dot after it, then Get-Content into a working directory beneath the folder it opens", "PowerShell", { command: String.raw`Set-Location deep.\; Get-Content a\b\notes.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z113", "Get-ChildItem of a plain name, quoted, that is a working directory's name with a dot and a space after it", "PowerShell", { command: "Get-ChildItem 'my runs. '" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z114", "Get-ChildItem of three dots beneath the working directory's name, which PowerShell opens as the working directory", "PowerShell", { command: "Get-ChildItem working-directory/..." }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z115", "Get-ChildItem of three dots beneath the working directory, by its drive path", "PowerShell", { command: `Get-ChildItem ${WD}/...` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* Z2. The same spellings through the file tools and the search tools, whose paths go through the same
+     readings. */
+  ["Z201", "Read of a report through the working directory's name with a dot after it", "Read", { file_path: `${WD}./report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z202", "Write of a page not there yet, through that name", "Write", { file_path: `${WD}./a-new-page.html`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z203", "Edit of a report through that name", "Edit", { file_path: `${WD}./report.html`, old_string: "a", new_string: "b" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z204", "NotebookEdit of a notebook through that name", "NotebookEdit", { notebook_path: `${WD}./notes.ipynb`, new_source: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z205", "Read of a report through the working directory's name with two dots after it", "Read", { file_path: `${WD}../report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z206", "Read of a report through the working directory's name with a space after it", "Read", { file_path: `${WD} /report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z207", "Read by a relative path through the working directory's name with a dot after it", "Read", { file_path: "working-directory./report.html" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
+  ["Z208", "Read of the log through the name of a folder holding only vespera.lock, with a dot after it", "Read", { file_path: `${LOCKED}./vespera.log` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z209", "Grep whose path is the working directory's name with a dot after it", "Grep", { pattern: "x", path: `${WD}.` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z210", "Glob whose path is that name", "Glob", { pattern: "**/*", path: `${WD}.` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z211", "Glob with an absolute pattern through that name", "Glob", { pattern: `${WD}./**/*.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z212", "Grep whose glob climbs out of its path to that name", "Grep", { pattern: "x", path: `${T}/scratch`, glob: "../working-directory./*.html" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z213", "Read of a report with a dot after the file's name, in the working directory by its plain name", "Read", { file_path: `${WD}/report.html.` }, REFUSED],
+
+  /* Z3. A name made only of dots, spaces or a stream name, which is neither . nor .., is refused on
+     Windows, where what it opens has not been measured. */
+  ["Z301", "Write beneath a folder named with three dots", "Write", { file_path: `${T}/scratch/.../note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z302", "Write beneath a folder named with two dots and a space", "Write", { file_path: `${T}/scratch/.. /note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z303", "Write beneath a name that is only a stream name", "Write", { file_path: `${T}/scratch/:x/note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z304", "Get-Content beneath a folder named with three dots", "PowerShell", { command: String.raw`Get-Content scratch\...\note.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z305", "Write beneath a folder named with one space", "Write", { file_path: `${T}/scratch/ /note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z306", "Read whose path is one space", "Read", { file_path: " " }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
+  ["Z307", "Grep whose path is one space", "Grep", { pattern: "x", path: " " }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
+
+  /* Z4. What stays usable: a dot inside a name, and a dotted name that Windows opens as a place outside
+     every working directory. Each is let through on every platform: elsewhere the dotted name is another
+     name under the same allowed root, and on Windows it is the same place. */
+  ["Z401", "Write beneath a folder whose name holds a dot that does not end it", "Write", { file_path: `${T}/scratch/release.2026/notes.md`, content: "x" }, ALLOWED],
+  ["Z402", "Read of a file through an allowed folder's name with a dot after it", "Read", { file_path: `${T}/scratch./note.txt` }, ALLOWED],
+  ["Z403", "Get-Content of a file through an allowed folder's name with a dot after it", "PowerShell", { command: "Get-Content scratch./note.txt" }, ALLOWED, { cwd: T }],
+  ["Z404", "Grep whose path is an allowed folder's name with a dot after it, beneath which no working directory lies", "Grep", { pattern: "x", path: `${T}/scratch.` }, ALLOWED],
+  ["Z405", "Write with a dot after the file's name, outside every working directory", "Write", { file_path: `${T}/scratch/note.txt.`, content: "x" }, ALLOWED],
+  ["Z406", "Get-ChildItem of a quoted token that is one space, which is the allowed folder it is read against", "PowerShell", { command: "Get-ChildItem ' '" }, ALLOWED, { cwd: T }],
+  ["Z407", "Get-ChildItem of a quoted token that is two spaces", "PowerShell", { command: "Get-ChildItem '  '" }, ALLOWED, { cwd: T }],
+);
+
 for (const [id, what, tool, input, expected, options = {}] of cases) {
   const skip =
     options.windows && !windows
@@ -1320,6 +1391,50 @@ test("W08 allowed: Read of ~/.claude/settings.json when the local allow list nam
 
 test("W09 allowed: Read of ~/.claude/.credentials.json when the local allow list names ~/.claude whole", () => {
   claim(widened("Read", { file_path: `${HC}/.credentials.json` }), ALLOWED, `Read of ${HC}/.credentials.json under ${WIDENED_LIST}`);
+});
+
+/* ---------- a read line beneath a plain line, held to docs/adr/0217 ---------- */
+
+// A folder the local allow list names to read lies beneath one it names plainly. Written with a dot after
+// its name, its text falls under the plain line only, and PowerShell opens the folder the read line names.
+// On Windows the reading as Windows opens it falls under the read line, which decides.
+const SHELF = `${H}/shelf`;
+put(`${SHELF}/note.txt`, "fixture\n");
+put(`${SHELF}/reference/doc.txt`, "fixture\n");
+const READ_BENEATH_PLAIN = buildCheckout(`${base}/read-beneath-plain/checkout`);
+put(`${READ_BENEATH_PLAIN}/.claude/allowed-paths.local.txt`, "${HOME}/shelf\nread ${HOME}/shelf/reference\n");
+const shelved = (tool, input, cwd = READ_BENEATH_PLAIN) => startGuard({ projectDir: READ_BENEATH_PLAIN, stdin: hookInput(tool, input, cwd) });
+const SHELF_LIST = "a local allow list that holds the lines ${HOME}/shelf and read ${HOME}/shelf/reference";
+const SHELF_ON_WINDOWS = windows ? false : `not started on this platform: ${ONLY_WINDOWS.drive}`;
+const SHELF_IN_POWERSHELL = windows ? false : `not started on this platform: ${ONLY_WINDOWS.powerShell}`;
+
+test("Z501 refused: Write through the read folder's name with a dot after it", { skip: SHELF_ON_WINDOWS }, () => {
+  claim(shelved("Write", { file_path: `${SHELF}/reference./a-new-file.txt`, content: "x" }), REFUSED, `Write of ${SHELF}/reference./a-new-file.txt under ${SHELF_LIST}`);
+});
+
+test("Z502 refused: Edit through the read folder's name with a dot after it", { skip: SHELF_ON_WINDOWS }, () => {
+  claim(shelved("Edit", { file_path: `${SHELF}/reference./doc.txt`, old_string: "a", new_string: "b" }), REFUSED, `Edit of ${SHELF}/reference./doc.txt under ${SHELF_LIST}`);
+});
+
+test("Z503 refused: Set-Content through the read folder's name with a dot after it, from the plain folder", { skip: SHELF_IN_POWERSHELL }, () => {
+  const command = String.raw`Set-Content reference.\a-new-file.txt x`;
+  claim(shelved("PowerShell", { command }, SHELF), REFUSED, `${command} in ${SHELF} under ${SHELF_LIST}`);
+});
+
+test("Z504 refused: Write through the read folder's stream name", { skip: SHELF_ON_WINDOWS }, () => {
+  claim(shelved("Write", { file_path: `${SHELF}/reference::$INDEX_ALLOCATION/a-new-file.txt`, content: "x" }), REFUSED, `Write of ${SHELF}/reference::$INDEX_ALLOCATION/a-new-file.txt under ${SHELF_LIST}`);
+});
+
+test("Z505 refused: Write beneath the read folder by its plain name", () => {
+  claim(shelved("Write", { file_path: `${SHELF}/reference/a-new-file.txt`, content: "x" }), REFUSED, `Write of ${SHELF}/reference/a-new-file.txt under ${SHELF_LIST}`);
+});
+
+test("Z506 allowed: Write beneath the plain folder and outside the read one", () => {
+  claim(shelved("Write", { file_path: `${SHELF}/a-new-file.txt`, content: "x" }), ALLOWED, `Write of ${SHELF}/a-new-file.txt under ${SHELF_LIST}`);
+});
+
+test("Z507 allowed: Read through the read folder's name with a dot after it", () => {
+  claim(shelved("Read", { file_path: `${SHELF}/reference./doc.txt` }), ALLOWED, `Read of ${SHELF}/reference./doc.txt under ${SHELF_LIST}`);
 });
 
 /* ---------- a line of an allow list that is the word read and no path ---------- */
