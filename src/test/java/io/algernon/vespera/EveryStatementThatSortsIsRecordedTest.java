@@ -35,6 +35,11 @@ import org.springframework.util.StreamUtils;
  * else bounds it; a class that gains a statement that sorts, in a form this test reads, fails here until
  * the record has it.
  *
+ * <p>ADR-220 section 15 amends what ADR-218 lists: two of its reads are gone, and stage 4b holds two
+ * statements that sort and are in none of its tables. A record having a statement is not that statement
+ * meeting the bound: one of those two is recorded as growing with the corpus, not measured, and neither
+ * excepted nor bounded until the operator answers the question put there.
+ *
  * <p>Every text a shipped class holds is read from its compiled form, as {@link
  * EachTableIsNamedOnlyByItsOwnerTest} reads them, so a statement written as several joined literals is one
  * text. A text that opens with a statement's keyword, in either case and after any white space, is planned
@@ -75,7 +80,9 @@ import org.springframework.util.StreamUtils;
 @Epic("Architecture")
 @Feature("Temporary storage")
 @Issue("466")
+@Issue("458")
 @Link(name = "ADR-218", url = Adr.EVERY_STATEMENT_WHOSE_TEMPORARY_FILES_GROW_IS_AN_EXCEPTION_WITH_ITS_SIZE, type = "adr")
+@Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 @Link(name = "ADR-060", url = Adr.SURVIVORS_IS_AN_ITEM_READER, type = "adr")
 class EveryStatementThatSortsIsRecordedTest {
 
@@ -121,6 +128,8 @@ class EveryStatementThatSortsIsRecordedTest {
      * schema.sql} leaves it, as ADR-218 lists them under Measured: the numbered rows are those of its
      * table of statements whose temporary files grow with the corpus, and "bounded" is its table of what
      * sorts and is bounded by something else. Row 14 is struck in the record and has no statement here.
+     * Rows 8 and 9 are gone since ADR-220, whose section 15 also records the two statements of stage 4b's
+     * that are in neither table.
      */
     private static final Map<String, Integer> RECORDED = new TreeMap<>(Map.ofEntries(
             // Row 1, the grouping ADR-211 excepted, and three bounded by one page: the count of a page's
@@ -128,14 +137,19 @@ class EveryStatementThatSortsIsRecordedTest {
             Map.entry("similarity.DocumentFrequency", 4),
             // Row 2: the build of shingle_by_hash.
             Map.entry("similarity.ShingleHashIndex", 1),
-            // Row 6: the containment candidates.
-            Map.entry("similarity.RedundancyResolution", 1),
+            // Row 6, the containment candidates, and the two of ADR-220 section 15: an occurrence's rarest
+            // shingles, bounded by one occurrence's shingle rows; and a page's candidate pairs, whose rows
+            // grow with the signed occurrences that share a bucket, which nobody has measured and which is
+            // neither excepted nor bounded until the operator answers that section's question.
+            Map.entry("similarity.RedundancyResolution", 3),
             // Row 7: the files stage 2 could not read, by path.
             Map.entry("ledger.Verdicts", 1),
-            // Rows 8 and 15: the scores in occurrence order, and the two reads of the embedder identities.
-            Map.entry("embedding.RelevanceDistribution", 3),
-            // Rows 9 to 11: the scores below the floor, the partitions, the members of one.
-            Map.entry("embedding.RelevanceScoreCache", 3),
+            // Row 15: the two reads of the embedder identities. Row 8, the scores in occurrence order, is
+            // gone: the report reads a page of scores at a time by row number (ADR-220 section 13).
+            Map.entry("embedding.RelevanceDistribution", 2),
+            // Rows 10 and 11: the partitions, and the members of one. Row 9, the scores below the floor in
+            // occurrence order, is gone: 5e reads a page of them at a time by row number (ADR-220 section 5).
+            Map.entry("embedding.RelevanceScoreCache", 2),
             // Rows 12 and 13: the cluster sizes of one partition, and the membership.
             Map.entry("embedding.DocumentClusters", 2),
             // Bounded by the seed set: the unusable seeds.
