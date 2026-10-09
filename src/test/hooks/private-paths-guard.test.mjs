@@ -1283,6 +1283,7 @@ cases.push(
   ["Z302", "Write beneath a folder named with two dots and a space", "Write", { file_path: `${T}/scratch/.. /note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["Z303", "Write beneath a name that is only a stream name", "Write", { file_path: `${T}/scratch/:x/note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["Z304", "Get-Content beneath a folder named with three dots", "PowerShell", { command: String.raw`Get-Content scratch\...\note.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z305", "Write beneath a folder named with one space", "Write", { file_path: `${T}/scratch/ /note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
 
   /* Z4. What stays usable: a dot inside a name, and a dotted name that Windows opens as a place outside
      every working directory. Each is let through on every platform: elsewhere the dotted name is another
@@ -1292,6 +1293,7 @@ cases.push(
   ["Z403", "Get-Content of a file through an allowed folder's name with a dot after it", "PowerShell", { command: "Get-Content scratch./note.txt" }, ALLOWED, { cwd: T }],
   ["Z404", "Grep whose path is an allowed folder's name with a dot after it, beneath which no working directory lies", "Grep", { pattern: "x", path: `${T}/scratch.` }, ALLOWED],
   ["Z405", "Write with a dot after the file's name, outside every working directory", "Write", { file_path: `${T}/scratch/note.txt.`, content: "x" }, ALLOWED],
+  ["Z406", "Get-ChildItem of a quoted token that is one space, which is the allowed folder it is read against", "PowerShell", { command: "Get-ChildItem ' '" }, ALLOWED, { cwd: T }],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {

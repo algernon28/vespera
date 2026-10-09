@@ -37,6 +37,16 @@ The issue asks three things: whether every name of a path is read so on Windows,
 - `node --test src/test/hooks/private-paths-guard.test.mjs` with the cases of §6: 883 tests, 719 passed, 164 skipped, none failed, against the guard installed in the checkout; and the same with `VESPERA_GUARD_DRAFT=target/guard-draft`, the draft of this record's guard. On Linux 13 of §6's 42 cases are started and 29 are not, since their outcome rests on Windows.
 - A throwaway copy of the draft guard was started with `process.platform` set to `win32`, so that its Windows branches ran over POSIX paths, on a fixture of its own under the temp folder. It refused every spelling §6 claims refused, and let through every one §6 claims let through. It also refused `echo '{"a":1}'`, `sed ':a;N;$!ba;s/x/y/g' README.md`, `git push origin :claude/old-branch` and `git commit -m "Changed src/.../Guard.java"` (Consequences). This holds what the draft's rule decides of a text. It says nothing of what Windows, Node on Windows or PowerShell answers.
 
+**On Windows 11 Pro 10.0.26200, with Node 22.23.1 and PowerShell 7, in a later session**, on 2026-10-09, with the draft of this record's guard copied under the temp folder.
+
+- The test against the draft as first written: 883 tests, 882 passed, none skipped, and N401 failed. `tr '\n' ' ' < README.md`, which that case keeps usable, was refused under §2, since its quoted `' '` is a relative token made only of spaces.
+- What PowerShell and .NET open for such names, from a folder holding one file, `marker.txt`:
+  - one space, and two: `Get-ChildItem -LiteralPath` listed the current directory. `Get-Content` failed with both `-LiteralPath` and `-Path`, .NET's `Directory.Exists` and `File.Exists` answered false, and `GetFullPath`, `GetFileSystemEntries` and `ReadAllText` threw. Nothing opened anything but the current directory.
+  - ` .`, `. ` and `...`, each as the whole path: `GetFullPath` gave the current directory, `Directory.Exists` answered true, and `GetFileSystemEntries` and `Get-ChildItem` listed it. `Get-Content` failed.
+  - ` \marker.txt`, `. \marker.txt` and `...\marker.txt`: not found by every one of those calls. A name made only of spaces or dots that another name follows opened nothing.
+  - `marker.txt. .` opened `marker.txt`.
+- The test with §2's one exception and Z305 and Z406: 885 tests, 885 passed, none skipped, against the draft; and 857 passed and 28 failed against the guard installed before this build, the 28 being Z cases that claim a refusal.
+
 ### Read, and not executed
 
 Read on 2026-10-09:
@@ -47,9 +57,9 @@ Read on 2026-10-09:
 
 ### Not measured
 
-- **Anything on Windows for this record.** The cases of §6 that are started on Windows alone were written from the rule and traced through the guard's code, and run in the simulation above. Their first run on Windows is CI's NTFS job and the operator's.
+- **Anything on Windows but what the later session measured above**, which is one machine and one Windows build. The cases of §6 that are started on Windows alone were written from the rule and traced through the guard's code, and run in the simulation above, before that session started them. CI's NTFS job has not run them.
 - **Whether Claude Code's own Read, Edit and Write open `wd.\x` as `wd\x`.** Node and Git Bash's `cat` were measured to answer "not there". No other program was tried.
-- **What Windows opens for a name made only of dots and spaces**, such as `...` or `.. `, beyond what .NET's page says of three or more dots; and for a name that is only a stream name, such as `:x`.
+- **What Windows opens for a name that is only a stream name**, such as `:x`; and what `cmd`, Git Bash, Windows PowerShell 5.1 or any program but PowerShell 7 and .NET opens for a name made only of dots and spaces.
 - How long the extra reading takes. It is one more check where a name changes and none where none does (§1).
 
 ## Decision
@@ -78,9 +88,11 @@ The guard reads a path as its text, with `..` folded, and as the file system wal
 
 ### 2. On Windows a name made only of dots, spaces or a stream name is refused
 
-A name that is left with nothing once its stream name and the dots and spaces that end it are taken off, and that is neither `.` nor `..`, is one whose opening is not known: `...`, `.. ` and `:x` are three. .NET's page says three or more dots are a valid name. Nothing measured says what PowerShell, `cmd` or another program opens for one, and nothing read says anything of `.. ` or of a name that is only a stream. **So on Windows a path that holds such a name is refused, as one whose opening cannot be ruled out**, in the manner of ADR-201 §2's refusal of a name the guard cannot follow. The refusal says that a name of the path is made only of dots, spaces or a stream name, and that what Windows opens for it cannot be ruled out.
+A name that is left with nothing once its stream name and the dots and spaces that end it are taken off, and that is neither `.` nor `..`, is one whose opening is not known for every program: `...`, `.. ` and `:x` are three. .NET's page says three or more dots are a valid name. PowerShell 7 and .NET were measured for names of dots and spaces (Measured); nothing measured says what `cmd` or another program opens for one, or what anything opens for a name that is only a stream. **So on Windows a path that holds such a name is refused, as one whose opening cannot be ruled out**, in the manner of ADR-201 §2's refusal of a name the guard cannot follow. The refusal says that a name of the path is made only of dots, spaces or a stream name, and that what Windows opens for it cannot be ruled out.
 
 `.` and `..` are folded by ADR-201 §1's readings before this one is made, and are not names here.
+
+**One such name is not refused: a relative token of a shell command that is made only of spaces**, as the quoted `' '` of `tr '\n' ' '` is. It is answered as ADR-196 §4 answers a plain name that is not there, from the folder it is read against, which is checked in its own right. That is what was measured: PowerShell opened the current directory for it and nothing else did anything (Measured). Without this, every command with a blank argument is refused on Windows, `tr '\n' ' '`, `cut -d ' '` and `paste -sd ' '` among them, and N401 holds the first. The exception is that token alone. A name made only of spaces that stands in a longer path, `scratch/ /note.txt`, is refused as before, and so is one in a file tool's field or a search's path; a token made only of dots or of a stream name is refused as before, though `...` was measured to open the folder as well (Alternatives). Where a file or folder named with only spaces is there, which Windows's own shell does not make, the token is read with every reading and §2 refuses it.
 
 ### 3. A plain name that Windows opens as another name is read for that name
 
@@ -99,18 +111,18 @@ Where the folder named is itself a working directory, `Set-Location wd.\; Get-Co
 - **A dotted name a command builds at run time**: `Get-Content ("wd" + ".\report.html")`, or a variable set in the same command that holds `wd.`. It is ADR-196 §5's item, and reaches a working directory as any other built path does.
 - **A form ADR-196 §5 leaves unread, with dots in it.** §1 reads what the guard reads as a path, and adds no reading of a token's text. A token headed by a variable with no value, `$X/wd./report.html`, is not read, as `$X/wd/report.html` is not.
 - **An 8.3 name of a working directory that is not there when the guard asks.** Nothing answers for a name that is not there but the folder it would be in (ADR-201 §2). An 8.3 name of a folder that is there is followed by `realpath` to its long name (ADR-215 §5), and with a dot after it, through the reading of §1.
-- **What a name made only of dots, spaces or a stream name means to Windows.** §2 refuses it and does not measure it.
+- **What a name made only of dots, spaces or a stream name means to Windows**, beyond what PowerShell 7 and .NET were measured to open for dots and spaces. §2 refuses it, but for a command's token made only of spaces.
 
 None of these has a case, on ADR-196 §4's ground that "a case would hold the gap in place".
 
 ### 6. The test
 
-`src/test/hooks/private-paths-guard.test.mjs` gains 42 cases and holds 883. On Linux 13 of them are started and pass against both the guard installed in the checkout and the draft; the other 29 are started on Windows alone. Traced through the code of the guard before this build, 27 of the 42 are refused by the draft and let through by that guard, on Windows; the other 15 hold before and after. That was not run on Windows (Not measured).
+`src/test/hooks/private-paths-guard.test.mjs` gains 44 cases and holds 885. On Linux 13 of the first 42 were started and passed against both the guard installed in the checkout and the draft, and the other 29 are started on Windows alone; of the two added after the first run on Windows, Z406 is started everywhere and Z305 on Windows alone. Traced through the code of the guard before this build, 27 of the first 42 are refused by the draft and let through by that guard, on Windows, and the other 15 hold before and after. The run on Windows agrees: 28 cases fail against that guard, those 27 and Z305, and none against the draft (Measured).
 
 - **Z101 to Z113**: §1, §3 and §4 in a PowerShell command, from the folder that holds the fixture's working directories. The working directory's name with a dot after it, which is the issue's call (Z101), with two dots and a backslash, with a space after it in quotes, the same for a working directory whose name holds a space, with a dot after that one's name, and through its stream name; a dot and a data stream after the file's name; the folder that holds only `vespera.lock`, with a dot; `Set-Location` to the working directory's name with a dot and a space, and with a dot and a backslash; `Set-Location` to an allowed folder named with a dot, then a path into a working directory beneath the folder it opens (§4); and a quoted plain name with a dot and a space after it (§3). All refused. Four are started on every platform, each refused there for a reason its words give: Z103, whose token is cut at the space and is then the working directory itself; Z107 and Z108, whose folder is the working directory by its plain name; and Z110, whose dot ends its token.
 - **Z201 to Z213**: §1 through Read, Write, Edit, NotebookEdit, a relative Read, Grep and Glob by their path, Glob by an absolute pattern and Grep by a glob that climbs: the working directory's name with a dot, two dots and a space after it, and the folder that holds only `vespera.lock`. All refused. Z213, a dot after the file's name in the working directory by its plain name, is started on every platform.
-- **Z301 to Z304**: §2. A folder named with three dots, with two dots and a space, and a name that is only a stream name, through Write and PowerShell. Refused on Windows.
-- **Z401 to Z405**: what stays usable, let through on every platform: a dot inside a folder's name; a dotted name of an allowed folder through Read, PowerShell and Grep, which on Windows opens the folder; and a dot after a file's name outside every working directory.
+- **Z301 to Z305**: §2. A folder named with three dots, with two dots and a space, with one space, and a name that is only a stream name, through Write and PowerShell. Refused on Windows.
+- **Z401 to Z406**: what stays usable, let through on every platform: a dot inside a folder's name; a dotted name of an allowed folder through Read, PowerShell and Grep, which on Windows opens the folder; a dot after a file's name outside every working directory; and a quoted token that is one space, from an allowed folder (§2's exception, which N401 holds too).
 - **Z501 to Z507**: §1 and the `read` line. A checkout whose local allow list names `${HOME}/shelf` and `read ${HOME}/shelf/reference`. Write, Edit and `Set-Content` through `reference.`, and Write through its stream name, are refused on Windows; Write beneath `reference` by its plain name is refused, Write beneath `shelf` and Read through `reference.` are let through, on every platform.
 
 **What the issue's acceptance maps to**: a dot after any name of the path, Z101, Z105, Z109, Z111, Z112, Z201 to Z204, Z207 to Z212; two dots, Z102 and Z205; a space, Z103, Z104, Z113 and Z206; a stream name, Z106, Z108 and Z504; a dot after the file's name, Z107 and Z213; and the `read` line beneath a plain line, Z501 to Z504.
@@ -125,7 +137,7 @@ On a system that is not Windows a dot, a space and a colon are characters of a n
 2. **§1: every dot and every space off every name**, where .NET's page has Windows take one dot off a name that is not the last, and spaces off the last alone.
 3. **§1: a space after a folder's name is taken off and refused**, though it was measured not to open the folder.
 4. **§1: a stream name is taken off every name**, and not off `.claude` alone.
-5. **§2: on Windows a name made only of dots, spaces or a stream name is refused.** It costs the commands Consequences lists, a token that begins with a colon among them. The other choice is in Alternatives: such a name, where it is the last of a path, read as the folder it is in.
+5. **§2: on Windows a name made only of dots, spaces or a stream name is refused.** It costs the commands Consequences lists, a token that begins with a colon among them. The other choice is in Alternatives: such a name, where it is the last of a path, read as the folder it is in. **The operator took that choice for one name, on 2026-10-09: a command's token made only of spaces is not refused** (§2).
 6. **§3: a plain name Windows opens as another name is read against every folder**, where it was answered from the folder alone.
 
 ## Consequences
@@ -134,9 +146,10 @@ On a system that is not Windows a dot, a space and a colon are characters of a n
 - **Some harmless commands are refused on Windows**, each to be reworded, because §2 reads every relative token of a shell command as a path:
   - a token that begins with a colon: a JSON value written after `":` with no space, as in `echo '{"a":1}'` or a here-document body for `gh api --input -`; a `sed` label, as in `sed ':a;N;$!ba'`; and a refspec that deletes a branch, `git push origin :claude/x`. A body goes in a file and is named, `git push --delete` deletes a branch, and a `sed` script goes in a file with `-f`;
   - an elision with three dots between separators in a quoted sentence, as in `git commit -m "Changed src/.../Guard.java"`. A message goes in a file with `-F`.
+- **A quoted blank argument is not among them**: `tr '\n' ' '` and `cut -d ' '` run on Windows as elsewhere (§2).
 - **A path whose names change costs one more check on Windows**, and a path whose names do not change costs none. A plain name whose opened form differs is read against each folder the command names, within ADR-196 §4's 20,000 readings.
 - **On a system that is not Windows nothing changes.**
-- **The count in ADR-215 §9 is behind**: the table holds 883 cases.
+- **The count in ADR-215 §9 is behind**: the table holds 885 cases.
 - **Nothing under `src/main` changes, and no run id moves.**
 
 ## Alternatives weighed
@@ -145,17 +158,17 @@ On a system that is not Windows a dot, a space and a colon are characters of a n
 - **Windows's own rule as .NET's page states it**: one dot off a name that is not the last, and every dot and space off the last. Weighed: it is the documented rule, and it refuses less. Rejected in §1: it is read and not executed, one Windows build was measured, and the wider rule refuses only names Windows's own shell does not make.
 - **Asking Windows what it opens**, by starting PowerShell's `Resolve-Path` or .NET's `GetFullPath` from the guard. Rejected: Node's file system calls give a path its `\\?\` form (Read, and not executed), so asking Node is what failed, and asking Windows means a process started for every path of every call, which costs time on every call and is one more thing that can fail or hang; and its answer is .NET's, not that of every program a command can start.
 - **Refusing on Windows every path one of whose names ends in a dot, a space or a stream name.** Weighed: it is simpler, and fails closed. Rejected: such a path is the same place as the path without them, and the reading of §1 judges that place, so refusing it refuses nothing more of a working directory or a `read` place, and costs `scratch.\note.txt` and every other dotted spelling of an allowed place.
-- **Reading a name made only of dots, spaces or a stream name, where it is the last of a path, as the folder it is in**, and refusing it only where another name follows. Not taken here, and open (Decided here, 5). Whatever such a last name opens is the folder it is in or a stream of that folder, by .NET's rule for the last name and by what a stream name was measured to lead to, and the folder's own reading judges that. It would keep `'{"a":1}'` and `sed ':a'` usable. `git push origin :claude/x` and `src/.../x` would stay refused, since a name follows.
+- **Reading a name made only of dots, spaces or a stream name, where it is the last of a path, as the folder it is in**, and refusing it only where another name follows. Not taken here, and open (Decided here, 5). Whatever such a last name opens is the folder it is in or a stream of that folder, by .NET's rule for the last name and by what a stream name was measured to lead to, and the folder's own reading judges that. It would keep `'{"a":1}'` and `sed ':a'` usable. `git push origin :claude/x` and `src/.../x` would stay refused, since a name follows. Taken for a command's token made only of spaces (§2), which is the one such name measured to open the folder and that a harmless command of the suite writes. A last name of dots was measured to open the folder too and is still refused, and a name that is only a stream name is not measured.
 
 ## What this does not decide
 
 - **Whether Claude Code's own Read, Edit and Write open a dotted name as PowerShell does.** §1 makes the answer not matter to the guard.
-- **What Windows opens for a name made only of dots, spaces or a stream name.** §2 refuses it, and nothing measured it.
+- **What Windows opens for a name that is only a stream name, and what a program other than PowerShell 7 and .NET opens for one of dots and spaces.** §2 refuses them, and nothing measured them.
 - **A dotted name a command builds at run time, and an 8.3 name of a working directory that is not there when the guard asks** (§5).
 - **Whether the costs of §2 are kept** (Decided here, 5).
 
 ## What the build changed
 
-1. `.claude/hooks/private-paths-guard.mjs`, drafted at `target/guard-draft/hooks/private-paths-guard.mjs` and put in place by the operator: a name as Windows opens it, and a path as Windows opens it, with no path where a name is made only of dots, spaces or a stream name (§1, §2); that reading added to each reading a path is checked with, and refused where there is no such path; the counted reading of a plain name kept for a name Windows opens as itself (§3); a search's pattern judged against each start with that start's own walked flag, where it took every start after the first for a walked one, since the reading of §1 now stands among the starts; and its header comment.
+1. `.claude/hooks/private-paths-guard.mjs`, drafted at `target/guard-draft/hooks/private-paths-guard.mjs` and put in place by the operator: a name as Windows opens it, and a path as Windows opens it, with no path where a name is made only of dots, spaces or a stream name (§1, §2); that reading added to each reading a path is checked with, and refused where there is no such path; the counted reading of a plain name kept for a name Windows opens as itself (§3) and for a token made only of spaces (§2); a search's pattern judged against each start with that start's own walked flag, where it took every start after the first for a walked one, since the reading of §1 now stands among the starts; and its header comment.
 2. `src/test/hooks/private-paths-guard.test.mjs`: §6's cases, the fixture checkout for Z501 to Z507, and its header comment.
 3. ADR-196, ADR-201 and ADR-215 take a pointer to this record at their top. Their decisions are not edited.
