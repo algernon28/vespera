@@ -30,7 +30,8 @@ import org.junit.jupiter.api.io.TempDir;
  * the other half of the question by which the census discards a walk that saw nothing new (ADR-115), asked a
  * page of each walk's anomalies at a time (ADR-214 section 3), where both walks' anomalies were read whole.
  *
- * <p>It names a method ADR-214 adds, so the test tree does not compile until that method exists.
+ * <p>One test compares walks of exactly two full pages, where the page after the last full one is empty, the one
+ * place a comparison that took a full page for the last, or an empty one for a difference, would answer wrongly.
  */
 @Epic("Census")
 @Feature("Walk anomalies")
@@ -47,6 +48,12 @@ class SameAnomaliesTest {
 
     /** Two pages of each of the two walks. */
     private static final int TWO_PAGES_OF_EACH = 4;
+
+    /** Exactly two full pages, so the third page each walk is asked for is empty. */
+    private static final int TWO_FULL_PAGES = 2 * A_PAGE;
+
+    /** Three pages of each of the two walks: two full and one empty. */
+    private static final int THREE_PAGES_OF_EACH = 6;
 
     /** The anomaly whose detail differs: on the second page. */
     private static final int ON_THE_SECOND_PAGE = 1_100;
@@ -112,6 +119,40 @@ class SameAnomaliesTest {
         claim(
                 "two walks that noted nothing are the same",
                 () -> assertThat(anomalyLog.sameAnomalies(noneHere, noneThere)).isTrue());
+    }
+
+    @Test
+    @Story("A walk that saw nothing new is discarded")
+    @DisplayName("Two walks that noted exactly two thousand entries are the same, and one whose last note differs or that noted one more is not")
+    void walksOfAnExactNumberOfPagesAreComparedToTheirEnd() {
+        WalkId earlier = walkNoting("earlier-exact", TWO_FULL_PAGES, -1);
+        WalkId later = walkNoting("later-exact", TWO_FULL_PAGES, -1);
+        WalkId lastDiffers = walkNoting("last-exact", TWO_FULL_PAGES, TWO_FULL_PAGES - 1);
+        WalkId oneMore = walkNoting("more-exact", TWO_FULL_PAGES + 1, -1);
+        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
+
+        boolean same = new AnomalyLog(log.jdbcTemplate()).sameAnomalies(earlier, later);
+
+        claim(
+                "two walks that noted exactly " + TWO_FULL_PAGES + " of the same entries are the same, read in three"
+                        + " pages each, the third empty",
+                () -> {
+                    assertThat(same).isTrue();
+                    assertThat(log.said().stream()
+                                    .filter(sql -> sql.contains("FROM walk_anomaly") && sql.contains(" LIMIT "))
+                                    .toList())
+                            .hasSize(THREE_PAGES_OF_EACH);
+                });
+        claim(
+                "a walk whose last note, the last row of its second full page, says something else is not the same",
+                () -> assertThat(anomalyLog.sameAnomalies(earlier, lastDiffers)).isFalse());
+        claim(
+                "a walk that noted one entry more, alone on a third page, is not the same, whichever is asked about"
+                        + " first",
+                () -> {
+                    assertThat(anomalyLog.sameAnomalies(earlier, oneMore)).isFalse();
+                    assertThat(anomalyLog.sameAnomalies(oneMore, earlier)).isFalse();
+                });
     }
 
     /**

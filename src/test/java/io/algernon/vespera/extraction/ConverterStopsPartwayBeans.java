@@ -44,8 +44,9 @@ import org.springframework.web.client.ResourceAccessException;
  *       removes;
  *   <li>{@link Outcome#UNCONVERTIBLE}: fails in a way Docling blames on the document, which is an
  *       extraction-failed verdict with a metric row beside it, written in the chunk;
- *   <li>{@link Outcome#CONVERTER_FAULT}: fails in a way the converter blames on itself, which is held
- *       as an extraction fault until the end of the step (ADR-139);
+ *   <li>{@link Outcome#CONVERTER_FAULT}: fails in a way the converter blames on itself, which is an
+ *       extraction fault, its row written in the chunk it was set aside in and resolved at the end of a
+ *       step that completed (ADR-139, ADR-214);
  *   <li>{@link Outcome#CONVERTS}, every position the script does not name: converts, and its text is
  *       the occurrence's own bytes, so each one's shingles differ and a count of them says something.
  * </ul>
@@ -86,7 +87,7 @@ public class ConverterStopsPartwayBeans {
         WITHOUT_TEXT,
         /** Fails, blaming the document: a document-scope failure. */
         UNCONVERTIBLE,
-        /** Fails, blaming itself: a service-scope failure, held as an extraction fault. */
+        /** Fails, blaming itself: a service-scope failure, written as an extraction fault in its chunk. */
         CONVERTER_FAULT
     }
 
