@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
  * failure says what is owed.
  *
  * <p><b>This class is deleted by the change that ships the clause</b>, which adds the claim that the
- * grouping sent carries it to {@code DocumentFrequencyIsCountedInTheDatabaseTest} (ADR-219, Tests). It
+ * grouping sent carries it to {@code DocumentFrequencyIsCountedInTheDatabaseTest} (ADR-219 section 5). It
  * passes with the clause in place whatever else changed, so leaving it behind fails nothing.
  */
 @Epic("Redundancy")
@@ -49,6 +49,10 @@ class TheGroupingsPinShipsWithTheNextChangeToSimilarityTest {
 
     /** The module whose every change moves stage 2's run id, and stage 3's and stage 4's with it. */
     private static final Path SIMILARITY = Path.of("src", "main", "java", "io", "algernon", "vespera", "similarity");
+
+    /** Where ADR-219 is, for the failure to point at. */
+    private static final String THE_RECORD = "docs/adr/0219-stage-3s-grouping-names-the-index-on-the-run-and-the-clause"
+            + "-ships-with-the-next-change-to-similarity.md";
 
     /** The clause ADR-219 section 1 decides for stage 3's grouping. */
     private static final String THE_PIN = "INDEXED BY shingle_by_run_id";
@@ -76,8 +80,10 @@ class TheGroupingsPinShipsWithTheNextChangeToSimilarityTest {
                                         + " not carry \"%s\". A change to this module already moves the run"
                                         + " ids of stages 2 to 6b, so it owes ADR-219's clause: add it after"
                                         + " \"FROM shingle\" in the grouping, make the test-side edits ADR-219"
-                                        + " lists under Tests, and delete this class",
-                                        THE_PIN)
+                                        + " section 5 lists (%s), and delete this class. Do not replace the"
+                                        + " hash below: that passes this test and leaves stage 3 slow. A file"
+                                        + " in that folder that git does not track fails this too",
+                                        THE_PIN, THE_RECORD)
                                 .isEqualTo(AS_ADR_219_FOUND_IT);
                     }
                 });

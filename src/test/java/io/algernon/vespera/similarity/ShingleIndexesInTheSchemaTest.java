@@ -39,7 +39,9 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
  * 3 read a run's rows with a plain {@code SELECT}, and this class held that the read goes through {@code
  * shingle_by_run_id} with {@code shingle_by_hash} built or not. Since ADR-211 stage 3 sends one grouping
  * instead, and SQLite answers that one through {@code shingle_by_hash} wherever it is built. So the third
- * test below is of the plain read, which nothing ships, and is described as that; the fifth holds what the
+ * test below is of the plain read, which nothing ships, and is described as that. It is kept for the
+ * contrast (ADR-219, Tests): the same rows of the same run, read with nothing grouped, are not drawn to
+ * {@code shingle_by_hash}, so it is the {@code GROUP BY} that draws the planner there. The fifth holds what the
  * grouping does as it ships, which is why ADR-219 pins it; and the fourth holds that the grouping with
  * ADR-219's clause, {@code INDEXED BY shingle_by_run_id}, is answered through the index on the run in both
  * states. The clause is not in {@code DocumentFrequency} yet: it ships with the next change to {@code

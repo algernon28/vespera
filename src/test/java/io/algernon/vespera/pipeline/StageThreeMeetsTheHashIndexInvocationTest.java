@@ -104,7 +104,10 @@ class StageThreeMeetsTheHashIndexInvocationTest {
     /** The start of the line stage 3 writes when it has work to do, before the run's id. */
     private static final String STAGE_3_STARTING = "Stage 3 (content census) starting under run ";
 
-    /** Stage 3's grouping without its insert, as {@code DocumentFrequency} issues it, for its plan. */
+    /**
+     * Stage 3's grouping for its plan: what {@code DocumentFrequency} issues, less the insert and less the
+     * first column of the select, the parameter the insert binds the stage-3 run to.
+     */
     private static final String GROUPING = "SELECT shingle_parameter_identity, shingle_hash,"
             + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle WHERE run_id = ?"
             + " GROUP BY shingle_parameter_identity, shingle_hash HAVING COUNT(DISTINCT occurrence_id) >= 2";
@@ -188,8 +191,11 @@ class StageThreeMeetsTheHashIndexInvocationTest {
         claim("the second invocation, under the new build, completes", () -> assertThat(cli.getExitCode())
                 .isZero());
         claim(
-                "its extraction is the one already finished, so it converts nothing",
+                "its extraction is the one already finished",
                 () -> assertThat(runsOf(root, StageModules.EXTRACTION)).containsExactly(extractionRun));
+        claim(
+                "so it converts nothing",
+                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isZero());
         claim(
                 "and says nothing about removing the hash index, nor about building it, since it was there",
                 () -> assertThat(second).doesNotContain(REMOVING).doesNotContain(BUILDING));
