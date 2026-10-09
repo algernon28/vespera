@@ -10,19 +10,22 @@ import java.util.OptionalInt;
  * StatementStepsPerRowAreTheDeclaredOnesTest} is what holds each declaration here to that measurement.
  *
  * <p>The constants are in the order ADR-204 section 4 lists them: the build of {@code shingle_by_hash}, stage
- * 3's two reads, then the four reads of stage 4b's resolution. That is the order they are issued in, except
- * that the build stands first and stage 4b issues it after stage 3's two.
+ * 3's grouping, then the four reads of stage 4b's resolution. That is the order they are issued in, except
+ * that the build stands first and stage 4b issues it after stage 3's grouping.
  */
 public enum SimilarityStatement {
 
     /** {@link ShingleHashIndex#build}: 8 steps a row and one for each of the index's three columns. */
     SHINGLE_HASH_INDEX_BUILD(11),
 
-    /** {@link DocumentFrequency}'s drain of stage 2's survivors, before its read of the shingle rows. Timed. */
-    FREQUENCY_SURVIVORS,
-
-    /** {@link DocumentFrequency}'s read of stage 2's shingle rows. */
-    SHINGLE_ROWS(7),
+    /**
+     * {@link DocumentFrequency}'s one grouping of stage 2's shingle rows, which sorts them in temporary files.
+     * Its steps a row are not a constant: they depend on how the rows fall into hashes, and 19.06 to 44.0 were
+     * measured on a connection that enforces foreign keys. So 45 is declared, a figure above the most
+     * measured and not a measurement, so that a count of steps divided by it is never ahead of the rows done
+     * and the share ends short of a hundred (ADR-211 section 9, held by {@code GroupingStepsPerRowTest}).
+     */
+    SHINGLE_ROWS(45),
 
     /** {@link RedundancyResolution}'s read of the occurrences a signature exists for under stage 4's run. */
     SIGNED_OCCURRENCES(5),

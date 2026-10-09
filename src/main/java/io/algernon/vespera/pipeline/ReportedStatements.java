@@ -162,7 +162,7 @@ final class ReportedStatements
         if (said == null) {
             return;
         }
-        if (stepsPerRow.isEmpty()) {
+        if (stepsPerRow.isEmpty() && said.label() == null) {
             lines = TimedStatement.begin(said.stage(), "reading", "read", said.what());
         } else if (rowsUpTo.isPresent()) {
             // The line before carries the total, which TimedStatement's own does not, so a counted read
@@ -175,7 +175,11 @@ final class ReportedStatements
             countedStage = said.stage();
             countedWhat = said.what();
             countedStarted = System.nanoTime();
-            progress = StatementProgress.ofRead(said.label(), rowsUpTo.getAsLong(), stepsPerRow.getAsInt());
+            // A counted one with no steps a row is a read made a page of survivors at a time, told its rows
+            // (ADR-211 section 9); the others are told SQLite's steps.
+            progress = stepsPerRow.isEmpty()
+                    ? StatementProgress.ofPagedRead(said.label(), rowsUpTo.getAsLong())
+                    : StatementProgress.ofRead(said.label(), rowsUpTo.getAsLong(), stepsPerRow.getAsInt());
         }
     }
 
@@ -183,6 +187,22 @@ final class ReportedStatements
         if (progress != null) {
             progress.stepsTaken(steps);
         }
+    }
+
+    private void rowsRead(long rows) {
+        if (progress != null) {
+            progress.rowsRead(rows);
+        }
+    }
+
+    @Override
+    public void rowsRead(ExtractionStatement statement, long rows) {
+        rowsRead(rows);
+    }
+
+    @Override
+    public void rowsRead(EmbeddingStatement statement, long rows) {
+        rowsRead(rows);
     }
 
     private void ended() {

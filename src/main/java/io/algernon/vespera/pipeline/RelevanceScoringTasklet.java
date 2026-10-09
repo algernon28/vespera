@@ -124,23 +124,24 @@ class RelevanceScoringTasklet implements Tasklet {
                         return false;
                     }
 
-                    Set<OccurrenceId> survivors = TimedStatement.of(
-                            STAGE, "reading", "read", "the corpus survivors", () -> {
-                                Set<OccurrenceId> ids = new HashSet<>();
-                                for (OccurrenceId id : ledger.verdicts().survivors(measurementRun)) {
-                                    ids.add(id);
-                                }
-                                return ids;
-                            });
+                    // Counted, and then gone through a page at a time: no set of the corpus survivors is held
+                    // (ADR-211 section 6). Nothing this step writes is a verdict, so no page still to come
+                    // is changed by what is done with the ones before it.
+                    long survivorCount = TimedStatement.of(
+                            STAGE,
+                            "counting",
+                            "counted",
+                            "the corpus survivors",
+                            () -> ledger.verdicts().survivorCount(measurementRun));
                     LOG.info(
                             "Stage 5d (relevance scoring) starting under scoring run {}: scoring {} corpus"
                                     + " survivor(s) against {} resident seed document(s)",
                             scoring.value(),
-                            survivors.size(),
+                            survivorCount,
                             residentSeedVectors.size());
                     StageProgress scored =
-                            StageProgress.over("Stage 5d (relevance scoring, corpus survivors)", survivors.size());
-                    for (OccurrenceId occurrenceId : survivors) {
+                            StageProgress.over("Stage 5d (relevance scoring, corpus survivors)", survivorCount);
+                    for (OccurrenceId occurrenceId : ledger.verdicts().survivors(measurementRun)) {
                         relevanceScoring.scoreAndRecord(
                                 occurrenceId,
                                 scoring,

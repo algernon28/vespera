@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -72,6 +73,9 @@ public class SeedCorpusComparison {
     private static final String PROVENANCE_COMPARISON = "provenance";
     private static final String SPREAD_COMPARISON = "spread";
 
+    /** The most survivors one read of rows names: the ledger's own page. */
+    private static final int PAGE = 1_000;
+
     private final JdbcTemplate jdbcTemplate;
     private final Ledger ledger;
 
@@ -94,15 +98,17 @@ public class SeedCorpusComparison {
     }
 
     /**
-     * As {@link #measure(RunId, RunId, WalkId, MeasuredForms)}, and tells {@code progress} about the five statements that
+     * As {@link #measure(RunId, RunId, WalkId, MeasuredForms)}, and tells {@code progress} about the statements that
      * wait, each started once before it and ended once after it, in the order they are issued (ADR-193
-     * section 7): the two drains, {@link EmbeddingStatement#CORPUS_SURVIVORS} and {@link
-     * EmbeddingStatement#SEED_OCCURRENCES}, timed, so with no total; then the three counted reads, {@link
-     * EmbeddingStatement#UNUSABLE_SEEDS}, {@link EmbeddingStatement#CORPUS_METRICS} and {@link
-     * EmbeddingStatement#SEED_METRICS}, each started with the span of its run's rows, or an empty total where
-     * the run holds none, and given its steps at each callback of SQLite's handler. A read of metrics over a
-     * population that is empty is not issued and makes no call. A statement that throws is not told to have
-     * ended.
+     * section 7): the drain {@link EmbeddingStatement#SEED_OCCURRENCES}, timed, so with no total; then the
+     * counted {@link EmbeddingStatement#UNUSABLE_SEEDS}, started with the span of its run's rows, or an empty
+     * total where the run holds none, and given its steps at each callback of SQLite's handler; then the reads
+     * of the corpus side, made a page of the survivors at a time, the first {@link
+     * EmbeddingStatement#CORPUS_METRICS} and each later one {@link EmbeddingStatement#CORPUS_METRICS_AGAIN},
+     * each started with the span of stage 2's rows once a page has a survivor, told its rows read after each
+     * page, and ended (ADR-211 sections 2, 4 and 9); and last {@link EmbeddingStatement#SEED_METRICS}, counted
+     * like the first. A read of metrics over a population that is empty is not issued and makes no call. A
+     * statement that throws is not told to have ended.
      */
     public Comparison measure(
             RunId measurementRunId,
@@ -110,16 +116,12 @@ public class SeedCorpusComparison {
             WalkId seedWalkId,
             MeasuredForms forms,
             EmbeddingStatementProgress progress) {
-        progress.statementStarting(EmbeddingStatement.CORPUS_SURVIVORS, OptionalLong.empty());
-        Set<Long> corpusSurvivorIds = idsOf(ledger.verdicts().survivors(measurementRunId));
-        progress.statementEnded(EmbeddingStatement.CORPUS_SURVIVORS);
         progress.statementStarting(EmbeddingStatement.SEED_OCCURRENCES, OptionalLong.empty());
         Set<Long> seedCandidateIds = idsOf(ledger.occurrences().occurrencesOf(seedWalkId));
         progress.statementEnded(EmbeddingStatement.SEED_OCCURRENCES);
         Set<Long> unusableSeedIds = unusableSeedIds(measurementRunId, progress);
 
-        List<MetricRow> corpusRows =
-                metricRows(forms, extractionRunId, corpusSurvivorIds, EmbeddingStatement.CORPUS_METRICS, progress);
+        CorpusSide corpus = corpusSide(forms, measurementRunId, extractionRunId, progress);
         List<MetricRow> allSeedRows =
                 metricRows(forms, measurementRunId, seedCandidateIds, EmbeddingStatement.SEED_METRICS, progress);
         List<MetricRow> seedRows = allSeedRows.stream()
@@ -127,34 +129,38 @@ public class SeedCorpusComparison {
                 .toList();
 
         long seedDocumentCount = seedRows.size();
-        long corpusDocumentCount = corpusRows.size();
+        long corpusDocumentCount = corpus.documentCount();
         long unmeasuredSeedDocumentCount = seedCandidateIds.size() - allSeedRows.size();
 
-        List<Proportion> languageMix =
-                proportions(LANGUAGE_COMPARISON, seedRows, corpusRows, seedDocumentCount, corpusDocumentCount, row ->
-                        row.primaryLanguage() == null ? UNDETERMINED : row.primaryLanguage());
+        List<Proportion> languageMix = proportions(
+                LANGUAGE_COMPARISON,
+                seedRows,
+                corpus.languageCounts(),
+                seedDocumentCount,
+                corpusDocumentCount,
+                row -> row.primaryLanguage() == null ? UNDETERMINED : row.primaryLanguage());
         List<Proportion> provenanceMix = proportions(
                 PROVENANCE_COMPARISON,
                 seedRows,
-                corpusRows,
+                corpus.provenanceCounts(),
                 seedDocumentCount,
                 corpusDocumentCount,
                 row -> row.meanScoreIsNull() ? BORN_DIGITAL : CONVERTED);
 
         List<Spread> spreads = List.of(
-                spread(WORD_COUNT, "word count", seedRows, corpusRows, MetricRow::wordCountAsDouble),
-                spread(PAGE_COUNT, "page count", seedRows, corpusRows, MetricRow::pageCountAsDouble),
+                spread(WORD_COUNT, "word count", seedRows, corpus.words(), MetricRow::wordCountAsDouble),
+                spread(PAGE_COUNT, "page count", seedRows, corpus.pages(), MetricRow::pageCountAsDouble),
                 spread(
                         VOWELLESS_WORD_RATIO,
                         "vowelless-word ratio",
                         seedRows,
-                        corpusRows,
+                        corpus.vowellessRatios(),
                         MetricRow::vowellessWordRatio),
                 spread(
                         SINGLE_CHARACTER_WORD_RATIO,
                         "single-character-word ratio",
                         seedRows,
-                        corpusRows,
+                        corpus.singleCharacterRatios(),
                         MetricRow::singleCharacterWordRatio));
 
         Comparison comparison = new Comparison(
@@ -175,12 +181,11 @@ public class SeedCorpusComparison {
     private List<Proportion> proportions(
             String comparisonName,
             List<MetricRow> seedRows,
-            List<MetricRow> corpusRows,
+            Map<String, Long> corpusCounts,
             long seedDocumentCount,
             long corpusDocumentCount,
             Function<MetricRow, String> categoryOf) {
         Map<String, Long> seedCounts = countByCategory(seedRows, categoryOf);
-        Map<String, Long> corpusCounts = countByCategory(corpusRows, categoryOf);
         Set<String> allCategories = new TreeSet<>();
         allCategories.addAll(seedCounts.keySet());
         allCategories.addAll(corpusCounts.keySet());
@@ -236,10 +241,10 @@ public class SeedCorpusComparison {
             String signal,
             String label,
             List<MetricRow> seedRows,
-            List<MetricRow> corpusRows,
+            SignalQuartiles corpus,
             Function<MetricRow, Double> valueOf) {
         Optional<Quartiles> seedQuartiles = Quartiles.of(values(seedRows, valueOf));
-        Optional<Quartiles> corpusQuartiles = Quartiles.of(values(corpusRows, valueOf));
+        Optional<Quartiles> corpusQuartiles = corpus.quartiles();
         String statement = String.format(
                 Locale.ROOT,
                 "%s: %s; %s.",
@@ -430,6 +435,139 @@ public class SeedCorpusComparison {
     }
 
     /**
+     * The corpus side of the comparison: the survivors' metric rows, read a page of survivors at a time and
+     * never held (ADR-211 sections 2 and 4). The first read counts the documents and the language and
+     * provenance categories, and starts every signal's quartiles; each later read, reported as {@link
+     * EmbeddingStatement#CORPUS_METRICS_AGAIN}, narrows what the quartiles still need, at most three more.
+     */
+    private CorpusSide corpusSide(
+            MeasuredForms forms,
+            RunId measurementRunId,
+            RunId extractionRunId,
+            EmbeddingStatementProgress progress) {
+        CorpusSide side = new CorpusSide();
+        List<SignalQuartiles> signals = List.of(side.words, side.pages, side.vowellessRatios, side.singleCharacterRatios);
+        boolean firstRead = true;
+        EmbeddingStatement statement = EmbeddingStatement.CORPUS_METRICS;
+        while (firstRead || signals.stream().anyMatch(SignalQuartiles::needsAnotherRead)) {
+            boolean counting = firstRead;
+            boolean anySurvivor = readCorpusSurvivors(
+                    forms,
+                    measurementRunId,
+                    extractionRunId,
+                    statement,
+                    progress,
+                    (occurrence, language, meanScoreIsNull, words, pages, vowelless, singleCharacter) -> {
+                        MetricRow row = new MetricRow(
+                                occurrence.value(), language, meanScoreIsNull, words, pages, vowelless,
+                                singleCharacter);
+                        if (counting) {
+                            side.documentCount++;
+                            side.languageCounts.merge(
+                                    row.primaryLanguage() == null ? UNDETERMINED : row.primaryLanguage(), 1L, Long::sum);
+                            side.provenanceCounts.merge(row.meanScoreIsNull() ? BORN_DIGITAL : CONVERTED, 1L, Long::sum);
+                        }
+                        side.words.accept(row.wordCountAsDouble());
+                        side.pages.accept(row.pageCountAsDouble());
+                        side.vowellessRatios.accept(row.vowellessWordRatio());
+                        side.singleCharacterRatios.accept(row.singleCharacterWordRatio());
+                    });
+            if (!anySurvivor) {
+                break;
+            }
+            signals.forEach(SignalQuartiles::endRead);
+            firstRead = false;
+            statement = EmbeddingStatement.CORPUS_METRICS_AGAIN;
+        }
+        return side;
+    }
+
+    /**
+     * One read of the metric rows of the measurement run's survivors, a page of at most 1,000 at a time: the
+     * survivors from the ledger, then that page's rows from {@code forms}. Started with the span of stage 2's
+     * rows once the first page has a survivor, told the rows read so far after each page, and ended. Returns
+     * whether there was a survivor; with none nothing is started and no call is made.
+     */
+    private boolean readCorpusSurvivors(
+            MeasuredForms forms,
+            RunId measurementRunId,
+            RunId extractionRunId,
+            EmbeddingStatement statement,
+            EmbeddingStatementProgress progress,
+            MeasuredForms.Row row) {
+        long[] rowsRead = {0};
+        boolean[] started = {false};
+        MeasuredForms.Row counted =
+                (occurrence, language, meanScoreIsNull, words, pages, vowelless, singleCharacter) -> {
+                    rowsRead[0]++;
+                    row.read(occurrence, language, meanScoreIsNull, words, pages, vowelless, singleCharacter);
+                };
+        Consumer<List<OccurrenceId>> readPage = names -> {
+            if (!started[0]) {
+                progress.statementStarting(statement, forms.rowsUpTo(extractionRunId));
+                started[0] = true;
+            }
+            forms.eachOf(extractionRunId, names, counted);
+            progress.rowsRead(statement, rowsRead[0]);
+        };
+        List<OccurrenceId> page = new ArrayList<>(PAGE);
+        for (OccurrenceId survivor : ledger.verdicts().survivors(measurementRunId)) {
+            page.add(survivor);
+            if (page.size() == PAGE) {
+                readPage.accept(page);
+                page.clear();
+            }
+        }
+        if (!page.isEmpty()) {
+            readPage.accept(page);
+        }
+        if (started[0]) {
+            progress.statementEnded(statement);
+        }
+        return started[0];
+    }
+
+    /** What the first read of the corpus side counts, and the four signals' quartiles, found over its reads. */
+    private static final class CorpusSide {
+
+        long documentCount;
+        final Map<String, Long> languageCounts = new LinkedHashMap<>();
+        final Map<String, Long> provenanceCounts = new LinkedHashMap<>();
+        final SignalQuartiles words = new SignalQuartiles();
+        final SignalQuartiles pages = new SignalQuartiles();
+        final SignalQuartiles vowellessRatios = new SignalQuartiles();
+        final SignalQuartiles singleCharacterRatios = new SignalQuartiles();
+
+        long documentCount() {
+            return documentCount;
+        }
+
+        Map<String, Long> languageCounts() {
+            return languageCounts;
+        }
+
+        Map<String, Long> provenanceCounts() {
+            return provenanceCounts;
+        }
+
+        SignalQuartiles words() {
+            return words;
+        }
+
+        SignalQuartiles pages() {
+            return pages;
+        }
+
+        SignalQuartiles vowellessRatios() {
+            return vowellessRatios;
+        }
+
+        SignalQuartiles singleCharacterRatios() {
+            return singleCharacterRatios;
+        }
+    }
+
+    /**
      * The span of {@code run}'s rowids in {@code table}, greatest less least plus one, as two statements and
      * never one (ADR-191 section 2): each is one descent of the index on {@code run_id} alone. Empty for a
      * run that holds no row. {@code table} is a constant of this class, never a caller's text, and one
@@ -447,9 +585,8 @@ public class SeedCorpusComparison {
     }
 
     /**
-     * Every id of {@code occurrences} in a set, because the whole population is needed to test every
-     * {@code extraction_metric} row against, not one page of it (a departure from ADR-060 that ADR-209
-     * section 2 states).
+     * Every id of {@code occurrences} in a set: the seed walk's, which is the operator's seed folder and not
+     * the corpus (ADR-211 section 10).
      */
     private static Set<Long> idsOf(Iterable<OccurrenceId> occurrences) {
         Set<Long> ids = new HashSet<>();

@@ -2,6 +2,7 @@ package io.algernon.vespera.embedding;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.util.Collection;
 import java.util.OptionalLong;
 import java.util.function.LongConsumer;
 
@@ -23,6 +24,12 @@ public interface MeasuredForms {
      * stepsTaken} (ADR-193).
      */
     void each(RunId runId, LongConsumer stepsTaken, Row row);
+
+    /**
+     * Gives to {@code row} each row of {@code runId} that belongs to one of {@code occurrences}, and of no
+     * other, as it is read (ADR-211 section 2): the caller names a page of survivors, at most 1,000.
+     */
+    void eachOf(RunId runId, Collection<OccurrenceId> occurrences, Row row);
 
     /**
      * The seven values the comparison reads from a row, in this order, a missing mean score told by the

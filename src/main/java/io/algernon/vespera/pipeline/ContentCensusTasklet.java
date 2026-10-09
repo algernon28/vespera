@@ -105,13 +105,13 @@ class ContentCensusTasklet implements Tasklet {
                 () -> {
                     log.info("Stage 3 (content census) starting under run {}", runId.value());
 
-                    // The one statement inside DocumentFrequency.measure that reads every shingle row of
-                    // stage 2's run took half an hour on a 16.7 GB database on a USB spinning disk and said
-                    // nothing, so the read has a line before it where there is something to read, progress
-                    // lines while it runs, and the measurement has its time after it whether or not there is
-                    // (ADR-191, ADR-193). The time on this line is the whole call's, and stays so: ADR-193
-                    // section 4.1 keeps ADR-191's line as the measurement's time, and the lines of the two
-                    // statements inside it are the ones ADR-204 section 3 writes out.
+                    // The one statement inside DocumentFrequency.measure that groups every shingle row of
+                    // stage 2's run in the database has, as reading the rows alone did, taken half an hour on a
+                    // 16.7 GB database on a USB spinning disk, so it has a line before it where there is
+                    // something to read, progress lines while it runs (a floor, from SQLite's callbacks), and
+                    // the measurement has its time after it whether or not there is (ADR-191, ADR-211
+                    // section 9). The time on this line is the whole call's, the check of the walk's
+                    // occurrences included.
                     long measureStarted = System.nanoTime();
                     documentFrequency.measure(runId, extractionRunId, frequencyRowsProgress());
                     log.info(
@@ -122,10 +122,6 @@ class ContentCensusTasklet implements Tasklet {
                             runId,
                             extractionRunId,
                             ReportedStatements.saying()
-                                    .timed(
-                                            ExtractionStatement.SURVIVORS,
-                                            STAGE,
-                                            "stage 2's survivors for the confidence distribution")
                                     .counted(
                                             ExtractionStatement.EXTRACTION_METRICS,
                                             STAGE,
@@ -148,65 +144,54 @@ class ContentCensusTasklet implements Tasklet {
     }
 
     /**
-     * Stage 3's frequency rows counter, ticked as {@code similarity} reports (ADR-192 section 4), the lines of
-     * its drain of stage 2's survivors, and the lines of its read of the shingle rows, written as {@code
-     * similarity} reports each (ADR-193 section 7). The drain is timed: two lines, whenever it is issued. The
-     * bound of the read is {@code similarity}'s to answer ({@link DocumentFrequency#shingleRowsUpTo}) and it
-     * hands it over immediately before the read; what is said about it is this class's. The read says nothing
-     * where the run holds no shingle row, and where it does it is ADR-191 section 1's reading line, then the
-     * progress lines of ADR-193 section 4.1, and no after-line of its own: the line the caller writes after
-     * the whole measurement is ADR-191's.
+     * The lines of stage 3's grouping of the shingle rows, written as {@code similarity} reports it (ADR-193
+     * section 7, ADR-211 section 9), and the running counter of the walk's occurrences it checks after (ADR-192
+     * section 4). The bound of the grouping is {@code similarity}'s to answer ({@link
+     * DocumentFrequency#shingleRowsUpTo}) and it hands it over immediately before the grouping; what is said
+     * about it is this class's. The grouping says nothing where the run holds no shingle row, and where it
+     * does it is the reworded reading line, then progress lines that state a floor of what is done, from
+     * SQLite's callbacks, and no after-line of its own: the line the caller writes after the whole
+     * measurement is ADR-191's.
      */
     private static FrequencyProgress frequencyRowsProgress() {
-        ReportedStatements survivors = ReportedStatements.saying()
-                .timed(SimilarityStatement.FREQUENCY_SURVIVORS, STAGE, "stage 2's survivors for the shingle frequencies")
-                .build();
         return new FrequencyProgress() {
-            private StatementProgress readProgress;
+            private StatementProgress groupingProgress;
             private StageProgress counter;
 
             @Override
-            public void statementEnded(SimilarityStatement statement) {
-                survivors.statementEnded(statement);
-            }
-
-            @Override
             public void statementStarting(SimilarityStatement statement, OptionalLong rowsUpTo) {
-                if (statement == SimilarityStatement.FREQUENCY_SURVIVORS) {
-                    survivors.statementStarting(statement, rowsUpTo);
-                    return;
-                }
                 if (statement != SimilarityStatement.SHINGLE_ROWS || rowsUpTo.isEmpty()) {
                     return;
                 }
                 log.info(
                         "Stage 3 (content census) is reading up to {} shingle rows of stage 2's run before it"
-                                + " measures anything; SQLite reads them a page at a time, from wherever in the"
-                                + " file stage 2 wrote them, which took half an hour on a USB spinning disk for one"
-                                + " run in a 16.7 GB database, and stopping before it ends loses only the time"
-                                + " spent",
+                                + " measures anything; the database reads them, sorts them in temporary files in"
+                                + " the working directory and counts them, in one statement, whose progress lines"
+                                + " state the least it has done and stop short of 100%; reading them alone took"
+                                + " half an hour on a USB spinning disk for one run in a 16.7 GB database, and"
+                                + " stopping before it ends loses only the time spent",
                         rowsUpTo.getAsLong());
-                readProgress = StatementProgress.ofRead(
-                        "Stage 3 (content census, reading shingle rows)",
+                groupingProgress = StatementProgress.ofLowerEstimate(
+                        "Stage 3 (content census, grouping shingle rows)",
                         rowsUpTo.getAsLong(),
                         statement.stepsPerRow().getAsInt());
             }
 
             @Override
             public void stepsTaken(SimilarityStatement statement, long steps) {
-                if (readProgress != null) {
-                    readProgress.stepsTaken(steps);
+                if (groupingProgress != null) {
+                    groupingProgress.stepsTaken(steps);
                 }
             }
 
             @Override
-            public void toGoThrough(long hashes) {
-                counter = StageProgress.over("Stage 3 (content census, frequency rows)", hashes);
-            }
-
-            @Override
-            public void hashGoneThrough() {
-                counter.itemDone();
+            public void occurrencesChecked(int occurrences) {
+                if (counter == null) {
+                    counter = StageProgress.running("Stage 3 (content census, files checked)");
+                }
+                for (int occurrence = 0; occurrence < occurrences; occurrence++) {
+                    counter.itemDone();
+                }
             }
         };
     }
