@@ -6,7 +6,7 @@ import org.springframework.boot.SpringApplication;
  * Development entry point: the real application, with the Testcontainers containers of
  * {@link TestcontainersConfiguration} added to it.
  * <p>
- * Those containers are throwaway Chroma, Ollama and docling-serve containers, created on start and
+ * Those containers are throwaway Ollama and docling-serve containers, created on start and
  * destroyed on exit, and they are the only containers this entry point starts. No Docker Compose
  * support is on any classpath (ADR-179 §1), so the containers {@code compose.yaml} declares are never
  * started or stopped from here.

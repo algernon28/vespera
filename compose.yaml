@@ -7,21 +7,16 @@
 # actually on. No entry point reads a running container back or starts one: Spring Boot's compose
 # support is not on any classpath, the jar's or the IDE's or spring-boot:run's (ADR-179). The
 # operator starts these services with the `up` line the README gives, from every entry point, and
-# nothing reads a port back, so the defaults in application.yaml and Spring AI (8000, 11434) are all
+# nothing reads a port back, so the defaults in application.yaml and Spring AI (11434) are all
 # an invocation has, and a Docker-assigned port makes them wrong. Pinning costs a port collision when
 # something else local already holds one of these -- which is the failure an operator can diagnose
 # from the message, unlike "Connection refused" against a container that is up.
 services:
-  chroma:
-    image: 'chromadb/chroma:1.5.9'
-    # Each service here is restarted by Docker if it exits on its own, including after the machine
-    # restarts if Docker starts, but never after the operator stops it (ADR-164).
-    restart: unless-stopped
-    ports:
-      - '8000:8000'
   ollama:
     # From this file alone it runs on the processor; compose.gpu.yaml gives it the GPU (ADR-165).
     image: 'ollama/ollama:0.33.2'
+    # Each service here is restarted by Docker if it exits on its own, including after the machine
+    # restarts if Docker starts, but never after the operator stops it (ADR-164).
     restart: unless-stopped
     ports:
       - '11434:11434'

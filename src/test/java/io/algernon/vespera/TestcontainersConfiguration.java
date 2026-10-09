@@ -6,7 +6,6 @@ import java.util.List;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.testcontainers.chromadb.ChromaDBContainer;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.springframework.test.context.DynamicPropertyRegistrar;
@@ -22,14 +21,11 @@ import org.testcontainers.utility.DockerImageName;
  * mirrors {@code compose.yaml}; keep the two in step, because a service present in one and absent
  * from the other means tests and runtime disagree about what exists.
  * <p>
- * Two roles, both optional at runtime, neither authoritative for data:
+ * Two roles, neither authoritative for data, which SQLite holds alone (ADR-214):
  * <ul>
- *   <li><b>Chroma</b> — a derived, disposable projection of vectors that SQLite holds
- *       authoritatively (ADR-039). It may be dropped and rebuilt at any time, which is exactly why
- *       a fresh empty container per test run is harmless.</li>
  *   <li><b>Ollama</b> — the default serving engine for extraction (ADR-013), and the serving runtime
  *       is configuration rather than code (ADR-012).</li>
- *   <li><b>docling-serve</b> — the Docling sidecar (ADR-010, ADR-071). Unlike the two above it has no
+ *   <li><b>docling-serve</b> — the Docling sidecar (ADR-010, ADR-071). Unlike the one above it has no
  *       Spring Boot {@code ServiceConnection} support to derive a URL from, so it is a plain
  *       {@link GenericContainer} with a health-endpoint wait strategy, and its base URL is pushed into
  *       {@code vespera.docling.base-url} by {@link #doclingServeProperties} instead of an
@@ -56,9 +52,6 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
 
-    /** Chroma 1.5.9, which is {@code sha256:1e0b73a1}. Keep in step with {@code compose.yaml}. */
-    private static final String CHROMA_IMAGE = "chromadb/chroma:1.5.9";
-
     /** Ollama 0.33.2, which is {@code sha256:020e4134}. Keep in step with {@code compose.yaml}. */
     private static final String OLLAMA_IMAGE = "ollama/ollama:0.33.2";
 
@@ -81,12 +74,6 @@ public class TestcontainersConfiguration {
 
     /** The port docling-serve listens on inside its container (confirmed against the image's own metadata). */
     private static final int DOCLING_SERVE_PORT = 5001;
-
-    @Bean
-    @ServiceConnection
-    ChromaDBContainer chromaContainer() {
-        return new ChromaDBContainer(DockerImageName.parse(CHROMA_IMAGE));
-    }
 
     @Bean
     @ServiceConnection

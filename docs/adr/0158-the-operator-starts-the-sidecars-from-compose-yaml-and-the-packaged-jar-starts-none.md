@@ -1,5 +1,7 @@
 # ADR-158 — The operator starts the sidecars from compose.yaml, and the packaged jar starts none
 
+> **Read with [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** Chroma is removed, so the operator's `up` starts two services, Ollama and docling-serve, where the Decision below names three, and the operator-facing cost *"Chroma's contents go with its container too"* has no object. This record's decision stands.
+
 - **Date**: 2026-09-26
 - **Status**: accepted
 - **Amends**: [ADR-011](0011-managed-containers-the-tool-owns-its-sidecars.md), for the packaged jar. The repository still owns the sidecars: `compose.yaml` declares them and pins their images and their ports. The jar does not start or stop them. The operator starts them once, from `compose.yaml`, and leaves them up across the invocations. ADR-011's single-command start still holds where Spring Boot's compose support is on the classpath, which is the development entry points only.

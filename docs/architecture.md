@@ -78,7 +78,7 @@ flowchart TD
 - **The profile** (ADR-043) is the per-corpus record of every judgement the engine cannot make itself. Authored as a file (mutable, per-corpus); every run snapshots what it actually consumed into the ledger with provenance (human-calibrated / carried-over / auto-derived). File is input, ledger is history — history never overrides input. The file is written by census as a draft and by humans thereafter; nothing downstream of census writes it.
 - **Relevance is one-class, exemplar-based** (ADR-004, ADR-007, ADR-020). No supplied negatives (they'd be "easy negatives" far from the boundary); hard negatives are mined from the corpus after scoring. Score = max over seed documents of (mean of top-3 chunk similarities against that seed), storing the winning seed. Needs no vector database at scoring time — a few dozen seeds fit in memory while corpus chunks stream past.
 - **The seed set does triple duty** (ADR-004, ADR-020, ADR-022): it defines relevance, names the top level of the arrangement (one node per seed + `unattributed`), and shapes what sits beneath it. A poorly chosen seed set produces a poorly shaped arrangement, not merely a poorly tuned filter — visible via diagnostics (per-seed admission counts, cluster counts).
-- **Clustering runs within each seed partition**, never corpus-wide (ADR-027, ADR-045) — cheap, embarrassingly parallel, keeps the "60%-owned-by-one-seed" alarm aligned with a genuine compute problem, and bounds Chroma's working set to one partition at a time.
+- **Clustering runs within each seed partition**, never corpus-wide (ADR-027, ADR-045) — cheap, embarrassingly parallel, and keeps the "60%-owned-by-one-seed" alarm aligned with a genuine compute problem.
 - **Synthesis, not summarisation** (ADR-021). Stage 5 leaves a heap of survivors; stage 6 makes it organic. 6a names each cluster after its own highest-scoring document and puts the arrangement in an order, judging nothing and removing nothing; 6b generates connective overviews per cluster, gated on a human reading 6a first.
 - **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. The documents themselves are written and are the terminus. What no part of this project does is turn them into a published thing — a wiki, a space, a site — or upload or transmit them anywhere: an operator who wants a wiki makes one. What 6b writes and where it lands was settled by ADR-103 — a Markdown tree in the working directory, one tree per run id — and what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space, by ADR-104: they stay in the archive and are referenced from the tree.
 - **Generated content is verified two ways** (ADR-026): mechanical citation checking (every cited occurrence id must exist, survive, and be reachable in the tree) plus human review at the consolidation gate. Model-checking model output was explicitly rejected.
@@ -174,7 +174,7 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 | `corpus` | Walking, byte-level facts |
 | `extraction` | Docling client, extraction cache, derived metrics, chunking (chunker gets tokenizer identity from `pipeline`) |
 | `similarity` | Shingles, MinHash/LSH — shingles are computed during stage 2's pass, but the code and the table are `similarity`'s and the call is composed in `pipeline` (ADR-073), since a capability module may not depend on another except where a decision records it |
-| `embedding` | SQLite vector cache, Chroma projection, scoring, clustering |
+| `embedding` | SQLite vector cache, scoring, clustering |
 | `synthesis` | Arrangement (6a), generation (6b) |
 | `profile` | Thresholds, provenance, gate inputs |
 | `pipeline` | Batch job definitions; the only module that knows the phrase "stage 4" |
@@ -192,7 +192,7 @@ flowchart TD
         CORPUS["<b>corpus</b><br/>walking · byte-level facts"]
         EXTRACTION["<b>extraction</b><br/>Docling · cache · metrics · chunking"]
         SIMILARITY["<b>similarity</b><br/>shingles · MinHash/LSH"]
-        EMBEDDING["<b>embedding</b><br/>vector cache · Chroma · scoring · clustering"]
+        EMBEDDING["<b>embedding</b><br/>vector cache · scoring · clustering"]
         SYNTHESIS["<b>synthesis</b><br/>arrangement · generation"]
         PROFILE["<b>profile</b><br/>thresholds · provenance · gate inputs"]
     end
@@ -226,7 +226,7 @@ flowchart TD
 ### 1.5 Data architecture
 
 - **One SQLite database**, not one storage technology per se (ADR-008, ADR-009 as clarified). SQLite replaces flat-file artifacts because a database does the job better — it is *not* a rule against a vector index existing alongside it.
-- **SQLite is authoritative for vectors; Chroma is a derived, disposable projection** (ADR-039, sharpened by ADR-032, ADR-045, ADR-047). Vectors are written to SQLite when computed, keyed by chunk hash + model identity. Chroma is populated from that cache and may be dropped/rebuilt at any time — it is never a second source of truth. Because clustering is seed-partitioned (ADR-045), Chroma's working set is at most one partition, never the whole corpus.
+- **Vectors live in SQLite alone** (ADR-039, sharpened by ADR-032; ADR-085, ADR-214). Vectors are written to SQLite when computed, keyed by chunk hash + model identity, and scoring and clustering read them there by an exact scan, which at this pipeline's scale is instant (ADR-085). Chroma, once a derived, disposable projection of that cache that nothing populated or read, is removed with the requirement for it (ADR-214); a vector database comes back only through a record of its own.
 - **Caches, not files:** extraction output (keyed by full extractor identity, ADR-012), chunk boundaries (keyed by content hash + chunker + tokenizer identity, ADR-029/ADR-044), and vectors (keyed by chunk hash + model identity, ADR-032) are all durable, content-addressed SQLite caches — non-determinism anywhere in that chain would silently invalidate a calibrated threshold.
 - **Schema versioning without a migration tool** (ADR-049): one `schema.sql` of `CREATE TABLE IF NOT EXISTS` statements, each table marked with the module that owns it (ADR-209), plus an explicit `schema_version` table with one row per module (ADR-059), checked at startup; refuses to open on mismatch. Flyway/Liquibase deferred until the database first holds irreplaceable data (cached VLM extraction, vectors, human labels).
 
@@ -349,7 +349,7 @@ _This section previously duplicated `docs/frontier.md`, which no longer exists. 
 
 ## 2. Tech stack
 
-Fixed as an input constraint (ADR-001), refined through the ledger below.
+Fixed as an input constraint (ADR-001, which no longer fixes a vector database since ADR-214), refined through the ledger below.
 
 | Layer                                  | Choice                                                                                                                                                                                    | Decided by                |
 |----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|
@@ -358,7 +358,7 @@ Fixed as an input constraint (ADR-001), refined through the ledger below.
 | Orchestration                          | Spring Batch, `ResourcelessJobRepository` (no JDBC job repo)                                                                                                                              | ADR-036                   |
 | Modularity / boundaries                | Spring Modulith (`api` only — the boundary annotation; no event registry, no scheduler)                                                                                                                    | ADR-037, ADR-040, ADR-141 |
 | Relational store                       | SQLite — single database, one per corpus                                                                                                                                                  | ADR-008, ADR-009          |
-| Vector index                           | Chroma — derived/disposable projection of SQLite vectors                                                                                                                                  | ADR-039, ADR-142          |
+| Vector index                           | None: an exact scan over the vectors SQLite holds (ADR-085); Chroma removed                                                                                                               | ADR-085, ADR-214          |
 | Vector storage (authoritative)         | SQLite, keyed by chunk hash + model identity                                                                                                                                              | ADR-032, ADR-039          |
 | Document extraction                    | Docling, out-of-process service, configurable serving engine                                                                                                                              | ADR-010, ADR-012          |
 | Extraction serving engine (default)    | Ollama, self-hosted                                                                                                                                                                       | ADR-013                   |
@@ -371,7 +371,7 @@ Fixed as an input constraint (ADR-001), refined through the ledger below.
 | Publication target                     | None — the run ends at the documents 6b generates                                                                                                                                         | ADR-101                   |
 | Schema management                      | Spring `schema.sql` + manual version check; no Flyway/Liquibase yet                                                                                                                       | ADR-049                   |
 
-**Explicitly removed from the pom** (ADR-046, each citing the ADR that obviates it): `camel-spring-boot-starter`, `spring-ai-vector-store-advisor`, `spring-boot-starter-batch-jdbc`, the Spring AI jsoup/markdown/PDF document readers, `spring-cloud-starter-contract-verifier`, `spring-modulith-observability-api`/`-core`, `spring-modulith-actuator`, and `spring-boot-docker-compose` and `spring-ai-spring-boot-docker-compose` (ADR-179). Rule: the pom carries what a *recorded decision requires*, not what current code happens to use.
+**Explicitly removed from the pom** (ADR-046, each citing the ADR that obviates it): `camel-spring-boot-starter`, `spring-ai-vector-store-advisor`, `spring-boot-starter-batch-jdbc`, the Spring AI jsoup/markdown/PDF document readers, `spring-cloud-starter-contract-verifier`, `spring-modulith-observability-api`/`-core`, `spring-modulith-actuator`, `spring-boot-docker-compose` and `spring-ai-spring-boot-docker-compose` (ADR-179), and `spring-ai-starter-vector-store-chroma` and `testcontainers-chromadb` (ADR-214). Rule: the pom carries what a *recorded decision requires*, not what current code happens to use.
 
 ---
 

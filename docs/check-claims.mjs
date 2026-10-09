@@ -513,7 +513,7 @@ function readmeSection(heading, name) {
     const nextTopLevel = fromServices.slice("services:".length).search(/^[\w-]+:/m);
     const body = nextTopLevel === -1 ? fromServices : fromServices.slice(0, "services:".length + nextTopLevel);
     const services = [...body.matchAll(/^ {2}([\w-]+):\s*$/gm)].map((m) => m[1]);
-    const said = { chroma: /\bChroma\b/, ollama: /\bOllama\b/, "docling-serve": /\bdocling-serve\b/ };
+    const said = { ollama: /\bOllama\b/, "docling-serve": /\bdocling-serve\b/ };
     for (const s of services) {
       if (!said[s]) wrong.push(`${COMPOSE} runs ${s} and the section does not know it`);
       else if (!said[s].test(section)) wrong.push(`${COMPOSE} runs ${s} and the section never names it`);

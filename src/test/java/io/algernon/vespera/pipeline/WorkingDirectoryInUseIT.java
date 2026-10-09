@@ -9,8 +9,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.io.IOException;
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -40,8 +38,7 @@ import picocli.CommandLine;
  * reaches the operator's terminal and the code that reaches the shell both live outside any in-process
  * test (ADR-141), and because the reporter is found through {@code META-INF/spring.factories} in the jar.
  * This JVM holds the working directory through the same listener the jar registers, so the holder
- * the refusal names is this process. The jar is pointed at a Chroma on a port nothing listens on and
- * starts no sidecar, so no Docker daemon is needed.
+ * the refusal names is this process. The jar starts no sidecar, so no Docker daemon is needed.
  */
 @Epic("Architecture")
 @Feature("One invocation per working directory")
@@ -141,7 +138,6 @@ class WorkingDirectoryInUseIT {
                                             Stream.of(
                                                     ProcessHandle.current().info().command().orElseThrow(),
                                                     "-Dspring.docker.compose.enabled=false",
-                                                    "-Dspring.ai.vectorstore.chroma.client.port=" + closedPort(),
                                                     "-Dvespera.working-dir=" + workingDirectory,
                                                     "-jar", EXECUTABLE_JAR.toString()),
                                             Stream.of(args))
@@ -161,13 +157,6 @@ class WorkingDirectoryInUseIT {
             return new Launched(finished, finished ? process.exitValue() : -1, lines);
         } finally {
             Files.deleteIfExists(printed);
-        }
-    }
-
-    /** A port nothing listens on: bound once to learn a free number, then released. */
-    private static int closedPort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
         }
     }
 }

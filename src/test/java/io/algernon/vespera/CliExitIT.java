@@ -8,8 +8,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.io.IOException;
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
@@ -29,16 +27,11 @@ import picocli.CommandLine;
  * reach the shell. It needs no Docker daemon — the compose lifecycle is switched off so the jar
  * starts nothing — but it is an integration test all the same, because the packaged jar exists only
  * after {@code package}.
- *
- * <p>The jar is pointed at a Chroma on a port nothing listens on, rather than at the default one, so
- * the test holds on a machine whose own Chroma sidecar is up: neither command uses the vector store,
- * so neither may need one reachable to exit with its own code (ADR-142).
  */
 @Epic("Architecture")
 @Feature("Process exit")
 @Issue("269")
 @Link(name = "ADR-141", url = Adr.THE_CLI_EXITS_WITH_THE_COMMANDS_EXIT_CODE, type = "adr")
-@Link(name = "ADR-142", url = Adr.THE_VECTOR_STORE_CONNECTS_WHEN_FIRST_USED, type = "adr")
 class CliExitIT {
 
     /**
@@ -93,8 +86,6 @@ class CliExitIT {
                                         Stream.of(
                                                 javaExecutable(),
                                                 "-Dspring.docker.compose.enabled=false",
-                                                "-Dspring.ai.vectorstore.chroma.client.port="
-                                                        + closedPort(),
                                                 "-Dvespera.working-dir=" + workingDirectory,
                                                 "-jar", EXECUTABLE_JAR.toString()),
                                         Stream.of(args))
@@ -109,13 +100,6 @@ class CliExitIT {
             process.waitFor();
         }
         return new Launched(finished, finished ? process.exitValue() : -1);
-    }
-
-    /** A port nothing listens on: bound once to learn a free number, then released. */
-    private static int closedPort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        }
     }
 
     /** The Java binary running this test, so the launched jar runs on the Java the build did. */

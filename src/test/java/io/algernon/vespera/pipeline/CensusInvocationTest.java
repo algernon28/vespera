@@ -36,8 +36,8 @@ import picocli.CommandLine;
  * job, that the job's one step reaches census, and that the root the operator typed arrives as the
  * root that gets walked. Everything census then does is pinned by {@link CensusTaskletTest}.
  *
- * <p>It is a slice rather than the whole application, because the whole application starts Chroma
- * and Ollama and this question does not involve either. The one non-obvious piece is
+ * <p>It is a slice rather than the whole application, because the whole application builds Ollama's
+ * clients and this question does not involve them. The one non-obvious piece is
  * {@code @Transactional(NOT_SUPPORTED)}: the census step deliberately runs outside a transaction so
  * that a walk commits at its own checkpoints, and a test-managed transaction wrapped around it would
  * be suspended and then hold the only connection the test datasource has.
