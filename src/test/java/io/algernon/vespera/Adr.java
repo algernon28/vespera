@@ -1309,7 +1309,9 @@ public final class Adr {
     /**
      * ADR-218 -- every statement of {@code src/main} whose temporary files grow with the corpus is an
      * exception to the bound read into the survivors record, by the operator's choice, each with its
-     * measured bytes a row: stage 4b's build of {@code shingle_by_hash}, 91.6 of temporary files for each
+     * measured bytes a row, or, for three reads and ten index builds whose rows were too few, or none, to
+     * leave memory in the probe, those of a measured statement of the same plan: stage 4b's build of
+     * {@code shingle_by_hash}, 91.6 of temporary files for each
      * row the {@code shingle} table keeps and 183 at the peak with the write-ahead log; the builds start-up
      * makes of an index a database lacks, as a class; and the reads that sort a row for each survivor,
      * verdict, vector or cluster, as a class, to be looked at again after #458. The working directory's
