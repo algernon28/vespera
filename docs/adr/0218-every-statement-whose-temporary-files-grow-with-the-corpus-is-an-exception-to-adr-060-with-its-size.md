@@ -132,7 +132,7 @@ The statements of *What sorts and is bounded by something other than the corpus*
 
 > free bytes ≥ 183 × S, where S is the number stage 4b's line states, `MAX(rowid)` of `shingle`
 
-The 183 is the greatest peak measured, rounded to a whole byte, and carries no margin: the greatest of the runs at the two larger sizes was 182.99 a row.
+The 183 is the greatest peak measured at the two larger sizes, 182.99 a row, rounded to a whole byte, and carries no margin; the run at 100,000 rows peaked above it, at 183.7 (Measured).
 
 Of the 183, 91.1 stay in `vespera.db`, as the index; the rest is given back. When stage 2 next drops the index those bytes stay in the file as free pages, nothing in `src/main` setting `auto_vacuum`, and whether a later build takes them up again, so that the file does not grow a second time, was not measured. The write-ahead log gives its share back at the next write, down to 512 MiB, or when the invocation ends.
 
