@@ -43,7 +43,10 @@ enum MarkdownSurroundings {
     /** An ATX heading: folded to one line, since a line break ends the heading. */
     ATX_HEADING(true, "\\<&[]`"),
 
-    /** A line of a membership list, and a picture's alt text: not folded, a path being one line already. */
+    /**
+     * A line of a membership list, and a picture's alt text: not folded here — a path is one line
+     * already, and a caption is folded by its caller first (ADR-149 §5).
+     */
     MEMBERSHIP_ENTRY(false, "\\<&[]`");
 
     private final boolean folds;
