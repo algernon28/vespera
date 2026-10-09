@@ -33,7 +33,7 @@ No test held ADR-134's reopen trigger. It was a sentence, checked by whoever rea
 | `ArchiveLink` | a membership entry's destination, relative to its page or absent, percent-encoded | ADR-135, ADR-137 |
 | `ManifestCsv` | `documents.csv`, and RFC 4180 quoting | ADR-104, ADR-112, ADR-136 §5 |
 | `ClusterPage` | a cluster's page: heading, writing or the sentence in its place, the subset sentence, citation links, and the membership list numbered from what the call sent | ADR-109, ADR-133, ADR-174 |
-| `IndexPage` | `index.md` | ADR-103, ADR-112, ADR-122 |
+| `IndexPage` | `index.md`, and the names of the tree's partition directories and cluster files (`partitionDirectoryName`, `clusterFileName`). `Deliverable` asks it for the name of each partition directory and cluster file it writes, so a link in the index and the file on disk take their names from the same two methods | ADR-103, ADR-112, ADR-122 |
 | `EntryPictures` | which pictures are furniture, and the pictures shown under one membership entry | ADR-149, ADR-150 |
 
 `Deliverable` keeps its public surface, its four `writeTo` overloads and every constant a test reads (`DIRECTORY_NAME`, `INDEX_FILE_NAME`, `MANIFEST_FILE_NAME`, `NOTHING_WAS_WRITTEN_OVER_IT`, `THE_CLUSTER_NO_LONGER_HOLDS_IT`, `PICTURES_PER_DOCUMENT`), so `DeliverableTest` passes unedited. Each rule is moved out of `Deliverable`, not copied.
@@ -59,6 +59,8 @@ The two other rows of that table are `ArchiveLink` (the destination) and `Manife
 **The index's link text is `TABLE_CELL`**, as ADR-138 left it when it stopped being a rule of its own.
 
 **ADR-134's reopen trigger stands, and now has a test.** It reads: *a second class under `synthesis` grows a Markdown escaping method.* From this record, the one class is `MarkdownSurroundings`. `Deliverable` keeps no escaping rule, so the move trips nothing. `ArchiveLink`'s percent-encoding and `ManifestCsv`'s quoting are each one rule for one grammar, and neither is a Markdown escape (ADR-137 §4). ADR-130's premise, two copies of one rule, holds nowhere.
+
+**What the test can see.** It reads the compiled classes, so it holds the trigger for the forms an escaper leaves there, and a class under `synthesis` counts as carrying a Markdown escaping rule when it shows any of five: a text holding a backslash before `<`, `&`, `[`, `]`, a pipe or a backtick, the citation pattern excepted; a text built by putting a backslash straight before a value, which is what `"\\" + c` compiles to; a text that is one backslash and nothing else; a regex replacement holding two backslashes and a `$`, which writes a backslash before what was matched; and a backslash character appended to a text being built, as `append('\\')`. `MarkdownSurroundings` shows the first two, and no other class under `synthesis` shows any. An escaper whose backslash is in none of those forms is not caught, one held in a `char` variable before it is appended or taken from another class among them, and there the trigger is still a sentence checked by whoever reads it.
 
 ADR-138 §5's Rule column, and ADR-134's sentences naming `Deliverable` as the class the rules sit in, describe the code as it stood when they were written. Following ADR-138 §3's own precedent, they are not amended. This section is where a reader tracing them forward finds the new homes.
 
@@ -93,11 +95,13 @@ No test holds this. Nothing the tree contains shows how many digests were taken.
 - **Run ids move for 6a and 6b only**, because the change is confined to `synthesis`. Stage 6a's moves because `ClusterLabel` calls `FilenameStem`, and both stages name `synthesis` in their identity anyway.
 - **`synthesis` still reads neither `profile` nor `pipeline`** (ADR-110).
 
+**One order did move, where the writer stops.** `Deliverable.writeTo` composes `IndexPage.contents` before it announces a total or writes a partition directory or a page, so a partition whose seed no survivor names stops it with the tree's own directory made, the first picture pass done and nothing else written or announced, where at `4b99a03` the same `IllegalArgumentException`, with the same message, was thrown inside the loop over partitions, after the three totals had been announced and every earlier partition's directory and pages had been written.
+
 ### 7. The measured size
 
 Before, at `4b99a03`: `Deliverable.java` 1,271 lines, and `synthesis` 42 main files.
 
-After, measured with `wc -l` over `src/main/java/io/algernon/vespera/synthesis` once the build was green: `Deliverable.java` 270 lines (from 1,271), and `synthesis` 50 main files. The collaborators:
+After, measured with `wc -l` over `src/main/java/io/algernon/vespera/synthesis` once the build was green: `Deliverable.java` 271 lines (from 1,271), and `synthesis` 50 main files. The collaborators:
 
 | File | Lines |
 | --- | --- |
@@ -105,12 +109,12 @@ After, measured with `wc -l` over `src/main/java/io/algernon/vespera/synthesis` 
 | `ClusterPage.java` | 237 |
 | `IndexPage.java` | 186 |
 | `ArchiveLink.java` | 99 |
-| `MarkdownSurroundings.java` | 91 |
+| `MarkdownSurroundings.java` | 94 |
 | `ManifestCsv.java` | 88 |
 | `FilenameStem.java` | 27 |
 | `Citation.java` | 17 |
 
-`ClusterSlot.java` grew to 32 lines with its three overloads. All of `synthesis` main went from 3,815 lines to 3,875, a net of 60 more: the split is close to neutral in lines, as the plan's estimate said, and the largest class is gone, `EntryPictures` at 323 lines being the largest now.
+`ClusterSlot.java` grew to 32 lines with its three overloads. All of `synthesis` main went from 3,815 lines to 3,879, a net of 64 more: the split is close to neutral in lines, as the plan's estimate said, and the largest class is gone, `EntryPictures` at 323 lines being the largest now.
 
 ## Tests
 
@@ -120,12 +124,13 @@ After, measured with `wc -l` over `src/main/java/io/algernon/vespera/synthesis` 
 | `synthesis.ArchiveLinkTest` | relative destinations and their percent-encoding (`%20`, `%26`, `%28`, `%29`, `%5B`, `%5D`, `%3C`, `%60`, UTF-8); no destination for a relative page, a relative root, or a root that is not a path |
 | `synthesis.ManifestCsvTest` | the whole file for a two-cluster arrangement; RFC 4180 quoting and what it leaves alone; a survivor whose cluster the arrangement does not carry stops the writer |
 | `synthesis.ClusterPageTest` | numbering from what the call sent (ADR-133), score order where nothing was sent, a sent document the cluster no longer holds; citation links; a written page and an unwritten page, whole; one progress tick per entry that carries a document |
-| `synthesis.IndexPageTest` | the whole index for a two-cluster partition; padding of the page's name at ten clusters |
+| `synthesis.IndexPageTest` | the whole index for a two-cluster partition; padding of the page's name at ten clusters; a partition no survivor names refused, with its message |
+| `synthesis.PartitionNoSurvivorNamesStopsTheWriterTest` | through `Deliverable.writeTo`, with the second of two partitions named by no survivor: the same exception and message; the tree's directory made and empty; the survivors asked for their pictures and no total announced after that (§6) |
 | `synthesis.EntryPicturesTest` | the first pass asks each survivor once and reports it; recurring and furniture-layer pictures are furniture and a unique one is not; a picture's file and line; furniture left out; the caption as alt text; the budget, singular and plural; an unwritten media type counted; the indent under a two-digit entry |
 | `synthesis.CitationTest` | the pattern, what it matches and what it leaves alone |
 | `synthesis.FilenameStemTest` | the stem, and that it is the one `ClusterLabel`'s second tier gives |
 | `synthesis.ClusterSlotTest` | the four `of` overloads agree for one cluster and tell two apart |
-| `DeliverableRulesHaveOneHomeTest` | ADR-134's trigger; the destination's and the CSV's escapes in their one class each; one citation pattern; one filename stem; one record of the cluster key's shape |
+| `DeliverableRulesHaveOneHomeTest` | ADR-134's trigger, in the five forms §2 lists; the destination's and the CSV's escapes in their one class each; one citation pattern; one filename stem; one record of the cluster key's shape |
 
 ## What the commit that builds `src/main` owes
 

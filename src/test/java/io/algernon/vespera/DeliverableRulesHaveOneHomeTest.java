@@ -29,8 +29,23 @@ import org.junit.jupiter.api.Test;
  * <p><b>ADR-134's reopen trigger, held by a test for the first time.</b> ADR-134 §2 reads: <em>a second
  * class under {@code synthesis} grows a Markdown escaping method</em>. Until this class it was a sentence
  * checked by whoever read it; {@code DeliverableTest} holds what each surrounding writes, and nothing held
- * where the rule lives. Here a class carries a Markdown escaping rule when its constants hold a backslash
- * escape of a character a renderer reads as markup, and exactly one class may.
+ * where the rule lives. Exactly one class may carry a Markdown escaping rule, and here a class carries
+ * one when its compiled form shows any of five things:
+ *
+ * <ul>
+ *   <li>a text holding a backslash escape of a character a renderer reads as markup ({@link
+ *       #MARKDOWN_ESCAPES}), the citation pattern excepted;
+ *   <li>a text built by putting a backslash straight before a value ({@link #A_BACKSLASH_BEFORE_A_VALUE}),
+ *       which is what {@code "\\" + c} compiles to and how {@code MarkdownSurroundings} itself escapes;
+ *   <li>a text that is one backslash and nothing else ({@link #A_BACKSLASH});
+ *   <li>a regex replacement writing a backslash before what it matched ({@link
+ *       #A_BACKSLASH_BEFORE_WHAT_A_REGEX_MATCHED});
+ *   <li>a backslash character appended to a text being built, as {@code append('\\')}.
+ * </ul>
+ *
+ * <p><b>What it cannot see</b>: an escaper whose backslash appears in none of those forms, one held in a
+ * {@code char} variable before it is appended or taken from another class among them. There the
+ * sentence is still checked by whoever reads it.
  *
  * <p><b>Red against {@code 4b99a03}, by design</b>: every rule below lives in {@code Deliverable} there,
  * the citation pattern and the filename stem twice, and the cluster key three times.
@@ -55,6 +70,22 @@ class DeliverableRulesHaveOneHomeTest {
      * rule.
      */
     private static final List<String> MARKDOWN_ESCAPES = List.of("\\<", "\\&", "\\[", "\\]", "\\|", "\\`");
+
+    /** The one character every Markdown escape here begins with. */
+    private static final String A_BACKSLASH = "\\";
+
+    /**
+     * A backslash straight before a value, in a text built at run time: the compiler holds such a text as
+     * its fixed parts with the character U+0001 where each value goes, so {@code "\\" + c} is held as a
+     * backslash and that mark.
+     */
+    private static final String A_BACKSLASH_BEFORE_A_VALUE = A_BACKSLASH + '\u0001';
+
+    /**
+     * Two backslashes and a dollar sign: in a regex replacement, a literal backslash followed by a
+     * reference to what was matched, as in {@code replaceAll("([<&])", "\\\\$1")}.
+     */
+    private static final String A_BACKSLASH_BEFORE_WHAT_A_REGEX_MATCHED = "\\\\$";
 
     /** A citation as the model writes it (ADR-109), the one regular expression that also holds {@code \[}. */
     private static final String THE_CITATION_PATTERN = "\\[(\\d+)\\]";
@@ -98,15 +129,20 @@ class DeliverableRulesHaveOneHomeTest {
     @Story("Each rule has one class")
     @DisplayName("One class under synthesis carries a Markdown escaping rule, MarkdownSurroundings, and Deliverable carries none")
     void oneClassCarriesAMarkdownEscapingRule() throws Exception {
-        Set<String> escaping = classesHolding(
-                constant -> !constant.equals(THE_CITATION_PATTERN) && MARKDOWN_ESCAPES.stream().anyMatch(constant::contains));
+        Set<String> escaping = classesHolding(DeliverableRulesHaveOneHomeTest::writesAMarkdownEscape);
+        escaping.addAll(classesAppending(A_BACKSLASH));
 
         claim(
-                "the classes under synthesis whose constants hold a backslash escape of < & [ ] | or ` are"
-                        + " exactly one, MarkdownSurroundings: a second is ADR-134's reopen trigger, two copies"
-                        + " of one rule for one grammar, and Deliverable keeping one means the rules were copied"
-                        + " rather than moved",
-                () -> assertThat(escaping).containsExactly(IN_SYNTHESIS + "MarkdownSurroundings"));
+                "the classes under synthesis that write a backslash in front of markup are exactly one,"
+                        + " MarkdownSurroundings. A class counts when its compiled form holds a backslash"
+                        + " escape of < & [ ] | or `, a text built with a backslash straight before a value,"
+                        + " a text that is one backslash, a regex replacement that puts a backslash before"
+                        + " what it matched, or a backslash character appended to a text. A second such"
+                        + " class is two copies of one rule for one grammar, and Deliverable being one"
+                        + " means the rules were copied rather than moved",
+                () -> assertThat(escaping)
+                        .as("the classes under synthesis that write a backslash in front of markup")
+                        .containsExactly(IN_SYNTHESIS + "MarkdownSurroundings"));
     }
 
     @Test
@@ -210,5 +246,30 @@ class DeliverableRulesHaveOneHomeTest {
             }
         }
         return holding;
+    }
+
+    /**
+     * The top-level classes under {@code synthesis} that append {@code character} to a text they are
+     * building, a nested class answering for the class it is declared in.
+     */
+    private static Set<String> classesAppending(String character) throws Exception {
+        Set<String> appending = new TreeSet<>();
+        for (Map.Entry<String, List<String>> shipped : ShippedClasses.appendedCharactersByClass().entrySet()) {
+            if (SYNTHESIS.equals(ShippedClasses.moduleOf(shipped.getKey()))
+                    && shipped.getValue().contains(character)) {
+                appending.add(shipped.getKey().split("\\$")[0]);
+            }
+        }
+        return appending;
+    }
+
+    /** Whether one text a class holds is, or is part of, a backslash written in front of markup. */
+    private static boolean writesAMarkdownEscape(String constant) {
+        boolean holdsAnEscape =
+                !constant.equals(THE_CITATION_PATTERN) && MARKDOWN_ESCAPES.stream().anyMatch(constant::contains);
+        return holdsAnEscape
+                || constant.equals(A_BACKSLASH)
+                || constant.contains(A_BACKSLASH_BEFORE_A_VALUE)
+                || constant.contains(A_BACKSLASH_BEFORE_WHAT_A_REGEX_MATCHED);
     }
 }
