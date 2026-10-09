@@ -1260,6 +1260,8 @@ cases.push(
   ["Z111", "Set-Location to the working directory's name with a dot and a backslash after it, then Get-Content of a plain name", "PowerShell", { command: String.raw`Set-Location working-directory.\; Get-Content report.html` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
   ["Z112", "Set-Location to an allowed folder named with a dot after it, then Get-Content into a working directory beneath the folder it opens", "PowerShell", { command: String.raw`Set-Location deep.\; Get-Content a\b\notes.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
   ["Z113", "Get-ChildItem of a plain name, quoted, that is a working directory's name with a dot and a space after it", "PowerShell", { command: "Get-ChildItem 'my runs. '" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z114", "Get-ChildItem of three dots beneath the working directory's name, which PowerShell opens as the working directory", "PowerShell", { command: "Get-ChildItem working-directory/..." }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z115", "Get-ChildItem of three dots beneath the working directory, by its drive path", "PowerShell", { command: `Get-ChildItem ${WD}/...` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
 
   /* Z2. The same spellings through the file tools and the search tools, whose paths go through the same
      readings. */
@@ -1284,6 +1286,8 @@ cases.push(
   ["Z303", "Write beneath a name that is only a stream name", "Write", { file_path: `${T}/scratch/:x/note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["Z304", "Get-Content beneath a folder named with three dots", "PowerShell", { command: String.raw`Get-Content scratch\...\note.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
   ["Z305", "Write beneath a folder named with one space", "Write", { file_path: `${T}/scratch/ /note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["Z306", "Read whose path is one space", "Read", { file_path: " " }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
+  ["Z307", "Grep whose path is one space", "Grep", { pattern: "x", path: " " }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
 
   /* Z4. What stays usable: a dot inside a name, and a dotted name that Windows opens as a place outside
      every working directory. Each is let through on every platform: elsewhere the dotted name is another
@@ -1294,6 +1298,7 @@ cases.push(
   ["Z404", "Grep whose path is an allowed folder's name with a dot after it, beneath which no working directory lies", "Grep", { pattern: "x", path: `${T}/scratch.` }, ALLOWED],
   ["Z405", "Write with a dot after the file's name, outside every working directory", "Write", { file_path: `${T}/scratch/note.txt.`, content: "x" }, ALLOWED],
   ["Z406", "Get-ChildItem of a quoted token that is one space, which is the allowed folder it is read against", "PowerShell", { command: "Get-ChildItem ' '" }, ALLOWED, { cwd: T }],
+  ["Z407", "Get-ChildItem of a quoted token that is two spaces", "PowerShell", { command: "Get-ChildItem '  '" }, ALLOWED, { cwd: T }],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
