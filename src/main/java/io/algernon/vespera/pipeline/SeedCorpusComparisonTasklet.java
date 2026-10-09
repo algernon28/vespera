@@ -124,12 +124,12 @@ class SeedCorpusComparisonTasklet implements Tasklet {
                                             stage,
                                             "the unusable seeds",
                                             "Stage 5b (seed/corpus comparison, reading unusable seeds)")
-                                    .counted(
+                                    .paged(
                                             EmbeddingStatement.CORPUS_METRICS,
                                             stage,
                                             "the corpus survivors' extraction metrics",
                                             "Stage 5b (seed/corpus comparison, reading corpus metrics)")
-                                    .counted(
+                                    .paged(
                                             EmbeddingStatement.CORPUS_METRICS_AGAIN,
                                             stage,
                                             "the corpus survivors' extraction metrics again",

@@ -43,8 +43,9 @@ public class TemporaryFilesInTheWorkingDirectory implements ApplicationListener<
         }
         String directory = Path.of(configured).toAbsolutePath().toString();
         try {
-            // Under the packaged jar's class loader the driver is not found by the JDK's own scan of the
-            // class path, and no pool has loaded it yet: loading it from here registers it for this class.
+            // No pool has loaded the driver yet. Whether DriverManager finds it unaided under the packaged
+            // jar's class loader is not measured; loading it by name from here registers it for this class,
+            // so it does not matter.
             Class.forName(DRIVER);
             try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:");
                     Statement statement = connection.createStatement()) {

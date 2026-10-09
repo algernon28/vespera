@@ -22,20 +22,23 @@ import org.slf4j.LoggerFactory;
  * {@code <Module>StatementProgress} at once, since each interface's methods take that module's own enum and
  * so do not collide; a caller hands it where a module asks for its interface, or, where the module's
  * interface also reports a loop, forwards the three statement callbacks to it. A statement it was given no
- * words for is ignored, and a caller may also never forward one: stage 3 forwards only its drain of stage 2's
- * survivors, and leaves its read of the shingle rows to ADR-191's own lines.
+ * words for is ignored, and a caller may also never forward one.
  *
- * <p>What it writes, for a statement started and ended:
+ * <p>Which form a statement takes is learnt from the steps a row it declares and how its caller registered
+ * it (ADR-211 section 9): one that declares steps a row is counted by them; one that declares none is timed,
+ * unless it was registered through {@code paged(...)}, as a read made a page of survivors at a time. What it
+ * writes, for a statement started and ended:
  *
  * <ul>
- *   <li><b>A timed one</b> (declaring no steps a row): {@code <stage> is reading <what>} and {@code <stage>
- *       read <what> in <S> s}, always.
- *   <li><b>A counted one started with a total</b>: {@code <stage> is reading <what>, over up to <N> rows},
- *       then {@link StatementProgress}' lines under the caller's label as SQLite calls back, then {@code
- *       <stage> read <what> in <S> s}.
- *   <li><b>A counted one started with an empty total</b>, a run that holds no row: nothing at all, neither
- *       line and no progress. That silence is {@code pipeline}'s to keep (ADR-204 section 4); the capability
- *       module only reports that it started.
+ *   <li><b>A timed one</b> (declaring no steps a row, not registered paged): {@code <stage> is reading
+ *       <what>} and {@code <stage> read <what> in <S> s}, always, whatever total it is started with.
+ *   <li><b>A counted or paged one started with a total</b>: {@code <stage> is reading <what>, over up to <N>
+ *       rows}, then {@link StatementProgress}' lines under the caller's label, as SQLite calls back for a
+ *       counted one and as the module tells the rows read for a paged one, then {@code <stage> read <what> in
+ *       <S> s}.
+ *   <li><b>A counted or paged one started with an empty total</b>, a run that holds no row: nothing at all,
+ *       neither line and no progress. That silence is {@code pipeline}'s to keep (ADR-204 section 4); the
+ *       capability module only reports that it started.
  * </ul>
  *
  * <p>A statement that throws is never ended, so it leaves its first line and no second, as a timed
@@ -49,7 +52,7 @@ final class ReportedStatements
                 SynthesisStatementProgress {
 
     /** What a statement is called in the lines, and for a counted one the label its progress lines carry. */
-    private record Words(String stage, String what, String label) {}
+    private record Words(String stage, String what, String label, boolean paged) {}
 
     private final Map<Enum<?>, Words> words;
 
@@ -79,13 +82,23 @@ final class ReportedStatements
 
         /** A timed statement: {@code <stage> is reading <what>}, {@code <stage> read <what> in <S> s}. */
         Builder timed(Enum<?> statement, String stage, String what) {
-            words.put(statement, new Words(stage, what, null));
+            words.put(statement, new Words(stage, what, null, false));
+            return this;
+        }
+
+        /**
+         * A read made a page of survivors at a time, told its rows (ADR-211 section 9): the counted form's
+         * lines, with progress from the rows read and not from SQLite's steps. Only a statement that
+         * declares no steps a row can be one; a registration of this kind is what makes it one.
+         */
+        Builder paged(Enum<?> statement, String stage, String what, String label) {
+            words.put(statement, new Words(stage, what, label, true));
             return this;
         }
 
         /** A counted statement, whose progress lines carry {@code label} (ADR-193 section 4.1). */
         Builder counted(Enum<?> statement, String stage, String what, String label) {
-            words.put(statement, new Words(stage, what, label));
+            words.put(statement, new Words(stage, what, label, false));
             return this;
         }
 
@@ -162,7 +175,7 @@ final class ReportedStatements
         if (said == null) {
             return;
         }
-        if (stepsPerRow.isEmpty() && said.label() == null) {
+        if (stepsPerRow.isEmpty() && !said.paged()) {
             lines = TimedStatement.begin(said.stage(), "reading", "read", said.what());
         } else if (rowsUpTo.isPresent()) {
             // The line before carries the total, which TimedStatement's own does not, so a counted read

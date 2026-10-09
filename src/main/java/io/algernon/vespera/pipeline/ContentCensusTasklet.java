@@ -105,10 +105,11 @@ class ContentCensusTasklet implements Tasklet {
                 () -> {
                     log.info("Stage 3 (content census) starting under run {}", runId.value());
 
-                    // The one statement inside DocumentFrequency.measure that groups every shingle row of
-                    // stage 2's run in the database has, as reading the rows alone did, taken half an hour on a
-                    // 16.7 GB database on a USB spinning disk, so it has a line before it where there is
-                    // something to read, progress lines while it runs (a floor, from SQLite's callbacks), and
+                    // Reading every shingle row of stage 2's run alone took half an hour on a 16.7 GB database
+                    // on a USB spinning disk, and the one statement inside DocumentFrequency.measure that
+                    // groups them in the database now does more than read them (it sorts and counts them; it
+                    // was never measured on that disk), so it has a line before it where there is something
+                    // to read, progress lines while it runs (a floor, from SQLite's callbacks), and
                     // the measurement has its time after it whether or not there is (ADR-191, ADR-211
                     // section 9). The time on this line is the whole call's, the check of the walk's
                     // occurrences included.
@@ -122,7 +123,7 @@ class ContentCensusTasklet implements Tasklet {
                             runId,
                             extractionRunId,
                             ReportedStatements.saying()
-                                    .counted(
+                                    .paged(
                                             ExtractionStatement.EXTRACTION_METRICS,
                                             STAGE,
                                             "the extraction metrics",

@@ -232,16 +232,30 @@ final class SignalQuartiles {
 
         void endRead() {
             if (candidates <= KEPT) {
+                if (gathered == null || gatheredCount != candidates) {
+                    throw new IllegalStateException(
+                            "The place " + target + " is in no bucket: a read gave other values");
+                }
                 double[] sorted = Arrays.copyOf(gathered, gatheredCount);
                 Arrays.sort(sorted);
                 answered = sorted[(int) (target - below)];
                 return;
             }
-            if (leastKey == greatestKey || bits == 48) {
+            if (counters == null) {
+                throw new IllegalStateException(
+                        "The place " + target + " is in no bucket: a read gave other values");
+            }
+            if (leastKey == greatestKey) {
                 answered = leastValue;
                 return;
             }
             chooseBucket(counters, below);
+            if (bits == 48) {
+                // Every bit of the key is now known: the value is what the key is, however many candidates
+                // share it. A key below zero as a long had a first bit set, which the key put there.
+                answered = Double.longBitsToDouble(prefix < 0 ? prefix ^ Long.MIN_VALUE : ~prefix);
+                return;
+            }
             bits += 16;
             counters = null;
             seen = false;
