@@ -1242,8 +1242,8 @@ public final class Adr {
      * a working directory, and nothing else in it: counts and sums out of {@code vespera.db} by fixed
      * statements, keyed by walk ids, run ids and the code's closed vocabularies, and how many files the
      * working directory holds and their size; the guard admits only the exact command that starts that
-     * script, whose hash it pins; {@code vespera.log} stays refused (amends, once accepted, ADR-196
-     * sections 1 and 2; keeps ADR-201 and ADR-198). Its tests are Node tests under {@code src/test/hooks}.
+     * script, whose hash it pins; {@code vespera.log} stays refused (amends ADR-196 sections 1 and 2;
+     * keeps ADR-201 and ADR-198). Its tests are Node tests under {@code src/test/hooks}.
      */
     public static final String AGGREGATE_COUNTS_THROUGH_ONE_PINNED_SCRIPT = FILE
             + "0212-an-agent-may-read-a-working-directorys-aggregate-counts-through-one-pinned-script-and-nothing-else-in-it.md";

@@ -2,7 +2,7 @@
 // and a PreToolUse hook refuses any path outside an allow list and fails closed. docs/adr/0201 amends
 // that record, and the L and G cases are held to it. docs/adr/0212, accepted and not yet built, admits one exact command
 // that starts the counting script beside the guard on a working directory, and the K cases are held to
-// it: K101 to K106 are refused until that script and the guard's rule are built.
+// it: K101 to K107 are refused until that script and the guard's rule are built.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -39,6 +39,7 @@
 //   outside/counted/     vespera.db: a working directory under no allowed root
 //   temp/scratch/working-directory-counts.mjs, a copy of the counting script outside .claude/hooks
 //   altered-counts/checkout/ a ${REPO} whose counting script has one line the pinned one does not
+//   crlf-counts/checkout/ a ${REPO} whose counting script has every LF turned into CR LF
 //   with space/checkout/ a second ${REPO}, whose path holds a space
 //   no-guard/checkout/   the wrapper without private-paths-guard.mjs
 //   main/                a git checkout whose worktree, .claude/worktrees/wt, has no copy of the hook
@@ -138,6 +139,10 @@ put(`${O}/counted/vespera.db`);
 put(`${T}/scratch/working-directory-counts.mjs`, countsText());
 const ALTERED = buildCheckout(`${base}/altered-counts/checkout`);
 writeFileSync(`${ALTERED}/${COUNTS}`, countsText() + "\n// one line the pinned script does not have\n");
+// And a checkout whose counting script has every LF turned into CR LF, as git checks it out on Windows:
+// the pin reads CR LF as LF, so it is the same script.
+const CRLF = buildCheckout(`${base}/crlf-counts/checkout`);
+writeFileSync(`${CRLF}/${COUNTS}`, countsText().replace(/\r\n/g, "\n").replace(/\n/g, "\r\n"));
 // Under temp/mirror, the temp folder's own path from its drive's root, ending in a working directory:
 // where C:Users/.../temp/scratch lands when it is read as a relative path from temp/mirror.
 if (windows) put(`${T}/mirror/${T.slice(3)}/scratch/vespera.db`);
@@ -734,6 +739,12 @@ const cases = [
   ["K221", "sqlite3 asking vespera.db for a count", "Bash", { command: `sqlite3 working-directory/vespera.db "SELECT COUNT(*) FROM verdict"` }, REFUSED, { cwd: T }],
   ["K222", "the counting command run with a working directory as the current directory", "Bash", { command: `node ${C}/${COUNTS} .` }, REFUSED, { cwd: WD }],
   ["K223", "the counting command inside bash -c", "Bash", { command: `bash -c 'node ${C}/${COUNTS} working-directory'` }, REFUSED, { cwd: T }],
+  ["K225", "the counting command with :x after the script, an alternate data stream", "Bash", { command: `node ${C}/${COUNTS}:x working-directory` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
+  ["K226", "the counting command in PowerShell followed by ; and another command", "PowerShell", { command: `node ${back(`${C}/${COUNTS}`)} working-directory; Get-ChildItem` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["K227", "the counting command in PowerShell piped into another command", "PowerShell", { command: `node ${back(`${C}/${COUNTS}`)} working-directory | Select-Object -First 5` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["K228", "the counting command in PowerShell with the working directory behind $env:", "PowerShell", { command: `node ${back(`${C}/${COUNTS}`)} $env:TEMP\\working-directory` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
+  ["K229", "the counting command in PowerShell with a backtick before the working directory", "PowerShell", { command: `node ${back(`${C}/${COUNTS}`)} \`working-directory` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["K230", "the counting command in PowerShell with the working directory in double quotes", "PowerShell", { command: `node ${back(`${C}/${COUNTS}`)} "working-directory"` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
 
   /* K3. What docs/adr/0212 still refuses, named in one place: every file a working directory holds. */
   ["K301", "Read of profile.yaml in a working directory", "Read", { file_path: `${WD}/profile.yaml` }, REFUSED],
@@ -780,6 +791,13 @@ test("R507 refused: Read under no allowed root when the checkout's path holds a 
 test("K224 refused: the counting command when the script beside the guard is not the pinned one", () => {
   const call = hookInput("Bash", { command: `node ${ALTERED}/${COUNTS} working-directory` }, T);
   claim(startGuard({ projectDir: ALTERED, stdin: call }), REFUSED, `the counting command through ${ALTERED}/${WRAPPER}, whose counting script was altered`);
+});
+
+// The same command again, in a checkout whose counting script has CR LF line ends: the pin reads CR LF as
+// LF, so the script is the pinned one and the command is admitted. Refused until the script is built.
+test("K107 allowed: the counting command when the script beside the guard has CR LF line ends", () => {
+  const call = hookInput("Bash", { command: `node ${CRLF}/${COUNTS} working-directory` }, T);
+  claim(startGuard({ projectDir: CRLF, stdin: call }), ALLOWED, `the counting command through ${CRLF}/${WRAPPER}, whose counting script has CR LF line ends`);
 });
 
 /* ---------- failing closed ---------- */

@@ -14,7 +14,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,14 +57,20 @@ for (const [name, list] of Object.entries({ VERDICT_KINDS, BLOCKING_KINDS, ANOMA
 const RUN_ID = "[0-9a-f]{64}";
 const NAMES = [...VERDICT_KINDS, ...ANOMALY_KINDS, ...FAILURE_CATEGORIES, ...CLUSTER_FAULT_KINDS, ...STAGES, ...STEPS, "other"];
 const FOLDERS = ["working-directory", "database", "log", "deliverable", `deliverable/${RUN_ID}`, "deliverable/other"];
-const VALUE = `(?:\\d+|${RUN_ID}(?:,${RUN_ID})*|-|${NAMES.join("|")}|${FOLDERS.join("|")})`;
+const RUN_OR_OTHER = `(?:${RUN_ID}|other)`;
+const VALUE = `(?:\\d+|${RUN_OR_OTHER}(?:,${RUN_OR_OTHER})*|-|${NAMES.join("|")}|${FOLDERS.join("|")})`;
 const RECORDS = ["walk", "anomalies", "run", "finished-steps", "verdicts", "survivors", "extraction-faults", "clusters", "synthesis-docs", "cluster-faults", "files"];
 const LINE = new RegExp(`^(?:${RECORDS.join("|")})(?: [a-z][a-z-]*=${VALUE})+$`);
 
 /* ---------- working directories ---------- */
 
 const base = fwd(realpathSync.native(mkdtempSync(join(tmpdir(), "vespera-counts-"))));
-after(() => rmSync(base, { recursive: true, force: true, maxRetries: 3 }));
+// What a test denied, given back before the fixture is removed, so the removal is not refused.
+const restorers = [];
+after(() => {
+  for (const restore of restorers) restore();
+  rmSync(base, { recursive: true, force: true, maxRetries: 3 });
+});
 
 function put(path, text = "") {
   mkdirSync(dirname(path), { recursive: true });
@@ -92,6 +98,8 @@ const R3 = runId("4");
 const RA = runId("5");
 const RG = runId("6");
 const RX = runId("7");
+const R_AFTER_UNSHAPED = runId("8");
+const R_ON_A_FOREIGN_WALK = runId("9");
 
 // Two walks; seven runs, six of them a chain of upstream runs over walk 1 and one beside it; and every
 // table the script counts, with MARKER in every text and path column and in every value no list holds.
@@ -129,6 +137,8 @@ function fillLedger(db, { unshapedRun = false } = {}) {
   finished(RG, `${MARKER}-step`);
   const verdict = (occurrenceId, id, kind) => run("INSERT INTO verdict (occurrence_id, run_id, kind, reason) VALUES (?, ?, ?, ?)", occurrenceId, id, kind, `${MARKER} reason`);
   verdict(1, R1, "BROKEN");
+  // Spelled in lower case: printed under BROKEN, and blocking nothing, since survivors compare exactly.
+  verdict(2, R1, "broken");
   verdict(2, R1, "PASSED");
   verdict(3, R1, "PASSED");
   verdict(4, R1, "PASSED");
@@ -154,7 +164,21 @@ function fillLedger(db, { unshapedRun = false } = {}) {
   if (unshapedRun) {
     aRun(`${MARKER}-run`, "extraction", 1, R1);
     verdict(1, `${MARKER}-run`, "BROKEN");
+    // A run whose upstream is the run whose id is not a run id's shape.
+    aRun(R_AFTER_UNSHAPED, "content-census", 1, `${MARKER}-run`);
   }
+}
+
+// SQLite enforces no column's type: text where the schema says integer, and a walk that does not exist,
+// written with foreign keys off. Each must print as other (docs/adr/0212 section 3).
+function fillForeignBytes(db) {
+  db.exec("PRAGMA foreign_keys=OFF");
+  const run = (sql, ...args) => db.prepare(sql).run(...args);
+  run("INSERT INTO walk (id, root, finished, entries_seen, directories_entered) VALUES (3, ?, ?, ?, ?)", `${MARKER}/third`, `${MARKER}`, `${MARKER}`, `${MARKER}`);
+  run("INSERT INTO file_occurrence (id, walk_id, path, size_bytes, last_modified, creation_time) VALUES (6, 3, ?, ?, 't', 't')", `${MARKER}/sixth`, `${MARKER}`);
+  run("INSERT INTO walk_anomaly (walk_id, path_rendering, kind) VALUES (?, ?, 'UNPROCESSABLE')", `${MARKER}`, `${MARKER}/entry`);
+  run("INSERT INTO run (id, stage, implementation_version, config_consumed, walk_id) VALUES (?, 'extraction', 'v', 'c', ?)", R_ON_A_FOREIGN_WALK, `${MARKER}`);
+  db.exec("PRAGMA foreign_keys=ON");
 }
 
 // What a working directory holds beside vespera.db: a lock, two logs, two pages and a deliverable, one
@@ -226,7 +250,7 @@ test("W01 counted: a working directory's counts and sums, line for line", () => 
   const underTheRun = tally(UNDER_THE_RUN);
   const elsewhere = tally(ELSEWHERE_IN_THE_DELIVERABLE);
   // Survivors answer to blocking verdicts under the run and every run upstream of it (ADR-156): under R1
-  // only occurrence 1 is broken; R1's sibling removes occurrence 2 from itself and from no other run; R2
+  // only occurrence 1 is broken, the kind stored as broken on occurrence 2 being compared exactly; R1's sibling removes occurrence 2 from itself and from no other run; R2
   // adds occurrence 3, R3 occurrence 4, and the unknown kind under R2 blocks nothing. Walk 2 has one
   // occurrence and no verdict.
   const expected = [
@@ -246,7 +270,7 @@ test("W01 counted: a working directory's counts and sums, line for line", () => 
     `finished-steps run=${R2} step=extraction count=1`,
     `finished-steps run=${RG} step=generation count=1`,
     `finished-steps run=${RG} step=other count=1`,
-    `verdicts run=${R1} kind=BROKEN count=1`,
+    `verdicts run=${R1} kind=BROKEN count=2`,
     `verdicts run=${R1} kind=PASSED count=3`,
     `verdicts run=${R1_SIBLING} kind=OUT_OF_SCOPE count=1`,
     `verdicts run=${R2} kind=EXTRACTION_FAILED count=1`,
@@ -314,9 +338,25 @@ test("W02 counted: every name of the code's closed lists is printed as itself an
 });
 
 test("W03 counted: nothing of the operator's reaches the output, and every line has the record's shape", () => {
-  const wd = workingDirectory("w03", (db) => fillLedger(db, { unshapedRun: true }), { files: FILES });
+  const wd = workingDirectory(
+    "w03",
+    (db) => {
+      fillLedger(db, { unshapedRun: true });
+      fillForeignBytes(db);
+    },
+    { files: FILES },
+  );
   const result = count([wd]);
-  ended(result, COUNTED, "a fixture whose every text, path and stray name carries the marker");
+  ended(result, COUNTED, "a fixture whose every text, path, stray name and mistyped number carries the marker");
+  const lines = linesOf(result);
+  for (const [what, line] of [
+    ["a walk whose finished, entries seen, directories entered and summed size are text", "walk walk=3 finished=other occurrences=1 bytes=other entries-seen=other directories-entered=other"],
+    ["an anomaly whose walk is text", "anomalies walk=other kind=UNPROCESSABLE count=1"],
+    ["a run whose walk is text", `run run=${R_ON_A_FOREIGN_WALK} stage=extraction walk=other upstream=-`],
+    ["a run whose upstream is the run whose id is not a run id's shape", `run run=${R_AFTER_UNSHAPED} stage=content-census walk=1 upstream=other`],
+  ]) {
+    assert.ok(lines.includes(line), `${what} must print as other where the value fails its shape, as "${line}"; the script printed:\n${result.stdout}`);
+  }
   assert.ok(!result.stdout.includes(MARKER), `the marker reached stdout: ${result.stdout}`);
   assert.ok(!result.stderr.includes(MARKER), `the marker reached stderr: ${result.stderr}`);
   assert.ok(!result.stdout.toLowerCase().includes(base.toLowerCase()), "the working directory's own path reached stdout");
@@ -386,6 +426,11 @@ test("W08 unreadable: a vespera.db that is not a database prints nothing, and sa
   const result = count([dir]);
   ended(result, UNREADABLE, "a vespera.db holding text");
   assert.equal(result.stdout, "", "nothing may be printed on stdout when a statement fails");
+  // SQLite's result code for a file that is not a database.
+  const NOT_A_DATABASE = 26;
+  const said = result.stderr.split(/\r?\n/).filter(Boolean);
+  assert.equal(said.length, 1, `stderr must be exactly one line, and it was: ${result.stderr}`);
+  assert.match(said[0], new RegExp(`\\b${NOT_A_DATABASE}\\b`), `the one line must carry SQLite's result code ${NOT_A_DATABASE}, and it said: ${said[0]}`);
   assert.ok(!result.stderr.includes(MARKER), `stderr carries what the file holds: ${result.stderr}`);
   assert.ok(!result.stderr.toLowerCase().includes(base.toLowerCase()), `stderr names a path: ${result.stderr}`);
 });
@@ -407,4 +452,92 @@ test("W09 counted: a link in the working directory is neither followed nor count
   const result = count([W09]);
   ended(result, COUNTED, "a working directory holding a link to a folder of three files");
   assert.ok(linesOf(result).includes(`files folder=working-directory files=1 bytes=${database}`), `only vespera.db may be counted: ${result.stdout}`);
+});
+
+const nativeOf = (p) => (windows ? p.replace(/\//g, "\\") : p);
+
+// A subfolder named with MARKER whose listing is denied: to Everyone through an ACL on Windows, by its
+// mode elsewhere. A root user lists it anyway, and then the test is not started.
+const W10 = workingDirectory("w10");
+const DENIED = `${W10}/${MARKER} folder`;
+put(`${DENIED}/inside.txt`, `${MARKER}\n`);
+function denyListing(dir) {
+  if (windows) return spawnSync("icacls", [nativeOf(dir), "/deny", "*S-1-1-0:(RD)"], { windowsHide: true }).status === 0;
+  try {
+    chmodSync(dir, 0o000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function allowListing(dir) {
+  if (windows) {
+    spawnSync("icacls", [nativeOf(dir), "/remove:d", "*S-1-1-0"], { windowsHide: true });
+    return;
+  }
+  try {
+    chmodSync(dir, 0o755);
+  } catch {
+    // nothing to give back
+  }
+}
+let listingDenied = denyListing(DENIED);
+restorers.push(() => allowListing(DENIED));
+if (listingDenied) {
+  try {
+    readdirSync(DENIED);
+    listingDenied = false;
+  } catch {
+    // denied, as the test needs
+  }
+}
+
+test("W10 unreadable: a subfolder whose listing is denied fails the count, and says so by its code alone", { skip: listingDenied ? false : "not started here: this platform, or a root user, cannot be denied the listing of a folder" }, () => {
+  const result = count([W10]);
+  ended(result, UNREADABLE, "a working directory holding a folder whose listing is denied");
+  assert.equal(result.stdout, "", "nothing may be printed on stdout when the folder cannot be measured");
+  assert.ok(!result.stdout.includes(MARKER) && !result.stderr.includes(MARKER), `the denied folder's name reached the output: ${result.stderr}`);
+  assert.ok(!result.stderr.toLowerCase().includes(base.toLowerCase()), `stderr names a path: ${result.stderr}`);
+  assert.equal(result.stderr.split(/\r?\n/).filter(Boolean).length, 1, `stderr must be exactly one line, and it was: ${result.stderr}`);
+});
+
+test("W11 the script imports only node: modules", () => {
+  assert.ok(existsSync(SCRIPT), `the counting script ${SCRIPT} does not exist yet; docs/adr/0212 says what it owes`);
+  const source = readFileSync(SCRIPT, "utf8");
+  const specifiers = [
+    ...source.matchAll(/\bimport\s+(?:[^'"]*?\s+from\s+)?["']([^"']+)["']/g),
+    ...source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g),
+    ...source.matchAll(/\brequire\s*\(\s*["']([^"']+)["']\s*\)/g),
+  ].map((m) => m[1]);
+  assert.ok(specifiers.length > 0, "no import was found in the script, so this test no longer reads its imports");
+  assert.deepEqual(specifiers.filter((s) => !s.startsWith("node:")), [], "every import must name a node: module, so nothing a node_modules folder or a relative path holds can stand in for one");
+  const computed = [...source.matchAll(/\b(?:import|require)\s*\(\s*(?!["'])/g)].length;
+  assert.equal(computed, 0, "an import whose specifier is not written as a string cannot be checked, so the script may have none");
+});
+
+test("W12 counted: a working directory whose path holds a space, a # and a %", () => {
+  const wd = workingDirectory("w12 a#b%20c", (db) => db.prepare("INSERT INTO walk (id, root) VALUES (1, 'x')").run());
+  const result = count([wd]);
+  ended(result, COUNTED, "a working directory whose path holds a space, a # and a %");
+  assert.ok(linesOf(result).includes("walk walk=1 finished=0 occurrences=0 bytes=0 entries-seen=0 directories-entered=0"), `the walk must be counted, the path being percent-encoded into the database's URI: ${result.stdout}`);
+  assert.deepEqual(readdirSync(wd), ["vespera.db"], "nothing may be added beside the database");
+});
+
+// A folder whose vespera.db is a symbolic link to a real database. Windows makes one only with the
+// privilege to, or in developer mode.
+const W13 = `${base}/w13`;
+mkdirSync(W13, { recursive: true });
+const W13_TARGET = workingDirectory("w13-target");
+let fileLinked = true;
+try {
+  symlinkSync(nativeOf(`${W13_TARGET}/vespera.db`), nativeOf(`${W13}/vespera.db`), "file");
+  fileLinked = lstatSync(`${W13}/vespera.db`).isSymbolicLink() && existsSync(`${W13}/vespera.db`);
+} catch {
+  fileLinked = false;
+}
+
+test("W13 refused: a folder whose vespera.db is a symbolic link", { skip: fileLinked ? false : "not started on this platform: it would not create a symbolic link to a file" }, () => {
+  const result = count([W13]);
+  ended(result, REFUSED, "a folder whose vespera.db is a symbolic link to a database");
+  assert.equal(result.stdout, "", "nothing may be printed on stdout");
 });
