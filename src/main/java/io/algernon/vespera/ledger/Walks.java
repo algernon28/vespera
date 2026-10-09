@@ -105,13 +105,6 @@ public class Walks {
         return counts;
     }
 
-    /** Whether {@code walkId} has finished, and is therefore eligible as run input. */
-    public boolean walkFinished(WalkId walkId) {
-        Boolean finished = jdbcTemplate.queryForObject(
-                "SELECT finished FROM walk WHERE id = ?", Boolean.class, walkId.value());
-        return Boolean.TRUE.equals(finished);
-    }
-
     /**
      * The finished walk of {@code root}, if census has completed one.
      *

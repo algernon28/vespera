@@ -230,7 +230,7 @@ What that pass recomputes, once, for all three changes together:
 
 ### 10. The agent definitions
 
-`.claude/agents/` configures agents. ADR-214 §3 edited it only with the operator's approval, and [#459](https://github.com/algernon28/vespera/issues/459)'s record, once it lands, closes every `.claude` folder to agents' writes. The operator approved the replacement text below on 2026-10-09, and the operator or the coordinating session installs it. Each replacement points at `AGENTS.md`'s own bullet rather than restating it, so that the two cannot drift apart again.
+`.claude/agents/` configures agents. ADR-214 §3 edited it only with the operator's approval, and [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) ([#459](https://github.com/algernon28/vespera/issues/459)) closes every `.claude` folder to agents' writes. The operator approved the replacement text below on 2026-10-09, and the operator installs it. Each replacement points at `AGENTS.md`'s own bullet rather than restating it, so that the two cannot drift apart again.
 
 | File and line at `3fc6f5d` | Replace | With |
 | --- | --- | --- |
@@ -272,7 +272,7 @@ The implementation's pull request states `git diff --stat` beside these figures.
 8. **How wide the javadoc work is.** Answered as recommended: the policy, and the confirmed mismatches in modules already moving. No sweep (§7).
 9. **The `run` command's description.** Answered as recommended: corrected, as a declared exception to the rule that operator-visible text does not change (§6).
 10. **Where the history goes.** Answered as recommended: `docs/closed-defects.md`, closed to edits, and the appending practice ends (§9).
-11. **The agent definitions.** Approved. The operator or the coordinating session installs the text of §10.
+11. **The agent definitions.** Approved. Since ADR-215 no agent session writes there, so the operator installs the text of §10.
 12. **How ADR-029 and ADR-046 are amended.** Answered as recommended: a pointer block above each reconstituted header, as ADR-214 did for ADR-001, ADR-032 and ADR-039, with the summary untouched.
 
 ### 13. The order of the work, and who does each part
@@ -340,7 +340,7 @@ B cannot come before A. Once `walkFinished` and `removesAnything` are gone, the 
 - **D2, test side:** `ContentIdentityTest:80,83` and `ContentIdentityResolutionTest:98-100` read the representative back from `superseded_by` through a private SQL helper in each test, with the same claims.
 - **D2, production:** delete `representativeFor`.
 
-**Recounting the records.** ADR-215 is taken by open pull request [#464](https://github.com/algernon28/vespera/pull/464) ([#459](https://github.com/algernon28/vespera/issues/459)). On this record's branch `docs/adr/` holds ADR-001 to ADR-214 and ADR-216, 215 files, and `AGENTS.md` and `docs/adr/README.md` say so. Whichever of the two lands later recounts both lines and adds its row to the index in order.
+**Recounting the records.** This record was written while ADR-215 was open pull request [#464](https://github.com/algernon28/vespera/pull/464) ([#459](https://github.com/algernon28/vespera/issues/459)). [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) landed first, and the count was redone when main was merged into this record's branch. `docs/adr/` now holds ADR-001 to ADR-216, 216 files. The index lists ADR-215 before ADR-216, and `AGENTS.md` and `docs/adr/README.md` say so.
 
 ## Records this touches
 
@@ -370,12 +370,16 @@ Each class is in `src/test/java/io/algernon/vespera/`, written with this record 
 - **`TheEmbedderIdentityFormatIsWrittenOnceTest`**, two tests, both **red** at `3fc6f5d`, read off the compiled classes' string texts:
   - Only `EmbedderIdentity` holds a text beginning `model=` in `embedding`. *Red: `RelevanceDistribution` and `VectorCache` do too.*
   - Only `EmbedderIdentity` holds the text `\%`. *Red: `RelevanceDistribution` and `VectorCache` hold it, and `EmbedderIdentity` does not.*
-- **`embedding/AModelNameMatchesOnlyItselfTest`**, three tests, **green at `3fc6f5d` and after**:
+- **`embedding/AModelNameMatchesOnlyItselfTest`**, five tests:
   - `VectorCache.vectorsFor` reads only the named model's vectors when a lookalike differs where the name has an underscore.
   - `RelevanceDistribution.embedderIdentityFor` finds the named model's identity in the same case.
   - A name that is only `%` matches nothing.
+  - A name with a backslash (`a\b`, beside a stored `ab`) is matched with the backslash, by both readers.
+  - A name is matched whole: `nomic_embed` does not match a stored `nomic_embed-v2`, in either reader.
   
   It holds what §4's move must keep. Nothing held it before.
+  
+  The first three were written with this record and are green at `3fc6f5d` and after. The last two were added at the architect's review, and are green against the shipped `likePatternFor`. In a scratch copy, dropping the backslash escape turned only the fourth red, and dropping the `;` that ends the name turned only the fifth red.
 - **`pipeline/TheRunCommandSaysWhatItDoesTest`**, two tests:
   - `theRunCommandDescribesWhatItDoes`: the `run` command's `@Command` description is the one sentence of §6. *Red: it names the old one.*
   - `theReadmeSaysTheSame`: the README's command line for `run` carries the same words. **Green at `3fc6f5d` and after.**

@@ -132,7 +132,8 @@ class UnreadableFloorsTest {
 
         claim(
                 "the step removes nothing, because there is no number for it to remove anything by",
-                () -> assertThat(step.stateFor(AN_EMBEDDER, "Stage 5e (relevance floor)").removesAnything()).isFalse());
+                () -> assertThat(step.stateFor(AN_EMBEDDER, "Stage 5e (relevance floor)"))
+                        .isNotInstanceOf(RelevanceFloor.Applicable.class));
         claim(
                 "and the value that names the work carries no number either -- asserted against the very"
                         + " same profile as the claim above, because what matters is the pair agreeing:"

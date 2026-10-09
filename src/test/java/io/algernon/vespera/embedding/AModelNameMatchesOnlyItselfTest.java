@@ -19,8 +19,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Both readers that find vectors by a model's name alone match that name literally: an underscore or a
- * percent sign in it is the character itself, never a pattern (ADR-084).
+ * Both readers that find vectors by a model's name alone match that name literally and whole: an underscore,
+ * a percent sign or a backslash in it is the character itself, never a pattern or an escape, and a name
+ * never matches a longer name that begins with it (ADR-084).
  *
  * <p>{@link VectorCache#vectorsFor} reads a survivor's vectors and {@link
  * RelevanceDistribution#embedderIdentityFor} names the one identity a model's scores were made under; each
@@ -29,8 +30,9 @@ import org.springframework.test.context.ActiveProfiles;
  * section 4 has the pattern built in one place, the identity's own class; this holds the behaviour that
  * move has to keep, so it passes before the change and after it.
  *
- * <p>The fixtures write vector rows directly through the cache, under two identities whose model names
- * differ only where an unescaped underscore would match any one character.
+ * <p>The fixtures write vector rows directly through the cache, each pair under two identities whose model
+ * names differ only where a pattern built carelessly would let the first match the second: an underscore
+ * read as any character, a backslash read as an escape, or a name read as a prefix.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -47,6 +49,21 @@ class AModelNameMatchesOnlyItselfTest {
 
     /** A second model, named so that the first name, read as a pattern, would match it too. */
     private static final String LOOKALIKE_MODEL = "nomicXembed";
+
+    /**
+     * A model whose name carries a backslash. Under the readers' escape character, an unescaped backslash
+     * would escape the letter after it, so the name would match {@link #UNBACKSLASHED_MODEL} and not itself.
+     */
+    private static final String BACKSLASHED_MODEL = "a\\b";
+
+    /** The same name with the backslash left out, which a dropped backslash escape would match instead. */
+    private static final String UNBACKSLASHED_MODEL = "ab";
+
+    /**
+     * A model whose name begins with all of {@link #UNDERSCORED_MODEL}'s, which a pattern that did not end the
+     * name where the identity ends it would match as well.
+     */
+    private static final String LONGER_MODEL = "nomic_embed-v2";
 
     /** A name that is only a percent sign, which an unescaped pattern reads as any text at all. */
     private static final String A_PERCENT_SIGN = "%";
@@ -65,6 +82,15 @@ class AModelNameMatchesOnlyItselfTest {
 
     /** The one vector stored under the lookalike's identity. */
     private static final float[] LOOKALIKE_VECTOR = {0f, 1f, 0f, 0f};
+
+    /** The one vector stored under the backslashed model's identity. */
+    private static final float[] BACKSLASHED_VECTOR = {0f, 0f, 1f, 0f};
+
+    /** The one vector stored under the identity of the same name without its backslash. */
+    private static final float[] UNBACKSLASHED_VECTOR = {0f, 0f, 0f, 1f};
+
+    /** The one vector stored under the longer model's identity. */
+    private static final float[] LONGER_VECTOR = {1f, 1f, 0f, 0f};
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -115,6 +141,45 @@ class AModelNameMatchesOnlyItselfTest {
                 "and no identity is found for it either",
                 () -> assertThat(new RelevanceDistribution(jdbcTemplate).embedderIdentityFor(A_PERCENT_SIGN))
                         .isEmpty());
+    }
+
+    @Test
+    @Story("A model is matched by its own name and nothing like it")
+    @DisplayName("A name with a backslash in it is matched with the backslash, not as the same name without it")
+    void aBackslashIsTheCharacterItself() {
+        VectorCache cache = new VectorCache(jdbcTemplate);
+        store(cache, BACKSLASHED_MODEL, BACKSLASHED_VECTOR);
+        store(cache, UNBACKSLASHED_MODEL, UNBACKSLASHED_VECTOR);
+
+        claim(
+                "exactly the one vector stored under the name with the backslash is read: the backslash matched a"
+                        + " backslash, so the vector of the same name without it is not read in its place",
+                () -> assertThat(cache.vectorsFor(CONTENT_HASH, CHUNKER, CHUNKING_RULE, BACKSLASHED_MODEL))
+                        .containsExactly(BACKSLASHED_VECTOR));
+        claim(
+                "and the identity found for that name is its own",
+                () -> assertThat(new RelevanceDistribution(jdbcTemplate).embedderIdentityFor(BACKSLASHED_MODEL))
+                        .contains(identityOf(BACKSLASHED_MODEL)));
+    }
+
+    @Test
+    @Story("A model is matched by its own name and nothing like it")
+    @DisplayName("A name is matched whole, not as the beginning of a longer model's name")
+    void aNameIsNotMatchedAsTheBeginningOfALongerOne() {
+        VectorCache cache = new VectorCache(jdbcTemplate);
+        store(cache, UNDERSCORED_MODEL, UNDERSCORED_VECTOR);
+        store(cache, LONGER_MODEL, LONGER_VECTOR);
+
+        claim(
+                "exactly the one vector stored under the named model is read: the name ends where the identity ends"
+                        + " it, so the vector of a model whose name only begins the same way is not read with it",
+                () -> assertThat(cache.vectorsFor(CONTENT_HASH, CHUNKER, CHUNKING_RULE, UNDERSCORED_MODEL))
+                        .containsExactly(UNDERSCORED_VECTOR));
+        claim(
+                "and one identity is found for the name, its own: had the longer name matched too, two would answer"
+                        + " and the reading would name neither",
+                () -> assertThat(new RelevanceDistribution(jdbcTemplate).embedderIdentityFor(UNDERSCORED_MODEL))
+                        .contains(identityOf(UNDERSCORED_MODEL)));
     }
 
     private static void store(VectorCache cache, String model, float[] vector) {

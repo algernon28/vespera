@@ -64,6 +64,12 @@ class LedgerHoldsFourRecordsTest {
             "survivors",
             "survivorsBySize");
 
+    /**
+     * What the ledger did before it was divided and nothing asks any more: ADR-216 removed {@code walkFinished},
+     * which only tests called. It stays in the list above, which records what the ledger did.
+     */
+    private static final Set<String> REMOVED_SINCE_THE_DIVISION = Set.of("walkFinished");
+
     /** Nine, six, six and seven: every public method the ledger had before it was divided. */
     private static final int EVERYTHING_THE_LEDGER_DID = 28;
 
@@ -102,7 +108,9 @@ class LedgerHoldsFourRecordsTest {
                 () -> assertThat(ABOUT_A_WALK.size() + ABOUT_OCCURRENCES.size() + ABOUT_A_RUN.size()
                                 + ABOUT_VERDICTS.size())
                         .isEqualTo(EVERYTHING_THE_LEDGER_DID));
-        claim("what is asked about a walk is asked of the walks", () -> assertThat(walks).containsAll(ABOUT_A_WALK));
+        claim(
+                "what is asked about a walk is asked of the walks, but for what has been removed since",
+                () -> assertThat(walks).containsAll(without(ABOUT_A_WALK, REMOVED_SINCE_THE_DIVISION)));
         claim(
                 "what is asked about the files a walk found is asked of the occurrences",
                 () -> assertThat(occurrences).containsAll(ABOUT_OCCURRENCES));
@@ -145,6 +153,12 @@ class LedgerHoldsFourRecordsTest {
                 .filter(method -> Modifier.isPublic(method.getModifiers()) && !method.isSynthetic())
                 .map(Method::getName)
                 .collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    private static Set<String> without(Set<String> all, Set<String> removed) {
+        Set<String> kept = new TreeSet<>(all);
+        kept.removeAll(removed);
+        return kept;
     }
 
     @SafeVarargs

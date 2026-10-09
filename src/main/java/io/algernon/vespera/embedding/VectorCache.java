@@ -80,12 +80,7 @@ class VectorCache {
                 contentHash,
                 chunkerIdentity,
                 chunkingRuleIdentity,
-                "model=" + escapeLikePattern(modelName) + ";%");
-    }
-
-    /** Escapes {@code %}, {@code _} and the escape character itself, so {@code value} matches only literally. */
-    private static String escapeLikePattern(String value) {
-        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                EmbedderIdentity.likePatternFor(modelName));
     }
 
     private static byte[] littleEndianFloat32(float[] vector) {

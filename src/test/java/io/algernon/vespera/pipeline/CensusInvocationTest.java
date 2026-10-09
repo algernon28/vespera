@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileStore;
@@ -94,7 +95,7 @@ class CensusInvocationTest {
                 () -> assertThat(ledger.occurrences().occurrenceCount(theWalk())).isEqualTo(CORPUS_FILES));
         claim(
                 "the walk finished, so what it recorded may be judged",
-                () -> assertThat(ledger.walks().walkFinished(theWalk())).isTrue());
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(theWalk()));
         claim(
                 "the profile was written to the working directory rather than into the corpus",
                 () -> assertThat(profileStore.file().startsWith(workingDirectory)).isTrue());
