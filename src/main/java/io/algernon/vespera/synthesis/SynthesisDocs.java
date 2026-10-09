@@ -86,12 +86,12 @@ public class SynthesisDocs {
 
     /** Every synthesis doc recorded under {@code runId}, in the order the clusters were written. */
     public List<RecordedSynthesisDoc> forRun(RunId runId) {
-        Map<ClusterKey, List<OccurrenceId>> sent = whatEachCallSent(runId);
+        Map<ClusterSlot, List<OccurrenceId>> sent = whatEachCallSent(runId);
         return jdbcTemplate.query(
                 "SELECT winning_seed_occurrence_id, cluster_ordinal, title, prose"
                         + " FROM synthesis_doc WHERE run_id = ? ORDER BY rowid",
                 (resultSet, rowNumber) -> {
-                    ClusterKey key = new ClusterKey(
+                    ClusterSlot key = new ClusterSlot(
                             new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
                             resultSet.getInt("cluster_ordinal"));
                     return new RecordedSynthesisDoc(
@@ -112,14 +112,14 @@ public class SynthesisDocs {
      * <p>Read in one query rather than one per cluster: a run holds a call per cluster, and this is
      * read where the terminal stage writes the whole tree in one pass.
      */
-    private Map<ClusterKey, List<OccurrenceId>> whatEachCallSent(RunId runId) {
-        Map<ClusterKey, List<OccurrenceId>> sent = new LinkedHashMap<>();
+    private Map<ClusterSlot, List<OccurrenceId>> whatEachCallSent(RunId runId) {
+        Map<ClusterSlot, List<OccurrenceId>> sent = new LinkedHashMap<>();
         jdbcTemplate.query(
                 "SELECT winning_seed_occurrence_id, cluster_ordinal, occurrence_id FROM call_exemplar"
                         + " WHERE run_id = ? ORDER BY winning_seed_occurrence_id, cluster_ordinal,"
                         + " citation_ordinal",
                 resultSet -> {
-                    ClusterKey key = new ClusterKey(
+                    ClusterSlot key = new ClusterSlot(
                             new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
                             resultSet.getInt("cluster_ordinal"));
                     sent.computeIfAbsent(key, cluster -> new ArrayList<>())
@@ -128,7 +128,4 @@ public class SynthesisDocs {
                 runId.value());
         return sent;
     }
-
-    /** One cluster of one run, as both tables here key it (ADR-110). */
-    private record ClusterKey(OccurrenceId winningSeed, int clusterOrdinal) {}
 }

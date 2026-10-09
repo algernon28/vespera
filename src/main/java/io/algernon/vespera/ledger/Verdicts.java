@@ -24,12 +24,25 @@ public class Verdicts {
      * One page of {@link #survivors}: the run's walk's survivors after the last id read.
      */
     private static final String SURVIVORS_PAGE_SQL = "SELECT id FROM file_occurrence"
-            + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+            + " WHERE +walk_id = (SELECT walk_id FROM run WHERE id = ?)"
             + " AND NOT EXISTS (SELECT 1 FROM verdict"
             + " WHERE verdict.occurrence_id = file_occurrence.id"
             + " AND verdict.kind IN (%s)"
             + " AND verdict.run_id IN (%s))"
             + " AND id > ? ORDER BY id LIMIT " + KeysetPages.ROWS_IN_A_PAGE;
+
+    /**
+     * One statement of {@link #survivingAmong}: which of the named occurrences survive. The walk is
+     * compared as a value ({@code +walk_id}) so the planner looks each occurrence up by its key and does
+     * not search the walk's index (ADR-211 section 8). No {@code LIMIT}: the names are at most a page.
+     */
+    private static final String SURVIVING_AMONG_SQL = "SELECT id FROM file_occurrence"
+            + " WHERE +walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+            + " AND NOT EXISTS (SELECT 1 FROM verdict"
+            + " WHERE verdict.occurrence_id = file_occurrence.id"
+            + " AND verdict.kind IN (%s)"
+            + " AND verdict.run_id IN (%s))"
+            + " AND id IN (%s)";
 
     /**
      * One page of {@link #survivorsBySize}: the walk's survivors after the last row read. {@code size_bytes
@@ -191,6 +204,38 @@ public class Verdicts {
                 List.of(Long.MIN_VALUE),
                 (OccurrenceId last) -> List.of(last.value()),
                 (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("id")));
+    }
+
+    /**
+     * Those of {@code occurrences} that belong to {@code runId}'s walk and carry no blocking verdict under
+     * {@code runId} or any run upstream of it (ADR-156): the survivors among them, which a caller holding a
+     * page of ids asks instead of holding every survivor (ADR-211 section 5).
+     *
+     * <p>Asked in statements of at most 1,000 occurrences, each a lookup by key.
+     * Nothing is asked, not even the runs in scope, for an empty collection.
+     */
+    public Set<OccurrenceId> survivingAmong(RunId runId, Collection<OccurrenceId> occurrences) {
+        List<OccurrenceId> distinct = occurrences.stream().distinct().toList();
+        Set<OccurrenceId> surviving = new LinkedHashSet<>();
+        if (distinct.isEmpty()) {
+            return surviving;
+        }
+        List<String> runsInScope = runsInScope(runId);
+        String runPlaceholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
+        for (int from = 0; from < distinct.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
+            List<OccurrenceId> batch =
+                    distinct.subList(from, Math.min(from + KeysetPages.ROWS_IN_A_PAGE, distinct.size()));
+            String occurrencePlaceholders = batch.stream().map(id -> "?").collect(Collectors.joining(", "));
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(runId.value());
+            arguments.addAll(runsInScope);
+            batch.forEach(occurrence -> arguments.add(occurrence.value()));
+            surviving.addAll(jdbcTemplate.query(
+                    SURVIVING_AMONG_SQL.formatted(blockingKinds(), runPlaceholders, occurrencePlaceholders),
+                    (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("id")),
+                    arguments.toArray()));
+        }
+        return surviving;
     }
 
     /**

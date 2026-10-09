@@ -23,6 +23,12 @@ public interface ExtractionStatementProgress {
     /** Called at each callback of a counted statement with the steps taken so far, a whole number of 100,000. */
     default void stepsTaken(ExtractionStatement statement, long steps) {}
 
+    /**
+     * Called once after each page's rows of a read made a page of survivors at a time, with the rows read so
+     * far in that read, the earlier pages' included (ADR-211 section 9).
+     */
+    default void rowsRead(ExtractionStatement statement, long rows) {}
+
     /** Called once after {@code statement}, on every path but a throw. */
     default void statementEnded(ExtractionStatement statement) {}
 }

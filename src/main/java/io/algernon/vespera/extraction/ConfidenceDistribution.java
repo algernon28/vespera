@@ -3,16 +3,11 @@ package io.algernon.vespera.extraction;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.ledger.StatementSteps;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
-import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -49,11 +44,14 @@ import org.springframework.stereotype.Component;
  * same value as the HTML file, so the two outputs can never silently disagree (ADR-075).
  *
  * <p>Reads {@code extraction_metric} rows under stage 2's own run id, restricted to stage 2's
- * survivors — the same survivor set {@code similarity.DocumentFrequency} already computes off {@code
- * Verdicts#survivors(RunId)}, reused here rather than re-invented.
+ * survivors, which it asks of {@code Verdicts#survivors(RunId)} a page at a time and never holds as a set
+ * (ADR-211 section 2).
  */
 @Component
 public class ConfidenceDistribution {
+
+    /** The most occurrences one read of rows names: the ledger's own page of survivors. */
+    private static final int PAGE = 1_000;
 
     private final JdbcTemplate jdbcTemplate;
     private final Ledger ledger;
@@ -73,60 +71,38 @@ public class ConfidenceDistribution {
     }
 
     /**
-     * As {@link #measure(RunId, RunId)}, and tells {@code progress} about the two statements that wait, each
-     * started once before it and ended once after it (ADR-193 section 7): the drain of stage 2's survivors
-     * ({@link ExtractionStatement#SURVIVORS}, timed, so with no total), then the read of the metrics ({@link
-     * ExtractionStatement#EXTRACTION_METRICS}, counted, started with the span of stage 2's rows or an empty
-     * total where it holds none, given its steps at each callback of SQLite's handler). A statement that
-     * throws is not told to have ended.
+     * As {@link #measure(RunId, RunId)}, and tells {@code progress} about the read of the metrics ({@link
+     * ExtractionStatement#EXTRACTION_METRICS}): started once with the span of stage 2's rows, or an empty
+     * total where it holds none, given the rows read so far after each page of survivors, and ended once
+     * (ADR-211 section 9). A read that throws is not told to have ended.
+     *
+     * <p>Made a page of stage 2's survivors at a time, and that page's metric rows by key: no set of the
+     * survivors and no list of the scores is held (ADR-211 sections 2 and 7).
      */
     public Distribution measure(RunId stage3RunId, RunId extractionRunId, ExtractionStatementProgress progress) {
-        progress.statementStarting(ExtractionStatement.SURVIVORS, OptionalLong.empty());
-        // The whole survivor set is needed to test every extraction_metric row against, not one page of
-        // it: a departure from ADR-060 that ADR-209 section 2 states.
-        Set<Long> survivorIds = new HashSet<>();
-        for (OccurrenceId survivor : ledger.verdicts().survivors(extractionRunId)) {
-            survivorIds.add(survivor.value());
-        }
-        progress.statementEnded(ExtractionStatement.SURVIVORS);
-
         Map<QualityGrade, Long> countsByGrade = new EnumMap<>(QualityGrade.class);
         for (QualityGrade grade : QualityGrade.SCORED) {
             countsByGrade.put(grade, 0L);
         }
 
-        // Counted by SQLite's progress handler (ADR-193): it runs on the connection the template hands over
-        // and is never handed back to it.
         progress.statementStarting(
                 ExtractionStatement.EXTRACTION_METRICS,
                 ExtractionMetrics.metricRowsUpTo(jdbcTemplate, extractionRunId));
-        List<Double> scores = StatementSteps.counted(
-                jdbcTemplate,
-                steps -> progress.stepsTaken(ExtractionStatement.EXTRACTION_METRICS, steps),
-                connection -> {
-                    List<Double> read = new ArrayList<>();
-                    try (PreparedStatement select = connection.prepareStatement(
-                            "SELECT occurrence_id, mean_score FROM extraction_metric WHERE run_id = ?")) {
-                        select.setString(1, extractionRunId.value());
-                        try (ResultSet rows = select.executeQuery()) {
-                            while (rows.next()) {
-                                long occurrenceId = rows.getLong("occurrence_id");
-                                double score = rows.getDouble("mean_score");
-                                boolean scoreIsNull = rows.wasNull();
-                                read.add(!survivorIds.contains(occurrenceId) || scoreIsNull ? null : score);
-                            }
-                        }
-                    }
-                    return read;
-                });
-        progress.statementEnded(ExtractionStatement.EXTRACTION_METRICS);
-
-        for (Double score : scores) {
-            if (score == null) {
-                continue;
+        long rowsRead = 0;
+        List<OccurrenceId> page = new ArrayList<>(PAGE);
+        for (OccurrenceId survivor : ledger.verdicts().survivors(extractionRunId)) {
+            page.add(survivor);
+            if (page.size() == PAGE) {
+                rowsRead += countScoresOf(extractionRunId, page, countsByGrade);
+                progress.rowsRead(ExtractionStatement.EXTRACTION_METRICS, rowsRead);
+                page.clear();
             }
-            countsByGrade.merge(QualityGrade.of(score), 1L, Long::sum);
         }
+        if (!page.isEmpty()) {
+            rowsRead += countScoresOf(extractionRunId, page, countsByGrade);
+            progress.rowsRead(ExtractionStatement.EXTRACTION_METRICS, rowsRead);
+        }
+        progress.statementEnded(ExtractionStatement.EXTRACTION_METRICS);
 
         long refusedConversionCount = new ExtractionFaults(jdbcTemplate).countForRun(extractionRunId);
 
@@ -140,6 +116,30 @@ public class ConfidenceDistribution {
 
         write(stage3RunId, distribution);
         return distribution;
+    }
+
+    /**
+     * Reads the {@code mean_score} of the named survivors' metric rows under {@code extractionRunId} in one
+     * statement, adds each score that is not {@code NULL} to its grade, and returns how many rows it read.
+     */
+    private long countScoresOf(RunId extractionRunId, List<OccurrenceId> page, Map<QualityGrade, Long> countsByGrade) {
+        String placeholders = page.stream().map(id -> "?").collect(Collectors.joining(", "));
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(extractionRunId.value());
+        page.forEach(id -> arguments.add(id.value()));
+        long[] rows = {0};
+        jdbcTemplate.query(
+                "SELECT occurrence_id, mean_score FROM extraction_metric"
+                        + " WHERE run_id = ? AND occurrence_id IN (" + placeholders + ")",
+                resultSet -> {
+                    rows[0]++;
+                    double score = resultSet.getDouble("mean_score");
+                    if (!resultSet.wasNull()) {
+                        countsByGrade.merge(QualityGrade.of(score), 1L, Long::sum);
+                    }
+                },
+                arguments.toArray());
+        return rows[0];
     }
 
     /**

@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-209](0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md).** `Ledger.survivors` and `Ledger.occurrencesOf`, now `Verdicts.survivors` and `Occurrences.occurrencesOf`, read a page at a time through the application's `JdbcTemplate`, no longer through `JdbcPagingItemReader`. So the two reads §2.1 leaves outside the translator, and the last Consequence lists among what is not translated, are translated: a lock either meets is named as §2.2 says. The two passages are marked below. Everything else in this record stands.
 
+> **Extended — see [ADR-211](0211-no-class-holds-every-survivor-of-a-run-another-tables-rows-are-read-a-page-of-survivors-at-a-time.md).** The process does one thing more while its environment is prepared, before any connection pool exists. After the working directory is created, its lock taken as this record has it, and its profile's shape checked, a fourth listener that `VesperaApplication.main` registers, `TemporaryFilesInTheWorkingDirectory`, sets SQLite's directory for temporary files to the working directory, once, on a connection of its own to no database. It is registered last, so a start refused for a working directory in use never reaches it and changes nothing of SQLite's; and where SQLite refuses the directory, the start ends there. ADR-211 changes nothing this record decided.
+
 - **Date**: 2026-10-03
 - **Status**: accepted
 - **Settles**: [#364](https://github.com/algernon28/vespera/issues/364).
