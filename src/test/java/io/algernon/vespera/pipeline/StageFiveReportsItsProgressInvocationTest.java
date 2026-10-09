@@ -313,6 +313,7 @@ class StageFiveReportsItsProgressInvocationTest {
     @Test
     @Story("The relevance floor says how many verdicts it writes, and says nothing where it writes none")
     @DisplayName("A floor that removes every document counts its verdicts, and one that is unset has nothing to count")
+    @Link(name = "ADR-214", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
     void theRelevanceFloorCountsTheVerdictsItWrites(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         profile(seeds, null);
@@ -380,14 +381,15 @@ class StageFiveReportsItsProgressInvocationTest {
                                 StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 1"))));
         claim(
-                "with a threshold that is a number and applies, the floor step makes three reads and says so of"
-                        + " each, in order: the embedder identities, the recorded answers the threshold is"
-                        + " checked against, and the scores below it",
+                "with a threshold that is a number and applies, the floor step makes two reads and a count and says"
+                        + " so of each, in order: the embedder identities, the recorded answers the threshold is"
+                        + " checked against, and a count of the scores below it, which it then goes through a page"
+                        + " at a time inside the counter of its verdicts rather than reading them all first",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_E))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_E, EMBEDDER_IDENTITIES),
                                 StatementLines.timedRead(STAGE_FIVE_E, RECORDED_ANSWERS),
-                                StatementLines.timedRead(STAGE_FIVE_E, "the scores below the floor"))));
+                                StatementLines.timedCount(STAGE_FIVE_E, "the scores below the floor"))));
         claim(
                 "and the report reads the recorded answers a second time, for the same check of the threshold,"
                         + " between its two reads of the embedder identities, and says so in the report's own"

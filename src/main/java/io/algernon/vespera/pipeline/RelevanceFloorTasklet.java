@@ -6,7 +6,6 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
-import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -141,20 +140,26 @@ class RelevanceFloorTasklet implements Tasklet {
                     elsewhere.calibratedUnder(),
                     elsewhere.currentIdentity());
             case RelevanceFloor.Applicable applicable -> {
-                List<OccurrenceId> below = TimedStatement.of(
-                        STAGE, "reading", "read", "the scores below the floor", () -> relevanceScoring.scoredBelow(scoring, applicable.value()));
-                StageProgress written = StageProgress.over(
-                        "Stage 5e (relevance floor, below-threshold verdicts)", below.size());
-                for (OccurrenceId occurrenceId : below) {
-                    ledger.verdicts().verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, REASON);
-                    written.itemDone();
-                }
+                // Counted, then written a page at a time: nothing holds every occurrence below the floor
+                // (ADR-214 section 5). The verdicts of a page go in the step's one transaction before the
+                // next page is read.
+                long below = TimedStatement.of(
+                        STAGE, "counting", "counted", "the scores below the floor",
+                        () -> relevanceScoring.countScoredBelow(scoring, applicable.value()));
+                StageProgress written =
+                        StageProgress.over("Stage 5e (relevance floor, below-threshold verdicts)", below);
+                relevanceScoring.eachPageScoredBelow(scoring, applicable.value(), page -> {
+                    for (OccurrenceId occurrenceId : page) {
+                        ledger.verdicts().verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, REASON);
+                        written.itemDone();
+                    }
+                });
                 LOG.info(
                         "Stage 5e (relevance floor) finished under scoring run {}: threshold {}, {}"
                                 + " survivor(s) removed as below-threshold",
                         scoring.value(),
                         applicable.value(),
-                        below.size());
+                        below);
             }
         }
         return RepeatStatus.FINISHED;

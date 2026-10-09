@@ -1,12 +1,12 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.ledger.RemovedOccurrence;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.RunId;
 import java.io.IOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
@@ -20,8 +20,8 @@ import org.springframework.batch.core.step.StepExecution;
  *
  * <p><b>Registered before {@link ExtractionHealthCheckListener} in {@link ExtractionJobConfiguration},
  * deliberately.</b> Spring Batch runs {@code afterStep} in the reverse of registration order, and this
- * has to run after {@link ExtractionFaultRecorder}, registered last, has turned the skips it held into
- * verdicts: registered after that one, this would list the stage without them.
+ * has to run after {@link ExtractionFaultRecorder}, registered last, has turned the fault rows it wrote
+ * into verdicts: registered after that one, this would list the stage without them.
  *
  * <p>Holds {@link StageRuns} rather than asking it for the run when built, for the reason {@link
  * ExtractionFaultRecorder} gives (#319): a step that failed its health check first builds this object
@@ -57,28 +57,31 @@ class ReviewListListener implements StepExecutionListener {
         if (!completed && stepExecution.getReadCount() == 0) {
             return stepExecution.getExitStatus();
         }
-        List<RemovedOccurrence> failures = TimedStatement.of(
+        RunId run = stageRuns.extraction();
+        long failures = TimedStatement.of(
                 "Stage 2 (extraction)", "reading", "read",
                 "the occurrences it could not read",
-                () -> ledger.verdicts().extractionFailures(stageRuns.extraction()));
+                () -> ledger.verdicts().extractionFailureCount(run));
         Path page = workingDirectory.resolve(FILE_NAME);
         try {
             Files.createDirectories(workingDirectory);
-            Files.writeString(page, ReviewListReport.render(failures), StandardCharsets.UTF_8);
+            try (Writer out = Files.newBufferedWriter(page, StandardCharsets.UTF_8)) {
+                ReviewListReport.write(out, failures, each -> ledger.verdicts().eachExtractionFailure(run, each));
+            }
         } catch (IOException e) {
             // Said, not thrown: Spring Batch only logs what an afterStep throws, with a stack trace, and
             // skips the listeners after it. The verdicts are in the ledger either way.
             log.error(
                     "Stage 2 (extraction): {} file(s) could not be read, and the list of them could not be"
                             + " written to {}: {}",
-                    failures.size(),
+                    failures,
                     page.toAbsolutePath(),
                     e.toString());
             return stepExecution.getExitStatus();
         }
         log.info(
                 "Stage 2 (extraction): {} file(s) could not be read; they are listed in {}",
-                failures.size(),
+                failures,
                 page.toAbsolutePath());
         return stepExecution.getExitStatus();
     }

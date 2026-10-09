@@ -1,5 +1,7 @@
 # ADR-181 — A stopped stage 2 resumes from what its committed chunks recorded, and redoes only the rest
 
+> **Partly amended — see [ADR-214](0214-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md).** In §1, the fault rows are no longer only the end of the step's work: each is written in the chunk that set its occurrence aside, so a stopped invocation leaves those of its committed chunks, which the reader deletes, with the verdicts they resolved, as below. It deletes them a page of the run's fault rows at a time, each page's verdicts before the next page is read and the rows after the last. And *Read*'s filter is asked of `extraction` a page of survivors at a time, which of the page carry an `extraction_metric` row under the run, where it was a set of every occurrence the stopped run measured; the resume line's count of them is counted and not held. What is recorded, kept, deleted and said stands.
+
 - **Date**: 2026-10-03
 - **Status**: accepted
 - **Amends**: [ADR-115](0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md) — **its run half's discard rule, for the `extraction` step only.** *"A run that exists and is unfinished: the step discards its own rows under that id and does the work again"* no longer holds for stage 2. Its walk half, its mint-or-continue `startRun`, its finished-step skip, its `verdict` uniqueness and its 6b exception are untouched, and so is the discard rule for every other step.

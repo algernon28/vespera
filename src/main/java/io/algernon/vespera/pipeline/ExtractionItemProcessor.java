@@ -167,16 +167,21 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         // denominator is what the reader yields this invocation (ADR-093), not the whole survivor set.
         RunId extractionRun = stageRuns.extraction();
         this.judge = new OccurrenceJudge(extractionMetrics, failuresInARow, extractionRun, confidenceFloor.value());
-        // One wait to the operator, so one timed span over the whole expression: the read of the occurrences
-        // already recorded inside the argument, and the drain or the count after it (ADR-193 section 6,
-        // ADR-199 section 1). Neither is given a pair of lines of its own.
+        // One wait to the operator, so one timed span over the whole expression: the count of the survivors
+        // still to read, made by the ledger where the run recorded nothing and by going through the survivors
+        // a page at a time, asking which of each page were recorded, where it did (ADR-214 section 2). Neither
+        // is given a pair of lines of its own.
         this.progress = StageProgress.over(
                 "Stage 2 (extraction)",
                 TimedStatement.of(
                         "Stage 2 (extraction)", "counting", "counted",
                         "the survivors still to read",
-                        () -> UnrecordedOccurrences.countOver(
-                                ledger, extractionRun, extractionMetrics.occurrencesForRun(extractionRun))));
+                        () -> extractionMetrics.metricRowsUpTo(extractionRun).isEmpty()
+                                ? ledger.verdicts().survivorCount(extractionRun)
+                                : UnrecordedOccurrences.countOver(
+                                        ledger,
+                                        extractionRun,
+                                        page -> extractionMetrics.recordedAmong(extractionRun, page))));
     }
 
     @Override

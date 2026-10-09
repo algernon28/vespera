@@ -56,12 +56,23 @@ final class ReportPage {
      * @param body everything between {@code <body>} and {@code </body>}, already assembled
      */
     static String render(String title, String body) {
+        return head(title) + body + tail();
+    }
+
+    /**
+     * Everything of a page before its body: what {@link #render} writes first. Apart from {@link #render}
+     * for a page written as its rows come, which never holds its body whole (ADR-214 section 6).
+     */
+    static String head(String title) {
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n"
                 + "<title>" + escape(title) + "</title>\n<style>\n"
                 + STYLES
-                + "</style>\n</head>\n<body>\n"
-                + body
-                + "</body>\n</html>\n";
+                + "</style>\n</head>\n<body>\n";
+    }
+
+    /** Everything of a page after its body: what {@link #render} writes last. */
+    static String tail() {
+        return "</body>\n</html>\n";
     }
 
     /**

@@ -130,7 +130,7 @@ public class ClusterGeneration {
         }
         // Completion needs two things (ADR-116): no unsendable cluster, and no fault row standing.
         progress.statementStarting(SynthesisStatement.STANDING_FAULTS, OptionalLong.empty());
-        int standingFaults = clusterFaults.forRun(generation).size();
+        int standingFaults = clusterFaults.countForRun(generation);
         progress.statementEnded(SynthesisStatement.STANDING_FAULTS);
         if (!unsendable.isEmpty() || standingFaults > 0) {
             return new GenerationOutcome.LeftUnfinished(standingFaults, faulted, frozen(unsendable));

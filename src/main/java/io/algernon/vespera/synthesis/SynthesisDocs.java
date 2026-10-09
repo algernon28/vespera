@@ -128,4 +128,11 @@ public class SynthesisDocs {
                 runId.value());
         return sent;
     }
+
+    /** How many synthesis docs are recorded under {@code runId}. A count the database makes, reading no column of any row (ADR-214 section 7). */
+    public int countForRun(RunId runId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM synthesis_doc WHERE run_id = ?", Integer.class, runId.value());
+        return count == null ? 0 : count;
+    }
 }

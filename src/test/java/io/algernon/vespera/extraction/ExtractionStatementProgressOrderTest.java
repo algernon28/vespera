@@ -25,7 +25,6 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalLong;
-import java.util.Set;
 import java.util.function.BiFunction;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +39,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.StreamUtils;
 
 /**
- * What {@code extraction} tells its caller around each of stage 2's two resume reads, and in which order
+ * What {@code extraction} tells its caller around stage 2's counted resume read, and in which order
  * (ADR-199 section 2, ADR-193 sections 7 and 8, #429): {@code statementStarting} once before the read,
  * always, with the span of the run's rows or an empty total where it holds none; {@code stepsTaken} at each
  * callback of SQLite's handler; {@code statementEnded} once after it, on every path but one that throws. A
@@ -54,11 +53,17 @@ import org.springframework.util.StreamUtils;
  *
  * <p>Each test runs once for each read, against a database file of its own under the shipped {@code
  * schema.sql}, with rows of an earlier run in the same table that the read must not go through.
+ *
+ * <p>Since ADR-214 one read is left here, of the occurrences a stopped run measured, and it counts them where
+ * it held them: the reader asks a page of survivors at a time which it recorded. The other, of the faults, is
+ * read a page of fault rows at a time and told the rows it has read, and is held by {@code
+ * FaultsAreReadAPageAtATimeTest}.
  */
 @Epic("Extraction")
 @Feature("Progress reporting")
 @Issue("429")
 @Link(name = "ADR-199", url = Adr.THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE, type = "adr")
+@Link(name = "ADR-214", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class ExtractionStatementProgressOrderTest {
 
     private static final int TWO_CONNECTIONS = 2;
@@ -83,12 +88,10 @@ class ExtractionStatementProgressOrderTest {
      * call that reads it.
      */
     enum ResumeRead {
-        FAULTS("the read of a stopped run's faults", ExtractionStatement.FAULTED_OCCURRENCES, "extraction_fault",
-                (jdbcTemplate, run) -> progress -> new ExtractionFaults(jdbcTemplate).occurrencesForRun(run, progress)),
-        MEASURED("the read of the occurrences a stopped run measured", ExtractionStatement.RECORDED_OCCURRENCES,
+        MEASURED("the count of the occurrences a stopped run measured", ExtractionStatement.RECORDED_OCCURRENCES,
                 "extraction_metric",
                 (jdbcTemplate, run) -> progress -> new ExtractionMetrics(jdbcTemplate, new LanguageDetection())
-                        .occurrencesForRun(run, progress));
+                        .recordedCount(run, progress));
 
         final String described;
         final ExtractionStatement statement;
@@ -115,7 +118,7 @@ class ExtractionStatementProgressOrderTest {
 
     @FunctionalInterface
     interface Read {
-        Set<OccurrenceId> with(ExtractionStatementProgress progress);
+        long with(ExtractionStatementProgress progress);
     }
 
     @TempDir
@@ -156,16 +159,15 @@ class ExtractionStatementProgressOrderTest {
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(ResumeRead.class)
-    @Story("A read of a stopped run's faults reports how far it has gone")
     @Story("A read of the occurrences a stopped run measured reports how far it has gone")
     @DisplayName("A run that holds no row is told with an empty total, then that the read ended, and nothing between")
     void aRunThatHoldsNoRowIsToldWithAnEmptyTotal(ResumeRead resumeRead) throws SQLException {
         writeRows(resumeRead, EARLIER_RUN, FEW);
         Recorder recorder = new Recorder();
 
-        Set<OccurrenceId> read = resumeRead.read.apply(jdbcTemplate, RUN_READ).with(recorder);
+        long read = resumeRead.read.apply(jdbcTemplate, RUN_READ).with(recorder);
 
-        claim("the read finds nothing under a run that holds no row", () -> assertThat(read).isEmpty());
+        claim("the read counts nothing under a run that holds no row", () -> assertThat(read).isZero());
         claim(
                 "the caller is told the read is starting, with an empty total, and then that it ended, and"
                         + " nothing else: it is the caller, not the code that reads, that decides nothing is said",
@@ -176,7 +178,6 @@ class ExtractionStatementProgressOrderTest {
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(ResumeRead.class)
-    @Story("A read of a stopped run's faults reports how far it has gone")
     @Story("A read of the occurrences a stopped run measured reports how far it has gone")
     @DisplayName("A run that holds a few rows is told the span of its rows before the read, then that it ended")
     void aRunThatHoldsAFewRowsIsToldItsSpan(ResumeRead resumeRead) throws SQLException {
@@ -184,11 +185,11 @@ class ExtractionStatementProgressOrderTest {
         List<OccurrenceId> written = writeRows(resumeRead, RUN_READ, FEW);
         Recorder recorder = new Recorder();
 
-        Set<OccurrenceId> read = resumeRead.read.apply(jdbcTemplate, RUN_READ).with(recorder);
+        long read = resumeRead.read.apply(jdbcTemplate, RUN_READ).with(recorder);
 
         claim(
-                "the read finds the run's own " + FEW + " occurrences and none of the earlier run's",
-                () -> assertThat(read).containsExactlyInAnyOrderElementsOf(written));
+                "the read counts the run's own " + FEW + " occurrences and none of the earlier run's",
+                () -> assertThat(read).isEqualTo(written.size()));
         claim(
                 "the caller is told the read is starting, over up to the " + FEW + " rows the run holds, and then"
                         + " that it ended: so few rows make no callback between",
@@ -199,7 +200,6 @@ class ExtractionStatementProgressOrderTest {
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(ResumeRead.class)
-    @Story("A read of a stopped run's faults reports how far it has gone")
     @Story("A read of the occurrences a stopped run measured reports how far it has gone")
     @DisplayName("A read over many rows reports its steps between its start and its end, so it ran on the connection the handler was set on")
     void aReadOverManyRowsReportsItsStepsBetween(ResumeRead resumeRead) throws SQLException {
@@ -207,9 +207,9 @@ class ExtractionStatementProgressOrderTest {
         writeRows(resumeRead, RUN_READ, MANY);
         Recorder recorder = new Recorder();
 
-        Set<OccurrenceId> read = resumeRead.read.apply(jdbcTemplate, RUN_READ).with(recorder);
+        long read = resumeRead.read.apply(jdbcTemplate, RUN_READ).with(recorder);
 
-        claim("the read finds every one of the run's " + MANY + " occurrences", () -> assertThat(read).hasSize(MANY));
+        claim("the read counts every one of the run's " + MANY + " occurrences", () -> assertThat(read).isEqualTo(MANY));
         claim(
                 "the caller is told first that the read is starting, over up to " + MANY + " rows, and last that"
                         + " it ended",
@@ -234,7 +234,6 @@ class ExtractionStatementProgressOrderTest {
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(ResumeRead.class)
-    @Story("A read of a stopped run's faults reports how far it has gone")
     @Story("A read of the occurrences a stopped run measured reports how far it has gone")
     @DisplayName("A read that throws is not said to have ended, and leaves no handler behind")
     void aReadThatThrowsIsNotSaidToHaveEnded(ResumeRead resumeRead) throws SQLException {
@@ -297,8 +296,6 @@ class ExtractionStatementProgressOrderTest {
      */
     private List<OccurrenceId> writeRows(ResumeRead resumeRead, RunId run, int rows) throws SQLException {
         String insert = switch (resumeRead) {
-            case FAULTS -> "INSERT INTO extraction_fault (occurrence_id, run_id, category, detail)"
-                    + " VALUES (?, ?, 'category', 'detail')";
             case MEASURED -> "INSERT INTO extraction_metric (occurrence_id, run_id, status, processing_time,"
                     + " character_count, alphanumeric_char_count, word_count, word_character_length_total,"
                     + " vowelless_word_count, single_character_word_count)"

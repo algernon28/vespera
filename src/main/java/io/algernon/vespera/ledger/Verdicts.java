@@ -8,6 +8,7 @@ import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -126,22 +127,36 @@ public class Verdicts {
     }
 
     /**
-     * Every occurrence carrying {@code extraction-failed} under {@code runId}, with its path and the
-     * verdict's reason, in path order (ADR-175): what stage 2 lists for review once it ends. Read under
-     * the run, so after a resume it covers what earlier invocations of that run recorded too (ADR-181
-     * section 5).
+     * Hands each occurrence carrying {@code extraction-failed} under {@code runId} to {@code failure}, with
+     * its path and the verdict's reason, in path order (ADR-175), as the row is read and keeping none
+     * (ADR-214 section 6): what stage 2 lists for review once it ends. Read under the run, so after a
+     * resume it covers what earlier invocations of that run recorded too (ADR-181 section 5).
+     *
+     * <p>{@code failure} runs while the statement is open, so it must not ask the ledger anything.
      */
-    public List<RemovedOccurrence> extractionFailures(RunId runId) {
-        return jdbcTemplate.query(
+    public void eachExtractionFailure(RunId runId, Consumer<RemovedOccurrence> failure) {
+        jdbcTemplate.query(
                 "SELECT v.occurrence_id, o.path, v.reason FROM verdict v"
                         + " JOIN file_occurrence o ON o.id = v.occurrence_id"
                         + " WHERE v.run_id = ? AND v.kind = ? ORDER BY o.path",
-                (resultSet, rowNumber) -> new RemovedOccurrence(
-                        new OccurrenceId(resultSet.getLong("occurrence_id")),
-                        resultSet.getString("path"),
-                        resultSet.getString("reason")),
+                resultSet -> {
+                    failure.accept(new RemovedOccurrence(
+                            new OccurrenceId(resultSet.getLong("occurrence_id")),
+                            resultSet.getString("path"),
+                            resultSet.getString("reason")));
+                },
                 runId.value(),
                 VerdictKind.EXTRACTION_FAILED.name());
+    }
+
+    /** How many occurrences carry {@code extraction-failed} under {@code runId}: what {@link #eachExtractionFailure} hands over. */
+    public long extractionFailureCount(RunId runId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = ?",
+                Long.class,
+                runId.value(),
+                VerdictKind.EXTRACTION_FAILED.name());
+        return count == null ? 0 : count;
     }
 
     /**

@@ -12,6 +12,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,8 +22,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Walk anomalies as {@code corpus} records them: not a verdict, so not in the ledger (ADR-041) —
- * read back through the same seam a real caller would use, not through the columns underneath.
+ * Walk anomalies as {@code corpus} records them: not a verdict, so not in the ledger (ADR-041). They were read
+ * back through the seam a real caller used, {@code anomaliesForWalk}; since ADR-214 no caller is handed a whole
+ * walk's anomalies, the census only asking whether two walks recorded the same ({@code SameAnomaliesTest}), so
+ * they are read back here by a statement of this test's own.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -48,8 +51,18 @@ class AnomalyLogTest {
 
         claim(
                 "the anomaly recorded against this walk is read back exactly as it was written",
-                () -> assertThat(anomalyLog.anomaliesForWalk(walkId))
+                () -> assertThat(anomaliesAgainst(walkId))
                         .containsExactly(new RecordedAnomaly(
                                 "orphan.txt", WalkAnomalyKind.UNENCODABLE_PATH, "no UTF-8 encoding")));
+    }
+
+    private List<RecordedAnomaly> anomaliesAgainst(WalkId walkId) {
+        return jdbcTemplate.query(
+                "SELECT path_rendering, kind, detail FROM walk_anomaly WHERE walk_id = ? ORDER BY id",
+                (resultSet, rowNumber) -> new RecordedAnomaly(
+                        resultSet.getString("path_rendering"),
+                        WalkAnomalyKind.valueOf(resultSet.getString("kind")),
+                        resultSet.getString("detail")),
+                walkId.value());
     }
 }

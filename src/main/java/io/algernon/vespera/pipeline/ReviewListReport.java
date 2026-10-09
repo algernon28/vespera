@@ -1,7 +1,10 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.RemovedOccurrence;
-import java.util.List;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.io.Writer;
+import java.util.function.Consumer;
 
 /**
  * Renders the review list of files stage 2 could not read as one self-contained HTML file (ADR-175
@@ -21,27 +24,47 @@ import java.util.List;
  */
 final class ReviewListReport {
 
+    private static final String TITLE = "Files stage 2 could not read";
+
     private ReviewListReport() {}
 
-    /** The page for {@code failures}, which arrive in path order. */
-    static String render(List<RemovedOccurrence> failures) {
-        StringBuilder body = new StringBuilder();
-        body.append(ReportPage.heading(1, "Files stage 2 could not read"));
-        if (failures.isEmpty()) {
-            body.append(ReportPage.paragraph("No file failed. Stage 2 read every file it was given."));
-            return ReportPage.render("Files stage 2 could not read", body.toString());
+    /**
+     * Writes the page for {@code count} failures to {@code out}, the rows as {@code eachFailure} hands them
+     * over, in path order, and builds no string of the whole (ADR-214 section 6). It is the page {@link
+     * ReportPage#render} would make of the same rows, byte for byte.
+     *
+     * @param count how many failures {@code eachFailure} will hand over: the heading says so before any row
+     * @param eachFailure hands each failure to the consumer it is given, once
+     * @throws IOException if {@code out} refuses a write, including while {@code eachFailure} is handing over rows
+     */
+    static void write(Writer out, long count, Consumer<Consumer<RemovedOccurrence>> eachFailure)
+            throws IOException {
+        out.write(ReportPage.head(TITLE));
+        out.write(ReportPage.heading(1, TITLE));
+        if (count == 0) {
+            out.write(ReportPage.paragraph("No file failed. Stage 2 read every file it was given."));
+        } else {
+            out.write(ReportPage.paragraph("Files that could not be read: " + count
+                    + ". Each was marked and skipped; the run went on. They stay removed under this"
+                    + " run. A file whose reason begins with could not be read, rejected, crashed the converter, timeout,"
+                    + " capacity, target_unavailable or internal left nothing stored, so the next run of"
+                    + " this stage asks the converter about it again."));
+            out.write("<table>\n");
+            out.write(ReportPage.headerRow("Path", "Why"));
+            try {
+                eachFailure.accept(failure -> {
+                    try {
+                        out.write(ReportPage.row(
+                                ReportPage.textCell(failure.path()), ReportPage.textCell(failure.reason())));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+            } catch (UncheckedIOException e) {
+                throw e.getCause();
+            }
+            out.write("</table>\n");
         }
-        body.append(ReportPage.paragraph("Files that could not be read: " + failures.size()
-                        + ". Each was marked and skipped; the run went on. They stay removed under this"
-                        + " run. A file whose reason begins with could not be read, rejected, crashed the converter, timeout,"
-                        + " capacity, target_unavailable or internal left nothing stored, so the next run of"
-                        + " this stage asks the converter about it again."));
-        StringBuilder rows = new StringBuilder();
-        for (RemovedOccurrence failure : failures) {
-            rows.append(ReportPage.row(
-                    ReportPage.textCell(failure.path()), ReportPage.textCell(failure.reason())));
-        }
-        body.append(ReportPage.table(ReportPage.headerRow("Path", "Why"), rows.toString()));
-        return ReportPage.render("Files stage 2 could not read", body.toString());
+        out.write(ReportPage.tail());
     }
 }

@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.springframework.stereotype.Component;
 
 /**
@@ -109,8 +110,18 @@ public class RelevanceScoring {
         return scores;
     }
 
-    public List<OccurrenceId> scoredBelow(RunId runId, double floor) {
-        return scoreCache.scoredBelow(runId, floor);
+    /** How many occurrences {@code runId} scored strictly below {@code floor} (ADR-214 section 5). */
+    public long countScoredBelow(RunId runId, double floor) {
+        return scoreCache.countScoredBelow(runId, floor);
+    }
+
+    /**
+     * Hands the occurrences {@code runId} scored strictly below {@code floor} to {@code page}, a page of up
+     * to 1,000 at a time in the order the scores were written, each once its statement has finished
+     * (ADR-214 section 5).
+     */
+    public void eachPageScoredBelow(RunId runId, double floor, Consumer<List<OccurrenceId>> page) {
+        scoreCache.eachPageScoredBelow(runId, floor, page);
     }
 
     /**

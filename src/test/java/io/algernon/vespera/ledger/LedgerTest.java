@@ -51,9 +51,24 @@ class LedgerTest {
         claim(
                 "the occurrence recorded against this walk is read back exactly as it was written, creation"
                         + " time included",
-                () -> assertThat(ledger.occurrences().occurrencesForWalk(walkId))
+                () -> assertThat(recordedAgainst(walkId))
                         .containsExactly(new RecordedOccurrence(
                                 new OccurrencePath("a/b.txt"), 10, lastModified, creationTime)));
+    }
+
+    /**
+     * What the walk recorded, read by a statement of this test's own: since ADR-214 the ledger hands no caller
+     * a whole walk, and asks only whether two walks recorded the same.
+     */
+    private List<RecordedOccurrence> recordedAgainst(WalkId walkId) {
+        return jdbcTemplate.query(
+                "SELECT path, size_bytes, last_modified, creation_time FROM file_occurrence WHERE walk_id = ? ORDER BY id",
+                (resultSet, rowNumber) -> new RecordedOccurrence(
+                        new OccurrencePath(resultSet.getString("path")),
+                        resultSet.getLong("size_bytes"),
+                        Instant.parse(resultSet.getString("last_modified")),
+                        Instant.parse(resultSet.getString("creation_time"))),
+                walkId.value());
     }
 
     /** A stage name for the run rows below. */

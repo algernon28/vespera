@@ -1,5 +1,7 @@
 # ADR-088 — The relevance threshold is read off a stratified sample of sixty labels, and an unset floor does not stop the run
 
+> **Partly amended — see [ADR-214](0214-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md).** The draw in the table below: each band's twelve are no longer the first twelve of the band shuffled whole by a generator seeded from the run id, but the twelve of least key, in ascending order of key, the key of an occurrence SplitMix64's finaliser applied to the band's seed, the same FNV-1a fold of the run id plus the band's ordinal, exclusive-or the occurrence's number, compared as an unsigned number. The scores are read a page at a time and no band is held whole. *Deterministic, seeded from the run id* stands, and the same run always asks about the same sixty; a run asks about other sixty than the shuffle drew for it. Everything else in this record stands.
+
 - **Date**: 2026-09-06
 - **Status**: accepted
 - **Amends**: [ADR-028](0028-relevance-threshold-human-labelling-gated-by-score-distribution.md) — its "sampled human labelling **at the candidate cut**" becomes a stratified sample across the observed score range, and its go/no-go becomes a report rather than an engine refusal

@@ -11,14 +11,17 @@ import java.util.OptionalInt;
  * each declaration here to that measurement.
  *
  * <p>The constants come in the order the statements are issued: the two reads stage 2's reader makes
- * before a resume, then the read of {@link ConfidenceDistribution#measure}.
+ * before a resume, the first made a page at a time, then the read of {@link ConfidenceDistribution#measure}.
  */
 public enum ExtractionStatement {
 
-    /** {@link ExtractionFaults#occurrencesForRun}: the occurrences a run holds a fault row for. */
-    FAULTED_OCCURRENCES(5),
+    /**
+     * {@link ExtractionFaults#eachPageOfFaulted}: the occurrences a run holds a fault row for, read a page of
+     * fault rows at a time and reported by the rows read, so with no steps a row (ADR-214 section 2).
+     */
+    FAULTED_OCCURRENCES,
 
-    /** {@link ExtractionMetrics#occurrencesForRun}: the occurrences a run holds a metrics row for. */
+    /** {@link ExtractionMetrics#recordedCount}: the occurrences a run holds a metrics row for, counted. */
     RECORDED_OCCURRENCES(5),
 
     /**

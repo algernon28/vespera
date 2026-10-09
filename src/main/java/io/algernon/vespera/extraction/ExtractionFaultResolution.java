@@ -4,69 +4,76 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Holds the set-aside occurrences of one step and resolves them at its end (ADR-139 sections 2 and 3).
+ * Records the occurrences one step sets aside as it sets them aside, and resolves them at its end (ADR-139
+ * section 3, ADR-214 section 14).
  *
- * <p>Holding writes nothing: the chunk that produced a skip is still open, and a second write
- * connection would be the contention ADR-127's busy timeout exists to survive (ADR-139 section 2). The
- * list is a plain {@link ArrayList}, touched on the step thread only (ADR-140 section 3).
+ * <p>{@link #record} writes the fault row at once, on whatever transaction its caller holds. Spring Batch
+ * hears a skip in processing inside the chunk's own transaction, on the step's thread, so the row goes on the
+ * chunk's connection and commits or rolls back with its chunk (ADR-214 section 14, held of the library the
+ * build ships by {@code ASetAsideIsHeardInsideItsChunksTransactionTest}). Nothing is held to the end of the
+ * step: this class has no field that can hold more than one value, and what it remembers of the step is the
+ * one fact that something was recorded.
  *
- * <p>Resolution writes each held fault under the run and, where the step completed, also
- * {@code extraction-failed} against it: a step that completed is one in which the converter answered
- * for every faulted occurrence's neighbours, so each refusal reads as a property of the file. A step
- * that stopped leaves the fault rows standing and writes no verdict.
+ * <p>{@link #resolve} reads the run's fault rows back a page at a time and, where the step completed, writes
+ * {@code extraction-failed} against each: a step that completed is one in which the converter answered for
+ * every faulted occurrence's neighbours, so each refusal reads as a property of the file. A step that stopped
+ * leaves the fault rows standing and writes no verdict.
  */
 public final class ExtractionFaultResolution {
 
     private final ExtractionFaults faults;
     private final Ledger ledger;
-    private final List<Held> held = new ArrayList<>();
+    private boolean recorded;
 
     public ExtractionFaultResolution(ExtractionFaults faults, Ledger ledger) {
         this.faults = faults;
         this.ledger = ledger;
     }
 
-    /** Holds one, writing nothing. */
-    public void hold(OccurrenceId occurrence, String category, String detail) {
-        held.add(new Held(occurrence, category, detail));
+    /**
+     * Writes the fault row for {@code occurrence} under {@code run}, at once, on the transaction the caller
+     * holds, and no verdict.
+     */
+    public void record(OccurrenceId occurrence, RunId run, String category, String detail) {
+        faults.write(occurrence, run, category, detail);
+        recorded = true;
     }
 
-    public boolean nothingHeld() {
-        return held.isEmpty();
+    /** Whether this instance has recorded no fault: nothing of this step is left to resolve. */
+    public boolean nothingRecorded() {
+        return !recorded;
     }
 
     /**
-     * Writes every held fault under {@code run}, in the order held; where {@code completed}, also writes
-     * {@code extraction-failed} against each with the reason {@code category + ": " + detail}. In the
-     * caller's transaction. Reports nothing.
+     * As {@link #resolve(RunId, boolean, FaultResolutionProgress)}, reporting nothing.
      */
     public void resolve(RunId run, boolean completed) {
         resolve(run, completed, FaultResolutionProgress.NONE);
     }
 
     /**
-     * As {@link #resolve(RunId, boolean)}, and tells {@code progress} the number of faults held once,
-     * before the first is written (zero included), and each fault resolved after it is written, and
-     * verdicted where the step completed (ADR-192 section 5).
+     * Where {@code completed}: tells {@code progress} the number of fault rows the run holds once (zero
+     * included), reads them a page of up to 1,000 at a time, writes {@code extraction-failed} against each
+     * with the reason {@code category + ": " + detail}, and tells {@code progress} each fault resolved after
+     * its verdict is written (ADR-192 section 5). In the caller's transaction. Where the step stopped: writes
+     * nothing and tells nothing, the fault rows already standing.
      */
     public void resolve(RunId run, boolean completed, FaultResolutionProgress progress) {
-        progress.toResolve(held.size());
-        for (Held fault : held) {
-            faults.write(fault.occurrence(), run, fault.category(), fault.detail());
-            if (completed) {
+        if (!completed) {
+            return;
+        }
+        progress.toResolve(faults.countForRun(run));
+        faults.eachPageOfRows(run, page -> {
+            for (ExtractionFaults.FaultRow fault : page) {
                 ledger.verdicts().verdict(
                         fault.occurrence(),
                         run,
                         VerdictKind.EXTRACTION_FAILED,
                         fault.category() + ": " + fault.detail());
+                progress.faultResolved();
             }
-            progress.faultResolved();
-        }
+        });
     }
-
-    private record Held(OccurrenceId occurrence, String category, String detail) {}
 }

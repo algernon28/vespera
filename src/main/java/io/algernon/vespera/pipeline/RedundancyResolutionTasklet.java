@@ -101,11 +101,12 @@ class RedundancyResolutionTasklet implements Tasklet {
 
     /**
      * Stage 4b's six counters: each made when {@code similarity} announces its loop, and ticked as it
-     * reports (ADR-192 sections 4 and 5). The candidates counter has no total and is opened with the
-     * containment loop it sits in. It also writes the lines of the four reads among the loops, as {@code
-     * similarity} reports each (ADR-193 section 7, ADR-204 section 3): the signed occurrences, counted, which
-     * says nothing where nothing is signed, and the signature bands, the near-duplicates' extraction metrics
-     * and the shingle document frequencies, timed.
+     * reports (ADR-192 sections 4 and 5). The near-duplicate candidates counter counts signed occurrences,
+     * whose pairs are scored a page at a time (ADR-214 section 4). The containment candidates counter has no
+     * total and is opened with the containment loop it sits in. It also writes the lines of the two reads
+     * among the loops, as {@code similarity} reports each (ADR-193 section 7, ADR-204 section 3): the signed
+     * occurrences, counted, which says nothing where nothing is signed, and the near-duplicates' extraction
+     * metrics, timed.
      */
     private static ResolutionProgress resolutionProgress() {
         String stage = "Stage 4b (redundancy resolution, ";
@@ -115,9 +116,7 @@ class RedundancyResolutionTasklet implements Tasklet {
                         STAGE,
                         "the signed occurrences",
                         "Stage 4b (redundancy resolution, reading signed occurrences)")
-                .timed(SimilarityStatement.SIGNATURE_BANDS, STAGE, "the signature bands")
                 .timed(SimilarityStatement.NEAR_DUPLICATE_METRICS, STAGE, "the near-duplicates' extraction metrics")
-                .timed(SimilarityStatement.DOCUMENT_FREQUENCY, STAGE, "the shingle document frequencies")
                 .build();
         return new ResolutionProgress() {
             @Override
@@ -135,7 +134,7 @@ class RedundancyResolutionTasklet implements Tasklet {
                 reads.statementEnded(statement);
             }
 
-            private StageProgress pairs;
+            private StageProgress signed;
             private StageProgress profiles;
             private StageProgress components;
             private StageProgress verdicts;
@@ -144,12 +143,12 @@ class RedundancyResolutionTasklet implements Tasklet {
 
             @Override
             public void toScorePairs(long total) {
-                pairs = StageProgress.over(stage + "near-duplicate candidates)", total);
+                signed = StageProgress.over(stage + "near-duplicate candidates)", total);
             }
 
             @Override
-            public void pairScored() {
-                pairs.itemDone();
+            public void candidatesScored() {
+                signed.itemDone();
             }
 
             @Override

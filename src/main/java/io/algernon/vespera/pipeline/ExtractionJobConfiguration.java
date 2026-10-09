@@ -21,7 +21,6 @@ import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -128,16 +127,19 @@ public class ExtractionJobConfiguration {
 
     /**
      * The lines of the read of the faults a stopped run left, written as {@code extraction} reports it
-     * (ADR-199 section 2, ADR-193 sections 4.1 and 7) by {@link ReportedStatements}: one line before the read,
-     * and one after it with how long it took, with progress between where SQLite calls back. {@code
-     * extraction} calls it with an empty total where the run holds no fault, and nothing is written then, so a
-     * first invocation writes nothing here.
+     * (ADR-199 section 2, ADR-214 section 10) by {@link ReportedStatements}: one line before the read,
+     * and one after it with how long it took, with progress between from the rows read, the read being made a
+     * page at a time. {@code extraction} calls it with an empty total where the run holds no fault, and
+     * nothing is written then, so a first invocation writes nothing here.
      */
     private static ExtractionStatementProgress faultReadProgress() {
-        return readProgress(
-                ExtractionStatement.FAULTED_OCCURRENCES,
-                "the faults the stopped run recorded",
-                "Stage 2 (extraction, reading the faults the stopped run recorded)");
+        return ReportedStatements.saying()
+                .paged(
+                        ExtractionStatement.FAULTED_OCCURRENCES,
+                        "Stage 2 (extraction)",
+                        "the faults the stopped run recorded",
+                        "Stage 2 (extraction, reading the faults the stopped run recorded)")
+                .build();
     }
 
     /** The same lines for the read of the occurrences the stopped run measured (ADR-199 section 2). */
@@ -355,8 +357,13 @@ public class ExtractionJobConfiguration {
         //
         // The queries are extraction's (ADR-041); the one delete against verdict is the ledger's.
         ExtractionFaults extractionFaults = new ExtractionFaults(jdbcTemplate);
-        Set<OccurrenceId> faulted = extractionFaults.occurrencesForRun(extractionRun, faultReadProgress());
-        ledger.verdicts().discardVerdictsAgainst(extractionRun, faulted, VerdictKind.EXTRACTION_FAILED);
+        // The fault rows are read a page at a time and the verdicts that resolved a page's faults go before
+        // the next page is read; the rows, by which the pages are found, go only after the last (ADR-214
+        // section 2).
+        long faulted = extractionFaults.eachPageOfFaulted(
+                extractionRun,
+                faultReadProgress(),
+                page -> ledger.verdicts().discardVerdictsAgainst(extractionRun, page, VerdictKind.EXTRACTION_FAILED));
         extractionFaults.discardForRun(extractionRun);
 
         // shingle_by_hash is not maintained while shingles are written (ADR-182 section 2.2): every new row
@@ -381,8 +388,8 @@ public class ExtractionJobConfiguration {
                     String.format(Locale.ROOT, "%.1f", (System.nanoTime() - dropStarted) / NANOS_PER_SECOND));
         }
 
-        Set<OccurrenceId> recorded = extractionMetrics.occurrencesForRun(extractionRun, measuredReadProgress());
-        if (!recorded.isEmpty() || !faulted.isEmpty()) {
+        long recorded = extractionMetrics.recordedCount(extractionRun, measuredReadProgress());
+        if (recorded > 0 || faulted > 0) {
             // Said when anything was recorded or faulted (ADR-181 section 1): a run whose only leftovers
             // are fault rows reads those occurrences again, and says so. Counts follow their labels so
             // that one reads as correctly as many.
@@ -390,11 +397,13 @@ public class ExtractionJobConfiguration {
                     "Stage 2 (extraction) resumes run {}: occurrences already measured by committed chunks: {};"
                             + " faulted occurrences read again: {}",
                     extractionRun.value(),
-                    recorded.size(),
-                    faulted.size());
+                    recorded,
+                    faulted);
         }
-        if (!recorded.isEmpty()) {
-            return new OccurrenceReader(new UnrecordedOccurrences(ledger.verdicts().survivors(extractionRun), recorded));
+        if (recorded > 0) {
+            return new OccurrenceReader(new UnrecordedOccurrences(
+                    ledger.verdicts().survivors(extractionRun),
+                    page -> extractionMetrics.recordedAmong(extractionRun, page)));
         }
         return new OccurrenceReader(ledger.verdicts().survivors(extractionRun));
     }

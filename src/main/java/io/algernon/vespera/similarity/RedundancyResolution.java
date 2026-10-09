@@ -11,6 +11,8 @@ import java.sql.ResultSet;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -48,6 +51,13 @@ import org.springframework.stereotype.Component;
  * RedundancyThresholds#nearDuplicateJaccard()}; containment resolves second, only over what survives
  * that first phase, so no pointer this class writes ever names an occurrence this same pass already
  * removed (ADR-079).
+ *
+ * <p><b>Nothing here holds a set of every signed occurrence, of every band row, of every pair, of every
+ * removal or of every frequency (ADR-214 section 4).</b> The signed occurrences are counted once and read a
+ * page of 1,000 at a time; the pairs of a page are found by one statement and let go before the next page;
+ * whether an occurrence is signed or was removed is asked of the database by key; an occurrence's rarest
+ * shingles are found with its own rows; and what is still held is the components of the pairs at or above
+ * the cut with their members' profiles, and the shingle-set cache within its budget.
  */
 @Component
 public class RedundancyResolution {
@@ -60,6 +70,15 @@ public class RedundancyResolution {
      * whole 468 thousand distinct hashes over and over, when the budget below holds them all at once.
      */
     static final long SHINGLE_SET_CACHE_BUDGET_HASHES = 16L * 1024 * 1024;
+
+    /** The most occurrences one page, or one statement naming occurrences, holds: the ledger's own page. */
+    static final int OCCURRENCES_IN_A_PAGE = 1_000;
+
+    /**
+     * What a raw shingle count is charged against {@link #SHINGLE_SET_CACHE_BUDGET_HASHES}, in hashes: the 75
+     * bytes a map entry for it was measured to hold, at 8 bytes a hash, rounded up (ADR-214 section 4).
+     */
+    static final long RAW_COUNT_CHARGE_HASHES = 10;
 
     private final JdbcTemplate jdbcTemplate;
     private final Ledger ledger;
@@ -89,12 +108,12 @@ public class RedundancyResolution {
     /**
      * As {@link #resolve(RunId, RunId, RunId, Set, AlphanumericCounts)}, and tells {@code progress} about each loop (ADR-192
      * section 5): once before its first item with its total, zero included, and after each item. It also
-     * tells it about the four reads among the loops (ADR-193 section 7, ADR-204 sections 3 and 4), each
-     * started once before it and ended once after it, and not ended where it throws: the signed
-     * occurrences, counted, first of all, started with the span of the run's rows or with an empty total
-     * where it holds none; then the signature bands, the near-duplicates' extraction metrics (only where a
-     * component holds a member) and the shingle document frequencies, each timed. Returns before any loop,
-     * having reported the first read alone, when no occurrence is signed.
+     * tells it about the two reads among the loops (ADR-193 section 7, ADR-204 sections 3 and 4, ADR-214
+     * section 4), each started once before it and ended once after it, and not ended where it throws: the
+     * signed occurrences, counted, first of all, started with the span of the run's rows or with an empty
+     * total where it holds none; then the near-duplicates' extraction metrics (only where a component holds
+     * a member), timed. Returns before any loop, having reported the first read alone, when no occurrence is
+     * signed.
      */
     public void resolve(
             RunId stage4RunId,
@@ -103,50 +122,73 @@ public class RedundancyResolution {
             Set<Long> boilerplateHashes,
             AlphanumericCounts alphanumericCounts,
             ResolutionProgress progress) {
-        Set<Long> signedOccurrenceIds = loadSignedOccurrenceIds(stage4RunId, progress);
-        if (signedOccurrenceIds.isEmpty()) {
+        long signedOccurrences = countSignedOccurrences(stage4RunId, progress);
+        if (signedOccurrences == 0) {
             return;
         }
 
         ShingleSetCache shingleSets = new ShingleSetCache(stage2RunId, boilerplateHashes);
-        Set<Long> removed = resolveNearDuplicates(
-                stage4RunId, stage2RunId, signedOccurrenceIds, shingleSets, alphanumericCounts, progress);
+        resolveNearDuplicates(stage4RunId, stage2RunId, signedOccurrences, shingleSets, alphanumericCounts, progress);
         resolveContainment(
-                stage4RunId, stage3RunId, stage2RunId, signedOccurrenceIds, shingleSets, removed, progress);
+                stage4RunId, stage3RunId, stage2RunId, boilerplateHashes, signedOccurrences, shingleSets, progress);
     }
 
     /**
-     * Every occurrence a signature exists for under {@code stage4RunId} — the universe candidate
+     * How many occurrences a signature exists for under {@code stage4RunId} — the universe candidate
      * generation and resolution both range over. An occurrence absent here is exactly the all-boilerplate
      * case (ADR-080): {@link RedundancySignatures} wrote it no signature row, so it is silently absent
-     * from candidate generation entirely rather than compared against with an empty set. Reading this off
-     * {@code minhash_signature} rather than {@code shingle} is deliberate: it is one id per document, not
-     * a whole shingle set, so holding the result in memory costs nothing like holding every document's
-     * shingle set would (the class-level note explains why that alternative was rejected).
+     * from candidate generation entirely rather than compared against with an empty set. Counted off {@code
+     * minhash_signature} as the rows are read, and none kept (ADR-214 section 4): the passes below go through
+     * the signed occurrences a page at a time.
      */
-    private Set<Long> loadSignedOccurrenceIds(RunId stage4RunId, ResolutionProgress progress) {
-        Set<Long> ids = new HashSet<>();
+    private long countSignedOccurrences(RunId stage4RunId, ResolutionProgress progress) {
         // Counted by SQLite's progress handler (ADR-193): the one read of this class whose rows are all
         // returned and whose total is the span of the run's rowids. It runs on the connection the template
         // hands over and is never handed back to it.
         progress.statementStarting(SimilarityStatement.SIGNED_OCCURRENCES, spanOfRun("minhash_signature", stage4RunId));
-        StatementSteps.counted(
+        long signed = StatementSteps.counted(
                 jdbcTemplate,
                 steps -> progress.stepsTaken(SimilarityStatement.SIGNED_OCCURRENCES, steps),
                 connection -> {
+                    long found = 0;
                     try (PreparedStatement statement = connection.prepareStatement(
                             "SELECT DISTINCT occurrence_id FROM minhash_signature WHERE run_id = ?")) {
                         statement.setString(1, stage4RunId.value());
                         try (ResultSet resultSet = statement.executeQuery()) {
                             while (resultSet.next()) {
-                                ids.add(resultSet.getLong("occurrence_id"));
+                                found++;
                             }
                         }
                     }
-                    return null;
+                    return found;
                 });
         progress.statementEnded(SimilarityStatement.SIGNED_OCCURRENCES);
-        return ids;
+        return signed;
+    }
+
+    /**
+     * Hands the signed occurrences of {@code stage4RunId} to {@code page}, a page of up to {@value
+     * #OCCURRENCES_IN_A_PAGE} at a time in the order their signatures were written, each page once its
+     * statement has finished (ADR-214 section 4). Planned by {@code minhash_signature_by_run_id (run_id=? AND
+     * rowid>?)}, sorting nothing.
+     */
+    private void eachPageOfSigned(RunId stage4RunId, Consumer<List<Long>> page) {
+        long after = Long.MIN_VALUE;
+        while (true) {
+            List<SignedRow> rows = jdbcTemplate.query(
+                    "SELECT rowid, occurrence_id FROM minhash_signature WHERE run_id = ? AND rowid > ?"
+                            + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
+                    (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)),
+                    stage4RunId.value(),
+                    after);
+            if (!rows.isEmpty()) {
+                page.accept(rows.stream().map(SignedRow::occurrenceId).toList());
+                after = rows.getLast().rowid();
+            }
+            if (rows.size() < OCCURRENCES_IN_A_PAGE) {
+                return;
+            }
+        }
     }
 
     /**
@@ -167,33 +209,34 @@ public class RedundancyResolution {
 
     // -- Phase 1: near-duplication -------------------------------------------------------------
 
-    private Set<Long> resolveNearDuplicates(
+    private void resolveNearDuplicates(
             RunId stage4RunId,
             RunId stage2RunId,
-            Set<Long> signedOccurrenceIds,
+            long signedOccurrences,
             ShingleSetCache shingleSets,
             AlphanumericCounts alphanumericCounts,
             ResolutionProgress progress) {
         RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
 
-        UnionFind unionFind = new UnionFind(signedOccurrenceIds);
-        Set<PairKey> candidatePairs = nearDuplicateCandidates(stage4RunId, progress);
-        progress.toScorePairs(candidatePairs.size());
-        for (PairKey pair : candidatePairs) {
-            long[] a = shingleSets.get(pair.a());
-            long[] b = shingleSets.get(pair.b());
-            if (jaccard(a, b) >= thresholds.nearDuplicateJaccard()) {
-                unionFind.union(pair.a(), pair.b());
+        UnionFind unionFind = new UnionFind();
+        progress.toScorePairs(signedOccurrences);
+        eachPageOfSigned(stage4RunId, page -> {
+            for (PairKey pair : candidatePairsOf(stage4RunId, page)) {
+                long[] a = shingleSets.get(pair.a());
+                long[] b = shingleSets.get(pair.b());
+                if (jaccard(a, b) >= thresholds.nearDuplicateJaccard()) {
+                    unionFind.union(pair.a(), pair.b());
+                }
             }
-            progress.pairScored();
-        }
+            // Told together, once every pair whose lesser member is in the page has been scored.
+            for (int scored = 0; scored < page.size(); scored++) {
+                progress.candidatesScored();
+            }
+        });
 
         Set<Long> componentMembers = new HashSet<>();
         List<Set<Long>> resolvableComponents = new ArrayList<>();
         for (Set<Long> component : unionFind.components()) {
-            if (component.size() < 2) {
-                continue;
-            }
             resolvableComponents.add(component);
             componentMembers.addAll(component);
         }
@@ -202,7 +245,6 @@ public class RedundancyResolution {
         progress.toResolveComponents(resolvableComponents.size());
         // Summed and announced once: every member of every component but its survivor (ADR-192 section 5).
         progress.toWriteNearDuplicateVerdicts(componentMembers.size() - resolvableComponents.size());
-        Set<Long> removed = new HashSet<>();
         for (Set<Long> component : resolvableComponents) {
             // The survivor rule (ADR-079) picks one member of the component; every other member is then
             // scored directly against that survivor here, not against whichever neighbour first linked it
@@ -225,43 +267,34 @@ public class RedundancyResolution {
                         "near-duplicate",
                         score,
                         "near-duplicate of occurrence %d at Jaccard %.4f".formatted(survivor, score));
-                removed.add(member);
                 progress.nearDuplicateVerdictWritten();
             }
             progress.componentResolved();
         }
-        return removed;
     }
 
-    /** Near-duplicate candidates: pairs sharing a bucket, read directly off {@code signature_band}. */
-    private Set<PairKey> nearDuplicateCandidates(RunId stage4RunId, ResolutionProgress progress) {
-        Map<BandBucket, List<Long>> buckets = new HashMap<>();
-        // Timed, not counted: the only index leading with run_id has columns after it, so the span costs as
-        // much as the read (ADR-193 section 1).
-        progress.statementStarting(SimilarityStatement.SIGNATURE_BANDS, OptionalLong.empty());
-        jdbcTemplate.query(
-                "SELECT band_ordinal, band_hash, occurrence_id FROM signature_band WHERE run_id = ?",
-                resultSet -> {
-                    BandBucket bucket =
-                            new BandBucket(resultSet.getInt("band_ordinal"), resultSet.getLong("band_hash"));
-                    buckets.computeIfAbsent(bucket, ignored -> new ArrayList<>())
-                            .add(resultSet.getLong("occurrence_id"));
-                },
-                stage4RunId.value());
-        progress.statementEnded(SimilarityStatement.SIGNATURE_BANDS);
+    /**
+     * The near-duplicate candidates of a page of signed occurrences: every pair sharing a bucket whose lesser
+     * member is in {@code page}, each once (ADR-214 section 4). {@code CROSS JOIN} fixes the order SQLite
+     * reads the two sides in, the page's rows by the table's key and then the bucket by its index; a plain
+     * join was measured to read every band row of the run for every page.
+     */
+    private List<PairKey> candidatePairsOf(RunId stage4RunId, List<Long> page) {
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(stage4RunId.value());
+        arguments.addAll(page);
+        return jdbcTemplate.query(
+                "SELECT DISTINCT a.occurrence_id AS lesser, b.occurrence_id AS greater"
+                        + " FROM signature_band a CROSS JOIN signature_band b"
+                        + " ON b.run_id = a.run_id AND b.band_ordinal = a.band_ordinal"
+                        + " AND b.band_hash = a.band_hash AND b.occurrence_id > a.occurrence_id"
+                        + " WHERE a.run_id = ? AND a.occurrence_id IN (" + placeholders(page.size()) + ")",
+                (resultSet, rowNumber) -> new PairKey(resultSet.getLong("lesser"), resultSet.getLong("greater")),
+                arguments.toArray());
+    }
 
-        Set<PairKey> pairs = new HashSet<>();
-        for (List<Long> occurrenceIds : buckets.values()) {
-            if (occurrenceIds.size() < 2) {
-                continue;
-            }
-            for (int i = 0; i < occurrenceIds.size(); i++) {
-                for (int j = i + 1; j < occurrenceIds.size(); j++) {
-                    pairs.add(PairKey.of(occurrenceIds.get(i), occurrenceIds.get(j)));
-                }
-            }
-        }
-        return pairs;
+    private static String placeholders(int count) {
+        return String.join(", ", Collections.nCopies(count, "?"));
     }
 
     private static long survivorOf(Set<Long> component, Map<Long, OccurrenceProfile> profiles) {
@@ -308,90 +341,152 @@ public class RedundancyResolution {
             RunId stage4RunId,
             RunId stage3RunId,
             RunId stage2RunId,
-            Set<Long> signedOccurrenceIds,
+            Set<Long> boilerplateHashes,
+            long signedOccurrences,
             ShingleSetCache shingleSets,
-            Set<Long> removed,
             ResolutionProgress progress) {
         RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
-        Map<Long, Integer> documentFrequency = loadDocumentFrequency(stage3RunId, progress);
-        progress.toCheckForContainment(signedOccurrenceIds.size());
-        // One count per document for the whole pass, not one per pair: counting a spreadsheet's hundred
-        // thousand shingles again for every document that names it as a candidate is what made this
-        // pass run for hours once tables were read (ADR-145).
-        Map<Long, Integer> rawSizes = new HashMap<>();
+        progress.toCheckForContainment(signedOccurrences);
 
-        for (long a : signedOccurrenceIds) {
-            if (removed.contains(a)) {
+        eachPageOfSigned(stage4RunId, page -> {
+            // Asked of the database, a page at a time, what phase 1 removed (ADR-214 section 4).
+            Set<Long> removedInThePage = removedAmong(stage4RunId, page);
+            for (long a : page) {
+                if (removedInThePage.contains(a)) {
+                    progress.checkedForContainment();
+                    continue;
+                }
+                long[] setA = shingleSets.get(a);
+                List<Long> rareHashes = rarestHashes(
+                        stage3RunId, stage2RunId, a, boilerplateHashes, thresholds.rareShingleSampleSize());
+                if (rareHashes.isEmpty()) {
+                    progress.checkedForContainment();
+                    continue;
+                }
+
+                Set<Long> candidates = containmentCandidates(stage2RunId, rareHashes, thresholds.rareShingleHitCount());
+                // Which of A's candidates are signed, and which phase 1 removed, asked by key.
+                List<Long> others = candidates.stream().filter(b -> b != a).toList();
+                Set<Long> signed = signedAmong(stage4RunId, others);
+                Set<Long> removedCandidates = removedAmong(stage4RunId, others);
+
+                long bestContainer = -1;
+                double bestScore = -1;
+                for (long b : candidates) {
+                    // Every path out of one candidate is counted, the ones that skip it included.
+                    boolean skipped = b == a || removedCandidates.contains(b) || !signed.contains(b);
+                    if (skipped) {
+                        progress.containmentCandidateGoneThrough();
+                        continue;
+                    }
+                    // A cheap, deliberately approximate pre-filter (a COUNT, not a fetched set): it compares
+                    // against b's raw shingle row count, which is always >= its true boilerplate-stripped size, so
+                    // it can only ever admit an extra candidate for exact scoring to reject, never wrongly
+                    // exclude a true one. The same "retrieval overshoots, scoring corrects" shape ADR-081
+                    // already accepts for LSH banding, applied here to the |B| > |A| guard.
+                    if (shingleSets.rawSize(b) <= setA.length) {
+                        progress.containmentCandidateGoneThrough();
+                        continue;
+                    }
+                    long[] setB = shingleSets.get(b);
+                    if (setB.length <= setA.length) {
+                        progress.containmentCandidateGoneThrough();
+                        continue;
+                    }
+                    double containmentScore = containment(setA, setB);
+                    if (containmentScore < thresholds.containmentIndex()) {
+                        progress.containmentCandidateGoneThrough();
+                        continue;
+                    }
+                    // Multiple containers passing the cut is not addressed by ADR-079/081: this class picks
+                    // the highest-scoring one, ties broken by the lowest occurrence id, purely for a
+                    // deterministic single row under redundant_with's (occurrence_id, run_id) primary key.
+                    if (containmentScore > bestScore || (containmentScore == bestScore && b < bestContainer)) {
+                        bestScore = containmentScore;
+                        bestContainer = b;
+                    }
+                    progress.containmentCandidateGoneThrough();
+                }
+
+                if (bestContainer >= 0) {
+                    writeVerdict(
+                            stage4RunId,
+                            a,
+                            bestContainer,
+                            "contained-in",
+                            bestScore,
+                            "contained in occurrence %d at containment %.4f".formatted(bestContainer, bestScore));
+                }
                 progress.checkedForContainment();
-                continue;
             }
-            long[] setA = shingleSets.get(a);
-            List<Long> rareHashes = rarestHashes(setA, documentFrequency, thresholds.rareShingleSampleSize());
-            if (rareHashes.isEmpty()) {
-                progress.checkedForContainment();
-                continue;
-            }
-
-            Set<Long> candidates = containmentCandidates(stage2RunId, rareHashes, thresholds.rareShingleHitCount());
-
-            long bestContainer = -1;
-            double bestScore = -1;
-            for (long b : candidates) {
-                // Every path out of one candidate is counted, the ones that skip it included.
-                boolean skipped = b == a || removed.contains(b) || !signedOccurrenceIds.contains(b);
-                if (skipped) {
-                    progress.containmentCandidateGoneThrough();
-                    continue;
-                }
-                // A cheap, deliberately approximate pre-filter (a COUNT, not a fetched set): it compares
-                // against b's raw shingle row count, which is always >= its true boilerplate-stripped size, so
-                // it can only ever admit an extra candidate for exact scoring to reject, never wrongly
-                // exclude a true one. The same "retrieval overshoots, scoring corrects" shape ADR-081
-                // already accepts for LSH banding, applied here to the |B| > |A| guard.
-                if (rawSizes.computeIfAbsent(b, id -> rawShingleSetSize(stage2RunId, id)) <= setA.length) {
-                    progress.containmentCandidateGoneThrough();
-                    continue;
-                }
-                long[] setB = shingleSets.get(b);
-                if (setB.length <= setA.length) {
-                    progress.containmentCandidateGoneThrough();
-                    continue;
-                }
-                double containmentScore = containment(setA, setB);
-                if (containmentScore < thresholds.containmentIndex()) {
-                    progress.containmentCandidateGoneThrough();
-                    continue;
-                }
-                // Multiple containers passing the cut is not addressed by ADR-079/081: this class picks
-                // the highest-scoring one, ties broken by the lowest occurrence id, purely for a
-                // deterministic single row under redundant_with's (occurrence_id, run_id) primary key.
-                if (containmentScore > bestScore || (containmentScore == bestScore && b < bestContainer)) {
-                    bestScore = containmentScore;
-                    bestContainer = b;
-                }
-                progress.containmentCandidateGoneThrough();
-            }
-
-            if (bestContainer >= 0) {
-                writeVerdict(
-                        stage4RunId,
-                        a,
-                        bestContainer,
-                        "contained-in",
-                        bestScore,
-                        "contained in occurrence %d at containment %.4f".formatted(bestContainer, bestScore));
-            }
-            progress.checkedForContainment();
-        }
+        });
     }
 
-    private static List<Long> rarestHashes(long[] setA, Map<Long, Integer> documentFrequency, int sampleSize) {
-        return Arrays.stream(setA)
-                .boxed()
-                .filter(documentFrequency::containsKey)
-                .sorted(Comparator.<Long>comparingInt(documentFrequency::get).thenComparingLong(Long::longValue))
-                .limit(sampleSize)
-                .toList();
+    /**
+     * The hashes of {@code occurrenceId} that stage 3 counted, rarest first, at most {@code sampleSize} of
+     * them (ADR-214 section 4): found with the occurrence's own shingle rows and the frequency rows they
+     * name, in one statement that orders them by their document count and then by the hash, so nothing of
+     * stage 3's measurement is held. A hash in {@code boilerplateHashes} is passed over and a hash with no
+     * frequency row is in neither, which is the set the sort of the occurrence's distinctive hashes by a
+     * map of every frequency gave. Both tables are this module's.
+     */
+    private List<Long> rarestHashes(
+            RunId stage3RunId, RunId stage2RunId, long occurrenceId, Set<Long> boilerplateHashes, int sampleSize) {
+        return jdbcTemplate.query(
+                "SELECT f.shingle_hash FROM shingle s JOIN shingle_document_frequency f"
+                        + " ON f.run_id = ? AND f.shingle_parameter_identity = s.shingle_parameter_identity"
+                        + " AND f.shingle_hash = s.shingle_hash"
+                        + " WHERE s.occurrence_id = ? AND s.run_id = ? AND s.shingle_parameter_identity = ?"
+                        + " GROUP BY f.shingle_hash ORDER BY f.document_count, f.shingle_hash",
+                resultSet -> {
+                    List<Long> taken = new ArrayList<>(sampleSize);
+                    while (taken.size() < sampleSize && resultSet.next()) {
+                        long hash = resultSet.getLong(1);
+                        if (!boilerplateHashes.contains(hash)) {
+                            taken.add(hash);
+                        }
+                    }
+                    return taken;
+                },
+                stage3RunId.value(),
+                occurrenceId,
+                stage2RunId.value(),
+                ShingleParameters.DEFAULT.identity());
+    }
+
+    /** Which of {@code occurrences} a signature exists for under {@code stage4RunId}, asked by key. */
+    private Set<Long> signedAmong(RunId stage4RunId, Collection<Long> occurrences) {
+        return among("SELECT occurrence_id FROM minhash_signature WHERE run_id = ?", stage4RunId, occurrences);
+    }
+
+    /**
+     * Which of {@code occurrences} phase 1 removed as near-duplicates under {@code stage4RunId}, asked by key
+     * of {@code redundant_with}, this module's: a containment verdict phase 2 writes is not among them.
+     */
+    private Set<Long> removedAmong(RunId stage4RunId, Collection<Long> occurrences) {
+        return among(
+                "SELECT occurrence_id FROM redundant_with WHERE run_id = ? AND relation = 'near-duplicate'",
+                stage4RunId,
+                occurrences);
+    }
+
+    /** {@code select} narrowed to a list of occurrences, in statements of at most one page of them. */
+    private Set<Long> among(String select, RunId stage4RunId, Collection<Long> occurrences) {
+        Set<Long> found = new HashSet<>();
+        List<Long> all = List.copyOf(occurrences);
+        for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_PAGE) {
+            List<Long> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_PAGE));
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(stage4RunId.value());
+            arguments.addAll(batch);
+            jdbcTemplate.query(
+                    select + " AND occurrence_id IN (" + placeholders(batch.size()) + ")",
+                    resultSet -> {
+                        found.add(resultSet.getLong("occurrence_id"));
+                    },
+                    arguments.toArray());
+        }
+        return found;
     }
 
     /**
@@ -422,43 +517,6 @@ public class RedundancyResolution {
                 },
                 args.toArray());
         return candidates;
-    }
-
-    /**
-     * {@code b}'s raw shingle row count, repeats and boilerplate included — a {@code COUNT(*)}, never a
-     * materialised set, used only as the cheap upper-bound pre-filter {@link #resolveContainment}
-     * documents at its call site. A row count is never below the distinct, boilerplate-stripped size
-     * that pre-filter stands in for, so it can only admit a candidate, never wrongly exclude one.
-     *
-     * <p>{@code COUNT(*)} rather than {@code COUNT(DISTINCT shingle_hash)}: the distinct count makes
-     * SQLite read the whole run through {@code shingle_by_hash}, five seconds a call on a 2.2-million-row
-     * table, where this one is answered from {@code shingle_by_occurrence} alone (#277).
-     */
-    private int rawShingleSetSize(RunId stage2RunId, long occurrenceId) {
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM shingle"
-                        + " WHERE occurrence_id = ? AND run_id = ? AND shingle_parameter_identity = ?",
-                Integer.class,
-                occurrenceId,
-                stage2RunId.value(),
-                ShingleParameters.DEFAULT.identity());
-        return count == null ? 0 : count;
-    }
-
-    private Map<Long, Integer> loadDocumentFrequency(RunId stage3RunId, ResolutionProgress progress) {
-        Map<Long, Integer> counts = new HashMap<>();
-        // Timed: the span costs as much as the read (ADR-193 section 1).
-        progress.statementStarting(SimilarityStatement.DOCUMENT_FREQUENCY, OptionalLong.empty());
-        jdbcTemplate.query(
-                "SELECT shingle_hash, document_count FROM shingle_document_frequency"
-                        + " WHERE run_id = ? AND shingle_parameter_identity = ?",
-                resultSet -> {
-                    counts.put(resultSet.getLong("shingle_hash"), resultSet.getInt("document_count"));
-                },
-                stage3RunId.value(),
-                ShingleParameters.DEFAULT.identity());
-        progress.statementEnded(SimilarityStatement.DOCUMENT_FREQUENCY);
-        return counts;
     }
 
     // -- Shared reads and writes -----------------------------------------------------------------
@@ -521,20 +579,22 @@ public class RedundancyResolution {
 
     /**
      * The boilerplate-stripped shingle sets exact scoring reads, loaded from {@code shingle} on demand
-     * rather than for the whole corpus up front (see the class-level note on why), and kept while they
-     * fit {@link #SHINGLE_SET_CACHE_BUDGET_HASHES}, least recently used evicted first.
+     * rather than for the whole corpus up front (see the class-level note on why), and the raw counts of
+     * shingle rows the containment pre-filter asks for, both kept while they fit {@link
+     * #SHINGLE_SET_CACHE_BUDGET_HASHES}, least recently used evicted first, sets and counts alike (ADR-214
+     * section 4).
      *
      * <p>A set is a sorted, duplicate-free {@code long[]}: 8 bytes a hash, where a {@code HashSet<Long>}
      * costs several times that, and two of them intersect in one merge pass. The budget counts hashes
      * rather than documents because a document's set can be anything from a few dozen hashes to a
-     * spreadsheet's hundreds of thousands (#277). The set just asked for is always kept, even alone over
-     * the budget, since scoring is about to read it.
+     * spreadsheet's hundreds of thousands (#277). A raw count is charged {@link #RAW_COUNT_CHARGE_HASHES}.
+     * The entry just asked for is always kept, even alone over the budget, since scoring is about to read it.
      */
     private final class ShingleSetCache {
 
         private final RunId stage2RunId;
         private final Set<Long> boilerplateHashes;
-        private final LinkedHashMap<Long, long[]> cache = new LinkedHashMap<>(16, 0.75f, true);
+        private final LinkedHashMap<CacheKey, Object> cache = new LinkedHashMap<>(16, 0.75f, true);
         private long hashesHeld;
 
         ShingleSetCache(RunId stage2RunId, Set<Long> boilerplateHashes) {
@@ -543,19 +603,54 @@ public class RedundancyResolution {
         }
 
         long[] get(long occurrenceId) {
-            long[] held = cache.get(occurrenceId);
+            CacheKey key = new CacheKey(occurrenceId, false);
+            Object held = cache.get(key);
             if (held != null) {
-                return held;
+                return (long[]) held;
             }
             long[] loaded = load(occurrenceId);
-            cache.put(occurrenceId, loaded);
-            hashesHeld += loaded.length;
-            Iterator<Map.Entry<Long, long[]>> eldestFirst = cache.entrySet().iterator();
+            keep(key, loaded, loaded.length);
+            return loaded;
+        }
+
+        /**
+         * {@code occurrenceId}'s raw shingle row count, repeats and boilerplate included -- a {@code COUNT(*)},
+         * never a materialised set, used only as the cheap upper-bound pre-filter {@link #resolveContainment}
+         * documents at its call site, and remembered for the pass (#277). A row count is never below the
+         * distinct, boilerplate-stripped size that pre-filter stands in for, so it can only admit a candidate,
+         * never wrongly exclude one.
+         *
+         * <p>{@code COUNT(*)} rather than {@code COUNT(DISTINCT shingle_hash)}: the distinct count makes
+         * SQLite read the whole run through {@code shingle_by_hash}, five seconds a call on a 2.2-million-row
+         * table, where this one is answered from {@code shingle_by_occurrence} alone (#277).
+         */
+        int rawSize(long occurrenceId) {
+            CacheKey key = new CacheKey(occurrenceId, true);
+            Object held = cache.get(key);
+            if (held != null) {
+                return (Integer) held;
+            }
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM shingle"
+                            + " WHERE occurrence_id = ? AND run_id = ? AND shingle_parameter_identity = ?",
+                    Integer.class,
+                    occurrenceId,
+                    stage2RunId.value(),
+                    ShingleParameters.DEFAULT.identity());
+            int size = count == null ? 0 : count;
+            keep(key, size, RAW_COUNT_CHARGE_HASHES);
+            return size;
+        }
+
+        private void keep(CacheKey key, Object value, long chargeInHashes) {
+            cache.put(key, value);
+            hashesHeld += chargeInHashes;
+            Iterator<Map.Entry<CacheKey, Object>> eldestFirst = cache.entrySet().iterator();
             while (hashesHeld > SHINGLE_SET_CACHE_BUDGET_HASHES && cache.size() > 1) {
-                hashesHeld -= eldestFirst.next().getValue().length;
+                Map.Entry<CacheKey, Object> eldest = eldestFirst.next();
+                hashesHeld -= eldest.getKey().raw() ? RAW_COUNT_CHARGE_HASHES : ((long[]) eldest.getValue()).length;
                 eldestFirst.remove();
             }
-            return loaded;
         }
 
         private long[] load(long occurrenceId) {
@@ -580,6 +675,9 @@ public class RedundancyResolution {
             return withoutRepeats(sorted);
         }
     }
+
+    /** What the cache is keyed by: an occurrence, and whether the entry is its raw count and not its set. */
+    private record CacheKey(long occurrenceId, boolean raw) {}
 
     /** {@code sorted} with each run of equal values kept once. */
     private static long[] withoutRepeats(long[] sorted) {
@@ -610,15 +708,11 @@ public class RedundancyResolution {
         }
     }
 
-    /** One LSH bucket: a band ordinal and the band hash every occurrence in the bucket shares. */
-    private record BandBucket(int bandOrdinal, long bandHash) {}
+    /** One row of a page of the signed occurrences: the number it is paged by, and the occurrence. */
+    private record SignedRow(long rowid, long occurrenceId) {}
 
-    /** An unordered pair of occurrence ids, normalised so {@code (x, y)} and {@code (y, x)} collide. */
-    private record PairKey(long a, long b) {
-        static PairKey of(long x, long y) {
-            return x < y ? new PairKey(x, y) : new PairKey(y, x);
-        }
-    }
+    /** A candidate pair, lesser occurrence first, as the page's statement returns it (ADR-214 section 4). */
+    private record PairKey(long a, long b) {}
 
     /** What the near-duplicate survivor rule reads about one occurrence (ADR-079). */
     private record OccurrenceProfile(long alphanumericCharCount, Instant creationTime, String path) {}

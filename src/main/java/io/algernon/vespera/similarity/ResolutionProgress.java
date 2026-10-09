@@ -8,26 +8,27 @@ package io.algernon.vespera.similarity;
  * before its first item, zero included; its completion method once after each item. A resolution that
  * returns before any loop is reached (no occurrence is signed) calls none of them.
  *
- * <p>The order is fixed: pairs, profiles, then components and verdicts (both before the component loop),
- * then containment. Within a component its verdicts are reported before the component is. Containment
+ * <p>The order is fixed: candidates (the signed occurrences, counted as their pairs are scored), profiles,
+ * then components and verdicts (both before the component loop), then containment. Within a component its verdicts are reported before the component is. Containment
  * candidates have no total: they are reported inside the containment loop, after it is announced.
  *
- * <p>It is also a {@link SimilarityStatementProgress}, and is told about four reads among those loops
- * (ADR-193 section 7, ADR-204 section 4): the signed occurrences ({@code SIGNED_OCCURRENCES}, counted), first
- * of all, before any loop and even where nothing is signed, which is where a resolution that returns before
- * its loops stops reporting; then the signature bands, before the pairs are announced; the near-duplicates'
- * extraction metrics, after the profiles are announced and only where a component holds a member; and the
- * shingle document frequencies, before the containment loop is announced.
+ * <p>It is also a {@link SimilarityStatementProgress}, and is told about two reads among those loops
+ * (ADR-193 section 7, ADR-204 section 4, ADR-214 section 4): the signed occurrences ({@code
+ * SIGNED_OCCURRENCES}, counted), first of all, before any loop and even where nothing is signed, which is
+ * where a resolution that returns before its loops stops reporting; and the near-duplicates' extraction
+ * metrics, after the profiles are announced and only where a component holds a member. The signature bands
+ * and the shingle document frequencies are no reads of their own: each is a statement a page of signed
+ * occurrences or an occurrence, inside a loop that reports.
  */
 public interface ResolutionProgress extends SimilarityStatementProgress {
 
     /** A progress that does nothing, for the callers that want no report. */
     ResolutionProgress NONE = new ResolutionProgress() {
         @Override
-        public void toScorePairs(long pairs) {}
+        public void toScorePairs(long signedOccurrences) {}
 
         @Override
-        public void pairScored() {}
+        public void candidatesScored() {}
 
         @Override
         public void toReadProfiles(long occurrences) {}
@@ -57,11 +58,19 @@ public interface ResolutionProgress extends SimilarityStatementProgress {
         public void containmentCandidateGoneThrough() {}
     };
 
-    /** The candidate pairs the signature buckets formed. */
-    void toScorePairs(long pairs);
+    /**
+     * The signed occurrences, whose candidate pairs are scored a page of them at a time. How many pairs there
+     * are is known only once the last page has been read, so the loop counts signed occurrences (ADR-214
+     * section 4).
+     */
+    void toScorePairs(long signedOccurrences);
 
-    /** One candidate pair scored. */
-    void pairScored();
+    /**
+     * One signed occurrence whose candidate pairs, as their lesser member, have been scored. Told once for
+     * each occurrence of a page, after every pair of the page has been scored, so a page's thousand are told
+     * together.
+     */
+    void candidatesScored();
 
     /** The members of components of two or more. */
     void toReadProfiles(long occurrences);

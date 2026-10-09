@@ -35,7 +35,11 @@ import org.springframework.util.StreamUtils;
  *
  * <p>The two reads of stage 2's resume, of a stopped run's faults and of the occurrences its committed chunks
  * measured, each go through one run's rows of one table by an index on {@code run_id} alone, with no temp
- * B-tree, and each one's bound costs the same at any size: counted, at the steps a row measured here. The
+ * B-tree, and each one's bound costs the same at any size. The read of the occurrences measured is counted, at
+ * the steps a row measured here. The read of the faults is made a page of fault rows at a time since ADR-214,
+ * each page's verdicts deleted before the next is read, and is told the rows it has read, so it has no steps a
+ * row to measure: its page is held by {@code FaultsAreReadAPageAtATimeTest}, and its bound is still held here,
+ * being the total its lines state. The
  * survivor count is an anti-join over two tables, and has no total that is cheap: timed. Every test applies
  * the shipped {@code schema.sql} to an empty in-memory database with synthetic rows and nothing else; nothing
  * here opens a working directory.
@@ -50,8 +54,6 @@ import org.springframework.util.StreamUtils;
 @Link(name = "ADR-199", url = Adr.THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE, type = "adr")
 class UncoveredStatementsStepsPerRowTest {
 
-    /** Steps SQLite takes for each row of one run of {@code extraction_fault} that the read goes through. */
-    static final int FAULTED_OCCURRENCES_STEPS = 5;
 
     /** Steps SQLite takes for each row of one run of {@code extraction_metric} that the read goes through. */
     static final int RECORDED_OCCURRENCES_STEPS = 5;
@@ -64,10 +66,8 @@ class UncoveredStatementsStepsPerRowTest {
     private static final long NEAR_ENOUGH = DIFFERENCE / 100;
     private static final int EVERY_STEP = 1;
 
-    /** The read, as {@code ExtractionFaults.occurrencesForRun} issues it. */
-    private static final String FAULTED_OCCURRENCES = "SELECT occurrence_id FROM extraction_fault WHERE run_id = ?";
 
-    /** The read, as {@code ExtractionMetrics.occurrencesForRun} issues it. */
+    /** The read, as {@code ExtractionMetrics.recordedCount} issues it, as {@code occurrencesForRun} did before ADR-214. */
     private static final String RECORDED_OCCURRENCES = "SELECT occurrence_id FROM extraction_metric WHERE run_id = ?";
 
     /** The count, as {@code Ledger.survivorCount} issues it over a run with one run upstream. */
@@ -105,30 +105,6 @@ class UncoveredStatementsStepsPerRowTest {
     @AfterEach
     void close() throws SQLException {
         database.close();
-    }
-
-    @Test
-    @Story("A read of a stopped run's faults reports how far it has gone")
-    @DisplayName("The read of a run's faults goes through them by an index on the run alone and takes the same steps for every row")
-    void theFaultReadTakesItsStepsARow() throws SQLException {
-        writeFaults(EARLIER_RUN, MORE);
-        writeFaults(RUN_READ, FEWER);
-        long atFewer = readSteps(FAULTED_OCCURRENCES);
-        writeFaults(RUN_READ, DIFFERENCE);
-        long atMore = readSteps(FAULTED_OCCURRENCES);
-        String plan = planOf(FAULTED_OCCURRENCES, 1);
-
-        claim(
-                "`" + FAULTED_OCCURRENCES + "` goes through its run's rows by extraction_fault_by_run_id, an"
-                        + " index on the run alone, with no temp B-tree: " + plan,
-                () -> assertThat(plan)
-                        .isEqualTo("SEARCH extraction_fault USING INDEX extraction_fault_by_run_id (run_id=?)"));
-        claim(
-                "and takes " + FAULTED_OCCURRENCES_STEPS + " steps for every row of the run it reads, to within "
-                        + NEAR_ENOUGH + " steps over " + DIFFERENCE + " rows, whatever the earlier run's rows in the"
-                        + " same table",
-                () -> assertThat(atMore - atFewer)
-                        .isCloseTo((long) FAULTED_OCCURRENCES_STEPS * DIFFERENCE, within(NEAR_ENOUGH)));
     }
 
     @Test
@@ -207,16 +183,17 @@ class UncoveredStatementsStepsPerRowTest {
     @Story("A read of a stopped run's faults reports how far it has gone")
     @Story("A read of the occurrences a stopped run measured reports how far it has gone")
     @DisplayName("The steps each resume read takes for a row are declared beside its SQL, and are the ones measured here")
+    @Link(name = "ADR-214", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
     void theDeclaredStepsAreTheMeasuredOnes() {
         claim(
-                "the extraction module declares the fault read's steps a row beside its SQL, and the figure is the"
-                        + " " + FAULTED_OCCURRENCES_STEPS + " this class measures",
-                () -> assertThat(ExtractionStatement.FAULTED_OCCURRENCES.stepsPerRow())
-                        .hasValue(FAULTED_OCCURRENCES_STEPS));
-        claim(
-                "and the measured read's, " + RECORDED_OCCURRENCES_STEPS + ", likewise",
+                "the extraction module declares the measured read's steps a row beside its SQL, and the figure is"
+                        + " the " + RECORDED_OCCURRENCES_STEPS + " this class measures",
                 () -> assertThat(ExtractionStatement.RECORDED_OCCURRENCES.stepsPerRow())
                         .hasValue(RECORDED_OCCURRENCES_STEPS));
+        claim(
+                "and the fault read declares none: it is read a page of fault rows at a time and told the rows it"
+                        + " has read, not counted by SQLite's steps",
+                () -> assertThat(ExtractionStatement.FAULTED_OCCURRENCES.stepsPerRow()).isEmpty());
     }
 
     private long boundSteps(String table) throws SQLException {

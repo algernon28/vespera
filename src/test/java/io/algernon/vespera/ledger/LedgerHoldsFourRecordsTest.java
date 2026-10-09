@@ -27,11 +27,18 @@ import org.junit.jupiter.api.Test;
  * tests beside them, which call it through its record. This holds only where it lives, so that a method
  * added to the wrong record, or to {@code Ledger} itself, is noticed. The lists below are what moved, not
  * all a record may ever hold: a record may gain a method, and {@code Ledger} may not.
+ *
+ * <p>Two of the things that moved are asked another way since ADR-214, which takes from every caller a list
+ * as large as a walk or a run: whether two walks recorded the same occurrences is asked of the occurrences
+ * as {@code sameOccurrences}, where they were handed out whole as {@code occurrencesForWalk}, and a run's
+ * failed conversions are handed over one at a time as {@code eachExtractionFailure}, where they were handed
+ * out as a list by {@code extractionFailures}. Each is still one thing, asked of the same record.
  */
 @Epic("Census")
 @Feature("Ledger")
 @Issue("350")
 @Link(name = "ADR-209", url = Adr.THE_LEDGER_IS_FOUR_RECORDS_AND_A_TABLES_SQL_IS_ITS_OWNERS, type = "adr")
+@Link(name = "ADR-214", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class LedgerHoldsFourRecordsTest {
 
     /** What was asked of the ledger about a walk: nine things, on the {@code walk} table. */
@@ -48,7 +55,7 @@ class LedgerHoldsFourRecordsTest {
 
     /** What was asked about the files a walk found: six things, on the {@code file_occurrence} table. */
     private static final Set<String> ABOUT_OCCURRENCES =
-            Set.of("fileOccurrence", "occurrencesForWalk", "occurrenceCount", "factsFor", "occurrenceId", "occurrencesOf");
+            Set.of("fileOccurrence", "sameOccurrences", "occurrenceCount", "factsFor", "occurrenceId", "occurrencesOf");
 
     /** What was asked about a run and its steps: six things, on {@code run}, {@code run_upstream} and {@code finished_step}. */
     private static final Set<String> ABOUT_A_RUN =
@@ -59,7 +66,7 @@ class LedgerHoldsFourRecordsTest {
             "verdict",
             "discardVerdicts",
             "discardVerdictsAgainst",
-            "extractionFailures",
+            "eachExtractionFailure",
             "survivorCount",
             "survivors",
             "survivorsBySize");
