@@ -23,8 +23,8 @@
 // named .claude under an allowed root, a checkout's or not, and on each reading of a path made below: its
 // text, the path as the file system walks it, and where its links lead. A name is compared with its case
 // folded, and on Windows with the dots and spaces that end it taken off, because PowerShell opens .claude.
-// as .claude and Node does not; on Windows a stream name after a colon is taken off a name as well,
-// since it leads to the folder it is a stream of. The three open names are written in this file, and no line of a list opens a
+// as .claude and Node does not; on Windows a stream name after a colon is taken off a name as well, as
+// it leads to that folder. The three open names are written in this file, and no line of a list opens a
 // closed path. A closed path is refused to Edit, Write and NotebookEdit and to a Bash or PowerShell
 // command that names it, as a path, as its current directory or as a folder it names, and is let through
 // to Read, Grep and Glob. A closed path is judged from its text before the file system is asked about it,
