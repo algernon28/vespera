@@ -179,6 +179,46 @@ public class ExtractionMetrics {
         });
     }
 
+    /**
+     * Gives to {@code row} each metrics row of {@code runId} that belongs to one of {@code occurrences}, and
+     * of no other (ADR-211 section 2): the seven values {@link #eachMeasuredForm} hands over, read for a page
+     * of survivors at a time. Asking about no occurrence makes no statement. The caller keeps the page to at
+     * most 1,000 occurrences, the ledger's own page size.
+     */
+    public void eachMeasuredFormOf(RunId runId, Collection<OccurrenceId> occurrences, MeasuredFormRow row) {
+        if (occurrences.isEmpty()) {
+            return;
+        }
+        String placeholders = occurrences.stream().map(id -> "?").collect(Collectors.joining(", "));
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(runId.value());
+        occurrences.forEach(id -> arguments.add(id.value()));
+        jdbcTemplate.query(
+                "SELECT occurrence_id, primary_language, mean_score, word_count, page_count,"
+                        + " vowelless_word_count, single_character_word_count FROM extraction_metric"
+                        + " WHERE run_id = ? AND occurrence_id IN (" + placeholders + ")",
+                resultSet -> {
+                    long occurrenceId = resultSet.getLong("occurrence_id");
+                    String primaryLanguage = resultSet.getString("primary_language");
+                    resultSet.getDouble("mean_score");
+                    boolean meanScoreIsNull = resultSet.wasNull();
+                    int wordCount = resultSet.getInt("word_count");
+                    int pageCount = resultSet.getInt("page_count");
+                    boolean pageCountIsNull = resultSet.wasNull();
+                    int vowellessWordCount = resultSet.getInt("vowelless_word_count");
+                    int singleCharacterWordCount = resultSet.getInt("single_character_word_count");
+                    row.read(
+                            new OccurrenceId(occurrenceId),
+                            primaryLanguage,
+                            meanScoreIsNull,
+                            wordCount,
+                            pageCountIsNull ? null : pageCount,
+                            vowellessWordCount,
+                            singleCharacterWordCount);
+                },
+                arguments.toArray());
+    }
+
     /** The same span, for a caller that holds a {@link JdbcTemplate} and no instance of this class. */
     static OptionalLong metricRowsUpTo(JdbcTemplate jdbcTemplate, RunId runId) {
         Long least = jdbcTemplate.queryForObject(

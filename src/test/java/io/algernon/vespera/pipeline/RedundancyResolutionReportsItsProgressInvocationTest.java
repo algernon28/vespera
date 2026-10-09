@@ -37,8 +37,9 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * What stage 3 and stage 4's second half say while they go through their loops (ADR-192 section 4, #412).
  *
- * <p>Stage 3's frequency rows are written in a loop over every distinct shingle hash
- * {@code DocumentFrequency.measure} counted, and stage 4b's {@code RedundancyResolution.resolve} goes
+ * <p>Stage 3's frequency rows were written in a loop over every distinct shingle hash {@code
+ * DocumentFrequency.measure} counted in memory; since ADR-211 the database writes them in one statement, so
+ * there is no such loop and its counter says nothing. Stage 4b's {@code RedundancyResolution.resolve} goes
  * through the candidate pairs, the facts of the members of near-duplicate components, the components and
  * each member written as redundant, and then every signed occurrence looking for a container. On
  * 2026-10-04 4b's resolution took about 26 minutes 40 seconds, by #411's figures, with nothing between its
@@ -83,7 +84,11 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
     private static final String VERDICTS = "Stage 4b (redundancy resolution, near-duplicate verdicts)";
     private static final String CONTAINMENT = "Stage 4b (redundancy resolution, containment)";
 
-    /** Every counter this class names, for the claims about who wrote their lines. */
+    /** The counters that write a line when 4b runs: stage 3 has none over its frequency rows (ADR-211 §9). */
+    private static final List<String> COUNTERS_THAT_WRITE =
+            List.of(PAIRS, PROFILES, COMPONENTS, VERDICTS, CONTAINMENT);
+
+    /** Every counter this class names, for the claim that none writes once 4b is recorded. */
     private static final List<String> EVERY_COUNTER =
             List.of(FREQUENCY_ROWS, PAIRS, PROFILES, COMPONENTS, VERDICTS, CONTAINMENT);
 
@@ -155,7 +160,7 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
 
     @Test
     @Story("Measuring and resolving redundancy say how far they have got")
-    @DisplayName("Stage 3 counts its frequency rows, and resolving redundancy counts each of its loops against its own total")
+    @DisplayName("Stage 3 writes no counter over its frequency rows, and resolving redundancy counts each of its loops against its own total")
     void countsEveryLoop(@TempDir Path root) throws IOException {
         aCorpusWithOneNearDuplicatePair(root);
 
@@ -164,7 +169,6 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
         String run = theRun(root, StageModules.CONTENT_REDUNDANCY.stage());
         long signed = documentsSigned(run);
         long pairs = pairsSharingABand(run);
-        long hashes = distinctHashes(theRun(root, StageModules.EXTRACTION.stage()));
         claim(
                 "the invocation reported success, every one of the three documents was signed, one pair was"
                         + " recorded as near-duplicates, and the step started and finished",
@@ -176,10 +180,9 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                             .anyMatch(line -> line.startsWith(FINISHED));
                 });
         claim(
-                "stage 3 counts the " + hashes + " distinct shingle hashes it goes through for a frequency row,"
-                        + " those seen in one document included",
-                () -> assertThat(ProgressLines.of(logged.list, FREQUENCY_ROWS))
-                        .containsExactlyElementsOf(ProgressLines.expected(FREQUENCY_ROWS, hashes)));
+                "stage 3 writes no line over its frequency rows: the database writes them in one statement, and"
+                        + " no loop goes through the distinct passages one by one",
+                () -> assertThat(ProgressLines.of(logged.list, FREQUENCY_ROWS)).isEmpty());
         claim(
                 "the pair counter counts the " + pairs + " pairs that share a band under this run",
                 () -> assertThat(ProgressLines.of(logged.list, PAIRS))
@@ -211,15 +214,12 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
         long signatureRows = rowSpanUnder("minhash_signature", run);
         claim(
                 "stage 3 says what it is reading and how long each read took, each line once, in the order it"
-                        + " reads: the documents stage 2 left, for the shingle frequencies; the shingle rows; the"
-                        + " documents stage 2 left again, for the confidence spread; and the extraction metrics,"
-                        + " over up to the " + metricRows + " rows stage 2's run holds",
+                        + " reads: the shingle rows, and the extraction metrics, over up to the " + metricRows
+                        + " rows stage 2's run holds. It says nothing of reading the documents stage 2 left: it"
+                        + " reads them a page at a time inside each of those two reads, and holds no list of them",
                 () -> assertThat(shingleRowsLineShortened(StatementLines.of(operatorLines(), STAGE_THREE)))
                         .containsExactlyElementsOf(StatementLines.inOrder(
-                                StatementLines.timedRead(STAGE_THREE, "stage 2's survivors for the shingle frequencies"),
                                 List.of(READING_UP_TO),
-                                StatementLines.timedRead(
-                                        STAGE_THREE, "stage 2's survivors for the confidence distribution"),
                                 StatementLines.countedRead(STAGE_THREE, "the extraction metrics", metricRows))));
         claim(
                 "resolving says what it is reading and how long each read took, each line once, in the order it"
@@ -248,7 +248,7 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                                 STAGE_FOUR_B + " read the shingle document frequencies in ",
                                 CONTAINMENT + ": 1 of ",
                                 FINISHED));
-        for (String counter : EVERY_COUNTER) {
+        for (String counter : COUNTERS_THAT_WRITE) {
             claim(
                     "every line of " + counter + " was written by the progress counter itself",
                     () -> assertThat(ProgressLines.loggersOf(logged.list, counter))
@@ -471,16 +471,6 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                 Long.class,
                 run);
         return pairs == null ? 0 : pairs;
-    }
-
-    /** Distinct (granularity, hash) pairs among stage 2's shingle rows of {@code run}, every occurrence a survivor here. */
-    private long distinctHashes(String run) {
-        Long hashes = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM (SELECT DISTINCT shingle_parameter_identity, shingle_hash FROM shingle"
-                        + " WHERE run_id = ?)",
-                Long.class,
-                run);
-        return hashes == null ? 0 : hashes;
     }
 
     private List<String> operatorLines() {

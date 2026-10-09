@@ -1238,6 +1238,24 @@ public final class Adr {
             + "0210-a-file-that-cannot-be-read-is-marked-and-the-step-goes-on-and-a-corpus-root-that-can-no-longer-be-listed-stops-it.md";
 
     /**
+     * ADR-211 -- no class holds a set of every survivor of a run: stage 3's confidence distribution and the
+     * seed/corpus comparison read their own table's rows a page of survivors at a time, by key; stage 3's
+     * document frequency is counted in the database, in one grouping statement that reports its progress from
+     * SQLite's callbacks in lines that say {@code at least}, what ruled-out occurrences contributed taken off a
+     * page of the walk's occurrences at a time; the comparison's quartiles are exact over at most four reads; 5f
+     * asks the ledger which members of one partition at a time survive; 5c and 5d go through the survivors as
+     * they are read; each page of the survivors and of a walk's occurrences is planned by the primary key and
+     * sorts nothing; SQLite's temporary files go to the working directory, set once at start-up by a listener
+     * {@code main} registers, and the grouping's temporary files, which grow with the run, are the one exception
+     * made to ADR-060's bound; and the run ids of stages 2 to 6b move once (amends ADR-209 section 2 and one
+     * Consequence, ADR-193 sections 1, 3, 6 and 7, ADR-204 sections 3 and 4, ADR-192 sections 4 and 5, one
+     * Consequence of ADR-200, and ADR-191 in what its read is and in the words of its first line; adds to ADR-177
+     * one thing done as the process starts; keeps ADR-060 otherwise; settles #456).
+     */
+    public static final String NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN = FILE
+            + "0211-no-class-holds-every-survivor-of-a-run-another-tables-rows-are-read-a-page-of-survivors-at-a-time.md";
+
+    /**
      * ADR-212 (accepted, and built on 2026-10-09) -- an agent may read what one script beside the private-paths guard prints about
      * a working directory, and nothing else in it: counts and sums out of {@code vespera.db} by fixed
      * statements, keyed by walk ids, run ids and the code's closed vocabularies, and how many files the

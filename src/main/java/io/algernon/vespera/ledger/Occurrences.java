@@ -102,7 +102,7 @@ public class Occurrences {
     public Iterable<OccurrenceId> occurrencesOf(WalkId walkId) {
         return new KeysetPages<>(
                 jdbcTemplate,
-                "SELECT id FROM file_occurrence WHERE walk_id = ? AND id > ? ORDER BY id LIMIT "
+                "SELECT id FROM file_occurrence WHERE +walk_id = ? AND id > ? ORDER BY id LIMIT "
                         + KeysetPages.ROWS_IN_A_PAGE,
                 List.of(walkId.value()),
                 List.of(Long.MIN_VALUE),

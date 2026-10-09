@@ -48,9 +48,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>On 2026-10-04 stage 4b's build of {@code shingle_by_hash} wrote one line before it and one after, 39
  * minutes apart, and nothing between. ADR-193 has SQLite's progress callback count the build's steps and
  * a line state {@code about X% of N rows} on ADR-192's cadence; once the rows are gone through, one line
- * says that writing the index says nothing more until it ends. Stage 3's read of its shingle rows reports
- * the same way, between ADR-191's two lines. The removal of the index gives SQLite no callback, and keeps
- * ADR-187's two lines with nothing between.
+ * says that writing the index says nothing more until it ends. Stage 3's read of its shingle rows reported
+ * the same way, between ADR-191's two lines; since ADR-211 the database groups them in one statement, which
+ * reports the same way under a name of its own, its share counted at the most steps a row takes. The removal
+ * of the index gives SQLite no callback, and keeps ADR-187's two lines with nothing between.
  *
  * <p><b>The corpus is large on purpose</b>: four texts of {@link #WORDS_A_TEXT} words each, about 60,000
  * shingle rows, so that the build and the read each pass SQLite's callback interval of 100,000 steps
@@ -110,8 +111,11 @@ class StatementProgressInvocationTest {
 
     private static final String MEASURED = "Stage 3 (content census) measured shingle document frequency";
 
-    /** The label of stage 3's progress lines. */
+    /** The label of stage 3's progress lines until ADR-211, when the application read the rows itself. */
     private static final String READ_LABEL = "Stage 3 (content census, reading shingle rows)";
+
+    /** Their label since: the database reads, sorts and counts the rows in one statement (ADR-211 section 9). */
+    private static final String GROUPING_LABEL = "Stage 3 (content census, grouping shingle rows)";
 
     /** Stage 4's line before its one read of the boilerplate shingles (ADR-193 section 6). */
     private static final String READING_BOILERPLATE = "Stage 4 (content redundancy) is reading the boilerplate shingles";
@@ -132,7 +136,7 @@ class StatementProgressInvocationTest {
     private static final String REMOVED = "Stage 2 (extraction) removed shingle_by_hash in";
 
     /** A progress line, wherever it sits in a line of the log: its percentage and its total. */
-    private static final Pattern ABOUT = Pattern.compile("about (\\d+)% of ([\\d,]+) rows");
+    private static final Pattern ABOUT = Pattern.compile("(?:about|at least) (\\d+)% of ([\\d,]+) rows");
 
     @TempDir
     static Path workingDirectory;
@@ -234,19 +238,35 @@ class StatementProgressInvocationTest {
 
         int readingAt = indexOf(lines, READING);
         int measuredAt = indexOf(lines, MEASURED);
-        List<String> readProgress = between(lines, readingAt, measuredAt, READ_LABEL + ": about ");
+        List<String> groupingProgress = between(lines, readingAt, measuredAt, GROUPING_LABEL + ": at least ");
         claim(
-                "the content census's read of the extraction's word sequences reports how far it has gone"
-                        + " between the line that announces it and the line that it has measured",
-                () -> assertThat(readProgress).isNotEmpty());
+                "no line of the grouping says `about` a share, as a counted read's does: its share is a floor,"
+                        + " and the line says `at least`",
+                () -> assertThat(between(lines, readingAt, measuredAt, GROUPING_LABEL + ": about ")).isEmpty());
         claim(
-                "each of those lines states the same total the announcing line does",
-                () -> assertThat(readProgress).allSatisfy(line -> assertThat(totalOf(line).replace(",", ""))
-                        .isEqualTo(String.valueOf(rowSpanOf(extractionRun)))));
+                "the content census still announces its read of the extraction's word sequences, over up to the"
+                        + " rows of the run, and says when it has measured them",
+                () -> assertThat(readingAt).isNotNegative().isLessThan(measuredAt));
         claim(
-                "and their shares rise and stay below a hundred",
-                () -> assertThat(percentagesOf(readProgress)).isSorted().doesNotHaveDuplicates().allSatisfy(
+                "between the two it says how far the database has got in grouping them, because SQLite calls back"
+                        + " all through the one statement that reads, sorts and counts them",
+                () -> assertThat(groupingProgress).isNotEmpty());
+        claim(
+                "each line states at least what share of the " + grouped(runRows) + " rows the run holds is done",
+                () -> assertThat(groupingProgress)
+                        .allSatisfy(line -> assertThat(totalOf(line)).isEqualTo(grouped(runRows))));
+        claim(
+                "the shares rise from line to line and stay below a hundred: the share is SQLite's steps counted"
+                        + " at the most it takes for a row, so the last line falls short of the whole",
+                () -> assertThat(percentagesOf(groupingProgress)).isSorted().doesNotHaveDuplicates().allSatisfy(
                         percentage -> assertThat(percentage).isLessThan(100)));
+        claim(
+                "there are no more than " + AT_MOST_A_HUNDRED_LINES + " of them, and none under the name the"
+                        + " lines had while the application read the rows itself",
+                () -> {
+                    assertThat(groupingProgress.size()).isLessThanOrEqualTo(AT_MOST_A_HUNDRED_LINES);
+                    assertThat(lines).noneMatch(line -> line.contains(READ_LABEL + ": "));
+                });
 
         String invocation = String.join("\n", lines);
         int readingBoilerplateAt = indexOf(lines, READING_BOILERPLATE);
@@ -425,13 +445,6 @@ class StatementProgressInvocationTest {
     private long shingleRowsUnder(String run) {
         Long rows = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shingle WHERE run_id = ?", Long.class, run);
         return rows == null ? 0 : rows;
-    }
-
-    private long rowSpanOf(String run) {
-        Long least = jdbcTemplate.queryForObject("SELECT MIN(rowid) FROM shingle WHERE run_id = ?", Long.class, run);
-        Long greatest =
-                jdbcTemplate.queryForObject("SELECT MAX(rowid) FROM shingle WHERE run_id = ?", Long.class, run);
-        return least == null || greatest == null ? 0 : greatest - least + 1;
     }
 
     private long greatestShingleRow() {
