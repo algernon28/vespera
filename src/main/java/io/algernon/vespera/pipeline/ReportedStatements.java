@@ -51,7 +51,10 @@ final class ReportedStatements
                 EmbeddingStatementProgress,
                 SynthesisStatementProgress {
 
-    /** What a statement is called in the lines, and for a counted one the label its progress lines carry. */
+    /**
+     * What a statement is called in the lines, for a counted or paged one the label its progress lines carry,
+     * and whether it was registered paged.
+     */
     private record Words(String stage, String what, String label, boolean paged) {}
 
     private final Map<Enum<?>, Words> words;

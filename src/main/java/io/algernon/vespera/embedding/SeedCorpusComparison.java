@@ -107,8 +107,8 @@ public class SeedCorpusComparison {
      * EmbeddingStatement#CORPUS_METRICS} and each later one {@link EmbeddingStatement#CORPUS_METRICS_AGAIN},
      * each started with the span of stage 2's rows once a page has a survivor, told its rows read after each
      * page, and ended (ADR-211 sections 2, 4 and 9); and last {@link EmbeddingStatement#SEED_METRICS}, counted
-     * by steps, like {@link EmbeddingStatement#UNUSABLE_SEEDS}. A read of metrics over a population that is empty is not issued and makes no call. A
-     * statement that throws is not told to have ended.
+     * by steps, like {@link EmbeddingStatement#UNUSABLE_SEEDS}. A read of metrics over a population that is
+     * empty is not issued and makes no call. A statement that throws is not told to have ended.
      */
     public Comparison measure(
             RunId measurementRunId,
