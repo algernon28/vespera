@@ -23,8 +23,8 @@
 // named .claude under an allowed root, a checkout's or not, and on each reading of a path made below: its
 // text, the path as the file system walks it, and where its links lead. A name is compared with its case
 // folded, and on Windows with the dots and spaces that end it taken off, because PowerShell opens .claude.
-// as .claude and Node does not; on Windows a stream name after a colon is taken off a name as well, for
-// the name .claude only. The three open names are written in this file, and no line of a list opens a
+// as .claude and Node does not; on Windows a stream name after a colon is taken off a name as well, as
+// it leads to that folder. The three open names are written in this file, and no line of a list opens a
 // closed path. A closed path is refused to Edit, Write and NotebookEdit and to a Bash or PowerShell
 // command that names it, as a path, as its current directory or as a folder it names, and is let through
 // to Read, Grep and Glob. A closed path is judged from its text before the file system is asked about it,
@@ -510,9 +510,13 @@ function workingDirectoryBelow(absolute) {
 
 // The punctuation that ends a sentence or a list item is not part of a path. A trailing .. is the
 // parent folder and not punctuation, and neither is a trailing single dot after a separator, nor the
-// brace that closes a ${ : the variable alone, ${NAME}, is a token headed by the variable.
+// brace that closes a ${ : the variable alone, ${NAME}, is a token headed by the variable. On Windows a
+// last name of three or more dots is not trimmed down to .., the parent folder: PowerShell was measured
+// to open the folder that name is in, so wd/... is read as written and refused as a name made only of
+// dots (ADR-217 section 2).
 function trimSentence(p) {
   for (;;) {
+    if (windows && /(^|[\\/])\.{3,}$/.test(p)) return p;
     if (/(^|[\\/])\.{1,2}$/.test(p)) return p;
     if (/\$\{[^{}]*\}$/.test(p)) return p;
     const shorter = p.replace(/[,.;:)\]}…]$/, "");
@@ -1011,7 +1015,8 @@ function refusalsOf(call) {
           // and PowerShell opens .claude. as .claude where Node says it is not there.
           // Nor is a name Windows opens as another name, wd. as wd (ADR-217): it is read for that name.
           // A token that is only spaces, as the ' ' of tr '\n' ' ', is plain: PowerShell was measured to
-          // open the folder it is read against for one, and nothing else (ADR-217 section 2).
+          // open the folder it is read against for one, and nothing else (ADR-217 section 2). It is the
+          // token with the punctuation that ends a sentence taken off, as every token is read, so ' .' too.
           const plain = !/[\\/]/.test(rel) && rel !== "." && rel !== ".." && !isClaudeFolder(rel) && (asOpened(rel) === rel || /^ +$/.test(rel));
           const named = entry.key === norm(cwd) ? label : `${label}, read against ${entry.path}`;
           const asText = absoluteOf("./" + rel, entry.path);
