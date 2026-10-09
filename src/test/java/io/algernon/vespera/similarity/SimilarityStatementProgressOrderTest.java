@@ -41,7 +41,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * handler; {@code statementEnded} once after it, on every path but one that throws.
  *
  * <p>The statements are the build of {@code shingle_by_hash}; {@code DocumentFrequency.measure}'s grouping of
- * the shingle rows, in the database since ADR-211, and timed, its sorts giving no count; and the four of {@code
+ * the shingle rows, in the database since ADR-211, one statement, counted by SQLite's steps like the read it
+ * replaces though it sorts; and the four of {@code
  * RedundancyResolution.resolve}, among the loops ADR-192 section 5 already reports: the signed occurrences,
  * counted, then the signature bands, the near-duplicates' extraction metrics and the shingle document
  * frequencies, each timed.
@@ -61,8 +62,8 @@ class SimilarityStatementProgressOrderTest {
     /** Measuring reports one statement, started once and ended once: two callbacks about statements. */
     private static final int A_START_AND_AN_END = 2;
 
-    /** The two shingled documents of the first test, one page of them. */
-    private static final int TWO_SHINGLED_DOCUMENTS = 2;
+    /** The two documents the first test's walk holds, one page of them. */
+    private static final int TWO_OCCURRENCES = 2;
 
     /** The interval ADR-193 section 2 fixes. */
     private static final long EVERY_HUNDRED_THOUSAND_STEPS = 100_000L;
@@ -101,17 +102,17 @@ class SimilarityStatementProgressOrderTest {
     }
 
     /**
-     * ADR-211 sections 3 and 7: the shingle rows are grouped by the database, in statements that sort and so are
-     * timed, started with the span of the run's rows for ADR-191's line and ended, with no steps between; no drain
-     * of the survivors comes before them; and the check of the shingled occurrences against the ledger follows,
-     * a page at a time.
+     * ADR-211 sections 3 and 9: the shingle rows are grouped by the database in one statement, started with the
+     * span of the run's rows for ADR-191's line and ended; no drain of the survivors comes before it; and the
+     * check of the walk's occurrences against the ledger follows, a page at a time. Two hundred rows take far
+     * fewer than the 100,000 steps at which SQLite first calls back, so no steps come between.
      */
     @Test
     @Story("Measuring document frequency says what it is reading")
-    @DisplayName("Measuring starts its grouping of the shingle rows with their span and ends it, with nothing before it and no steps between, and then checks the documents carrying them a page at a time")
+    @DisplayName("Measuring starts its grouping of the shingle rows with their span and ends it, with nothing before it, and then checks the collection's documents a page at a time")
     @Issue("456")
     @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
-    void measuringStartsAndEndsItsGroupingAndThenChecksTheShingledOccurrences() {
+    void measuringStartsAndEndsItsGroupingAndThenChecksTheOccurrences() {
         document("a.pdf", 0);
         document("b.pdf", 1);
         long shingleRows = spanOf("shingle", stage2);
@@ -121,17 +122,74 @@ class SimilarityStatementProgressOrderTest {
 
         claim(
                 "the grouping of the shingle rows is the first thing the caller hears of, started over up to the "
-                        + shingleRows + " rows of stage 2's run and ended with nothing between; then the one page of"
-                        + " the " + TWO_SHINGLED_DOCUMENTS + " documents carrying them is checked; and nothing else"
-                        + " is reported",
+                        + shingleRows + " rows of stage 2's run and ended, so few rows making no callback between;"
+                        + " then the one page of the walk's " + TWO_OCCURRENCES + " documents is checked; and"
+                        + " nothing else is reported",
                 () -> assertThat(recorder.calls)
                         .containsExactly(
                                 starting(SimilarityStatement.SHINGLE_ROWS, OptionalLong.of(shingleRows)),
                                 ended(SimilarityStatement.SHINGLE_ROWS),
-                                "shingledOccurrencesChecked(" + TWO_SHINGLED_DOCUMENTS + ")"));
+                                "occurrencesChecked(" + TWO_OCCURRENCES + ")"));
         claim(
                 "the callbacks about statements are the " + A_START_AND_AN_END + " above",
                 () -> assertThat(recorder.statements()).hasSize(A_START_AND_AN_END));
+    }
+
+    /**
+     * ADR-211 section 9: the grouping is one statement that SQLite counts, though it sorts. Its callbacks come
+     * while it reads the rows and while it counts them sorted, so over many rows the caller is told the steps
+     * between the start and the end. The rows are of an occurrence no walk holds, so nothing is checked after.
+     */
+    @Test
+    @Story("Measuring document frequency says what it is reading")
+    @DisplayName("The grouping of many shingle rows reports its steps between its start and its end, in one statement")
+    @Issue("456")
+    @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
+    void theGroupingOfManyRowsReportsItsSteps() throws SQLException {
+        try (Connection connection = pool.connection()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement insert = connection.prepareStatement(
+                    "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"
+                            + " VALUES (?, ?, ?, ?)")) {
+                for (int row = 1; row <= MANY; row++) {
+                    insert.setLong(1, AN_OCCURRENCE_NO_WALK_HOLDS);
+                    insert.setString(2, stage2.value());
+                    insert.setString(3, ShingleParameters.DEFAULT.identity());
+                    insert.setLong(4, row);
+                    insert.addBatch();
+                }
+                insert.executeBatch();
+            }
+            connection.commit();
+            connection.setAutoCommit(true);
+        }
+        Recorder recorder = new Recorder();
+
+        new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2, recorder);
+
+        claim(
+                "the caller is told first that the grouping is starting, over up to " + MANY + " rows, and last"
+                        + " that it ended: the walk holds no document, so nothing is checked after it",
+                () -> {
+                    assertThat(recorder.calls)
+                            .first()
+                            .isEqualTo(starting(SimilarityStatement.SHINGLE_ROWS, OptionalLong.of(MANY)));
+                    assertThat(recorder.calls).last().isEqualTo(ended(SimilarityStatement.SHINGLE_ROWS));
+                });
+        claim(
+                "and between them only the steps SQLite took, a hundred thousand more each time, at least twice:"
+                        + " one statement, counted from its first step to its last, the sorting included",
+                () -> {
+                    List<String> between = recorder.calls.subList(1, recorder.calls.size() - 1);
+                    assertThat(between).hasSizeGreaterThanOrEqualTo(2);
+                    for (int i = 0; i < between.size(); i++) {
+                        assertThat(between.get(i))
+                                .isEqualTo("stepsTaken(" + SimilarityStatement.SHINGLE_ROWS + ", "
+                                        + (i + 1) * EVERY_HUNDRED_THOUSAND_STEPS + ")");
+                    }
+                });
+        claim("and neither connection of the pool carries a handler afterwards", () -> assertThat(pool.handlersLeft())
+                .isZero());
     }
 
     @Test
@@ -420,8 +478,8 @@ class SimilarityStatementProgressOrderTest {
         }
 
         /** ADR-211's callback, written without {@code @Override} so the class compiles before it exists. */
-        public void shingledOccurrencesChecked(int occurrences) {
-            calls.add("shingledOccurrencesChecked(" + occurrences + ")");
+        public void occurrencesChecked(int occurrences) {
+            calls.add("occurrencesChecked(" + occurrences + ")");
         }
 
         @Override

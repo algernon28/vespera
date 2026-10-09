@@ -27,7 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * The two reads of the ledger in id order, a run's survivors and a walk's occurrences, go forward from the
- * last id read on every page, and no page sorts the walk (ADR-211 section 6).
+ * last id read on every page, and no page sorts the walk (ADR-211 section 8).
  *
  * <p>As shipped at {@code 4b99a03}, SQLite plans each page as a search of {@code
  * file_occurrence_by_walk_and_size} on the walk, then sorts what it found in a temp B-tree to keep 1,000: so

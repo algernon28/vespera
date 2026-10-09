@@ -31,7 +31,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * The confidence distribution reads stage 2's metric rows a page of survivors at a time, and holds no set of
- * the survivors (ADR-211 sections 1, 2 and 5).
+ * the survivors (ADR-211 sections 1, 2 and 7).
  *
  * <p>Every statement the measurement makes is kept, in order, through {@link StatementLog}: the pages of
  * the survivors the ledger reads, and the reads of {@code extraction_metric}. At {@code 4b99a03} the three

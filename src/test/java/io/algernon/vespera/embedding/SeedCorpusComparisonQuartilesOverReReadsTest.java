@@ -43,17 +43,31 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * a few times rather than by holding a value for each survivor (ADR-211 section 4).
  *
  * <p>The first read counts each signal's values, keeps the first 1,000 of each, and counts each value's
- * leading 16 bits; every later read narrows each quartile's value by 16 more bits, or gathers the few values
- * left that could be it, so the reads are at most four. Each read goes through the survivors a page at a time,
- * through {@code MeasuredForms.eachOf}, and is reported as a read of its own: the first as {@code
- * CORPUS_METRICS}, every later one as {@code CORPUS_METRICS_AGAIN}, each started with the span of stage 2's
- * rows, told its rows after each page, and ended.
+ * leading 16 bits; every later read narrows each quartile's value by 16 more bits, keeping the least and
+ * greatest of the values that could still be it, or gathers them once they are 1,000 or fewer. A quartile
+ * whose candidates turn out to be one value is answered there, and a key has 64 bits, so the reads are at
+ * most four. Each read goes through the survivors a page at a time, through {@code MeasuredForms.eachOf}, and
+ * is reported as a read of its own: the first as {@code CORPUS_METRICS}, every later one as {@code
+ * CORPUS_METRICS_AGAIN}, each started with the span of stage 2's rows, told its rows after each page, and
+ * ended.
  *
- * <p>Over 2,500 corpus survivors whose word counts, page counts and two ratios are spread wide, a third with no
- * page count and some with no words, so no signal can be answered from the first 1,000 values or from one
- * value shared by all; and 50 ruled-out occurrences with values far above every survivor's, which would move
- * every upper quartile if they were counted. The expected quartiles are {@link
- * SeedCorpusComparison.Quartiles#of}'s own, over the survivors' values as this test wrote them.
+ * <p>Four ledgers, each of 2,500 corpus survivors and 50 ruled-out occurrences whose values lie far above
+ * every survivor's, which would move every upper quartile if they were counted. The expected quartiles are
+ * {@link SeedCorpusComparison.Quartiles#of}'s own, over the survivors' values as each test wrote them:
+ *
+ * <ul>
+ *   <li>values spread wide, a third with no page count and some with no words, so no signal can be answered
+ *       from the first 1,000 values or from one value shared by all;
+ *   <li>word counts below zero, and ratios below zero, at -0.0 and at 0.0, which a key that did not order
+ *       every number as the sort does would misplace. No count is negative in a real run; nothing in the
+ *       schema says so;
+ *   <li>three fifths of the page counts tied at one, the usual shape of page counts, which must cost two reads
+ *       and not four;
+ *   <li>two word counts one apart with over a thousand documents at each, the one shape that needs all four.
+ * </ul>
+ *
+ * <p>The equality of each spread with {@code Quartiles.of} holds at {@code 4b99a03} too, where every value is
+ * held and sorted. What fails there is how the rows are asked for.
  *
  * <p>{@code eachOf} and {@code rowsRead} are written without {@code @Override}: ADR-211 adds them, and this
  * class compiles before they exist. The constant of the later reads is named by its text for the same reason.
@@ -88,6 +102,24 @@ class SeedCorpusComparisonQuartilesOverReReadsTest {
     /** A ruled-out occurrence's word count: far above every survivor's. */
     private static final int FAR_ABOVE = 50_000_000;
 
+    /** Of every 25 survivors of the ledger with values below zero: 8 have a ratio below zero, 800 in all. */
+    private static final int OF_25_WITH_A_RATIO_BELOW_ZERO = 8;
+
+    /** The next 6 of every 25 have no such word among a negative count of words, a ratio of -0.0: 600 in all. */
+    private static final int OF_25_UP_TO_MINUS_ZERO = 14;
+
+    /** The next 6 have none among a positive count, a ratio of 0.0: 600 in all. The last 5 have a ratio above zero. */
+    private static final int OF_25_UP_TO_ZERO = 20;
+
+    /** Of every 5 survivors of the ledger with tied page counts, 3 have one page: 1,500 in all, over a page of 1,000. */
+    private static final int OF_5_WITH_ONE_PAGE = 3;
+
+    /** A word count whose neighbour, one more, shares its leading 32 bits as a number and differs in the next 16. */
+    private static final int A_WORD_COUNT = 1 << 30;
+
+    /** Of every 25 survivors of the ledger with two word counts, 13 have the lower: 1,300 and 1,200, each over 1,000. */
+    private static final int OF_25_WITH_THE_LOWER = 13;
+
     private static final String METRIC_ROW = "INSERT INTO extraction_metric (occurrence_id, run_id, status,"
             + " processing_time, page_count, character_count, alphanumeric_char_count, word_count,"
             + " word_character_length_total, vowelless_word_count, single_character_word_count)"
@@ -107,10 +139,32 @@ class SeedCorpusComparisonQuartilesOverReReadsTest {
     private final List<Double> vowellessRatios = new ArrayList<>();
     private final List<Double> singleCharacterRatios = new ArrayList<>();
 
+    /** What extraction measured of one survivor: the four columns the comparison's signals are taken from. */
+    private record Measured(int wordCount, Integer pageCount, int vowelless, int singleCharacter) {}
+
+    /** What the {@code j}th survivor of a ledger measured. */
+    @FunctionalInterface
+    private interface SurvivorValues {
+
+        Measured of(int j);
+    }
+
     @BeforeEach
-    void survivorsWithSpreadValuesAndOneSeed() throws SQLException, IOException {
+    void aPool() throws SQLException, IOException {
         pool = new PoolOfTwo(folder);
         jdbcTemplate = pool.jdbcTemplate();
+    }
+
+    @AfterEach
+    void closeThePool() {
+        pool.close();
+    }
+
+    /**
+     * A corpus walk of {@link #RECORDED} occurrences, one in {@link #ONE_IN} ruled out under stage 2 with
+     * values far above any survivor's, the survivors measured as {@code values} says; and one seed.
+     */
+    private void survivorsMeasuring(SurvivorValues values) throws SQLException {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId corpusWalk = ledger.walks().startWalk(Path.of("C:/corpus/comparison-quartiles"));
         seedWalk = ledger.walks().startWalk(Path.of("C:/seeds/comparison-quartiles"));
@@ -152,24 +206,20 @@ class SeedCorpusComparisonQuartilesOverReReadsTest {
                         ruledOut.setString(2, extractionRun.value());
                         ruledOut.addBatch();
                     } else {
-                        int j = survivor++;
-                        int wordCount = j % 97 == 0 ? 0 : 1 + (int) ((j * 7_919L) % 200_000);
-                        Integer pageCount = j % 3 == 0 ? null : 1 + (int) ((j * 31L) % 500);
-                        int vowelless = (int) ((j * 13L) % (wordCount / 5 + 1));
-                        int singleCharacter = (int) ((j * 17L) % (wordCount / 5 + 1));
-                        if (pageCount == null) {
+                        Measured measured = values.of(survivor++);
+                        if (measured.pageCount() == null) {
                             metric.setNull(3, Types.INTEGER);
                         } else {
-                            metric.setInt(3, pageCount);
-                            pages.add(pageCount.doubleValue());
+                            metric.setInt(3, measured.pageCount());
+                            pages.add(measured.pageCount().doubleValue());
                         }
-                        metric.setInt(4, wordCount);
-                        metric.setInt(5, vowelless);
-                        metric.setInt(6, singleCharacter);
-                        words.add((double) wordCount);
-                        if (wordCount != 0) {
-                            vowellessRatios.add((double) vowelless / wordCount);
-                            singleCharacterRatios.add((double) singleCharacter / wordCount);
+                        metric.setInt(4, measured.wordCount());
+                        metric.setInt(5, measured.vowelless());
+                        metric.setInt(6, measured.singleCharacter());
+                        words.add((double) measured.wordCount());
+                        if (measured.wordCount() != 0) {
+                            vowellessRatios.add((double) measured.vowelless() / measured.wordCount());
+                            singleCharacterRatios.add((double) measured.singleCharacter() / measured.wordCount());
                         }
                     }
                     metric.addBatch();
@@ -187,56 +237,30 @@ class SeedCorpusComparisonQuartilesOverReReadsTest {
         jdbcTemplate.update(METRIC_ROW, seed.value(), measurementRun.value(), 10, 300, 3, 4);
     }
 
-    @AfterEach
-    void closeThePool() {
-        pool.close();
-    }
-
     @Test
     @Story("Comparing the seeds with the collection")
     @DisplayName("The collection's quartiles are exact, found by reading the surviving documents a few times, a page at a time, each reading reported on its own")
-    void exactQuartilesOverAFewReadsOfTheSurvivors() {
+    void exactQuartilesOverAFewReadsOfTheSurvivors() throws SQLException {
+        survivorsMeasuring(j -> {
+            int wordCount = j % 97 == 0 ? 0 : 1 + (int) ((j * 7_919L) % 200_000);
+            Integer pageCount = j % 3 == 0 ? null : 1 + (int) ((j * 31L) % 500);
+            int vowelless = (int) ((j * 13L) % (wordCount / 5 + 1));
+            int singleCharacter = (int) ((j * 17L) % (wordCount / 5 + 1));
+            return new Measured(wordCount, pageCount, vowelless, singleCharacter);
+        });
         Asked asked = new Asked(new ExtractionMetrics(jdbcTemplate, new LanguageDetection()));
         Recorder recorder = new Recorder();
 
         SeedCorpusComparison.Comparison comparison = new SeedCorpusComparison(jdbcTemplate, new Ledger(jdbcTemplate))
                 .measure(measurementRun, extractionRun, seedWalk, asked, recorder);
 
-        List<Optional<SeedCorpusComparison.Quartiles>> expected = List.of(
-                SeedCorpusComparison.Quartiles.of(words),
-                SeedCorpusComparison.Quartiles.of(pages),
-                SeedCorpusComparison.Quartiles.of(vowellessRatios),
-                SeedCorpusComparison.Quartiles.of(singleCharacterRatios));
-        List<String> signals = List.of(
-                SeedCorpusComparison.WORD_COUNT,
-                SeedCorpusComparison.PAGE_COUNT,
-                SeedCorpusComparison.VOWELLESS_WORD_RATIO,
-                SeedCorpusComparison.SINGLE_CHARACTER_WORD_RATIO);
-        for (int s = 0; s < signals.size(); s++) {
-            String signal = signals.get(s);
-            SeedCorpusComparison.Quartiles quartiles = expected.get(s).orElseThrow();
-            claim(
-                    "the collection's " + signal + " quartiles are exactly those of every surviving document's value,"
-                            + " the ruled-out documents' values, far above them all, left out",
-                    () -> assertThat(comparison.spreads())
-                            .filteredOn(spread -> spread.signal().equals(signal))
-                            .singleElement()
-                            .satisfies(spread -> assertThat(spread.corpus()).isEqualTo(quartiles)));
-        }
+        everySpreadIsTheSurvivorsOwn(comparison);
+        int reads = readsOfTheSurvivorsBy(asked);
         claim(
-                "the collection's side is asked for by naming its documents, a page at a time, and never as every"
-                        + " row of the run that measured it",
-                () -> assertThat(asked.everyRowOf).doesNotContain(extractionRun));
-        int reads = asked.namedAtOnce.stream().mapToInt(Integer::intValue).sum() / SURVIVORS;
-        claim(
-                "each question names at most " + A_PAGE + " documents, and together they name the " + SURVIVORS
-                        + " survivors a whole number of times, between " + AT_LEAST_TWO_READS + " and "
-                        + AT_MOST_FOUR_READS + ": the survivors are read again, never held",
-                () -> {
-                    assertThat(asked.namedAtOnce).isNotEmpty().allSatisfy(named -> assertThat(named).isBetween(1, A_PAGE));
-                    assertThat(asked.namedAtOnce.stream().mapToInt(Integer::intValue).sum() % SURVIVORS).isZero();
-                    assertThat(reads).isBetween(AT_LEAST_TWO_READS, AT_MOST_FOUR_READS);
-                });
+                "the survivors are read between " + AT_LEAST_TWO_READS + " and " + AT_MOST_FOUR_READS
+                        + " times: more than once, their values being too many and too spread to answer from"
+                        + " the first reading, and never a fifth time",
+                () -> assertThat(reads).isBetween(AT_LEAST_TWO_READS, AT_MOST_FOUR_READS));
         long span = jdbcTemplate.queryForObject(
                 "SELECT MAX(rowid) - MIN(rowid) + 1 FROM extraction_metric WHERE run_id = ?", Long.class,
                 extractionRun.value());
@@ -254,6 +278,170 @@ class SeedCorpusComparisonQuartilesOverReReadsTest {
                 "and only after the last of them is the seeds' side read",
                 () -> assertThat(recorder.calls.indexOf("statementStarting(SEED_METRICS, OptionalLong[1])"))
                         .isGreaterThan(recorder.calls.lastIndexOf(expectedCalls.getLast())));
+    }
+
+    /**
+     * ADR-211 section 4's key orders every number as {@code Quartiles.of}'s sort does. A key made of a value's
+     * raw bits, compared unsigned, puts every value below zero above every value above it, and -0.0 above them
+     * all; here that would move all three quartiles of two signals.
+     */
+    @Test
+    @Story("Comparing the seeds with the collection")
+    @DisplayName("Values below zero, and a zero with a minus sign, are ordered as numbers are: the quartiles are still exact")
+    void valuesBelowZeroAndMinusZeroAreOrderedAsTheSortOrdersThem() throws SQLException {
+        survivorsMeasuring(j -> {
+            int magnitude = 1 + (int) ((j * 7_919L) % 200_000);
+            int of25 = j % 25;
+            if (of25 < OF_25_WITH_A_RATIO_BELOW_ZERO) {
+                return new Measured(-magnitude, null, 1 + j % 5, 0);
+            }
+            if (of25 < OF_25_UP_TO_MINUS_ZERO) {
+                return new Measured(-magnitude, null, 0, 0);
+            }
+            if (of25 < OF_25_UP_TO_ZERO) {
+                return new Measured(magnitude, null, 0, 0);
+            }
+            return new Measured(magnitude, null, 1 + j % 5, 0);
+        });
+        SeedCorpusComparison.Quartiles ofTheRatios =
+                SeedCorpusComparison.Quartiles.of(vowellessRatios).orElseThrow();
+        claim(
+                "the fixture is what it says: of the " + SURVIVORS + " ratios, sorted, the middle two are zeros"
+                        + " with a minus sign and the upper quartile's two are plain zeros, which are different"
+                        + " values to the sort, and the lower quartile is below zero",
+                () -> {
+                    assertThat(Double.doubleToRawLongBits(ofTheRatios.median()))
+                            .as("the bits of the median, against those of -0.0")
+                            .isEqualTo(Double.doubleToRawLongBits(-0.0));
+                    assertThat(Double.doubleToRawLongBits(ofTheRatios.upperQuartile()))
+                            .as("the bits of the upper quartile, against those of 0.0")
+                            .isEqualTo(Double.doubleToRawLongBits(0.0));
+                    assertThat(ofTheRatios.lowerQuartile()).isNegative();
+                });
+        Asked asked = new Asked(new ExtractionMetrics(jdbcTemplate, new LanguageDetection()));
+
+        SeedCorpusComparison.Comparison comparison = new SeedCorpusComparison(jdbcTemplate, new Ledger(jdbcTemplate))
+                .measure(measurementRun, extractionRun, seedWalk, asked, new Recorder());
+
+        everySpreadIsTheSurvivorsOwn(comparison);
+        int reads = readsOfTheSurvivorsBy(asked);
+        claim(
+                "and the survivors are read no more than " + AT_MOST_FOUR_READS + " times",
+                () -> assertThat(reads).isBetween(1, AT_MOST_FOUR_READS));
+    }
+
+    /**
+     * ADR-211 section 4, "a quartile that many values share is answered in two reads": the second read finds the
+     * least and the greatest of the values that could be the quartile equal. Narrowed 16 bits a read with no
+     * such check, the same quartile takes all four.
+     */
+    @Test
+    @Story("Comparing the seeds with the collection")
+    @DisplayName("Where most documents have one page, the collection's page-count quartiles are found in two readings")
+    void aQuartileTiedOverMoreThanAThousandValuesTakesTwoReads() throws SQLException {
+        survivorsMeasuring(j -> new Measured(
+                100, j % 5 < OF_5_WITH_ONE_PAGE ? 1 : 2 + (int) ((j * 31L) % 499), 0, 0));
+        SeedCorpusComparison.Quartiles ofThePages = SeedCorpusComparison.Quartiles.of(pages).orElseThrow();
+        claim(
+                "the fixture is what it says: " + SURVIVORS * OF_5_WITH_ONE_PAGE / 5 + " documents of one page,"
+                        + " more than a page of " + A_PAGE + ", so the lower quartile and the median are one page"
+                        + " and the upper quartile is among the rest",
+                () -> {
+                    assertThat(ofThePages.lowerQuartile()).isEqualTo(1.0);
+                    assertThat(ofThePages.median()).isEqualTo(1.0);
+                    assertThat(ofThePages.upperQuartile()).isGreaterThan(1.0);
+                });
+        Asked asked = new Asked(new ExtractionMetrics(jdbcTemplate, new LanguageDetection()));
+
+        SeedCorpusComparison.Comparison comparison = new SeedCorpusComparison(jdbcTemplate, new Ledger(jdbcTemplate))
+                .measure(measurementRun, extractionRun, seedWalk, asked, new Recorder());
+
+        everySpreadIsTheSurvivorsOwn(comparison);
+        int reads = readsOfTheSurvivorsBy(asked);
+        claim(
+                "the survivors are read exactly " + AT_LEAST_TWO_READS + " times: the second reading finds that"
+                        + " every value that could be the lower quartile or the median is the same one, and"
+                        + " gathers the few that could be the upper quartile",
+                () -> assertThat(reads).isEqualTo(AT_LEAST_TWO_READS));
+    }
+
+    /**
+     * The one shape that needs the fourth read: two values so close that their first 32 bits as numbers are the
+     * same, each shared by more than 1,000 documents, so no reading can gather the candidates and none before the
+     * fourth finds them all equal.
+     */
+    @Test
+    @Story("Comparing the seeds with the collection")
+    @DisplayName("Two word counts one apart, each over a thousand documents', are told apart in four readings and never a fifth")
+    void twoValuesOneApartEachOverAThousandTimesTakeFourReads() throws SQLException {
+        survivorsMeasuring(j -> new Measured(
+                j % 25 < OF_25_WITH_THE_LOWER ? A_WORD_COUNT : A_WORD_COUNT + 1, null, 0, 0));
+        SeedCorpusComparison.Quartiles ofTheWords = SeedCorpusComparison.Quartiles.of(words).orElseThrow();
+        claim(
+                "the fixture is what it says: the lower quartile and the median are the lower count and the upper"
+                        + " quartile the one above it",
+                () -> assertThat(ofTheWords)
+                        .isEqualTo(new SeedCorpusComparison.Quartiles(A_WORD_COUNT, A_WORD_COUNT, A_WORD_COUNT + 1.0)));
+        Asked asked = new Asked(new ExtractionMetrics(jdbcTemplate, new LanguageDetection()));
+
+        SeedCorpusComparison.Comparison comparison = new SeedCorpusComparison(jdbcTemplate, new Ledger(jdbcTemplate))
+                .measure(measurementRun, extractionRun, seedWalk, asked, new Recorder());
+
+        everySpreadIsTheSurvivorsOwn(comparison);
+        int reads = readsOfTheSurvivorsBy(asked);
+        claim(
+                "the survivors are read exactly " + AT_MOST_FOUR_READS + " times: 16 bits of each quartile's value"
+                        + " are found at a reading, the two counts differ only after the first 32, and each is"
+                        + " shared by too many documents to gather",
+                () -> assertThat(reads).isEqualTo(AT_MOST_FOUR_READS));
+    }
+
+    /** That each of the four spreads is {@code Quartiles.of} over the survivors' values as this test wrote them. */
+    private void everySpreadIsTheSurvivorsOwn(SeedCorpusComparison.Comparison comparison) {
+        List<Optional<SeedCorpusComparison.Quartiles>> expected = List.of(
+                SeedCorpusComparison.Quartiles.of(words),
+                SeedCorpusComparison.Quartiles.of(pages),
+                SeedCorpusComparison.Quartiles.of(vowellessRatios),
+                SeedCorpusComparison.Quartiles.of(singleCharacterRatios));
+        List<String> signals = List.of(
+                SeedCorpusComparison.WORD_COUNT,
+                SeedCorpusComparison.PAGE_COUNT,
+                SeedCorpusComparison.VOWELLESS_WORD_RATIO,
+                SeedCorpusComparison.SINGLE_CHARACTER_WORD_RATIO);
+        for (int s = 0; s < signals.size(); s++) {
+            String signal = signals.get(s);
+            Optional<SeedCorpusComparison.Quartiles> quartiles = expected.get(s);
+            if (quartiles.isEmpty()) {
+                continue;
+            }
+            claim(
+                    "the collection's " + signal + " quartiles are exactly those of every surviving document's value,"
+                            + " the ruled-out documents' values, far above them all, left out",
+                    () -> assertThat(comparison.spreads())
+                            .filteredOn(spread -> spread.signal().equals(signal))
+                            .singleElement()
+                            .satisfies(spread -> assertThat(spread.corpus()).isEqualTo(quartiles.get())));
+        }
+    }
+
+    /**
+     * That the corpus side was asked for by naming its occurrences, a page at a time, a whole number of times;
+     * and how many times that was.
+     */
+    private int readsOfTheSurvivorsBy(Asked asked) {
+        claim(
+                "the collection's side is asked for by naming its documents, a page at a time, and never as every"
+                        + " row of the run that measured it",
+                () -> assertThat(asked.everyRowOf).doesNotContain(extractionRun));
+        int named = asked.namedAtOnce.stream().mapToInt(Integer::intValue).sum();
+        claim(
+                "each question names at most " + A_PAGE + " documents, and together they name the " + SURVIVORS
+                        + " survivors a whole number of times: the survivors are read again, never held",
+                () -> {
+                    assertThat(asked.namedAtOnce).isNotEmpty().allSatisfy(count -> assertThat(count).isBetween(1, A_PAGE));
+                    assertThat(named % SURVIVORS).isZero();
+                });
+        return named / SURVIVORS;
     }
 
     private static List<String> oneRead(String statement, long span) {

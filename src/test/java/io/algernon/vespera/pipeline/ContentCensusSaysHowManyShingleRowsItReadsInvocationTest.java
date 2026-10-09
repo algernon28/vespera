@@ -94,6 +94,20 @@ class ContentCensusSaysHowManyShingleRowsItReadsInvocationTest {
     /** What the line before the read says about stopping part-way. */
     private static final String STOPPING_LOSES_ONLY_THE_TIME = "stopping before it ends loses only the time spent";
 
+    /** What ADR-211 section 9 has that line say of the read since the database groups the rows itself. */
+    private static final String IN_ONE_STATEMENT = "the database reads them, sorts them in temporary files in the"
+            + " working directory and counts them, in one statement";
+
+    /** What it says of that statement's progress lines, which state a floor (ADR-211 section 9). */
+    private static final String THE_LEAST_DONE_AND_SHORT_OF_THE_WHOLE =
+            "whose progress lines state the least it has done and stop short of 100%";
+
+    /** What it now says the half hour on record was: the reading, which is the first part of that statement. */
+    private static final String READING_ALONE_TOOK_HALF_AN_HOUR = "reading them alone took half an hour";
+
+    /** What ADR-191 had it say of the one read the application made itself, which is no longer made. */
+    private static final String A_PAGE_AT_A_TIME = "SQLite reads them a page at a time";
+
     /** The line stage 3 has always written once the document frequency is measured. */
     private static final String MEASURED = "Stage 3 (content census) measured shingle document frequency";
 
@@ -146,6 +160,7 @@ class ContentCensusSaysHowManyShingleRowsItReadsInvocationTest {
     @Test
     @Story("A long wait inside the database is announced")
     @DisplayName("A content census with saved word sequences to read says how many at most before it reads them, and how long the measurement took")
+    @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
     void aStageThreeWithShingleRowsToReadSaysHowManyAtMostBeforeItReadsThem(
             CapturedOutput output, @TempDir Path root) throws IOException {
         writeCorpus(root, "read announced");
@@ -198,6 +213,18 @@ class ContentCensusSaysHowManyShingleRowsItReadsInvocationTest {
                 () -> assertThat(second)
                         .contains(STOPPING_LOSES_ONLY_THE_TIME)
                         .containsPattern(MEASURED_IN_SECONDS_TO_ONE_DECIMAL));
+        String theLine = second.lines().filter(line -> line.contains(READING)).findFirst().orElse("");
+        claim(
+                "since the database groups the rows itself, the line says it reads them, sorts them in temporary"
+                        + " files in the working directory and counts them in one statement, that the progress"
+                        + " lines to come state the least done and stop short of the whole, and that the half"
+                        + " hour on record was the reading alone; it no longer says the rows are read a page at"
+                        + " a time, which described a read the application made itself",
+                () -> assertThat(theLine)
+                        .contains(IN_ONE_STATEMENT)
+                        .contains(THE_LEAST_DONE_AND_SHORT_OF_THE_WHOLE)
+                        .contains(READING_ALONE_TOOK_HALF_AN_HOUR)
+                        .doesNotContain(A_PAGE_AT_A_TIME));
     }
 
     @Test

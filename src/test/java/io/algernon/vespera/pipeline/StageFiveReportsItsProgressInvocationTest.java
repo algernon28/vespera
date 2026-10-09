@@ -107,7 +107,7 @@ class StageFiveReportsItsProgressInvocationTest {
     private static final String SCORING_SURVIVORS = "Stage 5d (relevance scoring, corpus survivors)";
     private static final String RELEVANCE_FLOOR = "Stage 5e (relevance floor, below-threshold verdicts)";
     private static final String PARTITIONS = "Stage 5f (clustering, seed partitions)";
-    /** 5f's counter of the keys it reads, one for each partition since ADR-211 section 3. */
+    /** 5f's counter of the keys it reads, one for each partition since ADR-211 section 5. */
     private static final String KEYS_READ_OF_THE_ONE = "Stage 5f (clustering, cache keys read, partition 1 of 1)";
 
     private static final String KEYS_READ_OF_THE_FIRST_OF_TWO = "Stage 5f (clustering, cache keys read, partition 1 of 2)";
@@ -591,6 +591,12 @@ class StageFiveReportsItsProgressInvocationTest {
      * converted document coming back alike, so what is held here is that the synthetic signatures added none;
      * {@code RedundancyResolutionReportsItsProgressInvocationTest} holds the same over a run that does hold a
      * verdict. It claims nothing about what any other stage decides.
+     *
+     * <p>Since ADR-211 two of the five are no longer counted by SQLite: stage 3's read of the extraction
+     * metrics and 5b's of the collection's are made a page of surviving documents at a time and told their
+     * rows. So the first invocation, before any synthetic row is written, is where each says how far it has
+     * gone, once, over the collection's own rows (ADR-211 section 9); and in the second, over the tens of
+     * thousands of rows of a folder nobody walked, each says nothing, never going through them.
      */
     @Test
     @Story("A long read inside the database reports how far it has gone")
@@ -605,6 +611,11 @@ class StageFiveReportsItsProgressInvocationTest {
         String census = theLatestRunOf(StageModules.CONTENT_CENSUS.stage());
         String redundancy = theLatestRunOf(StageModules.CONTENT_REDUNDANCY.stage());
         String measurement = theLatestRunOf(StageModules.SEED_MEASUREMENT.stage());
+        saidHowFarOnceOverItsOwnRows(
+                "Stage 3 (content census, reading extraction metrics)", rowSpanUnder("extraction_metric", extraction));
+        saidHowFarOnceOverItsOwnRows(
+                "Stage 5b (seed/corpus comparison, reading corpus metrics)",
+                rowSpanUnder("extraction_metric", extraction));
         List<String> verdictsOfTheFirstInvocation = verdictsUnder(redundancy);
         List<Long> nobodysFiles = filesOfAFolderNobodyWalked(ROWS_PAST_ONE_CALLBACK_AT_FIVE_STEPS);
         List<Long> fewer = nobodysFiles.subList(0, ROWS_PAST_ONE_CALLBACK_AT_SEVEN_STEPS);
@@ -702,7 +713,7 @@ class StageFiveReportsItsProgressInvocationTest {
     }
 
     /**
-     * ADR-204 section 3, for 5f over two partitions, as ADR-211 section 3 changes it: each partition's members
+     * ADR-204 section 3, for 5f over two partitions, as ADR-211 section 5 changes it: each partition's members
      * are read just before that partition is grouped, each read naming its partition and how many there are,
      * and the sizes of a partition's groups once that partition is grouped. One partition is held at a time, so
      * the keys read are counted for each partition, as the pairs of blocks are.
@@ -861,9 +872,8 @@ class StageFiveReportsItsProgressInvocationTest {
             + " word_character_length_total, vowelless_word_count, single_character_word_count)"
             + " VALUES (?, ?, 'success', 1.0, 1, 1, 1, 1, 0, 0)";
 
-    /** That the read labelled {@code label} wrote a progress line, and every one over {@code rowsUpTo} rows. */
     /**
-     * ADR-211 section 7: a read made a page of surviving documents at a time goes through their rows alone, so
+     * ADR-211 section 9: a read made a page of surviving documents at a time goes through their rows alone, so
      * the rows of a folder nobody walked bring it no nearer its first progress line, which the collection's own
      * few rows are far short of. Its line before and its line after are still written, over up to every row of
      * the run.
@@ -876,6 +886,22 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(operatorLines()).noneMatch(line -> line.startsWith(label + ": ")));
     }
 
+    /**
+     * ADR-211 section 9, the other side of the same rule: such a read is told its rows after each page and
+     * waits for no hundred thousand steps, so over a run that holds the collection's own rows and no other, its
+     * one page writes one line, at a hundred percent, every document having survived.
+     */
+    private void saidHowFarOnceOverItsOwnRows(String label, long rowsUpTo) {
+        String total = String.format(Locale.ROOT, "%,d", rowsUpTo);
+        claim(
+                label + " says how far it has gone once, after its one page: all of the " + total + " rows its"
+                        + " run holds, which are the collection's own documents' and every one of them read",
+                () -> assertThat(operatorLines())
+                        .filteredOn(line -> line.startsWith(label + ": "))
+                        .containsExactly(label + ": about 100% of " + total + " rows"));
+    }
+
+    /** That the read labelled {@code label} wrote a progress line, and every one over {@code rowsUpTo} rows. */
     private void saidAboutHowFar(String label, long rowsUpTo) {
         String total = String.format(Locale.ROOT, "%,d", rowsUpTo);
         claim(

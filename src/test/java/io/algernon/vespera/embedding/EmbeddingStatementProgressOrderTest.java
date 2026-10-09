@@ -35,7 +35,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * What {@code embedding} tells its caller around each statement of {@code SeedCorpusComparison.measure}, and
- * in which order (ADR-193 sections 6 to 8, ADR-204 section 4, ADR-211 section 7): its drain of the seed walk's
+ * in which order (ADR-193 sections 6 to 8, ADR-204 section 4, ADR-211 section 9): its drain of the seed walk's
  * occurrences, started with no total and ended; then its three reads, of the unusable seeds, of the corpus
  * survivors' extraction metrics under stage 2's run and of the seeds' under the measurement run, each started
  * with the span of its run's rows, or with an empty total where the run holds none, and ended.

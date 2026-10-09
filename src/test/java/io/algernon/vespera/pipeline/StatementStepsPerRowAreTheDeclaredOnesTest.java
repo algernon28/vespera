@@ -41,7 +41,8 @@ import org.junit.jupiter.api.Test;
  * one statement a page, and are told the rows they have read rather than SQLite's steps: none has a ratio to
  * declare, and none is a timed statement either, each having its total. They are named here by their names,
  * since 5b's later reads have a constant only once ADR-211 is built. Stage 3's shingle rows are grouped in the
- * database, in statements that sort, and so are timed.
+ * database in one statement, which stays counted: it declares the most steps a row that statement takes,
+ * where the read it replaces declared the 7 it always took ({@link GroupingStepsPerRowTest}).
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -62,6 +63,8 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
                 SimilarityStatement.SHINGLE_HASH_INDEX_BUILD,
                         StatementStepsPerRowTest.BUILD_STEPS_BEYOND_COLUMNS + 3,
                 SimilarityStatement.SIGNED_OCCURRENCES, StatementStepsPerRowTest.SIGNED_OCCURRENCES_STEPS,
+                // ADR-211's grouping: a ceiling, not a constant, measured over rows of several shapes.
+                SimilarityStatement.SHINGLE_ROWS, GroupingStepsPerRowTest.GROUPING_STEPS_A_ROW_AT_MOST,
                 // ADR-199's two counted reads of stage 2's resume, measured by their own test.
                 ExtractionStatement.FAULTED_OCCURRENCES, UncoveredStatementsStepsPerRowTest.FAULTED_OCCURRENCES_STEPS,
                 ExtractionStatement.RECORDED_OCCURRENCES,

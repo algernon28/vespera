@@ -31,12 +31,13 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * {@code Verdicts.survivingAmong}: which of some occurrences a caller already holds survive a run, asked of
  * the ledger a page at a time, so that a caller with a list in hand need hold no set of the run's survivors
- * (ADR-211 section 3). Grouping asks it of each partition's members.
+ * (ADR-211 section 5). Stage 5f asks it of each partition's members, and stage 3 of each page of the walk's
+ * occurrences (section 3).
  *
  * <p>It answers to the runs a run's survivors answer to (ADR-156), and to the run's walk; it names at most
  * 1,000 occurrences in a statement; it asks nothing about nothing; and each statement is a lookup by the
- * occurrences' own numbers, not a search of the walk (ADR-211 section 6, where the walk search cost every
- * ask a pass over the walk).
+ * occurrences' own numbers, not a search of the walk (ADR-211 section 8, where the walk search cost every
+ * ask a read of the whole walk).
  *
  * <p>Parked under {@code docs/adr/0211/tests/} until the method exists: it names it, and would stop the test
  * tree compiling.

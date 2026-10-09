@@ -34,7 +34,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * What {@code extraction} tells its caller around {@code ConfidenceDistribution.measure}'s read of the
- * extraction metrics, and in which order (ADR-193 sections 6 to 8, ADR-204 section 4, ADR-211 section 7).
+ * extraction metrics, and in which order (ADR-193 sections 6 to 8, ADR-204 section 4, ADR-211 section 9).
  *
  * <p>Since ADR-211 the read is made a page of stage 2's survivors at a time, and no drain of the survivors
  * comes before it. It is started once, with the span of the run's rows or an empty total where the run holds

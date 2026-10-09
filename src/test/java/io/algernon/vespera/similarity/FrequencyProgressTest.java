@@ -30,10 +30,9 @@ import org.springframework.test.context.ActiveProfiles;
  *
  * <p>Since ADR-211 the frequency rows are written by one statement in the database, so there is no loop over
  * the distinct hashes to announce, and {@code toGoThrough} and {@code hashGoneThrough} are gone. What is left
- * that loops is the check of the run's shingled occurrences, a page of 1,000 at a time, against the ledger:
- * {@code shingledOccurrencesChecked(int)} is called once after each page, with that page's number of
- * occurrences, so the calls add up to the shingled occurrences of the run. A run with no shingle row has no
- * page and makes no call.
+ * that loops is the check of the walk's occurrences, a page of 1,000 at a time, against the ledger: {@code
+ * occurrencesChecked(int)} is called once after each page, with that page's number of occurrences, so the
+ * calls add up to the occurrences of the walk. A run with no shingle row has no page and makes no call.
  *
  * <p>Every method of the recorder is written without {@code @Override}: the two old ones still have to be
  * implemented at {@code 4b99a03} and no longer exist after ADR-211, and the new one exists only after it.
@@ -51,16 +50,16 @@ class FrequencyProgressTest {
     /** Hashes 0 to 9 and 5 to 14: five of them in both documents. */
     private static final int FIVE_SHARED_HASHES = 5;
 
-    /** The two shingled documents, one page of them. */
-    private static final int TWO_SHINGLED_DOCUMENTS = 2;
+    /** The two documents of the collection, one page of them. */
+    private static final int TWO_OCCURRENCES = 2;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
     @Story("Measuring document frequency tells its caller how many documents it has checked")
-    @DisplayName("The documents carrying passages are reported as checked, a page at a time, and no loop over the distinct passages is announced")
-    void reportsTheShingledOccurrencesCheckedAndNoLoopOverHashes() {
+    @DisplayName("The collection's documents are reported as checked, a page at a time, and no loop over the distinct passages is announced")
+    void reportsTheOccurrencesCheckedAndNoLoopOverHashes() {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-frequency"));
         RunId stage2 = ledger.runs().startRun("extraction", "abc123", "{}", walk, List.of());
@@ -72,9 +71,9 @@ class FrequencyProgressTest {
         new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2, recording(events));
 
         claim(
-                "the one page of the " + TWO_SHINGLED_DOCUMENTS + " documents that carry passages is reported as"
-                        + " checked, once, and nothing is said of the distinct passages",
-                () -> assertThat(events).containsExactly("checked " + TWO_SHINGLED_DOCUMENTS));
+                "the one page of the collection's " + TWO_OCCURRENCES + " documents is reported as checked, once,"
+                        + " and nothing is said of the distinct passages",
+                () -> assertThat(events).containsExactly("checked " + TWO_OCCURRENCES));
         claim(
                 "and only the " + FIVE_SHARED_HASHES + " passages both documents hold earned a row",
                 () -> assertThat(jdbcTemplate.queryForObject(
@@ -97,7 +96,8 @@ class FrequencyProgressTest {
         new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2, recording(events));
 
         claim(
-                "a run with no shingle row has no page of shingled documents to check, so nothing is reported",
+                "a run with no shingle row has no document to take anything off for, so no page is read and"
+                        + " nothing is reported",
                 () -> assertThat(events).isEmpty());
     }
 
@@ -111,8 +111,8 @@ class FrequencyProgressTest {
                 events.add("gone-through");
             }
 
-            /** ADR-211's callback: after each page of the run's shingled occurrences, with the page's count. */
-            public void shingledOccurrencesChecked(int occurrences) {
+            /** ADR-211's callback: after each page of the walk's occurrences, with the page's count. */
+            public void occurrencesChecked(int occurrences) {
                 events.add("checked " + occurrences);
             }
         };
