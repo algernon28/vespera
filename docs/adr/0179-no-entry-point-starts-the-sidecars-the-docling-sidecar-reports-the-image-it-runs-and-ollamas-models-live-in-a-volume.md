@@ -1,6 +1,6 @@
 # ADR-179 — No entry point starts the sidecars, the Docling sidecar reports the image it runs, and Ollama's models live in a volume
 
-> **Read with [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** Chroma is removed, so §5's *"Chroma stays without a volume"* has no object, and the Context's account of three tests setting `spring.docker.compose.enabled=false`, `VectorStoreIsReachedOnFirstUseTest` among them, is what was measured then. The note on `anIdeRunStartsNoContainer`, which names Chroma's connection-details class, is corrected when that test drops it, with ADR-214's implementation. This record's decision stands.
+> **Read with [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** Chroma is removed, so §5's *"Chroma stays without a volume"* has no object, and the Context's account of three tests setting `spring.docker.compose.enabled=false`, `VectorStoreIsReachedOnFirstUseTest` among them, is what was measured then. The note on `anIdeRunStartsNoContainer`, which named Chroma's connection-details class, was corrected in place when that test dropped it, with ADR-214's implementation. This record's decision stands.
 
 - **Date**: 2026-10-03
 - **Status**: accepted
@@ -169,7 +169,7 @@ The tags become:
 New, under `src/test`, red until the change lands:
 
 - **`SidecarsAreStartedByTheOperatorTest`** (unit, no Docker, reads the classpath and `pom.xml`):
-  - `anIdeRunStartsNoContainer`: Spring Boot's compose lifecycle (`org.springframework.boot.docker.compose.lifecycle.DockerComposeLifecycleManager`) is not on the classpath the tests run on, which contains the runtime classpath an IDE launches `VesperaApplication` with, optional dependencies included. Spring AI's compose connection details (`org.springframework.ai.docker.compose.service.connection.ollama.OllamaDockerComposeConnectionDetailsFactory` and its Chroma sibling) are not on it either.
+  - `anIdeRunStartsNoContainer`: Spring Boot's compose lifecycle (`org.springframework.boot.docker.compose.lifecycle.DockerComposeLifecycleManager`) is not on the classpath the tests run on, which contains the runtime classpath an IDE launches `VesperaApplication` with, optional dependencies included. Spring AI's compose connection details (`org.springframework.ai.docker.compose.service.connection.ollama.OllamaDockerComposeConnectionDetailsFactory`) are not on it either. The test also named the Chroma sibling of that class until Chroma was removed (ADR-214, note corrected with [#352](https://github.com/algernon28/vespera/issues/352)).
   - `thePomDeclaresNoComposeSupport`: `pom.xml` names neither `spring-boot-docker-compose` nor `spring-ai-spring-boot-docker-compose`.
 - **`OllamaKeepsItsModelsTest`** (unit, no Docker, reads the compose files with SnakeYAML, in `SidecarRestartPolicyTest`'s style):
   - `ollamaKeepsItsModelsInANamedVolume`: `compose.yaml`'s `ollama` mounts `ollama-models:/root/.ollama`, and the top-level `volumes` declares `ollama-models` as neither `external` nor a bind.

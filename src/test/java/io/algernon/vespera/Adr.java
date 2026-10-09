@@ -44,10 +44,6 @@ public final class Adr {
     public static final String MODULITH_RETAINED_FOR_BOUNDARY_CHECKS =
             FILE + "0037-spring-modulith-event-publication-registry-dropped.md";
 
-    /** ADR-039 — Chroma is derived; SQLite is authoritative for vectors. */
-    public static final String CHROMA_IS_DERIVED =
-            FILE + "0039-chroma-is-derived-sqlite-is-authoritative-for-vectors.md";
-
     /** ADR-040 — modules are capability-shaped, not stage-shaped. */
     public static final String MODULES_ARE_CAPABILITY_SHAPED =
             FILE + "0040-modules-are-capability-shaped-not-stage-shaped.md";
@@ -637,10 +633,6 @@ public final class Adr {
      */
     public static final String THE_CLI_EXITS_WITH_THE_COMMANDS_EXIT_CODE = FILE
             + "0141-the-cli-exits-with-the-commands-exit-code-and-the-scheduler-no-feature-uses-is-removed-at-its-source.md";
-
-    /** ADR-142 -- the vector store connects to Chroma when it is first used, not at startup. */
-    public static final String THE_VECTOR_STORE_CONNECTS_WHEN_FIRST_USED = FILE
-            + "0142-the-vector-store-connects-to-chroma-when-it-is-first-used.md";
 
     /**
      * ADR-143 -- a conversion Docling failed and gave no category for is a verdict against the file,
@@ -1242,8 +1234,8 @@ public final class Adr {
      * container in the pom, the configuration class that deferred the store, its property, its compose
      * service and its test container; the requirement that a vector database be kept for a later reader is
      * withdrawn with it, so a reader that wants one is a decision of its own; vectors live in SQLite alone,
-     * where scoring and clustering already read them (supersedes ADR-142; amends ADR-039, ADR-032 and
-     * ADR-085's decision to keep Chroma; settles #352's Chroma point).
+     * where scoring and clustering already read them (supersedes ADR-142; amends ADR-001's vector
+     * database, ADR-039, ADR-032 and ADR-085's decision to keep Chroma; settles #352's Chroma point).
      */
     public static final String CHROMA_IS_REMOVED_AND_VECTORS_LIVE_IN_SQLITE_ALONE = FILE
             + "0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md";

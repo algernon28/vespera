@@ -122,10 +122,6 @@
             <version>${picocli.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-vector-store-chroma</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-api</artifactId>
         </dependency>
@@ -167,11 +163,6 @@
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers-chromadb</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -328,7 +319,7 @@
             </plugin>
             <plugin>
                 <!--
-                  *IT tests need a Docker daemon (VesperaApplicationIT starts Chroma and Ollama via
+                  *IT tests need a Docker daemon (VesperaApplicationIT starts Ollama and docling-serve via
                   Testcontainers) and are excluded from surefire above, so `./mvnw test` never needs
                   Docker. `./mvnw verify` runs them here, in integration-test, woven the same way as
                   surefire; allure.properties sends both suites to the same results directory,

@@ -46,12 +46,11 @@ class SidecarsAreStartedByTheOperatorTest {
     private static final String BOOT_COMPOSE_LIFECYCLE =
             "org.springframework.boot.docker.compose.lifecycle.DockerComposeLifecycleManager";
 
-    /** Spring AI's: the artifact, and the two classes that read Ollama and Chroma back from containers it started. */
+    /** Spring AI's: the artifact, and the class that reads Ollama back from a container it started. */
     private static final String AI_COMPOSE_ARTIFACT = "spring-ai-spring-boot-docker-compose";
 
     private static final List<String> AI_COMPOSE_CONNECTION_DETAILS = List.of(
-            "org.springframework.ai.docker.compose.service.connection.ollama.OllamaDockerComposeConnectionDetailsFactory",
-            "org.springframework.ai.docker.compose.service.connection.chroma.ChromaDockerComposeConnectionDetailsFactory");
+            "org.springframework.ai.docker.compose.service.connection.ollama.OllamaDockerComposeConnectionDetailsFactory");
 
     @Test
     @Story("The operator starts the sidecars, and nothing else does")
@@ -65,8 +64,8 @@ class SidecarsAreStartedByTheOperatorTest {
                         .as("%s is on the classpath", BOOT_COMPOSE_LIFECYCLE)
                         .isFalse());
         claim(
-                "and neither is Spring AI's support for reading the model server and the vector store back"
-                        + " from containers that support started",
+                "and neither is Spring AI's support for reading the model server back from containers that"
+                        + " support started",
                 () -> assertThat(AI_COMPOSE_CONNECTION_DETAILS)
                         .as("classes reading containers back that are still on the classpath")
                         .noneMatch(SidecarsAreStartedByTheOperatorTest::isOnTheClasspath));

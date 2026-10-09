@@ -9,7 +9,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,9 +32,8 @@ import picocli.CommandLine;
  *
  * <p>Pinned by launching the packaged jar, as {@link CliExitIT} does, because both halves live
  * outside any in-process test: what reaches the operator's terminal, and the code that reaches the
- * shell (ADR-141). The jar is pointed at a Chroma on a port nothing listens on and starts no compose
- * sidecar, so no Docker daemon is needed; nothing it would reach is reached anyway, since the
- * invocation ends before the context exists.
+ * shell (ADR-141). The jar starts no sidecar, so no Docker daemon is needed; nothing it would reach is
+ * reached anyway, since the invocation ends before the context exists.
  */
 @Epic("Census")
 @Feature("Profile")
@@ -138,8 +136,6 @@ class ProfileThatDoesNotLoadIT {
                                             Stream.of(
                                                     javaExecutable(),
                                                     "-Dspring.docker.compose.enabled=false",
-                                                    "-Dspring.ai.vectorstore.chroma.client.port="
-                                                            + closedPort(),
                                                     "-Dvespera.working-dir=" + workingDirectory,
                                                     "-jar", EXECUTABLE_JAR.toString()),
                                             Stream.of(args))
@@ -159,13 +155,6 @@ class ProfileThatDoesNotLoadIT {
             return new Launched(finished, finished ? process.exitValue() : -1, lines);
         } finally {
             Files.deleteIfExists(printed);
-        }
-    }
-
-    /** A port nothing listens on: bound once to learn a free number, then released. */
-    private static int closedPort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
         }
     }
 
