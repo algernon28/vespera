@@ -102,24 +102,23 @@ class RelevanceFloorTasklet implements Tasklet {
         Optional<String> currentIdentity =
                 TimedStatement.of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName));
         FloorReach reach = relevanceFloor.reachFor(currentIdentity, STAGE);
-        if (!reach.withdrawsStandingRemovals()) {
+
+        // Every removal this run has standing goes before the reach is acted on, whichever way it
+        // turns out, and whether or not the vectors carry one identity (ADR-118, ADR-227). The answers
+        // decide this step and no run names them, so the decision can turn either way between two
+        // invocations: a threshold that became applicable removes documents, and one that stopped being
+        // applicable must withdraw the removals it already made. Discarding only where it applies would
+        // keep the harsher half of that.
+        ledger.verdicts().discardVerdicts(scoring, VerdictKind.BELOW_THRESHOLD);
+
+        if (currentIdentity.isEmpty()) {
             LOG.info(
                     "stage 5's relevance-floor step removed nothing: the vectors under {} carry no single"
                             + " embedder identity, so there is no one scale for a threshold to be on. A"
                             + " threshold is only applied where the scale it was read off is known to be"
                             + " this one.",
                     modelName);
-            return RepeatStatus.FINISHED;
-        }
-
-        // Every removal this run has standing goes before the reach is acted on, whichever way it
-        // turns out (ADR-118). The answers decide this step and no run names them, so the decision can
-        // turn either way between two invocations: a threshold that became applicable removes
-        // documents, and one that stopped being applicable must withdraw the removals it already made.
-        // Discarding only where it applies would keep the harsher half of that.
-        ledger.verdicts().discardVerdicts(scoring, VerdictKind.BELOW_THRESHOLD);
-
-        if (reach.floor().isEmpty()) {
+        } else if (reach.floor().isEmpty()) {
             LOG.info("stage 5's relevance-floor step removed nothing: no relevance threshold is set."
                     + " Every scored survivor stands, and the labelling report is what a person reads"
                     + " to choose the number.");
