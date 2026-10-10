@@ -94,10 +94,9 @@ class ContentIdentityResolutionTest {
         claim(
                 "and each is recorded as superseded by b.txt, while b.txt is recorded as superseded by nothing",
                 () -> {
-                    ContentIdentity contentIdentity = new ContentIdentity(jdbcTemplate);
-                    assertThat(contentIdentity.representativeFor(a, run)).contains(b);
-                    assertThat(contentIdentity.representativeFor(c, run)).contains(b);
-                    assertThat(contentIdentity.representativeFor(b, run)).isEmpty();
+                    assertThat(representativesOf(a, run)).containsExactly(b);
+                    assertThat(representativesOf(c, run)).containsExactly(b);
+                    assertThat(representativesOf(b, run)).isEmpty();
                 });
     }
 
@@ -237,6 +236,18 @@ class ContentIdentityResolutionTest {
                 "and nothing is recorded as hashed",
                 () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM content_hash", Integer.class))
                         .isZero());
+    }
+
+    /**
+     * What {@code superseded_by} records {@code occurrence} as superseded by under {@code run}: one, or none.
+     * Read by a statement of this test's own, no shipped class reading that table (ADR-216 section 5).
+     */
+    private List<OccurrenceId> representativesOf(OccurrenceId occurrence, RunId run) {
+        return jdbcTemplate.query(
+                "SELECT representative_occurrence_id FROM superseded_by WHERE occurrence_id = ? AND run_id = ?",
+                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong(1)),
+                occurrence.value(),
+                run.value());
     }
 
     /** The verdicts on {@code occurrence}, as kind and reason. */
