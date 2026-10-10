@@ -256,7 +256,7 @@ A stage's implementation version is the last commit touching `src/main/java/io/a
 
 **So stages 2 to 6b move.** Stage 2 does its work again from the extraction cache and writes one more copy of the corpus's shingle rows (ADR-221 §8); the arrangement is a new one, and `arrangementApproved` must name it.
 
-**It ships in one build with the changes of #458, #353, #472, #477, #468, #479 and #486**, by the operator's decision of 2026-10-10, so that those stages are minted once by that build as a whole and not once for each. All seven are on main as this change is gated, #486 since `35a5a6b`, and so is #481's (ADR-229): this is the last change of that build.
+**It ships in one build with the changes of #458, #353, #472, #477, #468, #479 and #486**, by the operator's decision of 2026-10-10, so that those stages are minted once by that build as a whole and not once for each. All seven are on main as this change is gated, #486 since `35a5a6b`, and so is #481's (ADR-229). It is not the last change of that build: by the operator's decision of the same day #488 and #489, for which ADR-228 and ADR-230 are held, join it, and no build is cut until theirs are on main too.
 
 No DDL in `schema.sql`, no schema version, no cache key. The comment of `schema.sql` that names the index's columns is corrected.
 
