@@ -1370,6 +1370,21 @@ public final class Adr {
             + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
 
     /**
+     * ADR-221 -- {@code shingle_by_hash} is an index on {@code (shingle_parameter_identity, shingle_hash)} over
+     * the rows of one stage-2 run, the run stage 4b reads, where ADR-182 built it over every run's rows. Stage
+     * 4b builds it where it is absent or is not that run's, dropping first what it finds, and tells whose it is
+     * by the statement {@code sqlite_master} keeps. The run id is written into the statement, so the build
+     * refuses an id that is not 64 lowercase hexadecimal characters. Containment retrieval keeps the run as a
+     * bound value, which SQLite matches to the index's own when it plans the statement with its values. The
+     * build wrote 46.1 to 50.5 bytes for each row of the run at its peak on synthetic ledgers, where the
+     * whole-table build wrote 182.8 to 185.6 for each row the table keeps. An earlier run's rows stay, at 277.5
+     * bytes a shingle row in the file, and their removal is #481's (amends ADR-060, ADR-182, ADR-193,
+     * ADR-204, ADR-211, ADR-218, ADR-219, ADR-222 and ADR-224; decides #468). The choices are the coordinating session's, to which the operator handed them.
+     */
+    public static final String THE_HASH_INDEX_IS_OVER_THE_ROWS_OF_THE_RUN_IN_HAND = FILE
+            + "0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md";
+
+    /**
      * ADR-222 -- a stage's version names {@code pipeline} only while a class of {@code pipeline} holds a
      * rule that shapes that stage's output: a verdict, a cache key, a cluster or text of the deliverable.
      * Every class of {@code pipeline} was read; eight rules were found, one of seed measurement, two of

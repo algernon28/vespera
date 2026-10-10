@@ -46,7 +46,10 @@ class StatementProgressTest {
     /** The steps between two reports of SQLite's handler (ADR-193 section 2). */
     private static final long STEPS_PER_CALLBACK = 100_000L;
 
-    /** The build of {@code shingle_by_hash}: 8 steps a row and one for each of its three columns. */
+    /**
+     * What the build of {@code shingle_by_hash} declared until ADR-221, 8 steps a row and one for each of the
+     * three columns it then had: a sample ratio now, the build declaring 12, the most a row takes.
+     */
     private static final int BUILD_STEPS_PER_ROW = 11;
 
     /** What stage 3's read of its shingle rows took until ADR-211 had the database group them: a sample ratio now. */

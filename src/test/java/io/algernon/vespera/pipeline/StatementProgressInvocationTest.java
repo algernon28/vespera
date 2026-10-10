@@ -87,14 +87,23 @@ class StatementProgressInvocationTest {
     /** What stage 4's gate is opened with, so the build and the resolution run. */
     private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** Stage 4b's line before its build, up to its total. */
-    private static final String BUILDING = "Stage 4b (redundancy resolution) is building shingle_by_hash over up to ";
+    /** Stage 4b's line before its build, up to the run it builds for (ADR-221 section 5). */
+    private static final String BUILDING =
+            "Stage 4b (redundancy resolution) is building shingle_by_hash over the rows of run ";
 
-    /** What that line now says about the worst measured and about a stop (ADR-193 section 4.2). */
-    private static final String THE_WORST_MEASURED_AND_A_STOP =
-            "that took 39 minutes for 42833917 rows on a USB spinning disk, and stopping before it ends undoes it";
+    /** What follows the run in that line, around the rows the build reads. */
+    private static final String READING_UP_TO = " alone, reading up to ";
 
-    /** What it said before, which understated the build of 2026-10-04. */
+    private static final String TO_FIND_THEM_AND_A_STOP = " shingle rows to find them, and removing first any"
+            + " shingle_by_hash built for another; stopping before it ends undoes the build";
+
+    /**
+     * What the line said of the build over every run's rows, the worst measured of that statement (ADR-193
+     * section 4.2). It is not said of this one, which nobody has run on that disk.
+     */
+    private static final String THE_WORST_MEASURED_OF_ANOTHER_BUILD = "39 minutes";
+
+    /** What it said before that, which understated the build of 2026-10-04. */
     private static final String THE_OLD_UNDERSTATEMENT = "on a large database this takes minutes";
 
     /** Stage 4b's line after its build. */
@@ -105,6 +114,15 @@ class StatementProgressInvocationTest {
 
     /** What the line that the rows are gone through says after the label and the total. */
     private static final String SAYS_NOTHING_MORE = "rows gone through; writing the index says nothing more until it ends";
+
+    /**
+     * How many rows of other runs the table may keep before the build's count can no longer come within a
+     * callback of the rows read, so that the line above is not written (ADR-221 section 5): a callback is
+     * 8,334 rows at the 12 steps the build declares, a row of another run takes 3 and so is counted as a
+     * quarter of one, and 8,334 over the three quarters it falls short by is 11,112. The 346 steps the build
+     * takes besides are left out: they are worth 28 rows.
+     */
+    private static final long OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT = 8_334L * 12 / (12 - 3);
 
     /** Stage 3's line before its read, and the line after its measurement (ADR-191). */
     private static final String READING = "Stage 3 (content census) is reading up to ";
@@ -197,21 +215,33 @@ class StatementProgressInvocationTest {
 
         String building = only(lines, BUILDING);
         claim(
-                "the line before the build says the worst build measured and that a stop undoes it, and no"
-                        + " longer that it takes minutes",
+                "the line before the build names the extraction whose word sequences it indexes, says it reads"
+                        + " up to the " + tableRows + " rows the table holds at most to find them, that it"
+                        + " removes first an index built for another extraction, and that a stop undoes the"
+                        + " build",
                 () -> assertThat(building)
-                        .contains(THE_WORST_MEASURED_AND_A_STOP)
+                        .endsWith(BUILDING + extractionRun + READING_UP_TO + tableRows + TO_FIND_THEM_AND_A_STOP));
+        claim(
+                "and it says neither how long a build of another kind once took nor that it takes minutes",
+                () -> assertThat(building)
+                        .doesNotContain(THE_WORST_MEASURED_OF_ANOTHER_BUILD)
                         .doesNotContain(THE_OLD_UNDERSTATEMENT));
 
         int buildingAt = indexOf(lines, BUILDING);
         int builtAt = indexOf(lines, BUILT);
-        List<String> buildProgress = between(lines, buildingAt, builtAt, BUILD_LABEL + ": about ");
+        List<String> buildProgress = between(lines, buildingAt, builtAt, BUILD_LABEL + ": at least ");
         claim(
                 "between its two lines the build writes progress lines, because SQLite calls back while it goes"
                         + " through the rows",
                 () -> assertThat(buildProgress).isNotEmpty());
         claim(
-                "each states about what share of the " + grouped(tableRows) + " rows the table holds at most",
+                "none of them says `about`: a row of another extraction takes fewer steps than the build"
+                        + " counts a row at, so the share stated can fall behind the rows read and never runs"
+                        + " ahead of them",
+                () -> assertThat(between(lines, buildingAt, builtAt, BUILD_LABEL + ": about ")).isEmpty());
+        claim(
+                "each states at least what share of the " + grouped(tableRows) + " rows the table holds at most"
+                        + " is read",
                 () -> assertThat(buildProgress).allSatisfy(line -> assertThat(totalOf(line)).isEqualTo(grouped(tableRows))));
         claim(
                 "the shares rise from line to line and stay below a hundred",
@@ -223,6 +253,12 @@ class StatementProgressInvocationTest {
 
         List<String> goneThrough = between(lines, buildingAt, builtAt, SAYS_NOTHING_MORE);
         claim(
+                "the table holds " + (tableRows - runRows) + " rows that are not this extraction's, fewer than the "
+                        + OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT + " past which the build's count stops"
+                        + " short of the rows and the line below can never be written; below it, whether it is"
+                        + " written turns on where the last callback falls",
+                () -> assertThat(tableRows - runRows).isLessThan(OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT));
+        claim(
                 "once the rows are gone through, one line says so, and that writing the index says nothing"
                         + " more until it ends",
                 () -> assertThat(goneThrough)
@@ -233,7 +269,7 @@ class StatementProgressInvocationTest {
                 "it comes after the last progress line, and nothing of the build's comes between it and the"
                         + " line that the index is built",
                 () -> assertThat(indexOf(lines, SAYS_NOTHING_MORE))
-                        .isGreaterThan(lastIndexOf(lines, BUILD_LABEL + ": about "))
+                        .isGreaterThan(lastIndexOf(lines, BUILD_LABEL + ": at least "))
                         .isLessThan(builtAt));
 
         int readingAt = indexOf(lines, READING);
