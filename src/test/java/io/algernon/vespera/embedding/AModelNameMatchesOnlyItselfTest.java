@@ -33,9 +33,8 @@ import org.springframework.test.context.ActiveProfiles;
  * <p>The fixtures write vector rows directly through the cache, each pair under two identities that differ
  * only where a pattern built carelessly would let the first match the second.
  *
- * <p>Rewritten with ADR-228, before the change it pins: until then both readers match by the model's name
- * alone, so every test here that reads fails, {@code vectorsFor} finding no vector under an identity it
- * takes for a name, and the identity's read not yet taking an artefact.
+ * <p><b>Not held: letter case.</b> SQLite's {@code LIKE} folds the case of ASCII letters, so two stored
+ * identities that differ only in case both answer to the pattern of either, and the read then names neither.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -210,8 +209,40 @@ class AModelNameMatchesOnlyItselfTest {
                         .contains(underscored));
     }
 
+    @Test
+    @Story("A model is matched by its own name and nothing like it")
+    @DisplayName("An underscore or a backslash in a digest, and a percent sign or a backslash in a weight format, are the characters themselves")
+    void theDigestAndTheWeightDtypeAreMatchedLiterallyToo() {
+        VectorCache cache = new VectorCache(jdbcTemplate);
+        for (String digest : new String[] {"a_b", "axb", "c\\d", "cd"}) {
+            cache.put(CONTENT_HASH, CHUNKER, CHUNKING_RULE, 0, identityOf(digest, DTYPE), UNDERSCORED_VECTOR);
+        }
+        for (String dtype : new String[] {"e\\f", "ef", "Q8"}) {
+            cache.put(CONTENT_HASH, CHUNKER, CHUNKING_RULE, 0, identityOf(DIGEST, dtype), LOOKALIKE_VECTOR);
+        }
+
+        claim(
+                "the digest with an underscore answers its own identity, though a digest with another character"
+                        + " in the underscore's place is stored beside it",
+                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, "a_b", DTYPE)).contains(identityOf("a_b", DTYPE)));
+        claim(
+                "the digest with a backslash answers its own, not that of the same digest without it",
+                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, "c\\d", DTYPE)).contains(identityOf("c\\d", DTYPE)));
+        claim(
+                "the weight format with a backslash answers its own, not that of the same format without it",
+                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, DIGEST, "e\\f")).contains(identityOf(DIGEST, "e\\f")));
+        claim(
+                "and a weight format that is only a percent sign answers nothing, though three formats are"
+                        + " stored under that digest: the sign matched itself and not any format",
+                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, DIGEST, A_PERCENT_SIGN)).isEmpty());
+    }
+
     private Optional<String> identityFoundFor(String model, String digest, String dtype) {
-        return TheIdentityUnderAnArtefact.read(new RelevanceDistribution(jdbcTemplate), model, digest, dtype);
+        return new RelevanceDistribution(jdbcTemplate).embedderIdentityFor(model, new ModelArtefact(digest, dtype));
+    }
+
+    private static String identityOf(String digest, String dtype) {
+        return EmbedderIdentity.withoutInstruction(UNDERSCORED_MODEL, digest, dtype, DIMENSION).value();
     }
 
     private static void store(VectorCache cache, String model, float[] vector) {

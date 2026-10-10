@@ -85,6 +85,14 @@ class EmbeddingScriptedBeans {
         digestServed = digest;
     }
 
+    /** The weight dtype this fixture's runtime reports now: {@link #DTYPE} until a test says otherwise. */
+    private static String dtypeServed = DTYPE;
+
+    /** Scripts this fixture's runtime as reporting {@code weightDtype} beside the digest from now on. */
+    static void reportsTheWeightDtype(String weightDtype) {
+        dtypeServed = weightDtype;
+    }
+
     /**
      * The names this fixture's runtime has never pulled, and refuses to compose an identity from.
      *
@@ -155,6 +163,7 @@ class EmbeddingScriptedBeans {
         SHOWN.clear();
         embeddingCallsMade = 0;
         digestServed = DIGEST;
+        dtypeServed = DTYPE;
     }
 
     @Bean
@@ -179,7 +188,7 @@ class EmbeddingScriptedBeans {
                     throw new IllegalStateException("the runtime serves no model named " + modelName
                             + ", so there is nothing to compose an identity from");
                 }
-                return new ModelArtefact(digestServed, DTYPE);
+                return new ModelArtefact(digestServed, dtypeServed);
             }
 
             /**

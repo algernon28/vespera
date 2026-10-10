@@ -36,15 +36,10 @@ import org.springframework.test.context.ActiveProfiles;
  * identity of the same model name, as a pull that changed the model leaves them. The second set is chosen so
  * that reading both gives another answer than reading the first alone, or no answer at all.
  *
- * <p><b>What was measured before this was pinned.</b> With the last argument the model's name, which is what
- * {@code RelevanceScoring} and {@code Clustering} took until ADR-228, the three tests here were run once
- * against the code as it stood: the score came out 0.569 where the named identity's own is 0.707; the
- * identity of two components stopped scoring with an {@code ArrayIndexOutOfBoundsException}; and the twenty
- * documents built alike were split between two clusters. ADR-228's Context records it.
- *
- * <p><b>Written before the change.</b> The argument is now the identity. Against the code as it stood that
- * text is escaped into a pattern for a model's name, which matches no stored vector, so each test fails on
- * a document that has no vectors: the signature is the one the change keeps, and what it matches is not.
+ * <p><b>What reading both sets gives</b>, measured once on the code before ADR-228, which read by the model's
+ * name: the score came out 0.569 where the named identity's own is 0.707; the identity of two components
+ * stopped scoring with an {@code ArrayIndexOutOfBoundsException}; and the twenty documents built alike were
+ * split between two clusters. ADR-228's Context records it.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

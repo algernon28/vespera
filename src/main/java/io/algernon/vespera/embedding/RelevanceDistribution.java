@@ -281,7 +281,7 @@ public class RelevanceDistribution {
      * empty as "do not remove", which is the direction that loses no archive.
      */
     public Optional<String> embedderIdentityFor(String modelName, ModelArtefact artefact) {
-        // One identity answers to the name when the least and the greatest are the same (ADR-224 section 1).
+        // One identity answers to the name, digest and weight dtype when the least and the greatest are the same (ADR-224 section 1).
         return jdbcTemplate.queryForObject(
                 "SELECT MIN(embedder_identity), MAX(embedder_identity) FROM vector"
                         + " WHERE embedder_identity LIKE ? ESCAPE '\\'",

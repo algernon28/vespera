@@ -159,7 +159,7 @@ Stage 5 is seven steps and spans three invocations, with `vespera label` between
 
 **Where they stop.** Gated with `no embedding model is named`, or for the same exemplar reasons as above.
 
-**Resume.** Vectors are stored by content and by model, not by the run, so vectors already computed are kept across a stop, across a change of floor, and across a new walk of a changed archive. They are not kept across a pull that changes the model: that is a different scoring, and it embeds again. Interrupted, `relevance-scoring` discards its own scores and computes them again from the stored vectors. Ollama has to be running whenever these two steps do work, even when every vector is already stored.
+**Resume.** Vectors are stored by content and by model, not by the run, so vectors already computed are kept across a stop, across a change of floor, and across a new walk of a changed archive. A pull that changes the embedding model is the exception: Vespera treats it as another model, does not use the vectors computed before the pull, and computes every vector again. The earlier vectors stay in the database, and are used again only if Ollama serves the earlier model again. Interrupted, `relevance-scoring` discards its own scores and computes them again from the stored vectors. Ollama has to be running whenever these two steps do work, even when every vector is already stored.
 
 ### 5e — the floor
 

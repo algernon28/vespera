@@ -45,11 +45,10 @@ import org.springframework.stereotype.Component;
  * loudly, before {@code Runs.startRun}, rather than minting.
  *
  * <p>Each stage keeps its own private {@code ConfigConsumed} record and its own module list, in the
- * exact shape and order the run class it replaces used — that is what keeps {@code
- * RunIdentityGoldenTest} passing unedited (ADR-157 §1, §2). Each accessor also reads its inputs in the
- * order today's constructor does, and an input that is not a run (the extractor identity, the
- * relevance floor, the generation model's weights digest) is read fresh when its run is minted, never
- * when this holder is built.
+ * shape and order {@code RunIdentityGoldenTest} holds for it (ADR-157 §1, §2). Each accessor also reads
+ * its inputs in a fixed order, and an input that is not a run (the extractor identity, the relevance
+ * floor, the embedding model's artefact, the generation model's weights digest) is read fresh when its
+ * run is minted, never when this holder is built.
  */
 @Component
 @JobScope

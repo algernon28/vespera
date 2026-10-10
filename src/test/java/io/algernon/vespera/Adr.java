@@ -1460,8 +1460,8 @@ public final class Adr {
      * minted, its manifest digest and weight dtype, so a pull that changes either is a different scoring
      * run; and scoring, clustering, the relevance floor and the label file each read the one embedder
      * identity the vectors carry under that artefact, never every identity under the model's name. No DDL;
-     * seed measurement, embedding scoring, arrangement and generation are minted again (amends ADR-227,
-     * ADR-224, ADR-117 and ADR-084; decides #488).
+     * seed measurement, embedding scoring, arrangement and generation are minted again (amends ADR-227
+     * and ADR-224; applies ADR-117 and ADR-084; decides #488).
      */
     public static final String A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY = FILE
             + "0228-a-scoring-run-names-the-embedding-models-artefact-and-reads-the-vectors-of-one-embedder-identity.md";

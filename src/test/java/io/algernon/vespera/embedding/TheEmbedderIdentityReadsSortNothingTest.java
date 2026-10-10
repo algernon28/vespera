@@ -35,9 +35,6 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
  * under. And it narrows the first from the model's name to the name and the artefact, so that the vectors
  * an earlier pull left under the same name do not make the answer "none".
  *
- * <p>Rewritten with ADR-228, before the change it pins. The read is asked by reflection ({@link
- * TheIdentityUnderAnArtefact}), so until that change every test here fails on the method that is not there.
- *
  * <p>The database is the shipped {@code schema.sql} in memory, on a connection of this test's own, with a
  * few rows. A plan over a few rows is not a plan over millions: no size is held here, as none is held by
  * {@code EveryStatementThatSortsIsRecordedTest}.
@@ -167,7 +164,7 @@ class TheEmbedderIdentityReadsSortNothingTest {
     }
 
     private Optional<String> identityUnder(String model, String digest) {
-        return TheIdentityUnderAnArtefact.read(distribution, model, digest, DTYPE);
+        return distribution.embedderIdentityFor(model, new ModelArtefact(digest, DTYPE));
     }
 
     /** Stores {@value #CHUNKS_UNDER_EACH_IDENTITY} chunks' vectors under the identity of the three. */

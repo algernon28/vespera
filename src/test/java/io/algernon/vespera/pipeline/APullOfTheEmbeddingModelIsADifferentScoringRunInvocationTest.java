@@ -46,11 +46,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * made that way cannot show two scales being mixed; the second and third tests therefore store the other
  * pull's vectors themselves, with other values, as {@code RelevanceFloorInvocationTest} does for ADR-227.
  *
- * <p><b>Written before the change.</b> Against the code as it stood the second test fails on the scores,
- * which is #488 reproduced: a run scored after such vectors were stored reads both sets and scores 0.78
- * where it scored 1.0. The third fails on the exit code, the scoring step having read past the end of a
- * shorter vector. The first and last fail on the number of scoring runs, a pull changing nothing a run is
- * named after.
+ * <p><b>A third way, for the state nothing shipped produces.</b> Two tests store every vector once more
+ * under the run's own digest and weight dtype with another dimension, so that no single identity answers
+ * for the run, and remove the row recording that a step finished, so that the step runs again under the
+ * same run and meets that state.
  *
  * <p>The vectors are keyed by content and not by walk, and the tests of this class share one database, so
  * every vector that is not under the fixture's first digest is taken away after each test, and the runtime
@@ -69,6 +68,9 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
 
     /** The digest the runtime reports once the embedding model has been pulled again. */
     private static final String A_SECOND_PULLS_DIGEST = "5ec0nd9a11000000000000000000000000000000000000000000000000000";
+
+    /** A weight format other than the one the scripted runtime reports unless told. */
+    private static final String ANOTHER_WEIGHT_DTYPE = "Q8_0";
 
     /** Above anything the scripted embedder can produce, so every scored document falls under it. */
     private static final String A_FLOOR_ABOVE_EVERY_SCORE = "1.5";
@@ -234,10 +236,14 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
      * ADR-230 has clustering done again under the same scoring run, perhaps invocations later. Its completion
      * is forgotten here by removing the row that records it, as {@code
      * StageFiveReportsItsProgressInvocationTest} does, so that the step runs again under the run it ran under.
+     *
+     * <p><b>It holds that the path goes through, not which vectors were read.</b> The corpus is two
+     * documents, which any vectors cluster alike. That a second pass reads the first's vectors is held on
+     * forty documents by {@code embedding.ARunReadsTheVectorsOfOneEmbedderIdentityTest}.
      */
     @Test
     @Story("A run grouped again reads the vectors it was scored on")
-    @DisplayName("Grouping done again under the same scoring run, after another pull's vectors were stored, puts every document where it was")
+    @DisplayName("Grouping can be done again under the same scoring run after another pull's shorter vectors were stored, and the invocation succeeds")
     @Issue("489")
     void aRunClusteredAgainReadsTheVectorsItWasScoredOn(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
@@ -246,7 +252,7 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
         String theRun = scoringRunIdsFor(root).getFirst();
         List<String> theGroupsBefore = clustersUnder(theRun);
         everyVectorAlsoStoredUnderAnotherDigest(fixtureDimensionOr(0) / HALF);
-        jdbcTemplate.update("DELETE FROM finished_step WHERE run_id = ? AND step = ?", theRun, StepNames.CLUSTERING);
+        forgetThatItFinished(theRun, StepNames.CLUSTERING);
 
         cli.run("run", root.toString());
 
@@ -256,17 +262,98 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
                 () -> assertThat(scoringRunIdsFor(root)).containsExactly(theRun));
         claim(
                 "grouping ran again under that run, its completion being recorded once more",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT COUNT(*) FROM finished_step WHERE run_id = ? AND step = ?",
-                                Long.class,
-                                theRun,
-                                StepNames.CLUSTERING))
-                        .isEqualTo(1L));
+                () -> assertThat(finishedRows(theRun, StepNames.CLUSTERING)).isEqualTo(1L));
         claim(
-                "and each of the " + CORPUS_DOCUMENTS + " documents is in the group it was in: the second pass"
-                        + " read the vectors the run's scores were computed on, not those of half the length"
-                        + " stored since under another digest",
+                "and each of the " + CORPUS_DOCUMENTS + " documents has a group again, the one it had. Two"
+                        + " documents are grouped alike whatever vectors are read, so this says the second"
+                        + " pass went through with the shorter vectors stored, not which it read",
                 () -> assertThat(clustersUnder(theRun)).hasSize(CORPUS_DOCUMENTS).isEqualTo(theGroupsBefore));
+    }
+
+    @Test
+    @Story("A run whose vectors carry no single identity is not grouped or scored")
+    @DisplayName("Grouping done again where the run's own digest carries vectors of two lengths fails the invocation and leaves the groups as they were")
+    void clusteringWhereTheRunsVectorsCarryTwoIdentitiesFailsAndChangesNothing(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        String theRun = scoringRunIdsFor(root).getFirst();
+        List<String> theGroupsBefore = clustersUnder(theRun);
+        everyVectorAlsoStoredUnderTheSameDigestWithAnotherDimension();
+        forgetThatItFinished(theRun, StepNames.CLUSTERING);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation fails: scores are recorded under the run, and the vectors under the"
+                        + " digest it names no longer say which one set they were computed on",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "under the scoring run the first made",
+                () -> assertThat(scoringRunIdsFor(root)).containsExactly(theRun));
+        claim(
+                "the " + CORPUS_DOCUMENTS + " documents' groups are as the first invocation left them: the step"
+                        + " stopped before it discarded any",
+                () -> assertThat(clustersUnder(theRun)).hasSize(CORPUS_DOCUMENTS).isEqualTo(theGroupsBefore));
+        claim(
+                "and grouping is not recorded as finished, so the next invocation tries it again",
+                () -> assertThat(finishedRows(theRun, StepNames.CLUSTERING)).isZero());
+    }
+
+    @Test
+    @Story("A run whose vectors carry no single identity is not grouped or scored")
+    @DisplayName("Scoring done again where the run's own digest carries vectors of two lengths scores nothing and is not recorded as finished")
+    void scoringWhereTheRunsVectorsCarryTwoIdentitiesScoresNothing(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        String theRun = scoringRunIdsFor(root).getFirst();
+        long scoredBefore = countUnder("relevance_score", theRun);
+        everyVectorAlsoStoredUnderTheSameDigestWithAnotherDimension();
+        forgetThatItFinished(theRun, StepNames.RELEVANCE_SCORING);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the first invocation scored all " + CORPUS_DOCUMENTS + " documents",
+                () -> assertThat(scoredBefore).isEqualTo(CORPUS_DOCUMENTS));
+        claim("the second invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "under the scoring run the first made",
+                () -> assertThat(scoringRunIdsFor(root)).containsExactly(theRun));
+        claim(
+                "no score stands under the run: a step that runs again discards its own scores first, and"
+                        + " then read no vector, there being no one identity to read them under",
+                () -> assertThat(countUnder("relevance_score", theRun)).isZero());
+        claim(
+                "and scoring is not recorded as finished, so the next invocation tries it again",
+                () -> assertThat(finishedRows(theRun, StepNames.RELEVANCE_SCORING)).isZero());
+    }
+
+    @Test
+    @Story("The embedding model pulled again under another digest is scored as a piece of work of its own")
+    @DisplayName("The same digest reported with another weight format is a second scoring run, which names that format")
+    void anotherWeightDtypeAloneIsADifferentScoringRun(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        List<String> theRunsBefore = scoringRunIdsFor(root);
+        EmbeddingScriptedBeans.reportsTheWeightDtype(ANOTHER_WEIGHT_DTYPE);
+
+        cli.run("run", root.toString());
+
+        claim("the second invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "it scored under a second run, whose recorded settings name the digest reported both times"
+                        + " and the weight format reported the second time",
+                () -> assertThat(theRunsNotAmong(root, theRunsBefore)).singleElement().satisfies(run -> {
+                    assertThat(settingsOf(run))
+                            .contains("\"embeddingModelDigest\":\"" + EmbeddingScriptedBeans.DIGEST + "\"")
+                            .contains("\"embeddingModelWeightDtype\":\"" + ANOTHER_WEIGHT_DTYPE + "\"");
+                    assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
+                }));
     }
 
     @Test
@@ -291,8 +378,11 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
 
         Map<String, Long> removedAfterThePull = removalsByRun(root);
         String theLabelFileAfterThePull = Files.readString(workingDirectory.resolve(RelevanceLabelFile.FILE_NAME));
-        anAnswerGivenUnder(
-                root, seeds, theFirstPullsIdentity.replace(EmbeddingScriptedBeans.DIGEST, A_SECOND_PULLS_DIGEST));
+        String theLabellingPageAfterThePull =
+                Files.readString(workingDirectory.resolve(RelevanceLabellingReport.FILE_NAME));
+        String theSecondPullsIdentity =
+                theFirstPullsIdentity.replace(EmbeddingScriptedBeans.DIGEST, A_SECOND_PULLS_DIGEST);
+        anAnswerGivenUnder(root, seeds, theSecondPullsIdentity);
 
         cli.run("run", root.toString());
 
@@ -316,6 +406,14 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
                         .singleElement()
                         .asString()
                         .contains(";digest=" + A_SECOND_PULLS_DIGEST + ";"));
+        claim(
+                "the page written after the pull tells the operator the threshold is not being applied, naming"
+                        + " what the answers were given under, the first pull, and what this run scored under,"
+                        + " the second",
+                () -> assertThat(theLabellingPageAfterThePull)
+                        .contains("not being applied")
+                        .contains(theFirstPullsIdentity)
+                        .contains(theSecondPullsIdentity));
         claim(
                 "and once an answer is given under the second pull, the next invocation removes all "
                         + CORPUS_DOCUMENTS + " documents under the third run: vectors of two pulls in one"
@@ -342,6 +440,29 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
                 anotherPullsIdentity,
                 vector.array(),
                 theFixturesIdentity);
+    }
+
+    /**
+     * Every stored vector written once more under an identity of the same embedding model, digest and weight
+     * dtype, differing in the dimension it states alone: the one state in which a run that names its digest
+     * finds no single identity. The values are the fixture's own; only the identity matters here.
+     */
+    private void everyVectorAlsoStoredUnderTheSameDigestWithAnotherDimension() {
+        jdbcTemplate.update(
+                "INSERT INTO vector SELECT content_hash, chunker_identity, chunking_rule_identity, ordinal, ?,"
+                        + " embedding FROM vector",
+                theOneIdentityStored().replace(";dimension=", ";dimension=1"));
+    }
+
+    /** Removes the record that {@code step} finished under {@code run}, so the next invocation does it again. */
+    private void forgetThatItFinished(String run, String step) {
+        jdbcTemplate.update("DELETE FROM finished_step WHERE run_id = ? AND step = ?", run, step);
+    }
+
+    private long finishedRows(String run, String step) {
+        Long rows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM finished_step WHERE run_id = ? AND step = ?", Long.class, run, step);
+        return rows == null ? 0 : rows;
     }
 
     /** The one embedder identity the vectors carry, read back; it throws where there are two. */
