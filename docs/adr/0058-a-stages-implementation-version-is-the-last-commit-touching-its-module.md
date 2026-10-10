@@ -1,5 +1,7 @@
 # ADR-058 — A stage's implementation version is the last commit touching its module
 
+> **Partly amended — see [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md).** One parenthesis of the Decision below no longer holds as written: "(plus the specific stage-orchestration class in `pipeline` that drives it, if that file lives outside the module's own path)". A stage's version names `pipeline` only while a class of `pipeline` holds a rule that shapes that stage's output, and ADR-222 records which do. The mechanism and the accepted failure stand.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

@@ -127,7 +127,7 @@ class UpstreamRunOverAReusedWalkTest {
         "corpus,     byte-level-reduction, extraction",
         "extraction, extraction,           content-census",
         "similarity, extraction,           content-census",
-        "pipeline,   content-census,       content-redundancy",
+        "pipeline,   seed-measurement,     embedding-scoring",
     })
     @Story("A new build of the application does not strand an archive part-way through")
     @DisplayName("Invoking again under a new build of one part of the code completes")
