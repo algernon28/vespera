@@ -111,28 +111,9 @@ class RelevanceFloorTasklet implements Tasklet {
         // keep the harsher half of that.
         ledger.verdicts().discardVerdicts(scoring, VerdictKind.BELOW_THRESHOLD);
 
-        if (currentIdentity.isEmpty()) {
-            LOG.info(
-                    "stage 5's relevance-floor step removed nothing: the vectors under {} carry no single"
-                            + " embedder identity, so there is no one scale for a threshold to be on. A"
-                            + " threshold is only applied where the scale it was read off is known to be"
-                            + " this one.",
-                    modelName);
-        } else if (reach.floor().isEmpty()) {
-            LOG.info("stage 5's relevance-floor step removed nothing: no relevance threshold is set."
-                    + " Every scored survivor stands, and the labelling report is what a person reads"
-                    + " to choose the number.");
-        } else if (reach.removesBelow().isEmpty()) {
-            LOG.info(
-                    "stage 5's relevance-floor step removed nothing: the threshold {} was read off"
-                            + " labels given under {}, and this run scored under {}. A threshold is a"
-                            + " number on a scale and the model is the scale, so applying it here would"
-                            + " remove documents against a distribution it was never calibrated on. The"
-                            + " labelling report says so too.",
-                    reach.floor().getAsDouble(),
-                    String.join(", ", reach.answeredUnder()),
-                    currentIdentity.get());
-        } else {
+        // A removal is written where the reach gives a number and on no other condition (ADR-227): the
+        // identity read above only chooses which line says why nothing was removed.
+        if (reach.removesBelow().isPresent()) {
             double threshold = reach.removesBelow().getAsDouble();
             // Counted, then written a page at a time: nothing holds every occurrence below the floor
             // (ADR-220 section 5). The verdicts of a page go in the step's one transaction before the
@@ -154,6 +135,27 @@ class RelevanceFloorTasklet implements Tasklet {
                     scoring.value(),
                     threshold,
                     below);
+        } else if (currentIdentity.isEmpty()) {
+            LOG.info(
+                    "stage 5's relevance-floor step removed nothing: the vectors under {} carry no single"
+                            + " embedder identity, so there is no one scale for a threshold to be on. A"
+                            + " threshold is only applied where the scale it was read off is known to be"
+                            + " this one.",
+                    modelName);
+        } else if (reach.floor().isEmpty()) {
+            LOG.info("stage 5's relevance-floor step removed nothing: no relevance threshold is set."
+                    + " Every scored survivor stands, and the labelling report is what a person reads"
+                    + " to choose the number.");
+        } else {
+            LOG.info(
+                    "stage 5's relevance-floor step removed nothing: the threshold {} was read off"
+                            + " labels given under {}, and this run scored under {}. A threshold is a"
+                            + " number on a scale and the model is the scale, so applying it here would"
+                            + " remove documents against a distribution it was never calibrated on. The"
+                            + " labelling report says so too.",
+                    reach.floor().getAsDouble(),
+                    String.join(", ", reach.answeredUnder()),
+                    currentIdentity.get());
         }
         return RepeatStatus.FINISHED;
     }
