@@ -12,8 +12,11 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -32,15 +35,16 @@ import org.junit.jupiter.api.Test;
  *   <li>the classes that name {@code VerdictKind}, and the ones that name {@code Deliverable}, are the
  *       ones on record, so a class that starts to write or choose a verdict, or to write the deliverable,
  *       fails;
- *   <li>the stages whose version names {@code pipeline} are the stages with a rule on record.
+ *   <li>the stages whose version names {@code pipeline} are the stages with a rule on record;
+ *   <li>the classes of the three stages whose version does not name {@code pipeline} name the capability
+ *       types on record ({@link #COLLABORATORS_ON_RECORD}) and no other, since a rule added to one of
+ *       them moves no run id.
  * </ul>
  *
- * <p><b>What it cannot see</b>: a rule added to a class already on record that names no verdict kind and
- * does not write the deliverable. A class on record as holding no rule that has since been deleted is not
- * reported either, so that a change which removes one does not have to edit this list.
- *
- * <p><b>Red until ADR-222 section 2 is built</b>: the third test, while content census, content
- * redundancy and arrangement still name {@code pipeline}.
+ * <p><b>What it cannot see</b>: a rule added to a class already on record that names no verdict kind,
+ * does not write the deliverable and, in a class of those three stages, needs no capability type the class
+ * did not name already. A class on record as holding no rule that has since been deleted is not reported
+ * either, so that a change which removes one does not have to edit this list.
  */
 @Epic("Architecture")
 @Feature("Module boundaries")
@@ -186,6 +190,104 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
      */
     private static final Set<String> NAMING_THE_DELIVERABLE = Set.of("GenerationTasklet", "NextAction");
 
+    /** A type of one of the five modules a stage's version can name, as a compiled class writes it. */
+    private static final Pattern A_CAPABILITY_TYPE =
+            Pattern.compile("io/algernon/vespera/(corpus|extraction|similarity|embedding|synthesis)/(\\w+)");
+
+    /**
+     * The classes that run content census, content redundancy and arrangement, with every type of {@code
+     * corpus}, {@code extraction}, {@code similarity}, {@code embedding} and {@code synthesis} each names,
+     * as {@code module.Type}: what it calls, what it hands over and what comes back. Those stages' versions
+     * do not name {@code pipeline}, so each class here was read as handing these their values and deciding
+     * nothing by them (ADR-222, the stages with no rule in {@code pipeline}).
+     */
+    private static final Map<String, Set<String>> COLLABORATORS_ON_RECORD = Map.of(
+            "ContentCensusTasklet",
+                    Set.of(
+                            "extraction.ConfidenceDistribution",
+                            "extraction.ExtractionStatement",
+                            "extraction.ExtractionStatementProgress",
+                            "similarity.DocumentFrequency",
+                            "similarity.FrequencyProgress",
+                            "similarity.SimilarityStatement"),
+            "RedundancyGate", Set.of(),
+            "RedundancyBoilerplate", Set.of("similarity.BoilerplateShingles"),
+            "RedundancySignatureItemWriter", Set.of("similarity.RedundancySignatures"),
+            "RedundancyJobConfiguration",
+                    Set.of(
+                            "similarity.RedundancySignatures",
+                            "similarity.ShingleHashIndex",
+                            "similarity.SimilarityStatement",
+                            "similarity.SimilarityStatementProgress"),
+            "RedundancyResolutionTasklet",
+                    Set.of(
+                            "extraction.ExtractionMetrics",
+                            "similarity.AlphanumericCounts",
+                            "similarity.RedundancyResolution",
+                            "similarity.ResolutionProgress",
+                            "similarity.SimilarityStatement"),
+            "ArrangementTasklet",
+                    Set.of(
+                            "corpus.Walk",
+                            "embedding.DocumentCluster",
+                            "embedding.DocumentClusters",
+                            "embedding.RelevanceScoring",
+                            "embedding.ScoringProgress",
+                            "extraction.DocumentTitles",
+                            "extraction.ExtractionCacheKeys",
+                            "synthesis.ArrangedCluster",
+                            "synthesis.Arrangement",
+                            "synthesis.ClusterLabel",
+                            "synthesis.ClusterSlot",
+                            "synthesis.ClusteredDocument",
+                            "synthesis.Clusters",
+                            "synthesis.DocumentTitle",
+                            "synthesis.LabelledCluster",
+                            "synthesis.LeadDocument",
+                            "synthesis.Partition",
+                            "synthesis.RecordedCluster"),
+            "ArrangementGate", Set.of());
+
+    @Test
+    @Story("A stage is identified by the code that runs the stages only while that code decides something for it")
+    @DisplayName("The classes that run the three stages no longer identified by this code call only the code on record for them")
+    void theClassesOfTheFreedStagesNameOnlyTheCollaboratorsOnRecord() throws Exception {
+        Map<String, Set<String>> named = new TreeMap<>();
+        COLLABORATORS_ON_RECORD.keySet().forEach(held -> named.put(held, new TreeSet<>()));
+        for (Map.Entry<String, List<String>> shipped : ShippedClasses.namesByClass().entrySet()) {
+            if (!PIPELINE.equals(ShippedClasses.moduleOf(shipped.getKey()))) {
+                continue;
+            }
+            Set<String> ofItsClass = named.get(shipped.getKey().substring(IN_PIPELINE.length()).split("\\$")[0]);
+            if (ofItsClass == null) {
+                continue;
+            }
+            for (String name : shipped.getValue()) {
+                Matcher type = A_CAPABILITY_TYPE.matcher(name);
+                while (type.find()) {
+                    ofItsClass.add(type.group(1) + "." + type.group(2));
+                }
+            }
+        }
+
+        Map<String, Set<String>> onRecord = new TreeMap<>();
+        COLLABORATORS_ON_RECORD.forEach((held, types) -> onRecord.put(held, new TreeSet<>(types)));
+
+        claim(
+                "each of the eight classes names the measuring, judging and writing code on record for it and"
+                        + " no other. They run stages that are not done again when one of them changes, so"
+                        + " nothing in them may decide what those stages write. A type named beyond the"
+                        + " record is a new collaborator, often met when two changes are merged: read what"
+                        + " the class now does with it. If it only hands it values or acts on its answer,"
+                        + " add the type to that class's list. If the class decides something by it, move"
+                        + " that decision into the collaborator's own code, or record it and have the stage"
+                        + " identified by this code again. A type on record that is no longer named comes"
+                        + " off the list",
+                () -> assertThat(named)
+                        .as("the types of the five modules each class names, by class")
+                        .containsExactlyInAnyOrderEntriesOf(onRecord));
+    }
+
     @Test
     @Story("The code that runs the stages decides nothing that is not on record")
     @DisplayName("Every class of the code that runs the stages has been asked whether it decides what is written, and its answer is on record")
@@ -237,8 +339,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                         + " an entry to take off the record",
                 () -> assertThat(namingAKind).containsExactlyInAnyOrderElementsOf(NAMING_A_VERDICT_KIND));
         claim(
-                "and two classes name the code that writes the final documents: the step that ends the run,"
-                        + " which calls it, and the closing line, which reads only the name of the folder"
+                "and two classes name the code that writes the final documents: the stage that writes the"
+                        + " final documents, which calls it, and the closing line, which reads only the name of the folder"
                         + " they are written in. A third would be handing that code something to write"
                         + " that nobody recorded",
                 () -> assertThat(namingTheDeliverable).containsExactlyInAnyOrderElementsOf(NAMING_THE_DELIVERABLE));

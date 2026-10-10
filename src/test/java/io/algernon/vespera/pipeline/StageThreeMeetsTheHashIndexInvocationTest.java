@@ -46,9 +46,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * <ul>
  *   <li>a stage 3 stopped over one corpus root, while another corpus root of the same working directory goes
  *       on to stage 4b, and is then invoked again;
- *   <li>not a build that moves {@code pipeline} alone: it did until ADR-222, while stage 3's run named
- *       {@code pipeline} and stage 2's did not. Stage 3's run names it no longer, so the next invocation
- *       arrives at the content census already finished and groups nothing;
+ *   <li>not a build that moves {@code pipeline} alone: stage 3's run does not name it (ADR-222), so the
+ *       next invocation arrives at the content census already finished and groups nothing;
  *   <li>not a build that moves {@code similarity}: stage 2's run names it too, so stage 2 writes again and
  *       drops the index first.
  * </ul>
@@ -210,6 +209,9 @@ class StageThreeMeetsTheHashIndexInvocationTest {
                 () -> assertThat(censusRuns).containsExactly(firstCensus));
         claim("so the second invocation does not say that count is starting", () -> assertThat(second)
                 .doesNotContain(STAGE_3_STARTING));
+        claim(
+                "the redundancy check that read that count is the one already made too, for the same reason",
+                () -> assertThat(runsOf(root, StageModules.CONTENT_REDUNDANCY)).hasSize(1));
         claim(
                 "and no row of that count was written with the hash index in the database: the only rows"
                         + " are the first invocation's, written before the index was built",
