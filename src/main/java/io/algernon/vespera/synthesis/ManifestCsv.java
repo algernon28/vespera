@@ -1,12 +1,14 @@
 package io.algernon.vespera.synthesis;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * The manifest, {@code documents.csv}: one row per survivor, in the order given (ADR-104, ADR-112), and
  * the RFC 4180 quoting its two path columns need (ADR-136 §5).
+ *
+ * <p>It is written as its rows come, a page of survivors at a time, and nothing here holds the file whole
+ * (ADR-223 section 7).
  *
  * <p>The CSV is the surrounding that answers to a parser, so its rule is a doubled quote and not a row of
  * {@link MarkdownSurroundings} (ADR-137 §4).
@@ -23,51 +25,64 @@ final class ManifestCsv {
 
     private ManifestCsv() {}
 
-    /**
-     * The whole file: the header, then a row per survivor.
-     *
-     * @throws IllegalArgumentException where a survivor names a cluster {@code arrangement} does not
-     *     carry
-     */
-    static String contents(List<RecordedCluster> arrangement, List<ListedSurvivor> survivors) {
-        Map<ClusterSlot, ArrangedCluster> orderByCluster = new LinkedHashMap<>();
-        for (RecordedCluster recorded : arrangement) {
-            orderByCluster.put(ClusterSlot.of(recorded), recorded.cluster());
-        }
+    /** The whole file, with no row reported. */
+    static void write(Appendable csv, ArrangedSurvivors source) throws IOException {
+        write(csv, source, DeliverableProgress.NONE);
+    }
 
-        StringBuilder csv = new StringBuilder(HEADER).append('\n');
-        for (ListedSurvivor survivor : survivors) {
-            ArrangedCluster cluster = orderByCluster.get(ClusterSlot.of(survivor));
-            if (cluster == null) {
-                // ADR-105 and #175 §6: the arrangement is total over the survivors it was built from,
-                // so a survivor with no cluster row is a broken invariant, not a document the
-                // arrangement happens to be silent about. A 0,0 pair here would be two plausible
-                // numbers in a file built to be loaded straight into a table (ADR-104) -- the one
-                // shape of wrong this manifest exists to prevent.
-                throw new IllegalArgumentException("survivor " + survivor.occurrence().value()
-                        + " names cluster " + survivor.clusterOrdinal() + " of seed "
-                        + survivor.winningSeed().value() + ", which the arrangement does not carry");
-            }
-            csv.append(survivor.occurrence().value())
-                    .append(',')
-                    .append(quoted(survivor.path().value()))
-                    .append(',')
-                    .append(survivor.contentHash())
-                    .append(',')
-                    .append(survivor.winningSeed().value())
-                    .append(',')
-                    .append(survivor.score())
-                    .append(',')
-                    .append(quoted(survivor.seedPath()))
-                    .append(',')
-                    .append(survivor.clusterOrdinal())
-                    .append(',')
-                    .append(cluster.partitionOrder())
-                    .append(',')
-                    .append(cluster.clusterOrder())
-                    .append('\n');
+    /**
+     * The whole file: the header, then a row per survivor of {@code source}, each reported to {@code progress}
+     * once it is written.
+     *
+     * @throws IllegalArgumentException where a survivor names a cluster the arrangement does not carry
+     */
+    static void write(Appendable csv, ArrangedSurvivors source, DeliverableProgress progress) throws IOException {
+        csv.append(HEADER).append('\n');
+        try {
+            source.eachPageOfSurvivors(page -> {
+                for (ListedSurvivor survivor : page) {
+                    try {
+                        append(csv, survivor, source);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    progress.manifestRowWritten();
+                }
+            });
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
         }
-        return csv.toString();
+    }
+
+    private static void append(Appendable csv, ListedSurvivor survivor, ArrangedSurvivors source) throws IOException {
+        ArrangedCluster cluster = source.placeOf(ClusterSlot.of(survivor))
+                .orElseThrow(() ->
+                        // ADR-105 and #175 §6: the arrangement is total over the survivors it was built from,
+                        // so a survivor with no cluster row is a broken invariant, not a document the
+                        // arrangement happens to be silent about. A 0,0 pair here would be two plausible
+                        // numbers in a file built to be loaded straight into a table (ADR-104) -- the one
+                        // shape of wrong this manifest exists to prevent.
+                        new IllegalArgumentException("survivor " + survivor.occurrence().value()
+                                + " names cluster " + survivor.clusterOrdinal() + " of seed "
+                                + survivor.winningSeed().value() + ", which the arrangement does not carry"));
+        csv.append(String.valueOf(survivor.occurrence().value()))
+                .append(',')
+                .append(quoted(survivor.path().value()))
+                .append(',')
+                .append(survivor.contentHash())
+                .append(',')
+                .append(String.valueOf(survivor.winningSeed().value()))
+                .append(',')
+                .append(String.valueOf(survivor.score()))
+                .append(',')
+                .append(quoted(survivor.seedPath()))
+                .append(',')
+                .append(String.valueOf(survivor.clusterOrdinal()))
+                .append(',')
+                .append(String.valueOf(cluster.partitionOrder()))
+                .append(',')
+                .append(String.valueOf(cluster.clusterOrder()))
+                .append('\n');
     }
 
     /**

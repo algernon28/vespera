@@ -426,7 +426,7 @@ class DeliverablePicturesTest {
                 aMemberOf(20, "reports/second.docx", A_HIGH_SCORE, SECOND_ORDINAL),
                 aMemberOf(21, "reports/third.docx", A_MIDDLE_SCORE, SECOND_ORDINAL));
 
-        Deliverable.writeTo(
+        ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(workingDirectory),
                 List.of(
@@ -666,7 +666,7 @@ class DeliverablePicturesTest {
         List<RecordedSynthesisDoc> written = List.of(new RecordedSynthesisDoc(
                 THE_SEED, FIRST_ORDINAL, new SynthesisDoc(THE_TITLE, "Both [1] and [2].", sent(10, 11))));
 
-        Path withNone = Deliverable.writeTo(
+        Path withNone = ListedArrangement.writeTo(
                 workingDirectory, provenance(workingDirectory), arrangement, written, members, SurvivorPictures.none());
 
         claim(
@@ -862,7 +862,7 @@ class DeliverablePicturesTest {
             List<ListedSurvivor> members,
             Map<OccurrenceId, List<ListedPicture>> pictures) {
         Map<OccurrenceId, List<ListedPicture>> source = new HashMap<>(pictures);
-        return Deliverable.writeTo(
+        return ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(workingDirectory),
                 arrangement,

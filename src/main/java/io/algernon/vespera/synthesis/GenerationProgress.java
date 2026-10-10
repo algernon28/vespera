@@ -5,16 +5,14 @@ package io.algernon.vespera.synthesis;
  * through, as it goes (ADR-190, ADR-192). This module logs nothing, so the caller says what the operator
  * reads.
  *
- * <p>{@link #toGoThrough} is called once, after the slots already written are read and before the walk,
- * zero included; {@link #clusterGoneThrough} once at the end of each cluster's path, after any report of the
- * four kinds, and for a fifth turned-down answer before the walk returns {@code Stopped}. Both do nothing by
- * default.
+ * <p>{@link #toGoThrough} is called once, before the walk, zero included; {@link #clusterGoneThrough} once at
+ * the end of each cluster's path, after any report of the four kinds, and for a fifth turned-down answer before
+ * the walk returns {@code Stopped}. Both do nothing by default.
  *
  * <p>It is also a {@link SynthesisStatementProgress} (ADR-193 section 7, ADR-204 section 4), and is told
- * about the walk's two reads: {@link SynthesisStatement#WRITTEN} started and ended before {@link
- * #toGoThrough}, and {@link SynthesisStatement#STANDING_FAULTS} after the last cluster, started and ended
- * where the walk goes through every cluster, and not at all where it returns {@code Stopped} on five answers
- * turned down in a row, since it returns before that read.
+ * about the walk's one read: {@link SynthesisStatement#STANDING_FAULTS} after the last cluster, started and
+ * ended where the walk goes through every cluster, and not at all where it returns {@code Stopped} on five
+ * answers turned down in a row, since it returns before that read.
  */
 public interface GenerationProgress extends SynthesisStatementProgress {
 

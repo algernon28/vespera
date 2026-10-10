@@ -81,8 +81,10 @@ import org.springframework.util.StreamUtils;
 @Feature("Temporary storage")
 @Issue("466")
 @Issue("458")
+@Issue("472")
 @Link(name = "ADR-218", url = Adr.EVERY_STATEMENT_WHOSE_TEMPORARY_FILES_GROW_IS_AN_EXCEPTION_WITH_ITS_SIZE, type = "adr")
 @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
+@Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
 @Link(name = "ADR-060", url = Adr.SURVIVORS_IS_AN_ITEM_READER, type = "adr")
 class EveryStatementThatSortsIsRecordedTest {
 
@@ -129,7 +131,9 @@ class EveryStatementThatSortsIsRecordedTest {
      * table of statements whose temporary files grow with the corpus, and "bounded" is its table of what
      * sorts and is bounded by something else. Row 14 is struck in the record and has no statement here.
      * Rows 8 and 9 are gone since ADR-220, whose section 15 also records the two statements of stage 4b's
-     * that are in neither table.
+     * that are in neither table. Rows 13, 16, 17 and 18 are gone since ADR-223: stages 6a and 6b read one
+     * seed partition at a time or ask by key, in statements that sort nothing, so {@code synthesis.Clusters},
+     * {@code synthesis.SynthesisDocs} and {@code synthesis.ClusterFaults} have no entry here.
      */
     private static final Map<String, Integer> RECORDED = new TreeMap<>(Map.ofEntries(
             // Row 1, the grouping ADR-211 excepted, and three bounded by one page: the count of a page's
@@ -150,16 +154,12 @@ class EveryStatementThatSortsIsRecordedTest {
             // Rows 10 and 11: the partitions, and the members of one. Row 9, the scores below the floor in
             // occurrence order, is gone: 5e reads a page of them at a time by row number (ADR-220 section 5).
             Map.entry("embedding.RelevanceScoreCache", 2),
-            // Rows 12 and 13: the cluster sizes of one partition, and the membership.
-            Map.entry("embedding.DocumentClusters", 2),
+            // Row 12: the cluster sizes of one partition. Row 13, the run's membership in occurrence order, is
+            // gone: a partition's members are read unordered and the run's a page at a time by the primary
+            // key (ADR-223 sections 3 and 7).
+            Map.entry("embedding.DocumentClusters", 1),
             // Bounded by the seed set: the unusable seeds.
             Map.entry("embedding.UnusableSeeds", 1),
-            // Row 16: the recorded clusters in the arrangement's order.
-            Map.entry("synthesis.Clusters", 1),
-            // Row 17: the synthesis docs in the order they were written.
-            Map.entry("synthesis.SynthesisDocs", 1),
-            // Row 18: the cluster faults in the order they were written.
-            Map.entry("synthesis.ClusterFaults", 1),
             // Rows 19 and 20: the account's three counts by kind or category.
             Map.entry("pipeline.InvocationAccount", 3)));
 

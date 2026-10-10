@@ -52,7 +52,8 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
 
     /**
      * The stage of the timed statement the mistake is made with. It was stage 4b's read of the signature bands
-     * until ADR-220 struck that read; 6b's read of the clusters already written is timed as that read was.
+     * until ADR-220 struck that read, and then 6b's read of the clusters already written until ADR-223 struck
+     * that one; 6b's read of the standing faults is timed as both were.
      */
     private static final String STAGE_6B = "Stage 6b (generation)";
 
@@ -61,7 +62,7 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
     private static final String METRICS_LABEL = "Stage 3 (content census, reading extraction metrics)";
 
     /** A label a timed statement has no use for, given to it by the mistake this class is about. */
-    private static final String A_LABEL_GIVEN_BY_MISTAKE = "Stage 6b (generation, reading the clusters written)";
+    private static final String A_LABEL_GIVEN_BY_MISTAKE = "Stage 6b (generation, reading the standing faults)";
 
     /** A run of two full pages of 1,000 and a short third, for a total a statement might be started with. */
     private static final long TWO_AND_A_HALF_THOUSAND = 2_500L;
@@ -97,11 +98,11 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
     @DisplayName("A statement with no steps to count, given a progress label by mistake, still writes its line before and its line after")
     void aTimedStatementRegisteredAsCountedStillWritesItsTwoLines() {
         ReportedStatements reads = ReportedStatements.saying()
-                .counted(SynthesisStatement.WRITTEN, STAGE_6B, "the clusters written", A_LABEL_GIVEN_BY_MISTAKE)
+                .counted(SynthesisStatement.STANDING_FAULTS, STAGE_6B, "the standing faults", A_LABEL_GIVEN_BY_MISTAKE)
                 .build();
 
-        reads.statementStarting(SynthesisStatement.WRITTEN, OptionalLong.empty());
-        reads.statementEnded(SynthesisStatement.WRITTEN);
+        reads.statementStarting(SynthesisStatement.STANDING_FAULTS, OptionalLong.empty());
+        reads.statementEnded(SynthesisStatement.STANDING_FAULTS);
 
         List<String> lines = lines();
         claim(
@@ -110,8 +111,8 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
                         + " for having been given a label",
                 () -> {
                     assertThat(lines).hasSize(2);
-                    assertThat(lines.getFirst()).isEqualTo(STAGE_6B + " is reading the clusters written");
-                    assertThat(lines.getLast()).matches("\\Q" + STAGE_6B + " read the clusters written\\E" + IN_SECONDS);
+                    assertThat(lines.getFirst()).isEqualTo(STAGE_6B + " is reading the standing faults");
+                    assertThat(lines.getLast()).matches("\\Q" + STAGE_6B + " read the standing faults\\E" + IN_SECONDS);
                 });
     }
 
@@ -120,11 +121,11 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
     @DisplayName("A statement with no steps to count, given a progress label by mistake and a total, is still only timed")
     void aTimedStatementRegisteredAsCountedIsNotTakenForAPagedRead() {
         ReportedStatements reads = ReportedStatements.saying()
-                .counted(SynthesisStatement.WRITTEN, STAGE_6B, "the clusters written", A_LABEL_GIVEN_BY_MISTAKE)
+                .counted(SynthesisStatement.STANDING_FAULTS, STAGE_6B, "the standing faults", A_LABEL_GIVEN_BY_MISTAKE)
                 .build();
 
-        reads.statementStarting(SynthesisStatement.WRITTEN, OptionalLong.of(TWO_AND_A_HALF_THOUSAND));
-        reads.statementEnded(SynthesisStatement.WRITTEN);
+        reads.statementStarting(SynthesisStatement.STANDING_FAULTS, OptionalLong.of(TWO_AND_A_HALF_THOUSAND));
+        reads.statementEnded(SynthesisStatement.STANDING_FAULTS);
 
         List<String> lines = lines();
         claim(
@@ -133,8 +134,8 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
                         + " named as made a page at a time is reported as one",
                 () -> {
                     assertThat(lines).hasSize(2);
-                    assertThat(lines.getFirst()).isEqualTo(STAGE_6B + " is reading the clusters written");
-                    assertThat(lines.getLast()).matches("\\Q" + STAGE_6B + " read the clusters written\\E" + IN_SECONDS);
+                    assertThat(lines.getFirst()).isEqualTo(STAGE_6B + " is reading the standing faults");
+                    assertThat(lines.getLast()).matches("\\Q" + STAGE_6B + " read the standing faults\\E" + IN_SECONDS);
                 });
     }
 

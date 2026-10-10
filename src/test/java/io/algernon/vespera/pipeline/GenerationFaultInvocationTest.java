@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.pipeline.GenerationScriptedBeans.ScriptedAnswer;
@@ -1462,7 +1463,7 @@ class GenerationFaultInvocationTest {
     private List<RecordedSynthesisDoc> writingKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
-                .flatMap(run -> synthesisDocs.forRun(run).stream())
+                .flatMap(run -> WholeRun.synthesisDocs(jdbcTemplate,run).stream())
                 .toList();
     }
 
@@ -1470,7 +1471,7 @@ class GenerationFaultInvocationTest {
     private List<RecordedClusterFault> reasonsKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
-                .flatMap(run -> clusterFaults.forRun(run).stream())
+                .flatMap(run -> WholeRun.clusterFaults(jdbcTemplate,run).stream())
                 .toList();
     }
 

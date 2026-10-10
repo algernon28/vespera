@@ -2,10 +2,8 @@ package io.algernon.vespera.synthesis;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -84,49 +82,49 @@ public class SynthesisDocs {
                 doc.prose());
     }
 
-    /** Every synthesis doc recorded under {@code runId}, in the order the clusters were written. */
-    public List<RecordedSynthesisDoc> forRun(RunId runId) {
-        Map<ClusterSlot, List<OccurrenceId>> sent = whatEachCallSent(runId);
-        return jdbcTemplate.query(
-                "SELECT winning_seed_occurrence_id, cluster_ordinal, title, prose"
-                        + " FROM synthesis_doc WHERE run_id = ? ORDER BY rowid",
-                (resultSet, rowNumber) -> {
-                    ClusterSlot key = new ClusterSlot(
-                            new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
-                            resultSet.getInt("cluster_ordinal"));
-                    return new RecordedSynthesisDoc(
-                            key.winningSeed(),
-                            key.clusterOrdinal(),
-                            new SynthesisDoc(
-                                    resultSet.getString("title"),
-                                    resultSet.getString("prose"),
-                                    sent.getOrDefault(key, List.of())));
-                },
-                runId.value());
+    /**
+     * Whether a synthesis doc is recorded under {@code runId} for one cluster, asked by its key (ADR-223
+     * section 5): the walk learns which clusters it can walk past one at a time and reads no prose to do it.
+     */
+    public boolean isWritten(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM synthesis_doc WHERE run_id = ? AND winning_seed_occurrence_id = ? AND"
+                        + " cluster_ordinal = ?",
+                Integer.class,
+                runId.value(),
+                winningSeed.value(),
+                clusterOrdinal);
+        return count != null && count > 0;
     }
 
     /**
-     * Which documents each call under {@code runId} carried, each in the order its own call was given
-     * them (ADR-133).
-     *
-     * <p>Read in one query rather than one per cluster: a run holds a call per cluster, and this is
-     * read where the terminal stage writes the whole tree in one pass.
+     * The synthesis doc recorded under {@code runId} for one cluster, or empty where there is none, with which
+     * documents its call carried in the order the call was given them (ADR-133), both read by their keys.
      */
-    private Map<ClusterSlot, List<OccurrenceId>> whatEachCallSent(RunId runId) {
-        Map<ClusterSlot, List<OccurrenceId>> sent = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                "SELECT winning_seed_occurrence_id, cluster_ordinal, occurrence_id FROM call_exemplar"
-                        + " WHERE run_id = ? ORDER BY winning_seed_occurrence_id, cluster_ordinal,"
-                        + " citation_ordinal",
-                resultSet -> {
-                    ClusterSlot key = new ClusterSlot(
-                            new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
-                            resultSet.getInt("cluster_ordinal"));
-                    sent.computeIfAbsent(key, cluster -> new ArrayList<>())
-                            .add(new OccurrenceId(resultSet.getLong("occurrence_id")));
-                },
-                runId.value());
-        return sent;
+    public Optional<SynthesisDoc> forCluster(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+        List<String[]> written = jdbcTemplate.query(
+                "SELECT title, prose FROM synthesis_doc WHERE run_id = ? AND winning_seed_occurrence_id = ?"
+                        + " AND cluster_ordinal = ?",
+                (resultSet, rowNumber) -> new String[] {resultSet.getString("title"), resultSet.getString("prose")},
+                runId.value(),
+                winningSeed.value(),
+                clusterOrdinal);
+        if (written.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new SynthesisDoc(
+                written.getFirst()[0], written.getFirst()[1], whatTheCallSent(runId, winningSeed, clusterOrdinal)));
+    }
+
+    /** Which documents the call over one cluster carried, in the order it was given them (ADR-133). */
+    private List<OccurrenceId> whatTheCallSent(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+        return jdbcTemplate.query(
+                "SELECT occurrence_id FROM call_exemplar WHERE run_id = ? AND winning_seed_occurrence_id = ? AND"
+                        + " cluster_ordinal = ? ORDER BY citation_ordinal",
+                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
+                runId.value(),
+                winningSeed.value(),
+                clusterOrdinal);
     }
 
     /** How many synthesis docs are recorded under {@code runId}. A count the database makes, reading no column of any row (ADR-220 section 7). */

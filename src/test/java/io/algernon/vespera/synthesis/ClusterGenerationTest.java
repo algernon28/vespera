@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
@@ -199,8 +200,8 @@ class ClusterGenerationTest {
                 "and a reason is kept against each of the " + THE_STREAK_THAT_STOPS_THE_STEP + ", the fifth"
                         + " included, with nothing written over any group",
                 () -> {
-                    assertThat(clusterFaults.forRun(run)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP);
-                    assertThat(synthesisDocs.forRun(run)).isEmpty();
+                    assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP);
+                    assertThat(WholeRun.synthesisDocs(jdbcTemplate,run)).isEmpty();
                 });
     }
 
@@ -266,7 +267,7 @@ class ClusterGenerationTest {
                 "no reason is kept for the third group, which no answer came back for, and the stop still"
                         + " carries why it went unwritten so its page can say so",
                 () -> {
-                    assertThat(clusterFaults.forRun(run)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP);
+                    assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP);
                     assertThat(outcome.unsendable())
                             .containsExactly(Map.entry(slot(THE_THIRD), Unwritten.NO_SENDABLE_DOCUMENT));
                 });
@@ -325,7 +326,7 @@ class ClusterGenerationTest {
         claim(
                 "and a reason is still kept for the third group, " + (THE_STREAK_THAT_STOPS_THE_STEP + 1) + " in"
                         + " all: it was asked about, and the engine's count is what came back",
-                () -> assertThat(clusterFaults.forRun(run))
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run))
                         .hasSize(THE_STREAK_THAT_STOPS_THE_STEP + 1)
                         .anySatisfy(kept -> {
                             assertThat(kept.clusterOrdinal()).isEqualTo(THE_THIRD);
@@ -348,7 +349,7 @@ class ClusterGenerationTest {
         claim(
                 "the group after the five is written: were the five to stop the writing, every later run would"
                         + " stop at the same five, and the groups after them would never be written",
-                () -> assertThat(synthesisDocs.forRun(run))
+                () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,run))
                         .singleElement()
                         .satisfies(doc -> assertThat(doc.clusterOrdinal()).isEqualTo(THE_STREAK_THAT_STOPS_THE_STEP)));
         claim(
@@ -460,11 +461,11 @@ class ClusterGenerationTest {
         claim(
                 "no reason stands any more: the group was written over this time, and a reason still standing"
                         + " would have the record say one group was both written over and left unwritten",
-                () -> assertThat(clusterFaults.forRun(run)).isEmpty());
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).isEmpty());
         claim(
                 "so the work is finished, with both of the " + TWO_CLUSTERS + " groups carrying their writing",
                 () -> {
-                    assertThat(synthesisDocs.forRun(run)).hasSize(TWO_CLUSTERS);
+                    assertThat(WholeRun.synthesisDocs(jdbcTemplate,run)).hasSize(TWO_CLUSTERS);
                     assertThat(outcome).isInstanceOf(GenerationOutcome.Finished.class);
                 });
     }
@@ -486,7 +487,7 @@ class ClusterGenerationTest {
                 () -> assertThat(thrown).isInstanceOf(NonTransientAiException.class));
         claim(
                 "and no reason is kept against the group it was refused for",
-                () -> assertThat(clusterFaults.forRun(run)).isEmpty());
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).isEmpty());
     }
 
     @Test
@@ -544,6 +545,7 @@ class ClusterGenerationTest {
     private GenerationOutcome write(List<RecordedCluster> clusters) {
         return generation.write(
                 run,
+                clusters.size(),
                 clusters,
                 recorded -> {
                     askedForDocuments.add(recorded.label().value());

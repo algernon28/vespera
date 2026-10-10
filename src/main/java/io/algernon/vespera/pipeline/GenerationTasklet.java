@@ -5,10 +5,10 @@ import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
+import io.algernon.vespera.embedding.EmbeddingStatement;
 import io.algernon.vespera.embedding.LocalOllamaModel;
 import io.algernon.vespera.embedding.OllamaClient;
 import io.algernon.vespera.embedding.RelevanceScoring;
-import io.algernon.vespera.embedding.ScoringProgress;
 import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.DocumentPictures;
 import io.algernon.vespera.extraction.ExtractionCacheKeys;
@@ -18,12 +18,13 @@ import io.algernon.vespera.extraction.PicturePlace;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
-import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
+import io.algernon.vespera.synthesis.ArrangedPartition;
+import io.algernon.vespera.synthesis.ArrangedSurvivors;
 import io.algernon.vespera.synthesis.ClusterFault;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.ClusterSlot;
@@ -36,13 +37,12 @@ import io.algernon.vespera.synthesis.DeliverableProvenance;
 import io.algernon.vespera.synthesis.Exemplar;
 import io.algernon.vespera.synthesis.GenerationOutcome;
 import io.algernon.vespera.synthesis.GenerationProgress;
+import io.algernon.vespera.synthesis.ListedPartition;
 import io.algernon.vespera.synthesis.ListedPicture;
 import io.algernon.vespera.synthesis.ListedPicturePlace;
 import io.algernon.vespera.synthesis.ListedSurvivor;
 import io.algernon.vespera.synthesis.NamedValue;
 import io.algernon.vespera.synthesis.RecordedCluster;
-import io.algernon.vespera.synthesis.RecordedClusterFault;
-import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
 import io.algernon.vespera.synthesis.SurvivorPictures;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.algernon.vespera.synthesis.SynthesisStatement;
@@ -50,13 +50,13 @@ import io.algernon.vespera.synthesis.Unwritten;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.BatchStatus;
@@ -248,30 +248,52 @@ class GenerationTasklet implements Tasklet {
                 () -> {},
                 () -> {
                     RunId scoring = scoringRunBehind(arrangement);
-                    List<DocumentCluster> membership = TimedStatement.of(
-                            STAGE, "reading", "read", "the cluster membership", () -> documentClusters.forRun(scoring));
-                    Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
-                            scoring,
-                            membership.stream().map(DocumentCluster::occurrenceId).toList(),
-                            scoresReadProgress());
-                    Map<ClusterKey, List<DocumentCluster>> byCluster = membership.stream()
-                            .collect(Collectors.groupingBy(ClusterKey::of));
+                    // One row a seed, kept for the tree as well as for the walk (ADR-223 section 5).
+                    List<ArrangedPartition> partitions = TimedStatement.of(
+                            STAGE, "reading", "read", "the seed partitions of the arrangement",
+                            () -> clusters.partitionsOf(arrangement));
+                    Map<OccurrenceId, Integer> places = new HashMap<>();
+                    for (ArrangedPartition partition : partitions) {
+                        places.put(partition.winningSeed(), places.size() + 1);
+                    }
                     int contextWindow = generationContextWindow.size();
-                    List<RecordedCluster> recordedClusters =
-                            TimedStatement.of(STAGE, "reading", "read", "the recorded clusters", () -> clusters.forRun(arrangement));
                     // A running counter: how many members a cluster has is known only as it is reached.
                     StageProgress documentsOpened =
                             StageProgress.running("Stage 6b (generation, cluster documents opened)");
 
+                    // The clusters of one partition are read when the walk comes to the first of them, and
+                    // its members when it first asks for an exemplar of a cluster of it that is not written
+                    // (ADR-223 section 5); each is let go when the walk comes to the next partition.
+                    Iterable<RecordedCluster> walkedClusters = () -> IntStream.range(0, partitions.size())
+                            .boxed()
+                            .flatMap(partition -> TimedStatement.of(
+                                    STAGE, "reading", "read",
+                                    "the recorded clusters of partition " + (partition + 1) + " of " + partitions.size(),
+                                    () -> clusters.ofPartition(arrangement, partitions.get(partition).winningSeed()))
+                                    .stream())
+                            .iterator();
+                    OccurrenceId[] heldFor = new OccurrenceId[1];
+                    Map<Integer, List<DocumentCluster>> held = new HashMap<>();
+
                     GenerationOutcome outcome = clusterGeneration.write(
                             generation,
-                            recordedClusters,
+                            clusters.countForRun(arrangement),
+                            walkedClusters,
                             recorded -> {
+                                OccurrenceId seed = recorded.cluster().winningSeed();
+                                if (!seed.equals(heldFor[0])) {
+                                    held.clear();
+                                    TimedStatement.of(
+                                                    STAGE, "reading", "read",
+                                                    "the members of " + whichPartition(places, seed, partitions.size()),
+                                                    () -> documentClusters.membersOf(scoring, seed))
+                                            .forEach(member -> held.computeIfAbsent(member.clusterOrdinal(), ordinal -> new ArrayList<>())
+                                                    .add(member));
+                                    heldFor[0] = seed;
+                                }
                                 List<Exemplar> exemplars = exemplarsOf(
-                                        byCluster.getOrDefault(ClusterKey.of(recorded), List.of()),
-                                        scores,
-                                        documentsOpened);
-                                return new ClusterMaterial(pathOf(recorded.cluster().winningSeed()), exemplars);
+                                        held.getOrDefault(recorded.cluster().ordinal(), List.of()), scoring, documentsOpened);
+                                return new ClusterMaterial(pathOf(seed), exemplars);
                             },
                             modelName,
                             contextWindow,
@@ -283,7 +305,7 @@ class GenerationTasklet implements Tasklet {
                         stopTheStep(contribution, chunkContext, stopped.turnedDownInARow(), generation);
                         writeDeliverable(
                                 generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                                recordedClusters, membership, scores, outcome.unsendable());
+                                arrangement, scoring, partitions, outcome.unsendable());
                         return false;
                     }
                     if (outcome instanceof GenerationOutcome.LeftUnfinished unfinished) {
@@ -300,15 +322,15 @@ class GenerationTasklet implements Tasklet {
                                 unfinished.faultedThisInvocation(),
                                 generation.value());
                         writeDeliverable(
-                                generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters,
-                                membership, scores, outcome.unsendable());
+                                generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                                arrangement, scoring, partitions, outcome.unsendable());
                         return false;
                     }
 
                     GenerationOutcome.Finished finished = (GenerationOutcome.Finished) outcome;
                     Path tree = writeDeliverable(
-                            generation, walk.get(), byteLevelReductionRun, canonicalRoot, recordedClusters,
-                            membership, scores, outcome.unsendable());
+                            generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                            arrangement, scoring, partitions, outcome.unsendable());
                     LOG.info(
                             "The generation step finished under {}, over the arrangement approved as {}:"
                                     + " {} synthesis doc(s) written under model {} in a window of {}, {}"
@@ -329,14 +351,12 @@ class GenerationTasklet implements Tasklet {
      * The four lines the walk's progress earns, each about one cluster, written under this class's own
      * logger so that what the operator reads is unchanged by where the walk lives (ADR-093, ADR-190). It also
      * opens the {@code Stage 6b (generation, clusters)} counter when the walk announces its total, and ticks it
-     * once at the end of each cluster's path (ADR-192 section 5). And it writes the two lines of each of the
-     * walk's two reads, the clusters already written and the standing faults, as {@code synthesis} reports
-     * them (ADR-193 section 7, ADR-204 section 3): both timed, the second not reached where the walk stops on
-     * five answers turned down in a row.
+     * once at the end of each cluster's path (ADR-192 section 5). And it writes the two lines of the walk's
+     * one read, the standing faults, as {@code synthesis} reports them (ADR-193 section 7, ADR-204 section 3):
+     * timed, and not reached where the walk stops on five answers turned down in a row.
      */
     private static GenerationProgress progressLines() {
         ReportedStatements reads = ReportedStatements.saying()
-                .timed(SynthesisStatement.WRITTEN, STAGE, "the clusters already written")
                 .timed(SynthesisStatement.STANDING_FAULTS, STAGE, "the standing faults")
                 .build();
         return new GenerationProgress() {
@@ -414,30 +434,14 @@ class GenerationTasklet implements Tasklet {
         };
     }
 
-    /** The counter for the scores 6b reads over the membership, through {@code embedding}'s callback (ADR-192). */
-    private static ScoringProgress scoresReadProgress() {
-        return new ScoringProgress() {
-            private StageProgress read;
-
-            @Override
-            public void toReadScores(long occurrences) {
-                read = StageProgress.over("Stage 6b (generation, scores read)", occurrences);
-            }
-
-            @Override
-            public void scoreRead() {
-                read.itemDone();
-            }
-        };
-    }
-
-    /** The four counters of the tree, told by {@code synthesis} what each loop's total is (ADR-192 section 5). */
+    /** The five counters of the tree, told by {@code synthesis} what each loop's total is (ADR-192 section 5). */
     private static DeliverableProgress treeProgress() {
         return new DeliverableProgress() {
             private StageProgress pictures;
             private StageProgress partitions;
             private StageProgress files;
             private StageProgress entries;
+            private StageProgress manifest;
 
             @Override
             public void toListPictures(long survivors) {
@@ -478,6 +482,16 @@ class GenerationTasklet implements Tasklet {
             public void membershipEntryWritten() {
                 entries.itemDone();
             }
+
+            @Override
+            public void toWriteManifestRows(long total) {
+                manifest = StageProgress.over("Stage 6b (generation, manifest rows)", total);
+            }
+
+            @Override
+            public void manifestRowWritten() {
+                manifest.itemDone();
+            }
         };
     }
 
@@ -487,43 +501,106 @@ class GenerationTasklet implements Tasklet {
      * the deliverable is the report (ADR-111, ADR-103, #186).
      *
      * <p>{@code synthesis} may not read {@code Profile}, a stage, or {@code ledger}'s own tables
-     * (ADR-110), so everything {@link Deliverable#writeTo} needs is gathered here as plain values:
-     * every key of the profile, read off its record, every survivor's path, content hash and score, and the
-     * arrangement and the writing produced under this run.
+     * (ADR-110), so everything {@link Deliverable#writeTo} asks for is gathered here as plain values, a
+     * seed partition at a time (ADR-223 section 6): every key of the profile, read off its record, and, as
+     * the tree comes to them, each partition's clusters and survivors, with a survivor's path, content hash
+     * and score, and a cluster's writing and the reason it has none. {@link ArrangedSurvivors#reading} takes
+     * them as functions so that this class adds no class of its own.
      *
      * <p>The content hash is the key {@code extraction} recorded for each survivor, the one its conversion
      * is cached under (ADR-151, ADR-206). Stage 1 hashes only within size-matched groups, so its own record
-     * covers only some survivors, and stage 2's covers every one. The same read serves the picture chain
-     * (ADR-149 §9): the manifest and the pictures share the one key read per survivor, kept in {@code
-     * hashes} for the length of this write. No archive file is opened.
+     * covers only some survivors, and stage 2's covers every one. It is read again each time a survivor is
+     * listed, in the first pass, the partition's listing and the manifest. No archive file is opened.
      */
     private Path writeDeliverable(
             RunId generation,
             WalkId walkId,
             RunId byteLevelReductionRun,
             Path canonicalRoot,
-            List<RecordedCluster> recordedClusters,
-            List<DocumentCluster> membership,
-            Map<OccurrenceId, Double> scores,
+            RunId arrangement,
+            RunId scoring,
+            List<ArrangedPartition> arranged,
             Map<ClusterSlot, Unwritten> foundThisRun) {
-        Map<OccurrenceId, String> hashes = new HashMap<>();
-        List<RecordedSynthesisDoc> written =
-                TimedStatement.of(STAGE, "reading", "read", "the clusters written", () -> synthesisDocs.forRun(generation));
         DeliverableProvenance provenance = new DeliverableProvenance(
                 generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
+        RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
+        Map<OccurrenceId, Integer> places = new HashMap<>();
+        for (ArrangedPartition partition : arranged) {
+            places.put(partition.winningSeed(), places.size() + 1);
+        }
+        long survivorCount = arranged.stream().mapToLong(ArrangedPartition::memberCount).sum();
+        StageProgress listed = StageProgress.over("Stage 6b (generation, survivors listed)", survivorCount);
+        // The tree reads every arranged occurrence twice, a page at a time, and asks for the pair of reads in
+        // the order it makes them: the furniture rule's first pass, then the manifest.
+        ReportedStatements reads = ReportedStatements.saying()
+                .paged(
+                        EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_PICTURES,
+                        STAGE,
+                        "the arranged occurrences, for their pictures",
+                        "Stage 6b (generation, reading the arranged occurrences, for their pictures)")
+                .paged(
+                        EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_THE_MANIFEST,
+                        STAGE,
+                        "the arranged occurrences, for the manifest",
+                        "Stage 6b (generation, reading the arranged occurrences, for the manifest)")
+                .build();
+        int[] pagedReads = new int[1];
+        ArrangedSurvivors source = ArrangedSurvivors.reading(
+                () -> arranged.stream()
+                        .map(partition -> new ListedPartition(
+                                partition.winningSeed(),
+                                pathOf(partition.winningSeed()),
+                                partition.partitionOrder(),
+                                partition.clusterCount()))
+                        .toList(),
+                () -> survivorCount,
+                partition -> TimedStatement.of(
+                        STAGE, "reading", "read",
+                        "the recorded clusters of " + whichPartition(places, partition.winningSeed(), arranged.size()),
+                        () -> clusters.ofPartition(arrangement, partition.winningSeed())),
+                partition -> survivorsOf(
+                        TimedStatement.of(
+                                STAGE, "reading", "read",
+                                "the members of " + whichPartition(places, partition.winningSeed(), arranged.size()),
+                                () -> documentClusters.membersOf(scoring, partition.winningSeed())),
+                        scoring,
+                        extractionRun,
+                        seed -> partition.seedPath(),
+                        listed::itemDone),
+                slot -> synthesisDocs.forCluster(generation, slot.winningSeed(), slot.clusterOrdinal()),
+                slot -> Optional.of(whyUnwritten(generation, slot, foundThisRun)),
+                slot -> clusters.placeOf(arrangement, slot.winningSeed(), slot.clusterOrdinal()),
+                page -> {
+                    EmbeddingStatement statement = pagedReads[0]++ == 0
+                            ? EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_PICTURES
+                            : EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_THE_MANIFEST;
+                    Map<OccurrenceId, String> seedPaths = new HashMap<>();
+                    long[] rowsRead = {0};
+                    reads.statementStarting(
+                            statement, survivorCount == 0 ? OptionalLong.empty() : OptionalLong.of(survivorCount));
+                    documentClusters.eachPage(scoring, members -> {
+                        page.accept(survivorsOf(
+                                members, scoring, extractionRun, seed -> seedPaths.computeIfAbsent(seed, this::pathOf), () -> {}));
+                        rowsRead[0] += members.size();
+                        reads.rowsRead(statement, rowsRead[0]);
+                    });
+                    reads.statementEnded(statement);
+                });
         return Deliverable.writeTo(
                 workingDirectory,
                 provenance,
-                recordedClusters,
-                written,
-                survivorsFor(membership, scores, hashes),
-                survivorPictures(byteLevelReductionRun, hashes),
-                whyUnwritten(generation, recordedClusters, written, foundThisRun),
+                source,
+                survivorPictures(byteLevelReductionRun, extractionRun),
                 treeProgress());
     }
 
+    /** {@code partition <place> of <of>}, as the lines of a read of one partition name it (ADR-223 section 8). */
+    private static String whichPartition(Map<OccurrenceId, Integer> places, OccurrenceId seed, int of) {
+        return "partition " + places.get(seed) + " of " + of;
+    }
+
     /**
-     * Why each cluster without a synthesis doc went unwritten, for its page to say (ADR-174 §4).
+     * Why a cluster without a synthesis doc went unwritten, for its page to say (ADR-174 §4).
      *
      * <p><b>What this invocation found wins over a stored fault row.</b> A row an earlier invocation
      * kept stands until an answer is believed (ADR-111), but if this invocation could send nothing for
@@ -531,30 +608,15 @@ class GenerationTasklet implements Tasklet {
      * would have the reader expect a re-run to help. A cluster with neither, and no doc, was never
      * reached: the step stopped after five turned-down answers before it.
      */
-    private Map<ClusterSlot, Unwritten> whyUnwritten(
-            RunId generation,
-            List<RecordedCluster> recordedClusters,
-            List<RecordedSynthesisDoc> written,
-            Map<ClusterSlot, Unwritten> foundThisRun) {
-        Map<ClusterSlot, Unwritten> why = new LinkedHashMap<>();
-        List<RecordedClusterFault> recordedFaults =
-                TimedStatement.of(STAGE, "reading", "read", "the faults recorded", () -> clusterFaults.forRun(generation));
-        for (RecordedClusterFault fault : recordedFaults) {
-            why.put(new ClusterSlot(fault.winningSeed(), fault.clusterOrdinal()), Unwritten.of(fault.fault().kind()));
+    private Unwritten whyUnwritten(RunId generation, ClusterSlot slot, Map<ClusterSlot, Unwritten> foundThisRun) {
+        Unwritten found = foundThisRun.get(slot);
+        if (found != null) {
+            return found;
         }
-        why.putAll(foundThisRun);
-        Set<ClusterSlot> hasWriting = written.stream()
-                .map(doc -> new ClusterSlot(doc.winningSeed(), doc.clusterOrdinal()))
-                .collect(Collectors.toSet());
-        for (RecordedCluster recorded : recordedClusters) {
-            ClusterSlot slot = ClusterSlot.of(recorded);
-            if (!hasWriting.contains(slot)) {
-                why.putIfAbsent(slot, Unwritten.NOT_REACHED);
-            } else {
-                why.remove(slot);
-            }
-        }
-        return why;
+        return clusterFaults
+                .forCluster(generation, slot.winningSeed(), slot.clusterOrdinal())
+                .map(fault -> Unwritten.of(fault.kind()))
+                .orElse(Unwritten.NOT_REACHED);
     }
 
     /**
@@ -564,9 +626,7 @@ class GenerationTasklet implements Tasklet {
      *
      * <p><b>The same value as {@link ListedSurvivor#contentHash()}, and no hash of the file.</b>
      * Both the manifest's column and this lookup are keyed on the hash {@code extraction} recorded for
-     * the survivor (ADR-151, ADR-206), and {@code hashes} is the one cache {@link #writeDeliverable} builds
-     * and hands to both {@link #survivorsFor} and this method, so the same survivor's key is read once no
-     * matter how many of the manifest, the recurring-bytes count and the picture lookup ask about it.
+     * the survivor (ADR-151, ADR-206), read from the record each time it is asked for.
      *
      * <p>The pixels themselves are not cached: {@link #picturesFor}'s query and decode run on every
      * call, so a document's decoded pictures live only for the one call that decodes them, and ADR-149
@@ -581,7 +641,7 @@ class GenerationTasklet implements Tasklet {
      * {@link #execute} resolves once, rather than re-derived from the current implementation version,
      * which would match nothing after that version changes.
      */
-    private SurvivorPictures survivorPictures(RunId byteLevelReductionRun, Map<OccurrenceId, String> hashes) {
+    private SurvivorPictures survivorPictures(RunId byteLevelReductionRun, RunId extractionRun) {
         return occurrenceId -> {
             boolean showsNoPictures = detectedFormats
                     .formatFor(occurrenceId, byteLevelReductionRun)
@@ -592,23 +652,8 @@ class GenerationTasklet implements Tasklet {
             if (showsNoPictures) {
                 return List.of();
             }
-            return picturesFor(keyOf(occurrenceId, hashes));
+            return picturesFor(cacheKeys.requireForOccurrence(occurrenceId, extractionRun));
         };
-    }
-
-    /**
-     * The content hash recorded for a survivor (ADR-151, ADR-206), read once per occurrence and cached.
-     * The manifest's {@code content_hash} cell and the picture lookup of ADR-149 §9 both read through this
-     * cache, so a survivor's key is read at most once per tree write regardless of which of them asks first.
-     *
-     * <p>No file is opened, so no cell is blank and no survivor loses its pictures to a file that has gone:
-     * the key is the one stage 2 converted the document under. A survivor with no key is the ledger
-     * disagreeing with itself and stops the step.
-     */
-    private String keyOf(OccurrenceId occurrenceId, Map<OccurrenceId, String> cache) {
-        return cache.computeIfAbsent(
-                occurrenceId,
-                id -> cacheKeys.requireForOccurrence(id, stageRuns.upstream(StageModules.EXTRACTION)));
     }
 
     /**
@@ -657,36 +702,35 @@ class GenerationTasklet implements Tasklet {
     }
 
     /**
-     * Every survivor of the arrangement, as {@code documents.csv} carries it (ADR-104, ADR-112):
+     * Some of the arrangement's survivors, as {@code documents.csv} carries them (ADR-104, ADR-112):
      * gathered from {@code document_cluster}, the ledger's own facts, the content hash {@code extraction}
-     * recorded for each (ADR-206) and the scores already read for this pass.
+     * recorded for each (ADR-206) and the scores read for them. A survivor with no score shows {@code 0.0}.
+     *
+     * @param seedPathOf a seed's path, asked once for each survivor
+     * @param listed called after each survivor is listed
      */
-    private List<ListedSurvivor> survivorsFor(
-            List<DocumentCluster> membership,
-            Map<OccurrenceId, Double> scores,
-            Map<OccurrenceId, String> hashes) {
-        List<ListedSurvivor> survivors = new ArrayList<>();
-        StageProgress listed = StageProgress.over("Stage 6b (generation, survivors listed)", membership.size());
-        for (DocumentCluster member : membership) {
-            OccurrencePath path = ledger.occurrences().factsFor(member.occurrenceId())
-                    .map(OccurrenceFacts::path)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "no facts recorded for occurrence " + member.occurrenceId().value()));
-            OccurrencePath seedPath = ledger.occurrences().factsFor(member.winningSeedOccurrenceId())
-                    .map(OccurrenceFacts::path)
-                    .orElseThrow(() -> new IllegalStateException("no facts recorded for seed occurrence "
-                            + member.winningSeedOccurrenceId().value()));
-            String contentHash = keyOf(member.occurrenceId(), hashes);
-            double score = scores.getOrDefault(member.occurrenceId(), 0.0);
+    private List<ListedSurvivor> survivorsOf(
+            List<DocumentCluster> members,
+            RunId scoring,
+            RunId extractionRun,
+            Function<OccurrenceId, String> seedPathOf,
+            Runnable listed) {
+        Map<OccurrenceId, Double> scores =
+                relevanceScoring.scoresFor(scoring, members.stream().map(DocumentCluster::occurrenceId).toList());
+        List<ListedSurvivor> survivors = new ArrayList<>(members.size());
+        for (DocumentCluster member : members) {
             survivors.add(new ListedSurvivor(
                     member.occurrenceId(),
-                    path,
-                    contentHash,
+                    ledger.occurrences().factsFor(member.occurrenceId())
+                            .map(OccurrenceFacts::path)
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "no facts recorded for occurrence " + member.occurrenceId().value())),
+                    cacheKeys.requireForOccurrence(member.occurrenceId(), extractionRun),
                     member.winningSeedOccurrenceId(),
-                    seedPath.value(),
+                    seedPathOf.apply(member.winningSeedOccurrenceId()),
                     member.clusterOrdinal(),
-                    score));
-            listed.itemDone();
+                    scores.getOrDefault(member.occurrenceId(), 0.0)));
+            listed.run();
         }
         return survivors;
     }
@@ -759,24 +803,6 @@ class GenerationTasklet implements Tasklet {
     }
 
     /**
-     * A cluster's identity, used to gather membership into clusters in one pass rather than filtering
-     * the whole membership list once per cluster.
-     *
-     * @param winningSeed the seed whose partition the cluster sits in
-     * @param ordinal the cluster's identity within that partition
-     */
-    private record ClusterKey(OccurrenceId winningSeed, int ordinal) {
-
-        static ClusterKey of(DocumentCluster member) {
-            return new ClusterKey(member.winningSeedOccurrenceId(), member.clusterOrdinal());
-        }
-
-        static ClusterKey of(RecordedCluster recorded) {
-            return new ClusterKey(recorded.cluster().winningSeed(), recorded.cluster().ordinal());
-        }
-    }
-
-    /**
      * The scoring run the approved arrangement was built over, looked up rather than re-derived: the
      * approval names one arrangement, and which measurements that arrangement rests on is already
      * recorded as its upstream (ADR-048). Re-deriving it here would be a second answer to a question
@@ -806,14 +832,16 @@ class GenerationTasklet implements Tasklet {
      * rule one stage along and for its reason: the order these are sent in <em>is</em> the score, so a
      * document with none cannot be placed among them. Standing a zero in for it would send it last as
      * though it had been measured and found least relevant, which is a claim nobody made.
+     *
+     * <p>Each member's score is read by its key as the member is reached (ADR-223 section 5).
      */
     private List<Exemplar> exemplarsOf(
-            List<DocumentCluster> members,
-            Map<OccurrenceId, Double> scores,
-            StageProgress documentsOpened) {
+            List<DocumentCluster> members, RunId scoring, StageProgress documentsOpened) {
         List<Exemplar> exemplars = new ArrayList<>();
         for (DocumentCluster member : members) {
-            Double score = scores.get(member.occurrenceId());
+            Double score = relevanceScoring
+                    .scoresFor(scoring, List.of(member.occurrenceId()))
+                    .get(member.occurrenceId());
             if (score == null) {
                 throw new IllegalStateException("occurrence " + member.occurrenceId().value()
                         + " is in a cluster being written over but carries no relevance score, so the"

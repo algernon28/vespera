@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-220](0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md).** Of §3's lines, stage 4b's two timed pairs for `the signature bands` and `the shingle document frequencies` are struck, and 5e's `the scores below the floor` says `is counting` and `counted` where it said `is reading` and `read`. §4's list of `SimilarityStatement`'s constants loses `SIGNATURE_BANDS` and `DOCUMENT_FREQUENCY`. §3's two lines for `the occurrences it could not read` keep their words and now span the count of those occurrences and the writing of the review list as well as the read in path order (ADR-220 §6); where the review list cannot be written, the first of the two is written and the second is not.
 
+> **Partly amended — see [ADR-223](0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md).** Of §3's lines, 6a's two and 6b's `the cluster membership`, `the recorded clusters`, `the clusters already written`, `the clusters written` and `the faults recorded` are struck, and the lines ADR-223 §8 names stand in their place. §4's list of `SynthesisStatement`'s constants loses `WRITTEN`.
+
 - **Date**: 2026-10-06
 - **Status**: accepted
 - **Extends**: [ADR-193](0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md) §4, §6 and §7: every statement of its part (b) is given the `<stage>` its lines open with, the four enums are listed with their constants, and one statement §6 could not have named is given a form (§2).

@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.qameta.allure.Epic;
@@ -87,7 +88,7 @@ class ClusteringTest {
         claim(
                 "and each carries exactly one, so membership is disjoint -- a document lands in one"
                         + " cluster rather than being listed under several",
-                () -> assertThat(clusters.forRun(run)).hasSize(partition.size()));
+                () -> assertThat(WholeRun.membership(jdbcTemplate,run)).hasSize(partition.size()));
         claim(
                 "the two groups came out as two clusters, and nothing was told there were two: the count"
                         + " is a property of how the documents resemble each other, which is what lets a"
@@ -185,7 +186,7 @@ class ClusteringTest {
         claim(
                 "every document is still recorded, so nothing was dropped for resembling nothing:"
                         + " membership is total whatever the vectors say",
-                () -> assertThat(clusters.forRun(run)).hasSize(CLUSTER_SIZE));
+                () -> assertThat(WholeRun.membership(jdbcTemplate,run)).hasSize(CLUSTER_SIZE));
         claim(
                 "and they come out grouped rather than as one cluster per document, because k retains a"
                         + " document's fifteen nearest neighbours however far away they are and ADR-087"
@@ -232,7 +233,7 @@ class ClusteringTest {
         claim(
                 "and the second run wrote its own rows beside the first's rather than editing them"
                         + " (ADR-077), so what an earlier run recorded is still readable",
-                () -> assertThat(clusters.forRun(first)).hasSize(partition.size()));
+                () -> assertThat(WholeRun.membership(jdbcTemplate,first)).hasSize(partition.size()));
     }
 
     @Test
@@ -291,7 +292,7 @@ class ClusteringTest {
 
     /** Which cluster each document landed in, keyed by document so two runs can be compared. */
     private Map<OccurrenceId, Integer> ordinalsOf(DocumentClusters clusters, RunId run) {
-        return clusters.forRun(run).stream()
+        return WholeRun.membership(jdbcTemplate,run).stream()
                 .collect(Collectors.toMap(
                         DocumentCluster::occurrenceId, DocumentCluster::clusterOrdinal, (a, b) -> a, LinkedHashMap::new));
     }

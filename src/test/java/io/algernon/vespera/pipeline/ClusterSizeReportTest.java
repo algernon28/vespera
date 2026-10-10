@@ -31,22 +31,22 @@ class ClusterSizeReportTest {
 
     /** One partition of 55 documents in five clusters: 40, 12, and three documents each alone. */
     private static final ClusterSizeReport.Partition ONE_LARGE_CLUSTER_AND_THREE_ALONE =
-            new ClusterSizeReport.Partition("seeds/contracts.pdf", List.of(40, 12, 1, 1, 1), Optional.empty());
+            ClusterSizeReport.Partition.of("seeds/contracts.pdf", List.of(40, 12, 1, 1, 1), Optional.empty());
 
 
     /** A partition whose kept links run from 0.62 up to 0.95 — documents that genuinely resemble each other. */
-    private static final ClusterSizeReport.Partition CLUSTERED_BY_RESEMBLANCE = new ClusterSizeReport.Partition(
+    private static final ClusterSizeReport.Partition CLUSTERED_BY_RESEMBLANCE = ClusterSizeReport.Partition.of(
             "seeds/contracts.pdf",
             List.of(18, 9),
             Optional.of(new RetainedEdgeSpread(0.62, 0.81, 0.95, 240)));
 
     /** A partition whose strongest link is 0.04 — forty documents k forced together. */
-    private static final ClusterSizeReport.Partition CLUSTERED_BY_K = new ClusterSizeReport.Partition(
+    private static final ClusterSizeReport.Partition CLUSTERED_BY_K = ClusterSizeReport.Partition.of(
             "seeds/minutes.pdf", List.of(21, 19), Optional.of(new RetainedEdgeSpread(0.01, 0.02, 0.04, 240)));
 
     /** One document under its own exemplar: no pair, so no link and nothing to measure. */
     private static final ClusterSizeReport.Partition ONE_DOCUMENT_ALONE =
-            new ClusterSizeReport.Partition("seeds/lonely.pdf", List.of(1), Optional.empty());
+            ClusterSizeReport.Partition.of("seeds/lonely.pdf", List.of(1), Optional.empty());
 
     @Test
     @Story("The spread of cluster sizes is reported per partition")
@@ -139,7 +139,7 @@ class ClusterSizeReportTest {
     void reportsEachPartitionSeparately() {
         String html = ClusterSizeReport.render(List.of(
                 ONE_LARGE_CLUSTER_AND_THREE_ALONE,
-                new ClusterSizeReport.Partition("seeds/invoices.pdf", List.of(3, 2), Optional.empty())));
+                ClusterSizeReport.Partition.of("seeds/invoices.pdf", List.of(3, 2), Optional.empty())));
 
         claim(
                 "both exemplars appear, each with its own row: clustering runs within a partition and"
@@ -153,7 +153,7 @@ class ClusterSizeReportTest {
     @DisplayName("A partition of nothing but one-document clusters is reported, not repaired")
     void reportsAPartitionOfSingletonsWithoutRepairingIt() {
         String html = ClusterSizeReport.render(
-                List.of(new ClusterSizeReport.Partition("seeds/exemplar.pdf", List.of(1, 1, 1, 1), Optional.empty())));
+                List.of(ClusterSizeReport.Partition.of("seeds/exemplar.pdf", List.of(1, 1, 1, 1), Optional.empty())));
 
         claim(
                 "the page says outright that nothing was removed, merged or renamed: merging small"
@@ -175,7 +175,7 @@ class ClusterSizeReportTest {
     @DisplayName("The middle cluster is reported rather than an average")
     void reportsTheMiddleClusterRatherThanAnAverage() {
         ClusterSizeReport.Partition oneLargeClusterAndFourAlone =
-                new ClusterSizeReport.Partition("seeds/exemplar.pdf", List.of(100, 1, 1, 1, 1), Optional.empty());
+                ClusterSizeReport.Partition.of("seeds/exemplar.pdf", List.of(100, 1, 1, 1, 1), Optional.empty());
 
         claim(
                 "the middle group is 1 rather than the mean of 20.8: one group holding most of a"

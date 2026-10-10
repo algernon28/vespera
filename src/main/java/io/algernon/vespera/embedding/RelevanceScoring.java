@@ -110,6 +110,14 @@ public class RelevanceScoring {
         return scores;
     }
 
+    /**
+     * The seeds that won at least one survivor under {@code runId}, in occurrence order: one seed partition
+     * each (ADR-045), the read stage 5f and stage 6a both start from (ADR-223 section 3).
+     */
+    public List<OccurrenceId> winningSeeds(RunId runId) {
+        return scoreCache.winningSeeds(runId);
+    }
+
     /** How many occurrences {@code runId} scored strictly below {@code floor} (ADR-220 section 5). */
     public long countScoredBelow(RunId runId, double floor) {
         return scoreCache.countScoredBelow(runId, floor);

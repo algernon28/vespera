@@ -9,6 +9,8 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,7 +54,7 @@ class ArrangementReportTest {
     @Story("The page the operator approves is written in the operator's words")
     @DisplayName("The page calls each set of documents a group, in its table and in its explanation")
     void rendersEachClusterAsAGroup() {
-        String page = ArrangementReport.render(APPROVAL_NAME, CORPUS_ROOT, List.of(ONE_EXEMPLAR));
+        String page = thePageOf(List.of(ONE_EXEMPLAR));
 
         claim(
                 "the column heading over the names reads Group, which is the word the reader is left"
@@ -73,7 +75,7 @@ class ArrangementReportTest {
     @Story("The page the operator approves is written in the operator's words")
     @DisplayName("Nothing on the page uses a word only this project's own glossary explains")
     void usesNoWordTheReaderWouldHaveToLookUp() {
-        String page = ArrangementReport.render(APPROVAL_NAME, CORPUS_ROOT, List.of(ONE_EXEMPLAR));
+        String page = thePageOf(List.of(ONE_EXEMPLAR));
 
         claim(
                 "no heading, sentence or table cell on the page carries the term this project uses among"
@@ -86,7 +88,7 @@ class ArrangementReportTest {
     @Story("The page the operator approves is written in the operator's words")
     @DisplayName("A run that arranged nothing says so in the same words as a run that arranged something")
     void saysSoInTheSameWordsWhenThereIsNothingToShow() {
-        String page = ArrangementReport.render(APPROVAL_NAME, CORPUS_ROOT, List.of());
+        String page = thePageOf(List.of());
 
         claim(
                 "the page still asks for the approval it exists to ask for, naming the arrangement the"
@@ -96,5 +98,23 @@ class ArrangementReportTest {
                 "and says there is nothing to arrange without reaching for a word of ours to say it,"
                         + " because the emptiest page is the one most likely to be rewritten carelessly",
                 () -> assertThat(page).doesNotContainIgnoringCase("cluster"));
+    }
+
+    /**
+     * The whole page for {@code partitions}, written as stage 6a writes it since ADR-223: what comes before
+     * the first partition, each partition as it comes, then what comes after the last.
+     */
+    private static String thePageOf(List<ArrangementReport.Partition> partitions) {
+        StringBuilder page = new StringBuilder();
+        try {
+            ArrangementReport.open(page, APPROVAL_NAME, CORPUS_ROOT);
+            for (ArrangementReport.Partition partition : partitions) {
+                ArrangementReport.partition(page, partition);
+            }
+            ArrangementReport.close(page, partitions.size());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return page.toString();
     }
 }

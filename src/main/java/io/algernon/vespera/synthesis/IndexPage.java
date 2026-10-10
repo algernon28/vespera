@@ -1,19 +1,21 @@
 package io.algernon.vespera.synthesis;
 
-import io.algernon.vespera.ledger.OccurrenceId;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * {@code index.md}, the mechanical listing at the root of every tree (ADR-103, ADR-112, ADR-122), and
  * the names it and the tree beneath it give their partitions and cluster files.
  *
- * <p><b>The order is rendered, never re-derived.</b> {@code arrangement} arrives already in the order the
- * operator approved (ADR-112), and neither level here is sorted again — a partition's position comes from
- * its clusters' own {@code partitionOrder}, and a cluster's from its own {@code clusterOrder}.
+ * <p>It is appended to as its rows come (ADR-223 section 6): {@link #open} writes what produced the tree,
+ * then {@link #partition} writes one partition's table, and nothing here holds the index whole.
+ *
+ * <p><b>The order is rendered, never re-derived.</b> The partitions and the clusters arrive already in the
+ * order the operator approved (ADR-112), and neither level here is sorted again — a partition's position
+ * comes from its own {@code partitionOrder}, and a cluster's from its own {@code clusterOrder}.
  *
  * <p><b>It links to a page only where writing exists</b> (ADR-111), though the page itself is written
  * either way, so a cluster keeps its slot in the listing.
@@ -26,77 +28,39 @@ final class IndexPage {
     private IndexPage() {}
 
     /**
-     * The whole index: what produced the tree, then a table of clusters under each partition's seed.
+     * One partition's heading and table of clusters, appended to {@code index}.
      *
-     * @throws IllegalArgumentException where a partition's seed is named by no survivor, since its
-     *     directory cannot be named without it
+     * @param partitionCount how many partitions the tree has, which pads the partition's directory name
+     * @param clusters the partition's clusters, in stored order
+     * @param writtenOver the writing over a cluster, empty where there is none
      */
-    static String contents(
-            DeliverableProvenance provenance,
-            List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
-            List<ListedSurvivor> survivors) {
-        Map<ClusterSlot, RecordedSynthesisDoc> writtenByCluster = new LinkedHashMap<>();
-        for (RecordedSynthesisDoc doc : written) {
-            writtenByCluster.put(ClusterSlot.of(doc), doc);
+    static void partition(
+            Appendable index,
+            ListedPartition partition,
+            int partitionCount,
+            List<RecordedCluster> clusters,
+            Function<ClusterSlot, Optional<SynthesisDoc>> writtenOver)
+            throws IOException {
+        int clusterWidth = widthOf(partition.clusterCount());
+        String partitionDirName = partitionDirectoryName(partition, partitionCount);
+        index.append("\n## ")
+                .append(MarkdownSurroundings.ATX_HEADING.escape(partition.seedPath()))
+                .append("\n\n")
+                .append(TABLE_HEADER)
+                .append('\n')
+                .append("|---|---|---|\n");
+        for (RecordedCluster recorded : clusters) {
+            appendRow(index, partitionDirName, clusterWidth, recorded, writtenOver.apply(ClusterSlot.of(recorded)));
         }
-        Map<OccurrenceId, String> seedPathByPartition = seedPaths(survivors);
-        Map<OccurrenceId, List<RecordedCluster>> byPartition = partitions(arrangement);
-        int partitionWidth = widthOf(byPartition.size());
-
-        StringBuilder index = new StringBuilder();
-        openWith(index, provenance);
-        for (Map.Entry<OccurrenceId, List<RecordedCluster>> partition : byPartition.entrySet()) {
-            List<RecordedCluster> clusters = partition.getValue();
-            int clusterWidth = widthOf(clusters.size());
-            String seedPath = seedPathByPartition.get(partition.getKey());
-            if (seedPath == null) {
-                throw new IllegalArgumentException("no survivor names the seed of partition "
-                        + partition.getKey().value() + "; a partition directory cannot be named without it");
-            }
-            String partitionDirName = partitionDirectoryName(clusters, partitionWidth, seedPath);
-            index.append("\n## ")
-                    .append(MarkdownSurroundings.ATX_HEADING.escape(seedPath))
-                    .append("\n\n")
-                    .append(TABLE_HEADER)
-                    .append('\n')
-                    .append("|---|---|---|\n");
-            for (RecordedCluster recorded : clusters) {
-                appendRow(index, partitionDirName, clusterWidth, recorded, writtenByCluster.get(ClusterSlot.of(recorded)));
-            }
-        }
-        return index.toString();
-    }
-
-    /** The seed's own path for each partition, from the first survivor that names it. */
-    static Map<OccurrenceId, String> seedPaths(List<ListedSurvivor> survivors) {
-        Map<OccurrenceId, String> seedPathByPartition = new LinkedHashMap<>();
-        for (ListedSurvivor survivor : survivors) {
-            seedPathByPartition.putIfAbsent(survivor.winningSeed(), survivor.seedPath());
-        }
-        return seedPathByPartition;
-    }
-
-    /** The arrangement's clusters under the partition each belongs to, both levels in stored order. */
-    static Map<OccurrenceId, List<RecordedCluster>> partitions(List<RecordedCluster> arrangement) {
-        Map<OccurrenceId, List<RecordedCluster>> byPartition = new LinkedHashMap<>();
-        for (RecordedCluster recorded : arrangement) {
-            byPartition
-                    .computeIfAbsent(recorded.cluster().winningSeed(), key -> new ArrayList<>())
-                    .add(recorded);
-        }
-        return byPartition;
     }
 
     /**
-     * The name of a partition's directory: its position zero-padded to {@code partitionWidth} digits,
+     * The name of a partition's directory: its position zero-padded to the width of {@code partitionCount},
      * then its seed's filename stem as a slug (ADR-112).
-     *
-     * @param clusters the partition's clusters, which carry its position
      */
-    static String partitionDirectoryName(List<RecordedCluster> clusters, int partitionWidth, String seedPath) {
-        return pad(clusters.getFirst().cluster().partitionOrder(), partitionWidth)
-                + "-" + slug(FilenameStem.of(seedPath));
+    static String partitionDirectoryName(ListedPartition partition, int partitionCount) {
+        return pad(partition.partitionOrder(), widthOf(partitionCount))
+                + "-" + slug(FilenameStem.of(partition.seedPath()));
     }
 
     /**
@@ -113,17 +77,18 @@ final class IndexPage {
     }
 
     private static void appendRow(
-            StringBuilder index,
+            Appendable index,
             String partitionDirName,
             int clusterWidth,
             RecordedCluster recorded,
-            RecordedSynthesisDoc doc) {
+            Optional<SynthesisDoc> doc)
+            throws IOException {
         int documentCount = recorded.cluster().documentCount();
-        if (doc == null) {
+        if (doc.isEmpty()) {
             index.append("| ")
                     .append(MarkdownSurroundings.TABLE_CELL.escape(recorded.label().value()))
                     .append(" | ")
-                    .append(documentCount)
+                    .append(String.valueOf(documentCount))
                     .append(" | ")
                     .append(Deliverable.NOTHING_WAS_WRITTEN_OVER_IT)
                     .append(" |\n");
@@ -139,13 +104,14 @@ final class IndexPage {
                 .append('/')
                 .append(clusterFileName(recorded, clusterWidth))
                 .append(") | ")
-                .append(documentCount)
+                .append(String.valueOf(documentCount))
                 .append(" | ")
-                .append(MarkdownSurroundings.TABLE_CELL.escape(doc.doc().title()))
+                .append(MarkdownSurroundings.TABLE_CELL.escape(doc.get().title()))
                 .append(" |\n");
     }
 
-    private static void openWith(StringBuilder index, DeliverableProvenance provenance) {
+    /** What produced the tree, and what its path columns resolve against: everything before the first partition. */
+    static void open(Appendable index, DeliverableProvenance provenance) throws IOException {
         index.append("# Deliverable ")
                 .append(provenance.runId())
                 .append("\n\n")
@@ -153,7 +119,7 @@ final class IndexPage {
                 .append(provenance.runId())
                 .append('\n')
                 .append("- Walk: ")
-                .append(provenance.walk())
+                .append(String.valueOf(provenance.walk()))
                 .append('\n')
                 .append("- Archive root: ")
                 .append(provenance.corpusRoot())

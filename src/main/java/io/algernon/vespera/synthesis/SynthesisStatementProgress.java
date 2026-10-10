@@ -9,8 +9,8 @@ import java.util.OptionalLong;
  *
  * <p>{@link #statementStarting} is called once before a statement, {@link #stepsTaken} at each callback of
  * SQLite's progress handler where it is counted, and {@link #statementEnded} once after it, on every path
- * but one that throws. A statement that is not issued makes no call. Both statements of {@code synthesis}
- * are timed, so each is started with no total and none reports a step. Nothing here may touch the database.
+ * but one that throws. A statement that is not issued makes no call. The one statement of {@code synthesis}
+ * is timed, so it is started with no total and reports no step. Nothing here may touch the database.
  */
 public interface SynthesisStatementProgress {
 

@@ -938,7 +938,7 @@ class ClusterFileTest {
         List<RecordedSynthesisDoc> written = doc == null
                 ? List.of()
                 : List.of(new RecordedSynthesisDoc(THE_SEED, FIRST_ORDINAL, doc));
-        return Deliverable.writeTo(workingDirectory, provenance(corpusRoot), arrangement, written, members);
+        return ListedArrangement.writeTo(workingDirectory, provenance(corpusRoot), arrangement, written, members);
     }
 
     /** The bytes of the one cluster's page, read at the moment a claim asks for them. */

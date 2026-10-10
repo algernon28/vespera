@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.pipeline.GenerationScriptedBeans.ScriptedAnswer;
@@ -849,7 +850,7 @@ class GenerationBreakerInvocationTest {
     private List<RecordedSynthesisDoc> writingKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
-                .flatMap(run -> synthesisDocs.forRun(run).stream())
+                .flatMap(run -> WholeRun.synthesisDocs(jdbcTemplate,run).stream())
                 .toList();
     }
 
@@ -857,7 +858,7 @@ class GenerationBreakerInvocationTest {
     private List<RecordedClusterFault> reasonsKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
-                .flatMap(run -> clusterFaults.forRun(run).stream())
+                .flatMap(run -> WholeRun.clusterFaults(jdbcTemplate,run).stream())
                 .toList();
     }
 

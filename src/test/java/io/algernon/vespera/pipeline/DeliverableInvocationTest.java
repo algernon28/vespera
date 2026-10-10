@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.PathScriptedExtractor;
@@ -473,7 +474,7 @@ class DeliverableInvocationTest {
                 "the arrangement really does hold both of the " + TWO_CLUSTERS + " groups, which is what"
                         + " the order claim below is about -- asserted first, so a fixture that failed to"
                         + " produce two fails here rather than while reading a page about one",
-                () -> assertThat(clusters.forRun(theApprovedArrangement(root))).hasSize(TWO_CLUSTERS));
+                () -> assertThat(WholeRun.clusters(jdbcTemplate,theApprovedArrangement(root))).hasSize(TWO_CLUSTERS));
         claim(
                 "the group the arrangement placed first is listed first, though it was formed after the"
                         + " other and carries the higher number: the sequence a person approved and the"

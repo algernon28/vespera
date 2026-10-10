@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
@@ -69,7 +70,7 @@ class ClustersTest {
                 "the group comes back carrying everything a reader of the arrangement is shown -- what it"
                         + " is called, how many documents are under it, and where it sits at both levels --"
                         + " so the page that renders it never has to work any of that out a second time",
-                () -> assertThat(clusters.forRun(run))
+                () -> assertThat(WholeRun.clusters(jdbcTemplate, run))
                         .singleElement()
                         .satisfies(recorded -> {
                             assertThat(recorded.label().value()).isEqualTo(LABEL);

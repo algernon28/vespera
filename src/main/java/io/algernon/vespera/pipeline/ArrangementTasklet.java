@@ -22,9 +22,11 @@ import io.algernon.vespera.synthesis.Partition;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -61,6 +63,10 @@ import org.springframework.stereotype.Component;
  * read, and it stops, in the same way and for the same reason {@code scoreAndRecord} refuses to score
  * an unvectored survivor. A defensive miscellaneous bucket here would turn that into a silently
  * rendered section of the deliverable.
+ *
+ * <p><b>One seed partition at a time</b> (ADR-223 section 3). The partitions are ordered from their sizes
+ * and their seeds' paths alone; then each is read, arranged, labelled, recorded, read back and written to the
+ * page, and let go before the next is read.
  *
  * <p>Gated exactly as the clustering step before it is, and for the same reasons: with no model
  * named, no seed folder or no usable seed, no score exists, so there is nothing to arrange.
@@ -133,19 +139,34 @@ class ArrangementTasklet implements Tasklet {
         }
 
         RunId scoring = stageRuns.embeddingScoring();
-        List<DocumentCluster> membership =
-                TimedStatement.of(STAGE, "reading", "read", "the cluster membership", () -> documentClusters.forRun(scoring));
-        if (membership.isEmpty()) {
+        // The seeds that won a survivor, and how many documents sit under each: a count a seed, so that the
+        // partitions are ordered without reading a document of any of them (ADR-223 section 3). Made on both
+        // branches, before the step knows which it is on.
+        List<OccurrenceId> winningSeeds = TimedStatement.of(
+                STAGE, "reading", "read", "the seed partitions", () -> relevanceScoring.winningSeeds(scoring));
+        Map<OccurrenceId, Integer> memberCounts = new LinkedHashMap<>();
+        for (OccurrenceId seed : winningSeeds) {
+            int members = documentClusters.sizeOf(scoring, seed);
+            if (members > 0) {
+                memberCounts.put(seed, members);
+            }
+        }
+        if (memberCounts.isEmpty()) {
             LOG.info(
                     "the arrangement step is gated: no survivor was grouped under {}, so there is nothing"
                             + " to arrange.",
                     scoring.value());
             return RepeatStatus.FINISHED;
         }
+        Map<OccurrenceId, String> seedPaths = new HashMap<>();
+        for (OccurrenceId seed : memberCounts.keySet()) {
+            seedPaths.put(seed, pathOf(seed));
+        }
+        long members = memberCounts.values().stream().mapToLong(Integer::longValue).sum();
+        StageProgress scoresRead = StageProgress.over("Stage 6a (arrangement, scores read)", members);
+        StageProgress gathered = StageProgress.over("Stage 6a (arrangement, members gathered)", members);
 
         RunId arrangement = stageRuns.arrangement();
-        Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
-                scoring, membership.stream().map(DocumentCluster::occurrenceId).toList(), scoresReadProgress());
 
         // The page an approval copies its name off is written every time this invocation arrives at an
         // arrangement, from the rows recorded under it, including when they were recorded by an
@@ -157,113 +178,149 @@ class ArrangementTasklet implements Tasklet {
                 StepNames.ARRANGEMENT,
                 () -> {
                     LOG.info("the arrangement step was already recorded under run {}", arrangement.value());
-                    write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
-                            ArrangementGate.shortNameOf(arrangement),
-                            Walk.canonicalRoot(root).toString(),
-                            reportOf(recordedClusters(arrangement), Map.of(), clusteredDocuments(membership, scores))));
+                    List<OccurrenceId> recordedSeeds = TimedStatement.of(
+                            STAGE, "reading", "read", "the seed partitions of the arrangement",
+                            () -> clusters.seedsOf(arrangement));
+                    writePage(scoring, arrangement, recordedSeeds, seedPaths, scoresRead, gathered, false);
                 },
                 () -> clusters.discardForRun(arrangement),
                 () -> {
-                    List<ClusteredDocument> documents = clusteredDocuments(membership, scores);
-                    List<Partition> partitions = Arrangement.partitionsOf(documents);
-
-                    List<ArrangedCluster> arranged = Arrangement.order(partitions);
-                    Map<ClusterSlot, OccurrenceId> leads = new HashMap<>();
-                    StageProgress labelledAndRecorded =
-                            StageProgress.over("Stage 6a (arrangement, clusters)", arranged.size());
-                    for (ArrangedCluster cluster : arranged) {
-                        LabelledCluster labelled =
-                                LeadDocument.labelled(cluster, documents, this::titleOf, this::pathObjectOf);
-                        clusters.record(arrangement, cluster, labelled.label());
-                        leads.put(new ClusterSlot(cluster.winningSeed(), cluster.ordinal()), labelled.leadDocument());
-                        labelledAndRecorded.itemDone();
-                    }
-                    write(ARRANGEMENT_FILE_NAME, ArrangementReport.render(
-                            ArrangementGate.shortNameOf(arrangement),
-                            Walk.canonicalRoot(root).toString(),
-                            reportOf(recordedClusters(arrangement), leads, documents)));
+                    List<OccurrenceId> seeds = Arrangement.inOrder(memberCounts, seedPaths);
+                    int[] clustersAndDocuments = writePage(scoring, arrangement, seeds, seedPaths, scoresRead, gathered, true);
                     LOG.info(
                             "The arrangement step finished under {}: {} seed partition(s), {} cluster(s), {}"
                                     + " document(s)",
                             arrangement.value(),
-                            partitions.size(),
-                            arranged.size(),
-                            arranged.stream().mapToInt(ArrangedCluster::documentCount).sum());
+                            seeds.size(),
+                            clustersAndDocuments[0],
+                            clustersAndDocuments[1]);
                     return true;
                 });
     }
 
     /**
-     * The clusters recorded under {@code arrangement}, read once on whichever branch the step takes: a timed
-     * statement, since the read goes through a temp B-tree and has no cheap total (ADR-193 section 6).
+     * Writes the page an approval names, a partition at a time, to a file beside {@code arrangement.html} and
+     * moves it over that file once it is whole, so that a step that fails partway leaves the page before it
+     * or none (ADR-223 section 3). Where {@code recording}, each partition is arranged, labelled and recorded
+     * first; either way its rows are read back before its part of the page is written, so what a reviewer is
+     * shown, and an approval then names, is the same whether this invocation just wrote those rows or is only
+     * rendering a page for a run an earlier invocation finished (ADR-112, ADR-115, ADR-154 §2).
+     *
+     * @return how many clusters were arranged and how many documents they hold, both nothing where not
+     *     {@code recording}
      */
-    private List<RecordedCluster> recordedClusters(RunId arrangement) {
-        return TimedStatement.of(STAGE, "reading", "read", "the recorded clusters", () -> clusters.forRun(arrangement));
+    private int[] writePage(
+            RunId scoring,
+            RunId arrangement,
+            List<OccurrenceId> seeds,
+            Map<OccurrenceId, String> seedPaths,
+            StageProgress scoresRead,
+            StageProgress gathered,
+            boolean recording) {
+        Path file = workingDirectory.resolve(ARRANGEMENT_FILE_NAME);
+        Path part = workingDirectory.resolve(ARRANGEMENT_FILE_NAME + ".part");
+        int[] arranged = new int[2];
+        try {
+            Files.createDirectories(workingDirectory);
+            try (Writer page = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
+                ArrangementReport.open(
+                        page, ArrangementGate.shortNameOf(arrangement), Walk.canonicalRoot(root).toString());
+                StageProgress partitionsDrawn =
+                        StageProgress.over("Stage 6a (arrangement, page partitions)", seeds.size());
+                for (int place = 1; place <= seeds.size(); place++) {
+                    OccurrenceId seed = seeds.get(place - 1);
+                    String whichPartition = "partition " + place + " of " + seeds.size();
+                    List<DocumentCluster> read = TimedStatement.of(
+                            STAGE, "reading", "read", "the members of " + whichPartition,
+                            () -> documentClusters.membersOf(scoring, seed));
+                    Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(
+                            scoring, read.stream().map(DocumentCluster::occurrenceId).toList(), scoresReadProgress(scoresRead));
+                    List<ClusteredDocument> documents = clusteredDocuments(
+                            read, scores, seedPaths.computeIfAbsent(seed, this::pathOf), gathered);
+
+                    Map<ClusterSlot, OccurrenceId> leads = new HashMap<>();
+                    if (recording) {
+                        Partition gatheredPartition = Arrangement.partitionsOf(documents).getFirst();
+                        List<ArrangedCluster> ordered = Arrangement.order(gatheredPartition, place);
+                        StageProgress labelledAndRecorded = StageProgress.over(
+                                "Stage 6a (arrangement, clusters, partition %d of %d)".formatted(place, seeds.size()),
+                                ordered.size());
+                        for (ArrangedCluster cluster : ordered) {
+                            LabelledCluster labelled =
+                                    LeadDocument.labelled(cluster, documents, this::titleOf, this::pathObjectOf);
+                            clusters.record(arrangement, cluster, labelled.label());
+                            leads.put(new ClusterSlot(cluster.winningSeed(), cluster.ordinal()), labelled.leadDocument());
+                            arranged[0]++;
+                            arranged[1] += cluster.documentCount();
+                            labelledAndRecorded.itemDone();
+                        }
+                    }
+                    List<RecordedCluster> recorded = TimedStatement.of(
+                            STAGE, "reading", "read", "the recorded clusters of " + whichPartition,
+                            () -> clusters.ofPartition(arrangement, seed));
+                    ArrangementReport.partition(
+                            page,
+                            new ArrangementReport.Partition(
+                                    seedPaths.get(seed), rowsOf(recorded, leads, documents, place, seeds.size())));
+                    partitionsDrawn.itemDone();
+                }
+                ArrangementReport.close(page, seeds.size());
+            }
+            Files.move(part, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not write " + file, e);
+        }
+        return arranged;
     }
 
     /**
-     * The arrangement as the page shows it, read back off the rows recorded under this run (ADR-112,
-     * ADR-154 §2) rather than off the arithmetic that produced them — so what a reviewer is shown, and
-     * an approval then names, is the same whether this invocation just wrote those rows or is only
-     * rendering a page for a run an earlier invocation finished (ADR-115, ADR-154 §2).
+     * One partition's clusters as the page shows them, read back off the rows recorded under this run
+     * (ADR-112, ADR-154 §2) rather than off the arithmetic that produced them.
      *
      * <p>Each cluster's lead is the one {@link LeadDocument#labelled} found while the cluster was being
      * labelled where this invocation arranged it, and {@link LeadDocument#of} where the rows were
      * recorded earlier (ADR-106, ADR-190).
      */
-    private List<ArrangementReport.Partition> reportOf(
+    private List<ArrangementReport.Cluster> rowsOf(
             List<RecordedCluster> recordedClusters,
             Map<ClusterSlot, OccurrenceId> kept,
-            List<ClusteredDocument> documents) {
-        Map<OccurrenceId, List<ArrangementReport.Cluster>> bySeed = new LinkedHashMap<>();
-        StageProgress rowsDrawn = StageProgress.over("Stage 6a (arrangement, page rows)", recordedClusters.size());
+            List<ClusteredDocument> documents,
+            int place,
+            int of) {
+        List<ArrangementReport.Cluster> rows = new ArrayList<>();
+        StageProgress rowsDrawn = StageProgress.over(
+                "Stage 6a (arrangement, page rows, partition %d of %d)".formatted(place, of), recordedClusters.size());
         for (RecordedCluster recorded : recordedClusters) {
             ArrangedCluster cluster = recorded.cluster();
             OccurrenceId lead = kept.get(ClusterSlot.of(recorded));
             if (lead == null) {
                 lead = LeadDocument.of(cluster, documents);
             }
-            bySeed.computeIfAbsent(cluster.winningSeed(), seed -> new ArrayList<>())
-                    .add(new ArrangementReport.Cluster(
-                            recorded.label().value(), cluster.documentCount(), pathOf(lead), linkTo(lead)));
+            rows.add(new ArrangementReport.Cluster(
+                    recorded.label().value(), cluster.documentCount(), pathOf(lead), linkTo(lead)));
             rowsDrawn.itemDone();
         }
-        List<ArrangementReport.Partition> partitions = new ArrayList<>();
-        StageProgress partitionsDrawn = StageProgress.over("Stage 6a (arrangement, page partitions)", bySeed.size());
-        bySeed.forEach((seed, clusters) -> {
-            partitions.add(new ArrangementReport.Partition(pathOf(seed), clusters));
-            partitionsDrawn.itemDone();
-        });
-        return partitions;
-    }
-
-    private void write(String fileName, String content) {
-        Path file = workingDirectory.resolve(fileName);
-        try {
-            Files.createDirectories(workingDirectory);
-            Files.writeString(file, content, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException("could not write " + file, e);
-        }
+        return rows;
     }
 
     /**
-     * Stage 5's membership rows as plain values {@code synthesis} can gather into the two levels it
+     * One partition's membership rows as plain values {@code synthesis} can gather into the clusters it
      * orders (ADR-110) — the score joined on here, because only this module may read it.
      *
      * <p>A survivor that carries no score is passed through as such rather than dropped: whether that
      * is something the arrangement can survive is {@code synthesis}'s rule, and it refuses.
      */
-    private List<ClusteredDocument> clusteredDocuments(
-            List<DocumentCluster> membership, Map<OccurrenceId, Double> scores) {
-        Map<OccurrenceId, String> seedPaths = new LinkedHashMap<>();
-        StageProgress gathered = StageProgress.over("Stage 6a (arrangement, members gathered)", membership.size());
+    private static List<ClusteredDocument> clusteredDocuments(
+            List<DocumentCluster> membership,
+            Map<OccurrenceId, Double> scores,
+            String seedPath,
+            StageProgress gathered) {
         List<ClusteredDocument> documents = new ArrayList<>(membership.size());
         for (DocumentCluster member : membership) {
             documents.add(new ClusteredDocument(
                     member.occurrenceId(),
                     member.winningSeedOccurrenceId(),
-                    seedPaths.computeIfAbsent(member.winningSeedOccurrenceId(), this::pathOf),
+                    seedPath,
                     member.clusterOrdinal(),
                     scores.get(member.occurrenceId())));
             gathered.itemDone();
@@ -271,16 +328,9 @@ class ArrangementTasklet implements Tasklet {
         return List.copyOf(documents);
     }
 
-    /** {@code embedding} tells this stage the total and each score read; this stage owns the line. */
-    private static ScoringProgress scoresReadProgress() {
+    /** {@code embedding} tells this stage each score read; this stage owns the line, and the total is the run's. */
+    private static ScoringProgress scoresReadProgress(StageProgress read) {
         return new ScoringProgress() {
-            private StageProgress read;
-
-            @Override
-            public void toReadScores(long occurrences) {
-                read = StageProgress.over("Stage 6a (arrangement, scores read)", occurrences);
-            }
-
             @Override
             public void scoreRead() {
                 read.itemDone();

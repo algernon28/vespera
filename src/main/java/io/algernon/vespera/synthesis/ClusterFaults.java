@@ -2,7 +2,7 @@ package io.algernon.vespera.synthesis;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
-import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -23,8 +23,8 @@ import org.springframework.stereotype.Component;
  * <p>Rows are keyed by the 6b run, so a second generation writes beside the first rather than over
  * it (ADR-077), the rule {@link SynthesisDocs} already follows.
  *
- * <p><b>A bean</b>, handed both to {@code GenerationTasklet}, which reads the rows to say why a cluster
- * went unwritten, and to {@link ClusterGeneration}, which writes them. ADR-041 holds as before: only
+ * <p><b>A bean</b>, handed both to {@code GenerationTasklet}, which reads a cluster's row by its key to say why
+ * the cluster went unwritten, and to {@link ClusterGeneration}, which writes them. ADR-041 holds as before: only
  * this class touches {@code cluster_fault}, and only through here (ADR-190).
  */
 @Component
@@ -86,18 +86,19 @@ public class ClusterFaults {
                 clusterOrdinal);
     }
 
-    /** Every cluster fault recorded under {@code runId}, in the order the clusters were attempted. */
-    public List<RecordedClusterFault> forRun(RunId runId) {
-        return jdbcTemplate.query(
-                "SELECT winning_seed_occurrence_id, cluster_ordinal, kind, detail FROM cluster_fault"
-                        + " WHERE run_id = ? ORDER BY rowid",
-                (resultSet, rowNumber) -> new RecordedClusterFault(
-                        new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
-                        resultSet.getInt("cluster_ordinal"),
-                        new ClusterFault(
-                                ClusterFaultKind.valueOf(resultSet.getString("kind")),
-                                resultSet.getString("detail"))),
-                runId.value());
+    /** The fault standing against one cluster under {@code runId}, read by its key, or empty where none stands. */
+    public Optional<ClusterFault> forCluster(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+        return jdbcTemplate
+                .query(
+                        "SELECT kind, detail FROM cluster_fault WHERE run_id = ? AND winning_seed_occurrence_id = ?"
+                                + " AND cluster_ordinal = ?",
+                        (resultSet, rowNumber) -> new ClusterFault(
+                                ClusterFaultKind.valueOf(resultSet.getString("kind")), resultSet.getString("detail")),
+                        runId.value(),
+                        winningSeed.value(),
+                        clusterOrdinal)
+                .stream()
+                .findFirst();
     }
 
     /** How many cluster faults are recorded under {@code runId}. A count the database makes, reading no column of any row (ADR-220 section 7). */

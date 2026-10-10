@@ -169,6 +169,7 @@ class ClusterGenerationReportsEveryClusterTest {
     private GenerationOutcome write(List<RecordedCluster> clusters) {
         return generation.write(
                 run,
+                clusters.size(),
                 clusters,
                 recorded -> {
                     int ordinal = recorded.cluster().ordinal();

@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
@@ -65,17 +66,17 @@ class DocumentClustersTest {
         claim(
                 "both documents are recorded, so membership is total over the partition -- every"
                         + " survivor has to land somewhere for the page tree above it to be complete",
-                () -> assertThat(clusters.forRun(run)).hasSize(2));
+                () -> assertThat(WholeRun.membership(jdbcTemplate,run)).hasSize(2));
         claim(
                 "and each appears once, in one cluster: membership is disjoint by construction, since a"
                         + " document carries a single ordinal rather than appearing in a list per cluster",
-                () -> assertThat(clusters.forRun(run))
+                () -> assertThat(WholeRun.membership(jdbcTemplate,run))
                         .extracting(DocumentCluster::occurrenceId)
                         .containsExactlyInAnyOrder(first, second));
         claim(
                 "the cluster is identified by the seed whose partition it sits in and its ordinal there,"
                         + " so two partitions may both hold a cluster 0 without collision",
-                () -> assertThat(clusters.forRun(run))
+                () -> assertThat(WholeRun.membership(jdbcTemplate,run))
                         .allSatisfy(member -> assertThat(member.winningSeedOccurrenceId()).isEqualTo(seed)));
     }
 

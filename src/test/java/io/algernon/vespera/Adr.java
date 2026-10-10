@@ -1369,6 +1369,22 @@ public final class Adr {
     public static final String NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN = FILE
             + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
 
+    /**
+     * ADR-223 -- 5f's size report, 6a and 6b go through one seed partition at a time: 5f keeps five numbers a
+     * partition; 6a orders the partitions from one row a seed, arranges and records one partition's clusters
+     * at a time, and writes its page as the partitions come; 6b reads the clusters a partition at a time, asks
+     * by key whether a cluster is written, and writes the tree a partition at a time, a synthesis doc and a
+     * fault asked by key; the manifest is a read of its own, a page of the run's members at a time in occurrence
+     * order; the arrangement's page, the index and the manifest are written beside the target and moved into
+     * place. The furniture rule stays over every picture of the tree and keeps a digest and a hash for each
+     * distinct picture, and the clusters nothing could be sent for stay held, each with its reason. Four of
+     * ADR-218's sorting reads go. The pages and the manifest are byte for byte the same (amends ADR-220
+     * section 9, ADR-218 section 3, ADR-193 sections 6 and 7, ADR-204 sections 3 and 4, ADR-192 sections 4 and
+     * 5, ADR-190, ADR-150 section 5 and ADR-149 section 9; #472).
+     */
+    public static final String THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME = FILE
+            + "0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md";
+
     private Adr() {
     }
 }

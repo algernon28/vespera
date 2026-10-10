@@ -1,16 +1,16 @@
 package io.algernon.vespera.synthesis;
 
-import io.algernon.vespera.ledger.OccurrenceId;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-109, ADR-111, ADR-112,
@@ -18,10 +18,9 @@ import java.util.Optional;
  * mechanical rather than generated, a file per cluster, and a manifest beside them.
  *
  * <p><b>Plain values only.</b> This class learns no step, no stage and no {@code Profile} (ADR-110):
- * everything it needs arrives as {@link DeliverableProvenance}, {@link RecordedCluster}, {@link
- * RecordedSynthesisDoc}, {@link ListedSurvivor}, {@link SurvivorPictures} and, per {@link ClusterSlot},
- * the {@link Unwritten} reason a cluster got no writing, which is why {@code pipeline} is the only
- * module that gathers them.
+ * everything it needs arrives as {@link DeliverableProvenance}, {@link SurvivorPictures} and an {@link
+ * ArrangedSurvivors} it asks for one seed partition at a time, which is why {@code pipeline} is the only
+ * module that gathers them. No class holds every cluster or every survivor of the run (ADR-223).
  *
  * <p><b>The cluster files are a rendering of what 6b kept.</b> A stored answer's raw {@code [n]}
  * markers are rewritten into links to that cluster's numbered membership, and the membership is
@@ -44,10 +43,13 @@ import java.util.Optional;
  * #THE_CLUSTER_NO_LONGER_HOLDS_IT} are both halves on one line apiece: a bound name whose javadoc
  * says cluster, holding a value that says group.
  *
- * <p><b>The order is rendered, never re-derived.</b> {@code arrangement} arrives already in the order
+ * <p><b>The order is rendered, never re-derived.</b> {@code ArrangedSurvivors} answers already in the order
  * the operator approved (ADR-112), and neither level here is sorted again — a partition's position
- * comes from its clusters' own {@code partitionOrder}, and a cluster's from its own {@code
- * clusterOrder}.
+ * comes from its own {@code partitionOrder}, and a cluster's from its own {@code clusterOrder}.
+ *
+ * <p><b>The index and the manifest are written beside their targets and moved into place</b> (ADR-223
+ * section 6): each is whole where it appears, so a write that fails partway leaves the pair the write before
+ * left, or none, and a finished tree holds no {@value #PART_SUFFIX} file.
  */
 public final class Deliverable {
 
@@ -59,6 +61,9 @@ public final class Deliverable {
 
     /** The manifest at the root of every tree (ADR-104, ADR-112). */
     public static final String MANIFEST_FILE_NAME = "documents.csv";
+
+    /** What a page is called while it is being written beside its target, before it is moved over it. */
+    static final String PART_SUFFIX = ".part";
 
     /**
      * What {@code index.md} says in place of a title for a cluster nothing was written over
@@ -92,105 +97,41 @@ public final class Deliverable {
     private Deliverable() {}
 
     /**
-     * Writes the whole tree and returns where it landed.
-     *
-     * @param workingDirectory the directory the database is in — the one thing that moves anything
-     *     this tool writes (ADR-103)
-     * @param provenance what produced the tree, stated so {@code index.md} needs no database beside it
-     * @param arrangement every cluster of the arrangement, in stored order — a hole where a cluster
-     *     was never written over included, since a faulted cluster keeps its slot (ADR-111, ADR-112)
-     * @param written every synthesis doc a call actually produced
-     * @param survivors every survivor the arrangement arranged, for the manifest (ADR-104)
-     * @return {@code <workingDirectory>/deliverable/<runId>}
-     */
-    public static Path writeTo(
-            Path workingDirectory,
-            DeliverableProvenance provenance,
-            List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
-            List<ListedSurvivor> survivors) {
-        return writeTo(workingDirectory, provenance, arrangement, written, survivors, SurvivorPictures.none());
-    }
-
-    /**
-     * Writes the whole tree, with a survivor's pictures beside its cluster file (ADR-149, #285), and
-     * returns where it landed.
+     * Writes the whole tree and returns where it landed, tells {@code progress} the total of each of the
+     * five loops that read or write something, once and in the order {@link DeliverableProgress} fixes, and
+     * each item as it is done (ADR-192 section 5). This module writes no line.
      *
      * <p>{@code pictures} is asked about every listed survivor twice, in two passes that never hold
      * more than one document's pixels at a time (ADR-149 §9): first to decide the set of furniture
      * digests under ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d), and again, one cluster file at a time, to
      * write the pictures that pass it.
      *
+     * <p>The partitions are asked for before anything is made or reported, so a partition {@link
+     * ListedPartition} refuses leaves nothing written. A cluster nothing was written over has its page say why
+     * where {@code source} gives a reason (ADR-174); only the cluster's own page changes, the index cell and
+     * the manifest read the same either way.
+     *
+     * @param workingDirectory the directory the database is in — the one thing that moves anything
+     *     this tool writes (ADR-103)
+     * @param provenance what produced the tree, stated so {@code index.md} needs no database beside it
+     * @param source the arrangement, its writing and its survivors, a seed partition at a time
      * @param pictures where a survivor's pictures come from, {@link SurvivorPictures#none()} to write
-     *     exactly the tree this class wrote before it knew about pictures
+     *     the tree this class wrote before it knew about pictures
+     * @return {@code <workingDirectory>/deliverable/<runId>}
      */
     public static Path writeTo(
             Path workingDirectory,
             DeliverableProvenance provenance,
-            List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
-            List<ListedSurvivor> survivors,
-            SurvivorPictures pictures) {
-        return writeTo(workingDirectory, provenance, arrangement, written, survivors, pictures, Map.of());
-    }
-
-    /**
-     * Writes the whole tree, with the page of each cluster nothing was written over saying why (ADR-174),
-     * and returns where it landed.
-     *
-     * @param unwritten why each cluster without a synthesis doc went unwritten. A cluster absent from it
-     *     keeps the plain {@link #NOTHING_WAS_WRITTEN_OVER_IT} line, so an empty map writes exactly the
-     *     tree this class wrote before it knew the reasons. Only the cluster's own page changes: the
-     *     index cell and the manifest read the same either way.
-     */
-    public static Path writeTo(
-            Path workingDirectory,
-            DeliverableProvenance provenance,
-            List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
-            List<ListedSurvivor> survivors,
+            ArrangedSurvivors source,
             SurvivorPictures pictures,
-            Map<ClusterSlot, Unwritten> unwritten) {
-        return writeTo(
-                workingDirectory,
-                provenance,
-                arrangement,
-                written,
-                survivors,
-                pictures,
-                unwritten,
-                DeliverableProgress.NONE);
-    }
-
-    /**
-     * Writes the whole tree and tells {@code progress} the total of each of the four loops that read or
-     * write something, once and in the order {@link DeliverableProgress} fixes, and each item as it is
-     * done (ADR-192 section 5). This module writes no line. Returns where the tree landed.
-     *
-     * @param unwritten as for {@link #writeTo(Path, DeliverableProvenance, List, List, List, SurvivorPictures,
-     *     Map)}
-     * @param progress told each loop's total before its first item, zero included, and each item after it
-     *     is done
-     */
-    public static Path writeTo(
-            Path workingDirectory,
-            DeliverableProvenance provenance,
-            List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
-            List<ListedSurvivor> survivors,
-            SurvivorPictures pictures,
-            Map<ClusterSlot, Unwritten> unwritten,
             DeliverableProgress progress) {
         Path tree = workingDirectory.resolve(DIRECTORY_NAME).resolve(provenance.runId());
+        List<ListedPartition> partitions = source.partitions();
         try {
             Files.createDirectories(tree);
-            EntryPictures entryPictures = EntryPictures.among(survivors, pictures, progress);
-            writeIndexAndClusterFiles(
-                    tree, provenance, arrangement, written, survivors, entryPictures, unwritten, progress);
-            Files.writeString(
-                    tree.resolve(MANIFEST_FILE_NAME),
-                    ManifestCsv.contents(arrangement, survivors),
-                    StandardCharsets.UTF_8);
+            EntryPictures entryPictures = EntryPictures.among(source, pictures, progress);
+            writeIndexAndClusterFiles(tree, provenance, partitions, source, entryPictures, progress);
+            writeManifest(tree, source, progress);
             return tree;
         } catch (IOException e) {
             throw new UncheckedIOException("could not write the deliverable tree at " + tree, e);
@@ -200,72 +141,65 @@ public final class Deliverable {
     private static void writeIndexAndClusterFiles(
             Path tree,
             DeliverableProvenance provenance,
-            List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
-            List<ListedSurvivor> survivors,
+            List<ListedPartition> partitions,
+            ArrangedSurvivors source,
             EntryPictures pictures,
-            Map<ClusterSlot, Unwritten> unwritten,
             DeliverableProgress progress)
             throws IOException {
-        // Composed first, so a partition no survivor names stops the writer before any partition
-        // directory or page is written and before any of the three totals below is announced.
-        String indexContents = IndexPage.contents(provenance, arrangement, written, survivors);
+        // The three totals, announced before the loop over partitions. An entry carries a document exactly
+        // where a survivor of its cluster is listed, so the entries with a document are the survivors the
+        // arrangement arranges (ADR-192 section 5, ADR-223 section 6).
+        progress.toWritePartitions(partitions.size());
+        progress.toWriteClusterFiles(partitions.stream().mapToLong(ListedPartition::clusterCount).sum());
+        progress.toWriteMembershipEntries(source.survivorCount());
 
-        Map<ClusterSlot, RecordedSynthesisDoc> writtenByCluster = new LinkedHashMap<>();
-        for (RecordedSynthesisDoc doc : written) {
-            writtenByCluster.put(ClusterSlot.of(doc), doc);
-        }
-
-        Map<ClusterSlot, List<ListedSurvivor>> membersByCluster = new LinkedHashMap<>();
-        for (ListedSurvivor survivor : survivors) {
-            membersByCluster
-                    .computeIfAbsent(ClusterSlot.of(survivor), key -> new ArrayList<>())
-                    .add(survivor);
-        }
-
-        Map<OccurrenceId, List<RecordedCluster>> byPartition = IndexPage.partitions(arrangement);
-        Map<OccurrenceId, String> seedPathByPartition = IndexPage.seedPaths(survivors);
-        int partitionWidth = IndexPage.widthOf(byPartition.size());
-
-        // The three totals, announced before the loop over partitions; the entries are those that carry a
-        // document, as the page numbers them (ADR-192 section 5).
-        long entriesWithADocument = 0;
-        for (RecordedCluster recorded : arrangement) {
-            RecordedSynthesisDoc doc = writtenByCluster.get(ClusterSlot.of(recorded));
-            entriesWithADocument += ClusterPage.numbered(
-                            doc == null ? null : doc.doc(),
-                            membersByCluster.getOrDefault(ClusterSlot.of(recorded), List.of()))
-                    .stream()
-                    .filter(Optional::isPresent)
-                    .count();
-        }
-        progress.toWritePartitions(byPartition.size());
-        progress.toWriteClusterFiles(arrangement.size());
-        progress.toWriteMembershipEntries(entriesWithADocument);
-
-        for (Map.Entry<OccurrenceId, List<RecordedCluster>> partition : byPartition.entrySet()) {
-            List<RecordedCluster> clusters = partition.getValue();
-            Path partitionDir = tree.resolve(IndexPage.partitionDirectoryName(
-                    clusters, partitionWidth, seedPathByPartition.get(partition.getKey())));
-            Files.createDirectories(partitionDir);
-            int clusterWidth = IndexPage.widthOf(clusters.size());
-            for (RecordedCluster recorded : clusters) {
-                ClusterSlot slot = ClusterSlot.of(recorded);
-                RecordedSynthesisDoc doc = writtenByCluster.get(slot);
-                ClusterPage.write(
-                        partitionDir.resolve(IndexPage.clusterFileName(recorded, clusterWidth)),
-                        recorded,
-                        doc == null ? null : doc.doc(),
-                        unwritten.get(slot),
-                        membersByCluster.getOrDefault(slot, List.of()),
-                        provenance.corpusRoot(),
-                        pictures,
-                        progress);
-                progress.clusterFileWritten();
+        Path indexPart = tree.resolve(INDEX_FILE_NAME + PART_SUFFIX);
+        try (Writer index = Files.newBufferedWriter(indexPart, StandardCharsets.UTF_8)) {
+            IndexPage.open(index, provenance);
+            for (ListedPartition partition : partitions) {
+                List<RecordedCluster> clusters = source.clustersOf(partition);
+                Map<ClusterSlot, List<ListedSurvivor>> membersByCluster = new HashMap<>();
+                for (ListedSurvivor survivor : source.survivorsOf(partition)) {
+                    membersByCluster
+                            .computeIfAbsent(ClusterSlot.of(survivor), key -> new ArrayList<>())
+                            .add(survivor);
+                }
+                Path partitionDir = tree.resolve(IndexPage.partitionDirectoryName(partition, partitions.size()));
+                Files.createDirectories(partitionDir);
+                int clusterWidth = IndexPage.widthOf(partition.clusterCount());
+                for (RecordedCluster recorded : clusters) {
+                    ClusterSlot slot = ClusterSlot.of(recorded);
+                    SynthesisDoc doc = source.writtenOver(slot).orElse(null);
+                    ClusterPage.write(
+                            partitionDir.resolve(IndexPage.clusterFileName(recorded, clusterWidth)),
+                            recorded,
+                            doc,
+                            doc == null ? source.whyUnwritten(slot).orElse(null) : null,
+                            membersByCluster.getOrDefault(slot, List.of()),
+                            provenance.corpusRoot(),
+                            pictures,
+                            progress);
+                    progress.clusterFileWritten();
+                }
+                IndexPage.partition(index, partition, partitions.size(), clusters, source::writtenOver);
+                progress.partitionWritten();
             }
-            progress.partitionWritten();
         }
+        moveIntoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
+    }
 
-        Files.writeString(tree.resolve(INDEX_FILE_NAME), indexContents, StandardCharsets.UTF_8);
+    private static void writeManifest(Path tree, ArrangedSurvivors source, DeliverableProgress progress)
+            throws IOException {
+        progress.toWriteManifestRows(source.survivorCount());
+        Path manifestPart = tree.resolve(MANIFEST_FILE_NAME + PART_SUFFIX);
+        try (Writer csv = Files.newBufferedWriter(manifestPart, StandardCharsets.UTF_8)) {
+            ManifestCsv.write(csv, source, progress);
+        }
+        moveIntoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
+    }
+
+    /** {@code part} over {@code target} in one move, so that a reader finds the old page or the new and no half of either. */
+    private static void moveIntoPlace(Path part, Path target) throws IOException {
+        Files.move(part, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
     }
 }

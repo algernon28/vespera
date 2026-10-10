@@ -12,7 +12,7 @@ import java.util.Optional;
  * reports beside the database all supply their title, prose and rows to (ADR-046, ADR-130).
  *
  * <p>The page exists because the number of clusters is not chosen: it falls out of how the documents
- * link to each other, so the only way to know what shape a page tree will have is to look. A
+ * link to each other, so the only way to know what shape the deliverable will have is to look. A
  * partition that is 40% one-document pages is a fact whoever builds that tree needs <em>before</em>
  * they build it, and this is where it belongs rather than in a threshold that quietly merges them.
  *
@@ -26,44 +26,45 @@ final class ClusterSizeReport {
     private ClusterSizeReport() {}
 
     /**
-     * One seed partition's clusters.
+     * One seed partition's clusters, as the five numbers the page shows of them (ADR-223 section 2): the page
+     * keeps a row for each partition and not the size of each cluster.
      *
      * @param seedPath the seed whose partition this is, named as a reader would recognise it
-     * @param sizes how many documents each of its clusters holds, in ordinal order
+     * @param documentCount how many documents its clusters hold between them
+     * @param clusterCount how many clusters it holds
+     * @param largest how many documents its largest cluster holds
+     * @param median how many documents its middle cluster by size holds
+     * @param singletons how many clusters hold exactly one document — the count that decides whether a tree
+     *     is worth building
      * @param spread how alike the documents on the kept links were, or empty where the partition
      *     holds one document and so has no link to measure (ADR-096)
      */
-    record Partition(String seedPath, List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
-
-        int documentCount() {
-            return sizes.stream().mapToInt(Integer::intValue).sum();
-        }
-
-        int clusterCount() {
-            return sizes.size();
-        }
-
-        int largest() {
-            return sizes.stream().mapToInt(Integer::intValue).max().orElse(0);
-        }
+    record Partition(
+            String seedPath,
+            int documentCount,
+            int clusterCount,
+            int largest,
+            int median,
+            int singletons,
+            Optional<RetainedEdgeSpread> spread) {
 
         /**
-         * The middle cluster by size, which says more about the spread than a mean does: one cluster
-         * holding most of a partition drags a mean up and leaves the reader thinking the pages are
-         * evenly sized.
+         * The row for a partition whose clusters hold {@code sizes}, in ordinal order. The middle cluster by
+         * size says more about the spread than a mean does: one cluster holding most of a partition drags a
+         * mean up and leaves the reader thinking the pages are evenly sized; of two middle sizes it is the
+         * upper.
          */
-        int median() {
-            if (sizes.isEmpty()) {
-                return 0;
-            }
+        static Partition of(String seedPath, List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
             List<Integer> ascending = new ArrayList<>(sizes);
             ascending.sort(Integer::compareTo);
-            return ascending.get(ascending.size() / 2);
-        }
-
-        /** How many clusters hold exactly one document — the count that decides whether a tree is worth building. */
-        int singletons() {
-            return (int) sizes.stream().filter(size -> size == 1).count();
+            return new Partition(
+                    seedPath,
+                    sizes.stream().mapToInt(Integer::intValue).sum(),
+                    sizes.size(),
+                    sizes.stream().mapToInt(Integer::intValue).max().orElse(0),
+                    ascending.isEmpty() ? 0 : ascending.get(ascending.size() / 2),
+                    (int) sizes.stream().filter(size -> size == 1).count(),
+                    spread);
         }
     }
 

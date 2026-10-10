@@ -32,11 +32,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * What {@code synthesis} tells its caller around the two statements of {@code ClusterGeneration.write}, and
- * in which order (ADR-193 sections 6 and 7, ADR-204 section 4, #411): the read of the clusters already
- * written, started and ended before the walk is announced, and the read of the standing faults, started and
- * ended after the last cluster is gone through. Both are timed, so each is started with no total and neither
- * reports a step.
+ * What {@code synthesis} tells its caller around the one announced statement of {@code ClusterGeneration.write},
+ * and in which order (ADR-193 sections 6 and 7, ADR-204 section 4, #411): the read of the standing faults,
+ * started and ended after the last cluster is gone through. It is timed, so it is started with no total and
+ * reports no step.
+ *
+ * <p><b>Nothing is read before the walk since ADR-223.</b> The walk used to open with a timed read of every
+ * cluster already written. Whether a cluster is written is now asked by its key as the walk reaches it, a
+ * lookup of one row that is announced by nobody, so the walk's announcement is the first thing the caller
+ * hears, and a cluster already written is walked past with no read reported for it.
  *
  * <p>No answer is asked for here: one test walks nothing and the other walks a cluster already written, so
  * the serving engine is one that fails if it is called. A walk that stops on five answers turned down
@@ -93,18 +97,15 @@ class SynthesisStatementProgressOrderTest {
 
     @Test
     @Story("Writing over the groups says what it is reading")
-    @DisplayName("Over no group, the two reads are still started and ended, one before the walk is announced and one after")
+    @DisplayName("Over no group, the walk is announced first, with nothing read before it, and the standing faults are still read after")
     void overAnEmptyArrangementBothReadsAreReportedAroundTheAnnouncement() {
         write(List.of());
 
         claim(
-                "the read of what is already written is started with no total and ended; then the walk is"
-                        + " announced, with zero; then the read of the standing faults is started with no total"
-                        + " and ended",
+                "the walk is announced, with zero, before anything is read; then the read of the standing"
+                        + " faults is started with no total and ended",
                 () -> assertThat(calls)
                         .containsExactly(
-                                starting(SynthesisStatement.WRITTEN),
-                                ended(SynthesisStatement.WRITTEN),
                                 "toGoThrough 0",
                                 starting(SynthesisStatement.STANDING_FAULTS),
                                 ended(SynthesisStatement.STANDING_FAULTS)));
@@ -119,12 +120,10 @@ class SynthesisStatementProgressOrderTest {
         write(List.of(new RecordedCluster(new ArrangedCluster(seed, 0, 1, 1, 1), new ClusterLabel("Cluster 00"))));
 
         claim(
-                "the one group, already written, is walked past between the two reads: neither read is made"
-                        + " inside the walk",
+                "the one group, already written, is walked past with no read reported for it, the engine never"
+                        + " asked, and the standing faults are read once the walk is over",
                 () -> assertThat(calls)
                         .containsExactly(
-                                starting(SynthesisStatement.WRITTEN),
-                                ended(SynthesisStatement.WRITTEN),
                                 "toGoThrough 1",
                                 "clusterGoneThrough",
                                 starting(SynthesisStatement.STANDING_FAULTS),
@@ -142,6 +141,7 @@ class SynthesisStatementProgressOrderTest {
     private void write(List<RecordedCluster> clusters) {
         generation.write(
                 run,
+                clusters.size(),
                 clusters,
                 recorded -> new ClusterMaterial(SEED_PATH, List.of()),
                 MODEL_NAME,

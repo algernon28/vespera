@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
@@ -101,7 +102,7 @@ class ClusterFaultsTest {
                 "what comes back names the group and says which check turned the answer down, so the"
                         + " group with nothing written over it is a group somebody can account for rather"
                         + " than a hole with no explanation anywhere",
-                () -> assertThat(faults.forRun(run)).singleElement().satisfies(recorded -> {
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).singleElement().satisfies(recorded -> {
                     assertThat(recorded.winningSeed()).isEqualTo(seed);
                     assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
                     assertThat(recorded.fault().kind()).isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE);
@@ -112,7 +113,7 @@ class ClusterFaultsTest {
                         + " what distinguishes an answer that pointed at a document that was never sent"
                         + " from one that was cut off -- without it, learning that costs the most"
                         + " expensive call this system makes, made a second time",
-                () -> assertThat(faults.forRun(run))
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run))
                         .singleElement()
                         .satisfies(recorded -> assertThat(recorded.fault().detail()).isEqualTo(DETAIL)));
     }
@@ -154,14 +155,14 @@ class ClusterFaultsTest {
                 "nothing is kept against the group any more. A later answer about it was believed and has"
                         + " been written over the group, so a reason still standing here would have the"
                         + " record saying one group under one run was both written over and left unwritten",
-                () -> assertThat(faults.forRun(run)).isEmpty());
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).isEmpty());
         claim(
                 "and dropping a reason for a group that has none does nothing and fails nothing, which is"
                         + " the ordinary case: almost every group is answered well the first time and never"
                         + " had a reason kept against it to drop",
                 () -> {
                     faults.delete(run, seed, CLUSTER_ORDINAL);
-                    assertThat(faults.forRun(run)).isEmpty();
+                    assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).isEmpty();
                 });
     }
 
@@ -202,11 +203,11 @@ class ClusterFaultsTest {
                         + " kept there. A later answer was believed about one group and says nothing about"
                         + " any other, so dropping a reason for more than the one group would lose why the"
                         + " rest were left unwritten",
-                () -> assertThat(faults.forRun(run)).hasSize(TWO_REASONS_LEFT));
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).hasSize(TWO_REASONS_LEFT));
         claim(
                 "one of the two is the other group of the same seed's own groups, told apart from the"
                         + " repaired one by its place in that seed's order and nothing else",
-                () -> assertThat(faults.forRun(run)).anySatisfy(recorded -> {
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).anySatisfy(recorded -> {
                     assertThat(recorded.winningSeed()).isEqualTo(seed);
                     assertThat(recorded.clusterOrdinal()).isEqualTo(ANOTHER_CLUSTER_ORDINAL);
                     assertThat(recorded.fault().kind()).isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION);
@@ -217,7 +218,7 @@ class ClusterFaultsTest {
                         + " alone names no group: dropping a reason by that number would take the reason"
                         + " away from one group in every seed's set at once, and the run's account of why"
                         + " those groups are holes would be gone with no sign that it ever existed",
-                () -> assertThat(faults.forRun(run)).anySatisfy(recorded -> {
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).anySatisfy(recorded -> {
                     assertThat(recorded.winningSeed()).isEqualTo(anotherSeed);
                     assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
                     assertThat(recorded.fault().kind()).isEqualTo(ClusterFaultKind.ANSWER_RAN_OUT_OF_ROOM);
@@ -227,7 +228,7 @@ class ClusterFaultsTest {
                         + " a separate piece of work over the same documents: a second one writes beside the"
                         + " first rather than over it, so an answer believed under one record cannot drop"
                         + " what another recorded about the same group",
-                () -> assertThat(faults.forRun(anotherRun)).singleElement().satisfies(recorded -> {
+                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,anotherRun)).singleElement().satisfies(recorded -> {
                     assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
                     assertThat(recorded.fault().kind()).isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE);
                 }));
