@@ -54,6 +54,11 @@ import org.springframework.stereotype.Component;
  * is put through {@link LocalOllamaModel#refusalOf}, once, and every chunk is sent under that name. A
  * refusal stops the step as generation's stop does (ADR-111): one line at error level, the step failed, no
  * exception thrown, and no run minted. Where a gate is shut nothing is sent, so nothing is asked of Ollama.
+ *
+ * <p><b>It asks Ollama for the model's artefact once more at the step's end</b> (ADR-231 section 1). Where
+ * that is not the digest and weight dtype the scoring run was minted under, the model was pulled again
+ * while its chunks were embedded: the step fails, as above, and records no completion, so nothing is scored
+ * in that invocation and running again embeds and scores under the model as it is now.
  */
 @Component
 @StepScope
@@ -167,6 +172,22 @@ class EmbeddingScoringTasklet implements Tasklet {
                     for (OccurrenceId occurrenceId : usableSeeds) {
                         rechunkAndEmbed(measurementRun, occurrenceId, modelName, seedChunks);
                         seedsDone.itemDone();
+                    }
+                    if (!stageRuns.embeddingModelArtefactStillReported()) {
+                        // ADR-231 section 1: stop as ADR-202's refusal stops, recording no completion.
+                        String reason = "the embedding model " + modelName
+                                + " was pulled again while its chunks were being embedded";
+                        LOG.error(
+                                "stage 5's scoring step stopped: the embedding model {} was pulled again while its"
+                                        + " chunks were being embedded, so Ollama no longer reports the digest and"
+                                        + " weight dtype scoring run {} names. The step is not recorded as finished"
+                                        + " and nothing was scored -- run again to embed and score under the model"
+                                        + " as it is now.",
+                                modelName,
+                                scoring.value());
+                        chunkContext.getStepContext().getStepExecution().setStatus(BatchStatus.FAILED);
+                        contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(reason));
+                        return false;
                     }
                     LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.value());
                     return true;

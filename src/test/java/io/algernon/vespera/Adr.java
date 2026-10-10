@@ -1474,8 +1474,8 @@ public final class Adr {
      * minted, its manifest digest and weight dtype, so a pull that changes either is a different scoring
      * run; and scoring, clustering, the relevance floor and the label file each read the one embedder
      * identity the vectors carry under that artefact, never every identity under the model's name. No DDL;
-     * seed measurement, embedding scoring, arrangement and generation are minted again (amends ADR-227
-     * and ADR-224; applies ADR-117 and ADR-084; decides #488).
+     * seed measurement, embedding scoring, arrangement and generation are minted again (amends ADR-227,
+     * ADR-224 and, in four places, ADR-230; applies ADR-117 and ADR-084; decides #488).
      */
     public static final String A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY = FILE
             + "0228-a-scoring-run-names-the-embedding-models-artefact-and-reads-the-vectors-of-one-embedder-identity.md";
@@ -1502,6 +1502,20 @@ public final class Adr {
      */
     public static final String THE_CLUSTERS_UNDER_A_SCORING_RUN_ARE_OF_ITS_SURVIVORS_AS_THEY_STAND = FILE
             + "0230-the-clusters-under-a-scoring-run-are-of-its-survivors-as-they-stand-and-the-arrangements-identity-names-the-removals-standing.md";
+
+    /**
+     * ADR-231 -- the embedding step asks Ollama for the embedding model's artefact once more when its last
+     * chunk is embedded, and where that is not the artefact its scoring run names it stops the invocation
+     * and records no completion, so the run is embedded in full if it is ever arrived at again; and scoring
+     * refuses a usable seed with no vector under the run's embedder identity as it refuses a survivor, where
+     * it left the seed out without a word; a usable seed with no chunk, its only text being page headers and
+     * footers, is left out with a line. No DDL and no new delete; seed measurement, embedding scoring,
+     * arrangement and generation are minted again (amends ADR-228, ADR-225 and ADR-192 in the sentences it
+     * names; decides #496).
+     */
+    public static final String A_PULL_WHILE_THE_EMBEDDING_STEP_RUNS_STOPS_IT_AND_SCORING_REFUSES_A_SEED_WHOSE_CHUNKS_HAVE_NO_VECTOR =
+            FILE
+                    + "0231-the-embedding-step-stops-unrecorded-where-the-embedding-model-was-pulled-while-it-ran-and-scoring-refuses-a-seed-whose-chunks-have-no-vector.md";
 
     private Adr() {
     }

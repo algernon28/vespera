@@ -322,6 +322,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "embedding.RelevanceDistribution",
                             "embedding.RelevanceScoring",
                             "embedding.ScoringProgress",
+                            "embedding.SeedChunks",
                             "embedding.UnusableSeed",
                             "embedding.UnusableSeeds",
                             "extraction.ChunkingRule",
