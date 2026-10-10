@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,16 +29,16 @@ import org.springframework.web.client.ResourceAccessException;
  * pass ahead of seed extraction cannot use up its count. This one counts the corpus itself, because
  * the pass it stops is stage 2's.
  *
- * <p><b>What it answers is decided by the order documents are first asked about, never by their
- * names.</b> The walk records a folder in the order the file system lists it, which is not name order
- * on every file system, and stage 2 reads occurrences in the order the walk recorded them. A script
- * keyed to names therefore put a scripted outcome wherever the file system happened to list it: on one
- * machine the document meant to fault fell after the stop, was never answered, and the fault path went
- * untested while every claim still passed. So a test {@linkplain #script scripts} outcomes by
- * position in the sequence of distinct documents the converter is first asked about, and the first
- * time a document is asked about, its outcome is pinned to its content hash. Every later call for the
- * same bytes -- in a resumed invocation, or over a second folder holding the same corpus -- gets the
- * same answer. The outcomes are:
+ * <p><b>What it answers is decided by the order documents are first looked up in the cache and not
+ * found there, never by their names.</b> The walk records a folder in the order the file system lists
+ * it, which is not name order on every file system, and stage 2 reads occurrences in the order the
+ * walk recorded them. A script keyed to names therefore put a scripted outcome wherever the file
+ * system happened to list it: on one machine the document meant to fault fell after the stop, was
+ * never answered, and the fault path went untested while every claim still passed. So a test
+ * {@linkplain #script scripts} outcomes by position in the sequence of distinct documents looked up
+ * and not found, and the first time that happens to a document, its outcome is pinned to its content
+ * hash. Every later call for the same bytes -- in a resumed invocation, or over a second folder
+ * holding the same corpus -- gets the same answer. The outcomes are:
  *
  * <ul>
  *   <li>{@link Outcome#WITHOUT_TEXT}: converts with no text, which the degeneracy floor's first tier
@@ -51,12 +52,21 @@ import org.springframework.web.client.ResourceAccessException;
  *       the occurrence's own bytes, so each one's shingles differ and a count of them says something.
  * </ul>
  *
- * <p>Positions are asked about in whatever order the worker threads reach the client (ADR-140), so
- * which occurrence takes a position may differ from run to run. Since ADR-176 the reader dispatches
- * sixteen occurrences beyond the chunk being read, so a position near a chunk's edge may fall to an
- * occurrence of the chunk on either side of it. A test that needs an outcome reached before a stop
- * says so in a claim of its own, so an order that defeats it fails loudly rather than passing an
- * untested path.
+ * <p><b>A position, and whether the stop refuses the call, are decided at the lookup that misses, not
+ * when the call reaches the client.</b> Stage 2 looks every occurrence up on the one thread that reads
+ * them, in the order it reads them, before it hands the call to a worker (ADR-140); the workers reach
+ * the client in whatever order they are scheduled, and a worker that finished its first call could
+ * take queued ones before the other workers had started. Decided on arrival, the answers a stop left
+ * then went to later occurrences and an earlier one was refused; a refusal thrown from here is no
+ * skip, so it stops the stage at the first refused occurrence it reads, and a scripted outcome read
+ * after that one was never processed. So the {@link DoclingExtractor}
+ * here decides both as its lookup misses and the client only carries the decision out: positions and
+ * a stop follow the order stage 2 reads in, on every schedule. A call no lookup of its own
+ * bytes came before is decided as it arrives, on the thread that sends it: the control conversion, on
+ * the thread that reads, and each part of a text over the converter's ceiling (ADR-178), on a worker.
+ * No corpus used with this fixture holds such a text. Which file takes
+ * a position is still the file system's to say, so a test that needs an outcome reached before a
+ * stop still says so in a claim of its own.
  *
  * <p>Every answer that converts carries a mean confidence of {@link #MEAN_SCORE}, so stage 3's
  * confidence distribution counts it. The answers about the document -- every one but {@link
@@ -66,12 +76,15 @@ import org.springframework.web.client.ResourceAccessException;
  * about therefore empties {@code extraction_cache} first, unless what the cache kept is what it is
  * about. The cache is keyed outside the run, and emptying it
  * changes nothing a run id is derived from. A cache hit never reaches the client, so it takes no
- * position.
+ * position. A lookup that misses and is followed by no call -- one read ahead and dropped at a stop,
+ * or a later stage's read of the cache -- still takes its position and uses up an answer; its decision
+ * waits until the next arming, disarming or miss for the same bytes.
  *
- * <p>The script, the pins, the arming and the count are static, because the client is one bean per
- * Spring context and every method of a class shares it. {@link #script} starts a test afresh; {@link
- * #stopAnsweringAfter} and {@link #keepAnswering} reset only the stop and the count, so the pins
- * outlive the invocations of one test.
+ * <p>The script, the pins, the arming, the count and the decisions waiting for their call are static,
+ * because the client is one bean per Spring context and every method of a class shares it. {@link
+ * #script} starts a test afresh; {@link #stopAnsweringAfter} and {@link #keepAnswering} reset the
+ * stop, the count and the decisions still waiting, and leave the pins, so the pins outlive the
+ * invocations of one test.
  *
  * <p>{@code @TestConfiguration} rather than {@code @Configuration}, for the reason {@code
  * StubbedExtractionBeans} documents.
@@ -112,19 +125,22 @@ public class ConverterStopsPartwayBeans {
 
     private static final AtomicInteger CONVERSIONS = new AtomicInteger();
 
-    /** How many distinct documents the client has been asked about since the last {@link #script}. */
+    /** How many distinct documents have taken a position since the last {@link #script}. */
     private static final AtomicInteger FIRST_ASKED = new AtomicInteger();
 
-    /** The outcome scripted for each position in the order of first asking; absent means it converts. */
+    /** The outcome scripted for each position; absent means it converts. */
     private static final Map<Integer, Outcome> SCRIPT = new ConcurrentHashMap<>();
 
-    /** The outcome each document was given the first time it was asked about, by content hash. */
+    /** The outcome each document was given the first time it took a position, by content hash. */
     private static final Map<String, Outcome> PINNED = new ConcurrentHashMap<>();
+
+    /** Whether the call a missed lookup is about to place is answered, by content hash, until that call arrives. */
+    private static final Map<String, Boolean> ANSWERED = new ConcurrentHashMap<>();
 
     /**
      * Starts a test afresh: forgets every pinned outcome and every position, and scripts the given
-     * positions -- counted from 1, in the order distinct documents are first asked about -- to the
-     * outcome each list names. A position named in two lists is a mistake in the test, and refused.
+     * positions -- counted from 1, in the order distinct documents are first looked up and not found --
+     * to the outcome each list names. A position named in two lists is a mistake in the test, and refused.
      */
     public static void script(List<Integer> withoutText, List<Integer> unconvertible, List<Integer> converterFault) {
         Map<Integer, Outcome> scripted = new HashMap<>();
@@ -144,8 +160,13 @@ public class ConverterStopsPartwayBeans {
         }
     }
 
-    /** Arms the stop: the next {@code answered} conversions are answered, and every one after them fails. */
+    /**
+     * Arms the stop: the next {@code answered} conversions are answered, and every one after them fails,
+     * counted in the order their lookups missed and not in the order they reach the client. A lookup
+     * that misses and places no call uses up one of the {@code answered} all the same.
+     */
     public static void stopAnsweringAfter(int answered) {
+        ANSWERED.clear();
         ANSWERS_LEFT.set(answered);
         CONVERSIONS.set(0);
         ARMED.set(true);
@@ -153,6 +174,7 @@ public class ConverterStopsPartwayBeans {
 
     /** Disarms it, which is the sidecar being brought back, and starts the count again from zero. */
     public static void keepAnswering() {
+        ANSWERED.clear();
         ARMED.set(false);
         ANSWERS_LEFT.set(0);
         CONVERSIONS.set(0);
@@ -178,11 +200,12 @@ public class ConverterStopsPartwayBeans {
             @Override
             DoclingResponse convert(Path file, DetectedFormat format, DetectedSubtype subtype) {
                 CONVERSIONS.incrementAndGet();
-                Outcome outcome = outcomeOf(file);
-                if (ARMED.get() && ANSWERS_LEFT.getAndDecrement() <= 0) {
+                String bytes = ContentHashing.sha256(file);
+                Boolean decided = ANSWERED.remove(bytes);
+                if (!(decided != null ? decided : decide(bytes))) {
                     throw new ResourceAccessException(CONNECTION_FAILURE);
                 }
-                return answer(outcome, file);
+                return answer(PINNED.get(bytes), file);
             }
         };
     }
@@ -192,20 +215,30 @@ public class ConverterStopsPartwayBeans {
         return new ExtractionCache(jdbcTemplate);
     }
 
+    /** The real extractor, deciding what the client answers as each lookup misses: see the class comment. */
     @Bean
     DoclingExtractor doclingExtractor(DoclingClient doclingClient, ExtractionCache extractionCache) {
-        return new DoclingExtractor(doclingClient, extractionCache);
+        return new DoclingExtractor(doclingClient, extractionCache) {
+
+            @Override
+            public Optional<DoclingResponse> cached(String contentHash, ExtractorIdentity extractorIdentity) {
+                Optional<DoclingResponse> hit = super.cached(contentHash, extractorIdentity);
+                if (hit.isEmpty()) {
+                    ANSWERED.put(contentHash, decide(contentHash));
+                }
+                return hit;
+            }
+        };
     }
 
     /**
-     * The outcome pinned to {@code file}'s bytes, pinning the next scripted position to them if they
-     * have not been asked about before. A call the stopped converter refuses still takes its position,
-     * so the positions are the order of asking, not of answering.
+     * Pins the next scripted position to {@code bytes} if they have taken none, and says whether the
+     * call about them is answered, using up one of the answers a stop left. A call the stopped converter
+     * refuses still takes its position, so the positions are the order of asking, not of answering.
      */
-    private static Outcome outcomeOf(Path file) {
-        return PINNED.computeIfAbsent(
-                ContentHashing.sha256(file),
-                bytes -> SCRIPT.getOrDefault(FIRST_ASKED.incrementAndGet(), Outcome.CONVERTS));
+    private static boolean decide(String bytes) {
+        PINNED.computeIfAbsent(bytes, unseen -> SCRIPT.getOrDefault(FIRST_ASKED.incrementAndGet(), Outcome.CONVERTS));
+        return !ARMED.get() || ANSWERS_LEFT.getAndDecrement() > 0;
     }
 
     private static DoclingResponse answer(Outcome outcome, Path file) {
