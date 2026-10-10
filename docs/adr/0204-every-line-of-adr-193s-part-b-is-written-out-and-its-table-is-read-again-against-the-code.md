@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-220](0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md).** Of §3's lines, stage 4b's two timed pairs for `the signature bands` and `the shingle document frequencies` are struck, and 5e's `the scores below the floor` says `is counting` and `counted` where it said `is reading` and `read`. §4's list of `SimilarityStatement`'s constants loses `SIGNATURE_BANDS` and `DOCUMENT_FREQUENCY`. §3's two lines for `the occurrences it could not read` keep their words and now span the count of those occurrences and the writing of the review list as well as the read in path order (ADR-220 §6); where the review list cannot be written, the first of the two is written and the second is not.
 
+> **Partly amended — see [ADR-221](0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md).** One figure of §4's table no longer holds: `SHINGLE_HASH_INDEX_BUILD` (11) in the row for `similarity.SimilarityStatement`. Stage 4b builds `shingle_by_hash` over the rows of the one stage-2 run it reads, and the constant declares 12, the most a row takes, which is a row of that run; a row of another run takes 3. Everything else in this record stands.
+
 - **Date**: 2026-10-06
 - **Status**: accepted
 - **Extends**: [ADR-193](0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md) §4, §6 and §7: every statement of its part (b) is given the `<stage>` its lines open with, the four enums are listed with their constants, and one statement §6 could not have named is given a form (§2).

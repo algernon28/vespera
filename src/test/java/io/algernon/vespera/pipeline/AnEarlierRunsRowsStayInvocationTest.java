@@ -130,8 +130,8 @@ class AnEarlierRunsRowsStayInvocationTest {
 
     @Test
     @Story("What is kept of an earlier extraction")
-    @DisplayName("Each new extraction of the same folder adds its word sequences beside the earlier ones, nothing removes them, and the hash index is built over all of them")
-    void everyRunOfStageTwoLeavesItsShingleRowsAndStageFourBBuildsOverAllOfThem(
+    @DisplayName("Each new extraction of the same folder adds its word sequences beside the earlier ones, nothing removes them, and the hash index is built over the latest one's alone")
+    void everyRunOfStageTwoLeavesItsShingleRowsAndStageFourBBuildsOverTheRunInHandAlone(
             CapturedOutput output, @TempDir Path root) throws IOException {
         writeCorpus(root, "kept", CORPUS_SIZE);
 
@@ -317,6 +317,21 @@ class AnEarlierRunsRowsStayInvocationTest {
                 "which finds no word sequence to sign and signs nothing, where the first signed some",
                 () -> assertThat(rowsUnder("minhash_signature", redundancy.getLast()))
                         .isZero());
+        claim(
+                "and removes nothing: no text is marked as saying what another says under that second check",
+                () -> assertThat(redundantWithVerdictsUnder(redundancy.getLast()))
+                        .isZero());
+        claim(
+                "nor is any text recorded as covered by another under it",
+                () -> assertThat(rowsUnder("redundant_with", redundancy.getLast()))
+                        .isZero());
+    }
+
+    /** The redundant-with verdicts a run of stage 4 wrote, which are what that stage removes. */
+    private long redundantWithVerdictsUnder(String run) {
+        Long verdicts = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = 'REDUNDANT_WITH'", Long.class, run);
+        return verdicts == null ? 0 : verdicts;
     }
 
     /**

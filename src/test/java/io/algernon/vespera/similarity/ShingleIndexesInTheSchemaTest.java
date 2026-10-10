@@ -74,7 +74,7 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 @Link(name = "ADR-219", url = Adr.STAGE_3S_GROUPING_IS_PINNED_TO_THE_INDEX_ON_THE_RUN, type = "adr")
 class ShingleIndexesInTheSchemaTest {
 
-    /** The index containment retrieval reads, under the name and columns ADR-081 gave it. */
+    /** The index containment retrieval reads, under the name ADR-081 gave it; its columns are ADR-221's. */
     private static final String BY_HASH = "shingle_by_hash";
 
     /** The one-column index ADR-173's rule asks for on {@code shingle.run_id}. */
@@ -229,7 +229,7 @@ class ShingleIndexesInTheSchemaTest {
      */
     @Test
     @Story("When the index on word-sequence hashes exists")
-    @DisplayName("Counting how often each word sequence recurs, left to choose, reads through the hash index once it is built, fetching each row from a different place")
+    @DisplayName("Counting how often each word sequence recurs, left to choose, reads through a hash index built over every extraction's rows, as an earlier version built it, and not through one built for a single extraction")
     void theGroupingWithoutAPinGoesThroughTheHashIndexOnceItIsBuilt() throws SQLException {
         String withoutTheHashIndex = planOf(THE_GROUPING, "a-stage-3-run", A_RUN);
         try (Statement statement = connection.createStatement()) {

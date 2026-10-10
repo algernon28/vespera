@@ -195,12 +195,13 @@ class TheHashIndexIsBuiltForOneRunTest {
                 "A".repeat(MINTED_LENGTH),
                 "a".repeat(MINTED_LENGTH - 1) + "'",
                 "a".repeat(MINTED_LENGTH - 1) + "g",
-                quoteAndMore + "a".repeat(MINTED_LENGTH - quoteAndMore.length()));
+                quoteAndMore + "a".repeat(MINTED_LENGTH - quoteAndMore.length()),
+                "a".repeat(MINTED_LENGTH) + "\n");
 
         claim(
                 "each id tried below is outside the minted form: one a name, one a character short, one a"
-                        + " character long, one in upper case, and three of the right length holding a quote"
-                        + " or a letter past f",
+                        + " character long, one in upper case, three of the right length holding a quote"
+                        + " or a letter past f, and one of the minted form with a line end after it",
                 () -> assertThat(refused).noneMatch(id -> id.matches(TheRunsHashIndex.A_MINTED_RUN_ID)));
         claim(
                 "while the same length of the letter a, in lower case, is in it, so the form is what the"

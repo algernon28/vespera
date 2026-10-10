@@ -115,6 +115,15 @@ class StatementProgressInvocationTest {
     /** What the line that the rows are gone through says after the label and the total. */
     private static final String SAYS_NOTHING_MORE = "rows gone through; writing the index says nothing more until it ends";
 
+    /**
+     * How many rows of other runs the table may keep before the build's count can no longer come within a
+     * callback of the rows read, so that the line above is not written (ADR-221 section 5): a callback is
+     * 8,334 rows at the 12 steps the build declares, a row of another run takes 3 and so is counted as a
+     * quarter of one, and 8,334 over the three quarters it falls short by is 11,112. The 346 steps the build
+     * takes besides are left out: they are worth 28 rows.
+     */
+    private static final long OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT = 8_334L * 12 / (12 - 3);
+
     /** Stage 3's line before its read, and the line after its measurement (ADR-191). */
     private static final String READING = "Stage 3 (content census) is reading up to ";
 
@@ -243,6 +252,11 @@ class StatementProgressInvocationTest {
                 () -> assertThat(buildProgress.size()).isLessThanOrEqualTo(AT_MOST_A_HUNDRED_LINES));
 
         List<String> goneThrough = between(lines, buildingAt, builtAt, SAYS_NOTHING_MORE);
+        claim(
+                "the table holds " + (tableRows - runRows) + " rows that are not this extraction's, fewer than the "
+                        + OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT + " past which the build's count stops"
+                        + " short of the rows and the line below is never written, so that line is owed here",
+                () -> assertThat(tableRows - runRows).isLessThan(OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT));
         claim(
                 "once the rows are gone through, one line says so, and that writing the index says nothing"
                         + " more until it ends",

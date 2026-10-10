@@ -1378,8 +1378,8 @@ public final class Adr {
      * bound value, which SQLite matches to the index's own when it plans the statement with its values. The
      * build wrote 46.1 to 50.5 bytes for each row of the run at its peak on synthetic ledgers, where the
      * whole-table build wrote 182.8 to 185.6 for each row the table keeps. An earlier run's rows stay, at 277.5
-     * bytes a shingle row in the file, and their removal is #481's (amends ADR-182, ADR-193 and ADR-218;
-     * decides #468). The choices are the coordinating session's, to which the operator handed them.
+     * bytes a shingle row in the file, and their removal is #481's (amends ADR-060, ADR-182, ADR-193,
+     * ADR-204, ADR-211, ADR-218, ADR-219, ADR-222 and ADR-224; decides #468). The choices are the coordinating session's, to which the operator handed them.
      */
     public static final String THE_HASH_INDEX_IS_OVER_THE_ROWS_OF_THE_RUN_IN_HAND = FILE
             + "0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md";
