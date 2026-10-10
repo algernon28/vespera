@@ -267,7 +267,7 @@ class SurvivalOverAReusedWalkTest {
                 true,
                 new RunId(scoringRunIdsFor(root).getFirst()),
                 1.0,
-                relevanceDistribution.embedderIdentityFor(MODEL_NAME).orElseThrow());
+                jdbcTemplate.queryForObject("SELECT DISTINCT embedder_identity FROM vector", String.class));
     }
 
     private String aDocumentIn(Path root) {

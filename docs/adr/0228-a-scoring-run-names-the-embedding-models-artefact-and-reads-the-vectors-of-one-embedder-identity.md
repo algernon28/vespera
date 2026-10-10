@@ -1,0 +1,204 @@
+# ADR-228 — A scoring run names the embedding model's artefact, so a pull that changes it is a different run, and every step of that run reads the vectors of the one embedder identity it names
+
+- **Date**: 2026-10-10
+- **Status**: accepted on 2026-10-10, **every point on the call of the session that settled #488, and none on an answer of the operator's to a question about it**. The operator's word of 2026-10-10, as the coordinating session passed it to that session, is *"tell the agents to make all decisions regarding their tickets"*; no question was put to a person, and §9 lists each call with its reasoning and what was put and not taken. One thing here is the operator's and not the session's: that #488 ships in the one build with #476 (§7), which the coordinating session passed on as the operator's answer. The commit that carries this record writes it and its tests and no line of `src/main`; *What the commit that builds `src/main` owes* lists the rest. Until that commit thirty-two tests fail (Tests); the test tree compiles.
+- **Amends**: [ADR-227](0227-the-relevance-floors-step-withdraws-its-standing-removals-where-the-vectors-carry-no-single-embedder-identity.md), in these sentences and no others. Context: *"**Whether the vectors carry one identity is a fact about the database and not about the run.**"* and *"Nothing recorded says so, and the step cannot tell that run from one whose scores were not"*, the run now naming the artefact its scores were computed under (§1). §1: *"Where the vectors of the profile's embedding model carry no single embedder identity"*, which is read from here on as the vectors under the embedding model's name **and the digest and weight dtype the scoring run names** (§5). Consequences: the first bullet, *"A second embedder identity for the profile's embedding model anywhere in the database un-removes every `below-threshold` occurrence of the scoring run the invocation arrives at"*, and the third, *"While two identities answer to the embedding model's name the floor removes nothing under any run, whatever the number and the answers"*; neither holds once this record is built. Tests: the row for `pipeline.RelevanceFloorInvocationTest`, whose second identity now differs in the dimension. *What this does not decide*: its first bullet, #488, which this record decides. Its rule, that the step withdraws every standing removal in every case, its §2 to §4 and its four lines stand. [ADR-224](0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md), *Row 15: the two reads of the embedder identities*: the row for `anyEmbedderIdentity` is gone with the method, and the row for `embedderIdentityFor` keeps its statement and its plan and is given a pattern of three parts where it was given one of one (§3).
+- **Applies, and does not amend**: [ADR-117](0117-the-relevance-floor-joins-the-scoring-runs-identity-so-a-changed-threshold-is-a-different-run.md), whose scoring run's identity gains two members on its own rule, and whose *"folding it into the run's identity would make the identity depend on the run's output"* is why the dimension is not a third (§1); [ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md), *"A moving registry tag then mints new rows instead of mixing two models' output under one identity"*, which the readers undid; [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) §3, for what answers given under the earlier pull are worth to the run of the later one.
+- **Rests on**: [ADR-091](0091-there-is-no-tokenizer-the-runtime-counts-tokens-and-the-embedder-identity-is-what-ollama-reports.md), for what Ollama reports and what it does not; [ADR-114](0114-the-generation-model-is-named-in-application-configuration-with-a-code-default-and-is-not-a-gate.md), by which the generation run already names the digest of the model it writes with; [ADR-202](0202-generation-and-embedding-refuse-an-ollama-model-not-served-on-this-machine-before-anything-is-sent.md), by which every invocation past the embedding-model gate already asks Ollama about that model; [ADR-156](0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md) and [ADR-229](0229-every-runs-rows-are-kept-and-the-database-file-is-not-made-smaller-a-run-over-an-earlier-walk-is-never-arrived-at-again-and-is-still-read.md), for what becomes of the earlier run; [ADR-216](0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md), nothing ships that nothing calls; [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-048](0048-walk-and-run-identity.md), for which run ids move. No archive, working directory, database, log, report or deliverable of the operator's was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
+- **Decides** [#488](https://github.com/algernon28/vespera/issues/488).
+
+## Context
+
+A vector is stored under its whole embedder identity: the embedding model's name, the manifest digest and the weight dtype Ollama reports for it, the dimension, and the instruction (ADR-084, ADR-091). `ChunkEmbedder` composes it for every chunk from what Ollama reports at that moment, so a model pulled again under the same name with another digest stores new rows beside the old ones. That is ADR-084's intent.
+
+**The readers take it back.** `VectorCache.vectorsFor` matches `embedder_identity LIKE 'model=<name>;%'` and orders by the chunk's ordinal alone. `RelevanceScoring.residentSeedVectors` and `scoreAndRecord`, and `Clustering`'s `meanOf`, read through it. With two identities of one name stored for a content hash, each reads both sets of chunks as one document.
+
+**How the second identity gets there, and who reads it.** The scoring run is named after the corpus root, the embedding model's **name**, the seed measurement and the relevance floor (ADR-117). A pull changes none of them. A run whose embedding step is recorded as finished embeds nothing more, so a pull alone stores nothing. But the next run that is new for any other reason, a changed floor above all, embeds every chunk under the new identity, `ChunkEmbedder` finding nothing under it, and then scores and clusters over both.
+
+**Confirmed, not only read.** Three measurements, on the code as it stood at `35a5a6b`:
+
+- `embedding.ARunReadsTheVectorsOfOneEmbedderIdentityTest`, run once with the model's name as its last argument, which is what the two classes took: a document whose score against its seed is 0.707 under one identity scored **0.569** with a second identity's chunks stored; the twenty documents built alike were **split between two clusters**; and with the second identity's vectors of two components beside the first's of four, scoring stopped on `ArrayIndexOutOfBoundsException: Index 2 out of bounds for length 2`. The test was then turned to pin the decision (Tests).
+- `pipeline.APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest.aRunScoresOnTheVectorsOfItsOwnDigestOnly`, by invocation: a corpus scored, every vector stored once more under another digest with other values, a floor set that removes nothing, and a second invocation. The second scoring run gives the two documents another score than the first gave them.
+- `…anotherPullsShorterVectorsAreNotReadWithTheRuns`: the same with vectors of half the length. The second invocation fails.
+
+**The dimension, which the ticket left unchecked.** `RelevanceScorer.cosineSimilarity` runs to the length of its first argument: against a shorter second it throws, against a longer one it silently compares the leading components and takes the norm of those alone. `Clustering`'s `meanOf` sizes the mean by the first chunk read and adds each other chunk's leading components, silently. So two identities of different dimension stop scoring or give numbers that mean nothing, by the order the rows come in.
+
+**Three more readers go by the name or by no name.** `RelevanceDistribution.embedderIdentityFor(modelName)` answers an identity only where one answers to the name. `RelevanceFloorTasklet` reads it to decide whether the floor applies, and since ADR-227 withdraws every removal where it is empty; `RelevanceReportTasklet` reads it for the notice of a floor not applied. And `RelevanceDistribution.anyEmbedderIdentity`, the least identity of every model in the table, is what the label file is stamped with as `generatedUnderEmbedder`; `vespera label` records that stamp beside each answer, and the floor applies only where the answers' stamp is the run's identity (ADR-088 §3). **So after one pull, in a database that keeps every vector (nothing deletes one), the floor removes nothing under any run ever again**, which ADR-227 states as its third consequence, and the label file may be stamped with either pull, by which digest sorts first.
+
+**What is recorded.** `relevance_score` has no column for the identity a score was computed under; `vector` has no run id; `run.config_consumed` records the model's name. Nothing says which pull scored a run.
+
+## Decision
+
+### 1. The scoring run names the artefact Ollama reports when the run is minted
+
+`StageRuns.embeddingScoring()` reads `ollamaClient.artefactOf(modelName)` where it reads the relevance floor, fresh on every mint, and the run's recorded settings gain two members after the model's name:
+
+```
+{"root":…,"embeddingModel":…,"embeddingModelDigest":…,"embeddingModelWeightDtype":…,"measurementRunId":…,"relevanceScoreFloor":…}
+```
+
+**So a pull that changes the digest or the dtype is a different scoring run**, with its own embedding, scores, removals, clusters, arrangement and generation, and **a run's row says which pull its scores were computed under**. The generation run has named its model's digest in the same way since ADR-114.
+
+**The digest and the dtype are inputs; the dimension is not.** They are read from `/api/tags` before any vector exists. The dimension is the length of a vector that came back (ADR-091), which is the run's output, and ADR-117 keeps a run's output out of its identity. Ollama is sent no `dimensions` option, so one artefact gives one dimension; §3 is what holds where that fails.
+
+**No new dependence on Ollama.** Since ADR-202 the embedding step asks Ollama about the embedding model in every invocation that passes the embedding-model gate, before either run is resolved, and a refusal fails the step and ends the job. `artefactOf` is then the second question to the same daemon about the same model. A daemon that answers `/api/show` and does not list the model in `/api/tags` throws out of the step that asked for the run, as `ChunkEmbedder` throws today.
+
+### 2. `StageRuns` hands the artefact out with the run
+
+`StageRuns` keeps the `ModelArtefact` it minted the scoring run under, beside the run id, and answers it through `ModelArtefact embeddingModelArtefact()`, which mints the run where it has not been, as `contentRedundancyFloor()` does. Every step of an invocation therefore reads under the artefact the run was arrived at by, and Ollama is asked once for it.
+
+### 3. The identity a run reads is the one the vectors carry under its model name, digest and dtype
+
+`RelevanceDistribution.embedderIdentityFor(String modelName, ModelArtefact artefact)` answers the embedder identity the vectors carry under those three, **where exactly one does**, and nothing where none or more than one does. Its statement is ADR-224's, `SELECT MIN(embedder_identity), MAX(embedder_identity) FROM vector WHERE embedder_identity LIKE ? ESCAPE '\'`, and its pattern is built in `EmbedderIdentity`, where the format is written (ADR-216 §4): `model=<name>;digest=<digest>;dtype=<dtype>;%`, each of the three escaped as the name is today. A weight dtype such as `Q4_K_M` carries underscores.
+
+The read by the name alone and `anyEmbedderIdentity` have no caller left and go (ADR-216).
+
+**Two identities under one name, digest and dtype** differ in the dimension or the instruction. Nothing shipped stores such a pair: no instruction is sent and no `dimensions` option. Where a database holds one all the same, no step names either: §4 and §5.
+
+### 4. Scoring and clustering read the vectors of that one identity, by the whole identity
+
+`VectorCache.vectorsFor` takes the embedder identity and matches `embedder_identity = ?`. `RelevanceScoring.residentSeedVectors`, `RelevanceScoring.scoreAndRecord` and `Clustering.clusterAndRecord` take the embedder identity where they took the model's name: the same parameter, in the same place, of the same type.
+
+**So vectors of two dimensions are never compared or averaged**: the dimension is part of the identity, and `ChunkEmbedder` writes it from the vector's own length. `cosineSimilarity`'s loop and `meanOf`'s `component < chunk.length` are left as they are; under one identity neither meets two lengths.
+
+**The steps, in `pipeline`:**
+
+- **5d, `RelevanceScoringTasklet`**: once the seeds' keys are read, it reads the identity, as one more timed read named *the embedder identities*, and reads the seeds' vectors under it. Where there is no single identity it reads no vector, and ends by the line it already writes where no seed has a stored vector, scoring nothing and recording no completion.
+- **5f, `ClusteringTasklet`**: once it has found a partition to cluster and before the first is read, it reads the identity, the same timed read, once for all partitions, and hands it to `Clustering.clusterAndRecord` where it handed the model's name. Where there is no single identity it throws, naming the state, and writes nothing. **This record asks nothing else of `ClusteringTasklet` or `Clustering`: what it changes is an argument of `clusterAndRecord` and the read that produces it.** When the step runs, which survivors are given a cluster and its check for finished work are [#489](https://github.com/algernon28/vespera/issues/489)'s, settled as ADR-230, which this record did not read.
+- **A clustering done again reads what the first read.** ADR-230, as the coordinating session described it, clusters a partition again in place under the same scoring run, perhaps invocations later, and relies on that pass reading the vectors the first read. It does: the identity is found from the artefact **the scoring run names**, not from whatever the database holds or Ollama serves by then, so every clustering under one scoring run, and that run's scoring, read one identity's vectors. After a pull the invocation does not arrive at that run at all (§1).
+- **5c, `EmbeddingScoringTasklet`, and `ChunkEmbedder`**: unchanged. A chunk's identity is still composed from what Ollama reports when that chunk is embedded.
+
+### 5. The floor's step and the report read the same identity, and the label file is stamped with it
+
+`RelevanceFloorTasklet` reads `embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact())` where it read by the name. Nothing else in it changes: it withdraws every standing removal before any branch (ADR-227), writes on `removesBelow()` alone, and its four lines stand word for word.
+
+`RelevanceReportTasklet` reads the same for its notice of a floor not applied, and **stamps the label file with it**, falling back to the model's name where there is none, as it fell back before.
+
+**What that does to ADR-227.** Its rule stands: with no single identity the step withdraws and removes nothing. What changes is when there is none. The vectors an earlier or a later pull left under the same name are not under the run's digest, so **they no longer withdraw a run's removals and no longer keep the floor from applying**. The run of ADR-227's first consequence, whose scores were all computed under one identity, is now told apart, because it says which. ADR-227's case is left with a database holding two identities under one name, digest and dtype (§3), or none.
+
+**After a pull, then:** the invocation arrives at a new scoring run. The answers given so far carry the earlier pull's identity, so the floor removes nothing under the new run and the report says why (ADR-088 §3), as it does for answers given under another model. The label file the new run writes is stamped with the new identity; answers given from it apply the floor again. The earlier run's removals stay recorded under the earlier run and remove nothing from a run that does not name it upstream (ADR-156, ADR-229).
+
+### 6. The cases the ticket named
+
+| Case | What happens |
+| --- | --- |
+| A half-scored run is resumed after a pull | The invocation arrives at another scoring run, which embeds and scores from the start under the new identity. The half-scored run's rows stay (ADR-229) and are read by nothing while Ollama reports the new digest. |
+| A run is arrived at again (ADR-156) after a pull | Only where the floor and the digest Ollama reports are both the earlier ones again. It then reads the vectors of its own identity, which are still stored. Putting the floor back alone arrives at a run of the new digest. |
+| Clustering has not finished where scoring finished under the earlier identity | The invocation after the pull arrives at another run and scores before it clusters. The earlier run is never clustered over vectors it was not scored on. |
+| Vectors of both pulls are stored and the floor is changed | The new run names the digest Ollama reports now and reads that identity's vectors alone. This is the case measured in Context. |
+| Clustering is done again under the same scoring run, with another pull's vectors stored since | It reads the identity under the digest the run names, which is the one its scores were computed on (§4). |
+| A second identity under the run's own digest and dtype | No step names an identity: scoring scores nothing and records no completion, clustering throws, and the floor withdraws (ADR-227). |
+| The model is pulled while the embedding step runs | Not closed: *What this does not decide*. |
+
+### 7. Which run ids move
+
+A stage's implementation version is the last commit touching a module `StageModules` names for it (ADR-058), and a run's id is a hash of its recorded settings and of its upstream runs' ids too (ADR-048).
+
+**The build touches two modules**: `embedding` (`EmbedderIdentity`, `RelevanceDistribution`, `VectorCache`, `RelevanceScoring`, `Clustering`) and `pipeline` (`StageRuns` and four tasklets). It touches nothing of `corpus`, `extraction`, `similarity`, `synthesis`, `profile` or `ledger`.
+
+**Read against `StageModules` at `35a5a6b`**, where byte-level reduction names `corpus`; extraction `extraction` and `similarity`; content census and content redundancy `similarity` and `extraction`; seed measurement and embedding scoring `embedding` and `extraction`; arrangement `synthesis`, `extraction` and `embedding`; generation `synthesis`, `extraction`, `embedding` and `profile`:
+
+- **Byte-level reduction, extraction, content census and content redundancy keep their run ids.** None names `embedding`, and no stage names `pipeline`.
+- **Seed measurement is minted again**, by the commit to `embedding`.
+- **Embedding scoring is minted again, twice over**: by that commit, and because its recorded settings gain two members. `RunIdentityGoldenTest` holds the new text.
+- **Arrangement and generation are minted again**, each naming `embedding`, and through their upstream runs.
+
+**What that costs on a working directory an earlier build had run**: stage 5 runs again under new runs. The embedding step sends every chunk to Ollama again, since `ChunkEmbedder` composes the identity from the vector that comes back and so does not skip the call where the row is already stored; it stores no second row. 6a mints a new arrangement, which `arrangementApproved` must name, and 6b asks for every synthesis doc again.
+
+**It does not ship on its own.** By the operator's answer, passed on by the coordinating session on 2026-10-10, #488 joins the one build with #476 and #486, and no build is cut until they are on `main`. These are the four stages ADR-227 moves, and #476's change to `similarity` mints extraction, content census and content redundancy again and through them every stage after (ADR-227 §5; ADR-225 was not read). So in that one build the moves coincide and this record adds none, **on the condition that no build with one change and without the others is run over a working directory first**; nothing in the repository prevents that.
+
+**And from then on, every pull that changes the embedding model's digest or dtype moves the scoring run, the arrangement and the generation of each corpus, once**, at the cost above. That is the decision, not a side effect of it (§9, call 1).
+
+**What does not move**: no DDL, so no schema version, no table and no index; no cache key, a vector being keyed as it was; no `run.stage` value, no `finished_step.step` value and no verdict reason. One recorded setting changes, as above. No line of the log is new or reworded; scoring and clustering each say one more timed read, in the words the floor's step uses.
+
+### 8. The guards
+
+- `EveryTableKeyedByARunIsOnRecordTest` is not edited: no table, and no statement that deletes from one keyed by a run.
+- `EveryStatementThatSortsIsRecordedTest` is not edited: `vectorsFor` is still one search of `vector`'s primary key read in the ordinal's order, and the identity's read is the statement ADR-224 measured; no class gains a statement planned through temporary storage, and `schema.sql` builds no new index. **Not run against the build**, which does not exist yet: if a count there moves, that is a finding for the analyst.
+- `EachTableIsNamedOnlyByItsOwnerTest` is not edited: `vector` is named by `embedding` alone, as before.
+- `PipelineHoldsOnlyTheRulesOnRecordTest` is not edited: no class is added to `pipeline`, and what is added to it reads an answer of `embedding`'s and passes it on. Which identity a run reads is `embedding`'s rule, in `RelevanceDistribution` and `EmbedderIdentity`.
+- `TheEmbedderIdentityFormatIsWrittenOnceTest` is not edited and has to go on passing: the pattern of three parts is built in `EmbedderIdentity` and nowhere else.
+
+### 9. The calls, every one the session's
+
+On the operator's word quoted under Status, the session that settled #488 made each of these and put no question to a person.
+
+1. **The artefact joins the scoring run's identity.** It makes "which identity does a run read" a fact about the run and not about the database, with no DDL, and every case of §6 falls out of a pull being another run. *Put and not taken*: **a column on `relevance_score`** for the identity each score was computed under, which repeats one value on every row of a run, needs a migration of a table of millions of rows, and still leaves clustering, the floor and the label file to find the value by reading scores; **a table of one row for each scoring run**, which is a twenty-seventh table keyed by a run for `EveryTableKeyedByARunIsOnRecordTest` and ADR-229's growth table, written by the embedding step and so absent for every run embedded before it existed; and **reading by whatever identity the invocation's embedding step used**, which is nothing in the invocations after the one that embedded. The first two would keep a finished run cheap after a pull, since it would go on under its earlier vectors; that was weighed and given up, because the first new run after the pull embeds everything again in any case, the answers given under the earlier pull stop applying the floor to it in any case, and ADR-084 already calls a pull's cost *"correctly and expensively"* paid.
+2. **The dimension does not join the identity** (§1), on ADR-117's rule.
+3. **Scoring and clustering are handed the whole identity, and match it with `=`**, not a pattern of name, digest and dtype. A pattern would read two dimensions together in the one case where a database holds them, which is the case the ticket asked to have decided. The price is one read of the identities in each of the two steps.
+4. **With no single identity, scoring ends by the gated line it already has, and clustering throws.** Scoring reaches that state with nothing embedded, which its line was written for. Clustering reaches it only with scores recorded and their vectors no longer under one identity, which nothing shipped produces; a line and a step that ends quietly would be a branch in a class #489 is changing, for a state that is a broken database.
+5. **The floor's step and the report read the run's identity, and ADR-227 is amended** (§5). Leaving them to read by the name would have kept this record to scoring and clustering, and left a working directory in which, after one pull, the floor never applies again. ADR-227 names that as its consequence and names this ticket as where the step could be let to tell.
+6. **The label file is stamped with the run's identity, and `anyEmbedderIdentity` goes.** Without it call 5 does not hold: an answer given after a pull would be recorded under whichever identity sorts first.
+7. **`ChunkEmbedder` is not handed the artefact.** Storing a vector under the digest the run was minted by, where Ollama reported another when the vector was made, would file one model's output under another's identity, which is what ADR-084 exists to prevent. What a pull during the embedding step leaves is in *What this does not decide*.
+8. **The parameters keep their type and place**, so that the test tree compiles before and after the build, and the tests that name the new read of two parameters ask for it by reflection.
+9. **The invocation tests store the other pull's vectors themselves where the values matter**, as ADR-227's does (its call 5): the scripted embedder answers every chunk alike. Where only the pull matters, the scripted runtime is told to report another digest, a seam added to `EmbeddingScriptedBeans`.
+10. **`README.md` gains one paragraph** under *Give Ollama its models*, saying what pulling the embedding model again costs. It is true from the build.
+11. **`AGENTS.md` changes in its count of decisions alone.** Its sentence on ADR-224, *"the two reads of the embedder identities"*, describes what ADR-224 looked at and is left; `docs/decision-ledger.md` is closed to new entries and is not edited (ADR-227, call 8).
+
+## Consequences
+
+- **A run's scores and clusters are on one identity, and the run's row says which artefact.** The identity itself is the one stored under that artefact, read when a step needs it.
+- **Pulling the embedding model again is no longer free for a finished corpus.** Before, a corpus whose stage 5 was finished went on under its earlier vectors until something else minted a run. Now the next invocation embeds, scores and clusters again, the floor waits for answers under the new identity, the arrangement must be approved again and every synthesis doc is asked for again. A pull that changes nothing Ollama reports changes nothing here.
+- **The floor applies again after a pull**, once the sample is answered from the new run's label file. ADR-227's first and third consequences no longer hold.
+- **An earlier pull's vectors are never read again unless Ollama reports that digest again**, and nothing removes them. `vector` grows by one set of the corpus's vectors for each pull that is run. ADR-229's growth table is of tables keyed by a run and does not count it; nothing here adds a way to remove them.
+- **Every scoring run minted before the build is left behind**, as after any commit to `embedding` (§7).
+- **An invocation that passes the embedding-model gate asks Ollama one question more**, `/api/tags`, where it already asked `/api/show`.
+- **`RelevanceDistribution` reads the identities in one way.** Scoring and clustering each make that read once where they made none, over the index of `vector`'s primary key, which ADR-224 measured at 66 ms for 400,000 rows and which grows with the table.
+
+## Tests
+
+Written with this record, before `src/main`. The test tree compiles against `src/main` as it stands: no test names a type or method the build adds, and the read of two parameters is asked for by reflection (`embedding.TheIdentityUnderAnArtefact`).
+
+| Class | What it holds |
+| --- | --- |
+| `embedding.ARunReadsTheVectorsOfOneEmbedderIdentityTest` | new, four tests. Handed one identity, a score is the one that identity's vectors give though the same documents carry vectors under another digest; vectors of another dimension under the same name, digest and dtype are not read and do not stop scoring; documents are clustered by the named identity's vectors though each carries a far larger one under another digest; and a partition clustered again after a second identity's vectors were stored lands every document where the first pass put it, which is what ADR-230 relies on |
+| `embedding.TheEmbedderIdentityReadsSortNothingTest` | rewritten. The one read: an identity is answered under a name, digest and dtype; an earlier pull under the same name does not make it none; two dimensions under one digest answer nothing; and the read is planned without a temporary B-tree |
+| `embedding.AModelNameMatchesOnlyItselfTest` | rewritten. `vectorsFor` reads the identity named and no lookalike; the read of the identity matches the name, the digest and the dtype literally and whole, an underscore in a dtype included |
+| `embedding.ClusteringTest`, `embedding.ClusteringProgressTest`, `embedding.RelevanceScoringMemoryCeilingTest` | every claim they made, with the identity their vectors are stored under as the argument that was the model's name. `ClusteringTest`'s mutually distant documents are stored under an identity of their own dimension, which the caller now names |
+| `MethodsNothingShippedCallsAreGoneTest` | a test added: `RelevanceDistribution` declares `embedderIdentityFor` once, of two parameters, and no `anyEmbedderIdentity` |
+| `pipeline.RunIdentityGoldenTest` | `embeddingScoring`: the recorded settings as §1 writes them |
+| `pipeline.APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest` | new, five tests. A pull is a second scoring run that names the new digest, embeds every chunk again and scores and clusters every document, the first run's scores staying; a run scored after another digest's vectors were stored gives each document the score it had; the same with vectors of half the length, and the invocation succeeds; after a pull the floor removes nothing, the label file names the new digest, and an answer under it gets the floor applied under the new run; and clustering done again under the same scoring run, its completion forgotten after another digest's shorter vectors were stored, puts each document in the cluster it was in. The last passes before the build as after: its corpus is two documents, which any vectors cluster alike, so it holds that the path goes through and not which vectors were read, which the `embedding` test above holds |
+| `pipeline.RelevanceFloorInvocationTest` | ADR-227's `aSecondEmbedderIdentityWithdrawsTheRemovals` with a second identity that differs in the dimension, the case ADR-227 is left with; a test added, `vectorsUnderAnotherDigestLeaveTheRemovalsStanding` |
+| `pipeline.StageFiveReportsItsProgressInvocationTest` | scoring's timed reads are the seed walk's occurrences, the unusable seeds, the embedder identities and the count of survivors; clustering's are the seed partitions, the embedder identities, and then each partition's members and cluster sizes, in three tests |
+| `pipeline.SurvivalOverAReusedWalkTest`, `pipeline.TheRelevanceReportCountsTheAnswersAModelGaveInvocationTest`, and the two above | where a test read *this run's identity* through `embedderIdentityFor(modelName)`, it reads the one identity the `vector` table holds |
+| `pipeline.EmbeddingScriptedBeans` | the scripted runtime can be told it pulled again and reports another digest, put back with its other scripts |
+
+**Thirty-two tests fail until the build**, and no other:
+
+- `ARunReadsTheVectorsOfOneEmbedderIdentityTest`, all four; `ClusteringTest`, five (`clustersAPartitionWithoutBeingToldHowManyClustersToFind`, `recordsAPartitionOfOneAsAClusterOfOne`, `reportsTheSpreadOfTheEdgesItKept`, `clustersEvenAPartitionOfMutuallyDistantDocuments`, `isDeterministicAcrossRuns`); `ClusteringProgressTest`, one; `RelevanceScoringMemoryCeilingTest`, one. Each names an identity where the code as it stands takes a model's name, escapes it into a pattern and finds no vector.
+- `AModelNameMatchesOnlyItselfTest`, all six, and `TheEmbedderIdentityReadsSortNothingTest`, all four: `vectorsFor` for the same reason, and the read of two parameters is not there.
+- `MethodsNothingShippedCallsAreGoneTest.noEmbedderIdentityIsReadByAModelsNameAlone`, naming what is still there.
+- `RunIdentityGoldenTest.embeddingScoring`, on the two members.
+- `APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest`, four of its five: two on the number of scoring runs, one on the scores, which is #488 reproduced, and one on the exit code.
+- `RelevanceFloorInvocationTest.vectorsUnderAnotherDigestLeaveTheRemovalsStanding`, the removals being withdrawn.
+- `StageFiveReportsItsProgressInvocationTest`, four, each on the read of the embedder identities that scoring or clustering does not make yet.
+
+`./mvnw test` on the commit that carries this record ran 1,684 tests, of which these thirty-two failed and none was skipped.
+
+**What no test holds**: that clustering throws where there is no single identity, or that scoring ends by its gated line there, since a second identity under the run's own digest has to be stored before a step that an invocation has already finished; `embedderIdentityFor` answering nothing for that state is held, and the floor's step for it. That `StageRuns` asks Ollama once in an invocation. The sequence through a real pull, against Ollama. `EveryStatementThatSortsIsRecordedTest` against the build (§8).
+
+## What the commit that builds `src/main` owes
+
+- **`embedding/EmbedderIdentity`**: `likePatternFor(String modelName, ModelArtefact artefact)` in place of `likePatternFor(String modelName)`, answering `model=<name>;digest=<digest>;dtype=<weight dtype>;%` for a statement written with `ESCAPE '\'`, the backslash, `%` and `_` of each of the three parts escaped as the name's are today. No other class of `embedding` holds a text beginning `model=` or the escaped percent sign.
+- **`embedding/RelevanceDistribution`**: `public Optional<String> embedderIdentityFor(String modelName, ModelArtefact artefact)` in place of the method of one parameter: the same statement, `SELECT MIN(embedder_identity), MAX(embedder_identity) FROM vector WHERE embedder_identity LIKE ? ESCAPE '\'`, with the pattern above; present where the least and the greatest are the same and not null. `anyEmbedderIdentity()` gone.
+- **`embedding/VectorCache`**: `vectorsFor(String contentHash, String chunkerIdentity, String chunkingRuleIdentity, String embedderIdentity)`, its statement ending `AND embedder_identity = ? ORDER BY ordinal`, with no `LIKE` and no `ESCAPE`.
+- **`embedding/RelevanceScoring`**: in both `residentSeedVectors` and in `scoreAndRecord`, the parameter `modelName` is `embedderIdentity`, same place and type, handed to `vectorsFor`. Nothing else.
+- **`embedding/Clustering`**: in both `clusterAndRecord` and in `StoredMeanVectors`, `modelName` is `embedderIdentity`, same place and type, handed to `vectorsFor`. **Nothing else of `Clustering` changes**: `meanOf`, `dimension()`, `blockSizeFor`, what is recorded and for whom are as they are.
+- **`pipeline/StageRuns`**: in `embeddingScoring()`, `ModelArtefact artefact = ollamaClient.artefactOf(modelName)` read once at the mint, where the floor is read; `EmbeddingScoringConfigConsumed(String root, String embeddingModel, String embeddingModelDigest, String embeddingModelWeightDtype, String measurementRunId, Double relevanceScoreFloor)`, in that order, the two new members being `artefact.digest()` and `artefact.weightDtype()`; the artefact kept in a field written with the run id; `ModelArtefact embeddingModelArtefact()`, which calls `embeddingScoring()` and answers the field.
+- **`pipeline/RelevanceScoringTasklet`**: after `seedContentHashes(...)` and before the seeds' vectors are read, `Optional<String> identity = TimedStatement.of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact()))`. Where it is empty no vector is read and the resident seed vectors are an empty map, so the step ends by its existing line, *"stage 5's relevance-scoring step is gated: {} seed occurrence(s) produced text, but none has a stored vector under {} …"*, word for word, and answers `false`. Where it is present it is handed to `residentSeedVectors` and to every `scoreAndRecord`.
+- **`pipeline/ClusteringTasklet`**: inside the step's work, after the read of the seed partitions has found at least one and before any partition's members are read, the same timed read under its own `STAGE`, ended by `.orElseThrow(() -> new IllegalStateException("the vectors under " + modelName + " carry no single embedder identity for the digest and weight dtype scoring run " + scoring.value() + " names, so there is no one set of vectors to cluster"))`. Its value is handed to `clusterAndRecord` in place of `modelName`. **No other line of the class changes**, and where this meets ADR-230's change to the same class, ADR-230 decides everything but that argument and that read.
+- **`pipeline/RelevanceFloorTasklet`**: the one read is `relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact())`, under the same four words. Everything after it as it is.
+- **`pipeline/RelevanceReportTasklet`**: its two reads of the embedder identities stay two, where they are and under the same four words, and each is `embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact())`: in `ignoredFloor()`, and for the label file's stamp, `.orElse(modelName)` kept.
+- **Javadoc and messages that say otherwise, where they stand** (ADR-216): `VectorCache.vectorsFor`'s *"Matched against `modelName` by prefix"*; `RelevanceDistribution`'s two; `Clustering`'s and `RelevanceScoring`'s exceptions that name *"a different model"* or *"a changed embedding model"*, which may now be a different pull of the same one; `StageRuns`' *"unchanged"* on the scoring run's record; `EmbeddingScriptedBeans` is a test and is not the build's.
+- **Edit no test and no Markdown.** A test the build finds it has to edit is a finding for the analyst.
+- Verify with `./mvnw verify` under Java 26, and the docs gates.
+
+## What this does not decide
+
+- **A pull while the embedding step is running.** `ChunkEmbedder` stores each chunk under what Ollama reports when it is embedded, so the chunks after the pull go under an identity the run does not name. Scoring then stops on the first survivor with no vector under the run's identity, by the exception it already throws; a seed with none is left out of the resident seeds without a word, as it is today, so where only seeds were embedded after the pull the run scores against fewer seeds and says nothing. The next invocation arrives at the run of the new digest and embeds everything. Whether the embedding step should compare what Ollama reports at its end with what the run names, and record no completion where they differ, is not decided and has no ticket.
+- **[#489](https://github.com/algernon28/vespera/issues/489)**: which survivors are given a cluster where the floor's step un-removes them after clustering finished. This record adds no way into that state and takes one away: another pull's vectors no longer withdraw a run's removals.
+- **Removing the vectors of a pull nothing reads.** Nothing does, and `vector` is not among the tables ADR-229 counts.
+- **`ChunkEmbedder` asking Ollama for the artefact once for every chunk**, and sending a chunk whose vector is already stored. Both stand.
+- **`RelevanceScorer` and `Clustering` on vectors of unequal length.** Neither is changed; no run hands them any.
+- **Whether the operator should be told, in the invocation after a pull, that the scoring run is new because the model's digest changed.** The run's recorded settings say it and no line does.
+- **When the build ships**, beyond with #476.

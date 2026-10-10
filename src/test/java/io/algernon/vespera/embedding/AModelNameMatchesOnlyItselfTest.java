@@ -9,7 +9,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,20 +19,23 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Both readers that find vectors by a model's name alone match that name literally and whole: an underscore,
- * a percent sign or a backslash in it is the character itself, never a pattern or an escape, and a name
- * never matches a longer name that begins with it (ADR-084).
+ * The two readers of the stored vectors match what they are handed literally and whole: an underscore, a
+ * percent sign or a backslash in it is the character itself, never a pattern or an escape, and a name never
+ * matches a longer name that begins with it (ADR-084).
  *
- * <p>{@link VectorCache#vectorsFor} reads a survivor's vectors and {@link
- * RelevanceDistribution#embedderIdentityFor} names the one identity a model's scores were made under; each
- * matches the stored identity's leading {@code model=<name>;} with an SQL {@code LIKE} pattern. Until
- * ADR-216 each built and escaped that pattern itself, and no test held what either matched. ADR-216
- * section 4 has the pattern built in one place, the identity's own class; this holds the behaviour that
- * move has to keep, so it passes before the change and after it.
+ * <p>Since ADR-228 {@link VectorCache#vectorsFor} reads a document's vectors under one whole embedder
+ * identity, and {@link RelevanceDistribution} names the one identity the vectors carry under an embedding
+ * model's name and the artefact a run names for it, its manifest digest and weight dtype. The second still
+ * matches the stored identity's leading parts with an SQL {@code LIKE} pattern, built in the identity's own
+ * class (ADR-216 section 4), and each of the three parts is escaped: a weight dtype such as {@code Q4_K_M}
+ * carries underscores as a matter of course.
  *
- * <p>The fixtures write vector rows directly through the cache, each pair under two identities whose model
- * names differ only where a pattern built carelessly would let the first match the second: an underscore
- * read as any character, a backslash read as an escape, or a name read as a prefix.
+ * <p>The fixtures write vector rows directly through the cache, each pair under two identities that differ
+ * only where a pattern built carelessly would let the first match the second.
+ *
+ * <p>Rewritten with ADR-228, before the change it pins: until then both readers match by the model's name
+ * alone, so every test here that reads fails, {@code vectorsFor} finding no vector under an identity it
+ * takes for a name, and the identity's read not yet taking an artefact.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -40,8 +43,10 @@ import org.springframework.test.context.ActiveProfiles;
 @Epic("Embedding")
 @Feature("Embedder identity")
 @Issue("352")
+@Issue("488")
 @Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
 @Link(name = "ADR-216", url = Adr.NOTHING_SHIPS_THAT_NO_DECISION_REQUIRES_AND_NOTHING_CALLS, type = "adr")
+@Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
 class AModelNameMatchesOnlyItselfTest {
 
     /** A model whose name carries an underscore, which an unescaped pattern reads as any one character. */
@@ -51,7 +56,7 @@ class AModelNameMatchesOnlyItselfTest {
     private static final String LOOKALIKE_MODEL = "nomicXembed";
 
     /**
-     * A model whose name carries a backslash. Under the readers' escape character, an unescaped backslash
+     * A model whose name carries a backslash. Under the reader's escape character, an unescaped backslash
      * would escape the letter after it, so the name would match {@link #UNBACKSLASHED_MODEL} and not itself.
      */
     private static final String BACKSLASHED_MODEL = "a\\b";
@@ -65,7 +70,7 @@ class AModelNameMatchesOnlyItselfTest {
      */
     private static final String LONGER_MODEL = "nomic_embed-v2";
 
-    /** A name that is only a percent sign, which an unescaped pattern reads as any text at all. */
+    /** A text that is only a percent sign, which an unescaped pattern reads as any text at all. */
     private static final String A_PERCENT_SIGN = "%";
 
     private static final String CONTENT_HASH = "content-hash-of-one-survivor";
@@ -73,6 +78,12 @@ class AModelNameMatchesOnlyItselfTest {
     private static final String CHUNKING_RULE = "chunking-rule-identity";
     private static final String DIGEST = "7f9c2ba4e88f827d616045507605853ed73b8093f6efbc88eb1a6eacfa66ef26";
     private static final String DTYPE = "F16";
+
+    /** A weight dtype as Ollama reports one for quantized weights: its underscores are part of it. */
+    private static final String AN_UNDERSCORED_DTYPE = "Q4_K_M";
+
+    /** A second dtype, written so that the first, read as a pattern, would match it too. */
+    private static final String A_LOOKALIKE_DTYPE = "Q4XKXM";
 
     /** Each fixture vector has four components; the length plays no part in what is matched. */
     private static final int DIMENSION = 4;
@@ -97,23 +108,22 @@ class AModelNameMatchesOnlyItselfTest {
 
     @Test
     @Story("A model is matched by its own name and nothing like it")
-    @DisplayName("A survivor's vectors are read for the model named, not for a model whose name differs where the first has an underscore")
-    void theVectorsReadAreTheNamedModelsOnly() {
+    @DisplayName("A survivor's vectors are read for the identity named, not for one whose model's name differs where the first has an underscore")
+    void theVectorsReadAreTheNamedIdentitysOnly() {
         VectorCache cache = new VectorCache(jdbcTemplate);
         store(cache, UNDERSCORED_MODEL, UNDERSCORED_VECTOR);
         store(cache, LOOKALIKE_MODEL, LOOKALIKE_VECTOR);
 
-        List<float[]> read = cache.vectorsFor(CONTENT_HASH, CHUNKER, CHUNKING_RULE, UNDERSCORED_MODEL);
-
         claim(
-                "exactly the one vector stored under the named model is read: the underscore in its name matched"
-                        + " an underscore, so the lookalike's vector, which differs only there, is not read with it",
-                () -> assertThat(read).containsExactly(UNDERSCORED_VECTOR));
+                "exactly the one vector stored under the identity named is read: the lookalike's vector, whose"
+                        + " identity differs only where the first has an underscore, is not read with it",
+                () -> assertThat(cache.vectorsFor(CONTENT_HASH, CHUNKER, CHUNKING_RULE, identityOf(UNDERSCORED_MODEL)))
+                        .containsExactly(UNDERSCORED_VECTOR));
     }
 
     @Test
     @Story("A model is matched by its own name and nothing like it")
-    @DisplayName("The identity a model's scores were made under is found for the model named, though a lookalike is stored too")
+    @DisplayName("The identity a model's vectors carry is found for the model named, though a lookalike is stored too")
     void theIdentityFoundIsTheNamedModels() {
         VectorCache cache = new VectorCache(jdbcTemplate);
         store(cache, UNDERSCORED_MODEL, UNDERSCORED_VECTOR);
@@ -122,25 +132,28 @@ class AModelNameMatchesOnlyItselfTest {
         claim(
                 "one identity is found and it is the named model's: had the underscore matched any character, two"
                         + " identities would answer and the reading would name neither",
-                () -> assertThat(new RelevanceDistribution(jdbcTemplate).embedderIdentityFor(UNDERSCORED_MODEL))
+                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, DIGEST, DTYPE))
                         .contains(identityOf(UNDERSCORED_MODEL)));
     }
 
     @Test
     @Story("A model is matched by its own name and nothing like it")
-    @DisplayName("A name that is only a percent sign matches no stored model")
+    @DisplayName("A percent sign matches no stored model, as a name or as a digest")
     void aPercentSignMatchesNothingButItself() {
         VectorCache cache = new VectorCache(jdbcTemplate);
         store(cache, UNDERSCORED_MODEL, UNDERSCORED_VECTOR);
 
         claim(
-                "no vector is read for a model named by a percent sign, though one model's vectors are stored:"
-                        + " the sign matched itself and not any name",
+                "no vector is read under a percent sign, though one model's vectors are stored: the sign matched"
+                        + " itself and not any identity",
                 () -> assertThat(cache.vectorsFor(CONTENT_HASH, CHUNKER, CHUNKING_RULE, A_PERCENT_SIGN)).isEmpty());
         claim(
-                "and no identity is found for it either",
-                () -> assertThat(new RelevanceDistribution(jdbcTemplate).embedderIdentityFor(A_PERCENT_SIGN))
-                        .isEmpty());
+                "no identity is found for a model named by one",
+                () -> assertThat(identityFoundFor(A_PERCENT_SIGN, DIGEST, DTYPE)).isEmpty());
+        claim(
+                "and none for the stored model where the digest asked for is one: the digest is matched as"
+                        + " literally as the name",
+                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, A_PERCENT_SIGN, DTYPE)).isEmpty());
     }
 
     @Test
@@ -152,13 +165,13 @@ class AModelNameMatchesOnlyItselfTest {
         store(cache, UNBACKSLASHED_MODEL, UNBACKSLASHED_VECTOR);
 
         claim(
-                "exactly the one vector stored under the name with the backslash is read: the backslash matched a"
-                        + " backslash, so the vector of the same name without it is not read in its place",
-                () -> assertThat(cache.vectorsFor(CONTENT_HASH, CHUNKER, CHUNKING_RULE, BACKSLASHED_MODEL))
+                "exactly the one vector stored under the identity with the backslash is read, not the vector of"
+                        + " the same name without it",
+                () -> assertThat(cache.vectorsFor(CONTENT_HASH, CHUNKER, CHUNKING_RULE, identityOf(BACKSLASHED_MODEL)))
                         .containsExactly(BACKSLASHED_VECTOR));
         claim(
-                "and the identity found for that name is its own",
-                () -> assertThat(new RelevanceDistribution(jdbcTemplate).embedderIdentityFor(BACKSLASHED_MODEL))
+                "and the identity found for that name is its own: the backslash matched a backslash",
+                () -> assertThat(identityFoundFor(BACKSLASHED_MODEL, DIGEST, DTYPE))
                         .contains(identityOf(BACKSLASHED_MODEL)));
     }
 
@@ -171,15 +184,34 @@ class AModelNameMatchesOnlyItselfTest {
         store(cache, LONGER_MODEL, LONGER_VECTOR);
 
         claim(
-                "exactly the one vector stored under the named model is read: the name ends where the identity ends"
-                        + " it, so the vector of a model whose name only begins the same way is not read with it",
-                () -> assertThat(cache.vectorsFor(CONTENT_HASH, CHUNKER, CHUNKING_RULE, UNDERSCORED_MODEL))
-                        .containsExactly(UNDERSCORED_VECTOR));
-        claim(
-                "and one identity is found for the name, its own: had the longer name matched too, two would answer"
-                        + " and the reading would name neither",
-                () -> assertThat(new RelevanceDistribution(jdbcTemplate).embedderIdentityFor(UNDERSCORED_MODEL))
+                "one identity is found for the name, its own: the name ends where the identity ends it, and had"
+                        + " the longer name matched too, two would answer and the reading would name neither",
+                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, DIGEST, DTYPE))
                         .contains(identityOf(UNDERSCORED_MODEL)));
+    }
+
+    @Test
+    @Story("A model is matched by its own name and nothing like it")
+    @DisplayName("A weight format with underscores in it is matched with them, not as any format of the same length")
+    void anUnderscoreInTheWeightDtypeIsTheCharacterItself() {
+        VectorCache cache = new VectorCache(jdbcTemplate);
+        String underscored = EmbedderIdentity.withoutInstruction(UNDERSCORED_MODEL, DIGEST, AN_UNDERSCORED_DTYPE, DIMENSION)
+                .value();
+        String lookalike = EmbedderIdentity.withoutInstruction(UNDERSCORED_MODEL, DIGEST, A_LOOKALIKE_DTYPE, DIMENSION)
+                .value();
+        cache.put(CONTENT_HASH, CHUNKER, CHUNKING_RULE, 0, underscored, UNDERSCORED_VECTOR);
+        cache.put(CONTENT_HASH, CHUNKER, CHUNKING_RULE, 0, lookalike, LOOKALIKE_VECTOR);
+
+        claim(
+                "one identity is found for the format with underscores, its own: had an underscore matched any"
+                        + " character, the lookalike format's identity would answer too and the reading would name"
+                        + " neither",
+                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, DIGEST, AN_UNDERSCORED_DTYPE))
+                        .contains(underscored));
+    }
+
+    private Optional<String> identityFoundFor(String model, String digest, String dtype) {
+        return TheIdentityUnderAnArtefact.read(new RelevanceDistribution(jdbcTemplate), model, digest, dtype);
     }
 
     private static void store(VectorCache cache, String model, float[] vector) {

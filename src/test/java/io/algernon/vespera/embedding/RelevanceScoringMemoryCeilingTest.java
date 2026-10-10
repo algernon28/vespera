@@ -82,7 +82,7 @@ class RelevanceScoringMemoryCeilingTest {
         List<OccurrenceId> corpusOccurrences = insertCorpusDocuments(walkId);
 
         Map<OccurrenceId, List<float[]>> residentSeedVectors = relevanceScoring.residentSeedVectors(
-                seedContentHashes, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
+                seedContentHashes, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, "model=" + MODEL + EMBEDDER_IDENTITY_SUFFIX);
         for (int i = 0; i < corpusOccurrences.size(); i++) {
             relevanceScoring.scoreAndRecord(
                     corpusOccurrences.get(i),
@@ -90,7 +90,7 @@ class RelevanceScoringMemoryCeilingTest {
                     "corpus-" + i,
                     CHUNKER_IDENTITY,
                     CHUNKING_RULE_IDENTITY,
-                    MODEL,
+                    "model=" + MODEL + EMBEDDER_IDENTITY_SUFFIX,
                     residentSeedVectors);
         }
 

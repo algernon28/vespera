@@ -1456,6 +1456,17 @@ public final class Adr {
             + "0227-the-relevance-floors-step-withdraws-its-standing-removals-where-the-vectors-carry-no-single-embedder-identity.md";
 
     /**
+     * ADR-228 -- a scoring run names the embedding model's artefact as Ollama reports it when the run is
+     * minted, its manifest digest and weight dtype, so a pull that changes either is a different scoring
+     * run; and scoring, clustering, the relevance floor and the label file each read the one embedder
+     * identity the vectors carry under that artefact, never every identity under the model's name. No DDL;
+     * seed measurement, embedding scoring, arrangement and generation are minted again (amends ADR-227,
+     * ADR-224, ADR-117 and ADR-084; decides #488).
+     */
+    public static final String A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY = FILE
+            + "0228-a-scoring-run-names-the-embedding-models-artefact-and-reads-the-vectors-of-one-embedder-identity.md";
+
+    /**
      * ADR-229 -- every run's rows are kept in the twenty-six tables keyed by a run, the database file is not
      * made smaller, and no command removes anything: the growth is stated table by table. A run over a walk
      * that is no longer its corpus root's latest finished walk is never arrived at again by {@code vespera

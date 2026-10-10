@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
@@ -96,9 +95,6 @@ class RelevanceFloorInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private RelevanceDistribution relevanceDistribution;
 
     @Autowired
     private RelevanceLabels relevanceLabels;
@@ -397,12 +393,20 @@ class RelevanceFloorInvocationTest {
                 () -> assertThat(scoringRunIdsFor(root)).hasSize(TWO_SCORING_RUNS));
     }
 
+    /**
+     * ADR-227's case as ADR-228 leaves it. The second identity is one of the same embedding model, digest
+     * and weight dtype as the run names, differing in the dimension alone: the only way left for the vectors
+     * a run reads to carry no single identity, since a run names its digest. Nothing the engine does stores
+     * such a pair; the test does, as ADR-227's did.
+     */
     @Test
-    @Story("A second embedder identity under the embedding model's name withdraws removals the threshold had already made")
-    @DisplayName("Once the vectors carry two embedder identities for the embedding model, no removal the threshold made still stands")
+    @Story("A second embedder identity under what the run names withdraws removals the threshold had already made")
+    @DisplayName("Once the vectors carry two embedder identities for the embedding model as the run names it, no removal the threshold made still stands")
     @Issue("486")
+    @Issue("488")
     @Link(name = "ADR-227", url = Adr.THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE, type = "adr")
     @Link(name = "ADR-118", url = Adr.THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY, type = "adr")
+    @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
     void aSecondEmbedderIdentityWithdrawsTheRemovals(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         profile(seeds, null);
@@ -412,7 +416,7 @@ class RelevanceFloorInvocationTest {
         cli.run("run", root.toString());
         long removedUnderOneIdentity = belowThresholdCountFor(root);
         List<String> theScoringRunsBefore = scoringRunIdsFor(root);
-        String aSecondIdentity = thisRunsIdentity().replace(";digest=", ";digest=0ff0");
+        String aSecondIdentity = thisRunsIdentity().replace(";dimension=", ";dimension=1");
         everyVectorAlsoStoredUnder(aSecondIdentity);
         try {
             cli.run("run", root.toString());
@@ -427,9 +431,9 @@ class RelevanceFloorInvocationTest {
                         + " one identity, so there were removals to withdraw",
                 () -> assertThat(removedUnderOneIdentity).isEqualTo(CORPUS_DOCUMENTS));
         claim(
-                "nothing stands removed any more: with two identities under the embedding model's name there is no"
-                        + " one scale for the threshold to be on, and a removal made on a scale that is no"
-                        + " longer known to be this one must not outlive it",
+                "nothing stands removed any more: with two identities under the embedding model as this run"
+                        + " names it there is no one scale for the threshold to be on, and a removal made on"
+                        + " a scale that is no longer known to be this one must not outlive it",
                 () -> assertThat(belowThresholdCountFor(root)).isZero());
         claim(
                 "and the scoring runs are the ones there were before: the removals were withdrawn by the"
@@ -437,10 +441,47 @@ class RelevanceFloorInvocationTest {
                 () -> assertThat(scoringRunIdsFor(root)).isEqualTo(theScoringRunsBefore));
     }
 
-    /**
-     * Every stored vector written once more under a second identity of the same model, as a pull that
-     * changed the embedding model's digest leaves them.
-     */
+    @Test
+    @Story("The vectors another pull of the embedding model left take nothing back")
+    @DisplayName("Vectors stored under another digest of the embedding model leave the removals of a run that names its own digest standing")
+    @Issue("488")
+    @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
+    @Link(name = "ADR-227", url = Adr.THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE, type = "adr")
+    void vectorsUnderAnotherDigestLeaveTheRemovalsStanding(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, thisRunsIdentity());
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+        cli.run("run", root.toString());
+        long removedBefore = belowThresholdCountFor(root);
+        List<String> theScoringRunsBefore = scoringRunIdsFor(root);
+        String anotherPullsIdentity = thisRunsIdentity().replace(";digest=", ";digest=0ff0");
+        everyVectorAlsoStoredUnder(anotherPullsIdentity);
+        try {
+            cli.run("run", root.toString());
+        } finally {
+            // As above: the vectors are shared by this class's tests, so the second identity goes again.
+            jdbcTemplate.update("DELETE FROM vector WHERE embedder_identity = ?", anotherPullsIdentity);
+        }
+
+        claim(
+                "the threshold had removed all " + CORPUS_DOCUMENTS + " documents before the other vectors"
+                        + " were stored",
+                () -> assertThat(removedBefore).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "and all " + CORPUS_DOCUMENTS + " still stand removed: the run names the digest its scores were"
+                        + " computed under, the serving runtime still reports that digest, and the vectors"
+                        + " under it carry one identity, so the scale the threshold was read off is known to"
+                        + " be this run's whatever another pull of the same name left in the database",
+                () -> assertThat(belowThresholdCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "under the scoring runs there were before, the invocation having arrived at the same run",
+                () -> assertThat(scoringRunIdsFor(root)).isEqualTo(theScoringRunsBefore));
+    }
+
+    /** Every stored vector written once more under a second identity of the same embedding model. */
     private void everyVectorAlsoStoredUnder(String aSecondIdentity) {
         jdbcTemplate.update(
                 "INSERT INTO vector SELECT content_hash, chunker_identity, chunking_rule_identity, ordinal, ?,"
@@ -476,7 +517,8 @@ class RelevanceFloorInvocationTest {
 
     /** The embedder identity the scripted runtime actually produced, read back rather than assumed. */
     private String thisRunsIdentity() {
-        return relevanceDistribution.embedderIdentityFor(MODEL_NAME).orElseThrow();
+        // One row, or the read throws: no test of this class leaves a second identity behind it.
+        return jdbcTemplate.queryForObject("SELECT DISTINCT embedder_identity FROM vector", String.class);
     }
 
     /**

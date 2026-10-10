@@ -69,7 +69,21 @@ class EmbeddingScriptedBeans {
     static final String DIGEST = "d34db33f00000000000000000000000000000000000000000000000000000";
 
     /** The weight dtype this fixture's runtime reports beside the digest. */
-    private static final String DTYPE = "F16";
+    static final String DTYPE = "F16";
+
+    /**
+     * The manifest digest this fixture's runtime reports now: {@link #DIGEST} until a test says the model
+     * was pulled again (ADR-228, #488). Held statically for the reason {@link #NEVER_PULLED} is.
+     */
+    private static String digestServed = DIGEST;
+
+    /**
+     * Scripts this fixture's runtime as having pulled every model again, so that it reports {@code digest}
+     * from now on. The vectors it embeds to are the same: only what it says it is changes.
+     */
+    static void hasPulledAgainAs(String digest) {
+        digestServed = digest;
+    }
 
     /**
      * The names this fixture's runtime has never pulled, and refuses to compose an identity from.
@@ -140,6 +154,7 @@ class EmbeddingScriptedBeans {
         UNANSWERED.clear();
         SHOWN.clear();
         embeddingCallsMade = 0;
+        digestServed = DIGEST;
     }
 
     @Bean
@@ -164,7 +179,7 @@ class EmbeddingScriptedBeans {
                     throw new IllegalStateException("the runtime serves no model named " + modelName
                             + ", so there is nothing to compose an identity from");
                 }
-                return new ModelArtefact(DIGEST, DTYPE);
+                return new ModelArtefact(digestServed, DTYPE);
             }
 
             /**

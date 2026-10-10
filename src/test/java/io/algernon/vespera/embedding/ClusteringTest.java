@@ -77,7 +77,7 @@ class ClusteringTest {
         partition.putAll(insertCluster(walkId, run, seed, "unalike", 1));
 
         clustering.clusterAndRecord(
-                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
+                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY);
 
         Map<OccurrenceId, Integer> ordinals = ordinalsOf(clusters, run);
         claim(
@@ -118,7 +118,7 @@ class ClusteringTest {
         Map<OccurrenceId, String> partition = insertCluster(walkId, run, seed, "solitary", 0, 1);
 
         clustering.clusterAndRecord(
-                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
+                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY);
 
         claim(
                 "the one document is a cluster of one rather than a document belonging to nothing: a"
@@ -144,10 +144,10 @@ class ClusteringTest {
                 insertMutuallyDistant(distantWalk, distantRun, distantSeed, CLUSTER_SIZE);
 
         RetainedEdgeSpread alikeSpread = clustering
-                .clusterAndRecord(alikeRun, alikeSeed, alike, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL)
+                .clusterAndRecord(alikeRun, alikeSeed, alike, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY)
                 .orElseThrow();
         RetainedEdgeSpread distantSpread = clustering
-                .clusterAndRecord(distantRun, distantSeed, distant, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL)
+                .clusterAndRecord(distantRun, distantSeed, distant, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, identityOfDimension(CLUSTER_SIZE))
                 .orElseThrow();
 
         claim(
@@ -181,7 +181,7 @@ class ClusteringTest {
         Map<OccurrenceId, String> partition = insertMutuallyDistant(walkId, run, seed, CLUSTER_SIZE);
 
         clustering.clusterAndRecord(
-                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
+                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, identityOfDimension(CLUSTER_SIZE));
 
         claim(
                 "every document is still recorded, so nothing was dropped for resembling nothing:"
@@ -221,8 +221,8 @@ class ClusteringTest {
         partition.putAll(insertCluster(walkId, first, seed, "unalike", 1));
         partition.keySet().forEach(member -> insertScore(second, member, seed));
 
-        clustering.clusterAndRecord(first, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
-        clustering.clusterAndRecord(second, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL);
+        clustering.clusterAndRecord(first, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY);
+        clustering.clusterAndRecord(second, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY);
 
         claim(
                 "every document landed on the same ordinal both times, not merely in the same company:"
@@ -361,12 +361,21 @@ class ClusteringTest {
                             CHUNKER_IDENTITY,
                             CHUNKING_RULE_IDENTITY,
                             0,
-                            "model=" + MODEL + ";digest=d34db33f;dtype=F16;dimension=" + size + ";instruction=none",
+                            identityOfDimension(size),
                             vector);
             insertScore(run, occurrenceId, seed);
             members.put(occurrenceId, contentHash);
         }
         return members;
+    }
+
+    /**
+     * The identity the mutually distant documents' vectors are stored under: they have as many components as
+     * there are documents, and the dimension is part of an identity, so it is not {@link #EMBEDDER_IDENTITY}.
+     * A partition is read under one identity (ADR-228), so the caller names this one for them.
+     */
+    private static String identityOfDimension(int dimension) {
+        return "model=" + MODEL + ";digest=d34db33f;dtype=F16;dimension=" + dimension + ";instruction=none";
     }
 
     private long insertWalk(String root) {

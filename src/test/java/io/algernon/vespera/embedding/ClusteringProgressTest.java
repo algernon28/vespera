@@ -110,8 +110,8 @@ class ClusteringProgressTest {
         Map<OccurrenceId, String> second = partition(walkId, run, secondSeed, "second", THREE_DOCUMENTS);
         List<String> events = new ArrayList<>();
 
-        clustering.clusterAndRecord(run, firstSeed, first, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL, recording(events));
-        clustering.clusterAndRecord(run, secondSeed, second, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL, recording(events));
+        clustering.clusterAndRecord(run, firstSeed, first, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, recording(events));
+        clustering.clusterAndRecord(run, secondSeed, second, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, recording(events));
 
         claim(
                 "each partition's pass is announced once with its own total and reports its own pair: the caller"
@@ -130,7 +130,7 @@ class ClusteringProgressTest {
         List<String> events = new ArrayList<>();
 
         clustering.clusterAndRecord(
-                run, seed, new LinkedHashMap<>(), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL, recording(events));
+                run, seed, new LinkedHashMap<>(), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, recording(events));
 
         claim(
                 "no member means no vector width to size a block by: the pass is not reached, so it is not"
