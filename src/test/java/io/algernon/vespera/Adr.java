@@ -1432,6 +1432,19 @@ public final class Adr {
     public static final String THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING = FILE
             + "0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md";
 
+    /**
+     * ADR-226 -- the eight rules ADR-222 found in {@code pipeline} move, all in one change, and no stage's
+     * version names {@code pipeline}: what a seed the floor stopped is sent as, and which detected formats
+     * list their pictures, to {@code extraction}; what the relevance floor lets stage 5e do, as the two
+     * actions and the reason, to {@code embedding}; how a cluster's exemplars are gathered, behind a callback,
+     * why a cluster is unwritten, and a survivor with no score listed with 0.0, to {@code synthesis}; every
+     * profile key as written, to {@code profile}, which generation's version now names. Persisted names,
+     * cache keys and operator text are unchanged; every stage from extraction to generation is minted once
+     * (amends ADR-222, ADR-058, ADR-157, ADR-190, ADR-186, ADR-100, ADR-133 and ADR-152; decides #479).
+     */
+    public static final String NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES = FILE
+            + "0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md";
+
     private Adr() {
     }
 }

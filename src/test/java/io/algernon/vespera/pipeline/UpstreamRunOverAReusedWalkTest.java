@@ -127,7 +127,7 @@ class UpstreamRunOverAReusedWalkTest {
         "corpus,     byte-level-reduction, extraction",
         "extraction, extraction,           content-census",
         "similarity, extraction,           content-census",
-        "pipeline,   seed-measurement,     embedding-scoring",
+        "embedding,  seed-measurement,     embedding-scoring",
     })
     @Story("A new build of the application does not strand an archive part-way through")
     @DisplayName("Invoking again under a new build of one part of the code completes")
@@ -158,6 +158,34 @@ class UpstreamRunOverAReusedWalkTest {
                 () -> assertThat(upstreamOf(latestRunOf(root, stageAfterIt)))
                         .containsExactly(latestRunOf(root, stageThatMoves))
                         .doesNotContain(firstRun));
+    }
+
+    @Test
+    @Story("A new build of the application does not strand an archive part-way through")
+    @DisplayName("Invoking again under a new build of only the code that runs the stages does no piece of work again")
+    @Issue("479")
+    @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
+    void aNewBuildOfTheCodeThatRunsTheStagesMintsNothing(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        everyGateOpen(seeds, BOILERPLATE_FLOOR);
+        invoke(root);
+        List<String> before = allRunsOf(root);
+        List<String> arrangements = runsOf(root, "arrangement");
+
+        SuccessiveBuildsBeans.aCommitTo("pipeline");
+        invoke(root);
+
+        claim(
+                "the first invocation reached the arrangement, so the claim below is about every stage up to it",
+                () -> assertThat(arrangements).hasSize(1));
+        claim(
+                "the second invocation reports success",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and every piece of work it reached is the first invocation's, continued: no stage is identified"
+                        + " by the code that runs the stages, so a build that changes only that code, a progress"
+                        + " line or a command-line option, mints no run and does no stage's work again",
+                () -> assertThat(allRunsOf(root)).containsExactlyElementsOf(before));
     }
 
     @Test

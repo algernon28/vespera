@@ -1,5 +1,7 @@
 # ADR-100 — Docling reads the bytes too, so stage 2 sends a canonical extension derived from the detected format and nothing else
 
+> **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** `extraction`'s dependency on `corpus`'s two enumerations now serves two more rules over a detected format: what a seed the cross-format floor stopped is sent as, and which formats list their pictures in the deliverable. The declaration, the two enumerations and nothing else of `corpus`, is unchanged.
+
 - **Date**: 2026-09-11
 - **Status**: accepted
 - **Amends**: [ADR-094](0094-stage-1-decides-what-a-file-is-from-its-bytes-the-extension-may-only-narrow-within-that-class.md) — its two named stage-2 obligations are both resolved against what it anticipated: the `BM` risk it deferred does not exist, and the zip split it left for this ticket is not needed. Its rule for stage 1 is untouched.

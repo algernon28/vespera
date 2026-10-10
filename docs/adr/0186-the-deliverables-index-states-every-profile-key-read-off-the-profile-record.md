@@ -1,5 +1,7 @@
 # ADR-186 — The deliverable's index states every profile key, read off the profile record
 
+> **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** §3's list is read off the record in `profile`, by `Profile.keysAsWritten`, and not in `pipeline`, so its heading, its first sentence and its bullet *"It stays in `pipeline` … `profile` gains no method, so this decision moves no module but `pipeline`"* no longer hold; and generation's version names `profile`, so the Consequences paragraph on what implementing this moved no longer says what a change to the profile's keys costs: a commit to `profile` alone mints generation. §1, §2 and §4 stand.
+
 - **Date**: 2026-10-04
 - **Status**: accepted
 - **Answers**: [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md), what *"the profile values the run consumed"* in `index.md` covers, and how the list is kept from falling behind the profile.

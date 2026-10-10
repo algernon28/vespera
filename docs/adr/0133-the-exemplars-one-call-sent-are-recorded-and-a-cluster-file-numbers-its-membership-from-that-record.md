@@ -1,5 +1,7 @@
 # ADR-133 — The exemplars one call sent are recorded, and a cluster file numbers its membership from that record
 
+> **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** *"`GenerationTasklet.exemplarsOf` drops a member whose opening chunk this run cannot reach"*: the drop is `synthesis`'s, in `ClusterExemplars.gathered`, and the warning that names the member is still written by `GenerationTasklet`. What is dropped, and the numbering from the record, stand.
+
 - **Date**: 2026-09-20
 - **Status**: accepted
 - **Amends**: [ADR-109](0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md) — its *"An in-range ordinal resolves to a surviving occurrence **by construction**, not by lookup"*, and the numbering rule that claim rests on: *"The cluster file's membership list is **numbered in relevance-score order** […] so the exemplars sent are exactly entries `1..k` of the list the reader is looking at."* Both are false wherever a member is dropped between the membership and the call, and two places drop members today. The correspondence is restored below by recording it rather than arguing it. **Nothing ADR-109 decided about the model-facing surface moves**: a citation is still an ordinal minted for one call, still rendered `[n]` inline and nowhere else, the check is still `1 ≤ n ≤ k` and nothing else, uncited prose still fails the cluster, and nothing is retried, regenerated or stripped.
