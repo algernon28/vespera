@@ -141,9 +141,14 @@ class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
         long clusteredThen = clusteredUnder(scoring);
         List<String> theScoringRunsBefore = scoringRunsOf(root);
         anAnswerGivenUnder(root, seeds, ANOTHER_MODELS_IDENTITY);
+        Files.deleteIfExists(theSizeReport());
 
         cli.run("run", root.toString());
 
+        claim(
+                "the page of group sizes, taken away before this invocation, is there again: forming the"
+                        + " groups again writes it again, so it is not left describing the groups there were",
+                () -> assertThat(theSizeReport()).isRegularFile());
         claim(
                 "the threshold had removed both of the " + TWO_DOCUMENTS + " documents, so the groups were"
                         + " formed over none of them and that step recorded its work as done",
@@ -309,6 +314,94 @@ class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
                         .singleElement()
                         .satisfies(generation ->
                                 assertThat(documentsSentUnder(generation)).isEqualTo(THREE_DOCUMENTS)));
+    }
+
+    /**
+     * What tells the two questions ADR-230 section 2 asks from a count of survivors against a count of rows.
+     *
+     * <p>A {@code document_cluster} row is deleted by hand, which no shipped path is known to do: the step's
+     * discard and the rows it writes after it are in the step's one transaction. It stands for nothing that
+     * happens and is there to tell a set from a count. The first half is direction A for one document of
+     * three. In the second the counts are equal, two survivors and two rows, and the sets are not: one
+     * document is removed and still clustered, another survives and is not.
+     */
+    @Test
+    @Story("The groups are of exactly the documents the threshold leaves")
+    @DisplayName("The groups are formed again when they miss a document or hold a removed one, even where they hold as many documents as are left")
+    void theClustersAreComparedAsSetsAndNotAsCounts(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds, THREE_DOCUMENTS);
+        profile(seeds);
+        cli.run("run", root.toString());
+        String theFirstScoring = scoringRunsOf(root).getFirst();
+        anAnswerGivenUnder(root, seeds, ANOTHER_MODELS_IDENTITY);
+        theFloorIs(A_FLOOR_UNDER_EVERY_SCORE);
+        cli.run("run", root.toString());
+        String scoring = theScoringRunAfter(root, theFirstScoring);
+        long clusteredAtFirst = clusteredUnder(scoring);
+        List<String> arrangedAtFirst = arrangementsOver(scoring);
+        long theFirstDocument = aScoredOccurrence(scoring, "MIN");
+        long theLastDocument = aScoredOccurrence(scoring, "MAX");
+        theClusterRowIsDeleted(scoring, theFirstDocument);
+        long clusteredWithOneRowGone = clusteredUnder(scoring);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "all " + THREE_DOCUMENTS + " documents were grouped, the number having been read off another"
+                        + " model's scores, and with one document's place in its group taken away " + TWO_LEFT
+                        + " were",
+                () -> assertThat(List.of(clusteredAtFirst, clusteredWithOneRowGone))
+                        .containsExactly((long) THREE_DOCUMENTS, (long) TWO_LEFT));
+        claim(
+                "the next invocation groups all " + THREE_DOCUMENTS + " again, the one that was in no group"
+                        + " among them: a document the archive keeps is in a group",
+                () -> assertThat(List.of(clusteredUnder(scoring), clusteredAs(scoring, theFirstDocument)))
+                        .containsExactly((long) THREE_DOCUMENTS, 1L));
+        claim(
+                "and the arrangement is the one there was: no removal stands, so nothing tells it apart",
+                () -> assertThat(arrangementsOver(scoring)).isEqualTo(arrangedAtFirst));
+
+        oneDocumentScoresUnderTheFloor(scoring);
+        anAnswerGivenUnder(root, seeds, thisRunsIdentity());
+        theClusterRowIsDeleted(scoring, theFirstDocument);
+        long clusteredBefore = clusteredUnder(scoring);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "before it, " + TWO_LEFT + " documents were in a group, the first having been taken out of"
+                        + " its group again; and the threshold, now answered for under the model that scored"
+                        + " them, removes the " + ONE_REMOVED + " document under it and leaves " + TWO_LEFT
+                        + ": as many are left as were grouped",
+                () -> assertThat(List.of(clusteredBefore, removedUnder(scoring)))
+                        .containsExactly((long) TWO_LEFT, (long) ONE_REMOVED));
+        claim(
+                "they are not the same " + TWO_LEFT + ", and the groups are formed again all the same: the"
+                        + " removed document is in none",
+                () -> assertThat(List.of(removedAndClusteredUnder(scoring), clusteredAs(scoring, theLastDocument)))
+                        .containsExactly(0L, 0L));
+        claim(
+                "and the document that is left and was in no group is in one, with the other that is left",
+                () -> assertThat(List.of(clusteredUnder(scoring), clusteredAs(scoring, theFirstDocument)))
+                        .containsExactly((long) TWO_LEFT, 1L));
+    }
+
+    /** The occurrence with the lowest or the highest id among those scored under {@code scoring}. */
+    private long aScoredOccurrence(String scoring, String minOrMax) {
+        return count("SELECT " + minOrMax + "(occurrence_id) FROM relevance_score WHERE run_id = ?", scoring);
+    }
+
+    private void theClusterRowIsDeleted(String scoring, long occurrence) {
+        jdbcTemplate.update("DELETE FROM document_cluster WHERE run_id = ? AND occurrence_id = ?", scoring, occurrence);
+    }
+
+    /** One where {@code occurrence} has a cluster row under {@code scoring}, and nought where it has none. */
+    private long clusteredAs(String scoring, long occurrence) {
+        return count("SELECT COUNT(*) FROM document_cluster WHERE run_id = ? AND occurrence_id = ?", scoring, occurrence);
+    }
+
+    private static Path theSizeReport() {
+        return workingDirectory.resolve(ClusteringTasklet.CLUSTER_SIZES_FILE_NAME);
     }
 
     private void aCorpus(Path root, Path seeds, int documents) throws IOException {
