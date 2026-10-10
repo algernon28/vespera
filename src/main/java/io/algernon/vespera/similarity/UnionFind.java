@@ -53,6 +53,11 @@ final class UnionFind {
         }
     }
 
+    /** Whether both occurrences are held and share a root; adds neither, so a pair already joined costs no member. */
+    boolean joined(long a, long b) {
+        return parent.containsKey(a) && parent.containsKey(b) && find(a) == find(b);
+    }
+
     /**
      * Every connected component of the occurrences a union has named, each of two or more: an occurrence is
      * held only because a union named it, so none stands alone.

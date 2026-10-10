@@ -91,19 +91,15 @@ public class RedundancySignatures {
      * {@code occurrenceId}'s boilerplate-stripped shingle set as distinct hashes — MinHash and Jaccard
      * both operate on a set, not on {@code shingle}'s own multiset of repeated phrases.
      *
-     * <p>The set is what makes the hashes distinct, not the query (#277). Asked for {@code DISTINCT},
-     * and <em>when {@code shingle_by_hash} exists</em>, SQLite answers from it, since it is already
-     * ordered by hash, and so reads every row of the run for each document: about five seconds a
-     * document on a 2.2-million-row table, whatever the document's own size. Without it, the planner
-     * uses {@code shingle_by_occurrence} and reads this document's rows alone. Stage 4a runs before stage
-     * 4b builds that index (ADR-182), so there the index is usually absent and a {@code DISTINCT} would
-     * go unnoticed; stage 4b's identical read is where it would be paid, and what keeps both reads
-     * without it is {@code RedundancyResolutionTest}, which builds the index before it reads the plans.
+     * <p>The set is what makes the hashes distinct, not the query (#277), and the read names {@code
+     * shingle_by_occurrence}: where {@code shingle_by_hash} exists, which holds every column asked for,
+     * SQLite would otherwise answer from it and read every row of the run for each document. The text is
+     * the one {@code RedundancyResolution} reads a shingle set with (ADR-225 section 4).
      */
     private Set<Long> distinctiveShingleSet(OccurrenceId occurrenceId, RunId stage2RunId, Set<Long> boilerplateHashes) {
         Set<Long> distinctive = new HashSet<>();
         jdbcTemplate.query(
-                "SELECT shingle_hash FROM shingle"
+                "SELECT shingle_hash FROM shingle INDEXED BY shingle_by_occurrence"
                         + " WHERE occurrence_id = ? AND run_id = ? AND shingle_parameter_identity = ?",
                 resultSet -> {
                     long hash = resultSet.getLong("shingle_hash");
