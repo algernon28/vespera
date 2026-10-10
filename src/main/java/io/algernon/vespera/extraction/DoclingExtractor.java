@@ -17,9 +17,9 @@ import org.springframework.stereotype.Component;
  * row of that kind an earlier build wrote is never served, so the content goes to the converter
  * again. {@link ResponseScope} is the one reading that decides which.
  *
- * <p>The per-occurrence ordering ADR-071/ADR-073's spec eventually wants — cache lookup, convert,
- * {@code extraction-failed} check, then metrics/degeneracy/chunking/shingling — is {@code pipeline}'s
- * to compose (this ticket builds no pipeline step); this class is only the first two of those.
+ * <p>The per-occurrence ordering of ADR-071 and ADR-073 — cache lookup, convert,
+ * {@code extraction-failed} check, then metrics, degeneracy, chunking and shingling — is
+ * {@code pipeline}'s to compose; this class is only the first two of those.
  */
 @Component
 public class DoclingExtractor {

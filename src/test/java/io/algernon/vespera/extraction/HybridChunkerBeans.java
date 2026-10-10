@@ -21,7 +21,7 @@ public class HybridChunkerBeans {
 
     /** A real chunker over {@code jdbcTemplate}'s chunk cache, chunking with the windowed fallback. */
     public static HybridChunker real(JdbcTemplate jdbcTemplate) {
-        return new HybridChunker(new ChunkCache(jdbcTemplate), new WindowedStructurelessChunkingFallback());
+        return new HybridChunker(new ChunkCache(jdbcTemplate));
     }
 
     @Bean

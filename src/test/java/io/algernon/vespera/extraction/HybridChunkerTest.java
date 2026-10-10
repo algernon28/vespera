@@ -178,6 +178,6 @@ class HybridChunkerTest {
     }
 
     private HybridChunker chunker() {
-        return new HybridChunker(new ChunkCache(jdbcTemplate), new WindowedStructurelessChunkingFallback());
+        return new HybridChunker(new ChunkCache(jdbcTemplate));
     }
 }
