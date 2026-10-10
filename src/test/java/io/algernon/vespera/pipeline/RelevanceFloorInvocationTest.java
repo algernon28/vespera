@@ -398,8 +398,8 @@ class RelevanceFloorInvocationTest {
     }
 
     @Test
-    @Story("A second embedder identity under the model's name withdraws removals the threshold had already made")
-    @DisplayName("Once the vectors carry two identities for the model, no removal the threshold made still stands")
+    @Story("A second embedder identity under the embedding model's name withdraws removals the threshold had already made")
+    @DisplayName("Once the vectors carry two embedder identities for the embedding model, no removal the threshold made still stands")
     @Issue("486")
     @Link(name = "ADR-227", url = Adr.THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE, type = "adr")
     @Link(name = "ADR-118", url = Adr.THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY, type = "adr")
@@ -427,7 +427,7 @@ class RelevanceFloorInvocationTest {
                         + " one identity, so there were removals to withdraw",
                 () -> assertThat(removedUnderOneIdentity).isEqualTo(CORPUS_DOCUMENTS));
         claim(
-                "nothing stands removed any more: with two identities under the model's name there is no"
+                "nothing stands removed any more: with two identities under the embedding model's name there is no"
                         + " one scale for the threshold to be on, and a removal made on a scale that is no"
                         + " longer known to be this one must not outlive it",
                 () -> assertThat(belowThresholdCountFor(root)).isZero());
