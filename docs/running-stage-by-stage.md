@@ -245,7 +245,7 @@ Three things to know about this table:
 
 - **Any change above stage 6a ends in a new arrangement to approve.** That is the cost of going back, and it is deliberate: an approval never outlives what it approved.
 - **Nothing is deleted when you change a value.** The old stage's results stay recorded beside the new ones. Put the old value back and the next invocation finds that work already recorded and continues from it at no cost. So trying a stricter floor and returning to the looser one is cheap in both directions.
-- **The two expensive things are kept across almost everything**: a converted document, as long as the converter image is the same, and a vector, as long as the embedding model is the same. Pulling the embedding model again can make it another model under the same name: Vespera then embeds and scores every document again, and the arrangement has to be approved again.
+- **The two expensive things are kept across almost everything**: a converted document, as long as the converter image is the same, and a vector, as long as the embedding model is the same. Pulling the embedding model again can make it another model under the same name: Vespera then embeds and scores every document again, the relevance threshold removes nothing until you answer the sample again from the new label file, and the arrangement has to be approved again.
 
 ### The archive changed
 

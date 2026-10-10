@@ -431,6 +431,11 @@ class RelevanceFloorInvocationTest {
                         + " one identity, so there were removals to withdraw",
                 () -> assertThat(removedUnderOneIdentity).isEqualTo(CORPUS_DOCUMENTS));
         claim(
+                "the invocation fails, after the removals are withdrawn: the documents brought back have no"
+                        + " group, forming one needs their vectors, and with two identities there is no one"
+                        + " set of vectors to form it from",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
                 "nothing stands removed any more: with two identities under the embedding model as this run"
                         + " names it there is no one scale for the threshold to be on, and a removal made on"
                         + " a scale that is no longer known to be this one must not outlive it",
