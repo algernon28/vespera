@@ -1,8 +1,6 @@
 package io.algernon.vespera.similarity;
 
 import io.algernon.vespera.ledger.RunId;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,12 +12,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p><b>The statement is written here a second time on purpose.</b> {@link #statementFor} is ADR-221 section
  * 1's text, character for character, and the tests that read {@code sqlite_master} hold what the code issues
  * to it. A test that asked the code for its own text would hold nothing.
- *
- * <p><b>The call is made by name</b>, through reflection, because these tests were written before the method
- * was (ADR-221, What is to be built): a test that named it would not compile, and no test of the tree could
- * then run. Until it is built {@link #buildFor} fails saying so. Once it is, the body of {@link #buildFor}
- * may be replaced by the call itself, {@code new ShingleHashIndex(jdbcTemplate).buildFor(stage2RunId,
- * progress)}, with nothing else changed.
  */
 public final class TheRunsHashIndex {
 
@@ -52,33 +44,9 @@ public final class TheRunsHashIndex {
                 .findFirst();
     }
 
-    /**
-     * {@code ShingleHashIndex.buildFor(RunId, SimilarityStatementProgress)}: what it returns, or the exception
-     * it throws, as thrown.
-     *
-     * @throws AssertionError saying what is not built yet, where the class has no such method
-     */
-    @SuppressWarnings("unchecked")
+    /** {@link ShingleHashIndex#buildFor} over {@code jdbcTemplate}: what it returns, or what it throws. */
     public static Optional<Duration> buildFor(
             JdbcTemplate jdbcTemplate, RunId stage2RunId, SimilarityStatementProgress progress) {
-        Method buildFor;
-        try {
-            buildFor = ShingleHashIndex.class.getMethod("buildFor", RunId.class, SimilarityStatementProgress.class);
-        } catch (NoSuchMethodException notBuiltYet) {
-            throw new AssertionError(
-                    "ADR-221 is not built yet: ShingleHashIndex has no public"
-                            + " buildFor(RunId, SimilarityStatementProgress) returning Optional<Duration>",
-                    notBuiltYet);
-        }
-        try {
-            return (Optional<Duration>) buildFor.invoke(new ShingleHashIndex(jdbcTemplate), stage2RunId, progress);
-        } catch (InvocationTargetException thrown) {
-            if (thrown.getCause() instanceof RuntimeException asThrown) {
-                throw asThrown;
-            }
-            throw new AssertionError("buildFor threw what no caller expects", thrown.getCause());
-        } catch (IllegalAccessException notPublic) {
-            throw new AssertionError("ShingleHashIndex.buildFor is to be public: pipeline calls it", notPublic);
-        }
+        return new ShingleHashIndex(jdbcTemplate).buildFor(stage2RunId, progress);
     }
 }

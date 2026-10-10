@@ -1,11 +1,12 @@
 # ADR-221 — `shingle_by_hash` is an index on the rows of the run in hand, stage 4b builds it again where it is not that run's, and an earlier run's rows stay
 
 - **Date**: 2026-10-10
-- **Status**: accepted. Decided and not built: the tests of this record were written first, fifteen of them fail until *What is to be built* is built, and the list there is the implementer's.
+- **Status**: accepted.
+- **Built**: P1 to P6 of *What is to be built* were built on 2026-10-10 in the change that carries this record (#468), after the commit that wrote it and its tests; fifteen tests were red between the two, and P7 was made once the method existed.
 - **Amends**: [ADR-182](0182-stage-2-writes-shingles-without-the-by-hash-index-and-stage-4b-builds-it-before-containment-retrieval-reads-it.md) in what `shingle_by_hash` is and when stage 4b builds it. Its header's *"Its name, `shingle_by_hash`, and its columns, `(run_id, shingle_parameter_identity, shingle_hash)`, are unchanged"*: the name is, the columns are not (§1). §1's *"over every row the table then holds"*. §2.3's statement, and its *"`IF NOT EXISTS` is the whole of the check. The step builds whenever the index is missing and builds nothing when it is present, whoever left it there"* (§3). §2.4's first line (§5). §3's *"through `IF EXISTS` and `IF NOT EXISTS`"*, the sixth row of its table in its *"over every row in the table"*, and *"The index is one per table, over every run's rows"* (§3). §4's *"How many rows the build covers"* and its estimates, which are of the build over every run's rows. Its Consequences' *"Stage 4b pays the build once per stage-2 run that writes, over every row in the table"*. And the item *"A partial index per run"* of its *What this does not decide*, which this record decides, with that item's *"which containment retrieval's bound `run_id = ?` does not show at prepare time, so the query would have to change to carry the run id as a literal"*, which is not so (§2). What ADR-182 says of stage 2's drop, of where the build is made, of its own transaction, and of `shingle_by_run_id`, stands.
 - **Amends**: [ADR-218](0218-every-statement-whose-temporary-files-grow-with-the-corpus-is-an-exception-to-adr-060-with-its-size.md) in the size of its first exception and in nothing else. Row 2 of its table of statements and the sentence under it, *"Row 2's rows are the table's, not the run's"*; §1's *"91.6 bytes a row"*, *"The build stays one statement, as ADR-182 has it"* and *"The row count is the table's and not the run's"*; §5's *"183 bytes for each row `shingle` keeps"*, its formula and its worked table. Those are of the build over every run's rows, which this record replaces. Measured again for this record over three runs' rows, that build wrote 184.0 to 185.6 bytes a row at 13,500,000 rows, above the 183 ADR-218 records from 4,500,000 and 9,000,000 (Measured). The exception itself stands: the build's temporary files still grow with the corpus and nothing bounds them (§6). ADR-218's §2 and §3 are not touched.
 - **Amends**: [ADR-193](0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md) in what it says of stage 4b's build. §4.2's line before the build (§5 here gives the new one). The 11 steps a row it records for `shingle_by_hash`, in its table of measured statements and in §6's row for `ShingleHashIndex.build`, with §2's *"9,090 rows of the 4b build at 11 steps a row"* and *"Over 42,833,917 rows the build calls back about 4,700 times"*, and §4's *"9,090 rows short of it at most, for 4b's build"*: the build declares 12, the most a row takes, and takes 3 for a row of another run, so one callback is 8,334 rows at most (§5). And §4's form for a build's progress line, `about X% of N rows`, which for this one build becomes `at least X% of N rows` (§5). Its forms for every other statement, its interval, its cadence and its line that the rows are gone through stand.
-- **Amends**: [ADR-219](0219-stage-3s-grouping-names-the-index-on-the-run-and-the-clause-ships-with-the-next-change-to-similarity.md) in one sentence of its Sequences, *"The index is one for the table, not one for a run or a walk"*: there is one index of that name in the database, and it is over one run's rows. Its sequences stand as run, an index of that name being in the database in each; its clause has shipped (ADR-220) and is not touched.
+- **Amends**: [ADR-219](0219-stage-3s-grouping-names-the-index-on-the-run-and-the-clause-ships-with-the-next-change-to-similarity.md) in one sentence of its Sequences, *"The index is one for the table, not one for a run or a walk"*: there is one index of that name in the database, and it is over one run's rows. Its sequences stand as [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md) leaves them, which answers the first of them no since content census stopped naming `pipeline`: an index of that name is in the database wherever ADR-219 found one. Its clause has shipped (ADR-220) and is not touched.
 - **Amends**: [ADR-211](0211-no-class-holds-every-survivor-of-a-run-another-tables-rows-are-read-a-page-of-survivors-at-a-time.md) §12 and its *What this does not decide*, in the figure *"about 3.6 GB"* for stage 4b's build over the 42,833,917 rows on record, which ADR-218 had already read as half of what that build needed: it is of the build over every run's rows. And the banner [ADR-060](0060-survivors-is-a-ledger-owned-item-reader-not-a-view.md) carries for ADR-218, in its *"91.6 bytes of temporary files for each row `shingle` keeps"*.
 - **Keeps**: ADR-182's drop by stage 2, as it stands, with [ADR-187](0187-a-database-statement-that-can-take-minutes-says-so-before-it-starts-and-when-it-ends.md)'s two lines for it; [ADR-081](0081-minhash-retrieves-shingle-sets-judge-128-permutations-in-16-bands-and-containment-gets-its-own-index.md)'s containment retrieval, its statement unchanged to the character; [ADR-156](0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md), under which a run an invocation arrives at again finds its work recorded; [ADR-219](0219-stage-3s-grouping-names-the-index-on-the-run-and-the-clause-ships-with-the-next-change-to-similarity.md)'s clause; [ADR-220](0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md), read once for this record, no sentence of which this record makes untrue.
 - **Rests on**: the coordinating session's choices of 2026-10-10. On that day the operator handed every decision on [#468](https://github.com/algernon28/vespera/issues/468) to the coordinating session, in the words *"you take all decisions on #468"*, and gave the number ADR-221. The six choices under *Who decided* are that session's, made on the measurements of this record. They are not the operator's own answers. [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) (which run ids a change moves, §8). SQLite's own documentation (§2). Throwaway probes over synthetic ledgers built from the shipped `schema.sql` (Measured). No archive and no working directory was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)): how many runs' rows the operator's database holds is not known to any agent.
@@ -48,6 +49,7 @@ Containment retrieval is the index's one reader, and it reads one run's rows.
 | --- | ---: | ---: |
 | nothing yet: the first invocation | 1 | 1,200 |
 | a build that moves `pipeline` alone | 1 | 1,200 |
+| the boilerplate floor changed in the profile | 1 | 1,200 |
 | a build that moves `similarity` | 2 | 2,400 |
 | `extractionAttempt` raised in the profile | 3 | 3,600 |
 | the value put back | 3 | 3,600 |
@@ -56,7 +58,8 @@ Containment retrieval is the index's one reader, and it reads one run's rows.
 
 - **Every new stage-2 run writes a whole copy**, the last one included: one text added has the whole corpus's rows written again under a run over the new walk, 1,225 of them.
 - **A build that moves `similarity` converted nothing again**: the conversions are cached outside the run, and the rows are written from them.
-- **A build that moves `pipeline` alone left `shingle` as it was** and added a second stage-4 run's `signature_band` rows beside the first's.
+- **A build that moves `pipeline` alone added nothing**: no shingle row, and no run of stage 4, whose one run kept its 768 `signature_band` rows. Neither stage 2 nor stage 4 names `pipeline`, stage 4 since [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md) took it out of content census, content redundancy and arrangement. When this table was first run, before that record merged, such a build minted a second stage-4 run.
+- **A changed boilerplate floor left `shingle` as it was and added a second stage-4 run's `signature_band` rows beside the first's.** The floor is the value stage 4's run records, and the stage-2 run is the same. It is what now mints a stage-4 run without a stage-2 run; no module does, `similarity` and `extraction` being named by both.
 - **Putting a value back, and running the first build again, arrive at a run already finished**: no run is minted, nothing is converted and nothing is written. That is ADR-156's put-back, and it is why a run's rows cannot simply be removed when another run of its stage is minted (§7).
 - **With a run's shingle rows deleted by the test**, a later run of stage 4 over that stage-2 run signs nothing, removes nothing, and ends with exit code 0. The second test of that class holds it.
 
@@ -268,36 +271,38 @@ Nothing removes a row of `shingle`, and this record adds nothing that does. The 
 
 **What that costs is the database file's size, and no longer the room or the time of stage 4b's build**: 277.5 bytes for each shingle row of each stage-2 run kept, 278.8 for each `signature_band` row of each stage-4 run kept, and the rows not measured (Measured, *What a kept run costs in the file*). Stage 4b's build also reads the other runs' rows, at 0.04 to 0.06 s a million on the disk measured.
 
-**Why they are not removed here.** A run an invocation arrives at again finds its work recorded and does none (ADR-156 §2, and the fifth and sixth rows of *What is kept*). Were its shingle rows gone, stage 2 would still be finished under it, and a stage 4 over it would sign nothing and say nothing was wrong. Which runs can never be arrived at again, what removing their rows costs, and whether the file should be made smaller, are [#481](https://github.com/algernon28/vespera/issues/481)'s.
+**Why they are not removed here.** A run an invocation arrives at again finds its work recorded and does none (ADR-156 §2, and the sixth and seventh rows of *What is kept*, the value put back and the first build run again). Were its shingle rows gone, stage 2 would still be finished under it, and a stage 4 over it would sign nothing and say nothing was wrong. Which runs can never be arrived at again, what removing their rows costs, and whether the file should be made smaller, are [#481](https://github.com/algernon28/vespera/issues/481)'s.
 
 ### 8. Which run ids move
 
 A stage's implementation version is the last commit touching `src/main/java/io/algernon/vespera/<module>` for a module `StageModules` names for it (ADR-058).
 
-**Nothing moves with this record.** It changes nothing under `src/main`.
+**The commit that wrote this record moved nothing.** It changed nothing under `src/main`.
 
-**When it is built, the change touches two modules: `similarity` and `pipeline`.** `similarity` for `ShingleHashIndex` and `SimilarityStatement`; `pipeline` for `RedundancyJobConfiguration` and `StatementProgress`. `schema.sql`'s comment is under `src/main/resources`, which no module's version reads.
+**The build touches two modules: `similarity` and `pipeline`.** `similarity` for `ShingleHashIndex`, `SimilarityStatement` and `RedundancyResolution`'s javadoc; `pipeline` for `RedundancyJobConfiguration` and `StatementProgress`. `schema.sql`'s comment is under `src/main/resources`, which no module's version reads.
 
-As `StageModules` stands at `5b0cc20`:
+As `StageModules` stands since [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md), which took `pipeline` out of content census, content redundancy and arrangement and left it in seed measurement, embedding scoring and generation:
 
-| Stage | Modules it names | Moves |
+| Stage | Modules it names | Moves with this build |
 | --- | --- | --- |
-| 1, byte-level reduction | `corpus` | no |
-| 2, extraction | `extraction`, `similarity` | yes, for `similarity` |
-| 3, content census | `similarity`, `extraction`, `pipeline` | yes |
-| 4, content redundancy | `similarity`, `extraction`, `pipeline` | yes |
-| 5, seed measurement and scoring | `embedding`, `extraction`, `pipeline` | yes: each names the run upstream of it, and stage 4's moves |
-| 6a, 6b | `synthesis`, `extraction`, `embedding`, `pipeline` | yes, the same way |
+| byte-level reduction (1) | `corpus` | no |
+| extraction (2) | `extraction`, `similarity` | yes, for `similarity` |
+| content census (3) | `similarity`, `extraction` | yes, for `similarity`, and for the stage-2 run upstream of it |
+| content redundancy (4) | `similarity`, `extraction` | yes, the same way |
+| seed measurement (5) | `embedding`, `extraction`, `pipeline` | yes, for `pipeline`, and for the run upstream of it |
+| embedding scoring (5) | `embedding`, `extraction`, `pipeline` | yes, the same way |
+| arrangement (6a) | `synthesis`, `extraction`, `embedding` | yes, for the run upstream of it alone: it names neither module touched |
+| generation (6b) | `synthesis`, `extraction`, `embedding`, `pipeline` | yes, for `pipeline`, and for the run upstream of it |
 
-Stages 3 to 6b move for `similarity` through the runs upstream of them, whatever becomes of `pipeline` in their identities: [#353](https://github.com/algernon28/vespera/issues/353) is to take it out, and nothing here rests on its staying.
+So every stage from extraction on moves, seven of the eight rows, and byte-level reduction does not. The change to `similarity` alone would move the same seven, each stage after extraction naming the run upstream of it (ADR-048). The arrangement is a new one, so `arrangementApproved` must name it, and generation's calls are made again.
 
 **Stage 2 does its work again, from the extraction cache, and writes one more copy of the corpus's shingle rows** beside those `shingle` keeps (§7), dropping the index it finds first. No file goes back to the converter: a build that moves `similarity` converted nothing in the test of *What is kept*. Stage 4b then builds the index over that new run's rows alone.
 
 ## What is to be built
 
-Nothing below is built. The tests of this record were written against it, and `spec-implementer` builds it.
+Written before any of it was built; the tests of this record were written against it, and `spec-implementer` built P1 to P6 from it (Built, above).
 
-**A constraint from a change not yet merged** (pull request 482, #353): its guard `PipelineHoldsOnlyTheRulesOnRecordTest` fails on any new class in `pipeline`, and on `RedundancyJobConfiguration` naming a type of a capability module or of `profile` beyond the five it names today, which of `similarity` are `RedundancySignatures`, `ShingleHashIndex`, `SimilarityStatement` and `SimilarityStatementProgress`. So the check, the drop and the build are one call of `ShingleHashIndex`, and `pipeline` hands it a run id and decides nothing; no class is added to `pipeline`. The run id is a `ledger.RunId`, which that class imports today and the guard does not count.
+**A constraint from [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md) §4**, which merged between this record's commit and its build: its guard `PipelineHoldsOnlyTheRulesOnRecordTest` fails on any new class in `pipeline`, and on `RedundancyJobConfiguration` naming a type of a capability module or of `profile` beyond the five it names today, which of `similarity` are `RedundancySignatures`, `ShingleHashIndex`, `SimilarityStatement` and `SimilarityStatementProgress`. So the check, the drop and the build are one call of `ShingleHashIndex`, and `pipeline` hands it a run id and decides nothing; no class is added to `pipeline`. The run id is a `ledger.RunId`, which that class imports today and the guard does not count.
 
 **P1, `similarity/ShingleHashIndex`.**
 
@@ -329,7 +334,7 @@ Nothing below is built. The tests of this record were written against it, and `s
 
 **P6, `src/main/resources/schema.sql`, comment only.** The comment that begins *"NOT CREATED HERE, on purpose (ADR-182)"* names the index's columns as `(run_id, shingle_parameter_identity, shingle_hash)` and says stage 4b builds it *"once, whole"*: corrected to §1 and §3. No statement of the file changes, so no start builds anything.
 
-**P7, test side, once P1 is in.** The body of `TheRunsHashIndex.buildFor` may be replaced by the call itself. It is made by name today because the method did not exist when the tests were written.
+**P7, test side, once P1 is in.** The body of `TheRunsHashIndex.buildFor` is the call itself. Until the method existed it was made by name, through reflection, so that the tests compiled.
 
 ## Alternatives refused
 
@@ -368,7 +373,7 @@ Nothing below is built. The tests of this record were written against it, and `s
 | `similarity.RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest` | builds the index with §1's statement for its run; no claim changes |
 | `EveryStatementThatSortsIsRecordedTest` | puts a run id where the build's text joins one in, and counts an index build without planning it; its counts are unchanged, one build in `ShingleHashIndex` |
 
-**Fifteen tests fail until this is built, and the table says what turns each.**
+**Fifteen tests failed until this was built, and the table says what turned each.**
 
 | Test | Turned by |
 | --- | --- |
@@ -379,7 +384,7 @@ Nothing below is built. The tests of this record were written against it, and `s
 | `StatementProgressInvocationTest.theBuildAndTheReadSayHowFarTheyHaveGone` | P1, P2, P4 and P5 |
 | `AnEarlierRunsRowsStayInvocationTest.everyRunOfStageTwoLeavesItsShingleRowsAndStageFourBBuildsOverAllOfThem` | P1 and P4 |
 
-Five, one, one, six, one and one: fifteen. Every other test of the suite passes.
+Five, one, one, six, one and one: fifteen. Every other test of the suite passed then, and all pass with the build. The last of the fifteen was also changed after ADR-222 merged: it had a build that moves `pipeline` alone mint a second stage-4 run, which no longer happens, and takes that run from a changed boilerplate floor instead (*What is kept*).
 
 **What no test holds.**
 
@@ -388,7 +393,6 @@ Five, one, one, six, one and one: fifteen. Every other test of the suite passes.
 - **That the bundled SQLite was compiled without the stability guarantee**, except through the plans it gives.
 - **§5's share at the end**, 25% + 75% × R / T. `StatementProgressInvocationTest` holds the words and that the shares rise and stay below a hundred. Its claim that the line that the rows are gone through is written holds there because the other rows in its database are few.
 - **That `buildFor`'s drop is outside the counted statement**, and that the line before is written before the drop.
-- **`PipelineHoldsOnlyTheRulesOnRecordTest`**, which is not on this branch.
 - **The statement `sqlite_master` keeps under a later SQLite**: the comparison of §3 is with what 3.53.2 keeps.
 
 ## What this record does not measure

@@ -10,12 +10,14 @@ import org.slf4j.LoggerFactory;
  * 9): {@code <label>: about X% of N rows}, on ADR-192 section 8's cadence over N, and, for a build, one line
  * once its rows are gone through, saying that writing the index reports nothing until it ends.
  *
- * <p>Three forms. A counted read or build is told the steps taken so far, a whole number of {@link
+ * <p>Four forms. A counted read or build is told the steps taken so far, a whole number of {@link
  * StatementSteps#STEPS_PER_CALLBACK}, and turns them into rows by the statement's measured steps a row:
  * {@code rows = min(N, floor(steps / r))}. A read made a page of survivors at a time ({@link #ofPagedRead}) is
  * told the rows it has read, and needs no r. A lower estimate ({@link #ofLowerEstimate}) is a counted read
  * whose r is a figure above the most steps a row measured and not a measurement, so that it never runs
- * ahead of the work: its line says {@code at least} where the others say {@code about}. X is
+ * ahead of the work: its line says {@code at least} where the others say {@code about}. So does the build of
+ * {@code shingle_by_hash} ({@link #ofBuildAtLeast}), whose r is the most a row takes and whose table holds rows
+ * of other runs that take fewer (ADR-221 section 5). X is
  * {@code floor(rows * 100 / N)}. "About" is the admission that X counts SQLite's steps turned into rows, or
  * the rows of the survivors alone, and that N is a bound. A statement over no rows writes nothing.
  *
@@ -60,6 +62,14 @@ final class StatementProgress {
     /** A build of an index over {@code rowsUpTo} rows, at {@code stepsPerRow}; its label names the stage and the index. */
     static StatementProgress ofBuild(String label, long rowsUpTo, int stepsPerRow) {
         return new StatementProgress(label, rowsUpTo, stepsPerRow, true, ABOUT);
+    }
+
+    /**
+     * A build over a table that may hold rows the index does not, whose {@code stepsPerRow} is the most a row
+     * takes: its line says {@code at least} (ADR-221 section 5).
+     */
+    static StatementProgress ofBuildAtLeast(String label, long rowsUpTo, int stepsPerRow) {
+        return new StatementProgress(label, rowsUpTo, stepsPerRow, true, AT_LEAST);
     }
 
     /** A read of up to {@code rowsUpTo} rows, at {@code stepsPerRow}; its label names the stage and what it reads. */

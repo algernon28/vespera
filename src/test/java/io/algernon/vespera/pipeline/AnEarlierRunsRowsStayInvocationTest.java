@@ -49,6 +49,10 @@ import org.springframework.test.context.DynamicPropertyRegistry;
  * run's rows itself, as a decision to remove them would (#481), and shows what a later run of stage 4 over
  * that stage-2 run then does.
  *
+ * <p>Since ADR-222 a build that moves {@code pipeline} alone mints no run of stage 4, which no longer names
+ * it. So the first test's second stage-4 run comes from a changed boilerplate floor, the value stage 4's run
+ * records, over the same stage-2 run; a build that moves {@code pipeline} alone is claimed to add nothing.
+ *
  * <p>Written for #468 as a characterisation of the build over every run's rows. The first test's claims
  * about the line before the build turned with ADR-221, in the two places it reads that line: the line
  * stated one count, of the rows it built over, and now names a run and states the rows it reads. In the
@@ -145,20 +149,35 @@ class AnEarlierRunsRowsStayInvocationTest {
                         + " signature, so the counts below are of rows that exist",
                 () -> assertThat(bands).isPositive().isEqualTo(16 * signatures));
 
-        // A build that moves pipeline alone: stage 2 keeps its run, stage 4 has a new one.
+        // A build that moves pipeline alone: neither stage 2 nor stage 4 names pipeline (ADR-222), so both
+        // keep their runs.
         SuccessiveBuildsBeans.aCommitTo("pipeline");
         cli.run("run", root.toString());
-        List<String> redundancyAfterPipeline = runsOf(root, StageModules.CONTENT_REDUNDANCY);
 
         claim(
                 "a new build that changes only the code that runs the stages extracts nothing again and adds no"
                         + " word sequence",
                 () -> assertThat(shingleRowsByRun(root)).containsExactly(shingles));
         claim(
-                "but the redundancy check is made again under a run of its own, and its signatures are written"
-                        + " beside the first one's, which stay",
-                () -> assertThat(rowsByRun("signature_band", redundancyAfterPipeline))
-                        .containsExactly(bands, bands));
+                "nor is the redundancy check made again: it has the one run it had, with the signatures it"
+                        + " wrote",
+                () -> assertThat(rowsByRun("signature_band", runsOf(root, StageModules.CONTENT_REDUNDANCY)))
+                        .containsExactly(bands));
+
+        // A changed boilerplate floor: stage 4 has a new run, over the same stage-2 run.
+        openStageFoursGate(ANOTHER_BOILERPLATE_FLOOR);
+        cli.run("run", root.toString());
+        List<Long> bandsByRun = rowsByRun("signature_band", runsOf(root, StageModules.CONTENT_REDUNDANCY));
+
+        claim(
+                "a changed value the redundancy check is identified by has it made again under a run of its"
+                        + " own, with no word sequence added, the extraction being the same",
+                () -> assertThat(shingleRowsByRun(root)).containsExactly(shingles));
+        claim(
+                "and that second check's signatures are written beside the first one's, which stay as they"
+                        + " were",
+                () -> assertThat(bandsByRun).hasSize(2).startsWith(bands).allSatisfy(rows -> assertThat(rows)
+                        .isPositive()));
 
         // A build that moves similarity: stage 2 has a new run, over the same walk.
         SuccessiveBuildsBeans.aCommitTo("similarity");
@@ -232,7 +251,8 @@ class AnEarlierRunsRowsStayInvocationTest {
                 () -> assertThat(shingleRowsByRun(root)).containsExactly(shingles, shingles, shingles));
         claim(
                 "nor a run of the redundancy check: it has the four it had, one for the first build, one for"
-                        + " each of the two builds after it and one for the changed answer",
+                        + " the changed value of its own, one for the build that changed how word sequences"
+                        + " are made, and one for the changed answer the extraction is identified by",
                 () -> assertThat(runsOf(root, StageModules.CONTENT_REDUNDANCY)).hasSize(4));
 
         // The archive changes: a new walk, and every run over it is new.

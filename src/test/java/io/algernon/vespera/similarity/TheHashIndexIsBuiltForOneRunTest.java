@@ -42,8 +42,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * hold. The run id is written into the statement's text, a partial index's condition taking no bound value,
  * so the call refuses any id that is not in the form {@code RunId.of} mints before it issues anything.
  *
- * <p>Every call goes through {@link TheRunsHashIndex#buildFor}, which fails saying what is not built where
- * {@code ShingleHashIndex} has no such method yet.
+ * <p>Every call goes through {@link TheRunsHashIndex#buildFor}, which is {@code ShingleHashIndex.buildFor}
+ * over the test's own database.
  */
 @Epic("Redundancy")
 @Feature("Shingling")
