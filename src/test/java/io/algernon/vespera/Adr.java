@@ -1480,6 +1480,18 @@ public final class Adr {
     public static final String EVERY_RUNS_ROWS_ARE_KEPT_AND_THE_FILE_IS_NOT_MADE_SMALLER = FILE
             + "0229-every-runs-rows-are-kept-and-the-database-file-is-not-made-smaller-a-run-over-an-earlier-walk-is-never-arrived-at-again-and-is-still-read.md";
 
+    /**
+     * ADR-230 -- the clusters standing under a scoring run are of its survivors as they are now. The floor's
+     * step decides again on every invocation, so the clustering step honours its completion record only where
+     * no surviving member of a seed partition lacks a cluster row and no cluster row is of an occurrence that
+     * does not survive, and forms the clusters again under the same run otherwise; and the arrangement's identity names the removals standing under the scoring
+     * run, left out at zero, so the two sets of survivors are two arrangements with an approval each. The
+     * build touches {@code pipeline} and {@code ledger} alone (amends one sentence each of ADR-118, ADR-116,
+     * ADR-087 and ADR-157 and two of ADR-229; decides #489).
+     */
+    public static final String THE_CLUSTERS_UNDER_A_SCORING_RUN_ARE_OF_ITS_SURVIVORS_AS_THEY_STAND = FILE
+            + "0230-the-clusters-under-a-scoring-run-are-of-its-survivors-as-they-stand-and-the-arrangements-identity-names-the-removals-standing.md";
+
     private Adr() {
     }
 }

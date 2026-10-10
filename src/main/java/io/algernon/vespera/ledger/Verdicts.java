@@ -160,6 +160,16 @@ public class Verdicts {
     }
 
     /**
+     * How many verdicts of any kind are recorded under {@code runId} itself, not through its upstream runs:
+     * what a run downstream of it can name of the removals standing beneath it (ADR-230 section 3).
+     */
+    public long verdictsUnder(RunId runId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE run_id = ?", Long.class, runId.value());
+        return count == null ? 0 : count;
+    }
+
+    /**
      * How many occurrences {@link #survivors} would hand out for {@code runId} — the denominator a
      * stage's progress line needs before it starts (ADR-093).
      *

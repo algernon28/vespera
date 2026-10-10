@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.embedding.Clustering;
 import io.algernon.vespera.embedding.ClusteringProgress;
 import io.algernon.vespera.embedding.RetainedEdgeSpread;
+import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.extraction.ChunkingRule;
 import io.algernon.vespera.extraction.ExtractionCacheKeys;
@@ -43,12 +44,18 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>Nothing here removes anything.</b> No verdict is written, no document is left unclustered and
  * no cluster is merged into another: clustering arranges what survived, and the arrangement is a
- * measurement like any other (ADR-077 — a re-run writes its own row set rather than editing this
- * one).
+ * measurement like any other (ADR-077: a re-run under another run id writes its own row set; under the
+ * same run the step replaces its own, where unfinished or where the survivors have changed, ADR-230).
  *
  * <p>It ends by writing the size distribution, because the cluster count is not chosen and therefore
  * cannot be known in advance: whoever builds the deliverable above these clusters needs to see what
  * shape they came out in before they build it.
+ *
+ * <p>Its completion record is honoured only while its rows are of the survivors as they stand: the
+ * relevance-floor step decides again on every invocation, so where a survivor of a partition has no
+ * cluster row, or a clustered document is no longer a survivor, the step forms the clusters again under
+ * the same run (ADR-230). A document with a cluster row and no score answers neither question, so the
+ * arrangement step still stops on it.
  *
  * <p>Gated exactly as the scoring step before it is, and for the same reasons: with no model named,
  * no seed folder, or no usable seed, no score exists, so there is no partition to cluster.
@@ -114,12 +121,7 @@ class ClusteringTasklet implements Tasklet {
         // relevance-scoring and relevance-floor, which share this run, are not asked -- each step
         // answers only for itself. The empty-partition check sits between the finished check and the
         // discard (ADR-157 §5): the discard is at the head of work, after the check.
-        return TaskletSteps.once(
-                ledger,
-                scoring,
-                StepNames.CLUSTERING,
-                () -> LOG.info("Stage 5f (clustering) was already recorded under scoring run {}", scoring.value()),
-                () -> {},
+        TaskletSteps.StepWork formClusters =
                 () -> {
                     List<OccurrenceId> partitions =
                             TimedStatement.of(STAGE, "reading", "read", "the seed partitions", () -> clustering.partitions(scoring));
@@ -210,7 +212,56 @@ class ClusteringTasklet implements Tasklet {
                             reported.stream().mapToInt(ClusterSizeReport.Partition::documentCount).sum(),
                             reported.stream().mapToInt(ClusterSizeReport.Partition::clusterCount).sum());
                     return true;
-                });
+                };
+
+        // The completion record is honoured only while the rows are of the survivors as they stand
+        // (ADR-230 section 2); the record itself stays, so nothing is finished again.
+        return TaskletSteps.once(
+                ledger,
+                scoring,
+                StepNames.CLUSTERING,
+                () -> {
+                    if (clustersAreOfTheSurvivors(scoring)) {
+                        LOG.info("Stage 5f (clustering) was already recorded under scoring run {}", scoring.value());
+                        return;
+                    }
+                    LOG.info(
+                            "Stage 5f (clustering) was recorded under scoring run {} over other survivors than"
+                                    + " the run has now: the relevance-floor step has decided again since."
+                                    + " The step does its work again.",
+                            scoring.value());
+                    // The work discards the run's rows at its head, past the empty-partition check.
+                    formClusters.run();
+                },
+                () -> {},
+                formClusters);
+    }
+
+    /**
+     * Whether, for every seed partition of {@code scoring}, the clusters are of its survivors (ADR-230
+     * section 2): no scored member that survives lacks a cluster row, and no clustered document has
+     * stopped surviving. A document with a cluster row and no score survives and is no member, so it
+     * answers neither question and the arrangement step still stops on it. {@code true} with no partition.
+     */
+    private boolean clustersAreOfTheSurvivors(RunId scoring) {
+        List<OccurrenceId> partitions = TimedStatement.of(
+                STAGE, "reading", "read", "the seed partitions", () -> clustering.partitions(scoring));
+        for (OccurrenceId winningSeed : partitions) {
+            List<OccurrenceId> read = TimedStatement.of(
+                    STAGE, "reading", "read", "the members of a partition", () -> clustering.membersOf(scoring, winningSeed));
+            Set<OccurrenceId> surviving = ledger.verdicts().survivingAmong(scoring, read);
+            List<OccurrenceId> clustered = TimedStatement.of(
+                            STAGE, "reading", "read", "the clustered documents of a partition",
+                            () -> documentClusters.membersOf(scoring, winningSeed))
+                    .stream()
+                    .map(DocumentCluster::occurrenceId)
+                    .toList();
+            if (!Set.copyOf(clustered).containsAll(surviving)
+                    || ledger.verdicts().survivingAmong(scoring, clustered).size() != clustered.size()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

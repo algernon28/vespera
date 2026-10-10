@@ -835,9 +835,14 @@ class StageFiveReportsItsProgressInvocationTest {
 
     /**
      * ADR-204 section 3, the other half of what it says of the report's read of the scores: a read that fails
-     * for any reason but finding none is a statement that failed, and writes no line after it. The table of
-     * scores is renamed away between two invocations, so the second's read of it fails inside the database,
-     * and renamed back whatever happens, one database serving the whole class.
+     * for any reason but finding none is a statement that failed, and writes no line after it. The column the
+     * scores are in is renamed away between two invocations, so the second's read of it fails inside the
+     * database, and renamed back whatever happens, one database serving the whole class.
+     *
+     * <p>The column and not the table: the clustering step runs before the report and reads the table's
+     * other columns on every invocation, to ask whether its clusters are of the survivors as they stand
+     * (ADR-230), so a table renamed away fails that step and the report is never reached. With no threshold
+     * set, the report's is the first statement of the invocation to name the score itself.
      */
     @Test
     @Story("The relevance report says what it is reading")
@@ -850,11 +855,11 @@ class StageFiveReportsItsProgressInvocationTest {
         theStageRan(RELEVANCE_REPORT_FINISHED);
         logged.list.clear();
 
-        jdbcTemplate.execute("ALTER TABLE relevance_score RENAME TO relevance_score_renamed_away");
+        jdbcTemplate.execute("ALTER TABLE relevance_score RENAME COLUMN score TO score_renamed_away");
         try {
             cli.run("run", root.toString());
         } finally {
-            jdbcTemplate.execute("ALTER TABLE relevance_score_renamed_away RENAME TO relevance_score");
+            jdbcTemplate.execute("ALTER TABLE relevance_score RENAME COLUMN score_renamed_away TO score");
         }
 
         claim(

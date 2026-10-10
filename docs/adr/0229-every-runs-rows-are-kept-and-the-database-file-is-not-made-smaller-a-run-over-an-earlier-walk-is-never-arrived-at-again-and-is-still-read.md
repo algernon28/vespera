@@ -1,5 +1,7 @@
 # ADR-229 — Every run's rows are kept and the database file is not made smaller; a run over an earlier walk is never arrived at again, and is still read
 
+> **Partly amended — see [ADR-230](0230-the-clusters-under-a-scoring-run-are-of-its-survivors-as-they-stand-and-the-arrangements-identity-names-the-removals-standing.md).** Two sentences, and nothing this record decides. §1 calls the shipped deletes by a run *"a step discarding its own unfinished work under its own run (ADR-116)"*: two are of work that was finished, the floor's step withdrawing a finished invocation's removals on every invocation (ADR-118) and, as of that record's build, the clustering step forming its clusters again. Each is still a step discarding its own rows under its own run. And Consequences' *"A table that gains or loses a reference to `run` fails `EveryTableKeyedByARunIsOnRecordTest`"* holds only of a reference written `run_id TEXT NOT NULL REFERENCES run (id)`, as *What no test holds* says. Everything else in this record stands.
+
 - **Date**: 2026-10-10
 - **Status**: accepted.
 - **Built**: nothing is to be built. This record changes nothing under `src/main`; its tests pass as written.

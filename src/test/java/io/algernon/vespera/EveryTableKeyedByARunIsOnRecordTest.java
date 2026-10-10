@@ -29,8 +29,9 @@ import org.springframework.util.StreamUtils;
  * <p>ADR-229 keeps every run's rows and states the growth table by table. So the tables are held here: a
  * table that gains a reference to {@code run}, or loses one, fails the first test until a record states
  * what it keeps. The second holds what a shipped delete of such a table may be: of the rows of one run,
- * the run the statement is handed, which is a step discarding its own unfinished work (ADR-116), with the
- * one exception named. It holds too which of the tables no shipped statement deletes from at all, {@code
+ * the run the statement is handed, which is a step discarding its own work under its own run, with the one
+ * exception named: unfinished work (ADR-116), or, for stage 5's floor and clustering steps, work that was
+ * finished and is decided again (ADR-118, ADR-230). It holds too which of the tables no shipped statement deletes from at all, {@code
  * shingle} among them. The third holds that no shipped text asks SQLite to give pages back.
  *
  * <p>What a delete is handed is not seen here: a statement is a text, and the run bound to it is its
