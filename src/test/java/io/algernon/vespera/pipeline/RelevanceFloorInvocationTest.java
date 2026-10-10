@@ -439,7 +439,7 @@ class RelevanceFloorInvocationTest {
 
     /**
      * Every stored vector written once more under a second identity of the same model, as a pull that
-     * changed the model's digest leaves them.
+     * changed the embedding model's digest leaves them.
      */
     private void everyVectorAlsoStoredUnder(String aSecondIdentity) {
         jdbcTemplate.update(
