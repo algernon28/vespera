@@ -8,8 +8,8 @@ import io.algernon.vespera.synthesis.ClusterFault;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
 import io.algernon.vespera.synthesis.ClusterLabel;
 import io.algernon.vespera.synthesis.RecordedCluster;
-import io.algernon.vespera.synthesis.RecordedClusterFault;
-import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
+import io.algernon.vespera.synthesis.ListedFault;
+import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,19 +60,19 @@ public final class WholeRun {
      * Every synthesis doc recorded under a generation run, in the order the clusters were written, each with
      * the documents its call carried in citation order.
      */
-    public static List<RecordedSynthesisDoc> synthesisDocs(JdbcTemplate jdbcTemplate, RunId generation) {
+    public static List<ListedDoc> synthesisDocs(JdbcTemplate jdbcTemplate, RunId generation) {
         // The docs first and what each call sent afterwards, one statement open at a time: the test profile's
         // pool holds one connection, and a read begun inside another's rows would wait for it for ever.
-        List<RecordedSynthesisDoc> withoutWhatWasSent = jdbcTemplate.query(
+        List<ListedDoc> withoutWhatWasSent = jdbcTemplate.query(
                 "SELECT winning_seed_occurrence_id, cluster_ordinal, title, prose FROM synthesis_doc"
                         + " WHERE run_id = ? ORDER BY rowid",
-                (resultSet, rowNumber) -> new RecordedSynthesisDoc(
+                (resultSet, rowNumber) -> new ListedDoc(
                         new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
                         resultSet.getInt("cluster_ordinal"),
                         new SynthesisDoc(resultSet.getString("title"), resultSet.getString("prose"), List.of())),
                 generation.value());
-        List<RecordedSynthesisDoc> docs = new ArrayList<>();
-        for (RecordedSynthesisDoc doc : withoutWhatWasSent) {
+        List<ListedDoc> docs = new ArrayList<>();
+        for (ListedDoc doc : withoutWhatWasSent) {
             List<OccurrenceId> sent = jdbcTemplate.query(
                     "SELECT occurrence_id FROM call_exemplar WHERE run_id = ? AND winning_seed_occurrence_id = ?"
                             + " AND cluster_ordinal = ? ORDER BY citation_ordinal",
@@ -80,18 +80,18 @@ public final class WholeRun {
                     generation.value(),
                     doc.winningSeed().value(),
                     doc.clusterOrdinal());
-            docs.add(new RecordedSynthesisDoc(
+            docs.add(new ListedDoc(
                     doc.winningSeed(), doc.clusterOrdinal(), new SynthesisDoc(doc.doc().title(), doc.doc().prose(), sent)));
         }
         return docs;
     }
 
     /** Every cluster fault recorded under a generation run, in the order the clusters were attempted. */
-    public static List<RecordedClusterFault> clusterFaults(JdbcTemplate jdbcTemplate, RunId generation) {
+    public static List<ListedFault> clusterFaults(JdbcTemplate jdbcTemplate, RunId generation) {
         return jdbcTemplate.query(
                 "SELECT winning_seed_occurrence_id, cluster_ordinal, kind, detail FROM cluster_fault"
                         + " WHERE run_id = ? ORDER BY rowid",
-                (resultSet, rowNumber) -> new RecordedClusterFault(
+                (resultSet, rowNumber) -> new ListedFault(
                         new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
                         resultSet.getInt("cluster_ordinal"),
                         new ClusterFault(

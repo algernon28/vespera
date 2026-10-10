@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -544,7 +545,6 @@ class GenerationTasklet implements Tasklet {
                         "the arranged occurrences, for the manifest",
                         "Stage 6b (generation, reading the arranged occurrences, for the manifest)")
                 .build();
-        int[] pagedReads = new int[1];
         ArrangedSurvivors source = ArrangedSurvivors.reading(
                 () -> arranged.stream()
                         .map(partition -> new ListedPartition(
@@ -570,28 +570,39 @@ class GenerationTasklet implements Tasklet {
                 slot -> synthesisDocs.forCluster(generation, slot.winningSeed(), slot.clusterOrdinal()),
                 slot -> Optional.of(whyUnwritten(generation, slot, foundThisRun)),
                 slot -> clusters.placeOf(arrangement, slot.winningSeed(), slot.clusterOrdinal()),
-                page -> {
-                    EmbeddingStatement statement = pagedReads[0]++ == 0
-                            ? EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_PICTURES
-                            : EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_THE_MANIFEST;
-                    Map<OccurrenceId, String> seedPaths = new HashMap<>();
-                    long[] rowsRead = {0};
-                    reads.statementStarting(
-                            statement, survivorCount == 0 ? OptionalLong.empty() : OptionalLong.of(survivorCount));
-                    documentClusters.eachPage(scoring, members -> {
-                        page.accept(survivorsOf(
-                                members, scoring, extractionRun, seed -> seedPaths.computeIfAbsent(seed, this::pathOf), () -> {}));
-                        rowsRead[0] += members.size();
-                        reads.rowsRead(statement, rowsRead[0]);
-                    });
-                    reads.statementEnded(statement);
-                });
+                page -> eachPageOfSurvivors(
+                        EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_PICTURES,
+                        reads, survivorCount, scoring, extractionRun, page),
+                page -> eachPageOfSurvivors(
+                        EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_THE_MANIFEST,
+                        reads, survivorCount, scoring, extractionRun, page));
         return Deliverable.writeTo(
                 workingDirectory,
                 provenance,
                 source,
                 survivorPictures(byteLevelReductionRun, extractionRun),
                 treeProgress());
+    }
+
+    /** Every survivor of the arrangement a page at a time, the read reported under {@code statement}. */
+    private void eachPageOfSurvivors(
+            EmbeddingStatement statement,
+            ReportedStatements reads,
+            long survivorCount,
+            RunId scoring,
+            RunId extractionRun,
+            Consumer<List<ListedSurvivor>> page) {
+        Map<OccurrenceId, String> seedPaths = new HashMap<>();
+        long[] rowsRead = {0};
+        reads.statementStarting(
+                statement, survivorCount == 0 ? OptionalLong.empty() : OptionalLong.of(survivorCount));
+        documentClusters.eachPage(scoring, members -> {
+            page.accept(survivorsOf(
+                    members, scoring, extractionRun, seed -> seedPaths.computeIfAbsent(seed, this::pathOf), () -> {}));
+            rowsRead[0] += members.size();
+            reads.rowsRead(statement, rowsRead[0]);
+        });
+        reads.statementEnded(statement);
     }
 
     /** {@code partition <place> of <of>}, as the lines of a read of one partition name it (ADR-223 section 8). */

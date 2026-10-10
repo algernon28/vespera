@@ -148,7 +148,9 @@ class ArrangementTest {
         Map<OccurrenceId, Integer> memberCounts = new LinkedHashMap<>();
         Map<OccurrenceId, String> seedPaths = new LinkedHashMap<>();
         for (Partition partition : partitions) {
-            memberCounts.put(partition.seed(), partition.documentCount());
+            memberCounts.put(
+                    partition.seed(),
+                    partition.clusters().stream().mapToInt(Cluster::documentCount).sum());
             seedPaths.put(partition.seed(), partition.seedPath());
         }
         List<OccurrenceId> inOrder = Arrangement.inOrder(memberCounts, seedPaths);

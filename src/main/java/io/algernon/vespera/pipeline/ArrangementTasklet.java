@@ -227,7 +227,8 @@ class ArrangementTasklet implements Tasklet {
                         page, ArrangementGate.shortNameOf(arrangement), Walk.canonicalRoot(root).toString());
                 StageProgress partitionsDrawn =
                         StageProgress.over("Stage 6a (arrangement, page partitions)", seeds.size());
-                for (int place = 1; place <= seeds.size(); place++) {
+                int of = seeds.size();
+                for (int place = 1; place <= of; place++) {
                     OccurrenceId seed = seeds.get(place - 1);
                     String whichPartition = "partition " + place + " of " + seeds.size();
                     List<DocumentCluster> read = TimedStatement.of(
@@ -243,7 +244,7 @@ class ArrangementTasklet implements Tasklet {
                         Partition gatheredPartition = Arrangement.partitionsOf(documents).getFirst();
                         List<ArrangedCluster> ordered = Arrangement.order(gatheredPartition, place);
                         StageProgress labelledAndRecorded = StageProgress.over(
-                                "Stage 6a (arrangement, clusters, partition %d of %d)".formatted(place, seeds.size()),
+                                "Stage 6a (arrangement, clusters, partition " + place + " of " + of + ")",
                                 ordered.size());
                         for (ArrangedCluster cluster : ordered) {
                             LabelledCluster labelled =
@@ -289,7 +290,8 @@ class ArrangementTasklet implements Tasklet {
             int of) {
         List<ArrangementReport.Cluster> rows = new ArrayList<>();
         StageProgress rowsDrawn = StageProgress.over(
-                "Stage 6a (arrangement, page rows, partition %d of %d)".formatted(place, of), recordedClusters.size());
+                "Stage 6a (arrangement, page rows, partition " + place + " of " + of + ")",
+                recordedClusters.size());
         for (RecordedCluster recorded : recordedClusters) {
             ArrangedCluster cluster = recorded.cluster();
             OccurrenceId lead = kept.get(ClusterSlot.of(recorded));

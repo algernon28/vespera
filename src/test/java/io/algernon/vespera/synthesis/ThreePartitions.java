@@ -71,16 +71,16 @@ final class ThreePartitions {
     }
 
     /** The two synthesis docs, in the order they were written. */
-    static List<RecordedSynthesisDoc> written() {
+    static List<ListedDoc> written() {
         return List.of(
-                new RecordedSynthesisDoc(
+                new ListedDoc(
                         BETA,
                         0,
                         new SynthesisDoc(
                                 "Fire doors & their inspection",
                                 "The doors were inspected twice [1]. The second inspection found a fault [2][1].",
                                 List.of(new OccurrenceId(17), new OccurrenceId(10)))),
-                new RecordedSynthesisDoc(
+                new ListedDoc(
                         ALPHA,
                         2,
                         new SynthesisDoc(

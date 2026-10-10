@@ -14,7 +14,7 @@ import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
+import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -749,7 +749,7 @@ class GenerationInvocationTest {
     }
 
     /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
-    private List<RecordedSynthesisDoc> generatedDocs(Path root) {
+    private List<ListedDoc> generatedDocs(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
                 .flatMap(run -> WholeRun.synthesisDocs(jdbcTemplate,run).stream())

@@ -15,16 +15,6 @@ public record ClusterSlot(OccurrenceId winningSeed, int clusterOrdinal) {
         return new ClusterSlot(recorded.cluster().winningSeed(), recorded.cluster().ordinal());
     }
 
-    /** The slot {@code written}'s writing was made over. */
-    public static ClusterSlot of(RecordedSynthesisDoc written) {
-        return new ClusterSlot(written.winningSeed(), written.clusterOrdinal());
-    }
-
-    /** The slot {@code fault} was recorded against. */
-    public static ClusterSlot of(RecordedClusterFault fault) {
-        return new ClusterSlot(fault.winningSeed(), fault.clusterOrdinal());
-    }
-
     /** The slot {@code survivor} is a member of. */
     public static ClusterSlot of(ListedSurvivor survivor) {
         return new ClusterSlot(survivor.winningSeed(), survivor.clusterOrdinal());

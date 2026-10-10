@@ -935,9 +935,9 @@ class ClusterFileTest {
                 List.of(new RecordedCluster(
                         new ArrangedCluster(THE_SEED, FIRST_ORDINAL, documentCount, FIRST_PLACE, FIRST_PLACE),
                         new ClusterLabel(THE_LABEL)));
-        List<RecordedSynthesisDoc> written = doc == null
+        List<ListedDoc> written = doc == null
                 ? List.of()
-                : List.of(new RecordedSynthesisDoc(THE_SEED, FIRST_ORDINAL, doc));
+                : List.of(new ListedDoc(THE_SEED, FIRST_ORDINAL, doc));
         return ListedArrangement.writeTo(workingDirectory, provenance(corpusRoot), arrangement, written, members);
     }
 

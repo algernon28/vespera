@@ -25,11 +25,6 @@ final class ManifestCsv {
 
     private ManifestCsv() {}
 
-    /** The whole file, with no row reported. */
-    static void write(Appendable csv, ArrangedSurvivors source) throws IOException {
-        write(csv, source, DeliverableProgress.NONE);
-    }
-
     /**
      * The whole file: the header, then a row per survivor of {@code source}, each reported to {@code progress}
      * once it is written.
@@ -39,7 +34,7 @@ final class ManifestCsv {
     static void write(Appendable csv, ArrangedSurvivors source, DeliverableProgress progress) throws IOException {
         csv.append(HEADER).append('\n');
         try {
-            source.eachPageOfSurvivors(page -> {
+            source.eachPageOfSurvivorsForTheManifest(page -> {
                 for (ListedSurvivor survivor : page) {
                     try {
                         append(csv, survivor, source);

@@ -587,7 +587,7 @@ class DeliverableTest {
         RecordedCluster unwritten = aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE);
         RecordedCluster written = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
         List<RecordedCluster> arrangement = List.of(unwritten, written);
-        List<RecordedSynthesisDoc> writing = List.of(writingFor(A_LATER_ORDINAL, 12L));
+        List<ListedDoc> writing = List.of(writingFor(A_LATER_ORDINAL, 12L));
 
         Path plainTree = ListedArrangement.writeTo(
                 plain, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),
@@ -794,7 +794,7 @@ class DeliverableTest {
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE)),
-                List.of(new RecordedSynthesisDoc(
+                List.of(new ListedDoc(
                         THE_SEED,
                         FIRST_ORDINAL,
                         new SynthesisDoc(
@@ -855,7 +855,7 @@ class DeliverableTest {
                 List.of(
                         aCluster(FIRST_ORDINAL, A_TITLE_THAT_IS_ITSELF_AN_IMAGE, FIRST_PLACE, FIRST_PLACE),
                         aCluster(A_LATER_ORDINAL, A_NAME_THAT_IS_ITSELF_A_LINK, FIRST_PLACE, SECOND_PLACE)),
-                List.of(new RecordedSynthesisDoc(
+                List.of(new ListedDoc(
                         THE_SEED,
                         FIRST_ORDINAL,
                         new SynthesisDoc(
@@ -945,7 +945,7 @@ class DeliverableTest {
                 List.of(
                         aCluster(FIRST_ORDINAL, A_LABEL_WITH_BACKTICKS_AROUND_A_BRACKET, FIRST_PLACE, FIRST_PLACE),
                         aCluster(A_LATER_ORDINAL, AN_UNLINKED_LABEL_WITH_ONE_BACKTICK, FIRST_PLACE, SECOND_PLACE)),
-                List.of(new RecordedSynthesisDoc(
+                List.of(new ListedDoc(
                         THE_SEED,
                         FIRST_ORDINAL,
                         new SynthesisDoc(
@@ -1203,8 +1203,8 @@ class DeliverableTest {
     }
 
     /** The writing kept against the hostile-name cluster, whose heading carries a break of its own. */
-    private static RecordedSynthesisDoc writingOverTheHostileCluster() {
-        return new RecordedSynthesisDoc(
+    private static ListedDoc writingOverTheHostileCluster() {
+        return new ListedDoc(
                 THE_SEED,
                 FIRST_ORDINAL,
                 new SynthesisDoc(
@@ -1289,7 +1289,7 @@ class DeliverableTest {
     }
 
     /** The writing stage 6b kept against the cluster identified by {@code ordinal}, over both its documents. */
-    private static RecordedSynthesisDoc writingFor(int ordinal) {
+    private static ListedDoc writingFor(int ordinal) {
         return writingFor(ordinal, 10L);
     }
 
@@ -1300,13 +1300,13 @@ class DeliverableTest {
      * membership from that list (ADR-133): a fixture naming documents the cluster does not hold is
      * the integrity failure the writer refuses, so each of these names the survivors beside it.
      */
-    private static RecordedSynthesisDoc writingFor(int ordinal, long firstOccurrenceId) {
+    private static ListedDoc writingFor(int ordinal, long firstOccurrenceId) {
         return writingFor(ordinal, new OccurrenceId(firstOccurrenceId), new OccurrenceId(firstOccurrenceId + 1));
     }
 
     /** The same again, over exactly the documents named, in the order the call's ordinals were minted. */
-    private static RecordedSynthesisDoc writingFor(int ordinal, OccurrenceId... sent) {
-        return new RecordedSynthesisDoc(
+    private static ListedDoc writingFor(int ordinal, OccurrenceId... sent) {
+        return new ListedDoc(
                 THE_SEED, ordinal, new SynthesisDoc(THE_TITLE, THE_PROSE, List.of(sent)));
     }
 

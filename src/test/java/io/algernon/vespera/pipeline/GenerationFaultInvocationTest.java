@@ -14,8 +14,8 @@ import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.Deliverable;
-import io.algernon.vespera.synthesis.RecordedClusterFault;
-import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
+import io.algernon.vespera.synthesis.ListedFault;
+import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -1063,7 +1063,7 @@ class GenerationFaultInvocationTest {
 
         cli.run("run", root.toString());
 
-        RecordedClusterFault turnedDownFor =
+        ListedFault turnedDownFor =
                 reasonsKept(root).stream().findFirst().orElseThrow();
         GenerationScriptedBeans.answerFor(theOnlyCluster(), anOrdinaryAnswer());
 
@@ -1460,7 +1460,7 @@ class GenerationFaultInvocationTest {
     }
 
     /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
-    private List<RecordedSynthesisDoc> writingKept(Path root) {
+    private List<ListedDoc> writingKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
                 .flatMap(run -> WholeRun.synthesisDocs(jdbcTemplate,run).stream())
@@ -1468,7 +1468,7 @@ class GenerationFaultInvocationTest {
     }
 
     /** Every reason stage 6b kept for a cluster of {@code root} it left unwritten. */
-    private List<RecordedClusterFault> reasonsKept(Path root) {
+    private List<ListedFault> reasonsKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
                 .flatMap(run -> WholeRun.clusterFaults(jdbcTemplate,run).stream())

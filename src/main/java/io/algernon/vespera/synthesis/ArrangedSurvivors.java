@@ -39,8 +39,11 @@ public interface ArrangedSurvivors {
     /** The two places the arrangement gives {@code cluster}, or empty where it records none. */
     Optional<ArrangedCluster> placeOf(ClusterSlot cluster);
 
-    /** Hands every survivor of the arrangement to {@code page} once, a page at a time, in occurrence order. */
-    void eachPageOfSurvivors(Consumer<List<ListedSurvivor>> page);
+    /** Hands every survivor to {@code page} once, a page at a time, in occurrence order, for the pictures. */
+    void eachPageOfSurvivorsForTheirPictures(Consumer<List<ListedSurvivor>> page);
+
+    /** Hands every survivor to {@code page} once, a page at a time, in occurrence order, for the manifest. */
+    void eachPageOfSurvivorsForTheManifest(Consumer<List<ListedSurvivor>> page);
 
     /** A source whose every answer is the function it was given for it. */
     static ArrangedSurvivors reading(
@@ -51,7 +54,8 @@ public interface ArrangedSurvivors {
             Function<ClusterSlot, Optional<SynthesisDoc>> writtenOver,
             Function<ClusterSlot, Optional<Unwritten>> whyUnwritten,
             Function<ClusterSlot, Optional<ArrangedCluster>> placeOf,
-            Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivors) {
+            Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheirPictures,
+            Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheManifest) {
         return new ArrangedSurvivors() {
             @Override
             public List<ListedPartition> partitions() {
@@ -89,8 +93,13 @@ public interface ArrangedSurvivors {
             }
 
             @Override
-            public void eachPageOfSurvivors(Consumer<List<ListedSurvivor>> page) {
-                eachPageOfSurvivors.accept(page);
+            public void eachPageOfSurvivorsForTheirPictures(Consumer<List<ListedSurvivor>> page) {
+                eachPageOfSurvivorsForTheirPictures.accept(page);
+            }
+
+            @Override
+            public void eachPageOfSurvivorsForTheManifest(Consumer<List<ListedSurvivor>> page) {
+                eachPageOfSurvivorsForTheManifest.accept(page);
             }
         };
     }

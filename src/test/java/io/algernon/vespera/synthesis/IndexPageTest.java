@@ -81,7 +81,7 @@ class IndexPageTest {
                         new ArrangedCluster(THE_SEED, 0, 4, 1, 1), new ClusterLabel("Fire Suppression | Retrofits")),
                 new RecordedCluster(
                         new ArrangedCluster(THE_SEED, 1, 2, 1, 2), new ClusterLabel("Sprinkler\nMaintenance")));
-        List<RecordedSynthesisDoc> written = List.of(new RecordedSynthesisDoc(
+        List<ListedDoc> written = List.of(new ListedDoc(
                 THE_SEED,
                 0,
                 new SynthesisDoc("Retrofitting `Suppression`, 2018 [draft]", "Both [1] and [2].", List.of())));
@@ -114,8 +114,8 @@ class IndexPageTest {
                     new ClusterLabel("Group " + (ordinal + 1))));
             survivors.add(survivor(100 + ordinal, ordinal, "seeds/Seed One.pdf"));
         }
-        List<RecordedSynthesisDoc> written =
-                List.of(new RecordedSynthesisDoc(THE_SEED, 9, new SynthesisDoc("Tenth", "x", List.of())));
+        List<ListedDoc> written =
+                List.of(new ListedDoc(THE_SEED, 9, new SynthesisDoc("Tenth", "x", List.of())));
 
         String index = ListedArrangement.indexContents(
                 new DeliverableProvenance("run-2", 3L, "/srv/archive", List.of()), arrangement, written, survivors);

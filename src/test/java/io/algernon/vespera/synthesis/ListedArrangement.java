@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * An arrangement, its writing and its survivors held as lists, answering {@link ArrangedSurvivors} from them:
@@ -31,7 +32,7 @@ public final class ListedArrangement {
     /** The source over these lists, its survivors handed over in one page. */
     public static ArrangedSurvivors of(
             List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
+            List<ListedDoc> written,
             List<ListedSurvivor> survivors,
             Map<ClusterSlot, Unwritten> unwritten) {
         return of(arrangement, written, survivors, unwritten, Integer.MAX_VALUE);
@@ -40,18 +41,25 @@ public final class ListedArrangement {
     /** The source over these lists, its survivors handed over {@code survivorsInAPage} at a time. */
     public static ArrangedSurvivors of(
             List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
+            List<ListedDoc> written,
             List<ListedSurvivor> survivors,
             Map<ClusterSlot, Unwritten> unwritten,
             int survivorsInAPage) {
         Map<ClusterSlot, SynthesisDoc> writtenByCluster = new LinkedHashMap<>();
-        for (RecordedSynthesisDoc doc : written) {
-            writtenByCluster.put(ClusterSlot.of(doc), doc.doc());
+        for (ListedDoc doc : written) {
+            writtenByCluster.put(new ClusterSlot(doc.winningSeed(), doc.clusterOrdinal()), doc.doc());
         }
         Map<ClusterSlot, ArrangedCluster> placeByCluster = new LinkedHashMap<>();
         for (RecordedCluster recorded : arrangement) {
             placeByCluster.put(ClusterSlot.of(recorded), recorded.cluster());
         }
+        // One paging of the listed survivors answers both reads of every survivor: the lists are the same
+        // whichever of the two the writer is making.
+        Consumer<Consumer<List<ListedSurvivor>>> everySurvivorAPageAtATime = page -> {
+            for (int from = 0; from < survivors.size(); from += Math.min(survivorsInAPage, survivors.size())) {
+                page.accept(survivors.subList(from, (int) Math.min((long) from + survivorsInAPage, survivors.size())));
+            }
+        };
         return ArrangedSurvivors.reading(
                 () -> partitionsOf(arrangement, survivors),
                 () -> survivors.size(),
@@ -64,12 +72,8 @@ public final class ListedArrangement {
                 cluster -> Optional.ofNullable(writtenByCluster.get(cluster)),
                 cluster -> Optional.ofNullable(unwritten.get(cluster)),
                 cluster -> Optional.ofNullable(placeByCluster.get(cluster)),
-                page -> {
-                    for (int from = 0; from < survivors.size(); from += Math.min(survivorsInAPage, survivors.size())) {
-                        page.accept(survivors.subList(
-                                from, (int) Math.min((long) from + survivorsInAPage, survivors.size())));
-                    }
-                });
+                everySurvivorAPageAtATime,
+                everySurvivorAPageAtATime);
     }
 
     /** The tree written from these lists, with no pictures, no reasons and no progress heard. */
@@ -77,7 +81,7 @@ public final class ListedArrangement {
             Path workingDirectory,
             DeliverableProvenance provenance,
             List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
+            List<ListedDoc> written,
             List<ListedSurvivor> survivors) {
         return writeTo(workingDirectory, provenance, arrangement, written, survivors, SurvivorPictures.none());
     }
@@ -87,7 +91,7 @@ public final class ListedArrangement {
             Path workingDirectory,
             DeliverableProvenance provenance,
             List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
+            List<ListedDoc> written,
             List<ListedSurvivor> survivors,
             SurvivorPictures pictures) {
         return writeTo(workingDirectory, provenance, arrangement, written, survivors, pictures, Map.of());
@@ -98,7 +102,7 @@ public final class ListedArrangement {
             Path workingDirectory,
             DeliverableProvenance provenance,
             List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
+            List<ListedDoc> written,
             List<ListedSurvivor> survivors,
             SurvivorPictures pictures,
             Map<ClusterSlot, Unwritten> unwritten) {
@@ -111,7 +115,7 @@ public final class ListedArrangement {
             Path workingDirectory,
             DeliverableProvenance provenance,
             List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
+            List<ListedDoc> written,
             List<ListedSurvivor> survivors,
             SurvivorPictures pictures,
             Map<ClusterSlot, Unwritten> unwritten,
@@ -124,7 +128,7 @@ public final class ListedArrangement {
     static String indexContents(
             DeliverableProvenance provenance,
             List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
+            List<ListedDoc> written,
             List<ListedSurvivor> survivors) {
         ArrangedSurvivors source = of(arrangement, written, survivors, Map.of());
         List<ListedPartition> partitions = source.partitions();
@@ -150,7 +154,8 @@ public final class ListedArrangement {
             List<RecordedCluster> arrangement, List<ListedSurvivor> survivors, int survivorsInAPage) {
         StringBuilder csv = new StringBuilder();
         try {
-            ManifestCsv.write(csv, of(arrangement, List.of(), survivors, Map.of(), survivorsInAPage));
+            ManifestCsv.write(
+                    csv, of(arrangement, List.of(), survivors, Map.of(), survivorsInAPage), DeliverableProgress.NONE);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

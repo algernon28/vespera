@@ -77,7 +77,7 @@ final class EntryPictures {
         Map<String, DifferenceHash> hashes = new HashMap<>();
         Set<String> furniture = new HashSet<>();
         progress.toListPictures(source.survivorCount());
-        source.eachPageOfSurvivors(page -> {
+        source.eachPageOfSurvivorsForTheirPictures(page -> {
             for (ListedSurvivor survivor : page) {
                 List<PictureEntry> ofOneOccurrence = new ArrayList<>();
                 for (ListedPicture picture : pictures.of(survivor.occurrence())) {

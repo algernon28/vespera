@@ -22,9 +22,4 @@ public record Partition(OccurrenceId seed, String seedPath, List<Cluster> cluste
         }
         clusters = List.copyOf(clusters);
     }
-
-    /** How many survivors this partition holds, across every cluster beneath it. */
-    public int documentCount() {
-        return clusters.stream().mapToInt(Cluster::documentCount).sum();
-    }
 }

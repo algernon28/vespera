@@ -1389,7 +1389,10 @@ public final class Adr {
      * order; the arrangement's page, the index and the manifest are written beside the target and moved into
      * place. The furniture rule stays over every picture of the tree and keeps a digest and a hash for each
      * distinct picture, and the clusters nothing could be sent for stay held, each with its reason. Four of
-     * ADR-218's sorting reads go. The pages and the manifest are byte for byte the same (amends ADR-220
+     * ADR-218's sorting reads go. The pages and the manifest are byte for byte the same. Built, on the tree
+     * ADR-222 left: the run ids of stages 5, 6a and 6b move, and stages 1 to 4 do not. Its section 13 reads
+     * what the build did beyond the record against the code, and sends back the two reads of every survivor,
+     * each to be asked for by name, and the labels of 6a's two per-partition counters (amends ADR-220
      * section 9, ADR-218 section 3, ADR-193 sections 6 and 7, ADR-204 sections 3 and 4, ADR-192 sections 4 and
      * 5, ADR-190, ADR-150 section 5 and ADR-149 section 9; #472).
      */

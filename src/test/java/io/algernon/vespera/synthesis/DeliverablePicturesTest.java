@@ -663,7 +663,7 @@ class DeliverablePicturesTest {
         List<ListedSurvivor> members = List.of(
                 aMember(10, "reports/a.docx", A_HIGH_SCORE), aMember(11, "reports/b.pdf", A_MIDDLE_SCORE));
         List<RecordedCluster> arrangement = List.of(cluster(FIRST_ORDINAL, members.size(), FIRST_PLACE, THE_LABEL));
-        List<RecordedSynthesisDoc> written = List.of(new RecordedSynthesisDoc(
+        List<ListedDoc> written = List.of(new ListedDoc(
                 THE_SEED, FIRST_ORDINAL, new SynthesisDoc(THE_TITLE, "Both [1] and [2].", sent(10, 11))));
 
         Path withNone = ListedArrangement.writeTo(
@@ -832,8 +832,8 @@ class DeliverablePicturesTest {
             SynthesisDoc doc,
             List<ListedSurvivor> members,
             Map<OccurrenceId, List<ListedPicture>> pictures) {
-        List<RecordedSynthesisDoc> written =
-                doc == null ? List.of() : List.of(new RecordedSynthesisDoc(THE_SEED, FIRST_ORDINAL, doc));
+        List<ListedDoc> written =
+                doc == null ? List.of() : List.of(new ListedDoc(THE_SEED, FIRST_ORDINAL, doc));
         return write(
                 workingDirectory,
                 List.of(cluster(FIRST_ORDINAL, members.size(), FIRST_PLACE, THE_LABEL)),
@@ -858,7 +858,7 @@ class DeliverablePicturesTest {
     private static Path write(
             Path workingDirectory,
             List<RecordedCluster> arrangement,
-            List<RecordedSynthesisDoc> written,
+            List<ListedDoc> written,
             List<ListedSurvivor> members,
             Map<OccurrenceId, List<ListedPicture>> pictures) {
         Map<OccurrenceId, List<ListedPicture>> source = new HashMap<>(pictures);

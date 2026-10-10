@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -121,6 +122,48 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
                         + " one of the third: the listing is not written in the order the pages are",
                 () -> assertThat(firstCells)
                         .containsExactly("10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"));
+    }
+
+    /**
+     * The writer reads every survivor twice, a page at a time, and each read is asked for by what it is for
+     * (ADR-223 section 6). Whoever answers the source writes a line for each, and tells the two apart by
+     * which was asked for, not by which came first.
+     */
+    @Test
+    @Story("The tree is the same tree, written one exemplar at a time")
+    @DisplayName("Every document is asked for once for the pictures and once for the listing, each by its own name, the pictures first")
+    void eachReadOfEverySurvivorIsAskedForByName(@TempDir Path base) {
+        ArrangedSurvivors whole = ListedArrangement.of(
+                ThreePartitions.arrangement(), ThreePartitions.written(), ThreePartitions.survivors(), ThreePartitions.unwritten());
+        List<String> asked = new ArrayList<>();
+
+        Deliverable.writeTo(
+                base.resolve("work"),
+                ThreePartitions.provenance(base.resolve("archive").toString()),
+                ArrangedSurvivors.reading(
+                        whole::partitions,
+                        whole::survivorCount,
+                        whole::clustersOf,
+                        whole::survivorsOf,
+                        whole::writtenOver,
+                        whole::whyUnwritten,
+                        whole::placeOf,
+                        page -> {
+                            asked.add("for their pictures");
+                            whole.eachPageOfSurvivorsForTheirPictures(page);
+                        },
+                        page -> {
+                            asked.add("for the listing");
+                            whole.eachPageOfSurvivorsForTheManifest(page);
+                        }),
+                SurvivorPictures.none(),
+                DeliverableProgress.NONE);
+
+        claim(
+                "the pass that finds which pictures recur asks for every document through the read named for"
+                        + " the pictures, and the listing through the read named for it, once each and in that"
+                        + " order: neither is asked for through the other's name",
+                () -> assertThat(asked).containsExactly("for their pictures", "for the listing"));
     }
 
     /** Every file beneath {@code tree}, by its path relative to it with {@code /} between segments. */
