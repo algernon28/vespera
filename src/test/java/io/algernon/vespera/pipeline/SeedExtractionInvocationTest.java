@@ -60,7 +60,7 @@ class SeedExtractionInvocationTest {
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
     /** What the writer says when a seed folder was named and produced nothing usable (ADR-083). */
-    private static final String THE_UNUSABLE_SEED_LINE = "No seed document produced any text";
+    private static final String THE_UNUSABLE_SEED_LINE = "No seed document produced any text outside its page headers and footers";
 
     @TempDir
     static Path workingDirectory;

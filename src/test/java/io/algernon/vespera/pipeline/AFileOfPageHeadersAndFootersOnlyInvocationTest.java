@@ -183,7 +183,7 @@ class AFileOfPageHeadersAndFootersOnlyInvocationTest {
      */
     @Test
     @Story("A seed folder holding only such seed documents ends the work at the seeds, as a folder with no text does")
-    @DisplayName("With a seed document of a page header alone as the only one, the invocation succeeds, scores nothing and says no seed document produced text, as for a folder of seed documents with no text")
+    @DisplayName("With a seed document of a page header alone as the only one, the invocation succeeds, scores nothing and says no seed document produced any text outside its page headers and footers, as for a folder of seed documents with no text")
     void aSeedFolderOfPageHeadersOnlyIsGatedAsOneWithNoText(
             @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
         documentsWithABody(root, "corpus", DOCUMENTS_WITH_A_BODY);
@@ -199,9 +199,10 @@ class AFileOfPageHeadersAndFootersOnlyInvocationTest {
                         + " not an error",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "it says what it says of a folder of seed documents with no text, and what to do",
+                "it says the one line that is true of a folder of seed documents with no text and of this"
+                        + " folder, and what to do",
                 () -> assertThat(output.getAll())
-                        .contains("No seed document produced any text")
+                        .contains("No seed document produced any text outside its page headers and footers")
                         .contains("Fix the seed folder and run again"));
         claim(
                 "the seed document was found unusable for where its only text was",

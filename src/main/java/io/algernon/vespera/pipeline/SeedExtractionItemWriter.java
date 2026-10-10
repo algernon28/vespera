@@ -153,7 +153,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             // open is not usable either, because no one knows whether it would be (ADR-155) -- and it
             // is counted in unusableSeedCount the same as one that converted with no text, or none outside its page headers and footers (ADR-232).
             log.warn(
-                    "No seed document produced any text, so stage 5 minted no run: {} seed documents were"
+                    "No seed document produced any text outside its page headers and footers, so stage 5 minted no run: {} seed documents were"
                             + " extracted and none of them was usable. Fix the seed folder and run again.",
                     unusableSeedCount);
             return stepExecution.getExitStatus();

@@ -137,7 +137,7 @@ class RelevanceReportMintsNothingBehindTheUsableSeedGateTest {
                         + " its sibling stage-5 steps already share",
                 () -> assertThat(operatorLines())
                         .anyMatch(line -> line.equals(
-                                "stage 5's relevance-report step is gated: no seed document produced any text.")));
+                                "stage 5's relevance-report step is gated: no seed document produced any text outside its page headers and footers.")));
     }
 
     /**
