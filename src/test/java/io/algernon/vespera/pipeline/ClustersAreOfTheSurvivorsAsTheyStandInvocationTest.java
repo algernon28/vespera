@@ -44,8 +44,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * opens generation over the other (ADR-107).
  *
  * <p><b>Every score here is the same</b>, the scripted embedder answering every chunk with one vector. So
- * the first two tests move the whole corpus across the floor, and the third writes one score under the
- * floor itself, standing for a document that scored there: no fixture here can make one.
+ * {@code survivorsTheFloorNoLongerRemovesAreClusteredAndArranged} and {@code
+ * occurrencesTheFloorRemovesAfterClusteringLeaveTheirClusters} move the whole corpus across the floor, and
+ * {@code anArrangementWithTheRemovalsStandingIsNotTheOneWithout} and {@code
+ * theClustersAreComparedAsSetsAndNotAsCounts} each write one score under the floor themselves, standing for a
+ * document that scored there: no fixture here can make one.
  *
  * <p>The identifiers say cluster and the report says group (ADR-122).
  */
@@ -69,19 +72,29 @@ class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
     /** Under every score the scripted embedder produces, and over {@link #A_SCORE_UNDER_THE_FLOOR}. */
     private static final String A_FLOOR_UNDER_EVERY_SCORE = "0.5";
 
-    /** The score the third test writes for one document, so that the floor removes that one and no other. */
+    /**
+     * The score the two tests over three documents write for one of them, so that the floor removes that one
+     * and no other.
+     */
     private static final double A_SCORE_UNDER_THE_FLOOR = 0.2;
 
     private static final String ANOTHER_MODELS_IDENTITY =
             "model=nomic-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
 
-    /** The corpus of the first two tests: both documents score alike, so the floor takes both or neither. */
+    /**
+     * The corpus of {@code survivorsTheFloorNoLongerRemovesAreClusteredAndArranged} and {@code
+     * occurrencesTheFloorRemovesAfterClusteringLeaveTheirClusters}: both documents score alike, so the floor
+     * takes both or neither.
+     */
     private static final int TWO_DOCUMENTS = 2;
 
-    /** The corpus of the third test. */
+    /**
+     * The corpus of {@code anArrangementWithTheRemovalsStandingIsNotTheOneWithout} and {@code
+     * theClustersAreComparedAsSetsAndNotAsCounts}.
+     */
     private static final int THREE_DOCUMENTS = 3;
 
-    /** The one document of the three whose score the third test writes under the floor. */
+    /** The one document of the three whose score those two tests write under the floor. */
     private static final int ONE_REMOVED = 1;
 
     /** The documents of the three the floor leaves once it has removed that one. */

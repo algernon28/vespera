@@ -1,12 +1,12 @@
 # ADR-230 — The clusters under a scoring run are of its survivors as they stand: the clustering step does its work again where the floor's step changed them, and the arrangement's identity names the removals standing
 
 - **Date**: 2026-10-10
-- **Status**: accepted on 2026-10-10, on two kinds of answer kept apart in §8: **the operator's word**, which is one sentence and decides nothing of the design, and **the session's calls**, which are every decision below. The change that carries this record writes it and its tests and no line of `src/main`; *What the commit that builds `src/main` owes* lists the rest. Until that commit three tests fail (Tests); the test tree compiles. **Amended the same day, before anything was committed**: the first build made the three pass and failed two tests this record had not named, and §2's test of a count gave way to the two questions it asks now (Context, *What the first build showed*; §8, calls 12 to 15).
-- **Built**: in the tree and not committed, as first written: `Verdicts.verdictsUnder`, `StageRuns` and `ClusteringTasklet` with the count. §2 as amended is owed, in `ClusteringTasklet` alone, and until it is built two tests fail (Tests).
+- **Status**: accepted on 2026-10-10, on two kinds of answer kept apart in §8: **the operator's word**, which is one sentence and decides nothing of the design, and **the session's calls**, which are every decision below. The change that carries this record builds it. **Amended the same day, in that change**: the first build made the three pass and failed two tests this record had not named, and §2's test of a count gave way to the two questions it asks now (Context, *What the first build showed*; §8, calls 12 to 15).
+- **Built**: in the change that carries this record: `Verdicts.verdictsUnder`, `StageRuns`' `standingRemovals`, and `ClusteringTasklet` with §2's two questions. `./mvnw verify`: 1,676 unit and 23 integration tests, none failed or skipped.
 - **Amends**: [ADR-118](0118-the-answers-a-person-gave-never-join-a-runs-identity-so-the-two-steps-that-read-them-record-no-completion.md), in one sentence: *"Each of those consumes only what its run's identity names or what the upstream chain names for it"*, said of the six steps left with a completion record. It does not hold of `clustering`, which reads the survivors the floor's step leaves, and those follow the answers (§1). Its two named steps, its refusal to put the answers in a run's identity and its rule for the floor's step stand. Its Consequence *"No profile edit, no new run id, no re-score"* stands for the scoring run and the scores; an arrangement run may now be minted (§3).
-- **Amends**: [ADR-116](0116-a-runs-completion-is-recorded-per-step-because-several-steps-share-one-run.md)'s first rule, *"A step whose completion is recorded does no work and writes no rows"*, for `clustering` alone and in one case (§2). [ADR-087](0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md)'s *"Per ADR-077, a re-run writes a fresh row set under its own run id"*, for the same case: the row set is written again under the same scoring run, as the floor's verdicts are since ADR-118. [ADR-157](0157-a-stage-asks-for-its-run-after-its-own-gate-one-helper-mints-every-run-and-every-step-is-named-once.md) §2 as `StageRuns` carries it, *"Stage 6a's own `ConfigConsumed`, unchanged"*: it gains one member, written only where it is not zero (§3).
-- **Amends**: [ADR-229](0229-every-runs-rows-are-kept-and-the-database-file-is-not-made-smaller-a-run-over-an-earlier-walk-is-never-arrived-at-again-and-is-still-read.md), in two sentences and in nothing it decides (§6). §1's *"a step discarding its own unfinished work under its own run (ADR-116)"*, with the same words in its §4 and in the guard's javadoc: two shipped deletes are also of work that was finished, the floor's step withdrawing a finished invocation's removals (ADR-118) and, once this record is built, the clustering step's. And Consequences' *"A table that gains or loses a reference to `run` fails `EveryTableKeyedByARunIsOnRecordTest`"*: only a reference written `run_id TEXT NOT NULL REFERENCES run (id)`, as its own *What no test holds* says.
-- **Amends**: `AGENTS.md`, in *"a step discarding only its own unfinished work under its own run (ADR-116)"*, for the same reason, and in its count of decisions.
+- **Amends**: [ADR-116](0116-a-runs-completion-is-recorded-per-step-because-several-steps-share-one-run.md)'s first rule, *"A step whose completion is recorded does no work and writes no rows"*, for `clustering` alone and in one case (§2). [ADR-087](0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md)'s *"Per ADR-077, a re-run writes a fresh row set under its own run id"*, for the same case: the row set is written again under the same scoring run, as the floor's verdicts are since ADR-118. **[ADR-077](0077-a-regenerated-measurement-is-a-fresh-row-set-under-its-own-run-id.md) itself is not amended**: its decision is that an earlier run's rows are never rewritten or deleted by a later run's, and no run's rows are touched here but the scoring run's own. [ADR-157](0157-a-stage-asks-for-its-run-after-its-own-gate-one-helper-mints-every-run-and-every-step-is-named-once.md) §2 as `StageRuns` carries it, *"Stage 6a's own `ConfigConsumed`, unchanged"*: it gains one member, written only where it is not zero (§3).
+- **Amends**: [ADR-229](0229-every-runs-rows-are-kept-and-the-database-file-is-not-made-smaller-a-run-over-an-earlier-walk-is-never-arrived-at-again-and-is-still-read.md), in two sentences and in nothing it decides (§6). §1's *"a step discarding its own unfinished work under its own run (ADR-116)"*, and, without *under its own run*, the guard's javadoc: two shipped deletes are also of work that was finished, the floor's step withdrawing a finished invocation's removals (ADR-118) and the clustering step's. And Consequences' *"A table that gains or loses a reference to `run` fails `EveryTableKeyedByARunIsOnRecordTest`"*: only a reference written `run_id TEXT NOT NULL REFERENCES run (id)`, as its own *What no test holds* says.
+- **Amends**: `AGENTS.md`, in *"a step discarding only its own unfinished work under its own run (ADR-116)"*, for the same reason, and in its count of decisions; and `CONTEXT.md`'s Verdict entry, in *"redoing its own unfinished work under the same run (ADR-116)"*, which has not held of the floor's step since ADR-118 (§8, call 18).
 - **Applies, and does not amend**: [ADR-107](0107-the-arrangement-gate-approves-a-named-6a-run-and-the-path-becomes-five-invocations.md), an approval is of one named arrangement; [ADR-111](0111-a-cluster-fault-is-a-row-in-synthesis-and-a-re-run-under-the-same-id-repairs-rather-than-regenerates.md), a synthesis doc is never written twice or discarded; [ADR-156](0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md), a run arrived at again finds its work recorded; [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md), no part of the archive is lost to a number that does not apply; [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md), for which side of `pipeline` the change falls on (§5).
 - **Rests on**: the code at `35a5a6ba`; a probe of four invocation sequences run for this record and then deleted (Context); [ADR-227](0227-the-relevance-floors-step-withdraws-its-standing-removals-where-the-vectors-carry-no-single-embedder-identity.md), which filed this question; [ADR-042](0042-ledger-owns-the-verdict-vocabulary-not-the-cascade.md), for the direction it warns of (§7). No archive, working directory, database, log, report or deliverable of the operator's was opened ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
 - **Decides** [#489](https://github.com/algernon28/vespera/issues/489).
@@ -24,7 +24,7 @@ So the survivors can change under a scoring run whose clusters are recorded, in 
 
 ### Measured, not only read
 
-A throwaway invocation test, over the fixtures of `RelevanceFloorInvocationTest` and `GenerationInvocationTest`, printed the rows after each invocation. It was deleted; the three tests of this record fail on the same facts (Tests). Every score in those fixtures is the same, so a floor takes all of a corpus or none; the last row writes one score under the floor by hand.
+A throwaway invocation test, over the fixtures of `RelevanceFloorInvocationTest` and `GenerationInvocationTest`, printed the rows after each invocation. It was deleted; three tests of this record failed on the same facts until the build (Tests). Every score in those fixtures is the same, so a floor takes all of a corpus or none; the last row writes one score under the floor by hand.
 
 | Sequence | What stood afterwards, under the scoring run with the floor |
 | --- | --- |
@@ -48,7 +48,7 @@ A throwaway invocation test, over the fixtures of `RelevanceFloorInvocationTest`
 
 ### 1. The clusters standing under a scoring run are of its survivors as they are now
 
-ADR-118 gave the floor's verdicts that property: *"the removals standing under a run always reflect the answers and the number as they are now"*. The clusters are formed over what those removals leave, so they have the same dependence one step on, and ADR-116's own clause, a completion record being safe *"only where a run's identity names everything that step consumes"*, does not cover them. ADR-118 listed `clustering` among the steps it does cover. That is the sentence amended.
+ADR-118 gave the floor's verdicts that property: *"the removals standing under a run always reflect the answers and the number as they are now"*. The clusters are formed over what those removals leave, so they have the same dependence one step on, and ADR-116's own clause, *"This rule is safe only where a run's identity names everything its steps consume"*, does not cover them. ADR-118 listed `clustering` among the steps it does cover. That is the sentence amended.
 
 ### 2. The clustering step does its work again where its rows are not of those survivors
 
@@ -66,7 +66,7 @@ Where the record is found, the step asks two questions before it honours it, of 
 
 **Where no occurrence has a score under the run, there is no partition to ask about, and the recorded rows stay.** The step ends as a recorded step does. So the work is never begun again with no partition, and the order the first build chose inside the work, the discard after the check for no partition, is right and is never reached on this path. Rows whose scores are all gone are not this record's to remove: 6a reads its partitions from the scores as well and arranges nothing of them, as it did before.
 
-**It costs reads on every invocation**, for each partition: its members (`Clustering.membersOf`), its cluster rows (`DocumentClusters.membersOf`), and which of each survive (`Verdicts.survivingAmong`, twice). All ship, so `embedding` is not touched. The step holds one more list as large as a partition than it did, beside the three it holds while it works. No vector is read and no model is called.
+**It costs reads on every invocation**, for each partition: its members (`Clustering.membersOf`), its cluster rows (`DocumentClusters.membersOf`), and which of each survive (`Verdicts.survivingAmong`, twice). All ship, so `embedding` is not touched. While it asks, the step holds five collections as large as a partition: the members read, those of them that survive, the cluster rows, their occurrences as a list, and the same as a set. It lets go of each before the next partition. While it works it holds four, as it did: the members read, those that survive, those in the order read, and their content hashes. No vector is read and no model is called.
 
 ### 3. The arrangement's identity names the removals standing under the scoring run
 
@@ -77,6 +77,7 @@ So the two sets of survivors are two arrangements. **`ArrangementConfigConsumed`
 - **An arrangement over a scoring run with no removal standing keeps the id it has.** Its recorded settings are byte for byte what they were.
 - **An arrangement over a scoring run with removals standing is another run**, with its own rows, its own page and its own approval. `GenerationConfigConsumed` names the approved arrangement, so its synthesis docs are another generation run's.
 - **Changing back arrives at the first again** (ADR-156's property, by the same means): the clusters are formed again over the same survivors from the same vectors, in the same order (ADR-087), and the arrangement run found is the one recorded over them. An approval of the other does not open it.
+- **This holds of arrangements minted by this build, and not of one an earlier build minted over a scoring run with removals standing** (§5, *An arrangement an earlier build minted*).
 
 It is not ADR-118's refused move. That record refused to put the answers in the **scoring** run's identity: the run would re-score in reply to its own question, and its identity would depend on its own output (ADR-117). The arrangement run is minted after stage 5 has ended, re-scores nothing, and names a fact about the run upstream of it that the upstream id cannot name. An answer that changes no removal changes no id.
 
@@ -109,7 +110,14 @@ They are never handed one. The floor's step and the clustering step run in that 
 
 **What that costs**, on a working directory an earlier build ran with a floor that removes: 6a arranges again under a new run, whose clusters are the ones it had; `arrangementApproved` must name it; and 6b asks for every synthesis doc again. A working directory whose floor is unset, removes nothing or does not apply is not touched.
 
-**Beside ADR-227's build.** That record's build moves `embedding`, so it mints seed measurement, embedding scoring, arrangement and generation again, and by the operator's decision it is not cut until #476 is on `main`. A build that carries this record's change as well adds no move to those. Nothing in the repository holds the two to one build.
+**An arrangement an earlier build minted.** An earlier build recorded an arrangement over a scoring run **with** removals standing under the id that names no `standingRemovals`, since no id named one. If this change ran over such a working directory under the same scoring run and the removals were then withdrawn, the clusters would be formed over every survivor, 6a would arrive at that id, find it recorded and honour `cluster` rows of the smaller set, and an approval of it would still open generation: direction A again, with no line. **Nothing in the code prevents it.** It is unreachable on two grounds, of different kinds (next paragraph): a build with this change mints every scoring run of a build cut before ADR-227's change again, and no build was cut between that change and this one.
+
+**In one build with ADR-227's change.** ADR-227's change moves `embedding`, so it mints seed measurement, embedding scoring, arrangement and generation again.
+
+- **From the commit graph, checked**: that change, `35a5a6ba`, is an ancestor of this one. Any build cut from `main` that carries this record's change carries it too, so over a working directory a build from before `35a5a6ba` ran, the scoring run that build's arrangement is over is not arrived at, nor is the arrangement.
+- **From the operator, and checked by no agent**: that no build was cut between `35a5a6ba` and this change. ADR-227 §6, answer 3, holds its build for #476, and this change joins that build (§8, the operator's second answer). The repository has no release and one tag, `pre-220`, which says nothing of what was built or run.
+
+In that build this record's change adds no move to those four, and the case above cannot be reached. Where that build ends is not this record's. **Nothing in the repository holds the changes to one build.**
 
 **What does not move**: no DDL, so no schema version; no cache key; no `run.stage` or `finished_step.step` value; no verdict reason.
 
@@ -126,7 +134,7 @@ This decision asks none of it:
 
 **Two notes are owed to that record, and are carried here and at its head:**
 
-1. Its §1 and §4, and the guard's javadoc, call the shipped deletes by a run *"a step discarding its own unfinished work (ADR-116)"*. Two are not of unfinished work. `Verdicts.discardVerdicts(scoring, BELOW_THRESHOLD)` has withdrawn a finished invocation's removals on every invocation since ADR-118. `DocumentClusters.discardForRun` will discard clusters whose step is recorded, once §2 is built. Both are a step discarding its own rows under its own run, which is what the guard reads; the guard's javadoc now says both kinds.
+1. Its §1 calls the shipped deletes by a run *"a step discarding its own unfinished work under its own run (ADR-116)"*, and the guard's javadoc said the same without *under its own run*. Its §4 has no such sentence. Two are not of unfinished work. `Verdicts.discardVerdicts(scoring, BELOW_THRESHOLD)` has withdrawn a finished invocation's removals on every invocation since ADR-118. `DocumentClusters.discardForRun` discards clusters whose step is recorded (§2). Both are a step discarding its own rows under its own run, which is what the guard reads; the guard's javadoc now says both kinds.
 2. Its Consequences' *"A table that gains or loses a reference to `run` fails"* the guard is unqualified. The guard counts a table only where the reference is written `run_id TEXT NOT NULL REFERENCES run (id)`.
 
 `EveryStatementThatSortsIsRecordedTest` is not edited: the count added to `ledger.Verdicts` has no `ORDER BY` and no grouping, and `verdict_by_run_id` answers it. The build checks that with the test, not with this sentence.
@@ -140,7 +148,9 @@ ADR-042 warns of over-publishing.
 
 ### 8. The operator's word, and the session's calls
 
-**The operator's word**, of 2026-10-10, as the coordinating session quoted it to the session that wrote this record: *"tell the agents to make all decisions regarding their tickets"*. The author did not hear the operator. Nothing else here is the operator's.
+**The operator's word**, of 2026-10-10, as the coordinating session quoted it to the session that wrote this record: *"tell the agents to make all decisions regarding their tickets"*. The author did not hear the operator.
+
+**The operator's second answer**, of 2026-10-10, as the coordinating session reported it: asked by that session whether #489 joins the one build held for #476, the operator answered *"Join the #476 build"*. So this change ships in the build held for #476 (ADR-227 §6, answer 3), in which ADR-227's change to `embedding` ships for the first time. The author did not hear this either. §5 leans on it for one thing, that no build was cut between ADR-227's change and this one. Nothing else here is the operator's.
 
 **The session's calls**, each made on that word and none put to the operator:
 
@@ -151,7 +161,7 @@ ADR-042 warns of over-publishing.
 5. **Nothing is added to the size report, 6a or 6b** (§4).
 6. **The build is confined to `pipeline` and `ledger`**, and neither change is a rule of ADR-222's kind (§5). `embedding` and `synthesis` are not touched, so `DocumentClusters.discardForRun`'s javadoc, *"for a step whose completion under this run is not recorded"*, is left as it is until a change that already mints `embedding` again (ADR-216 §7).
 7. **The count is a method of `ledger`, of every verdict under a run**, not of one kind, so that `StageRuns` names no `VerdictKind` (§5).
-8. **The third test writes one score under the floor itself**, standing for a document that scored there; no fixture can make one, every scripted vector being the same.
+8. **`anArrangementWithTheRemovalsStandingIsNotTheOneWithout` writes one score under the floor itself, as `theClustersAreComparedAsSetsAndNotAsCounts` does**, standing for a document that scored there; no fixture can make one, every scripted vector being the same.
 9. **ADR-118 and ADR-229 carry a note at their heads**, as ADR-226 does for ADR-227. ADR-116, ADR-087 and ADR-157 are amended in the sentences quoted above and carry none.
 10. **`docs/decision-ledger.md` is not edited**: it is closed to new entries, and this record is indexed in `docs/adr/README.md` alone.
 11. **No line is pinned by a test.** The clustering step's new line is given word for word below, and held by nothing, as the floor's four are.
@@ -162,6 +172,12 @@ ADR-042 warns of over-publishing.
 13. **`ArrangementGoesThroughTwoPartitionsInvocationTest` is not edited.** It is what holds call 12: it fails under the count and passes under the two questions.
 14. **`StageFiveReportsItsProgressInvocationTest.theReportDoesNotSayItReadTheScoresWhereTheReadFails` renames the column `score` away, not the table.** The clustering step's reads of the table are owed by §2 on every invocation and name its other columns; with no number set, the report's is the first statement of an invocation to name the score. What the test claims is unchanged.
 15. **Where no occurrence has a score under the run the recorded rows stay**, and the discard stays after the check for no partition (§2).
+
+**Three more, on the gate's reading of the built change**, on the same word:
+
+16. **The arrangement step gains no check of its rows against the clusters.** The one case it would find is kept out by the build this ships in (§5), and is stated where it bears and under *What no test holds*.
+17. **ADR-077 is not amended** (the header says why), and the change's first commit message, which says it is, is wrong in that.
+18. **`CONTEXT.md`'s Verdict entry is corrected in this change**: *"redoing its own unfinished work under the same run (ADR-116)"* gains the floor's step, which has decided again on every invocation since ADR-118. It is the note §6 carries to ADR-229, made where the vocabulary states it. The clustering step's rows are not verdicts and the entry says nothing of them.
 
 ## Alternatives refused
 
@@ -182,27 +198,27 @@ ADR-042 warns of over-publishing.
 - **A deliverable written before the change stays on disk** under its generation run's folder, listing what it listed. Nothing rewrites or removes it, as nothing does when a floor is edited.
 - **A second embedder identity for the embedding model (ADR-227) now forms the clusters again as well**, over the survivors the withdrawal brings back. What vectors that pass reads is [#488](https://github.com/algernon28/vespera/issues/488)'s (*What this does not decide*).
 - **Every invocation that passes stage 5's gates reads each partition's members and its cluster rows and asks which of each survive**, where it used to read one row of `finished_step`. Not measured.
-- **A clustered occurrence with no score still stops 6a**, and a `relevance_score` table that cannot be read now fails the clustering step, before the report and before 6a.
+- **A clustered occurrence with no score still stops 6a where the floor's decision has not changed in the same invocation** (*What no test holds*), and a `relevance_score` table that cannot be read now fails the clustering step, before the report and before 6a.
 - **On a working directory whose floor removes, 6a and 6b do their work again once** after the build (§5).
 - **A step's completion record is, for `clustering`, a record of work done over the survivors there were**, and is asked about with them. The other five steps of ADR-118's list are as they were.
 
 ## Tests
 
-Written with this record, before `src/main`. The test tree compiles against `src/main` as it stands: no test names a type or method the build adds.
+Written with this record, before `src/main` was. The test tree compiled against `src/main` as it stood then: no test named a type or method the build added.
 
 | Class | What it holds |
 | --- | --- |
-| `pipeline.ClustersAreOfTheSurvivorsAsTheyStandInvocationTest`, new, four tests, the fourth and the first's claim on the size report added after the build on the tester's reading of it and passing as written | by whole invocations. `survivorsTheFloorNoLongerRemovesAreClusteredAndArranged`: direction A over a corpus the floor removed whole, the clusters having been formed over none; after the withdrawal both documents have a cluster row under the same scoring run and one arrangement of that run holds both, with no scoring run added, and `cluster-sizes.html`, deleted by the test before that invocation, is there again. `theClustersAreComparedAsSetsAndNotAsCounts`: what a count would pass. With one of three clustered documents' `document_cluster` row deleted by hand, the next invocation clusters all three and the arrangement is the one there was; then, with one score written under the floor, the floor answered for under this run's identity and the same row deleted again, the invocation begins its clustering step with two survivors and two rows that are not of the same two, and ends with the removed occurrence in no cluster and the other clustered. The deleted row is a state no shipped path is known to reach, the step's discard and its rows being in one transaction. `occurrencesTheFloorRemovesAfterClusteringLeaveTheirClusters`: direction B; no occurrence is both removed and clustered, and approving the arrangement made before the removals mints no generation run. `anArrangementWithTheRemovalsStandingIsNotTheOneWithout`: one of three documents removed after all three were arranged, approved and written over; the clusters hold two, a second arrangement over the same scoring run holds two and records `"standingRemovals":1` after its two other settings, the first records what it did, the earlier approval writes nothing more, the new one once approved is written over from two documents, and the answer changed back arrives at the first arrangement again, which `arrangement.html` names, with what was written over it untouched |
+| `pipeline.ClustersAreOfTheSurvivorsAsTheyStandInvocationTest`, new, four tests, `theClustersAreComparedAsSetsAndNotAsCounts` and the claim on the size report added after the build on the tester's reading of it and passing as written | by whole invocations. `survivorsTheFloorNoLongerRemovesAreClusteredAndArranged`: direction A over a corpus the floor removed whole, the clusters having been formed over none; after the withdrawal both documents have a cluster row under the same scoring run and one arrangement of that run holds both, with no scoring run added, and `cluster-sizes.html`, deleted by the test before that invocation, is there again. `theClustersAreComparedAsSetsAndNotAsCounts`: what a count would pass. With one of three clustered documents' `document_cluster` row deleted by hand, the next invocation clusters all three and the arrangement is the one there was; then, with one score written under the floor, the floor answered for under this run's identity and the same row deleted again, the invocation begins its clustering step with two survivors and two rows that are not of the same two, and ends with the removed occurrence in no cluster and the other clustered. The deleted row is a state no shipped path is known to reach, the step's discard and its rows being in one transaction. `occurrencesTheFloorRemovesAfterClusteringLeaveTheirClusters`: direction B; no occurrence is both removed and clustered, and approving the arrangement made before the removals mints no generation run. `anArrangementWithTheRemovalsStandingIsNotTheOneWithout`: one of three documents removed after all three were arranged, approved and written over; the clusters hold two, a second arrangement over the same scoring run holds two and records `"standingRemovals":1` after its two other settings, the first records what it did, the earlier approval writes nothing more, the new one once approved is written over from two documents, and the answer changed back arrives at the first arrangement again, which `arrangement.html` names, with what was written over it untouched |
 | `pipeline.RunIdentityGoldenTest`, not edited | its `arrangement` test holds the recorded settings of an arrangement over a scoring run with no removal standing, so it holds that such an arrangement's id does not move |
 | `EveryTableKeyedByARunIsOnRecordTest`, javadoc only | §6's first note. No claim of it changes |
 | `pipeline.ArrangementGoesThroughTwoPartitionsInvocationTest`, not edited | its `aStepThatFailsPartwayLeavesThePageThatWasThere` holds that a clustered document whose score is gone still stops 6a, so that the clustering step does not form its clusters again for it (§2, *Not a count*) |
 | `pipeline.StageFiveReportsItsProgressInvocationTest` | `theReportDoesNotSayItReadTheScoresWhereTheReadFails` renames the column `score` away where it renamed the table; its two claims are word for word what they were (§8, call 14) |
 | `PipelineHoldsOnlyTheRulesOnRecordTest` | `ClusteringTasklet`'s collaborators on record gain `embedding.DocumentCluster` (§5) |
 
-**Two tests fail until §2 as amended is built**, over the build that is in the tree:
+**Two tests failed over the first build and pass over §2 as amended**:
 
 - `ArrangementGoesThroughTwoPartitionsInvocationTest.aStepThatFailsPartwayLeavesThePageThatWasThere`, on *"the invocation failed: a document with no score cannot be placed"*.
-- `PipelineHoldsOnlyTheRulesOnRecordTest.theClassesOfTheFreedStagesNameOnlyTheCollaboratorsOnRecord`, `ClusteringTasklet` not yet naming `embedding.DocumentCluster`.
+- `PipelineHoldsOnlyTheRulesOnRecordTest.theClassesOfTheFreedStagesNameOnlyTheCollaboratorsOnRecord`, `ClusteringTasklet` not then naming `embedding.DocumentCluster`.
 
 **Three tests failed until the first build**, each on a claim and none on an error, and pass over it:
 
@@ -216,17 +232,19 @@ Written with this record, before `src/main`. The test tree compiles against `src
 
 - **That the recorded rows stay where no occurrence has a score under the run** (§2). Read from the step: with no partition neither question is asked.
 - **A `document_cluster` row under a seed that has no score left under the run.** The step asks about the seeds the scores name, so it does not see the row; nor does 6a.
-- **ADR-227's way into direction A**, a second embedder identity. The step it reaches is the one the first test reaches by an answer.
+- **ADR-227's way into direction A**, a second embedder identity. The step it reaches is the one `survivorsTheFloorNoLongerRemovesAreClusteredAndArranged` reaches by an answer.
 - **The clustering step's new line**, that it is written or word for word.
-- **That the clusters formed again are the ones formed before over the same survivors.** The third test holds how many documents they hold and that the arrangement arrived at is the first. The order is ADR-087's.
+- **That the clusters formed again are the ones formed before over the same survivors.** `anArrangementWithTheRemovalsStandingIsNotTheOneWithout` holds how many documents they hold and that the arrangement arrived at is the first. The order is ADR-087's.
 - **What the read of §2 costs** on a corpus of any size.
-- **What `cluster-sizes.html` says once it is written again.** The first test holds that the file is there.
-- **That the step's discard and its rows are one transaction**, on which the fourth test's javadoc leans. Read from `TaskletSteps.taskletStep`; no test stops the step between the two.
+- **What `cluster-sizes.html` says once it is written again.** `survivorsTheFloorNoLongerRemovesAreClusteredAndArranged` holds that the file is there.
+- **That the step's discard and its rows are one transaction**, on which the javadoc of `theClustersAreComparedAsSetsAndNotAsCounts` leans. Read from `TaskletSteps.taskletStep`; no test stops the step between the two.
 - **A build with this change over a working directory an earlier build ran.** §5 is read from `StageModules` and from what a run's id hashes.
+- **An arrangement an earlier build minted over a scoring run with removals standing, arrived at again once they are withdrawn** (§5). No test can mint a run as an earlier build did, and nothing in the code refuses the case.
+- **A clustered occurrence with no score where the floor's decision changes in the same invocation.** The clusters are then formed again from the scores, the occurrence is in none, and 6a does not stop on it. `ArrangementGoesThroughTwoPartitionsInvocationTest` holds the stop where nothing else changed.
 
-## What the commit that builds `src/main` owes
+## What the commit that built `src/main` owed
 
-**Still owed, over the build in the tree: `pipeline/ClusteringTasklet.clustersAreOfTheSurvivors(RunId)` and nothing else.** The first two bullets below are built as written. Of the third, the lines, the redo and the order of the discard are built as written, and the comparison is replaced:
+**Built as written below.** What the amendment owed over the first build was `pipeline/ClusteringTasklet.clustersAreOfTheSurvivors(RunId)` and nothing else:
 
 - For each `winningSeed` of `clustering.partitions(scoring)`:
   - `scored` is `clustering.membersOf(scoring, winningSeed)`, and `surviving` is `ledger.verdicts().survivingAmong(scoring, scored)`.
@@ -241,7 +259,7 @@ Written with this record, before `src/main`. The test tree compiles against `src
 
 - **`ledger/Verdicts`**: `public long verdictsUnder(RunId runId)`, how many verdicts are recorded under `runId` itself, of any kind and not through its upstream runs: `SELECT COUNT(*) FROM verdict WHERE run_id = ?`.
 - **`pipeline/StageRuns`**: `ArrangementConfigConsumed(String corpusRoot, String scoringRunId, @JsonInclude(JsonInclude.Include.NON_NULL) Long standingRemovals)`. In `arrangement()`, `standingRemovals` is `ledger.verdicts().verdictsUnder(scoringRunId)` read when the run is minted, and `null` where that is zero. The class keeps the `Ledger` it is constructed with. Its javadoc on the record no longer says *"unchanged"*, and says what the member names and why it is left out at zero (this record, §3).
-- **`pipeline/ClusteringTasklet`**: past its gates, where `ledger.runs().stepFinished(scoring, StepNames.CLUSTERING)`, it asks §2's two questions of each seed of `clustering.partitions(scoring)`, as *Still owed* above writes them. (First written, and built, as a count: `survivingAmong(...).size()` against `documentClusters.sizeOf(scoring, seed)`.)
+- **`pipeline/ClusteringTasklet`**: past its gates, where `ledger.runs().stepFinished(scoring, StepNames.CLUSTERING)`, it asks §2's two questions of each seed of `clustering.partitions(scoring)`, as written above. (First written, and built, as a count: `survivingAmong(...).size()` against `documentClusters.sizeOf(scoring, seed)`.)
   - Neither, for every partition: the line *"Stage 5f (clustering) was already recorded under scoring run {}"* and nothing else, as today.
   - Either, for any partition: this line, then `documentClusters.discardForRun(scoring)` and the work an unrecorded step does, the size report included: `"Stage 5f (clustering) was recorded under scoring run {} over other survivors than the run has now: the relevance-floor step has decided again since. The step does its work again."`
   - The reads are timed and named as the step's other reads are (`TimedStatement`).
@@ -250,7 +268,6 @@ Written with this record, before `src/main`. The test tree compiles against `src
 - **Touch no file under `embedding` or `synthesis`**, and none under `corpus`, `extraction`, `similarity` or `profile`. A change the build finds it needs there is a finding for the analyst: it moves run ids this record says do not move.
 - **No DDL and no new `DELETE`.**
 - **Edit no test and no Markdown.** A test the build finds it has to edit is a finding for the analyst. `RunIdentityGoldenTest` passes unedited.
-- **Then**: this record's **Built** line and the `README.md` index row are the analyst's or the coordinating session's to write.
 - Verify with `./mvnw verify` under Java 26, and the docs gates.
 
 ## What this does not decide
@@ -259,5 +276,4 @@ Written with this record, before `src/main`. The test tree compiles against `src
 - **Whether `arrangement.html` should be removed or rewritten where an invocation arrives at no arrangement.** Measured: after a floor that removes every document, the page on disk names the arrangement of an earlier scoring run. Approving it opens nothing.
 - **Whether the operator is told that a deliverable on disk is of an arrangement no longer arrived at.**
 - **Whether the operator should be told how many removals were withdrawn or made again.** ADR-118 and ADR-227 left it open, and it stays open; the clustering step's line says only that the survivors changed.
-- **`CONTEXT.md`'s Verdict entry**, *"none is deleted except by the step that wrote it, redoing its own unfinished work under the same run (ADR-116)"*. It has not held of the floor's step since ADR-118. It is not edited here.
-- **Whether the arrangement step should check its recorded rows against the clusters** before it honours its own completion. With §3 and one embedder identity it has no case to find.
+- **Whether the arrangement step should check its recorded rows against the clusters** before it honours its own completion. With §3, one embedder identity and arrangements minted by this build it has no case to find. It would have one over an arrangement an earlier build minted with removals standing (§5), which is kept out by the commit graph and by the operator's statement that no build was cut in between, and by nothing in the code.

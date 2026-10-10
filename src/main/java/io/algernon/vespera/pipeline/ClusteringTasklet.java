@@ -44,8 +44,8 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>Nothing here removes anything.</b> No verdict is written, no document is left unclustered and
  * no cluster is merged into another: clustering arranges what survived, and the arrangement is a
- * measurement like any other (ADR-077 — a re-run writes its own row set rather than editing this
- * one).
+ * measurement like any other (ADR-077: a re-run under another run id writes its own row set; under the
+ * same run the step replaces its own, where unfinished or where the survivors have changed, ADR-230).
  *
  * <p>It ends by writing the size distribution, because the cluster count is not chosen and therefore
  * cannot be known in advance: whoever builds the deliverable above these clusters needs to see what
