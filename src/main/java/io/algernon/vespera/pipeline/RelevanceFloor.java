@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.FloorReach;
 import io.algernon.vespera.embedding.RelevanceLabels;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
@@ -43,8 +44,9 @@ class RelevanceFloor {
      * What the floor lets the step asked for do, for a run whose vectors carry {@code
      * currentEmbedderIdentity}.
      *
-     * <p>The number is the one the scoring run is identified by ({@link RelevanceScoreFloorValue}), so
-     * the number that removes is the number that names the run. A value that is not a number reads as
+     * <p>The number is the profile's as it stands now. A step of a run asks the overload below instead, so
+     * that the number that removes is the number that names the run ({@link RelevanceScoreFloorValue}). A
+     * value that is not a number reads as
      * unset rather than failing the run: the profile is a file a person edits by hand, and ADR-047 says
      * an invocation ends having recorded what it learned (ADR-120).
      *
@@ -55,9 +57,34 @@ class RelevanceFloor {
      */
     FloorReach reachFor(Optional<String> currentEmbedderIdentity, String stage) {
         Double value = RelevanceScoreFloorValue.readFrom(profileStore).value();
+        return reachFor(
+                currentEmbedderIdentity,
+                stage,
+                value == null ? OptionalDouble.empty() : OptionalDouble.of(value),
+                Optional.empty());
+    }
+
+    /**
+     * As {@link #reachFor(Optional, String)}, for the floor the scoring run {@code scoring} was minted
+     * under and not the profile's now, which an operator may have saved since (ADR-117, ADR-228).
+     *
+     * <p>The answers read are those {@link RelevanceLabels#forSeedSet(String, RunId)} gives for that run,
+     * so that answers given from its label file say which scale the number is on (ADR-228 section 5,
+     * ADR-088 section 3).
+     */
+    FloorReach reachFor(
+            Optional<String> currentEmbedderIdentity, String stage, OptionalDouble floor, RunId scoring) {
+        return reachFor(currentEmbedderIdentity, stage, floor, Optional.of(scoring));
+    }
+
+    private FloorReach reachFor(
+            Optional<String> currentEmbedderIdentity,
+            String stage,
+            OptionalDouble floor,
+            Optional<RunId> scoring) {
         return FloorReach.of(
                 currentEmbedderIdentity,
-                value == null ? OptionalDouble.empty() : OptionalDouble.of(value),
+                floor,
                 () -> {
                     // The answers recorded for the seed set, none where no seed folder is named.
                     Optional<String> seedSet = seedSet();
@@ -67,7 +94,9 @@ class RelevanceFloor {
                     // Timed: the read has no run, so no span (ADR-193 section 6).
                     return TimedStatement.of(
                             stage, "reading", "read", "the recorded answers",
-                            () -> relevanceLabels.forSeedSet(seedSet.get()));
+                            () -> scoring.isPresent()
+                                    ? relevanceLabels.forSeedSet(seedSet.get(), scoring.get())
+                                    : relevanceLabels.forSeedSet(seedSet.get()));
                 });
     }
 

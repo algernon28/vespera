@@ -7,11 +7,13 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.step.StepExecution;
+import org.springframework.dao.DataAccessException;
 
 /**
  * Writes the review list (CONTEXT.md) when the step ends (ADR-175 section 7): one
@@ -49,6 +51,11 @@ class ReviewListListener implements StepExecutionListener {
      * failed having read nothing never reached the survivors reader that asks for its run -- its health
      * check failed, or the sidecar would not say what it is -- so nothing is asked for and no page is
      * written (#319): there is no run to list, and asking for one would call the sidecar again.
+     *
+     * <p>The page is written beside its place and moved there once whole, as {@code arrangement.html} is
+     * (ADR-223 section 3), so a write that fails partway, in the file or in the read of its rows, leaves the
+     * review list before it, or none. Either failure is said in one error line, and neither is thrown
+     * (ADR-175 section 7).
      */
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
@@ -64,15 +71,18 @@ class ReviewListListener implements StepExecutionListener {
                 "Stage 2 (extraction)", "reading", "read", "the occurrences it could not read");
         long failures = ledger.verdicts().extractionFailureCount(run);
         Path page = workingDirectory.resolve(FILE_NAME);
+        Path part = workingDirectory.resolve(FILE_NAME + ".part");
         try {
             Files.createDirectories(workingDirectory);
-            try (Writer out = Files.newBufferedWriter(page, StandardCharsets.UTF_8)) {
+            try (Writer out = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
                 ReviewListReport.write(out, failures, each -> ledger.verdicts().eachExtractionFailure(run, each));
             }
+            Files.move(part, page, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             timed.end();
-        } catch (IOException e) {
-            // Said, not thrown: Spring Batch only logs what an afterStep throws, with a stack trace, and
-            // skips the listeners after it. The verdicts are in the ledger either way.
+        } catch (IOException | DataAccessException e) {
+            // Said, not thrown, whether the file or the read of its rows failed: Spring Batch only logs what an
+            // afterStep throws, with a stack trace, and skips the listeners after it. The verdicts are in the
+            // ledger either way.
             log.error(
                     "Stage 2 (extraction): {} file(s) could not be read, and the list of them could not be"
                             + " written to {}: {}",

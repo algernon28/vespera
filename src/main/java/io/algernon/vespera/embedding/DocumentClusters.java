@@ -49,7 +49,8 @@ public class DocumentClusters {
 
     /**
      * Deletes every membership row recorded under {@code runId} — the discard half of
-     * ADR-115/ADR-116, for a step whose completion under this run is not recorded.
+     * ADR-115/ADR-116, for a step whose completion under this run is not recorded, and, since ADR-230, for
+     * clustering done again under a run whose completion is recorded.
      */
     public void discardForRun(RunId runId) {
         jdbcTemplate.update("DELETE FROM document_cluster WHERE run_id = ?", runId.value());

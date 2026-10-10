@@ -96,11 +96,11 @@ class RelevanceScoringTasklet implements Tasklet {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
-        String modelName = preamble.modelName().orElseThrow();
         SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();
 
         RunId measurementRun = stageRuns.seedMeasurement();
         RunId scoring = stageRuns.embeddingScoring();
+        String modelName = stageRuns.embeddingModelName();
 
         return TaskletSteps.once(
                 ledger,
@@ -163,10 +163,12 @@ class RelevanceScoringTasklet implements Tasklet {
                     StageProgress scored =
                             StageProgress.over("Stage 5d (relevance scoring, corpus survivors)", survivorCount);
                     for (OccurrenceId occurrenceId : ledger.verdicts().survivors(measurementRun)) {
+                        String contentHash = cacheKeys.requireForOccurrence(occurrenceId, extractionRun);
                         relevanceScoring.scoreAndRecord(
                                 occurrenceId,
                                 scoring,
-                                cacheKeys.requireForOccurrence(occurrenceId, extractionRun),
+                                contentHash,
+                                hybridChunker.chunkCount(contentHash, ChunkingRule.DEFAULT),
                                 chunkerIdentity,
                                 chunkingRuleIdentity,
                                 identity.get(),

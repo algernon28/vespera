@@ -118,9 +118,9 @@ class ClusteringTasklet implements Tasklet {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
-        String modelName = preamble.modelName().orElseThrow();
 
         RunId scoring = stageRuns.embeddingScoring();
+        String modelName = stageRuns.embeddingModelName();
 
         // relevance-scoring and relevance-floor, which share this run, are not asked -- each step
         // answers only for itself. The empty-partition check sits between the finished check and the

@@ -92,9 +92,9 @@ class RelevanceFloorTasklet implements Tasklet {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
-        String modelName = preamble.modelName().orElseThrow();
 
         RunId scoring = stageRuns.embeddingScoring();
+        String modelName = stageRuns.embeddingModelName();
 
         // This run's own scale, not a stamp over every model the database has held: comparing a
         // threshold against the wrong identity is what would let a number calibrated elsewhere remove
@@ -102,7 +102,8 @@ class RelevanceFloorTasklet implements Tasklet {
         // embedding-scoring has actually run, may answer differently under this very run id.
         Optional<String> currentIdentity =
                 TimedStatement.of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact()));
-        FloorReach reach = relevanceFloor.reachFor(currentIdentity, STAGE);
+        FloorReach reach = relevanceFloor.reachFor(
+                currentIdentity, STAGE, stageRuns.relevanceScoreFloor(), scoring);
 
         // Every removal this run has standing goes before the reach is acted on, whichever way it
         // turns out, and whether or not the vectors carry one identity (ADR-118, ADR-227). The answers

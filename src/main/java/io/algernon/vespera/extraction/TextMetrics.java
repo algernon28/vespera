@@ -34,10 +34,12 @@ final class TextMetrics {
 
     /**
      * How many of the normalised text's characters are letters or digits — tier 1's own predicate is
-     * this count being zero, so empty, whitespace-only and punctuation-only text all satisfy it.
+     * this count being zero, so empty, whitespace-only and punctuation-only text all satisfy it. A
+     * character is a code point, so a letter outside the Basic Multilingual Plane, held as two UTF-16
+     * units, counts once (ADR-070, ADR-232).
      */
     static long alphanumericCharacterCount(String normalized) {
-        return normalized.chars().filter(Character::isLetterOrDigit).count();
+        return normalized.codePoints().filter(Character::isLetterOrDigit).count();
     }
 
     /** The normalised text split on single spaces, empty text producing no words at all. */

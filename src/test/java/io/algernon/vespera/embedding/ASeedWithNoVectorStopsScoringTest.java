@@ -106,6 +106,38 @@ class ASeedWithNoVectorStopsScoringTest {
                         .hasMessageContaining("seed occurrence " + THE_SECOND_SEED.value()));
     }
 
+    /** A seed whose text was cut into two chunks, two things to embed. */
+    private static final int TWO_CHUNKS = 2;
+
+    /**
+     * A pull and a pull back within one embedding step (ADR-231 section 5) leaves a seed whose chunks fell on
+     * both sides with a vector under the run's identity for some of its chunks only. Section 5 says scoring
+     * throws on a seed embedded between the two pulls, and section 3 that a missing seed is loud "whatever
+     * left it missing"; scored on the chunks that are left, the seed would measure every survivor against a
+     * part of itself, with no line.
+     */
+    @Test
+    @Story("A seed document with no vector of the scoring's own model stops the scoring")
+    @DisplayName("Reading the seed documents' vectors stops on a seed document with two pieces of text to embed and a vector for only one of them")
+    void aSeedWithAVectorForOnlySomeOfItsChunksIsRefused() {
+        store("the-first-seed", READ_UNDER);
+        store("the-second-seed", READ_UNDER);
+        new VectorCache(jdbcTemplate)
+                .put("the-second-seed", CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 1, A_LATER_PULLS_IDENTITY,
+                        new float[] {0f, 1f});
+
+        claim(
+                "the read stops and gives the number of the second seed document, "
+                        + THE_SECOND_SEED.value() + ": it has " + TWO_CHUNKS + " pieces of text to embed, and"
+                        + " the vector of the second is under the digest of another pull, so read under the"
+                        + " scoring's own it would stand for half of itself",
+                () -> assertThatThrownBy(() -> scoring()
+                                .residentSeedVectors(
+                                        seeds(ONE_CHUNK, TWO_CHUNKS), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("seed occurrence " + THE_SECOND_SEED.value()));
+    }
+
     @Test
     @Story("A seed document with nothing to embed is left out and the scoring goes on")
     @DisplayName("A seed document with no piece of text to embed and no vector is left out, the caller is told which, and the other is read")

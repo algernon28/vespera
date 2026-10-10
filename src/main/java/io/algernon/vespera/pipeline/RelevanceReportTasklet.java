@@ -149,9 +149,9 @@ class RelevanceReportTasklet implements Tasklet {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;
         }
-        String modelName = preamble.modelName().orElseThrow();
 
         RunId scoring = stageRuns.embeddingScoring();
+        String modelName = stageRuns.embeddingModelName();
 
         RelevanceDistribution.Distribution distribution;
         TimedStatement.Started readingTheScores = TimedStatement.begin(STAGE, "reading", "read", "the scores");
@@ -238,16 +238,14 @@ class RelevanceReportTasklet implements Tasklet {
      * anything about it here would describe a removal the reader can see in the counts.
      */
     private Optional<RelevanceLabellingReport.IgnoredFloor> ignoredFloor() {
-        Optional<String> modelName = embeddingModelGate.modelName();
-        if (modelName.isEmpty()) {
-            return Optional.empty();
-        }
+        String modelName = stageRuns.embeddingModelName();
         Optional<String> currentIdentity = TimedStatement.of(
-                STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName.get(), stageRuns.embeddingModelArtefact()));
+                STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact()));
         if (currentIdentity.isEmpty()) {
             return Optional.empty();
         }
-        FloorReach reach = relevanceFloor.reachFor(currentIdentity, STAGE);
+        FloorReach reach = relevanceFloor.reachFor(
+                currentIdentity, STAGE, stageRuns.relevanceScoreFloor(), stageRuns.embeddingScoring());
         if (reach.floor().isPresent() && reach.removesBelow().isEmpty()) {
             return Optional.of(new RelevanceLabellingReport.IgnoredFloor(
                     reach.floor().getAsDouble(), String.join(", ", reach.answeredUnder()), currentIdentity.get()));

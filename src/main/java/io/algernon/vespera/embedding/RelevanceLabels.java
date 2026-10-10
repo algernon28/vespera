@@ -169,6 +169,23 @@ public class RelevanceLabels {
                 seedSet);
     }
 
+    /**
+     * Every answer given against {@code seedSet} that was recorded from the label file {@code run} wrote,
+     * or, where none was, every answer given against it.
+     *
+     * <p>An answer recorded from a run's label file is one given about that run's sample. Answers given
+     * earlier about other documents, under another pull of the embedding model, would otherwise stand
+     * beside them with an identity of their own and keep a threshold from applying to any corpus larger
+     * than one sample (ADR-228 section 5). A run no answer has been recorded from has no sample answered
+     * yet, and is read as {@link #forSeedSet(String)} reads (ADR-088 section 3).
+     */
+    public List<RelevanceLabel> forSeedSet(String seedSet, RunId run) {
+        List<RelevanceLabel> all = forSeedSet(seedSet);
+        List<RelevanceLabel> fromThisRun =
+                all.stream().filter(answer -> answer.runId().equals(run.value())).toList();
+        return fromThisRun.isEmpty() ? all : fromThisRun;
+    }
+
     /** How many answers stand against {@code seedSet} — the size of the pass, partial or complete. */
     public int countFor(String seedSet) {
         Integer count = jdbcTemplate.queryForObject(

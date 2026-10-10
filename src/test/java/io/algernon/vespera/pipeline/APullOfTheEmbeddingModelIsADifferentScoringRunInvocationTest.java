@@ -23,6 +23,10 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -79,6 +83,18 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
     private static final String A_FLOOR_BELOW_EVERY_SCORE = "0.1";
 
     private static final int CORPUS_DOCUMENTS = 2;
+
+    /**
+     * How many documents a labelling file asks about where every document scores alike: one band holds them
+     * all, and twelve are drawn from a band (ADR-088).
+     */
+    private static final int ONE_BANDS_SAMPLE = 12;
+
+    /** A corpus larger than one sample, so that two runs' samples can differ. */
+    private static final int MORE_THAN_ONE_SAMPLE = 30;
+
+    /** A corpus document's file name, as this class writes them. */
+    private static final Pattern CORPUS_FILE_NAME = Pattern.compile("corpus-\\d+\\.txt");
 
     /** The runs of the one corpus before the pull, and after it. */
     private static final int ONE_SCORING_RUN = 1;
@@ -420,6 +436,85 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
                         + " database do not keep the threshold from ever being applied again",
                 () -> assertThat(theRunOfThePull).singleElement().satisfies(run -> assertThat(removedOnceAnswered)
                         .containsEntry(run, (long) CORPUS_DOCUMENTS)));
+    }
+
+    /**
+     * ADR-228 section 5: after a pull, "the label file the new run writes is stamped with the new identity;
+     * answers given from it apply the floor again", and its Consequences: the floor applies again "once the
+     * sample is answered from the new run's label file". The test above holds it on two documents, where both
+     * runs ask about every document. Here the corpus is larger than one sample: every document scores alike,
+     * so all of them fall in one band and each run asks about the {@value #ONE_BANDS_SAMPLE} its id draws, and
+     * the run of the second pull draws others than the first's. The answers are given as an operator gives
+     * them, by filling in the label file and running the label command.
+     */
+    @Test
+    @Story("After a pull the threshold applies again once the sample is answered under the new pull")
+    @DisplayName("On a corpus larger than one sample, after a pull the threshold removes again once every question of the new labelling file is answered")
+    @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
+    void afterAPullTheThresholdAppliesOnceTheNewSampleIsAnsweredOnACorpusLargerThanOneSample(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpusOf(root, seeds, MORE_THAN_ONE_SAMPLE);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        Set<String> askedBeforeThePull = documentsAskedAbout();
+        everyQuestionAnsweredAndRecorded();
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+        cli.run("run", root.toString());
+        Map<String, Long> removedBeforeThePull = removalsByRun(root);
+        List<String> theRunsBeforeThePull = scoringRunIdsFor(root);
+        EmbeddingScriptedBeans.hasPulledAgainAs(A_SECOND_PULLS_DIGEST);
+        cli.run("run", root.toString());
+        Set<String> askedAfterThePull = documentsAskedAbout();
+        everyQuestionAnsweredAndRecorded();
+
+        cli.run("run", root.toString());
+
+        List<String> theRunOfThePull = theRunsNotAmong(root, theRunsBeforeThePull);
+        claim(
+                "before the pull the threshold removed all " + MORE_THAN_ONE_SAMPLE + " documents, under one run",
+                () -> assertThat(removedBeforeThePull.values()).containsExactly((long) MORE_THAN_ONE_SAMPLE));
+        claim(
+                "each labelling file asked about " + ONE_BANDS_SAMPLE + " of the " + MORE_THAN_ONE_SAMPLE
+                        + " documents, and the one written after the pull did not ask about every document the"
+                        + " first asked about: a sample is drawn from the run, and the pull is another run",
+                () -> {
+                    assertThat(askedBeforeThePull).hasSize(ONE_BANDS_SAMPLE);
+                    assertThat(askedAfterThePull).hasSize(ONE_BANDS_SAMPLE);
+                    assertThat(askedAfterThePull.containsAll(askedBeforeThePull)).isFalse();
+                });
+        claim("the last invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and with every question of the labelling file written after the pull answered, the last"
+                        + " invocation removes all " + MORE_THAN_ONE_SAMPLE + " documents under the run of the"
+                        + " pull: answers given before the pull about documents the new sample does not ask about"
+                        + " do not keep the threshold from ever being applied again",
+                () -> assertThat(theRunOfThePull).singleElement().satisfies(run -> assertThat(removalsByRun(root))
+                        .containsEntry(run, (long) MORE_THAN_ONE_SAMPLE)));
+    }
+
+    /** The corpus documents the labelling file the last invocation wrote asks about, by file name. */
+    private Set<String> documentsAskedAbout() throws IOException {
+        Set<String> asked = new TreeSet<>();
+        Matcher name = CORPUS_FILE_NAME.matcher(Files.readString(workingDirectory.resolve(RelevanceLabelFile.FILE_NAME)));
+        while (name.find()) {
+            asked.add(name.group());
+        }
+        return asked;
+    }
+
+    /** Every blank answer of the labelling file filled in, as a person working through it would, and recorded. */
+    private void everyQuestionAnsweredAndRecorded() throws IOException {
+        Path labels = workingDirectory.resolve(RelevanceLabelFile.FILE_NAME);
+        Files.writeString(labels, Files.readString(labels).replace("relevant: null", "relevant: true"));
+        cli.run("label");
+    }
+
+    /** {@code documents} corpus documents and a seed, each naming its folder so that no other test wrote the same bytes. */
+    private void aCorpusOf(Path root, Path seeds, int documents) throws IOException {
+        for (int i = 0; i < documents; i++) {
+            Files.writeString(root.resolve("corpus-" + i + ".txt"), "a corpus document " + i + " of " + root.getFileName());
+        }
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document of " + seeds.getFileName());
     }
 
     /**
