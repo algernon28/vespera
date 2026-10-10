@@ -17,10 +17,14 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -164,6 +168,49 @@ class DoclingExtractorTest {
                 () -> assertThat(storedConversionsFor(ContentHashing.sha256(document))).isEqualTo(ONE_ROW));
     }
 
+    @Test
+    @Story("A seed with nothing to read converts to a failure")
+    @DisplayName("A seed the cross-format floor stopped is converted as unrecognised, with the rest of the call as handed")
+    @Issue("479")
+    @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
+    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
+    void aSeedTheFloorStoppedIsConvertedAsUnrecognised(@TempDir Path dir) throws IOException {
+        List<Sent> sent = new ArrayList<>();
+        Path seed = aDocument(dir);
+
+        DoclingResponse answer = sendingInto(sent)
+                .convertSeed(seed, CONTENT_HASH, IDENTITY, DetectedFormat.FLOOR_STOPPED, DetectedSubtype.CSV);
+
+        claim(
+                "a seed with no bytes to read is sent once, as unrecognised: the bytes said nothing, which is"
+                        + " true, and it converts to a failure, which is the answer. A seed folder has no floor"
+                        + " in front of it, so such a seed reaches the unusable-seed path rather than stopping"
+                        + " the step (ADR-226, moving ADR-222's rule 1)",
+                () -> assertThat(sent)
+                        .containsExactly(new Sent(seed, CONTENT_HASH, IDENTITY, DetectedFormat.UNRECOGNISED, DetectedSubtype.CSV)));
+        claim(
+                "and the answer handed back is the conversion's own",
+                () -> assertThat(answer).isSameAs(AN_ANSWER));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = DetectedFormat.class, names = "FLOOR_STOPPED", mode = EnumSource.Mode.EXCLUDE)
+    @Story("A seed with nothing to read converts to a failure")
+    @DisplayName("A seed of any other detected format is converted as what its bytes say")
+    @Issue("479")
+    @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
+    void aSeedOfAnyOtherFormatIsConvertedAsDetected(DetectedFormat format, @TempDir Path dir) throws IOException {
+        List<Sent> sent = new ArrayList<>();
+        Path seed = aDocument(dir);
+
+        sendingInto(sent).convertSeed(seed, CONTENT_HASH, IDENTITY, format, NO_SUBTYPE);
+
+        claim(
+                "the seed is sent once, as the format detection found, and only the floor's own answer is"
+                        + " sent as something else",
+                () -> assertThat(sent).containsExactly(new Sent(seed, CONTENT_HASH, IDENTITY, format, NO_SUBTYPE)));
+    }
+
     /**
      * A document service that answers a conversion {@code count} times and refuses any request
      * beyond that, which is how "no second call" is claimed here.
@@ -193,4 +240,31 @@ class DoclingExtractorTest {
 
     /** The stub and the client bound to it, which have to be built in that order to be connected. */
     private record StubbedService(MockRestServiceServer service, RestClient restClient) {}
+
+    /** What the seed conversions below answer with; nothing here reads it. */
+    private static final DoclingResponse AN_ANSWER =
+            new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 0d, null, CONVERTED);
+
+    /** One call to the keyed conversion, as {@link DoclingExtractor#convertSeed} made it. */
+    private record Sent(
+            Path file, String contentHash, ExtractorIdentity identity, DetectedFormat format, DetectedSubtype subtype) {}
+
+    /**
+     * An extractor whose keyed conversion records each call into {@code sent} and answers {@link #AN_ANSWER},
+     * so that what a seed is sent as is read where the conversion begins, with no service and no cache.
+     */
+    private static DoclingExtractor sendingInto(List<Sent> sent) {
+        return new DoclingExtractor(null, null) {
+            @Override
+            public DoclingResponse convert(
+                    Path file,
+                    String contentHash,
+                    ExtractorIdentity extractorIdentity,
+                    DetectedFormat format,
+                    DetectedSubtype subtype) {
+                sent.add(new Sent(file, contentHash, extractorIdentity, format, subtype));
+                return AN_ANSWER;
+            }
+        };
+    }
 }

@@ -17,7 +17,7 @@ import io.algernon.vespera.profile.ProfileStore;
  * however differently they are misspelt. {@code 0.30} and {@code 0.3} are one value for the same
  * reason — parsed, not compared as text.
  *
- * <p><b>Never the derived {@link RelevanceFloor.State}.</b> Whether a set floor turns out to be
+ * <p><b>Never what the floor lets the step do ({@code FloorReach}).</b> Whether a set floor turns out to be
  * calibrated on this run's own scale is a fact about the run's own output (the embedder identity its
  * vectors carry), and folding that into the run's identity would make the identity depend on what the
  * run itself produces. This record carries only the operator's number.

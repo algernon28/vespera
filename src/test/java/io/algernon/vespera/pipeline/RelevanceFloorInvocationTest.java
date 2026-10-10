@@ -182,8 +182,11 @@ class RelevanceFloorInvocationTest {
                         .isZero());
         claim(
                 "the verdict says what it was measured against rather than standing bare, since a person"
-                        + " reading it a year later has to know why",
-                () -> assertThat(aBelowThresholdReason(root)).isEqualTo(RelevanceFloorTasklet.REASON));
+                        + " reading it a year later has to know why. The sentence is written out here rather"
+                        + " than read off the constant, so that moving the constant between modules cannot"
+                        + " change a character of it unseen (ADR-226)",
+                () -> assertThat(aBelowThresholdReason(root))
+                        .isEqualTo("relevance score below the floor set in the profile"));
     }
 
     @Test

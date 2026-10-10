@@ -125,6 +125,28 @@ public record Profile(
         extractionAttempt = extractionAttempt == null ? NumericValue.unset() : extractionAttempt;
     }
 
+    /**
+     * Every key of the profile with its value as the operator wrote it (ADR-186, ADR-226 moving ADR-222's
+     * rule 7): one entry per record component in declaration order, the component's name being the key as
+     * {@code profile.yaml} names it, and {@code ""} where the value is {@code null}, so that no key is
+     * missing and none shows as the word null. No key is named here, so a key the record gains is on the
+     * deliverable's index with no change to this method. Unmodifiable, and kept out of {@code profile.yaml}.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public java.util.SequencedMap<String, String> keysAsWritten() {
+        var keys = new java.util.LinkedHashMap<String, String>();
+        for (var component : Profile.class.getRecordComponents()) {
+            try {
+                String value = ((ProfileValue) component.getAccessor().invoke(this)).value();
+                keys.put(component.getName(), value == null ? "" : value);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(
+                        "Could not read profile key '" + component.getName() + "' for the deliverable's index", e);
+            }
+        }
+        return java.util.Collections.unmodifiableSequencedMap(keys);
+    }
+
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
         return new Profile(null, null, null, null, null, null, null, null, null, null);

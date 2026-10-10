@@ -46,6 +46,25 @@ public enum Unwritten {
     }
 
     /**
+     * Why a cluster without a synthesis doc went unwritten, for its page to say (ADR-174 §4, ADR-226).
+     *
+     * <p><b>What this invocation found wins over a stored fault row.</b> A row an earlier invocation
+     * kept stands until an answer is believed (ADR-111), but if this invocation could send nothing for
+     * the cluster at all, that is why it is unwritten now, and a page naming the old answer's reason
+     * would have the reader expect a re-run to help. The fault on record is asked for only where this
+     * invocation found nothing. A cluster with neither, and no doc, was never reached: the step stopped
+     * after five turned-down answers before it.
+     */
+    public static Unwritten of(
+            java.util.Optional<Unwritten> foundThisRun,
+            java.util.function.Supplier<java.util.Optional<ClusterFault>> faultOnRecord) {
+        if (foundThisRun.isPresent()) {
+            return foundThisRun.get();
+        }
+        return faultOnRecord.get().map(fault -> of(fault.kind())).orElse(NOT_REACHED);
+    }
+
+    /**
      * The case a stored fault row stands for. An exhaustive {@code switch} with no {@code default}, so
      * a fifth kind of fault stops this compiling until the record gives it a sentence (ADR-174).
      */

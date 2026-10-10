@@ -66,7 +66,13 @@ class MethodsNothingShippedCallsAreGoneTest {
     /** The ledger's record of walks. */
     private static final String WALKS = "io.algernon.vespera.ledger.Walks";
 
-    /** What the relevance floor entitles a run to do, a type nested in the floor's own class. */
+    /**
+     * What the relevance floor lets a run do. A type nested in the floor's class of {@code pipeline} until
+     * ADR-226 moved the rule into {@code embedding}, as a type that answers the two actions.
+     */
+    private static final String FLOOR_REACH = "io.algernon.vespera.embedding.FloorReach";
+
+    /** Where the outcome type lived before ADR-226. */
     private static final String RELEVANCE_FLOOR_STATE = "io.algernon.vespera.pipeline.RelevanceFloor$State";
 
     /** The clusters a run made, as the embedding module records them. */
@@ -90,13 +96,23 @@ class MethodsNothingShippedCallsAreGoneTest {
     @Test
     @Story("Nothing ships that nothing calls")
     @DisplayName("The relevance floor's outcome no longer says whether it removes anything, a question only tests asked")
+    @Issue("479")
+    @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
     void theFloorNoLongerSaysWhetherItRemovesAnything() throws ClassNotFoundException {
-        Set<String> methods = declaredMethodsOf(RELEVANCE_FLOOR_STATE);
+        Set<String> methods = declaredMethodsOf(FLOOR_REACH);
 
         claim(
-                "the outcome type no longer declares removesAnything: the step that applies the floor decides by"
-                        + " which of the three outcomes it holds, and only a test asked the method",
+                "the floor's outcome was read and answers the two actions the step takes, so an empty answer"
+                        + " below is not an empty type",
+                () -> assertThat(methods).contains("withdrawsStandingRemovals", "removesBelow"));
+        claim(
+                "and it declares no removesAnything: the step that applies the floor acts on the two actions"
+                        + " it is answered, below which number to remove and whether to withdraw what it"
+                        + " removed before, and only a test asked the method",
                 () -> assertThat(methods).doesNotContain("removesAnything"));
+        claim(
+                "nor is the outcome type of the code that runs the stages still there to declare it",
+                () -> assertThat(loads(RELEVANCE_FLOOR_STATE)).isFalse());
     }
 
     @Test
@@ -177,6 +193,16 @@ class MethodsNothingShippedCallsAreGoneTest {
                         + " document and a reference and answers what the reference points at: the reader of a"
                         + " document's texts, which the reader of its pictures calls instead of keeping a copy",
                 () -> assertThat(resolvers).containsExactly(THE_ONE_RESOLVER));
+    }
+
+    /** Whether {@code className} is there to load. */
+    private static boolean loads(String className) {
+        try {
+            Class.forName(className, false, MethodsNothingShippedCallsAreGoneTest.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException gone) {
+            return false;
+        }
     }
 
     /** The names of the methods {@code className} itself declares, synthetic ones left out. */

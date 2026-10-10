@@ -21,42 +21,48 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code pipeline} holds the eight rules ADR-222 records and no other, and a stage's version names
- * {@code pipeline} exactly while one of them is that stage's (ADR-222, amending ADR-058).
+ * {@code pipeline} holds no rule, and so no stage's version names {@code pipeline} (ADR-222, amending
+ * ADR-058; ADR-226, which moved the eight rules ADR-222 found into {@code extraction}, {@code embedding},
+ * {@code synthesis} and {@code profile}).
  *
  * <p>A rule decides a verdict, a cache key, a cluster or text of the deliverable. No test can tell a rule
  * from the wiring around it, so this holds a listed allowance, read off the compiled classes as {@link
  * OnlyPipelineNamesSpringBatchTest} reads them:
  *
  * <ul>
- *   <li>every class of {@code pipeline} is on record, as holding a rule ({@link #RULES_ON_RECORD}) or as
- *       holding none ({@link #HOLDING_NO_RULE}), so a class cannot be added without the question being
- *       answered for it, by a person, in the change that adds it;
+ *   <li>every class of {@code pipeline} is on record, as holding a rule ({@link #RULES_ON_RECORD}, empty
+ *       since ADR-226) or as holding none ({@link #HOLDING_NO_RULE}), so a class cannot be added without
+ *       the question being answered for it, by a person, in the change that adds it;
  *   <li>the classes that name {@code VerdictKind}, and the ones that name {@code Deliverable}, are the
  *       ones on record, so a class that starts to write or choose a verdict, or to write the deliverable,
  *       fails;
- *   <li>the stages whose version names {@code pipeline} are the stages with a rule on record;
- *   <li>the eight classes of content census, content redundancy and arrangement, whose versions do not
- *       name {@code pipeline}, name the types of the capability modules and of {@code profile} on record
- *       ({@link #COLLABORATORS_ON_RECORD}) and no other, since a rule added to one of them moves no run
- *       id.
+ *   <li>the stages whose version names {@code pipeline} are the stages with a rule on record, which is
+ *       none;
+ *   <li>the classes that run content census, content redundancy, both runs of stage 5, arrangement and
+ *       generation, none of whose versions names {@code pipeline}, name the types of the capability modules
+ *       and of {@code profile} on record ({@link #COLLABORATORS_ON_RECORD}) and no other, since a rule
+ *       added to one of them moves no run id.
  * </ul>
  *
  * <p><b>What it cannot see</b>: a rule added to a class already on record that names no verdict kind,
- * does not write the deliverable and, in one of those eight classes, needs no type the class did not name
- * already. A type nested in a type already named is not seen as new, because the name is read up to the
- * {@code $}. {@code ledger}'s types are not listed for the eight: a verdict is written and discarded by
- * its {@code VerdictKind}, which the second test holds. The other classes those three stages run through,
- * {@code OccurrenceReader}, {@code TaskletSteps}, {@code RunCompletion}, {@code ReportedStatements} and
- * {@code TimedStatement} among them, and the classes of stages 1 and 2, whose versions never named {@code
- * pipeline}, are held by the first two tests alone. A class on record as holding no rule that has since
- * been deleted is not reported either, so that a change which removes one does not have to edit this
- * list.
+ * does not write the deliverable and, in one of the classes held closer, needs no type the class did not
+ * name already: a condition on values it already holds, or a constant. Since ADR-226 no such rule moves a
+ * run id in any stage, so whoever reads the change is the only one who asks the question, and the lists
+ * are what tell them where to ask it. A type nested in a type already named is not seen as new, because
+ * the name is read up to the {@code $}. {@code ledger}'s types are not listed: a verdict is written and
+ * discarded by its {@code VerdictKind}, which the second test holds. The other classes those stages run
+ * through, {@code OccurrenceReader}, {@code TaskletSteps}, {@code RunCompletion}, {@code
+ * ReportedStatements} and {@code TimedStatement} among them, the pages and lines written for the operator,
+ * the labelling classes, and the classes of stages 1 and 2, whose versions never named {@code pipeline},
+ * are held by the first two tests alone. A class on record as holding no rule that has since been deleted
+ * is not reported either, so that a change which removes one does not have to edit this list.
  */
 @Epic("Architecture")
 @Feature("Module boundaries")
 @Issue("353")
+@Issue("479")
 @Link(name = "ADR-222", url = Adr.A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT, type = "adr")
+@Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
 @Link(name = "ADR-058", url = Adr.IMPLEMENTATION_VERSION_IS_THE_LAST_COMMIT, type = "adr")
 class PipelineHoldsOnlyTheRulesOnRecordTest {
 
@@ -72,15 +78,17 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
 
     /**
      * ADR-222's allowance: the classes of {@code pipeline} that hold a rule, by the persisted name of the
-     * stage whose output the rule shapes. {@code SeedConversions} holds rule 1, {@code RelevanceFloor} rule
-     * 2, {@code RelevanceFloorTasklet} rule 3 and {@code GenerationTasklet} rules 4 to 8.
+     * stage whose output the rule shapes. Empty since ADR-226, which moved the eight ADR-222 found. A rule
+     * added to {@code pipeline} is added here by a record, with its stage, and that stage names {@code
+     * pipeline} again in the same change.
      */
-    private static final Map<String, Set<String>> RULES_ON_RECORD = Map.of(
-            "seed-measurement", Set.of("SeedConversions"),
-            "embedding-scoring", Set.of("RelevanceFloor", "RelevanceFloorTasklet"),
-            "generation", Set.of("GenerationTasklet"));
+    private static final Map<String, Set<String>> RULES_ON_RECORD = Map.of();
 
-    /** Every other class of {@code pipeline} ADR-222's survey read, each found to hold no rule. */
+    /**
+     * Every other class of {@code pipeline} ADR-222's survey read, each found to hold no rule, and the four
+     * that held its eight rules until ADR-226 moved them: {@code SeedConversions}, {@code RelevanceFloor},
+     * {@code RelevanceFloorTasklet} and {@code GenerationTasklet}.
+     */
     private static final Set<String> HOLDING_NO_RULE = Set.of(
             "ArchiveGoneException",
             "ArrangementGate",
@@ -115,6 +123,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "FormatMixReport",
             "GenerationContextWindow",
             "GenerationModel",
+            "GenerationTasklet",
             "InvocationAccount",
             "InvocationRuns",
             "LabelFileReader",
@@ -131,6 +140,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "RedundancyJobConfiguration",
             "RedundancyResolutionTasklet",
             "RedundancySignatureItemWriter",
+            "RelevanceFloor",
+            "RelevanceFloorTasklet",
             "RelevanceLabelFile",
             "RelevanceLabellingReport",
             "RelevanceReportTasklet",
@@ -142,6 +153,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ReviewListReport",
             "RunCompletion",
             "RunMint",
+            "SeedConversions",
             "SeedCorpusComparisonReport",
             "SeedCorpusComparisonTasklet",
             "SeedExtractionItemProcessor",
@@ -178,7 +190,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
      * The classes of {@code pipeline} whose compiled form names the verdict vocabulary. Stage 1's and
      * stage 2's hand on the verdict {@code corpus} and {@code extraction} decided, or discard an unfinished
      * attempt's; stage 4b's discards one too; {@code InvocationAccount} counts the verdicts under each kind
-     * of the closed vocabulary; and {@code RelevanceFloorTasklet} is rule 3.
+     * of the closed vocabulary; and {@code RelevanceFloorTasklet} withdraws and writes the below-threshold
+     * verdicts {@code embedding}'s {@code FloorReach} answers for, with the kind and the reason it hands
+     * the step (ADR-226).
      */
     private static final Set<String> NAMING_A_VERDICT_KIND = Set.of(
             "ByteLevelReductionTasklet",
@@ -206,14 +220,17 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "io/algernon/vespera/(corpus|extraction|similarity|embedding|synthesis|profile)/(\\w+)");
 
     /**
-     * The classes that run content census, content redundancy and arrangement, with every type of {@code
-     * corpus}, {@code extraction}, {@code similarity}, {@code embedding}, {@code synthesis} and {@code
-     * profile} each names, as {@code module.Type}: what it calls, what it hands over and what comes back. Those stages' versions
-     * do not name {@code pipeline}, so each class here was read as handing these their values and deciding
-     * nothing by them (ADR-222, the stages with no rule in {@code pipeline}).
+     * The classes that run content census, content redundancy, both runs of stage 5, arrangement and
+     * generation, with every type of {@code corpus}, {@code extraction}, {@code similarity}, {@code
+     * embedding}, {@code synthesis} and {@code profile} each names, as {@code module.Type}: what it calls,
+     * what it hands over and what comes back. Those stages' versions do not name {@code pipeline}, so each
+     * class here was read as handing these their values and deciding nothing by them (ADR-222, the stages
+     * with no rule in {@code pipeline}; ADR-226 for the seventeen classes of stage 5 and generation, whose
+     * lists are those of the build that moved the rules out of them).
      */
-    private static final Map<String, Set<String>> COLLABORATORS_ON_RECORD = Map.of(
-            "ContentCensusTasklet",
+    private static final Map<String, Set<String>> COLLABORATORS_ON_RECORD = Map.ofEntries(
+            Map.entry(
+                    "ContentCensusTasklet",
                     Set.of(
                             "extraction.ConfidenceDistribution",
                             "extraction.ExtractionStatement",
@@ -223,25 +240,183 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "profile.ProfileStore",
                             "similarity.DocumentFrequency",
                             "similarity.FrequencyProgress",
-                            "similarity.SimilarityStatement"),
-            "RedundancyGate", Set.of("profile.NumericValue", "profile.Profile", "profile.ProfileStore"),
-            "RedundancyBoilerplate", Set.of("similarity.BoilerplateShingles"),
-            "RedundancySignatureItemWriter", Set.of("similarity.RedundancySignatures"),
-            "RedundancyJobConfiguration",
+                            "similarity.SimilarityStatement")),
+            Map.entry("RedundancyGate", Set.of("profile.NumericValue", "profile.Profile", "profile.ProfileStore")),
+            Map.entry("RedundancyBoilerplate", Set.of("similarity.BoilerplateShingles")),
+            Map.entry("RedundancySignatureItemWriter", Set.of("similarity.RedundancySignatures")),
+            Map.entry(
+                    "RedundancyJobConfiguration",
                     Set.of(
                             "profile.NumericValue",
                             "similarity.RedundancySignatures",
                             "similarity.ShingleHashIndex",
                             "similarity.SimilarityStatement",
-                            "similarity.SimilarityStatementProgress"),
-            "RedundancyResolutionTasklet",
+                            "similarity.SimilarityStatementProgress")),
+            Map.entry(
+                    "RedundancyResolutionTasklet",
                     Set.of(
                             "extraction.ExtractionMetrics",
                             "similarity.AlphanumericCounts",
                             "similarity.RedundancyResolution",
                             "similarity.ResolutionProgress",
-                            "similarity.SimilarityStatement"),
-            "ArrangementTasklet",
+                            "similarity.SimilarityStatement")),
+            Map.entry(
+                    "SeedConversions",
+                    Set.of(
+                            "corpus.BrokenCheck",
+                            "corpus.DetectedFormat",
+                            "corpus.DetectedSubtype",
+                            "extraction.DoclingExtractor",
+                            "extraction.DoclingResponse",
+                            "extraction.ExtractorIdentity")),
+            Map.entry(
+                    "SeedExtractionItemProcessor",
+                    Set.of(
+                            "extraction.DoclingCallRejectedException",
+                            "extraction.DoclingConnectionLostException",
+                            "extraction.DoclingDocumentTexts",
+                            "extraction.DoclingExtractor",
+                            "extraction.DoclingResponse",
+                            "extraction.ExtractionMetrics",
+                            "extraction.ExtractorIdentity",
+                            "extraction.UsableText")),
+            Map.entry(
+                    "SeedExtractionItemWriter",
+                    Set.of("embedding.UnusableSeeds", "extraction.ExtractionCacheKeys", "extraction.ExtractionMetrics")),
+            Map.entry("SeedExtractionJobConfiguration", Set.of()),
+            Map.entry("SeedExtractionOutcome", Set.of("extraction.ExtractionMetrics")),
+            Map.entry(
+                    "SeedCorpusComparisonTasklet",
+                    Set.of(
+                            "embedding.EmbeddingStatement",
+                            "embedding.EmbeddingStatementProgress",
+                            "embedding.MeasuredForms",
+                            "embedding.SeedCorpusComparison",
+                            "extraction.ExtractionMetrics",
+                            "extraction.MeasuredFormRow")),
+            Map.entry("EmbeddingModelGate", Set.of("profile.Profile", "profile.ProfileStore", "profile.TextValue")),
+            Map.entry(
+                    "SeedGate", Set.of("corpus.Walk", "profile.Profile", "profile.ProfileStore", "profile.TextValue")),
+            Map.entry("UsableSeedGate", Set.of()),
+            Map.entry("StageFiveGates", Set.of()),
+            Map.entry(
+                    "EmbeddingScoringTasklet",
+                    Set.of(
+                            "embedding.ChunkEmbedder",
+                            "embedding.LocalOllamaModel",
+                            "embedding.OllamaClient",
+                            "embedding.UnusableSeed",
+                            "embedding.UnusableSeeds",
+                            "extraction.Chunk",
+                            "extraction.ChunkingRule",
+                            "extraction.ChunkingRuleIdentity",
+                            "extraction.DoclingExtractor",
+                            "extraction.DoclingResponse",
+                            "extraction.ExtractionCacheKeys",
+                            "extraction.ExtractorIdentity",
+                            "extraction.HybridChunker")),
+            Map.entry(
+                    "RelevanceScoringTasklet",
+                    Set.of(
+                            "embedding.RelevanceScoring",
+                            "embedding.ScoringProgress",
+                            "embedding.UnusableSeed",
+                            "embedding.UnusableSeeds",
+                            "extraction.ChunkingRule",
+                            "extraction.ChunkingRuleIdentity",
+                            "extraction.ExtractionCacheKeys",
+                            "extraction.HybridChunker")),
+            Map.entry(
+                    "RelevanceFloor",
+                    Set.of(
+                            "corpus.Walk",
+                            "embedding.FloorReach",
+                            "embedding.RelevanceLabels",
+                            "profile.Profile",
+                            "profile.ProfileStore",
+                            "profile.TextValue")),
+            Map.entry(
+                    "RelevanceFloorTasklet",
+                    Set.of("embedding.FloorReach", "embedding.RelevanceDistribution", "embedding.RelevanceScoring")),
+            Map.entry(
+                    "ClusteringTasklet",
+                    Set.of(
+                            "embedding.Clustering",
+                            "embedding.ClusteringProgress",
+                            "embedding.DocumentClusters",
+                            "embedding.RetainedEdgeSpread",
+                            "extraction.ChunkingRule",
+                            "extraction.ChunkingRuleIdentity",
+                            "extraction.ExtractionCacheKeys",
+                            "extraction.HybridChunker")),
+            Map.entry(
+                    "RelevanceReportTasklet",
+                    Set.of(
+                            "corpus.Walk",
+                            "embedding.FloorReach",
+                            "embedding.LabelledSpread",
+                            "embedding.RelevanceDistribution",
+                            "embedding.RelevanceLabel",
+                            "embedding.RelevanceLabels",
+                            "extraction.DoclingExtractor",
+                            "extraction.ExtractionCacheKeys",
+                            "extraction.ExtractorIdentity",
+                            "extraction.HybridChunker",
+                            "profile.Measurement",
+                            "profile.Profile",
+                            "profile.ProfileStore",
+                            "profile.TextValue")),
+            Map.entry(
+                    "GenerationTasklet",
+                    Set.of(
+                            "corpus.DetectedFormat",
+                            "corpus.DetectedFormats",
+                            "corpus.Walk",
+                            "embedding.DocumentCluster",
+                            "embedding.DocumentClusters",
+                            "embedding.EmbeddingStatement",
+                            "embedding.LocalOllamaModel",
+                            "embedding.OllamaClient",
+                            "embedding.RelevanceScoring",
+                            "extraction.Chunk",
+                            "extraction.DocumentPicture",
+                            "extraction.DocumentPictures",
+                            "extraction.ExtractionCacheKeys",
+                            "extraction.ExtractorIdentity",
+                            "extraction.LeadingChunks",
+                            "extraction.PicturePlace",
+                            "profile.Profile",
+                            "profile.ProfileStore",
+                            "synthesis.ArrangedCluster",
+                            "synthesis.ArrangedPartition",
+                            "synthesis.ArrangedSurvivors",
+                            "synthesis.ClusterExemplars",
+                            "synthesis.ClusterFault",
+                            "synthesis.ClusterFaultKind",
+                            "synthesis.ClusterFaults",
+                            "synthesis.ClusterGeneration",
+                            "synthesis.ClusterMaterial",
+                            "synthesis.ClusterSlot",
+                            "synthesis.Clusters",
+                            "synthesis.Deliverable",
+                            "synthesis.DeliverableProgress",
+                            "synthesis.DeliverableProvenance",
+                            "synthesis.GenerationOutcome",
+                            "synthesis.GenerationProgress",
+                            "synthesis.ListedPartition",
+                            "synthesis.ListedPicture",
+                            "synthesis.ListedPicturePlace",
+                            "synthesis.ListedSurvivor",
+                            "synthesis.NamedValue",
+                            "synthesis.OpeningChunk",
+                            "synthesis.OpeningText",
+                            "synthesis.RecordedCluster",
+                            "synthesis.SurvivorPictures",
+                            "synthesis.SynthesisDocs",
+                            "synthesis.SynthesisStatement",
+                            "synthesis.Unwritten")),
+            Map.entry(
+                    "ArrangementTasklet",
                     Set.of(
                             "corpus.Walk",
                             "embedding.DocumentCluster",
@@ -260,12 +435,12 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "synthesis.LabelledCluster",
                             "synthesis.LeadDocument",
                             "synthesis.Partition",
-                            "synthesis.RecordedCluster"),
-            "ArrangementGate", Set.of("profile.Profile", "profile.ProfileStore", "profile.TextValue"));
+                            "synthesis.RecordedCluster")),
+            Map.entry("ArrangementGate", Set.of("profile.Profile", "profile.ProfileStore", "profile.TextValue")));
 
     @Test
     @Story("A stage is identified by the code that runs the stages only while that code decides something for it")
-    @DisplayName("The classes that run the three stages no longer identified by this code call only the code on record for them")
+    @DisplayName("The classes that run the stages no longer identified by this code call only the code on record for them")
     void theClassesOfTheFreedStagesNameOnlyTheCollaboratorsOnRecord() throws Exception {
         Map<String, Set<String>> named = new TreeMap<>();
         COLLABORATORS_ON_RECORD.keySet().forEach(held -> named.put(held, new TreeSet<>()));
@@ -289,7 +464,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
         COLLABORATORS_ON_RECORD.forEach((held, types) -> onRecord.put(held, new TreeSet<>(types)));
 
         claim(
-                "each of the eight classes names the measuring, judging and writing code on record for it and"
+                "each class held closer names the measuring, judging and writing code on record for it and"
                         + " no other. They run stages that are not done again when one of them changes, so"
                         + " nothing in them may decide what those stages write. A type named beyond the"
                         + " record is a new collaborator, often met when two changes are merged: read what"
@@ -363,7 +538,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
 
     @Test
     @Story("A stage is identified by the code that runs the stages only while that code decides something for it")
-    @DisplayName("The stages identified by the code that runs the stages are exactly the three it still decides something for")
+    @DisplayName("The stages identified by the code that runs the stages are exactly those it decides something for, which is none")
     void aStageNamesPipelineExactlyWhileARuleOfItIsOnRecord() throws Exception {
         Set<String> namingPipeline = new TreeSet<>();
         Set<String> stagesRead = new TreeSet<>();
@@ -382,14 +557,23 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
         }
 
         claim(
-                "the table read holds the stages the record names, so the claim below is about them",
-                () -> assertThat(stagesRead).containsAll(RULES_ON_RECORD.keySet()).contains("content-census"));
+                "the table read holds every stage from content census to generation and the stages the record"
+                        + " names, so the claim below is about them and an empty answer is not an empty table",
+                () -> assertThat(stagesRead)
+                        .containsAll(RULES_ON_RECORD.keySet())
+                        .contains(
+                                "content-census",
+                                "content-redundancy",
+                                "seed-measurement",
+                                "embedding-scoring",
+                                "arrangement",
+                                "generation"));
         claim(
-                "the stages identified by the code that runs the stages are seed measurement, embedding and"
-                        + " scoring, and generation: the three that code still decides something for. A"
-                        + " stage named here beyond those is done again after every change to a progress"
-                        + " line or a command-line option, for nothing; one of the three missing would keep"
-                        + " its old results after a change to what decides them",
+                "the stages identified by the code that runs the stages are the stages that code decides"
+                        + " something for, and it decides nothing for any. A stage named here is done again"
+                        + " after every change to a progress line or a command-line option, for nothing; a"
+                        + " rule found in that code is recorded, with its stage, and the stage named here in"
+                        + " the same change, or its old results stand after a change to what decides them",
                 () -> assertThat(namingPipeline).containsExactlyInAnyOrderElementsOf(RULES_ON_RECORD.keySet()));
     }
 

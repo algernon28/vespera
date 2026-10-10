@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md).** One parenthesis of the Decision below no longer holds as written: "(plus the specific stage-orchestration class in `pipeline` that drives it, if that file lives outside the module's own path)". A stage's version names `pipeline` only while a class of `pipeline` holds a rule that shapes that stage's output, and ADR-222 records which do. The mechanism and the accepted failure stand.
 
+> **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** No stage's version names `pipeline`, because no class of `pipeline` holds a rule that shapes a stage's output; generation's names `profile`. The mechanism and the accepted failure stand.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md).** Three rows of §1's table of the modules each stage's version spans no longer hold as written: `content-census`, `content-redundancy` and `arrangement` do not name `pipeline`. The other five rows stand, and so does everything else below.
 
+> **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** Three more rows of §1's table no longer hold as written: `seed-measurement` and `embedding-scoring` do not name `pipeline`, and `generation` names `synthesis`, `extraction`, `embedding` and `profile`. Everything else below stands.
+
 - **Date**: 2026-09-26
 - **Status**: accepted
 - **Amends**: [ADR-131](0131-one-module-builds-every-plain-tasklet-step.md), on its second reason for keeping the per-stage `*JobConfiguration` classes, "the place each stage's step is named" (§7). [ADR-153](0153-the-whole-job-tests-share-one-slice-and-a-stages-configuration-class-stops-being-their-seam.md) withdrew the first reason and left this one for a later record to weigh. It is weighed here and withdrawn. `TaskletSteps` also gains a third method (§5).

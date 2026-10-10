@@ -16,6 +16,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -58,7 +59,7 @@ class UnreadableFloorsTest {
      * A label reader that answers nothing.
      *
      * <p><b>It is never called, and that is the claim.</b> An unreadable floor is settled before any
-     * question of calibration arises — {@code stateFor} returns on the reading, without reaching the
+     * question of calibration arises — {@code reachFor} hands the rule no number, and the rule reads no
      * labels at all — so a double that would fail loudly if consulted is how this test says the
      * threshold's scale never entered into it. Give it a seed folder and answers and the outcome is the
      * same, because there is no number for a scale to be wrong about.
@@ -132,8 +133,8 @@ class UnreadableFloorsTest {
 
         claim(
                 "the step removes nothing, because there is no number for it to remove anything by",
-                () -> assertThat(step.stateFor(AN_EMBEDDER, "Stage 5e (relevance floor)"))
-                        .isNotInstanceOf(RelevanceFloor.Applicable.class));
+                () -> assertThat(step.reachFor(Optional.of(AN_EMBEDDER), "Stage 5e (relevance floor)").removesBelow())
+                        .isEmpty());
         claim(
                 "and the value that names the work carries no number either -- asserted against the very"
                         + " same profile as the claim above, because what matters is the pair agreeing:"

@@ -1,6 +1,5 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.DocumentCluster;
@@ -10,6 +9,7 @@ import io.algernon.vespera.embedding.LocalOllamaModel;
 import io.algernon.vespera.embedding.OllamaClient;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.extraction.Chunk;
+import io.algernon.vespera.extraction.DocumentPicture;
 import io.algernon.vespera.extraction.DocumentPictures;
 import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.ExtractorIdentity;
@@ -22,19 +22,18 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.synthesis.ArrangedPartition;
 import io.algernon.vespera.synthesis.ArrangedSurvivors;
 import io.algernon.vespera.synthesis.ClusterFault;
 import io.algernon.vespera.synthesis.ClusterFaults;
-import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.ClusterExemplars;
 import io.algernon.vespera.synthesis.ClusterGeneration;
+import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.ClusterMaterial;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.Deliverable;
 import io.algernon.vespera.synthesis.DeliverableProgress;
 import io.algernon.vespera.synthesis.DeliverableProvenance;
-import io.algernon.vespera.synthesis.Exemplar;
 import io.algernon.vespera.synthesis.GenerationOutcome;
 import io.algernon.vespera.synthesis.GenerationProgress;
 import io.algernon.vespera.synthesis.ListedPartition;
@@ -42,6 +41,7 @@ import io.algernon.vespera.synthesis.ListedPicture;
 import io.algernon.vespera.synthesis.ListedPicturePlace;
 import io.algernon.vespera.synthesis.ListedSurvivor;
 import io.algernon.vespera.synthesis.NamedValue;
+import io.algernon.vespera.synthesis.OpeningText;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SurvivorPictures;
 import io.algernon.vespera.synthesis.SynthesisDocs;
@@ -276,6 +276,7 @@ class GenerationTasklet implements Tasklet {
                     OccurrenceId[] heldFor = new OccurrenceId[1];
                     Map<Integer, List<DocumentCluster>> held = new HashMap<>();
 
+                    GenerationProgress progress = progressLines(documentsOpened);
                     GenerationOutcome outcome = clusterGeneration.write(
                             generation,
                             clusters.countForRun(arrangement),
@@ -292,13 +293,19 @@ class GenerationTasklet implements Tasklet {
                                                     .add(member));
                                     heldFor[0] = seed;
                                 }
-                                List<Exemplar> exemplars = exemplarsOf(
-                                        held.getOrDefault(recorded.cluster().ordinal(), List.of()), scoring, documentsOpened);
-                                return new ClusterMaterial(pathOf(seed), exemplars);
+                                // Each member's score is read by its key as the member is reached (ADR-223 section 5).
+                                return new ClusterMaterial(pathOf(seed), ClusterExemplars.gathered(
+                                        held.getOrDefault(recorded.cluster().ordinal(), List.of()).stream()
+                                                .map(DocumentCluster::occurrenceId)
+                                                .toList(),
+                                        member -> Optional.ofNullable(
+                                                relevanceScoring.scoresFor(scoring, List.of(member)).get(member)),
+                                        this::openingChunkOf,
+                                        progress));
                             },
                             modelName,
                             contextWindow,
-                            progressLines());
+                            progress);
 
                     // The step acts on the outcome (ADR-190): the walk, the stop and the completion
                     // rule (ADR-111, ADR-116) are ClusterGeneration's.
@@ -356,7 +363,7 @@ class GenerationTasklet implements Tasklet {
      * one read, the standing faults, as {@code synthesis} reports them (ADR-193 section 7, ADR-204 section 3):
      * timed, and not reached where the walk stops on five answers turned down in a row.
      */
-    private static GenerationProgress progressLines() {
+    private static GenerationProgress progressLines(StageProgress documentsOpened) {
         ReportedStatements reads = ReportedStatements.saying()
                 .timed(SynthesisStatement.STANDING_FAULTS, STAGE, "the standing faults")
                 .build();
@@ -386,6 +393,19 @@ class GenerationTasklet implements Tasklet {
             @Override
             public void clusterGoneThrough() {
                 gone.itemDone();
+            }
+
+            @Override
+            public void nothingChunkedFrom(OccurrenceId occurrence) {
+                LOG.warn(
+                        "occurrence {} is in a cluster being written over but nothing was ever chunked from"
+                                + " it, so it is not among the documents this call was written from",
+                        occurrence.value());
+            }
+
+            @Override
+            public void occurrenceOpened() {
+                documentsOpened.itemDone();
             }
 
             @Override
@@ -569,7 +589,9 @@ class GenerationTasklet implements Tasklet {
                         seed -> partition.seedPath(),
                         listed::itemDone),
                 slot -> synthesisDocs.forCluster(generation, slot.winningSeed(), slot.clusterOrdinal()),
-                slot -> Optional.of(whyUnwritten(generation, slot, foundThisRun)),
+                slot -> Optional.of(Unwritten.of(
+                        Optional.ofNullable(foundThisRun.get(slot)),
+                        () -> clusterFaults.forCluster(generation, slot.winningSeed(), slot.clusterOrdinal()))),
                 slot -> clusters.placeOf(arrangement, slot.winningSeed(), slot.clusterOrdinal()),
                 page -> eachPageOfSurvivors(
                         EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_PICTURES,
@@ -612,26 +634,6 @@ class GenerationTasklet implements Tasklet {
     }
 
     /**
-     * Why a cluster without a synthesis doc went unwritten, for its page to say (ADR-174 §4).
-     *
-     * <p><b>What this invocation found wins over a stored fault row.</b> A row an earlier invocation
-     * kept stands until an answer is believed (ADR-111), but if this invocation could send nothing for
-     * the cluster at all, that is why it is unwritten now, and a page naming the old answer's reason
-     * would have the reader expect a re-run to help. A cluster with neither, and no doc, was never
-     * reached: the step stopped after five turned-down answers before it.
-     */
-    private Unwritten whyUnwritten(RunId generation, ClusterSlot slot, Map<ClusterSlot, Unwritten> foundThisRun) {
-        Unwritten found = foundThisRun.get(slot);
-        if (found != null) {
-            return found;
-        }
-        return clusterFaults
-                .forCluster(generation, slot.winningSeed(), slot.clusterOrdinal())
-                .map(fault -> Unwritten.of(fault.kind()))
-                .orElse(Unwritten.NOT_REACHED);
-    }
-
-    /**
      * Where {@link Deliverable} asks for a survivor's pictures (ADR-149 §9): the same chain {@link
      * #openingChunkOf} follows to reach a document's cached conversion, joined to {@link
      * DocumentPictures} instead of {@link LeadingChunks}.
@@ -644,11 +646,8 @@ class GenerationTasklet implements Tasklet {
      * call, so a document's decoded pictures live only for the one call that decodes them, and ADR-149
      * §9's one-document bound on memory holds regardless of how many times a survivor is asked about.
      *
-     * <p><b>An {@code IMAGE} or {@code BMP} survivor shows no pictures</b> (ADR-150 §4, ADR-167): the picture Docling would crop
-     * from it is a re-sampled region of the original, not a second document worth carrying alongside it.
-     * No {@code VIDEO} survivor can exist while ADR-168 stands, since stage 1 removes every video as
-     * out of scope, but the filter covers it too, for the same reason a still Docling took from one
-     * would be a re-sampled frame and not a second document (ADR-168).
+     * <p>A survivor whose recorded format {@link DocumentPicture#listedFor} says lists no pictures shows
+     * none, and its cache key is not read (ADR-150 §4, ADR-226).
      * The format is read under the byte-level-reduction run this invocation arrived at (ADR-154), which
      * {@link #execute} resolves once, rather than re-derived from the current implementation version,
      * which would match nothing after that version changes.
@@ -657,9 +656,7 @@ class GenerationTasklet implements Tasklet {
         return occurrenceId -> {
             boolean showsNoPictures = detectedFormats
                     .formatFor(occurrenceId, byteLevelReductionRun)
-                    .filter(format -> format == DetectedFormat.IMAGE
-                            || format == DetectedFormat.BMP
-                            || format == DetectedFormat.VIDEO)
+                    .filter(format -> !DocumentPicture.listedFor(format))
                     .isPresent();
             if (showsNoPictures) {
                 return List.of();
@@ -690,33 +687,21 @@ class GenerationTasklet implements Tasklet {
     }
 
     /**
-     * Every {@link Profile} key, one {@link NamedValue} per record component in declaration order, the component's
-     * name being the key as {@code profile.yaml} names it and its value passed through {@link #textOf}. No key is
-     * named here, so a key the record gains is on the index with no change to this method (ADR-103, ADR-186).
+     * Every {@link Profile} key, one {@link NamedValue} per entry of {@link Profile#keysAsWritten}, which owns the
+     * rule: declaration order, the key as {@code profile.yaml} names it, and nothing where it is unset (ADR-186,
+     * ADR-226).
      */
     private static List<NamedValue> profileValues(Profile profile) {
-        var values = new ArrayList<NamedValue>();
-        for (var component : Profile.class.getRecordComponents()) {
-            try {
-                values.add(new NamedValue(
-                        component.getName(), textOf((ProfileValue) component.getAccessor().invoke(profile))));
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException(
-                        "Could not read profile key '" + component.getName() + "' for the deliverable's index", e);
-            }
-        }
-        return List.copyOf(values);
-    }
-
-    /** What the operator wrote, or nothing where the key is unset -- never {@code null} on the page. */
-    private static String textOf(ProfileValue value) {
-        return value.value() == null ? "" : value.value();
+        return profile.keysAsWritten().entrySet().stream()
+                .map(key -> new NamedValue(key.getKey(), key.getValue()))
+                .toList();
     }
 
     /**
      * Some of the arrangement's survivors, as {@code documents.csv} carries them (ADR-104, ADR-112):
      * gathered from {@code document_cluster}, the ledger's own facts, the content hash {@code extraction}
-     * recorded for each (ADR-206) and the scores read for them. A survivor with no score shows {@code 0.0}.
+     * recorded for each (ADR-206) and the scores read for them, each listed through
+     * {@link ListedSurvivor#of}, which decides what one with no score on record shows (ADR-226).
      *
      * @param seedPathOf a seed's path, asked once for each survivor
      * @param listed called after each survivor is listed
@@ -731,7 +716,7 @@ class GenerationTasklet implements Tasklet {
                 relevanceScoring.scoresFor(scoring, members.stream().map(DocumentCluster::occurrenceId).toList());
         List<ListedSurvivor> survivors = new ArrayList<>(members.size());
         for (DocumentCluster member : members) {
-            survivors.add(new ListedSurvivor(
+            survivors.add(ListedSurvivor.of(
                     member.occurrenceId(),
                     ledger.occurrences().factsFor(member.occurrenceId())
                             .map(OccurrenceFacts::path)
@@ -741,7 +726,7 @@ class GenerationTasklet implements Tasklet {
                     member.winningSeedOccurrenceId(),
                     seedPathOf.apply(member.winningSeedOccurrenceId()),
                     member.clusterOrdinal(),
-                    scores.getOrDefault(member.occurrenceId(), 0.0)));
+                    scores));
             listed.run();
         }
         return survivors;
@@ -830,65 +815,17 @@ class GenerationTasklet implements Tasklet {
     }
 
     /**
-     * One cluster's documents as the call carries them: the chunk each opens with, and the score that
-     * decides the order they are sent in.
-     *
-     * <p>A document nothing was ever chunked from contributes nothing and is left out rather than sent
-     * empty. That is a fact about that one document rather than a fault of the cluster or a reason to
-     * stop the run — and a drop here is exactly why the documents the call carries are recorded one by
-     * one under the ordinals they were given (ADR-133): the sent set is not in general a prefix of this
-     * list, so nothing downstream could work out which document a citation meant. A document whose file
-     * the archive will no longer hand over is not left out: no file is opened here (ADR-206).
-     *
-     * <p><b>A member carrying no score stops instead</b>, which is {@code Arrangement.partitionsOf}'s
-     * rule one stage along and for its reason: the order these are sent in <em>is</em> the score, so a
-     * document with none cannot be placed among them. Standing a zero in for it would send it last as
-     * though it had been measured and found least relevant, which is a claim nobody made.
-     *
-     * <p>Each member's score is read by its key as the member is reached (ADR-223 section 5).
-     */
-    private List<Exemplar> exemplarsOf(
-            List<DocumentCluster> members, RunId scoring, StageProgress documentsOpened) {
-        List<Exemplar> exemplars = new ArrayList<>();
-        for (DocumentCluster member : members) {
-            Double score = relevanceScoring
-                    .scoresFor(scoring, List.of(member.occurrenceId()))
-                    .get(member.occurrenceId());
-            if (score == null) {
-                throw new IllegalStateException("occurrence " + member.occurrenceId().value()
-                        + " is in a cluster being written over but carries no relevance score, so the"
-                        + " documents of that cluster cannot be put in order");
-            }
-            Optional<Chunk> opening = openingChunkOf(member.occurrenceId());
-            documentsOpened.itemDone();
-            if (opening.isEmpty()) {
-                continue;
-            }
-            exemplars.add(new Exemplar(
-                    member.occurrenceId(), opening.get().text(), opening.get().wordCount(), score));
-        }
-        return List.copyOf(exemplars);
-    }
-
-    /**
-     * The chunk one document opens with, or empty where nothing was ever chunked from it.
+     * The chunk one document opens with, or empty where nothing was ever chunked from it: a lookup, the
+     * gathering that leaves such a document out being {@link ClusterExemplars#gathered}'s (ADR-226).
      *
      * <p>The cache is keyed by content hash, which is read from the key stage 2 recorded for the
      * occurrence (ADR-206): the file is not opened, so a document deleted, renamed or locked since the
-     * walk is still sent, as it was converted. The only document that drops out of the call it would have
-     * been an exemplar in is one nothing was chunked from, and every other document in that cluster is
-     * still written about.
+     * walk is still sent, as it was converted.
      */
-    private Optional<Chunk> openingChunkOf(OccurrenceId occurrenceId) {
+    private Optional<OpeningText> openingChunkOf(OccurrenceId occurrenceId) {
         String contentHash = cacheKeys.requireForOccurrence(occurrenceId, stageRuns.upstream(StageModules.EXTRACTION));
         Optional<Chunk> opening = leadingChunks.forContentHash(contentHash);
-        if (opening.isEmpty()) {
-            LOG.warn(
-                    "occurrence {} is in a cluster being written over but nothing was ever chunked from"
-                            + " it, so it is not among the documents this call was written from",
-                    occurrenceId.value());
-        }
-        return opening;
+        return opening.map(chunk -> new OpeningText(chunk.text(), chunk.wordCount()));
     }
 
     private String pathOf(OccurrenceId occurrenceId) {

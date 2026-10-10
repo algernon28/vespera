@@ -241,6 +241,8 @@ class RunIdentityGoldenTest {
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
     @DisplayName("Seed measurement is identified by the corpus root, the seed folder and the redundancy check it read")
+    @Issue("479")
+    @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
     void seedMeasurement() {
         Map<String, Object> run = theRunOf("seed-measurement");
 
@@ -254,13 +256,17 @@ class RunIdentityGoldenTest {
                                         inJson(Walk.canonicalRoot(seeds)),
                                         theIdOf("content-redundancy"))));
         claim(
-                "and its code version is the embedding module's, then extraction's, then pipeline's",
-                () -> assertThat(run.get("implementation_version")).isEqualTo("embedding+extraction+pipeline"));
+                "and its code version is the embedding module's, then extraction's, and not the version of the"
+                        + " code that runs the stages, which since the rule for a seed with nothing to read went"
+                        + " to extraction holds nothing that decides what this one measures",
+                () -> assertThat(run.get("implementation_version")).isEqualTo("embedding+extraction"));
     }
 
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
     @DisplayName("Embedding and scoring is identified by the corpus root, the embedding model, the seed measurement and the score floor")
+    @Issue("479")
+    @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
     void embeddingScoring() {
         Map<String, Object> run = theRunOf("embedding-scoring");
 
@@ -273,8 +279,10 @@ class RunIdentityGoldenTest {
                                         + "\"measurementRunId\":\"%s\",\"relevanceScoreFloor\":null}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("seed-measurement"))));
         claim(
-                "and its code version is the embedding module's, then extraction's, then pipeline's",
-                () -> assertThat(run.get("implementation_version")).isEqualTo("embedding+extraction+pipeline"));
+                "and its code version is the embedding module's, then extraction's, and not the version of the"
+                        + " code that runs the stages, which since the relevance floor's two rules went to"
+                        + " embedding holds nothing that decides what this one removes",
+                () -> assertThat(run.get("implementation_version")).isEqualTo("embedding+extraction"));
     }
 
     @Test
@@ -301,6 +309,8 @@ class RunIdentityGoldenTest {
     @Story("A stage's piece of work is identified by exactly what identified it before")
     @DisplayName("Generation is identified by the corpus root, the approved arrangement and the writing model's identity")
     @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
+    @Issue("479")
+    @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
     void generation() {
         Map<String, Object> run = theRunOf("generation");
 
@@ -318,10 +328,12 @@ class RunIdentityGoldenTest {
                                         + "\"contextWindow\":8192,\"replyAllowance\":1024,\"numKeep\":-1}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("arrangement"))));
         claim(
-                "and its code version is the synthesis module's, then extraction's, then embedding's, then"
-                        + " pipeline's",
+                "and its code version is the synthesis module's, then extraction's, then embedding's, then the"
+                        + " profile module's, which reads every key the index states off the profile, and not"
+                        + " the version of the code that runs the stages, which holds nothing that decides"
+                        + " what this one writes",
                 () -> assertThat(run.get("implementation_version"))
-                        .isEqualTo("synthesis+extraction+embedding+pipeline"));
+                        .isEqualTo("synthesis+extraction+embedding+profile"));
     }
 
     /**

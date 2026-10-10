@@ -68,7 +68,9 @@ class ModuleBoundariesTest {
      *
      * <p>One entry, and it is the only horizontal capability-to-capability edge in the tree:
      * {@code extraction} names {@code corpus} for the two detection enumerations Docling's pipeline
-     * choice is derived from (ADR-100). Recorded here as a named exception rather than by relaxing
+     * choice is derived from (ADR-100), and, since ADR-226, what a seed the floor stopped is sent as and
+     * which detected formats list their pictures: a wider purpose for the same two types, the declaration
+     * unchanged. Recorded here as a named exception rather than by relaxing
      * the assertion, so that a second module widening its declaration still fails this test, and so
      * does {@code extraction} widening beyond {@code corpus}.
      */

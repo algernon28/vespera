@@ -33,4 +33,10 @@ public interface GenerationProgress extends SynthesisStatementProgress {
 
     /** Called once at the end of each cluster's path, whichever path it took. */
     default void clusterGoneThrough() {}
+
+    /** {@link ClusterExemplars#gathered} found no opening chunk for this member, so it is left out of the call. */
+    default void nothingChunkedFrom(io.algernon.vespera.ledger.OccurrenceId occurrence) {}
+
+    /** {@link ClusterExemplars#gathered} has asked for a member's opening chunk, found or not. */
+    default void occurrenceOpened() {}
 }

@@ -35,4 +35,28 @@ public record ListedSurvivor(
         OccurrenceId winningSeed,
         String seedPath,
         int clusterOrdinal,
-        double score) {}
+        double score) {
+
+    /**
+     * The survivor with the score on record for it, or {@code 0.0} where there is none (ADR-226, moving
+     * ADR-222's rule 8). {@code LeadDocument} weighs a member with no score as 0.0 too, for which member
+     * leads; this 0.0 is the manifest's row and the page order, a distinct output with its own home.
+     */
+    public static ListedSurvivor of(
+            OccurrenceId occurrence,
+            OccurrencePath path,
+            String contentHash,
+            OccurrenceId winningSeed,
+            String seedPath,
+            int clusterOrdinal,
+            java.util.Map<OccurrenceId, Double> scoresOnRecord) {
+        return new ListedSurvivor(
+                occurrence,
+                path,
+                contentHash,
+                winningSeed,
+                seedPath,
+                clusterOrdinal,
+                scoresOnRecord.getOrDefault(occurrence, 0.0));
+    }
+}

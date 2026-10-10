@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.embedding.FloorReach;
 import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceLabel;
 import io.algernon.vespera.embedding.RelevanceLabels;
@@ -231,9 +232,9 @@ class RelevanceReportTasklet implements Tasklet {
     /**
      * The floor this run declined to apply, where there is one.
      *
-     * <p>Only the calibrated-elsewhere state produces a notice. An unset floor needs no explanation —
-     * the whole page is the explanation — and an applicable one was applied, so saying anything about
-     * it here would describe a removal the reader can see in the counts.
+     * <p>Only a number the reach removes nothing below produces a notice. An unset floor needs no
+     * explanation — the whole page is the explanation — and one that removes was applied, so saying
+     * anything about it here would describe a removal the reader can see in the counts.
      */
     private Optional<RelevanceLabellingReport.IgnoredFloor> ignoredFloor() {
         Optional<String> modelName = embeddingModelGate.modelName();
@@ -245,10 +246,10 @@ class RelevanceReportTasklet implements Tasklet {
         if (currentIdentity.isEmpty()) {
             return Optional.empty();
         }
-        if (relevanceFloor.stateFor(currentIdentity.get(), STAGE)
-                instanceof RelevanceFloor.CalibratedElsewhere elsewhere) {
+        FloorReach reach = relevanceFloor.reachFor(currentIdentity, STAGE);
+        if (reach.floor().isPresent() && reach.removesBelow().isEmpty()) {
             return Optional.of(new RelevanceLabellingReport.IgnoredFloor(
-                    elsewhere.value(), elsewhere.calibratedUnder(), elsewhere.currentIdentity()));
+                    reach.floor().getAsDouble(), String.join(", ", reach.answeredUnder()), currentIdentity.get()));
         }
         return Optional.empty();
     }

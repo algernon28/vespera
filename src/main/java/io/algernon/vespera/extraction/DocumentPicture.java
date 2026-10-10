@@ -52,6 +52,19 @@ public record DocumentPicture(
         this(mediaType, pixels, inFurnitureLayer, caption, Optional.empty());
     }
 
+    /**
+     * Whether an occurrence detected as {@code format} lists its pictures (ADR-150 §4, ADR-167, ADR-226
+     * moving ADR-222's rule 6). An {@code IMAGE}, a {@code BMP} and a {@code VIDEO} list none: what
+     * Docling would crop from a picture is a re-sampled part of the original, not a second thing worth
+     * carrying beside it.
+     */
+    public static boolean listedFor(io.algernon.vespera.corpus.DetectedFormat format) {
+        return switch (format) {
+            case IMAGE, BMP, VIDEO -> false;
+            default -> true;
+        };
+    }
+
     /** The prefix a data URI carrying base64-encoded bytes starts with. */
     private static final String DATA_URI_PREFIX = "data:";
 
