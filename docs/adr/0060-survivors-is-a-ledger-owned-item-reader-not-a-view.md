@@ -10,6 +10,8 @@
 
 > **Partly amended — see [ADR-221](0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md).** In the note on ADR-218 above, "stage 4b's build of `shingle_by_hash`, 91.6 bytes of temporary files for each row `shingle` keeps" is the size of the build over every run's rows. ADR-221 has stage 4b build the index over the rows of the one stage-2 run it reads: 23.3 to 24.4 bytes of temporary files for each row of that run, measured on synthetic ledgers. It is still excepted, its temporary files growing with the corpus.
 
+> **Partly amended — see [ADR-224](0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md).** The third exception of the note on ADR-218 above, "the reads that sort a row for each survivor, verdict, vector or cluster, as a class", is smaller as of ADR-224's build: the two reads over `vector` and the invocation account's three counts by kind or category sort nothing and are no longer in it. That note's "three reads and ten index builds" is one read and ten index builds, the account's two counts of faults having been measured before they left the class. Four reads of the class stay excepted by ADR-224, by the operator's choice, each with a measured size: stage 4b's containment candidates, the review list's read by path, and 5f's winning seeds and members of one partition. The reads of the class that #472 holds are not decided by it. The bound on the heap is not touched by it.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

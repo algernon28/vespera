@@ -40,6 +40,11 @@ import org.springframework.util.StreamUtils;
  * with the corpus and is excepted as it stands by the operator's choice, with no measured size: its size
  * and its bounded form are #476's.
  *
+ * <p>ADR-224 amends it again: the two reads of the embedder identities and the invocation account's three
+ * counts by kind or category, rows 15, 19 and 20, sort nothing, so {@code RelevanceDistribution} and {@code
+ * InvocationAccount} hold no statement that sorts and are in neither map below. Rows 6, 7, 10 and 11 stay
+ * excepted by that record, each with its reason.
+ *
  * <p>Every text a shipped class holds is read from its compiled form, as {@link
  * EachTableIsNamedOnlyByItsOwnerTest} reads them, so a statement written as several joined literals is one
  * text. A text that opens with a statement's keyword, in either case and after any white space, is planned
@@ -81,8 +86,10 @@ import org.springframework.util.StreamUtils;
 @Feature("Temporary storage")
 @Issue("466")
 @Issue("458")
+@Issue("477")
 @Link(name = "ADR-218", url = Adr.EVERY_STATEMENT_WHOSE_TEMPORARY_FILES_GROW_IS_AN_EXCEPTION_WITH_ITS_SIZE, type = "adr")
 @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
+@Link(name = "ADR-224", url = Adr.THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING, type = "adr")
 @Link(name = "ADR-060", url = Adr.SURVIVORS_IS_AN_ITEM_READER, type = "adr")
 class EveryStatementThatSortsIsRecordedTest {
 
@@ -132,7 +139,9 @@ class EveryStatementThatSortsIsRecordedTest {
      * table of statements whose temporary files grow with the corpus, and "bounded" is its table of what
      * sorts and is bounded by something else. Row 14 is struck in the record and has no statement here.
      * Rows 8 and 9 are gone since ADR-220, whose section 15 also records the two statements of stage 4b's
-     * that are in neither table.
+     * that are in neither table. Rows 15, 19 and 20 are gone since ADR-224: the classes that held them,
+     * {@code embedding.RelevanceDistribution} and {@code pipeline.InvocationAccount}, hold no statement
+     * that sorts, and a class that holds none has no entry.
      */
     private static final Map<String, Integer> RECORDED = new TreeMap<>(Map.ofEntries(
             // Row 1, the grouping ADR-211 excepted, and three bounded by one page: the count of a page's
@@ -147,9 +156,6 @@ class EveryStatementThatSortsIsRecordedTest {
             Map.entry("similarity.RedundancyResolution", 3),
             // Row 7: the files stage 2 could not read, by path.
             Map.entry("ledger.Verdicts", 1),
-            // Row 15: the two reads of the embedder identities. Row 8, the scores in occurrence order, is
-            // gone: the report reads a page of scores at a time by row number (ADR-220 section 13).
-            Map.entry("embedding.RelevanceDistribution", 2),
             // Rows 10 and 11: the partitions, and the members of one. Row 9, the scores below the floor in
             // occurrence order, is gone: 5e reads a page of them at a time by row number (ADR-220 section 5).
             Map.entry("embedding.RelevanceScoreCache", 2),
@@ -162,9 +168,7 @@ class EveryStatementThatSortsIsRecordedTest {
             // Row 17: the synthesis docs in the order they were written.
             Map.entry("synthesis.SynthesisDocs", 1),
             // Row 18: the cluster faults in the order they were written.
-            Map.entry("synthesis.ClusterFaults", 1),
-            // Rows 19 and 20: the account's three counts by kind or category.
-            Map.entry("pipeline.InvocationAccount", 3)));
+            Map.entry("synthesis.ClusterFaults", 1)));
 
     /**
      * The same once stage 4b has built {@code shingle_by_hash}, which is what ADR-218 says of the two
