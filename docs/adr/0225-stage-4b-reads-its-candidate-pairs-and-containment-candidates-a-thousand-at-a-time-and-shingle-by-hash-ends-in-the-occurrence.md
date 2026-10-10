@@ -1,7 +1,7 @@
 # ADR-225 — Stage 4b reads its candidate pairs and its containment candidates a thousand at a time and sorts neither, `shingle_by_hash` ends in the occurrence, and every read of one occurrence's shingles names its index
 
 - **Date**: 2026-10-10
-- **Status**: accepted on 2026-10-10. **Not built**: nothing under `src/main` is changed by the change that carries this record, its tests are written, and sixteen of them fail until *What is to be built* is built (Tests).
+- **Status**: accepted on 2026-10-10. **Built** by the change that carries this record: *What is to be built* is in `src/main` as that section has it, and the sixteen tests that failed before it pass (Tests).
 - **Amends**: [ADR-221](0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md) in the index's columns and in every figure that follows from them, and in nothing else. §1's statement, and its *"The columns are the granularity and the hash"* and *"The index does not hold `occurrence_id`, the column that read returns"*: the occurrence is the third column (§3 here). §2's *"`RedundancyResolution`'s statement is not changed"*: it is, and it keeps the run as a bound value, which is what §2 decides (§2 here). Its Steps and §5's *"12 steps for a row of the run"*, *"25% + 75% × R / T"*, *"8,334 rows"* and *"11,112"*: 13 steps, 3/13 + 10/13 × R / T, 7,693 rows and 10,000 (§3). §6's *"51 bytes for each shingle row of the run in hand"* and its worked table: 58 (§5). Its Measured's *"23.3 to 24.4 bytes of temporary files, 24.3 to 25.3 of write-ahead log, and 24.1 to 25.2 of index in the file"*, which are of the two-column index. Its Plans' fifth row, *"one occurrence's shingles, as stages 4a and 4b read them … through `shingle_by_occurrence`"*: left to choose, such a read is drawn to the index of this record, and it is no longer left to choose (§4). Its P1's text of the statement, and P2's 12. What ADR-221 decides of whose index it is, of how stage 4b tells, of the run id written into the statement, of the build's lines and of the rows of earlier runs stands.
 - **Amends**: [ADR-220](0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md) §4 in two of stage 4b's statements, the candidate pairs of a page and the containment candidates of an occurrence, and in its *"Each pair is scored as now"* (§1, §2); §9 in its two entries for stage 4b's candidate pairs of one page and containment candidates of one occurrence, which are no longer held; and §15 in (b), in the answers to its questions 7 and 8 and in what it owes under #476, which this record measures (Measured). Its entry (a), an occurrence's rarest shingles, stands and gains its measured size (§6).
 - **Amends**: [ADR-218](0218-every-statement-whose-temporary-files-grow-with-the-corpus-is-an-exception-to-adr-060-with-its-size.md) in what it lists: row 6 of its table of statements whose temporary files grow with the corpus no longer exists. And [ADR-224](0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md) §4, *"Row 6 stays excepted here"*: the statement is gone, so three of its four exceptions are left, rows 7, 10 and 11.
@@ -316,7 +316,7 @@ All of it in `similarity`, and one comment.
 | `similarity.RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest`, ADR-220's, one claim widened | a read of `signature_band` names at most 1,000 occurrences, or one bucket with `LIMIT 1000` |
 | `EveryStatementThatSortsIsRecordedTest` | two statements for `RedundancyResolution` where it held three, in both its states |
 
-**Run on 2026-10-10 against `src/main` as it stands, under Java 26**: 1,668 tests, none skipped, 16 failing, and each on the claim this record changes.
+**Run on 2026-10-10 against `src/main` before the build, under Java 26**: 1,668 tests, none skipped, 16 failing, and each on the claim this record changes. **Run again against the build**: 1,674 tests and the 23 of the ten integration classes, none skipped, none failing.
 
 | Test | Fails on | Turned by |
 | --- | --- | --- |
@@ -328,7 +328,7 @@ All of it in `similarity`, and one comment.
 | `RedundancyResolutionBoundsItsCandidatesTest`, its second test | the pairs statement and the grouping are planned through a temp B-tree, and no others | B3, B5 and B6 |
 | `RedundancyResolutionTest`, #277's guard | the read of a shingle set is planned through `shingle_by_hash` | B6 |
 
-`RedundancyResolutionBoundsItsCandidatesTest`'s first test, the verdicts, passes against `src/main` as it stands and is to pass against the build: that is the acceptance's *"stage 4b's verdicts are the same"*. Until B6 is built the tests that build the index for their run and then resolve read the whole run for each occurrence, over a few thousand rows.
+`RedundancyResolutionBoundsItsCandidatesTest`'s first test, the verdicts, passed against `src/main` as it stood and passes against the build: that is the acceptance's *"stage 4b's verdicts are the same"*. Until B6 was built the tests that build the index for their run and then resolve read the whole run for each occurrence, over a few thousand rows.
 
 **What no test holds.**
 
@@ -342,7 +342,7 @@ All of it in `similarity`, and one comment.
 ## What this record does not measure
 
 - Anything on a spinning disk, on `H:`, on Linux, or with the file cache empty.
-- The heap of the forms decided: 32 pages of 1,000 ids and a batch of 1,000 are stated from the code to be written, not measured.
+- The heap of the forms decided: 32 pages of 1,000 ids and a batch of 1,000 are stated from the code, not measured.
 - The by-bucket form alone where a bucket's pairs share all sixteen bands, and a whole pass above 5,300 occurrences with the forms decided.
 - The build of §3's index for a run among other runs' rows, or over more than 5,000,000 rows.
 - `RedundancyResolution` itself, its cache's evictions, or the application's pool: the probe is its own code on one plain connection.
