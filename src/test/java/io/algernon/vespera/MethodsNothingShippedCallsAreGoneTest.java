@@ -68,7 +68,8 @@ class MethodsNothingShippedCallsAreGoneTest {
 
     /**
      * What the relevance floor lets a run do. A type nested in the floor's class of {@code pipeline} until
-     * ADR-226 moved the rule into {@code embedding}, as a type that answers the two actions.
+     * ADR-226 moved the rule into {@code embedding}; since ADR-227 it answers one action, below which
+     * number to remove.
      */
     private static final String FLOOR_REACH = "io.algernon.vespera.embedding.FloorReach";
 
@@ -98,18 +99,23 @@ class MethodsNothingShippedCallsAreGoneTest {
     @DisplayName("The relevance floor's outcome no longer says whether it removes anything, a question only tests asked")
     @Issue("479")
     @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
+    @Issue("486")
+    @Link(name = "ADR-227", url = Adr.THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE, type = "adr")
     void theFloorNoLongerSaysWhetherItRemovesAnything() throws ClassNotFoundException {
         Set<String> methods = declaredMethodsOf(FLOOR_REACH);
 
         claim(
-                "the floor's outcome was read and answers the two actions the step takes, so an empty answer"
-                        + " below is not an empty type",
-                () -> assertThat(methods).contains("withdrawsStandingRemovals", "removesBelow"));
+                "the floor's outcome was read and answers below which number the step removes, with the"
+                        + " number it was handed, so an empty answer below is not an empty type",
+                () -> assertThat(methods).contains("removesBelow", "floor"));
         claim(
-                "and it declares no removesAnything: the step that applies the floor acts on the two actions"
-                        + " it is answered, below which number to remove and whether to withdraw what it"
-                        + " removed before, and only a test asked the method",
+                "and it declares no removesAnything: the step that applies the floor acts on the number it"
+                        + " is answered, and only a test asked the method",
                 () -> assertThat(methods).doesNotContain("removesAnything"));
+        claim(
+                "nor withdrawsStandingRemovals: the step withdraws what it removed before in every case,"
+                        + " so the answer was the same whatever was asked and nothing is left to branch on it",
+                () -> assertThat(methods).doesNotContain("withdrawsStandingRemovals"));
         claim(
                 "nor is the outcome type of the code that runs the stages still there to declare it",
                 () -> assertThat(loads(RELEVANCE_FLOOR_STATE)).isFalse());
