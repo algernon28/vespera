@@ -1335,10 +1335,10 @@ public final class Adr {
 
     /**
      * ADR-219 -- stage 3's grouping of the shingle rows runs with {@code shingle_by_hash} present after a
-     * build that moves {@code pipeline} alone, and after a stop of stage 3 over one corpus root while
-     * another reaches stage 4b; SQLite then answers it through that index, writing no temporary file and
-     * taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk, where it does not
-     * name its index. The statement names it, {@code INDEXED BY shingle_by_run_id}, by the operator's
+     * stop of stage 3 over one corpus root while another reaches stage 4b (and, until ADR-222, after a
+     * build that moved {@code pipeline} alone); SQLite then answers it through that index, writing no
+     * temporary file and taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk,
+     * where it does not name its index. The statement names it, {@code INDEXED BY shingle_by_run_id}, by the operator's
      * choice, and is then planned through the index on the run in both states. The clause was to ship with
      * the next change that moves {@code similarity}, and shipped with ADR-220's, in pull request #478; the
      * run ids of stages 2 to 6b move with that change (amends ADR-182, ADR-211 and ADR-218; decides #473).
@@ -1368,6 +1368,17 @@ public final class Adr {
      */
     public static final String NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN = FILE
             + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
+
+    /**
+     * ADR-222 -- a stage's version names {@code pipeline} only while a class of {@code pipeline} holds a
+     * rule that shapes that stage's output: a verdict, a cache key, a cluster or text of the deliverable.
+     * Every class of {@code pipeline} was read; eight rules were found, one of seed measurement, two of
+     * embedding scoring and five of generation, and they are the listed allowance. Content census, content
+     * redundancy and arrangement stop naming {@code pipeline}; the other three keep it. Run ids move once,
+     * from content census to generation (amends ADR-058, ADR-157 and ADR-219; decides #353).
+     */
+    public static final String A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT = FILE
+            + "0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md";
 
     /**
      * ADR-223 -- 5f's size report, 6a and 6b go through one seed partition at a time: 5f keeps five numbers a
