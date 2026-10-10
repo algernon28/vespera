@@ -1346,6 +1346,17 @@ public final class Adr {
     public static final String STAGE_3S_GROUPING_IS_PINNED_TO_THE_INDEX_ON_THE_RUN = FILE
             + "0219-stage-3s-grouping-names-the-index-on-the-run-and-the-clause-ships-with-the-next-change-to-similarity.md";
 
+    /**
+     * ADR-222 -- a stage's version names {@code pipeline} only while a class of {@code pipeline} holds a
+     * rule that shapes that stage's output: a verdict, a cache key, a cluster or text of the deliverable.
+     * Every class of {@code pipeline} was read; eight rules were found, one of seed measurement, two of
+     * embedding scoring and five of generation, and they are the listed allowance. Content census, content
+     * redundancy and arrangement stop naming {@code pipeline}; the other three keep it. Run ids move once,
+     * from content census to generation (amends ADR-058, ADR-157 and ADR-219; decides #353).
+     */
+    public static final String A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT = FILE
+            + "0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md";
+
     private Adr() {
     }
 }

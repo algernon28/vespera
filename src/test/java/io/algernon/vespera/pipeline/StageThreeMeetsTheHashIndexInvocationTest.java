@@ -40,13 +40,15 @@ import org.springframework.test.context.DynamicPropertySource;
  * that stage 3 can meet the index and ran no invocation to see it. These tests run the invocations, and
  * ADR-219 records them. Stage 2 drops the index only when its own step is unfinished under the run it arrives at, and
  * stage 4b builds it, so the index stands from stage 4b until a stage 2 next has work; a stage 3 that runs in
- * between, under a stage 2 with nothing to do, groups with the index there. Two sequences do that, and one
- * that looks alike does not:
+ * between, under a stage 2 with nothing to do, groups with the index there. One sequence does that, and two
+ * that look alike do not:
  *
  * <ul>
- *   <li>a build that moves {@code pipeline} alone, which stage 3's run names and stage 2's does not;
  *   <li>a stage 3 stopped over one corpus root, while another corpus root of the same working directory goes
  *       on to stage 4b, and is then invoked again;
+ *   <li>not a build that moves {@code pipeline} alone: it did until ADR-222, while stage 3's run named
+ *       {@code pipeline} and stage 2's did not. Stage 3's run names it no longer, so the next invocation
+ *       arrives at the content census already finished and groups nothing;
  *   <li>not a build that moves {@code similarity}: stage 2's run names it too, so stage 2 writes again and
  *       drops the index first.
  * </ul>
@@ -64,12 +66,12 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>What ADR-219's clause turns here, and what it leaves.</b> ADR-219 decides that the grouping names
  * its index, {@code INDEXED BY shingle_by_run_id}, and that the clause ships with the next change to {@code
  * similarity}. That change turns one claim of this class and one constant: the last claim of {@link
- * #aBuildThatMovesOnlyPipelineHasStageThreeGroupWithTheHashIndexThere}, that the grouping is planned
+ * #aStageThreeStoppedOverOneCorpusRootGroupsWithTheHashIndexAnotherCorpusRootsStageFourBBuilt}, that the grouping is planned
  * through {@code shingle_by_hash} and sorts nothing for its {@code GROUP BY}, becomes that it is planned
  * through {@code shingle_by_run_id} and does sort for it; and {@link #GROUPING} gains the clause, so that
  * the plan asked for is of the statement sent. Every other claim stands with the clause shipped: the clause
  * changes which index the statement reads through, not when the index exists, so stage 3 still runs with
- * the index in the database in the same two sequences.
+ * the index in the database in the same sequence.
  */
 @CascadeSliceTest
 @Import({ConverterStopsPartwayBeans.class, SuccessiveBuildsBeans.class})
@@ -164,8 +166,10 @@ class StageThreeMeetsTheHashIndexInvocationTest {
 
     @Test
     @Story("When the index on word-sequence hashes exists")
-    @DisplayName("After a new build that changes only the code that runs the stages, the count of repeated word sequences is made again with the hash index still in place")
-    void aBuildThatMovesOnlyPipelineHasStageThreeGroupWithTheHashIndexThere(CapturedOutput output, @TempDir Path root)
+    @DisplayName("After a new build that changes only the code that runs the stages, the count of repeated word sequences is not made again")
+    @Issue("353")
+    @Link(name = "ADR-222", url = Adr.A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT, type = "adr")
+    void aBuildThatMovesOnlyPipelineLeavesStageThreesRunAsItWas(CapturedOutput output, @TempDir Path root)
             throws IOException {
         writeCorpus(root, "pipeline alone");
         openStageFoursGate();
@@ -200,21 +204,16 @@ class StageThreeMeetsTheHashIndexInvocationTest {
                 "and says nothing about removing the hash index, nor about building it, since it was there",
                 () -> assertThat(second).doesNotContain(REMOVING).doesNotContain(BUILDING));
         claim(
-                "the count of repeated word sequences is made again, under a run of its own, because the new"
-                        + " build changed code it is identified by",
-                () -> assertThat(censusRuns).hasSize(2).doesNotHaveDuplicates().startsWith(firstCensus));
-        String secondCensus = censusRuns.getLast();
-        claim("and it says it is starting under that run", () -> assertThat(second)
-                .contains(STAGE_3_STARTING + secondCensus));
+                "the count of repeated word sequences is the one already made, and no second one stands"
+                        + " beside it: the new build changed only the code that runs the stages, and that"
+                        + " code is no part of what this count is identified by",
+                () -> assertThat(censusRuns).containsExactly(firstCensus));
+        claim("so the second invocation does not say that count is starting", () -> assertThat(second)
+                .doesNotContain(STAGE_3_STARTING));
         claim(
-                "every row that second count wrote was written with the hash index in the database",
-                () -> assertThat(howTheGroupingFoundTheIndexUnder(secondCensus)).containsExactly(PRESENT));
-        claim(
-                "and with the index there the database plans that count through it, and not through the index"
-                        + " by run it uses otherwise",
-                () -> assertThat(planOfTheGroupingOver(extractionRun))
-                        .contains("USING INDEX " + BY_HASH)
-                        .doesNotContain("FOR GROUP BY"));
+                "and no row of that count was written with the hash index in the database: the only rows"
+                        + " are the first invocation's, written before the index was built",
+                () -> assertThat(howTheGroupingFoundTheIndexUnder(firstCensus)).containsExactly(ABSENT));
     }
 
     @Test
@@ -317,6 +316,12 @@ class StageThreeMeetsTheHashIndexInvocationTest {
         claim(
                 "and every row it wrote was written with the hash index in the database",
                 () -> assertThat(howTheGroupingFoundTheIndexUnder(stoppedCensus)).containsExactly(PRESENT));
+        claim(
+                "and with the index there the database plans that count through it, and not through the index"
+                        + " by run it uses otherwise",
+                () -> assertThat(planOfTheGroupingOver(stoppedExtraction))
+                        .contains("USING INDEX " + BY_HASH)
+                        .doesNotContain("FOR GROUP BY"));
     }
 
     /**

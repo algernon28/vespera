@@ -200,6 +200,8 @@ class RunIdentityGoldenTest {
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
     @DisplayName("Content census is identified by the corpus root and the extraction it read")
+    @Issue("353")
+    @Link(name = "ADR-222", url = Adr.A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT, type = "adr")
     void contentCensus() {
         Map<String, Object> run = theRunOf("content-census");
 
@@ -209,13 +211,17 @@ class RunIdentityGoldenTest {
                         "{\"root\":\"%s\",\"extractionRunId\":\"%s\"}"
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("extraction"))));
         claim(
-                "and its code version is the similarity module's, then extraction's, then pipeline's",
-                () -> assertThat(run.get("implementation_version")).isEqualTo("similarity+extraction+pipeline"));
+                "and its code version is the similarity module's, then extraction's, and not the version of"
+                        + " the code that runs the stages, which holds nothing that decides what this one"
+                        + " measures",
+                () -> assertThat(run.get("implementation_version")).isEqualTo("similarity+extraction"));
     }
 
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
     @DisplayName("Content redundancy is identified by the corpus root, the content census it read and the boilerplate floor")
+    @Issue("353")
+    @Link(name = "ADR-222", url = Adr.A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT, type = "adr")
     void contentRedundancy() {
         Map<String, Object> run = theRunOf("content-redundancy");
 
@@ -226,8 +232,10 @@ class RunIdentityGoldenTest {
                         "{\"root\":\"%s\",\"stage3RunId\":\"%s\",\"boilerplateDocumentFrequencyFloor\":1.0}"
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("content-census"))));
         claim(
-                "and its code version is the similarity module's, then extraction's, then pipeline's",
-                () -> assertThat(run.get("implementation_version")).isEqualTo("similarity+extraction+pipeline"));
+                "and its code version is the similarity module's, then extraction's, and not the version of"
+                        + " the code that runs the stages, which holds nothing that decides what this one"
+                        + " removes",
+                () -> assertThat(run.get("implementation_version")).isEqualTo("similarity+extraction"));
     }
 
     @Test
@@ -272,6 +280,8 @@ class RunIdentityGoldenTest {
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
     @DisplayName("Arrangement is identified by the corpus root and the scoring it arranged")
+    @Issue("353")
+    @Link(name = "ADR-222", url = Adr.A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT, type = "adr")
     void arrangement() {
         Map<String, Object> run = theRunOf("arrangement");
 
@@ -281,10 +291,10 @@ class RunIdentityGoldenTest {
                         "{\"corpusRoot\":\"%s\",\"scoringRunId\":\"%s\"}"
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("embedding-scoring"))));
         claim(
-                "and its code version is the synthesis module's, then extraction's, then embedding's, then"
-                        + " pipeline's",
-                () -> assertThat(run.get("implementation_version"))
-                        .isEqualTo("synthesis+extraction+embedding+pipeline"));
+                "and its code version is the synthesis module's, then extraction's, then embedding's, and"
+                        + " not the version of the code that runs the stages, which holds nothing that"
+                        + " decides how the documents are arranged",
+                () -> assertThat(run.get("implementation_version")).isEqualTo("synthesis+extraction+embedding"));
     }
 
     @Test
