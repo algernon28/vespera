@@ -61,8 +61,10 @@ import org.springframework.web.client.ResourceAccessException;
  * skip, so it stops the stage at the first refused occurrence it reads, and a scripted outcome read
  * after that one was never processed. So the {@link DoclingExtractor}
  * here decides both as its lookup misses and the client only carries the decision out: positions and
- * a stop follow the order stage 2 reads in, on every schedule. A call no lookup came before, which
- * is the control conversion, is decided as it arrives, on the thread that sends it. Which file takes
+ * a stop follow the order stage 2 reads in, on every schedule. A call no lookup of its own
+ * bytes came before is decided as it arrives, on the thread that sends it: the control conversion, on
+ * the thread that reads, and each part of a text over the converter's ceiling (ADR-178), on a worker.
+ * No corpus used with this fixture holds such a text. Which file takes
  * a position is still the file system's to say, so a test that needs an outcome reached before a
  * stop still says so in a claim of its own.
  *
@@ -74,12 +76,15 @@ import org.springframework.web.client.ResourceAccessException;
  * about therefore empties {@code extraction_cache} first, unless what the cache kept is what it is
  * about. The cache is keyed outside the run, and emptying it
  * changes nothing a run id is derived from. A cache hit never reaches the client, so it takes no
- * position.
+ * position. A lookup that misses and is followed by no call -- one read ahead and dropped at a stop,
+ * or a later stage's read of the cache -- still takes its position and uses up an answer; its decision
+ * waits until the next arming, disarming or miss for the same bytes.
  *
- * <p>The script, the pins, the arming and the count are static, because the client is one bean per
- * Spring context and every method of a class shares it. {@link #script} starts a test afresh; {@link
- * #stopAnsweringAfter} and {@link #keepAnswering} reset only the stop and the count, so the pins
- * outlive the invocations of one test.
+ * <p>The script, the pins, the arming, the count and the decisions waiting for their call are static,
+ * because the client is one bean per Spring context and every method of a class shares it. {@link
+ * #script} starts a test afresh; {@link #stopAnsweringAfter} and {@link #keepAnswering} reset the
+ * stop, the count and the decisions still waiting, and leave the pins, so the pins outlive the
+ * invocations of one test.
  *
  * <p>{@code @TestConfiguration} rather than {@code @Configuration}, for the reason {@code
  * StubbedExtractionBeans} documents.
@@ -157,7 +162,8 @@ public class ConverterStopsPartwayBeans {
 
     /**
      * Arms the stop: the next {@code answered} conversions are answered, and every one after them fails,
-     * counted in the order their lookups missed and not in the order they reach the client.
+     * counted in the order their lookups missed and not in the order they reach the client. A lookup
+     * that misses and places no call uses up one of the {@code answered} all the same.
      */
     public static void stopAnsweringAfter(int answered) {
         ANSWERED.clear();
