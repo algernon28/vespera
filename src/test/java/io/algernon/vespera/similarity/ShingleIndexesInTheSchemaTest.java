@@ -32,24 +32,35 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
  * <p>{@code shingle_by_hash} is not created by {@code schema.sql}: stage 2 writes shingles without it,
  * because maintaining it row by row was most of what a stage-2 chunk cost on a large database, and stage
  * 4b builds it before containment retrieval, its one reader, needs it. {@code shingle_by_run_id} takes
- * its place as the index {@code run_id} leads, which ADR-173's rule needs, and it is also the index
- * stage 3 reads a run's rows through.
+ * its place as the index {@code run_id} leads, which ADR-173's rule needs, and it is also the index a
+ * plain read of a run's rows goes through.
+ *
+ * <p><b>What this class holds of stage 3, corrected for #473 (ADR-219).</b> When ADR-182 was written stage
+ * 3 read a run's rows with a plain {@code SELECT}, and this class held that the read goes through {@code
+ * shingle_by_run_id} with {@code shingle_by_hash} built or not. Since ADR-211 stage 3 sends one grouping
+ * instead, and SQLite answers that one through {@code shingle_by_hash} wherever it is built. So the third
+ * test below is of the plain read, which nothing ships, and is described as that. It is kept for the
+ * contrast (ADR-219, Tests): the same rows of the same run, read with nothing grouped, are not drawn to
+ * {@code shingle_by_hash}, so it is the {@code GROUP BY} that draws the planner there. The fifth holds what the
+ * grouping does as it ships, which is why ADR-219 pins it; and the fourth holds that the grouping with
+ * ADR-219's clause, {@code INDEXED BY shingle_by_run_id}, is answered through the index on the run in both
+ * states. The clause is not in {@code DocumentFrequency} yet: it ships with the next change to {@code
+ * similarity} (ADR-219 section 2), and that change adds, to {@code
+ * DocumentFrequencyIsCountedInTheDatabaseTest}, the claim that the grouping sent carries it.
  *
  * <p>Read on a database of this test's own, made by running the shipped {@code schema.sql} into a fresh
  * in-memory SQLite, the way a start runs it into an empty working directory. A shared test database
  * would carry whatever indexes another test's invocations had built or dropped. Nothing here runs
  * {@code ANALYZE}, so the planner chooses from the schema alone, as it does on a working directory.
  *
- * <p>Fails today on the first three tests: the shipped schema creates {@code shingle_by_hash} and no
- * {@code shingle_by_run_id}, so stage 3's read goes through the by-hash index. The last test passes today
- * and has to go on passing: {@code containmentRetrievalNeedsTheIndexOnTheHash} pins the premise the
- * whole decision rests on, that containment retrieval reads every row of the run unless the by-hash
- * index has been built before it.
+ * <p>{@code containmentRetrievalNeedsTheIndexOnTheHash} pins the premise ADR-182 rests on, that
+ * containment retrieval reads every row of the run unless the by-hash index has been built before it.
  */
 @Epic("Redundancy")
 @Feature("Shingling")
 @Issue("381")
 @Link(name = "ADR-182", url = Adr.STAGE_4B_BUILDS_THE_BY_HASH_INDEX_STAGE_2_WRITES_WITHOUT, type = "adr")
+@Link(name = "ADR-219", url = Adr.STAGE_3S_GROUPING_IS_PINNED_TO_THE_INDEX_ON_THE_RUN, type = "adr")
 class ShingleIndexesInTheSchemaTest {
 
     /** The index containment retrieval reads, under the name and columns ADR-081 gave it. */
@@ -62,9 +73,27 @@ class ShingleIndexesInTheSchemaTest {
     private static final String BUILD_BY_HASH = "CREATE INDEX IF NOT EXISTS shingle_by_hash"
             + " ON shingle (run_id, shingle_parameter_identity, shingle_hash)";
 
-    /** Stage 3's read of every shingle row under one stage-2 run, as {@code DocumentFrequency} sends it. */
-    private static final String STAGE_3_READ =
+    /**
+     * A plain read of every shingle row under one stage-2 run: what {@code DocumentFrequency} sent when
+     * ADR-182 was written, and has not sent since ADR-211. Nothing in {@code src/main} sends it today.
+     */
+    private static final String A_PLAIN_READ_OF_A_RUN =
             "SELECT occurrence_id, shingle_parameter_identity, shingle_hash FROM shingle WHERE run_id = ?";
+
+    /** Stage 3's grouping of a run's rows without its insert, as {@code DocumentFrequency} sends it today. */
+    private static final String THE_GROUPING = "SELECT ?, shingle_parameter_identity, shingle_hash,"
+            + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle WHERE run_id = ?"
+            + " GROUP BY shingle_parameter_identity, shingle_hash HAVING COUNT(DISTINCT occurrence_id) >= 2";
+
+    /** The clause ADR-219 decides for it, after the table's name. */
+    private static final String THE_PIN = "INDEXED BY shingle_by_run_id";
+
+    /** The grouping as ADR-219 section 1 writes it, which {@code DocumentFrequency} does not send yet. */
+    private static final String THE_GROUPING_PINNED =
+            THE_GROUPING.replace("FROM shingle WHERE", "FROM shingle " + THE_PIN + " WHERE");
+
+    /** What SQLite's plan says where it sorts the rows for the grouping, in temporary storage. */
+    private static final String SORTS_FOR_THE_GROUPING = "USE TEMP B-TREE FOR GROUP BY";
 
     /** How many rare shingles containment retrieval asks about for one occurrence (ADR-081). */
     private static final int RARE_SHINGLES = 32;
@@ -117,23 +146,83 @@ class ShingleIndexesInTheSchemaTest {
 
     @Test
     @Story("When the index on word-sequence hashes exists")
-    @DisplayName("Measuring how often each word sequence recurs reads a run's rows in the order they were written")
-    void stageThreeReadsARunThroughTheIndexOnTheRun() throws SQLException {
-        String withoutTheHashIndex = planOf(STAGE_3_READ, "a-run");
+    @DisplayName("A plain read of one run's word sequences, with nothing counted, reads them in the order they were written")
+    void aPlainReadOfARunGoesThroughTheIndexOnTheRun() throws SQLException {
+        String withoutTheHashIndex = planOf(A_PLAIN_READ_OF_A_RUN, "a-run");
         try (Statement statement = connection.createStatement()) {
             statement.executeUpdate(BUILD_BY_HASH);
         }
-        String withTheHashIndexBuilt = planOf(STAGE_3_READ, "a-run");
+        String withTheHashIndexBuilt = planOf(A_PLAIN_READ_OF_A_RUN, "a-run");
 
         claim(
-                "reading every word sequence of one run is answered through the index on the run, which keeps"
-                        + " the rows in the order they were written, and not through an index ordered by hash,"
-                        + " which fetches each row from a different place: \"" + withoutTheHashIndex + "\"",
+                "reading every word sequence of one run, and only reading them, is answered through the index on"
+                        + " the run, which keeps the rows in the order they were written, and not through an"
+                        + " index ordered by hash, which fetches each row from a different place: \""
+                        + withoutTheHashIndex + "\"",
                 () -> assertThat(withoutTheHashIndex).contains(BY_RUN_ID).doesNotContain(BY_HASH));
         claim(
                 "and that stays so after the redundancy check has built its index on the hash: \""
                         + withTheHashIndexBuilt + "\"",
                 () -> assertThat(withTheHashIndexBuilt).contains(BY_RUN_ID).doesNotContain(BY_HASH));
+    }
+
+    @Test
+    @Story("When the index on word-sequence hashes exists")
+    @DisplayName("Counting how often each word sequence recurs, told which index to read through, reads a run's rows in the order they were written whether or not the hash index is built")
+    void theGroupingWithItsPinGoesThroughTheIndexOnTheRunInBothStates() throws SQLException {
+        String withoutTheHashIndex = planOf(THE_GROUPING_PINNED, "a-stage-3-run", "a-run");
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate(BUILD_BY_HASH);
+        }
+        String withTheHashIndexBuilt = planOf(THE_GROUPING_PINNED, "a-stage-3-run", "a-run");
+
+        claim(
+                "the count that names the index on the run is the count sent today with that one clause added"
+                        + " after the table's name, so what is planned below differs from it in nothing else",
+                () -> assertThat(THE_GROUPING_PINNED).contains("FROM shingle " + THE_PIN + " WHERE run_id = ?"));
+        claim(
+                "with no hash index, the count told to read through the index on the run does, and sorts the"
+                        + " rows itself to count them: \"" + withoutTheHashIndex + "\"",
+                () -> assertThat(withoutTheHashIndex)
+                        .contains(BY_RUN_ID)
+                        .contains(SORTS_FOR_THE_GROUPING)
+                        .doesNotContain(BY_HASH));
+        claim(
+                "and once the redundancy check has built its index on the hash the plan is the same, word for"
+                        + " word, so the count takes the same course whichever state it finds the database in",
+                () -> assertThat(withTheHashIndexBuilt).isEqualTo(withoutTheHashIndex));
+    }
+
+    /**
+     * Why ADR-219's clause is needed, and so true of SQLite with the clause shipped or not: this is the
+     * grouping without it. It passes today because {@code DocumentFrequency} sends this text, and goes on
+     * passing after the clause ships because it plans this text and not what is sent.
+     */
+    @Test
+    @Story("When the index on word-sequence hashes exists")
+    @DisplayName("Counting how often each word sequence recurs, left to choose, reads through the hash index once it is built, fetching each row from a different place")
+    void theGroupingWithoutAPinGoesThroughTheHashIndexOnceItIsBuilt() throws SQLException {
+        String withoutTheHashIndex = planOf(THE_GROUPING, "a-stage-3-run", "a-run");
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate(BUILD_BY_HASH);
+        }
+        String withTheHashIndexBuilt = planOf(THE_GROUPING, "a-stage-3-run", "a-run");
+
+        claim(
+                "with no hash index, the count left to choose reads through the index on the run and sorts the"
+                        + " rows itself: \"" + withoutTheHashIndex + "\"",
+                () -> assertThat(withoutTheHashIndex)
+                        .contains(BY_RUN_ID)
+                        .contains(SORTS_FOR_THE_GROUPING)
+                        .doesNotContain(BY_HASH));
+        claim(
+                "once the redundancy check has built its index on the hash, the same count reads through that"
+                        + " index instead, which hands it the rows already in order, so it sorts nothing for"
+                        + " the count and fetches each row from wherever it was written: \""
+                        + withTheHashIndexBuilt + "\"",
+                () -> assertThat(withTheHashIndexBuilt)
+                        .contains("USING INDEX " + BY_HASH)
+                        .doesNotContain(SORTS_FOR_THE_GROUPING));
     }
 
     @Test

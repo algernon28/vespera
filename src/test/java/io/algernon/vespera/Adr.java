@@ -1334,6 +1334,19 @@ public final class Adr {
             + "0218-every-statement-whose-temporary-files-grow-with-the-corpus-is-an-exception-to-adr-060-with-its-size.md";
 
     /**
+     * ADR-219 -- stage 3's grouping of the shingle rows runs with {@code shingle_by_hash} present after a
+     * build that moves {@code pipeline} alone, and after a stop of stage 3 over one corpus root while
+     * another reaches stage 4b; SQLite then answers it through that index, writing no temporary file and
+     * taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk. The statement is to
+     * name its index, {@code INDEXED BY shingle_by_run_id}, by the operator's choice, and the clause ships
+     * with the next change that moves {@code similarity}; until then stage 3 is slow in that state. No run
+     * id moves now; stages 2 to 6b move when the clause ships (amends ADR-182, ADR-211 and ADR-218; decides
+     * #473, which stays open until the clause ships).
+     */
+    public static final String STAGE_3S_GROUPING_IS_PINNED_TO_THE_INDEX_ON_THE_RUN = FILE
+            + "0219-stage-3s-grouping-names-the-index-on-the-run-and-the-clause-ships-with-the-next-change-to-similarity.md";
+
+    /**
      * ADR-220 -- no class holds every occurrence of a run: a resumed stage 2 asks a page of survivors at a time
      * which it already recorded, and reads a stopped run's faults a page at a time; the census compares two walks a
      * page of each at a time; stage 4b finds its candidate pairs a page of signed occurrences at a time, an
