@@ -118,11 +118,11 @@ class StatementProgressInvocationTest {
     /**
      * How many rows of other runs the table may keep before the build's count can no longer come within a
      * callback of the rows read, so that the line above is not written (ADR-221 section 5): a callback is
-     * 8,334 rows at the 12 steps the build declares, a row of another run takes 3 and so is counted as a
-     * quarter of one, and 8,334 over the three quarters it falls short by is 11,112. The 346 steps the build
-     * takes besides are left out: they are worth 28 rows.
+     * 7,693 rows at the 13 steps the build declares since ADR-225 section 3, a row of another run takes 3 and so
+     * is counted as three thirteenths of one, and 7,693 over the ten thirteenths it falls short by is 10,000.
+     * The 346 steps the build takes besides are left out: they are worth 26 rows.
      */
-    private static final long OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT = 8_334L * 12 / (12 - 3);
+    private static final long OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT = 7_693L * 13 / (13 - 3);
 
     /** Stage 3's line before its read, and the line after its measurement (ADR-191). */
     private static final String READING = "Stage 3 (content census) is reading up to ";

@@ -115,9 +115,10 @@ class StatementStepsPerRowTest {
 
     /**
      * Steps stage 4b's build takes for a row of the run it is built for: the eight of any build and one for
-     * each of its two columns, and two more to read the row's run and compare it (ADR-221 section 5).
+     * each of its three columns, and two more to read the row's run and compare it (ADR-221 section 5, and
+     * ADR-225 section 3 for the third column).
      */
-    static final int HASH_INDEX_STEPS_A_ROW_OF_ITS_RUN = 12;
+    static final int HASH_INDEX_STEPS_A_ROW_OF_ITS_RUN = 13;
 
     /** Steps the same build takes for a row of any other run, which it reads, compares and leaves out. */
     static final int HASH_INDEX_STEPS_A_ROW_OF_ANOTHER_RUN = 3;

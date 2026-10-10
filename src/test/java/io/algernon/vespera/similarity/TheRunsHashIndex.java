@@ -27,10 +27,14 @@ public final class TheRunsHashIndex {
 
     private TheRunsHashIndex() {}
 
-    /** ADR-221 section 1's statement for the stage-2 run {@code runId}, as {@code sqlite_master} then keeps it. */
+    /**
+     * ADR-221 section 1's statement for the stage-2 run {@code runId}, as {@code sqlite_master} then keeps it,
+     * with the third column ADR-225 section 3 gives it: the occurrence, so that one hash's occurrences are read
+     * in order from the index alone.
+     */
     public static String statementFor(String runId) {
-        return "CREATE INDEX shingle_by_hash ON shingle (shingle_parameter_identity, shingle_hash) WHERE run_id = '"
-                + runId + "'";
+        return "CREATE INDEX shingle_by_hash ON shingle (shingle_parameter_identity, shingle_hash, occurrence_id)"
+                + " WHERE run_id = '" + runId + "'";
     }
 
     /** The statement {@code sqlite_master} holds for the index at this moment, or nothing where there is none. */

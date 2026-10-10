@@ -45,6 +45,14 @@ import org.springframework.util.StreamUtils;
  * InvocationAccount} hold no statement that sorts and are in neither map below. Rows 6, 7, 10 and 11 stay
  * excepted by that record, each with its reason.
  *
+ * <p>ADR-225 amends it a third time: stage 4b's statement for a page's candidate pairs and its grouping of the
+ * containment candidates, row 6, are gone. Of {@code RedundancyResolution}'s statements two are counted here.
+ * One is an occurrence's rarest shingles, bounded by one occurrence's shingle rows and measured at 27.4 to 27.9
+ * bytes a row. The other is the read of one hash's occurrences in occurrence order, which sorts nothing where
+ * {@code shingle_by_hash} is the index of the run it names, the only state stage 4b sends it in, and is
+ * planned here without that index, where it has to sort ({@code ShingleIndexesInTheSchemaTest} holds its plan
+ * with the index).
+ *
  * <p>Every text a shipped class holds is read from its compiled form, as {@link
  * EachTableIsNamedOnlyByItsOwnerTest} reads them, so a statement written as several joined literals is one
  * text. A text that opens with a statement's keyword, in either case and after any white space, is planned
@@ -95,6 +103,8 @@ import org.springframework.util.StreamUtils;
 @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
 @Link(name = "ADR-224", url = Adr.THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING, type = "adr")
+@Issue("476")
+@Link(name = "ADR-225", url = Adr.STAGE_4B_READS_ITS_CANDIDATES_A_THOUSAND_AT_A_TIME, type = "adr")
 @Link(name = "ADR-060", url = Adr.SURVIVORS_IS_AN_ITEM_READER, type = "adr")
 class EveryStatementThatSortsIsRecordedTest {
 
@@ -151,8 +161,8 @@ class EveryStatementThatSortsIsRecordedTest {
      * {@code embedding.DocumentClusters} keeps row 12 alone and {@code synthesis.Clusters}, {@code
      * synthesis.SynthesisDocs} and {@code synthesis.ClusterFaults} hold none. Rows 15, 19 and 20 went with
      * ADR-224: {@code embedding.RelevanceDistribution} and {@code pipeline.InvocationAccount} hold none. What
-     * is left of ADR-218's table of statements whose temporary files grow with the corpus is rows 1, 2, 6,
-     * 7 and 10 to 12.
+     * is left of ADR-218's table of statements whose temporary files grow with the corpus is rows 1, 2,
+     * 7 and 10 to 12, row 6 having gone with ADR-225.
      */
     private static final Map<String, Integer> RECORDED = new TreeMap<>(Map.ofEntries(
             // Row 1, the grouping ADR-211 excepted, and three bounded by one page: the count of a page's
@@ -160,11 +170,11 @@ class EveryStatementThatSortsIsRecordedTest {
             Map.entry("similarity.DocumentFrequency", 4),
             // Row 2: the build of shingle_by_hash.
             Map.entry("similarity.ShingleHashIndex", 1),
-            // Row 6, the containment candidates, and the two of ADR-220 section 15: an occurrence's rarest
-            // shingles, bounded by one occurrence's shingle rows; and a page's candidate pairs, whose rows
-            // grow with the signed occurrences that share a bucket, excepted as it stands by the operator's
-            // choice, which nobody has measured: its size and its bounded form are #476's.
-            Map.entry("similarity.RedundancyResolution", 3),
+            // An occurrence's rarest shingles, bounded by one occurrence's shingle rows (ADR-220 section 15), and
+            // the read of one hash's occurrences in order, which is counted because it is planned here with
+            // no index of its run's to read them from, and sorts nothing where stage 4b sends it (ADR-225
+            // section 2). Row 6's grouping and the candidate pairs of a page are gone with that record.
+            Map.entry("similarity.RedundancyResolution", 2),
             // Row 7: the files stage 2 could not read, by path.
             Map.entry("ledger.Verdicts", 1),
             // Rows 10 and 11: the partitions, and the members of one. Row 9, the scores below the floor in
