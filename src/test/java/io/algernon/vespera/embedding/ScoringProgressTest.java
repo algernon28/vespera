@@ -30,9 +30,10 @@ import org.springframework.test.context.ActiveProfiles;
  * {@code to...} is called once, with the loop's total, before its first item, and each completion after an
  * item, whatever became of it.
  *
- * <p>No vector or score is written for this fixture, on purpose: a seed with no stored vector is left out of
- * the resident set and an occurrence with no score is absent from the result, and each is still an item the
- * loop went through, so each is reported.
+ * <p>No score is written for this fixture, on purpose: an occurrence with no score is absent from the
+ * result and is still an item the loop went through, so it is reported. A vector is written for each seed,
+ * since a seed with none stops the read (ADR-231, #496) and is held by {@code
+ * ASeedWithNoVectorStopsScoringTest}.
  *
  * <p><b>Part (c) of ADR-192.</b> Does not compile until {@code ScoringProgress} and the two overloads exist;
  * part (c) moves it into {@code src/test}.
@@ -55,20 +56,26 @@ class ScoringProgressTest {
 
     @Test
     @Story("Scoring tells its caller how many seeds and scores it will read")
-    @DisplayName("Reading the stored vectors of two seeds is announced once with two, and each seed is reported, found or not")
-    void announcesTheSeedsOnceAndReportsEachOneWhetherOrNotItHasVectors() {
+    @DisplayName("Reading the stored vectors of two seeds is announced once with two, and each seed is reported as it is read")
+    @Issue("496")
+    void announcesTheSeedsOnceAndReportsEachOneAsItIsRead() {
         Map<OccurrenceId, String> seeds = new LinkedHashMap<>();
         seeds.put(new OccurrenceId(1), "seed-one");
         seeds.put(new OccurrenceId(2), "seed-two");
+        for (String seed : seeds.values()) {
+            new VectorCache(jdbcTemplate)
+                    .put(seed, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, MODEL, new float[] {1f, 0f});
+        }
         List<String> events = new ArrayList<>();
 
         Map<OccurrenceId, List<float[]>> resident = scoring().residentSeedVectors(
                 seeds, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, MODEL, recording(events));
 
         claim(
-                "neither seed has a stored vector, so neither is resident, and both are reported all the same",
+                "each of the two seeds has a stored vector, so both are resident, the total of two is"
+                        + " announced once before the first, and each is reported once",
                 () -> {
-                    assertThat(resident).isEmpty();
+                    assertThat(resident).hasSize(seeds.size());
                     assertThat(events).containsExactly("to-read-seeds 2", "seed-read", "seed-read");
                 });
     }

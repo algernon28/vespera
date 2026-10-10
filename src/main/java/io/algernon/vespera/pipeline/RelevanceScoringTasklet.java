@@ -200,7 +200,16 @@ class RelevanceScoringTasklet implements Tasklet {
         StageProgress read =
                 StageProgress.over("Stage 5d (relevance scoring, seed cache keys read)", allSeeds.size());
         for (OccurrenceId seedOccurrenceId : allSeeds) {
-            contentHashes.put(seedOccurrenceId, cacheKeys.requireForOccurrence(seedOccurrenceId, measurementRun));
+            String contentHash = cacheKeys.requireForOccurrence(seedOccurrenceId, measurementRun);
+            if (hybridChunker.chunkCount(contentHash, ChunkingRule.DEFAULT) == 0) {
+                LOG.warn(
+                        "seed occurrence {} produced text and no chunk: all of its text is in page headers and"
+                                + " footers, which are not embedded, so it has no vector and is left out of the"
+                                + " seeds every survivor is scored against",
+                        seedOccurrenceId.value());
+            } else {
+                contentHashes.put(seedOccurrenceId, contentHash);
+            }
             read.itemDone();
         }
         return contentHashes;

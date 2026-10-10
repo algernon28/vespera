@@ -83,7 +83,7 @@ public record EmbedderIdentity(
      * The backslash, {@code %} and {@code _} of each of the three parts are escaped, so no
      * character of them is a wildcard (ADR-216, ADR-228). ASCII letters still match in either case, as SQLite's
      * {@code LIKE} folds them: two identities differing only in case both answer, so none is single and
-     * a caller reading "no single identity" removes nothing.
+     * a caller reading "no single identity" removes nothing or stops.
      */
     static String likePatternFor(String modelName, ModelArtefact artefact) {
         return "model=" + escaped(modelName)

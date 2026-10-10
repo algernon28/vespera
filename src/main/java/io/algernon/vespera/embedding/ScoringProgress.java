@@ -21,7 +21,7 @@ public interface ScoringProgress {
     /** Called once, before the first seed's vectors are read, with how many seeds will be. */
     default void toReadSeedVectors(long seeds) {}
 
-    /** Called after each seed's stored vectors have been read, found or not. */
+    /** Called after each seed's stored vectors have been read; a seed with none stops the read first. */
     default void seedVectorsRead() {}
 
     /** Called once, before the first score is read, with how many occurrences will be asked for. */

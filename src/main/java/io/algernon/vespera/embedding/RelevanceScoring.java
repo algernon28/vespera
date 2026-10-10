@@ -35,8 +35,10 @@ public class RelevanceScoring {
     /**
      * Loads every usable seed document's chunk vectors, keyed by seed occurrence — the resident side
      * of ADR-085's shape, built once and held for the whole scoring pass. A seed occurrence whose
-     * content hash matches no stored vector is left out rather than recorded with an empty list, so a
-     * caller never has to tell "seed with no chunks" apart from "seed with none scored yet" by size.
+     * content hash matches no stored vector under the embedder identity is refused, not left out
+     * (ADR-231 section 2): scoring without it would measure every survivor against fewer seeds.
+     *
+     * @throws IllegalStateException on the first seed with no stored vector under {@code embedderIdentity}
      */
     public Map<OccurrenceId, List<float[]>> residentSeedVectors(
             Map<OccurrenceId, String> seedContentHashesByOccurrence,
@@ -53,7 +55,8 @@ public class RelevanceScoring {
 
     /**
      * As {@link #residentSeedVectors(Map, String, String, String)}, telling {@code progress} how many seeds
-     * will be read, once, before the first, and each seed as it is read, found or not (ADR-192 section 5).
+     * will be read, once, before the first, and each seed as its vectors are read (ADR-192 section 5); a seed with none
+     * stops the read before it is counted (ADR-231 section 2).
      */
     public Map<OccurrenceId, List<float[]>> residentSeedVectors(
             Map<OccurrenceId, String> seedContentHashesByOccurrence,
@@ -66,9 +69,14 @@ public class RelevanceScoring {
         for (Map.Entry<OccurrenceId, String> seed : seedContentHashesByOccurrence.entrySet()) {
             List<float[]> vectors =
                     vectorCache.vectorsFor(seed.getValue(), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
-            if (!vectors.isEmpty()) {
-                resident.put(seed.getKey(), vectors);
+            if (vectors.isEmpty()) {
+                throw new IllegalStateException("seed occurrence " + seed.getKey().value()
+                        + " has no stored chunk vectors under embedder identity " + embedderIdentity
+                        + "; a usable seed is embedded by the step before this one, so either that step did not"
+                        + " embed it or another pull of the embedding model wrote its vectors -- scoring without"
+                        + " it would measure every survivor against fewer seeds than the seed set holds");
             }
+            resident.put(seed.getKey(), vectors);
             progress.seedVectorsRead();
         }
         return resident;

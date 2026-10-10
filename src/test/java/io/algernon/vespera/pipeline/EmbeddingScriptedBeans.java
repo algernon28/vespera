@@ -85,6 +85,26 @@ class EmbeddingScriptedBeans {
         digestServed = digest;
     }
 
+    /** What {@link #callsBeforeThePull} reads while no test has scripted a pull part-way through. */
+    private static final int NO_PULL_PART_WAY = -1;
+
+    /** How many calls the embedding double answers before the runtime is pulled again (ADR-231, #496). */
+    private static int callsBeforeThePull = NO_PULL_PART_WAY;
+
+    /** The digest the runtime reports once {@link #callsBeforeThePull} calls have been answered. */
+    private static String digestOfThePullPartWay;
+
+    /**
+     * Scripts this fixture's runtime as pulled again while chunks are being embedded: once the embedding
+     * double has answered {@code calls} calls since the scripts were last dropped, it reports {@code digest}.
+     * {@code ChunkEmbedder} asks for the artefact before it embeds a chunk, so the chunk of call {@code
+     * calls} is stored under the earlier digest and every chunk after it under {@code digest}.
+     */
+    static void pullsAgainOnceItHasEmbedded(int calls, String digest) {
+        callsBeforeThePull = calls;
+        digestOfThePullPartWay = digest;
+    }
+
     /** The weight dtype this fixture's runtime reports now: {@link #DTYPE} until a test says otherwise. */
     private static String dtypeServed = DTYPE;
 
@@ -164,6 +184,8 @@ class EmbeddingScriptedBeans {
         embeddingCallsMade = 0;
         digestServed = DIGEST;
         dtypeServed = DTYPE;
+        callsBeforeThePull = NO_PULL_PART_WAY;
+        digestOfThePullPartWay = null;
     }
 
     @Bean
@@ -229,6 +251,9 @@ class EmbeddingScriptedBeans {
         @Override
         public EmbeddingResponse call(EmbeddingRequest request) {
             embeddingCallsMade++;
+            if (embeddingCallsMade == callsBeforeThePull) {
+                digestServed = digestOfThePullPartWay;
+            }
             float[] vector = new float[dimension];
             Arrays.fill(vector, 1f);
             return new EmbeddingResponse(List.of(new Embedding(vector, 0)), new EmbeddingResponseMetadata());

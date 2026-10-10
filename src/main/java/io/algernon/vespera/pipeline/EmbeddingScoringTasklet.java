@@ -168,6 +168,22 @@ class EmbeddingScoringTasklet implements Tasklet {
                         rechunkAndEmbed(measurementRun, occurrenceId, modelName, seedChunks);
                         seedsDone.itemDone();
                     }
+                    if (!stageRuns.embeddingModelArtefactStillReported()) {
+                        // ADR-231 section 1: stop as ADR-202's refusal stops, recording no completion.
+                        String reason = "the embedding model " + modelName
+                                + " was pulled again while its chunks were being embedded";
+                        LOG.error(
+                                "stage 5's scoring step stopped: the embedding model {} was pulled again while its"
+                                        + " chunks were being embedded, so Ollama no longer reports the digest and"
+                                        + " weight dtype scoring run {} names. The step is not recorded as finished"
+                                        + " and nothing was scored -- run again to embed and score under the model"
+                                        + " as it is now.",
+                                modelName,
+                                scoring.value());
+                        chunkContext.getStepContext().getStepExecution().setStatus(BatchStatus.FAILED);
+                        contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(reason));
+                        return false;
+                    }
                     LOG.info("Stage 5c (embedding scoring) finished under scoring run {}", scoring.value());
                     return true;
                 });

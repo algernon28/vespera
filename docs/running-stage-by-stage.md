@@ -157,7 +157,7 @@ Stage 5 is seven steps and spans three invocations, with `vespera label` between
 
 **What they do.** `embedding-scoring` turns each piece of text into a vector. `relevance-scoring` scores every surviving document against your exemplars.
 
-**Where they stop.** Gated with `no embedding model is named`, or for the same exemplar reasons as above.
+**Where they stop.** Gated with `no embedding model is named`, or for the same exemplar reasons as above. `embedding-scoring` stops the command if the embedding model was pulled again, and changed, while it was computing vectors: the step is not recorded as finished and nothing is scored. Run the same command again: it embeds again, storing the vectors that are missing under the model as it is now, and scores from those. `relevance-scoring` fails, and names the exemplar, if one of your exemplars that produced text has no vector under the model this scoring uses. An exemplar whose only text is page headers and footers has nothing to score against: it is left out, and a warning in the log says which one.
 
 **Resume.** Vectors are stored by content and by model, not by the run, so vectors already computed are kept across a stop, across a change of floor, and across a new walk of a changed archive. A pull that changes the embedding model is the exception: Vespera treats it as another model, does not use the vectors computed before the pull, and computes every vector again. The earlier vectors stay in the database, and are used again only if Ollama serves the earlier model again. Interrupted, `relevance-scoring` discards its own scores and computes them again from the stored vectors. Ollama has to be running whenever these two steps do work, even when every vector is already stored.
 
@@ -269,6 +269,7 @@ Run the same command again once the cause is fixed. Nothing recorded is lost.
 | the converter runs another image | set `VESPERA_DOCLING_IMAGE`, or start the sidecars with the other files |
 | the converter did not come back | start the sidecars, then run again; extraction continues where it stopped |
 | the model did not answer | check Ollama is up and the model is pulled, then run again |
+| the embedding model was pulled again while its vectors were being computed | run again; do not pull the model while the command runs |
 | a walk that no longer agrees with its checkpoint | the archive changed while a walk was unfinished; Vespera will not continue that walk, and running again gives the same refusal until the tree is as the walk left it |
 
 ## Copying or moving a working directory mid-run

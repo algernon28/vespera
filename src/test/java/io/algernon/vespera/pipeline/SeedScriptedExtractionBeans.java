@@ -42,6 +42,12 @@ class SeedScriptedExtractionBeans {
     static final String EMPTY_SEED = "empty-seed.pdf";
 
     /**
+     * A seed whose only text is a running page header (ADR-231, #496): it produced text, so it is usable,
+     * and the chunker leaves a page header out, so it has no chunk and nothing of it is embedded.
+     */
+    static final String HEADER_ONLY_SEED = "header-only-seed.pdf";
+
+    /**
      * A file Docling refuses to open: the other way a pass can end with no text for an occurrence. On
      * the corpus side it is an {@code extraction-failed} verdict at once (ADR-143); on the seed side, an
      * unusable seed (ADR-083).
@@ -155,10 +161,15 @@ class SeedScriptedExtractionBeans {
      */
     private static final String WITHOUT_TEXT = "{\"document\":{\"json_content\":{\"texts\":[]}}}";
 
+    /** A successful conversion whose one text item is a page header, which the chunker leaves out. */
+    private static final String WITH_A_PAGE_HEADER_ALONE = "{\"document\":{\"json_content\":{\"texts\":["
+            + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"}]}}}";
+
     @Bean
     DoclingExtractor doclingExtractor(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         PathScriptedExtractor extractor = new PathScriptedExtractor()
                 .cachingInto(jdbcTemplate)
+                .answering(HEADER_ONLY_SEED, response(WITH_A_PAGE_HEADER_ALONE))
                 .answering(EMPTY_SEED, response(WITHOUT_TEXT))
                 .answering(REFUSED_CONVERSION, refused())
                 .answering(CONVERTER_FAULT, failing(FailureCategory.INTERNAL, CONVERTER_FAULT_MESSAGE))
