@@ -207,10 +207,15 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
                         .containsExactly(NEAR_DUPLICATE_PAIRS, CONTAINED, NEAR_DUPLICATE_PAIRS + CONTAINED));
         claim(
                 "no statement reads the run's signature bands without naming the documents whose bands it wants, at"
-                        + " most " + A_PAGE + " of them: the buckets are found a page of signed documents at a time",
+                        + " most " + A_PAGE + " of them, or naming one band value and taking at most " + A_PAGE
+                        + " rows of it: the documents that share a band value are found a page of signed"
+                        + " documents at a time",
                 () -> assertThat(said.stream().filter(sql -> sql.contains("FROM signature_band")).toList())
                         .isNotEmpty()
-                        .allSatisfy(sql -> assertThat(occurrencesNamedBy(sql)).isBetween(1, A_PAGE)));
+                        .allSatisfy(sql -> assertThat(occurrencesNamedBy(sql) >= 1 && occurrencesNamedBy(sql) <= A_PAGE
+                                        || sql.contains("band_hash = ?") && sql.endsWith(" LIMIT " + A_PAGE))
+                                .as("a read of the signature bands that names a page of documents or one band value: %s", sql)
+                                .isTrue()));
         claim(
                 "no statement reads stage 3's shingle frequencies without naming a document: a document's rarest"
                         + " shingles are found with its own rows, and no frequency of the whole corpus is read",

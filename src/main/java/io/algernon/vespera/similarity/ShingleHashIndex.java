@@ -16,7 +16,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * pipeline} calls them at the two points ADR-182 §2.2 and §2.3 name; this class knows no stage.
  *
  * <p><b>The index exists only from the build until the next drop, and is over the rows of one stage-2
- * run</b> (ADR-221 §1): {@code (shingle_parameter_identity, shingle_hash) WHERE run_id = '<the run>'}.
+ * run</b> (ADR-221 §1): {@code (shingle_parameter_identity, shingle_hash, occurrence_id) WHERE run_id = '<the run>'}, so
+ * that one hash's occurrences are read in order from the index alone (ADR-225 section 3).
  * There is one index of that name in a database. {@code schema.sql} does not create it, because it runs
  * at every start (ADR-173 §3) and would build the index during start-up only for the next stage 2 to drop
  * it. Row by row, at random places in an index far larger than any page cache, it cost a stage-2 chunk
@@ -90,7 +91,7 @@ public class ShingleHashIndex {
         if (!A_MINTED_RUN_ID.matcher(stage2RunId.value()).matches()) {
             throw new IllegalArgumentException("A stage-2 run id is 64 lowercase hexadecimal characters");
         }
-        String build = "CREATE INDEX " + NAME + " ON shingle (shingle_parameter_identity, shingle_hash)"
+        String build = "CREATE INDEX " + NAME + " ON shingle (shingle_parameter_identity, shingle_hash, occurrence_id)"
                 + " WHERE run_id = '" + stage2RunId.value() + "'";
         boolean theRuns = jdbcTemplate
                 .queryForList(

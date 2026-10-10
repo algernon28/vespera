@@ -17,10 +17,10 @@ import java.util.OptionalInt;
 public enum SimilarityStatement {
 
     /**
-     * {@link ShingleHashIndex#buildFor}: 12 steps for a row of the run the index is built for, the most a row
-     * takes, and 3 for a row of any other run (ADR-221 section 5).
+     * {@link ShingleHashIndex#buildFor}: 13 steps for a row of the run the index is built for, the most a row
+     * takes, and 3 for a row of any other run (ADR-221 section 5, ADR-225 section 3).
      */
-    SHINGLE_HASH_INDEX_BUILD(12),
+    SHINGLE_HASH_INDEX_BUILD(13),
 
     /**
      * {@link DocumentFrequency}'s one grouping of stage 2's shingle rows, which sorts them in temporary files.

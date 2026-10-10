@@ -85,9 +85,10 @@ class ShingleHashIndexInvocationTest {
 
     /**
      * Its columns, in order, since ADR-221: the run is no longer among them, every row in the index being
-     * one run's.
+     * one run's. The occurrence is the third since ADR-225 section 3.
      */
-    private static final List<String> BY_HASH_COLUMNS = List.of("shingle_parameter_identity", "shingle_hash");
+    private static final List<String> BY_HASH_COLUMNS =
+            List.of("shingle_parameter_identity", "shingle_hash", "occurrence_id");
 
     /**
      * How a database last run under a build before ADR-221 holds the index: over every run's rows. {@code IF
@@ -108,12 +109,6 @@ class ShingleHashIndexInvocationTest {
 
     /** The start of the line stage 4b writes as its resolution begins. */
     private static final String RESOLUTION_STARTING = "Stage 4b (redundancy resolution) starting under run";
-
-    /** How many rare shingles containment retrieval asks about for one occurrence (ADR-081). */
-    private static final int RARE_SHINGLES = 32;
-
-    /** How many of those another occurrence must hold to be a containment candidate (ADR-081). */
-    private static final int HITS_FOR_A_CANDIDATE = 24;
 
     /** One file added between two invocations, which is enough to make it a different observation. */
     private static final int ADDED = 1;
@@ -200,8 +195,9 @@ class ShingleHashIndexInvocationTest {
                 "and goes on to finish the redundancy check over it",
                 () -> assertThat(stepFinished(redundancyRun, StepNames.CONTENT_REDUNDANCY)).isTrue());
         claim(
-                "and it ends with the hash index on the measurement settings and the hash, in that order,"
-                        + " which is what the search for containing documents looks up",
+                "and it ends with the hash index on the measurement settings, the hash and the document, in"
+                        + " that order, which is what the search for containing documents looks up and reads"
+                        + " in order",
                 () -> assertThat(columnsOf(BY_HASH)).containsExactlyElementsOf(BY_HASH_COLUMNS));
         claim(
                 "built over the word sequences of this extraction and no other's",
@@ -322,7 +318,7 @@ class ShingleHashIndexInvocationTest {
                         + " so everything it resolved was undone",
                 () -> assertThat(cli.getExitCode()).isNotZero());
         claim(
-                "yet the hash index it built before resolving is still there, on its two columns: it was"
+                "yet the hash index it built before resolving is still there, on its three columns: it was"
                         + " saved on its own, before the work that failed began",
                 () -> assertThat(columnsOf(BY_HASH)).containsExactlyElementsOf(BY_HASH_COLUMNS));
         claim(
@@ -523,7 +519,7 @@ class ShingleHashIndexInvocationTest {
                 () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
                         .contains(TheRunsHashIndex.statementFor(extractionRun)));
         claim(
-                "on its two columns, the run no longer among them",
+                "on its three columns, the run no longer among them",
                 () -> assertThat(columnsOf(BY_HASH)).containsExactlyElementsOf(BY_HASH_COLUMNS));
     }
 
@@ -595,23 +591,21 @@ class ShingleHashIndexInvocationTest {
                 "SELECT name FROM pragma_index_info(?) ORDER BY seqno", String.class, index);
     }
 
-    /** SQLite's plan for containment retrieval's query, as {@code RedundancyResolution} sends it, under {@code run}. */
+    /**
+     * SQLite's plan for containment retrieval's read of one hash's occurrences, as {@code RedundancyResolution}
+     * sends it since ADR-225 section 2, under {@code run}.
+     */
     private String containmentPlanFor(String run) {
-        List<Object> arguments = new ArrayList<>();
-        arguments.add(run);
-        arguments.add(A_GRANULARITY);
-        for (long hash = 1; hash <= RARE_SHINGLES; hash++) {
-            arguments.add(hash);
-        }
-        arguments.add(HITS_FOR_A_CANDIDATE);
         return String.join(
                 " | ",
                 jdbcTemplate.query(
-                        "EXPLAIN QUERY PLAN SELECT occurrence_id FROM shingle"
-                                + " WHERE run_id = ? AND shingle_parameter_identity = ? AND shingle_hash IN ("
-                                + String.join(",", Collections.nCopies(RARE_SHINGLES, "?")) + ")"
-                                + " GROUP BY occurrence_id HAVING COUNT(DISTINCT shingle_hash) >= ?",
+                        "EXPLAIN QUERY PLAN SELECT DISTINCT occurrence_id FROM shingle"
+                                + " WHERE run_id = ? AND shingle_parameter_identity = ? AND shingle_hash = ?"
+                                + " AND occurrence_id > ? ORDER BY occurrence_id LIMIT 1000",
                         (resultSet, rowNumber) -> resultSet.getString("detail"),
-                        arguments.toArray()));
+                        run,
+                        A_GRANULARITY,
+                        NONE,
+                        NONE));
     }
 }
