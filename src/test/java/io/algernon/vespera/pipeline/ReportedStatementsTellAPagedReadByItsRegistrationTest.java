@@ -8,7 +8,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.extraction.ExtractionStatement;
-import io.algernon.vespera.similarity.SimilarityStatement;
+import io.algernon.vespera.synthesis.SynthesisStatement;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -50,14 +50,18 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
     /** The registration ADR-211 owes, named by its text so that this compiles before it exists. */
     private static final String PAGED = "paged";
 
-    private static final String STAGE_4B = "Stage 4b (redundancy resolution)";
+    /**
+     * The stage of the timed statement the mistake is made with. It was stage 4b's read of the signature bands
+     * until ADR-220 struck that read; 6b's read of the clusters already written is timed as that read was.
+     */
+    private static final String STAGE_6B = "Stage 6b (generation)";
 
     private static final String STAGE_3 = "Stage 3 (content census)";
 
     private static final String METRICS_LABEL = "Stage 3 (content census, reading extraction metrics)";
 
     /** A label a timed statement has no use for, given to it by the mistake this class is about. */
-    private static final String A_LABEL_GIVEN_BY_MISTAKE = "Stage 4b (redundancy resolution, reading signature bands)";
+    private static final String A_LABEL_GIVEN_BY_MISTAKE = "Stage 6b (generation, reading the clusters written)";
 
     /** A run of two full pages of 1,000 and a short third, for a total a statement might be started with. */
     private static final long TWO_AND_A_HALF_THOUSAND = 2_500L;
@@ -93,11 +97,11 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
     @DisplayName("A statement with no steps to count, given a progress label by mistake, still writes its line before and its line after")
     void aTimedStatementRegisteredAsCountedStillWritesItsTwoLines() {
         ReportedStatements reads = ReportedStatements.saying()
-                .counted(SimilarityStatement.SIGNATURE_BANDS, STAGE_4B, "the signature bands", A_LABEL_GIVEN_BY_MISTAKE)
+                .counted(SynthesisStatement.WRITTEN, STAGE_6B, "the clusters written", A_LABEL_GIVEN_BY_MISTAKE)
                 .build();
 
-        reads.statementStarting(SimilarityStatement.SIGNATURE_BANDS, OptionalLong.empty());
-        reads.statementEnded(SimilarityStatement.SIGNATURE_BANDS);
+        reads.statementStarting(SynthesisStatement.WRITTEN, OptionalLong.empty());
+        reads.statementEnded(SynthesisStatement.WRITTEN);
 
         List<String> lines = lines();
         claim(
@@ -106,8 +110,8 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
                         + " for having been given a label",
                 () -> {
                     assertThat(lines).hasSize(2);
-                    assertThat(lines.getFirst()).isEqualTo(STAGE_4B + " is reading the signature bands");
-                    assertThat(lines.getLast()).matches("\\Q" + STAGE_4B + " read the signature bands\\E" + IN_SECONDS);
+                    assertThat(lines.getFirst()).isEqualTo(STAGE_6B + " is reading the clusters written");
+                    assertThat(lines.getLast()).matches("\\Q" + STAGE_6B + " read the clusters written\\E" + IN_SECONDS);
                 });
     }
 
@@ -116,11 +120,11 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
     @DisplayName("A statement with no steps to count, given a progress label by mistake and a total, is still only timed")
     void aTimedStatementRegisteredAsCountedIsNotTakenForAPagedRead() {
         ReportedStatements reads = ReportedStatements.saying()
-                .counted(SimilarityStatement.SIGNATURE_BANDS, STAGE_4B, "the signature bands", A_LABEL_GIVEN_BY_MISTAKE)
+                .counted(SynthesisStatement.WRITTEN, STAGE_6B, "the clusters written", A_LABEL_GIVEN_BY_MISTAKE)
                 .build();
 
-        reads.statementStarting(SimilarityStatement.SIGNATURE_BANDS, OptionalLong.of(TWO_AND_A_HALF_THOUSAND));
-        reads.statementEnded(SimilarityStatement.SIGNATURE_BANDS);
+        reads.statementStarting(SynthesisStatement.WRITTEN, OptionalLong.of(TWO_AND_A_HALF_THOUSAND));
+        reads.statementEnded(SynthesisStatement.WRITTEN);
 
         List<String> lines = lines();
         claim(
@@ -129,8 +133,8 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
                         + " named as made a page at a time is reported as one",
                 () -> {
                     assertThat(lines).hasSize(2);
-                    assertThat(lines.getFirst()).isEqualTo(STAGE_4B + " is reading the signature bands");
-                    assertThat(lines.getLast()).matches("\\Q" + STAGE_4B + " read the signature bands\\E" + IN_SECONDS);
+                    assertThat(lines.getFirst()).isEqualTo(STAGE_6B + " is reading the clusters written");
+                    assertThat(lines.getLast()).matches("\\Q" + STAGE_6B + " read the clusters written\\E" + IN_SECONDS);
                 });
     }
 

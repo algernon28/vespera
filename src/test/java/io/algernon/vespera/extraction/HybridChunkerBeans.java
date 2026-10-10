@@ -7,7 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Builds a real {@link HybridChunker} for a test outside this package (mirrors why
  * {@link ScriptedExtractor} lives here rather than beside its callers): {@link HybridChunker}'s
- * constructor, {@link ChunkCache}, and {@link WindowedStructurelessChunkingFallback} are all
+ * constructor and {@link ChunkCache} are both
  * package-private, deliberately, so a chunker is only ever built by {@code extraction}'s own wiring
  * or a package-mate on its behalf — never by widening them for one caller outside the package.
  *
@@ -19,9 +19,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Configuration
 public class HybridChunkerBeans {
 
-    /** A real chunker over {@code jdbcTemplate}'s chunk cache, chunking with the windowed fallback. */
+    /** A real chunker over {@code jdbcTemplate}'s chunk cache, built as {@code extraction} builds it. */
     public static HybridChunker real(JdbcTemplate jdbcTemplate) {
-        return new HybridChunker(new ChunkCache(jdbcTemplate), new WindowedStructurelessChunkingFallback());
+        return new HybridChunker(new ChunkCache(jdbcTemplate));
     }
 
     @Bean

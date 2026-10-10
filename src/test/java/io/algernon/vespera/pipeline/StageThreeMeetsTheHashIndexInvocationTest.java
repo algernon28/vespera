@@ -36,9 +36,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * Whether stage 3's grouping of the shingle rows runs while {@code shingle_by_hash} exists (#473, following
  * ADR-218's "What this does not decide").
  *
- * <p><b>A characterisation of what ships today.</b> ADR-218 read from {@code StageModules} and ADR-182
- * that stage 3 can meet the index and ran no invocation to see it. These tests run the invocations, and
- * ADR-219 records them. Stage 2 drops the index only when its own step is unfinished under the run it arrives at, and
+ * <p><b>When stage 3 meets the index, which the clause does not change.</b> ADR-218 read from {@code
+ * StageModules} and ADR-182 that stage 3 can meet the index and ran no invocation to see it. These tests
+ * run the invocations, and ADR-219 records them. Stage 2 drops the index only when its own step is unfinished under the run it arrives at, and
  * stage 4b builds it, so the index stands from stage 4b until a stage 2 next has work; a stage 3 that runs in
  * between, under a stage 2 with nothing to do, groups with the index there. One sequence does that, and two
  * that look alike do not:
@@ -62,15 +62,16 @@ import org.springframework.test.context.DynamicPropertySource;
  * stop is a trigger refusing the row that records stage 3 finished, as {@code ShingleHashIndexInvocationTest}
  * stops stage 4b.
  *
- * <p><b>What ADR-219's clause turns here, and what it leaves.</b> ADR-219 decides that the grouping names
- * its index, {@code INDEXED BY shingle_by_run_id}, and that the clause ships with the next change to {@code
- * similarity}. That change turns one claim of this class and one constant: the last claim of {@link
- * #aStageThreeStoppedOverOneCorpusRootGroupsWithTheHashIndexAnotherCorpusRootsStageFourBBuilt}, that the grouping is planned
- * through {@code shingle_by_hash} and sorts nothing for its {@code GROUP BY}, becomes that it is planned
- * through {@code shingle_by_run_id} and does sort for it; and {@link #GROUPING} gains the clause, so that
- * the plan asked for is of the statement sent. Every other claim stands with the clause shipped: the clause
- * changes which index the statement reads through, not when the index exists, so stage 3 still runs with
- * the index in the database in the same sequence.
+ * <p><b>What ADR-219's clause is seen to do here.</b> The grouping names its index, {@code INDEXED BY
+ * shingle_by_run_id} (ADR-219 section 1), and the clause shipped with the change to {@code similarity} that
+ * ADR-220 records. The clause changes which index the statement reads through, not when the index exists:
+ * stage 3 still runs with {@code shingle_by_hash} in the database in the one sequence above, which the
+ * claims on the trigger's record hold. The last claim of {@link
+ * #aStageThreeStoppedOverOneCorpusRootGroupsWithTheHashIndexAnotherCorpusRootsStageFourBBuilt} holds what
+ * the clause is for: with the index there, the grouping as {@link #GROUPING} writes it is planned through
+ * {@code shingle_by_run_id} and sorts for its {@code GROUP BY}. That {@code DocumentFrequency} sends the
+ * clause is {@code DocumentFrequencyIsCountedInTheDatabaseTest}'s to hold; the text planned here is this
+ * class's own copy.
  */
 @CascadeSliceTest
 @Import({ConverterStopsPartwayBeans.class, SuccessiveBuildsBeans.class})
@@ -91,6 +92,9 @@ class StageThreeMeetsTheHashIndexInvocationTest {
 
     private static final String BY_HASH = "shingle_by_hash";
 
+    /** The index ADR-219's clause names, which a start always makes. */
+    private static final String BY_RUN_ID = "shingle_by_run_id";
+
     /** What the trigger records where the index is there, and where it is not. */
     private static final int PRESENT = 1;
 
@@ -110,7 +114,7 @@ class StageThreeMeetsTheHashIndexInvocationTest {
      * first column of the select, the parameter the insert binds the stage-3 run to.
      */
     private static final String GROUPING = "SELECT shingle_parameter_identity, shingle_hash,"
-            + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle WHERE run_id = ?"
+            + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle INDEXED BY shingle_by_run_id WHERE run_id = ?"
             + " GROUP BY shingle_parameter_identity, shingle_hash HAVING COUNT(DISTINCT occurrence_id) >= 2";
 
     @TempDir
@@ -319,11 +323,13 @@ class StageThreeMeetsTheHashIndexInvocationTest {
                 "and every row it wrote was written with the hash index in the database",
                 () -> assertThat(howTheGroupingFoundTheIndexUnder(stoppedCensus)).containsExactly(PRESENT));
         claim(
-                "and with the index there the database plans that count through it, and not through the index"
-                        + " by run it uses otherwise",
+                "and with the hash index there the database still plans that count through the index by run,"
+                        + " which the count names, and sorts the rows itself to count them, as it does where"
+                        + " there is no hash index",
                 () -> assertThat(planOfTheGroupingOver(stoppedExtraction))
-                        .contains("USING INDEX " + BY_HASH)
-                        .doesNotContain("FOR GROUP BY"));
+                        .contains("USING INDEX " + BY_RUN_ID)
+                        .contains("FOR GROUP BY")
+                        .doesNotContain(BY_HASH));
     }
 
     /**

@@ -65,16 +65,4 @@ public class ContentIdentity {
         jdbcTemplate.update("DELETE FROM content_hash WHERE run_id = ?", runId.value());
         jdbcTemplate.update("DELETE FROM superseded_by WHERE run_id = ?", runId.value());
     }
-
-    /** The representative {@code occurrenceId} was superseded by under {@code runId}, if any. */
-    Optional<OccurrenceId> representativeFor(OccurrenceId occurrenceId, RunId runId) {
-        return jdbcTemplate
-                .query(
-                        "SELECT representative_occurrence_id FROM superseded_by WHERE occurrence_id = ? AND run_id = ?",
-                        (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("representative_occurrence_id")),
-                        occurrenceId.value(),
-                        runId.value())
-                .stream()
-                .findFirst();
-    }
 }

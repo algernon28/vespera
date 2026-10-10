@@ -26,9 +26,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * {@code corpus}'s own record of content identity and duplicate resolution (ADR-067, ADR-069): not
- * a verdict, so not the ledger's concern — read back through the same seam a real caller would use
- * rather than through the columns underneath it, matching {@code AnomalyLogTest}'s pattern for
- * {@code corpus}'s other side table.
+ * a verdict, so not the ledger's concern. A hash is read back through the seam a real caller uses. A
+ * superseded-by pointer is read back from {@code superseded_by} by a statement of this test's own: no
+ * shipped class reads that table, which is kept as a record a person may query (ADR-216 section 5).
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -77,10 +77,19 @@ class ContentIdentityTest {
 
         claim(
                 "the superseded occurrence points back at its representative",
-                () -> assertThat(contentIdentity.representativeFor(superseded, runId)).contains(representative));
+                () -> assertThat(representativesOf(superseded, runId)).containsExactly(representative));
         claim(
                 "the representative itself carries no pointer of its own -- it was never superseded",
-                () -> assertThat(contentIdentity.representativeFor(representative, runId)).isEmpty());
+                () -> assertThat(representativesOf(representative, runId)).isEmpty());
+    }
+
+    /** What {@code superseded_by} records {@code occurrence} as superseded by under {@code run}: one, or none. */
+    private List<OccurrenceId> representativesOf(OccurrenceId occurrence, RunId run) {
+        return jdbcTemplate.query(
+                "SELECT representative_occurrence_id FROM superseded_by WHERE occurrence_id = ? AND run_id = ?",
+                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong(1)),
+                occurrence.value(),
+                run.value());
     }
 
     private OccurrenceId anOccurrence() {

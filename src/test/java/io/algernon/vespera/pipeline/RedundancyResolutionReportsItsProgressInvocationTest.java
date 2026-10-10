@@ -64,6 +64,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * makes, each with a line before it and a line after it with the seconds it took, and none of them where the
  * stage issued no statement. 4a's count of the survivors it signs is ADR-199's, and {@code
  * UncoveredStatementsInvocationTest} holds its lines.
+ *
+ * <p><b>ADR-220 leaves 4b two reads of its own</b>, the count of the signed documents and the near-duplicates'
+ * metrics: the bands and the shingle frequencies are read a page of signed documents or a document at a time
+ * inside the loops that report, and the candidates counter counts signed documents, the pairs' number being
+ * known only once the last page has been read.
  */
 @CascadeSliceTest
 @Import(ConverterStopsPartwayBeans.class)
@@ -161,6 +166,7 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
     @Test
     @Story("Measuring and resolving redundancy say how far they have got")
     @DisplayName("Stage 3 writes no counter over its frequency rows, and resolving redundancy counts each of its loops against its own total")
+    @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
     void countsEveryLoop(@TempDir Path root) throws IOException {
         aCorpusWithOneNearDuplicatePair(root);
 
@@ -168,7 +174,6 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
 
         String run = theRun(root, StageModules.CONTENT_REDUNDANCY.stage());
         long signed = documentsSigned(run);
-        long pairs = pairsSharingABand(run);
         claim(
                 "the invocation reported success, every one of the three documents was signed, one pair was"
                         + " recorded as near-duplicates, and the step started and finished",
@@ -184,9 +189,11 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                         + " no loop goes through the distinct passages one by one",
                 () -> assertThat(ProgressLines.of(logged.list, FREQUENCY_ROWS)).isEmpty());
         claim(
-                "the pair counter counts the " + pairs + " pairs that share a band under this run",
+                "the candidates counter counts the " + signed + " signed documents, each once the pairs it is the"
+                        + " lesser member of are scored: the pairs are found a page of signed documents at a time, so"
+                        + " their number is known only at the end",
                 () -> assertThat(ProgressLines.of(logged.list, PAIRS))
-                        .containsExactlyElementsOf(ProgressLines.expected(PAIRS, pairs)));
+                        .containsExactlyElementsOf(ProgressLines.expected(PAIRS, signed)));
         claim(
                 "the two members of the one component are read for their facts, the one component is resolved,"
                         + " and its one member that is not the survivor is written redundant with it",
@@ -224,28 +231,25 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
         claim(
                 "resolving says what it is reading and how long each read took, each line once, in the order it"
                         + " reads: the signed documents, over up to the " + signatureRows + " signature rows of its"
-                        + " run; the signature bands; the extraction metrics of the near-duplicates; and the"
-                        + " shingle frequencies",
+                        + " run, and the extraction metrics of the near-duplicates. It reads the bands and the shingle"
+                        + " frequencies a page of signed documents or a document at a time inside the loops whose"
+                        + " counters say how far it has got, and says nothing of reading them whole, because it no"
+                        + " longer does",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FOUR_B))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.countedRead(STAGE_FOUR_B, "the signed occurrences", signatureRows),
-                                StatementLines.timedRead(STAGE_FOUR_B, "the signature bands"),
-                                StatementLines.timedRead(STAGE_FOUR_B, "the near-duplicates' extraction metrics"),
-                                StatementLines.timedRead(STAGE_FOUR_B, "the shingle document frequencies"))));
+                                StatementLines.timedRead(STAGE_FOUR_B, "the near-duplicates' extraction metrics"))));
         claim(
-                "each of resolving's reads lies where the step makes it: the signed documents and the bands"
-                        + " before the first pair is scored, the near-duplicates' metrics before the first of"
-                        + " them is counted as read, and the shingle frequencies before the first document is"
-                        + " checked for a container",
+                "each of resolving's reads lies where the step makes it: the signed documents before the first of"
+                        + " them has its candidates scored, and the near-duplicates' metrics before the first of them"
+                        + " is counted as read",
                 () -> assertThat(String.join("\n", operatorLines()))
                         .containsSubsequence(
                                 STARTING,
                                 STAGE_FOUR_B + " read the signed occurrences in ",
-                                STAGE_FOUR_B + " read the signature bands in ",
                                 PAIRS + ": 1 of ",
                                 STAGE_FOUR_B + " is reading the near-duplicates' extraction metrics",
                                 PROFILES + ": 1 of ",
-                                STAGE_FOUR_B + " read the shingle document frequencies in ",
                                 CONTAINMENT + ": 1 of ",
                                 FINISHED));
         for (String counter : COUNTERS_THAT_WRITE) {
@@ -459,18 +463,6 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                 Long.class,
                 run);
         return recorded == null ? 0 : recorded;
-    }
-
-    /** Distinct pairs of occurrences that share a band under {@code run}: what candidate generation reads. */
-    private long pairsSharingABand(String run) {
-        Long pairs = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM (SELECT DISTINCT a.occurrence_id AS a, b.occurrence_id AS b"
-                        + " FROM signature_band a JOIN signature_band b ON a.run_id = b.run_id"
-                        + " AND a.band_ordinal = b.band_ordinal AND a.band_hash = b.band_hash"
-                        + " AND a.occurrence_id < b.occurrence_id WHERE a.run_id = ?)",
-                Long.class,
-                run);
-        return pairs == null ? 0 : pairs;
     }
 
     private List<String> operatorLines() {

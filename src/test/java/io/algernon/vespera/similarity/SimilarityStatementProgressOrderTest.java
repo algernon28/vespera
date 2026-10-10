@@ -42,10 +42,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  *
  * <p>The statements are the build of {@code shingle_by_hash}; {@code DocumentFrequency.measure}'s grouping of
  * the shingle rows, in the database since ADR-211, one statement, counted by SQLite's steps like the read it
- * replaces though it sorts; and the four of {@code
- * RedundancyResolution.resolve}, among the loops ADR-192 section 5 already reports: the signed occurrences,
- * counted, then the signature bands, the near-duplicates' extraction metrics and the shingle document
- * frequencies, each timed.
+ * replaces though it sorts; and the two of {@code RedundancyResolution.resolve} that stay reads of their own
+ * since ADR-220: the signed occurrences, counted, and the near-duplicates' extraction metrics, timed. The
+ * signature bands and the shingle document frequencies, each timed until ADR-220, are read a page of signed
+ * occurrences or an occurrence at a time, inside the loops ADR-192 section 5 already reports.
  *
  * <p>It runs on {@link PoolOfTwo}, so a counted read handed back to the template would report no steps over
  * many rows.
@@ -194,7 +194,8 @@ class SimilarityStatementProgressOrderTest {
 
     @Test
     @Story("Resolving redundancy says what it is reading")
-    @DisplayName("Resolving starts and ends each of its four reads where it makes them, among the loops it already reports")
+    @DisplayName("Resolving starts and ends its two reads where it makes them, and reads the bands and the shingle frequencies inside its loops")
+    @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
     void resolvingStartsAndEndsEachReadWhereItMakesIt() {
         document("a.pdf", 0);
         document("b.pdf", 1);
@@ -207,34 +208,29 @@ class SimilarityStatementProgressOrderTest {
         new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder);
 
         claim(
-                "the four reads are reported once each, in the order resolution makes them: the signed"
-                        + " occurrences over up to the " + signatureRows + " signature rows of its run, and then"
-                        + " the bands, the near-duplicates' metrics and the shingle frequencies with no total",
+                "two reads are reported, once each, in the order resolution makes them: the count of the signed"
+                        + " documents, over up to the " + signatureRows + " signature rows of its run, and the"
+                        + " near-duplicates' metrics, with no total. The bands and the shingle frequencies are read a"
+                        + " page of signed documents or a document at a time inside the loops that report, so neither"
+                        + " is a read of its own (ADR-220)",
                 () -> assertThat(recorder.statements())
                         .containsExactly(
                                 starting(SimilarityStatement.SIGNED_OCCURRENCES, OptionalLong.of(signatureRows)),
                                 ended(SimilarityStatement.SIGNED_OCCURRENCES),
-                                starting(SimilarityStatement.SIGNATURE_BANDS, OptionalLong.empty()),
-                                ended(SimilarityStatement.SIGNATURE_BANDS),
                                 starting(SimilarityStatement.NEAR_DUPLICATE_METRICS, OptionalLong.empty()),
-                                ended(SimilarityStatement.NEAR_DUPLICATE_METRICS),
-                                starting(SimilarityStatement.DOCUMENT_FREQUENCY, OptionalLong.empty()),
-                                ended(SimilarityStatement.DOCUMENT_FREQUENCY)));
+                                ended(SimilarityStatement.NEAR_DUPLICATE_METRICS)));
         claim(
-                "the signed occurrences and the bands are read before the pairs are announced, the"
-                        + " near-duplicates' metrics after their loop is announced and before the first of them is"
-                        + " reported read, and the shingle frequencies before the containment loop is announced",
+                "the signed documents are counted before the first loop is announced, the near-duplicates' metrics"
+                        + " are read after their loop is announced and before the first of them is reported read,"
+                        + " and the loops come in the order resolution goes through them",
                 () -> assertThat(recorder.calls)
                         .containsSubsequence(
                                 ended(SimilarityStatement.SIGNED_OCCURRENCES),
-                                ended(SimilarityStatement.SIGNATURE_BANDS),
                                 "toScorePairs",
                                 "toReadProfiles",
                                 starting(SimilarityStatement.NEAR_DUPLICATE_METRICS, OptionalLong.empty()),
                                 ended(SimilarityStatement.NEAR_DUPLICATE_METRICS),
                                 "profileRead",
-                                starting(SimilarityStatement.DOCUMENT_FREQUENCY, OptionalLong.empty()),
-                                ended(SimilarityStatement.DOCUMENT_FREQUENCY),
                                 "toCheckForContainment"));
     }
 
@@ -370,13 +366,23 @@ class SimilarityStatementProgressOrderTest {
                 .isZero());
     }
 
-    /** The same for a timed statement, which has no handler to leave: the read of the signature bands. */
+    /**
+     * A page of the signature bands that throws, which since ADR-220 is no read of its own but a statement of the
+     * loop over the signed documents: the count was started and ended, the loop announced, and nothing after.
+     */
     @Test
     @Story("Resolving redundancy says what it is reading")
-    @DisplayName("A read of the signature bands that throws is not said to have ended")
+    @DisplayName("A page of the signature bands that throws stops resolution inside its loop, after the count of the signed documents ended")
+    @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
     void aTimedReadThatThrowsIsNotSaidToHaveEnded() throws SQLException {
         oneSignatureRow();
-        Recorder recorder = new DroppingATableWhenStarted(SimilarityStatement.SIGNATURE_BANDS, "signature_band");
+        Recorder recorder = new Recorder() {
+            @Override
+            public void toScorePairs(long total) {
+                super.toScorePairs(total);
+                jdbcTemplate.execute("DROP TABLE signature_band");
+            }
+        };
 
         claim(
                 "resolution fails as the template reports any statement's failure, once the table is gone",
@@ -384,13 +390,13 @@ class SimilarityStatementProgressOrderTest {
                                 .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder))
                         .isInstanceOf(DataAccessException.class));
         claim(
-                "the caller was told the read of the signed occurrences started and ended, and that the read of"
-                        + " the bands started, with no total, and never that it ended; no loop was announced",
+                "the caller was told the count of the signed documents started and ended, and that the loop over"
+                        + " their candidates began, and nothing more",
                 () -> assertThat(recorder.calls)
                         .containsExactly(
                                 starting(SimilarityStatement.SIGNED_OCCURRENCES, OptionalLong.of(ONE_ROW)),
                                 ended(SimilarityStatement.SIGNED_OCCURRENCES),
-                                starting(SimilarityStatement.SIGNATURE_BANDS, OptionalLong.empty())));
+                                "toScorePairs"));
     }
 
     /** The one signature row the two tests of a read that throws give the run, so resolution has something signed. */
@@ -488,8 +494,8 @@ class SimilarityStatementProgressOrderTest {
         }
 
         @Override
-        public void pairScored() {
-            calls.add("pairScored");
+        public void candidatesScored() {
+            calls.add("candidatesScored");
         }
 
         @Override

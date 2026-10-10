@@ -30,7 +30,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Stage 2's end-of-step resolution of the faults it held (ADR-139, ADR-189), counted (ADR-192 section 4,
+ * Stage 2's end-of-step resolution of the faults it recorded (ADR-139, ADR-189, ADR-220 section 14), counted (ADR-192 section 4,
  * #412): each fault the step set aside is written as a row, and as {@code extraction-failed} where the step
  * completed, in {@code extraction.ExtractionFaultResolution.resolve}, which tells {@code pipeline} the total
  * and each fault resolved through {@code FaultResolutionProgress}.
@@ -38,7 +38,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>Part (b) of ADR-192.</b> This compiles against main and is red there at the claim that the
  * counter's line is there; part (b) moves it into {@code src/test} and turns it green. The fixture is {@code
  * SeedScriptedExtractionBeans}, whose converter fails on {@code CONVERTER_FAULT} while blaming itself, which
- * is what a held fault is; {@code ExtractionFaultInvocationTest} pins the row and the verdict.
+ * is what a recorded fault is; {@code ExtractionFaultInvocationTest} pins the row and the verdict.
  *
  * <p><b>Two claims came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3, #411): on a first
  * invocation stage 2 times its count of the survivors still to read and, at its end, its read of the
@@ -89,14 +89,14 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
     private static final String BOILERPLATE_FLOOR = "1.0";
     private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
-    /** The corpus file the scripted converter fails on while blaming itself: one held fault. */
+    /** The corpus file the scripted converter fails on while blaming itself: one recorded fault. */
     private static final String FAULTED = SeedScriptedExtractionBeans.CONVERTER_FAULT;
 
     private static final String READABLE = "readable.txt";
 
     private static final String FAULTS_RESOLVED = "Stage 2 (extraction, faults resolved)";
 
-    /** One fault held, so one line: a total under forty is a line per item. */
+    /** One fault recorded, so one line: a total under forty is a line per item. */
     private static final int ONE_FAULT = 1;
 
     @TempDir
@@ -133,7 +133,7 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
     }
 
     @Test
-    @Story("Stage 2 says how many of the faults it held it has resolved")
+    @Story("Stage 2 says how many of the faults it recorded it has resolved")
     @DisplayName("One file the converter failed on while blaming itself is one fault resolved, and one line says so")
     void countsTheFaultItResolves(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve(FAULTED), "a file the converter faults on");
@@ -146,7 +146,7 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
         claim("the invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
         stageTwoTimedItsCountAndItsReviewListRead();
         claim(
-                "the step held one fault and resolved it at its end, and the counter reads one of one",
+                "the step recorded one fault and resolved it at its end, and the counter reads one of one",
                 () -> assertThat(ProgressLines.of(logged.list, FAULTS_RESOLVED))
                         .containsExactlyElementsOf(ProgressLines.expected(FAULTS_RESOLVED, ONE_FAULT)));
         claim(
@@ -157,9 +157,9 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
     }
 
     @Test
-    @Story("Stage 2 says how many of the faults it held it has resolved")
-    @DisplayName("A stage 2 that held no fault resolves nothing and writes no fault counter")
-    void writesNothingWhereNoFaultWasHeld(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @Story("Stage 2 says how many of the faults it recorded it has resolved")
+    @DisplayName("A stage 2 that recorded no fault resolves nothing and writes no fault counter")
+    void writesNothingWhereNoFaultWasRecorded(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profile(seeds);
@@ -169,7 +169,7 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
         claim("the invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
         stageTwoTimedItsCountAndItsReviewListRead();
         claim(
-                "no fault was held, so the resolution is never reached and no counter line is written: that"
+                "no fault was recorded, so the resolution is never reached and no counter line is written: that"
                         + " passes on main and has to go on passing",
                 () -> assertThat(ProgressLines.of(logged.list, FAULTS_RESOLVED)).isEmpty());
     }

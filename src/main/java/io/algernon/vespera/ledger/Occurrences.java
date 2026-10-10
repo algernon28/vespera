@@ -30,17 +30,55 @@ public class Occurrences {
                 creationTime.toString());
     }
 
-    /** The file occurrences recorded against {@code walkId}. */
-    public List<RecordedOccurrence> occurrencesForWalk(WalkId walkId) {
-        return jdbcTemplate.query(
-                "SELECT path, size_bytes, last_modified, creation_time FROM file_occurrence WHERE walk_id = ?",
-                (resultSet, rowNumber) -> new RecordedOccurrence(
-                        new OccurrencePath(resultSet.getString("path")),
-                        resultSet.getLong("size_bytes"),
-                        Instant.parse(resultSet.getString("last_modified")),
-                        Instant.parse(resultSet.getString("creation_time"))),
-                walkId.value());
+    /**
+     * Whether the two walks recorded the same file occurrences: the same paths, sizes and times, in the
+     * order the walk recorded them (ADR-220 section 3).
+     *
+     * <p>Asked a page of up to {@value KeysetPages#ROWS_IN_A_PAGE} of each walk at a time, in id order,
+     * each page planned by the integer primary key with {@code walk_id} compared as a value (ADR-211
+     * section 8), so two pages are held and neither walk is read whole. The ids themselves are not
+     * compared: they are numbers the ledger gave the rows, not something the walk observed. The
+     * comparison stops at the first page that differs, in length or in any row.
+     */
+    public boolean sameOccurrences(WalkId earlier, WalkId later) {
+        long afterEarlier = Long.MIN_VALUE;
+        long afterLater = Long.MIN_VALUE;
+        while (true) {
+            List<PagedOccurrence> pageOfEarlier = pageOf(earlier, afterEarlier);
+            List<PagedOccurrence> pageOfLater = pageOf(later, afterLater);
+            if (pageOfEarlier.size() != pageOfLater.size()) {
+                return false;
+            }
+            for (int row = 0; row < pageOfEarlier.size(); row++) {
+                if (!pageOfEarlier.get(row).occurrence().equals(pageOfLater.get(row).occurrence())) {
+                    return false;
+                }
+            }
+            if (pageOfEarlier.size() < KeysetPages.ROWS_IN_A_PAGE) {
+                return true;
+            }
+            afterEarlier = pageOfEarlier.get(pageOfEarlier.size() - 1).id();
+            afterLater = pageOfLater.get(pageOfLater.size() - 1).id();
+        }
     }
+
+    private List<PagedOccurrence> pageOf(WalkId walkId, long afterId) {
+        return jdbcTemplate.query(
+                "SELECT id, path, size_bytes, last_modified, creation_time FROM file_occurrence"
+                        + " WHERE +walk_id = ? AND id > ? ORDER BY id LIMIT " + KeysetPages.ROWS_IN_A_PAGE,
+                (resultSet, rowNumber) -> new PagedOccurrence(
+                        resultSet.getLong("id"),
+                        new RecordedOccurrence(
+                                new OccurrencePath(resultSet.getString("path")),
+                                resultSet.getLong("size_bytes"),
+                                Instant.parse(resultSet.getString("last_modified")),
+                                Instant.parse(resultSet.getString("creation_time")))),
+                walkId.value(),
+                afterId);
+    }
+
+    /** One row of a page of a walk: its number, which the comparison pages by, and what was observed. */
+    private record PagedOccurrence(long id, RecordedOccurrence occurrence) {}
 
     /**
      * How many file occurrences stand against {@code walkId}, counted rather than remembered.
