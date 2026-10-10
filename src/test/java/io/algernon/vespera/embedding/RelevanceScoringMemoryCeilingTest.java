@@ -78,7 +78,7 @@ class RelevanceScoringMemoryCeilingTest {
 
         long walkId = insertWalk();
         RunId runId = insertRun(walkId);
-        Map<OccurrenceId, String> seedContentHashes = insertSeeds(walkId);
+        Map<OccurrenceId, SeedChunks> seedContentHashes = insertSeeds(walkId);
         List<OccurrenceId> corpusOccurrences = insertCorpusDocuments(walkId);
 
         Map<OccurrenceId, List<float[]>> residentSeedVectors = relevanceScoring.residentSeedVectors(
@@ -131,12 +131,12 @@ class RelevanceScoringMemoryCeilingTest {
     }
 
     /** {@link #SEED_DOCUMENT_COUNT} seed occurrences, each with {@link #CHUNKS_PER_SEED_DOCUMENT} resident chunks. */
-    private Map<OccurrenceId, String> insertSeeds(long walkId) {
-        Map<OccurrenceId, String> seedContentHashes = new LinkedHashMap<>();
+    private Map<OccurrenceId, SeedChunks> insertSeeds(long walkId) {
+        Map<OccurrenceId, SeedChunks> seedContentHashes = new LinkedHashMap<>();
         for (int seed = 0; seed < SEED_DOCUMENT_COUNT; seed++) {
             OccurrenceId occurrenceId = insertFileOccurrence(walkId, "seed-" + seed + ".txt");
             String contentHash = "seed-" + seed;
-            seedContentHashes.put(occurrenceId, contentHash);
+            seedContentHashes.put(occurrenceId, new SeedChunks(contentHash, CHUNKS_PER_SEED_DOCUMENT));
             for (int ordinal = 0; ordinal < CHUNKS_PER_SEED_DOCUMENT; ordinal++) {
                 insertVector(contentHash, ordinal, similarityFingerprint(0.5f));
             }

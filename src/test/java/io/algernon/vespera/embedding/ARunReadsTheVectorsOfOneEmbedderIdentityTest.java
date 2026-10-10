@@ -223,8 +223,8 @@ class ARunReadsTheVectorsOfOneEmbedderIdentityTest {
     private void score(RunId run, OccurrenceId seed, OccurrenceId survivor) {
         RelevanceScoring scoring = new RelevanceScoring(
                 new VectorCache(jdbcTemplate), new RelevanceScorer(), new RelevanceScoreCache(jdbcTemplate));
-        Map<OccurrenceId, String> seeds = new LinkedHashMap<>();
-        seeds.put(seed, "seed");
+        Map<OccurrenceId, SeedChunks> seeds = new LinkedHashMap<>();
+        seeds.put(seed, new SeedChunks("seed", 1));
         Map<OccurrenceId, List<float[]>> resident =
                 scoring.residentSeedVectors(seeds, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER);
         scoring.scoreAndRecord(

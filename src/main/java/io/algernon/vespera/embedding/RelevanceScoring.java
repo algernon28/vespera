@@ -34,19 +34,19 @@ public class RelevanceScoring {
 
     /**
      * Loads every usable seed document's chunk vectors, keyed by seed occurrence — the resident side
-     * of ADR-085's shape, built once and held for the whole scoring pass. A seed occurrence whose
-     * content hash matches no stored vector under the embedder identity is refused, not left out
-     * (ADR-231 section 2): scoring without it would measure every survivor against fewer seeds.
+     * of ADR-085's shape, built once and held for the whole scoring pass. A seed with no chunk is left out
+     * (ADR-231 section 2a); a seed with a chunk and no stored vector under the embedder identity is refused
+     * (section 2): scoring without it would measure every survivor against fewer seeds.
      *
-     * @throws IllegalStateException on the first seed with no stored vector under {@code embedderIdentity}
+     * @throws IllegalStateException on the first seed with a chunk and no stored vector under {@code embedderIdentity}
      */
     public Map<OccurrenceId, List<float[]>> residentSeedVectors(
-            Map<OccurrenceId, String> seedContentHashesByOccurrence,
+            Map<OccurrenceId, SeedChunks> usableSeedsByOccurrence,
             String chunkerIdentity,
             String chunkingRuleIdentity,
             String embedderIdentity) {
         return residentSeedVectors(
-                seedContentHashesByOccurrence,
+                usableSeedsByOccurrence,
                 chunkerIdentity,
                 chunkingRuleIdentity,
                 embedderIdentity,
@@ -55,20 +55,26 @@ public class RelevanceScoring {
 
     /**
      * As {@link #residentSeedVectors(Map, String, String, String)}, telling {@code progress} how many seeds
-     * will be read, once, before the first, and each seed as its vectors are read (ADR-192 section 5); a seed with none
-     * stops the read before it is counted (ADR-231 section 2).
+     * will be read, once, before the first, and each seed as it is gone through (ADR-192 section 5). A seed with no chunk
+     * is told to {@code progress} as left out and counted; a seed with a chunk and no vector stops the read
+     * before it is counted (ADR-231 section 2).
      */
     public Map<OccurrenceId, List<float[]>> residentSeedVectors(
-            Map<OccurrenceId, String> seedContentHashesByOccurrence,
+            Map<OccurrenceId, SeedChunks> usableSeedsByOccurrence,
             String chunkerIdentity,
             String chunkingRuleIdentity,
             String embedderIdentity,
             ScoringProgress progress) {
         Map<OccurrenceId, List<float[]>> resident = new LinkedHashMap<>();
-        progress.toReadSeedVectors(seedContentHashesByOccurrence.size());
-        for (Map.Entry<OccurrenceId, String> seed : seedContentHashesByOccurrence.entrySet()) {
-            List<float[]> vectors =
-                    vectorCache.vectorsFor(seed.getValue(), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
+        progress.toReadSeedVectors(usableSeedsByOccurrence.size());
+        for (Map.Entry<OccurrenceId, SeedChunks> seed : usableSeedsByOccurrence.entrySet()) {
+            if (seed.getValue().chunkCount() == 0) {
+                progress.seedLeftOutWithNoChunk(seed.getKey());
+                progress.seedVectorsRead();
+                continue;
+            }
+            List<float[]> vectors = vectorCache.vectorsFor(
+                    seed.getValue().contentHash(), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
             if (vectors.isEmpty()) {
                 throw new IllegalStateException("seed occurrence " + seed.getKey().value()
                         + " has no stored chunk vectors under embedder identity " + embedderIdentity
@@ -157,12 +163,13 @@ public class RelevanceScoring {
      * {@code runId} — never materialising more than this one survivor's own chunk vectors alongside
      * the seed side already held resident (ADR-085).
      *
-     * <p>Throws rather than scoring zero if {@code occurrenceId} has no stored vectors: a corpus
-     * survivor reaching stage 5 with no chunks is a case #108 confirmed cannot happen by construction
-     * (stage 2 removes documents with no text before a survivor is ever chunked), so a row here would
-     * misreport an assumption as a measurement (ADR-020, "Confirm, do not assume"). The message names
-     * what is actually possible rather than tier 1's no-text floor, which ADR-139 measured innocent of
-     * this: an occurrence no stage ever examined, or vectors another pull of the embedding model wrote.
+     * <p>Throws rather than scoring zero if {@code occurrenceId} has no stored vectors under {@code
+     * embedderIdentity}: a zero would record a document nothing was measured of as one measured
+     * irrelevant (ADR-020, "Confirm, do not assume"). Three ways into it are known: an occurrence no stage
+     * ever examined; vectors another pull of the embedding model wrote (ADR-231); and a survivor whose only
+     * text is in page headers and footers, which stage 2's no-text floor counts and the chunker leaves out,
+     * so that it has no chunk. The last is not handled: it stops scoring on every invocation, and the
+     * message, which still calls a survivor with no chunks impossible by construction, does not name it.
      */
     public void scoreAndRecord(
             OccurrenceId occurrenceId,

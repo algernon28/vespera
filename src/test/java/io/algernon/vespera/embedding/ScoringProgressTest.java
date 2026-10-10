@@ -32,7 +32,7 @@ import org.springframework.test.context.ActiveProfiles;
  *
  * <p>No score is written for this fixture, on purpose: an occurrence with no score is absent from the
  * result and is still an item the loop went through, so it is reported. A vector is written for each seed,
- * since a seed with none stops the read (ADR-231, #496) and is held by {@code
+ * each seed being given as having one chunk, since a seed with a chunk and no vector stops the read (ADR-231, #496) and is held by {@code
  * ASeedWithNoVectorStopsScoringTest}.
  *
  * <p><b>Part (c) of ADR-192.</b> Does not compile until {@code ScoringProgress} and the two overloads exist;
@@ -58,13 +58,14 @@ class ScoringProgressTest {
     @Story("Scoring tells its caller how many seeds and scores it will read")
     @DisplayName("Reading the stored vectors of two seeds is announced once with two, and each seed is reported as it is read")
     @Issue("496")
+    @Link(name = "ADR-231", url = Adr.A_PULL_WHILE_THE_EMBEDDING_STEP_RUNS_STOPS_IT_AND_SCORING_REFUSES_A_SEED_WHOSE_CHUNKS_HAVE_NO_VECTOR, type = "adr")
     void announcesTheSeedsOnceAndReportsEachOneAsItIsRead() {
-        Map<OccurrenceId, String> seeds = new LinkedHashMap<>();
-        seeds.put(new OccurrenceId(1), "seed-one");
-        seeds.put(new OccurrenceId(2), "seed-two");
-        for (String seed : seeds.values()) {
+        Map<OccurrenceId, SeedChunks> seeds = new LinkedHashMap<>();
+        seeds.put(new OccurrenceId(1), new SeedChunks("seed-one", 1));
+        seeds.put(new OccurrenceId(2), new SeedChunks("seed-two", 1));
+        for (SeedChunks seed : seeds.values()) {
             new VectorCache(jdbcTemplate)
-                    .put(seed, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, MODEL, new float[] {1f, 0f});
+                    .put(seed.contentHash(), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, MODEL, new float[] {1f, 0f});
         }
         List<String> events = new ArrayList<>();
 

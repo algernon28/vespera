@@ -254,7 +254,7 @@ class StageRuns {
 
     /**
      * Whether Ollama, asked now, still reports the artefact the scoring run was minted under (ADR-231
-     * section 1). False after the embedding model was pulled again.
+     * section 1). False after the embedding model was pulled again with another digest or weight dtype.
      */
     boolean embeddingModelArtefactStillReported() {
         ModelArtefact minted = embeddingModelArtefact();

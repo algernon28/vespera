@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.embedding.ScoringProgress;
+import io.algernon.vespera.embedding.SeedChunks;
 import io.algernon.vespera.embedding.UnusableSeed;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ChunkingRule;
@@ -115,7 +116,7 @@ class RelevanceScoringTasklet implements Tasklet {
                     String chunkerIdentity = hybridChunker.identity();
                     String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
 
-                    Map<OccurrenceId, String> seedContentHashes = seedContentHashes(seedWalk, measurementRun);
+                    Map<OccurrenceId, SeedChunks> seedContentHashes = seedContentHashes(seedWalk, measurementRun);
                     // Which identity this run reads is embedding's rule; none answering ends the step as nothing
                     // embedded does (ADR-228).
                     Optional<String> identity = TimedStatement.of(
@@ -179,9 +180,11 @@ class RelevanceScoringTasklet implements Tasklet {
 
     /**
      * Every usable seed's own content hash, read once from the key seed extraction recorded under the
-     * measurement run (ADR-206 section 3), so {@link RelevanceScoring} never has to touch a file.
+     * measurement run (ADR-206 section 3), and how many chunks the chunker cut it into, so {@link
+     * RelevanceScoring} never has to touch a file. Which seeds that leaves out is {@code embedding}'s
+     * rule (ADR-231 section 2a), not this method's.
      */
-    private Map<OccurrenceId, String> seedContentHashes(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
+    private Map<OccurrenceId, SeedChunks> seedContentHashes(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
         Set<OccurrenceId> allSeeds = TimedStatement.of(
                 STAGE, "reading", "read", "the seed walk's occurrences", () -> {
                     Set<OccurrenceId> ids = new HashSet<>();
@@ -196,20 +199,14 @@ class RelevanceScoringTasklet implements Tasklet {
                 .collect(Collectors.toSet());
         allSeeds.removeAll(unusable);
 
-        Map<OccurrenceId, String> contentHashes = new LinkedHashMap<>();
+        Map<OccurrenceId, SeedChunks> contentHashes = new LinkedHashMap<>();
         StageProgress read =
                 StageProgress.over("Stage 5d (relevance scoring, seed cache keys read)", allSeeds.size());
         for (OccurrenceId seedOccurrenceId : allSeeds) {
             String contentHash = cacheKeys.requireForOccurrence(seedOccurrenceId, measurementRun);
-            if (hybridChunker.chunkCount(contentHash, ChunkingRule.DEFAULT) == 0) {
-                LOG.warn(
-                        "seed occurrence {} produced text and no chunk: all of its text is in page headers and"
-                                + " footers, which are not embedded, so it has no vector and is left out of the"
-                                + " seeds every survivor is scored against",
-                        seedOccurrenceId.value());
-            } else {
-                contentHashes.put(seedOccurrenceId, contentHash);
-            }
+            contentHashes.put(
+                    seedOccurrenceId,
+                    new SeedChunks(contentHash, hybridChunker.chunkCount(contentHash, ChunkingRule.DEFAULT)));
             read.itemDone();
         }
         return contentHashes;
@@ -223,6 +220,15 @@ class RelevanceScoringTasklet implements Tasklet {
             @Override
             public void toReadSeedVectors(long seeds) {
                 read = StageProgress.over("Stage 5d (relevance scoring, seed vectors read)", seeds);
+            }
+
+            @Override
+            public void seedLeftOutWithNoChunk(OccurrenceId seed) {
+                LOG.warn(
+                        "seed occurrence {} produced text and no chunk: all of its text is in page headers and"
+                                + " footers, which are not embedded, so it has no vector and is left out of the"
+                                + " seeds every survivor is scored against",
+                        seed.value());
             }
 
             @Override
