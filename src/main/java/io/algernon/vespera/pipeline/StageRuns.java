@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.embedding.ModelArtefact;
 import io.algernon.vespera.embedding.OllamaClient;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.ImplementationVersions;
@@ -74,6 +75,7 @@ class StageRuns {
     private double contentRedundancyFloor;
     private RunId seedMeasurement;
     private RunId embeddingScoring;
+    private ModelArtefact embeddingModelArtefact;
     private RunId arrangement;
     private RunId generation;
 
@@ -224,15 +226,29 @@ class StageRuns {
             // Read here, fresh on every mint, rather than through a bean of its own: this holder is
             // @JobScope, so this is the freshness ADR-117 needs a changed profile value to be seen with.
             Double relevanceScoreFloor = RelevanceScoreFloorValue.readFrom(profileStore).value();
+            // The artefact is read once, here, beside the floor (ADR-228).
+            ModelArtefact artefact = ollamaClient.artefactOf(modelName);
             WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 5");
             embeddingScoring = runMint.mint(
                     StageModules.EMBEDDING_SCORING,
                     new EmbeddingScoringConfigConsumed(
-                            canonicalRoot.toString(), modelName, measurementRunId.value(), relevanceScoreFloor),
+                            canonicalRoot.toString(),
+                            modelName,
+                            artefact.digest(),
+                            artefact.weightDtype(),
+                            measurementRunId.value(),
+                            relevanceScoreFloor),
                     walk,
                     Optional.of(measurementRunId));
+            embeddingModelArtefact = artefact;
         }
         return embeddingScoring;
+    }
+
+    /** The artefact the scoring run was minted under, which mints that run if it has not yet been (ADR-228). */
+    ModelArtefact embeddingModelArtefact() {
+        embeddingScoring();
+        return embeddingModelArtefact;
     }
 
     /** Stage 6a's run, minted the first time this is called in this invocation. */
@@ -310,9 +326,14 @@ class StageRuns {
     /** Stage 5's measurement run's own {@code ConfigConsumed}, unchanged. */
     private record SeedMeasurementConfigConsumed(String root, String seedFolder, String redundancyRunId) {}
 
-    /** Gate 3's scoring run's own {@code ConfigConsumed}, unchanged. */
+    /** Gate 3's scoring run's own {@code ConfigConsumed}: the model's name and the artefact it names (ADR-228). */
     private record EmbeddingScoringConfigConsumed(
-            String root, String embeddingModel, String measurementRunId, Double relevanceScoreFloor) {}
+            String root,
+            String embeddingModel,
+            String embeddingModelDigest,
+            String embeddingModelWeightDtype,
+            String measurementRunId,
+            Double relevanceScoreFloor) {}
 
     /** Stage 6a's own {@code ConfigConsumed}, unchanged. */
     private record ArrangementConfigConsumed(String corpusRoot, String scoringRunId) {}

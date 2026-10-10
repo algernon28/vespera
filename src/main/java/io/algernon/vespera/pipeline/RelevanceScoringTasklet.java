@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.embedding.ScoringProgress;
 import io.algernon.vespera.embedding.UnusableSeed;
@@ -14,6 +15,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -58,6 +60,7 @@ class RelevanceScoringTasklet implements Tasklet {
     private final Ledger ledger;
     private final HybridChunker hybridChunker;
     private final RelevanceScoring relevanceScoring;
+    private final RelevanceDistribution relevanceDistribution;
     private final UnusableSeeds unusableSeeds;
     private final ExtractionCacheKeys cacheKeys;
 
@@ -69,8 +72,10 @@ class RelevanceScoringTasklet implements Tasklet {
             Ledger ledger,
             HybridChunker hybridChunker,
             RelevanceScoring relevanceScoring,
+            RelevanceDistribution relevanceDistribution,
             UnusableSeeds unusableSeeds,
             JdbcTemplate jdbcTemplate) {
+        this.relevanceDistribution = relevanceDistribution;
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
@@ -111,8 +116,23 @@ class RelevanceScoringTasklet implements Tasklet {
                     String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
 
                     Map<OccurrenceId, String> seedContentHashes = seedContentHashes(seedWalk, measurementRun);
-                    Map<OccurrenceId, List<float[]>> residentSeedVectors = relevanceScoring.residentSeedVectors(
-                            seedContentHashes, chunkerIdentity, chunkingRuleIdentity, modelName, seedVectorsProgress());
+                    // Which identity this run reads is embedding's rule; none answering ends the step as nothing
+                    // embedded does (ADR-228).
+                    Optional<String> identity = TimedStatement.of(
+                            STAGE,
+                            "reading",
+                            "read",
+                            "the embedder identities",
+                            () -> relevanceDistribution.embedderIdentityFor(
+                                    modelName, stageRuns.embeddingModelArtefact()));
+                    Map<OccurrenceId, List<float[]>> residentSeedVectors = identity.isEmpty()
+                            ? Map.of()
+                            : relevanceScoring.residentSeedVectors(
+                                    seedContentHashes,
+                                    chunkerIdentity,
+                                    chunkingRuleIdentity,
+                                    identity.get(),
+                                    seedVectorsProgress());
                     if (residentSeedVectors.isEmpty()) {
                         LOG.info(
                                 "stage 5's relevance-scoring step is gated: {} seed occurrence(s) produced"
@@ -148,7 +168,7 @@ class RelevanceScoringTasklet implements Tasklet {
                                 cacheKeys.requireForOccurrence(occurrenceId, extractionRun),
                                 chunkerIdentity,
                                 chunkingRuleIdentity,
-                                modelName,
+                                identity.get(),
                                 residentSeedVectors);
                         scored.itemDone();
                     }

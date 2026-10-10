@@ -108,14 +108,14 @@ public class Clustering {
             Map<OccurrenceId, String> contentHashesByOccurrence,
             String chunkerIdentity,
             String chunkingRuleIdentity,
-            String modelName) {
+            String embedderIdentity) {
         return clusterAndRecord(
                 runId,
                 winningSeed,
                 contentHashesByOccurrence,
                 chunkerIdentity,
                 chunkingRuleIdentity,
-                modelName,
+                embedderIdentity,
                 ClusteringProgress.NONE);
     }
 
@@ -130,14 +130,14 @@ public class Clustering {
             Map<OccurrenceId, String> contentHashesByOccurrence,
             String chunkerIdentity,
             String chunkingRuleIdentity,
-            String modelName,
+            String embedderIdentity,
             ClusteringProgress progress) {
         List<OccurrenceId> members = List.copyOf(contentHashesByOccurrence.keySet());
         if (members.isEmpty()) {
             return Optional.empty();
         }
         StoredMeanVectors vectors = new StoredMeanVectors(
-                List.copyOf(contentHashesByOccurrence.values()), chunkerIdentity, chunkingRuleIdentity, modelName);
+                List.copyOf(contentHashesByOccurrence.values()), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
         NearestNeighbourGraph.Graph graph =
                 NearestNeighbourGraph.build(vectors, NEIGHBOURS, blockSizeFor(vectors.dimension()), progress);
         int[] ordinals = Communities.of(graph, Communities.DEFAULT_RESOLUTION);
@@ -173,14 +173,17 @@ public class Clustering {
         private final List<String> contentHashes;
         private final String chunkerIdentity;
         private final String chunkingRuleIdentity;
-        private final String modelName;
+        private final String embedderIdentity;
 
         StoredMeanVectors(
-                List<String> contentHashes, String chunkerIdentity, String chunkingRuleIdentity, String modelName) {
+                List<String> contentHashes,
+                String chunkerIdentity,
+                String chunkingRuleIdentity,
+                String embedderIdentity) {
             this.contentHashes = contentHashes;
             this.chunkerIdentity = chunkerIdentity;
             this.chunkingRuleIdentity = chunkingRuleIdentity;
-            this.modelName = modelName;
+            this.embedderIdentity = embedderIdentity;
         }
 
         @Override
@@ -218,13 +221,13 @@ public class Clustering {
          */
         private float[] meanOf(int document) {
             List<float[]> chunks = vectorCache.vectorsFor(
-                    contentHashes.get(document), chunkerIdentity, chunkingRuleIdentity, modelName);
+                    contentHashes.get(document), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
             if (chunks.isEmpty()) {
                 throw new IllegalStateException(
                         "no stored chunk vectors under content hash " + contentHashes.get(document)
                                 + " for a document that carries a relevance score; scoring refuses a"
                                 + " survivor with no chunks (#108), so the vectors were written under a"
-                                + " different model, chunker or chunking rule than the ones asked for here");
+                                + " different embedder identity, chunker or chunking rule than the ones asked for here");
             }
             float[] mean = new float[chunks.getFirst().length];
             for (float[] chunk : chunks) {
