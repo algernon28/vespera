@@ -15,6 +15,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -51,13 +52,17 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>one band value shared by 1,050 signed occurrences, more than a page of 1,000, of which three are a
  *       chain: the first resembles the second, the second the third, and the first does not resemble the third;
  *   <li>a pair that shares three band values and is a near-duplicate, and a pair that shares two and is not;
- *   <li>one occurrence wholly inside 1,108 others, more than a page of 1,000: an unsigned one of the lowest id,
- *       one that is removed as a near-duplicate first, three that hold all but one of its shingles, 1,100
- *       unsigned ones, and two signed ones of the highest ids that hold all of it and so tie.
+ *   <li>one occurrence with 1,107 others that hold all of its shingles or all but one, so 1,108 candidates
+ *       with itself, more than a page of 1,000: an unsigned one of the lowest id that holds all, one that
+ *       holds all and is removed as a near-duplicate first, three signed and 1,100 unsigned that hold all but
+ *       one, and two signed ones that hold all of it and so tie, one recorded before the 1,100 and one after,
+ *       so that the two fall in different thousands of candidates and the better is kept from one to the next;
+ *   <li>one of the 1,100 with every shingle row written twice, which {@code shingle} allows, so that a read of
+ *       one hash's occurrences that did not make them distinct would hand it on twice.
  * </ul>
  *
- * <p>The first test passes before ADR-225 is built and after it: that is the acceptance's "the verdicts are the
- * same". The second fails until it is built. Both read one resolution, made once for the class.
+ * <p>The first test passed before ADR-225 was built and passes with it: that is the acceptance's "the verdicts
+ * are the same". The second failed until it was built. Both read one resolution, made once for the class.
  */
 @Epic("Redundancy")
 @Feature("Resolution")
@@ -123,6 +128,27 @@ class RedundancyResolutionBoundsItsCandidatesTest {
     /** The unsigned container, the removed one, the three, the 1,100 and the two that tie. */
     private static final int CONTAINERS = 1 + 1 + ALL_BUT_ONE + UNSIGNED_CARRIERS + 2;
 
+    /** Which of the unsigned carriers has every shingle row written twice: a repeated phrase, as {@code shingle} keeps one. */
+    private static final int CARRIER_WRITTEN_TWICE = 0;
+
+    /**
+     * Signed occurrences, still standing, whose rarest shingles are the contained occurrence's: itself, the
+     * three that hold all but one, and the two that hold all. Each has every container and itself as candidates.
+     */
+    private static final int CHECKED_AGAINST_EVERY_CONTAINER = 1 + ALL_BUT_ONE + 2;
+
+    /** The occurrence the removed container is redundant with has two candidates: itself and the removed one. */
+    private static final int CANDIDATES_OF_THE_REMOVED_CONTAINERS_SURVIVOR = 2;
+
+    /**
+     * Candidates gone through in the whole resolution where each is gone through once: 6 times 1,108, and 2.
+     * No other occurrence has the 24 rarest shingles a candidate must carry. Were the occurrences of one hash
+     * not made distinct, the carrier written twice would be handed on twice to each of the six, and this would
+     * be 6 more.
+     */
+    private static final int CANDIDATES_GONE_THROUGH =
+            CHECKED_AGAINST_EVERY_CONTAINER * (CONTAINERS + 1) + CANDIDATES_OF_THE_REMOVED_CONTAINERS_SURVIVOR;
+
     /** Every shingle of the contained occurrence is in the container it is redundant with. */
     private static final double WHOLLY_CONTAINED = 1.0;
 
@@ -151,6 +177,8 @@ class RedundancyResolutionBoundsItsCandidatesTest {
     private RunId stage2;
     private RunId stage4;
     private List<String> said;
+    private int candidatesGoneThrough;
+    private int writtenTwice;
 
     private final List<Planted> planted = new ArrayList<>();
     private List<Long> ids;
@@ -183,8 +211,16 @@ class RedundancyResolutionBoundsItsCandidatesTest {
         jdbcTemplate.execute(TheRunsHashIndex.statementFor(stage2.value()));
 
         StatementLog log = new StatementLog(jdbcTemplate.getDataSource());
+        // Every call of the progress does nothing but the one counted: each of its methods answers nothing.
+        ResolutionProgress counting = (ResolutionProgress) Proxy.newProxyInstance(
+                ResolutionProgress.class.getClassLoader(), new Class<?>[] {ResolutionProgress.class}, (proxy, method, arguments) -> {
+                    if (method.getName().equals("containmentCandidateGoneThrough")) {
+                        candidatesGoneThrough++;
+                    }
+                    return null;
+                });
         new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
-                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()));
+                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()), counting);
         said = log.said().stream().distinct().toList();
     }
 
@@ -228,11 +264,12 @@ class RedundancyResolutionBoundsItsCandidatesTest {
                         .contains(new Removed(
                                 id(removedContainer), id(itsNearDuplicate), NEAR_DUPLICATE, THE_REMOVED_CONTAINER)));
         claim(
-                "the document wholly inside " + CONTAINERS + " others is redundant with the first, in the order"
-                        + " they were recorded, of the two that hold all of it and are still standing: not with"
-                        + " the unsigned one recorded before every other, not with the one removed as a"
-                        + " near-duplicate, and not with any of those that hold all but one of its "
-                        + CONTAINED_SHINGLES + " word sequences",
+                "the document of which " + CONTAINERS + " others hold every word sequence or all but one of its "
+                        + CONTAINED_SHINGLES + " is redundant with the first, in the order they were recorded,"
+                        + " of the two that hold all of it and are still standing, though more than " + A_PAGE
+                        + " of the others are recorded between the two: not with the unsigned one recorded"
+                        + " before every other, not with the one removed as a near-duplicate, and not with any"
+                        + " of those that hold all but one",
                 () -> assertThat(removed)
                         .contains(new Removed(id(contained), id(firstThatHoldsAll), CONTAINED_IN, WHOLLY_CONTAINED)));
         claim(
@@ -279,6 +316,25 @@ class RedundancyResolutionBoundsItsCandidatesTest {
                                                 && sql.endsWith(" LIMIT " + A_PAGE))
                                 .as("a read of the band values that names a page of documents or one band value: %s", sql)
                                 .isTrue()));
+        claim(
+                "the read that names a page of documents hands on rows of those documents alone: it reads one"
+                        + " table's rows, and of any other it asks only whether a row exists, so the documents"
+                        + " sharing their band values are not joined to them in it",
+                () -> assertThat(ofTheBands.stream()
+                                .filter(sql -> placeholdersInItsList(sql) >= 1)
+                                .toList())
+                        .isNotEmpty()
+                        .allSatisfy(sql -> assertThat(planOf(sql).stream()
+                                        .filter(step -> step.startsWith("SEARCH") || step.startsWith("SCAN"))
+                                        .filter(step -> !step.contains(" EXISTS "))
+                                        .toList())
+                                .hasSize(1)));
+        claim(
+                "each document carrying enough of a document's rarest word sequences is gone through once, "
+                        + CANDIDATES_GONE_THROUGH + " in all: " + CHECKED_AGAINST_EVERY_CONTAINER + " documents with "
+                        + (CONTAINERS + 1) + " each and one with " + CANDIDATES_OF_THE_REMOVED_CONTAINERS_SURVIVOR
+                        + ", the one whose every word sequence is recorded twice counted once like the rest",
+                () -> assertThat(candidatesGoneThrough).isEqualTo(CANDIDATES_GONE_THROUGH));
         claim(
                 "the documents carrying one of a document's rarest word sequences are read for that word sequence"
                         + " alone, at most " + A_PAGE + " at a time, going on from the last document read",
@@ -361,13 +417,17 @@ class RedundancyResolutionBoundsItsCandidatesTest {
         for (int one = 0; one < ALL_BUT_ONE; one++) {
             add(with(allButOne(held, one), hashes(20_000 + one * 100L, OWN_SHINGLES_OF_ALL_BUT_ONE)), LEAST_TEXT, true);
         }
+        // Before the 1,100, so that it is among the first thousand candidates and the other that holds all is not.
+        firstThatHoldsAll = add(with(held, hashes(30_000, OWN_SHINGLES_OF_A_CONTAINER)), LEAST_TEXT, true);
         for (int carrier = 0; carrier < UNSIGNED_CARRIERS; carrier++) {
-            add(
+            int at = add(
                     with(allButOne(held, carrier), hashes(2_000_000L + carrier * 100L, OWN_SHINGLES_OF_A_CARRIER)),
                     LEAST_TEXT,
                     false);
+            if (carrier == CARRIER_WRITTEN_TWICE) {
+                writtenTwice = at;
+            }
         }
-        firstThatHoldsAll = add(with(held, hashes(30_000, OWN_SHINGLES_OF_A_CONTAINER)), LEAST_TEXT, true);
         add(with(held, hashes(31_000, OWN_SHINGLES_OF_A_CONTAINER)), LEAST_TEXT, true);
     }
 
@@ -455,11 +515,13 @@ class RedundancyResolutionBoundsItsCandidatesTest {
                 for (int i = 0; i < planted.size(); i++) {
                     Planted one = planted.get(i);
                     for (long hash : one.shingles()) {
-                        shingle.setLong(1, ids.get(i));
-                        shingle.setString(2, stage2.value());
-                        shingle.setString(3, ShingleParameters.DEFAULT.identity());
-                        shingle.setLong(4, hash);
-                        shingle.addBatch();
+                        for (int time = 0; time < (i == writtenTwice ? 2 : 1); time++) {
+                            shingle.setLong(1, ids.get(i));
+                            shingle.setString(2, stage2.value());
+                            shingle.setString(3, ShingleParameters.DEFAULT.identity());
+                            shingle.setLong(4, hash);
+                            shingle.addBatch();
+                        }
                     }
                     metric.setLong(1, ids.get(i));
                     metric.setString(2, stage2.value());

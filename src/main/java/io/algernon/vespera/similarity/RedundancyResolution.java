@@ -61,7 +61,7 @@ import org.springframework.stereotype.Component;
  * signed or was removed is asked of the database by key; an occurrence's rarest shingles are found with
  * its own rows; and what is still held (ADR-220 section 9) is the components of the pairs at or above the
  * cut with their members' profiles, and the shingle-set cache within its budget. Every read of one
- * occurrence's shingles names {@code shingle_by_occurrence} (ADR-225 section 4).
+ * occurrence's shingle hashes names {@code shingle_by_occurrence} (ADR-225 section 4).
  */
 @Component
 public class RedundancyResolution {
@@ -236,7 +236,7 @@ public class RedundancyResolution {
                     }
                 }
             }));
-            // Told together, once every pair whose lesser member is in the page has been scored.
+            // Told together, once every pair whose lesser member is in the page has been gone through.
             for (int scored = 0; scored < page.size(); scored++) {
                 progress.candidatesScored();
             }
@@ -467,7 +467,7 @@ public class RedundancyResolution {
      * stage 3's measurement is held. A hash in {@code boilerplateHashes} is passed over and a hash with no
      * frequency row is in neither, which is the set the sort of the occurrence's distinctive hashes by a
      * map of every frequency gave. Both tables are this module's. The read names {@code
-     * shingle_by_occurrence}, as every read of one occurrence's shingles does (ADR-225 section 4); its
+     * shingle_by_occurrence}, as every read of one occurrence's shingle hashes does (ADR-225 section 4); its
      * temporary files are bounded by that one occurrence's rows (section 6).
      */
     private List<Long> rarestHashes(

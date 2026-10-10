@@ -66,8 +66,8 @@ public interface ResolutionProgress extends SimilarityStatementProgress {
     void toScorePairs(long signedOccurrences);
 
     /**
-     * One signed occurrence whose candidate pairs, as their lesser member, have been scored. Told once for
-     * each occurrence of a page, after every pair of the page has been scored, so a page's thousand are told
+     * One signed occurrence whose candidate pairs, as their lesser member, have been gone through. Told once for
+     * each occurrence of a page, after every pair of the page has been gone through, so a page's thousand are told
      * together.
      */
     void candidatesScored();

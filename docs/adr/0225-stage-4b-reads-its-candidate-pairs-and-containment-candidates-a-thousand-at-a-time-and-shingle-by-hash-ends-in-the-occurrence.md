@@ -17,7 +17,7 @@ The session that wrote this record, on 2026-10-10, under the word quoted above. 
 
 1. **The candidate pairs are read by bucket**, with no new index (§1). The plain form, in which a pair sharing several buckets is offered once for each, is taken over the one that offers each pair once, with a pair already in one component not scored again.
 2. **The containment candidates are merged from ordered reads**, one for each rarest hash (§2).
-3. **`shingle_by_hash` gains `occurrence_id` as its third column**, amending ADR-221 by name, at 3.0 to 3.7 bytes more a row of the run in the file and 6.6 to 7.4 more at the build's peak (§3, §5). The form on the two-column index that sorts nothing changes what the containment counter counts, and the one that keeps the counter sorts (Measured).
+3. **`shingle_by_hash` gains `occurrence_id` as its third column**, amending ADR-221 by name, at 3.0 to 3.7 bytes more a row of the run in the file and 7.4 more at a first build's peak (§3, §5). The form on the two-column index that sorts nothing changes what the containment counter counts, and the one that keeps the counter sorts (Measured).
 4. **Nothing is excepted but what already was**: an occurrence's rarest shingles, bounded by one occurrence (§6).
 
 ## Context
@@ -89,7 +89,10 @@ M occurrences carry the same 40 hashes, ten more of their own each, among filler
 | 1,000,000 | (a) | 24,015,141, 24.0 | 24,246,232, 24.2 | 24,096,768, 24.1 | 48,343,000, 48.3 | 0.58 s |
 | 1,000,000 | (b), built after (a) was dropped | 27,008,751, 27.0 | 27,295,032, 27.3 | 27,127,808, 27.1 | 51,708,183, 51.7 | 0.64 s |
 
-- **The third column costs 3.0 to 3.7 bytes a row of the run in the file**, 3.0 to 3.8 of temporary files and 3.1 to 3.7 of write-ahead log, and 6.6 to 7.4 at the first build's peak. The index in the file is counted from the pages in use before and after.
+| 1,052,000, the ledger of the whole pass below, two runs of the probe | (a) | 25,159,136, 23.9 | 25,535,792, 24.3 | 25,378,816, 24.1 | 50,914,608, 48.4 | 0.69 to 0.72 s |
+| 1,052,000, the same | (b), built after (a) was dropped | 28,289,786, 26.9 | 28,737,032, 27.3 | 28,561,408, 27.1 | 54,571,298, 51.9; 54,826,738, 52.1 in the second run | 0.71 to 0.72 s |
+
+- **The third column costs 3.0 to 3.7 bytes a row of the run in the file**, 3.0 to 3.8 of temporary files and 3.0 to 3.7 of write-ahead log, each (b) less the (a) of the same ledger. **At the peak it costs 7.4 where both are first builds**, the pair at 4,500,000 rows, 55.8 against 48.4, and 7.5 where both are built again into freed pages, 54.7 against 47.2. The other three pairs do not compare like with like: their (b) was built into the pages the drop of (a) had freed, so the file grew by less than the index, and their peaks are 3.4 to 6.2 above (a)'s first build. The index in the file is counted from the pages in use before and after.
 - **Steps**, counted one at a time: 13,346 for 1,000 rows of the run, 39,346 for 3,000, 19,346 for 1,000 among 2,000 of another run, 9,346 for 3,000 of another run alone. **13 for a row of the run, 3 for a row of any other, and 346 besides**, where ADR-221 measured 12, 3 and 346.
 - **Not measured**: the build for a run among the rows of other runs. ADR-221 measured the two-column build's peak rising from 48.4 to 50.5 bytes a row for a run written after 9,000,000 rows of others.
 
@@ -240,9 +243,7 @@ Nothing else of stage 4b's sorts where stage 4b runs it. `EveryStatementThatSort
 
 ### 8. Which run ids move, and when it ships
 
-A stage's implementation version is the last commit touching `src/main/java/io/algernon/vespera/<module>` for a module `StageModules` names for it (ADR-058). **The change that carries this record moves nothing**: it changes nothing under `src/main`.
-
-**The build touches one module, `similarity`.** As `StageModules` stands at `066040d`, since [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md):
+A stage's implementation version is the last commit touching `src/main/java/io/algernon/vespera/<module>` for a module `StageModules` names for it (ADR-058). **The change that carries this record carries its build, and touches one module, `similarity`.** As `StageModules` stands at `066040d`, since [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md):
 
 | Stage | Modules it names | Moves with this build |
 | --- | --- | --- |
@@ -255,7 +256,7 @@ A stage's implementation version is the last commit touching `src/main/java/io/a
 
 **So stages 2 to 6b move.** Stage 2 does its work again from the extraction cache and writes one more copy of the corpus's shingle rows (ADR-221 §8); the arrangement is a new one, and `arrangementApproved` must name it.
 
-**It ships in one build with the changes of #458, #353, #472, #477, #468, #479 and #486**, by the operator's decision of 2026-10-10, so that those stages are minted once by that build as a whole and not once for each. #486 is not on main as this is written.
+**It ships in one build with the changes of #458, #353, #472, #477, #468, #479 and #486**, by the operator's decision of 2026-10-10, so that those stages are minted once by that build as a whole and not once for each. All seven are on main as this change is gated, #486 since `35a5a6b`, and so is #481's (ADR-229): this is the last change of that build.
 
 No DDL in `schema.sql`, no schema version, no cache key. The comment of `schema.sql` that names the index's columns is corrected.
 
@@ -307,7 +308,7 @@ All of it in `similarity`, and one comment.
 
 | Class | What it holds |
 | --- | --- |
-| `similarity.RedundancyResolutionBoundsItsCandidatesTest`, new, two tests over one resolution of a ledger written by hand, signatures and band rows included | **The verdicts**: of 1,050 signed occurrences in one bucket, three form a chain and the two with less text are removed, the first with its score against the survivor, 8 of 12; a pair sharing three buckets is removed once; a pair sharing two and a third of its shingles is not; an occurrence inside 1,108 others is contained in the lower of the two signed ones that hold all of it and tie, and not in the unsigned one of lowest id, the one removed as a near-duplicate, or those that hold all but one of its shingles; five rows and five verdicts and no other. **The statements**: none but the rarest shingles' is planned through a temp B-tree; every read of `signature_band` names at most 1,000 occurrences or one bucket with `LIMIT 1000` from the last row read; every read by one hash goes on from the last occurrence with `LIMIT 1000` and is planned `COVERING INDEX shingle_by_hash`; none groups by occurrence; every read of one occurrence's shingles is planned through `shingle_by_occurrence`; none names more than 1,000 occurrences |
+| `similarity.RedundancyResolutionBoundsItsCandidatesTest`, new, two tests over one resolution of a ledger written by hand, signatures and band rows included | **The verdicts**: of 1,050 signed occurrences in one bucket, three form a chain and the two with less text are removed, the first with its score against the survivor, 8 of 12; a pair sharing three buckets is removed once; a pair sharing two and a third of its shingles is not; an occurrence of which 1,107 others hold every shingle or all but one, 1,108 candidates with itself, is contained in the lower of the two signed ones that hold all of it and tie, which stand in different thousands of its candidates, and not in the unsigned one of lowest id, the one removed as a near-duplicate, or those that hold all but one of its shingles; five rows and five verdicts and no other. **The statements**: the read naming a page's occurrences is planned as one read of rows and one check that a row exists, and no join; 6,650 candidates are gone through, each once, one of them an occurrence whose every shingle row is written twice; none but the rarest shingles' is planned through a temp B-tree; every read of `signature_band` names at most 1,000 occurrences or one bucket with `LIMIT 1000` from the last row read; every read by one hash goes on from the last occurrence with `LIMIT 1000` and is planned `COVERING INDEX shingle_by_hash`; none groups by occurrence; every read of one occurrence's shingles is planned through `shingle_by_occurrence`; none names more than 1,000 occurrences |
 | `similarity.TheRunsHashIndex` | §3's statement, written there a second time on purpose, as ADR-221's was |
 | `similarity.ShingleIndexesInTheSchemaTest`, three tests turned | that the index is on three columns; that §2's read is answered through the run's index from the index alone with nothing sorted, and not without it nor through another run's; that a read of one occurrence's shingles goes through `shingle_by_occurrence` because it names it, and through the run's index where it does not |
 | `pipeline.ShingleHashIndexInvocationTest` | the index's three columns after whole invocations, and §2's read planned through the index only for the run it was built for |
