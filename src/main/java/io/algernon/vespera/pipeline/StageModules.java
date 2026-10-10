@@ -7,12 +7,11 @@ import java.util.List;
  * is minted under — as one enum, in cascade order (ADR-157 §1).
  *
  * <p>An enum rather than a record with static constants, so a test or a guard can enumerate the whole
- * table through {@link #values()}. Every {@code STAGE} and {@code *_MODULE} constant the seven run
- * classes and {@link ByteLevelReductionTasklet} used to carry lived here instead; {@code
- * RunIdentityGoldenTest} pins every row as literal text.
+ * table through {@link #values()}. The run classes and {@link ByteLevelReductionTasklet} take their
+ * stage name and modules from here; {@code RunIdentityGoldenTest} pins every row as literal text.
  *
  * <p>A stage lists {@code pipeline} only while a class of {@code pipeline} holds a rule that shapes
- * that stage's output (ADR-222 §1); its §3 table is the record of which stages do.
+ * that stage's output (ADR-222 §1); its §2 table names each stage that does and the rule it does for.
  */
 enum StageModules {
     BYTE_LEVEL_REDUCTION("byte-level-reduction", List.of("corpus")),
