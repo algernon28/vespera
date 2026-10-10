@@ -36,7 +36,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * class holds a map of the corpus's distinct hashes or a set of its survivors (ADR-211 sections 1 and 3).
  *
  * <p>The shingle rows of stage 2's run are grouped into {@code shingle_document_frequency} by the database,
- * in one statement over every row of the run, keeping the hashes two or more occurrences carry. Then the
+ * in one statement over every row of the run, keeping the hashes two or more occurrences carry; that
+ * statement names the index it reads through, {@code INDEXED BY shingle_by_run_id} (ADR-219 section 1).
+ * Then the
  * walk's occurrences are read from
  * the ledger a page of 1,000 at a time, each page asked of the ledger: what those that do not survive
  * contributed is taken off, a hash left with fewer than two is deleted, and the survivors that carry any
@@ -56,7 +58,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Epic("Redundancy")
 @Feature("Content census")
 @Issue("456")
+@Issue("473")
 @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
+@Link(name = "ADR-219", url = Adr.STAGE_3S_GROUPING_IS_PINNED_TO_THE_INDEX_ON_THE_RUN, type = "adr")
 @Link(name = "ADR-074", url = Adr.STAGE_3_MEASURES_SHINGLE_DOCUMENT_FREQUENCY, type = "adr")
 class DocumentFrequencyIsCountedInTheDatabaseTest {
 
@@ -339,11 +343,13 @@ class DocumentFrequencyIsCountedInTheDatabaseTest {
                         + " ledger about which of them survive",
                 () -> assertThat(order).containsExactlyElementsOf(expectedOrder));
         claim(
-                "the grouping is over every passage of the run: it names the run and no range of passages",
+                "the grouping is over every passage of the run: it names the run and no range of passages, and"
+                        + " it names the index by run as the one to read them through, so that an index by"
+                        + " hash built since cannot draw it to fetch each passage from a different place",
                 () -> assertThat(said.stream().filter(sql -> kind(sql).equals(GROUPING)).toList())
                         .singleElement()
                         .satisfies(sql -> assertThat(sql)
-                                .contains("WHERE run_id = ?")
+                                .contains("FROM shingle INDEXED BY shingle_by_run_id WHERE run_id = ?")
                                 .doesNotContain("shingle_hash >")
                                 .doesNotContain("shingle_hash <")
                                 .doesNotContain("BETWEEN")));

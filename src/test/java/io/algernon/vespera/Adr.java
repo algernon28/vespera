@@ -1337,11 +1337,11 @@ public final class Adr {
      * ADR-219 -- stage 3's grouping of the shingle rows runs with {@code shingle_by_hash} present after a
      * build that moves {@code pipeline} alone, and after a stop of stage 3 over one corpus root while
      * another reaches stage 4b; SQLite then answers it through that index, writing no temporary file and
-     * taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk. The statement is to
-     * name its index, {@code INDEXED BY shingle_by_run_id}, by the operator's choice, and the clause ships
-     * with the next change that moves {@code similarity}; until then stage 3 is slow in that state. No run
-     * id moves now; stages 2 to 6b move when the clause ships (amends ADR-182, ADR-211 and ADR-218; decides
-     * #473, which stays open until the clause ships).
+     * taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk, where it does not
+     * name its index. The statement names it, {@code INDEXED BY shingle_by_run_id}, by the operator's
+     * choice, and is then planned through the index on the run in both states. The clause was to ship with
+     * the next change that moves {@code similarity}, and shipped with ADR-220's, in pull request #478; the
+     * run ids of stages 2 to 6b move with that change (amends ADR-182, ADR-211 and ADR-218; decides #473).
      */
     public static final String STAGE_3S_GROUPING_IS_PINNED_TO_THE_INDEX_ON_THE_RUN = FILE
             + "0219-stage-3s-grouping-names-the-index-on-the-run-and-the-clause-ships-with-the-next-change-to-similarity.md";
@@ -1361,7 +1361,8 @@ public final class Adr {
      * and a page's candidate pairs grows with the signed occurrences that share a bucket, is not measured, and is
      * excepted as it stands by the operator's choice, its size and its bounded form being #476's, as are one
      * occurrence's containment candidates, held on the heap. The reads of ADR-218 section 3 that are left and
-     * that #472 does not take are #477's.
+     * that #472 does not take are #477's. Being the next change to {@code similarity}, it ships ADR-219's
+     * clause in stage 3's grouping, which is ADR-219's decision and moves no run id this record did not.
      */
     public static final String NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN = FILE
             + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
