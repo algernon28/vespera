@@ -6,7 +6,7 @@ You point it at a folder of documents and at a handful of examples of what you c
 
 **It never guesses a threshold and it never edits your archive.** Everything it decides, it records; everything it cannot decide, it measures and asks you about.
 
-This file is how to operate the tool. For the state of the project — what is built, what is only designed — see [`AGENTS.md`](./AGENTS.md). For why it works the way it does, see [`docs/adr/`](./docs/adr/README.md).
+This file is how to operate the tool. For what each stage does when you run it, and how it resumes after a stop, see [`docs/running-stage-by-stage.md`](./docs/running-stage-by-stage.md). For the state of the project — what is built, what is only designed — see [`AGENTS.md`](./AGENTS.md). For why it works the way it does, see [`docs/adr/`](./docs/adr/README.md).
 
 ---
 
