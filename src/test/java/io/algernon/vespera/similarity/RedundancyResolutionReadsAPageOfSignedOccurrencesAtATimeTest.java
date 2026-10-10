@@ -181,7 +181,8 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
                 signatures.write(new OccurrenceId(id), stage4, stage2, Set.of(), NO_BOILERPLATE_FLOOR);
             }
         });
-        new ShingleHashIndex(jdbcTemplate).build();
+        // The statement ADR-221 section 1 builds it with, for the run stage 4b reads.
+        jdbcTemplate.execute(TheRunsHashIndex.statementFor(stage2.value()));
     }
 
     @AfterEach

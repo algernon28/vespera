@@ -1370,6 +1370,21 @@ public final class Adr {
             + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
 
     /**
+     * ADR-221 -- {@code shingle_by_hash} is an index on {@code (shingle_parameter_identity, shingle_hash)} over
+     * the rows of one stage-2 run, the run stage 4b reads, where ADR-182 built it over every run's rows. Stage
+     * 4b builds it where it is absent or is not that run's, dropping first what it finds, and tells whose it is
+     * by the statement {@code sqlite_master} keeps. The run id is written into the statement, so the build
+     * refuses an id that is not 64 lowercase hexadecimal characters. Containment retrieval keeps the run as a
+     * bound value, which SQLite matches to the index's own when it plans the statement with its values. The
+     * build wrote 46.1 to 50.5 bytes for each row of the run at its peak on synthetic ledgers, where the
+     * whole-table build wrote 182.8 to 185.6 for each row the table keeps. An earlier run's rows stay, at 277.5
+     * bytes a shingle row in the file, and their removal is #481's (amends ADR-060, ADR-182, ADR-193,
+     * ADR-204, ADR-211, ADR-218, ADR-219, ADR-222 and ADR-224; decides #468). The choices are the coordinating session's, to which the operator handed them.
+     */
+    public static final String THE_HASH_INDEX_IS_OVER_THE_ROWS_OF_THE_RUN_IN_HAND = FILE
+            + "0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md";
+
+    /**
      * ADR-222 -- a stage's version names {@code pipeline} only while a class of {@code pipeline} holds a
      * rule that shapes that stage's output: a verdict, a cache key, a cluster or text of the deliverable.
      * Every class of {@code pipeline} was read; eight rules were found, one of seed measurement, two of
@@ -1398,6 +1413,24 @@ public final class Adr {
      */
     public static final String THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME = FILE
             + "0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md";
+
+    /**
+     * ADR-224 -- of the seven rows of ADR-218's table of sorting reads that no other ticket held, three
+     * rows, five statements, sort nothing and four rows stay excepted from the bound read into the
+     * survivors record, by the operator's choice, each with its measured bytes a row. The two reads of
+     * the embedder identities ask for the least, and for the least and the greatest under one name; the invocation account's three counts by
+     * kind or category are each one statement that selects counts and no column, naming every constant of
+     * its enumeration, {@code other} being the total less those. No index is added. The containment
+     * candidates, the review list's read by path, the winning seeds and the members of one partition stay
+     * as they stand, and the containment candidates' bounded form goes to #476, after #468. Its two
+     * edits, to {@code pipeline} and to {@code embedding}, move the run ids of seed measurement, embedding
+     * scoring, arrangement and generation, and add none to content census or content redundancy. ADR-222
+     * moves all six in the same build, so the edits add no replay to it, on the condition the record's
+     * section 5 states: that no build with ADR-222 and without them is run over the working directory
+     * first (amends ADR-218, ADR-220, ADR-198 and ADR-060's list of exceptions; decides #477).
+     */
+    public static final String THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING = FILE
+            + "0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md";
 
     private Adr() {
     }

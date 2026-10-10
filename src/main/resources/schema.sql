@@ -379,10 +379,11 @@ CREATE INDEX IF NOT EXISTS shingle_by_run_id ON shingle (run_id);
 
 -- NOT CREATED HERE, on purpose (ADR-182). Containment retrieval -- for one document's 32 rarest shared
 -- shingles, which other documents hold them (ADR-081) -- reads shingle through an index on
--- (run_id, shingle_parameter_identity, shingle_hash), named shingle_by_hash. Stage 2 does not maintain
--- it: every new row lands at a random place in an index far larger than any page cache, which cost a
--- stage-2 chunk 3.9 s against 96 ms. Stage 2 drops it before its first chunk (similarity's
--- ShingleHashIndex.drop) and stage 4b builds it once, whole, before its first read (ShingleHashIndex.build).
+-- (shingle_parameter_identity, shingle_hash) over the rows of one stage-2 run, named shingle_by_hash
+-- (ADR-221 §1). Stage 2 does not maintain it: every new row lands at a random place in an index far
+-- larger than any page cache, which cost a stage-2 chunk 3.9 s against 96 ms. Stage 2 drops it before
+-- its first chunk (similarity's ShingleHashIndex.drop) and stage 4b builds it for the run it reads,
+-- where it is absent or is another run's, before its first read (ShingleHashIndex.buildFor, ADR-221 §3).
 -- This file runs at every start (ADR-173 §3); creating it here would build the whole index during
 -- start-up only for the next stage 2 to drop it.
 

@@ -70,8 +70,10 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
     @DisplayName("Each counted statement declares the steps a row SQLite was measured to take")
     void eachCountedStatementDeclaresItsMeasuredSteps() {
         Map<Enum<?>, Integer> measured = Map.of(
+                // ADR-221: the most a row takes, a row of the run the index is built for; a row of another
+                // run takes fewer, so the build's share is a lower estimate where the table keeps other runs.
                 SimilarityStatement.SHINGLE_HASH_INDEX_BUILD,
-                        StatementStepsPerRowTest.BUILD_STEPS_BEYOND_COLUMNS + 3,
+                        StatementStepsPerRowTest.HASH_INDEX_STEPS_A_ROW_OF_ITS_RUN,
                 SimilarityStatement.SIGNED_OCCURRENCES, StatementStepsPerRowTest.SIGNED_OCCURRENCES_STEPS,
                 // ADR-211's grouping: a ceiling, not a constant, measured over rows of several shapes.
                 SimilarityStatement.SHINGLE_ROWS, GroupingStepsPerRowTest.GROUPING_STEPS_A_ROW_AT_MOST,

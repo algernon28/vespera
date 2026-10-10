@@ -1,5 +1,7 @@
 # ADR-222 — A stage's version names `pipeline` only while `pipeline` holds a rule that shapes its output: content census, content redundancy and arrangement stop naming it, and seed measurement, embedding scoring and generation keep it for the eight rules named here
 
+> **Partly amended — see [ADR-221](0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md).** One sentence of Consequences no longer holds as written: "It still meets it when it was stopped over one corpus root while another reached stage 4b, which is the sequence ADR-219's clause, shipped with ADR-220's change, is now for". Since ADR-221 `shingle_by_hash` is over the rows of one stage-2 run. A stage 3 stopped over one corpus root still finds an index of that name where another root reached stage 4b, and it is that other root's run's: the grouping is not drawn to it, with the clause or without, so the clause changes no plan in that sequence and no sequence is left that it is for. The clause stays. Everything else in this record stands.
+
 - **Date**: 2026-10-10
 - **Status**: accepted.
 - **Built**: §2's edit to `StageModules` was built on 2026-10-10 in the change that carries this record (#353), in the commit after the one that wrote it; `RunIdentityGoldenTest`, `PipelineHoldsOnlyTheRulesOnRecordTest` and `StageThreeMeetsTheHashIndexInvocationTest` were red between the two.

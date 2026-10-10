@@ -319,7 +319,9 @@ class SimilarityStatementProgressOrderTest {
         long highestRow = jdbcTemplate.queryForObject("SELECT MAX(rowid) FROM shingle", Long.class);
         List<String> calls = new ArrayList<>();
 
-        new ShingleHashIndex(jdbcTemplate).build(new SimilarityStatementProgress() {
+        // Built for the stage-2 run, the one call ADR-221 leaves; the total is still the table's highest row
+        // number, every run's rows being read to find this run's.
+        TheRunsHashIndex.buildFor(jdbcTemplate, stage2, new SimilarityStatementProgress() {
             @Override
             public void statementStarting(SimilarityStatement statement, OptionalLong rowsUpTo) {
                 calls.add(starting(statement, rowsUpTo));

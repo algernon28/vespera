@@ -35,8 +35,8 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>Candidate generation happens in SQL, against {@code shingle}, never by holding the corpus in a
  * heap-resident index.</b> {@code shingle} is the largest table in the database (its own schema.sql
- * comment says so), and {@code shingle_by_hash} — the index on {@code (run_id, shingle_parameter_identity,
- * shingle_hash)} — exists specifically so containment retrieval is a {@code GROUP BY ... HAVING} over it
+ * comment says so), and {@code shingle_by_hash} — the index on {@code (shingle_parameter_identity,
+ * shingle_hash)} over the rows of one stage-2 run (ADR-221 section 1) — exists specifically so containment retrieval is a {@code GROUP BY ... HAVING} over it
  * (spec #75 §3). It exists only from stage 4b on: stage 2 writes shingles without it and stage 4b builds
  * it, whole, before this class's first read (ADR-182; {@link ShingleHashIndex}). An in-memory posting list built once and read many times was the first shape this class
  * took, and it was rejected here rather than merely not considered: it would hold the whole shingle
@@ -495,8 +495,9 @@ public class RedundancyResolution {
 
     /**
      * Containment candidates for one document A's {@code rareHashes} (ADR-081): a single {@code GROUP BY}
-     * over {@code shingle}, using the {@code shingle_by_hash} index on {@code (run_id,
-     * shingle_parameter_identity, shingle_hash)} — the lookup that index exists for. The index is there
+     * over {@code shingle}, using the {@code shingle_by_hash} index on {@code (shingle_parameter_identity,
+     * shingle_hash)} over this run's rows, reached because the run is bound (ADR-221 section 2) — the lookup
+     * that index exists for. The index is there
      * because stage 4b builds it before this class runs, not because stage 2 kept it (ADR-182): without
      * it SQLite reads every row of the run for each call, 2.4 s on a 10,000,000-row table. Nothing here holds a
      * posting list in memory; the database counts the hits and only rows meeting {@code hitThreshold}

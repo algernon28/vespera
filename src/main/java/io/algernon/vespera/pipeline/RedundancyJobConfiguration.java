@@ -8,7 +8,6 @@ import io.algernon.vespera.similarity.RedundancySignatures;
 import io.algernon.vespera.similarity.ShingleHashIndex;
 import io.algernon.vespera.similarity.SimilarityStatement;
 import io.algernon.vespera.similarity.SimilarityStatementProgress;
-import java.time.Duration;
 import java.util.Locale;
 import java.util.OptionalLong;
 import org.slf4j.Logger;
@@ -167,9 +166,10 @@ public class RedundancyJobConfiguration {
      * nothing. Asking for stage 4's run here mints nothing the tasklet would not mint a moment later:
      * {@code startRun} is mint-or-continue (ADR-115).
      *
-     * <p>The index is built whenever it is missing and never when it is present, whoever left it
-     * there, and every line about it is written only when a build is made: the line before, the progress
-     * lines and the line saying the rows are gone through that ADR-193 puts between, and the line after.
+     * <p>The index is built for stage 4b's stage-2 run wherever it is absent or is not that run's, and left
+     * alone where it is (ADR-221 section 3, decided inside {@link ShingleHashIndex#buildFor}). Every line
+     * about it is written only when a build is made: the line before, the progress lines and the line
+     * saying the rows are gone through that ADR-193 puts between, and the line after.
      */
     private static final class ShingleHashIndexBuild implements StepExecutionListener {
 
@@ -201,35 +201,36 @@ public class RedundancyJobConfiguration {
             if (ledger.runs().stepFinished(stageRuns.contentRedundancy(), StepNames.CONTENT_REDUNDANCY)) {
                 return;
             }
-            if (shingleHashIndex.exists()) {
-                return;
-            }
-            Duration took = shingleHashIndex.build(new SimilarityStatementProgress() {
-                private StatementProgress progress;
+            RunId shingleRun = stageRuns.upstream(StageModules.EXTRACTION);
+            shingleHashIndex
+                    .buildFor(shingleRun, new SimilarityStatementProgress() {
+                        private StatementProgress progress;
 
-                @Override
-                public void statementStarting(SimilarityStatement statement, OptionalLong rowsUpTo) {
-                    long rows = rowsUpTo.orElse(0);
-                    // ADR-193 section 4.2: the worst measured, and what a stop costs. N stays ungrouped.
-                    log.info(
-                            "Stage 4b (redundancy resolution) is building shingle_by_hash over up to {} shingle"
-                                    + " rows before it reads it; that took 39 minutes for 42833917 rows on a USB"
-                                    + " spinning disk, and stopping before it ends undoes it",
-                            rows);
-                    progress = StatementProgress.ofBuild(
-                            "Stage 4b (redundancy resolution, building shingle_by_hash)",
-                            rows,
-                            statement.stepsPerRow().getAsInt());
-                }
+                        @Override
+                        public void statementStarting(SimilarityStatement statement, OptionalLong rowsUpTo) {
+                            long rows = rowsUpTo.orElse(0);
+                            // ADR-221 section 5: N is the table's greatest row number, an upper bound on the rows read.
+                            log.info(
+                                    "Stage 4b (redundancy resolution) is building shingle_by_hash over the rows of"
+                                            + " run {} alone, reading up to {} shingle rows to find them, and removing"
+                                            + " first any shingle_by_hash built for another; stopping before it ends"
+                                            + " undoes the build",
+                                    shingleRun.value(),
+                                    rows);
+                            progress = StatementProgress.ofBuildAtLeast(
+                                    "Stage 4b (redundancy resolution, building shingle_by_hash)",
+                                    rows,
+                                    statement.stepsPerRow().getAsInt());
+                        }
 
-                @Override
-                public void stepsTaken(SimilarityStatement statement, long steps) {
-                    progress.stepsTaken(steps);
-                }
-            });
-            log.info(
-                    "Stage 4b (redundancy resolution) built shingle_by_hash in {} s",
-                    String.format(Locale.ROOT, "%.1f", took.toNanos() / NANOS_PER_SECOND));
+                        @Override
+                        public void stepsTaken(SimilarityStatement statement, long steps) {
+                            progress.stepsTaken(steps);
+                        }
+                    })
+                    .ifPresent(took -> log.info(
+                            "Stage 4b (redundancy resolution) built shingle_by_hash in {} s",
+                            String.format(Locale.ROOT, "%.1f", took.toNanos() / NANOS_PER_SECOND)));
         }
     }
 

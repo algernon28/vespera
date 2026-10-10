@@ -262,6 +262,12 @@ class RedundancyResolutionTest {
      * before it reads the plans. Without it the guard could not fail: a {@code DISTINCT} put back would
      * plan through {@code shingle_by_occurrence} on a database with no by-hash index, and pass, and then
      * read the whole run in hash order in stage 4b, where the index does exist.
+     *
+     * <p>Since ADR-221 the index is over the rows of one stage-2 run, and SQLite uses it only for a read
+     * whose run is that one. So the index is built here for the fixture's own stage-2 run and the plans are
+     * read with that run bound: with any other, the index would be out of the planner's reach and the guard
+     * could not fail again. {@code ShingleIndexesInTheSchemaTest} holds that a {@code DISTINCT} read is still
+     * drawn to the index so built.
      */
     @Test
     @Story("A redundancy set resolves as a whole, not pair by pair")
@@ -280,7 +286,7 @@ class RedundancyResolutionTest {
         CountingJdbcTemplate counting = new CountingJdbcTemplate(jdbcTemplate);
 
         fixture.resolveWith(counting, counting);
-        jdbcTemplate.execute(BUILD_BY_HASH);
+        jdbcTemplate.execute(TheRunsHashIndex.statementFor(fixture.stage2RunId.value()));
 
         claim(
                 "the index ordered by word-sequence hash is in place, as it is whenever the redundancy check"
@@ -298,23 +304,21 @@ class RedundancyResolutionTest {
             claim(
                     "and SQLite answers \"" + query + "\" from the index on the document's own rows, not by"
                             + " reading every row of the run in hash order",
-                    () -> assertThat(planOf(query)).contains("shingle_by_occurrence").doesNotContain("shingle_by_hash"));
+                    () -> assertThat(planOf(query, fixture.stage2RunId))
+                            .contains("shingle_by_occurrence")
+                            .doesNotContain("shingle_by_hash"));
         }
     }
 
-    /** The statement stage 4b builds the by-hash index with before it reads it (ADR-182 §2.3). */
-    private static final String BUILD_BY_HASH = "CREATE INDEX IF NOT EXISTS shingle_by_hash"
-            + " ON shingle (run_id, shingle_parameter_identity, shingle_hash)";
-
-    /** SQLite's plan for {@code query}, its placeholders bound to values of the right type. */
-    private String planOf(String query) {
+    /** SQLite's plan for {@code query} of one occurrence under {@code stage2Run}, the run the index was built for. */
+    private String planOf(String query, RunId stage2Run) {
         return String.join(
                 " ",
                 jdbcTemplate.query(
                         "EXPLAIN QUERY PLAN " + query,
                         (resultSet, rowNumber) -> resultSet.getString("detail"),
                         1L,
-                        "a-run",
+                        stage2Run.value(),
                         ShingleParameters.DEFAULT.identity()));
     }
 
