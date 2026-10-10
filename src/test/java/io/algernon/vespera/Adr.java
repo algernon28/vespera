@@ -1380,6 +1380,24 @@ public final class Adr {
     public static final String A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT = FILE
             + "0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md";
 
+    /**
+     * ADR-224 -- of the seven rows of ADR-218's table of sorting reads that no other ticket held, three
+     * rows, five statements, sort nothing and four rows stay excepted from the bound read into the
+     * survivors record, by the operator's choice, each with its measured bytes a row. The two reads of
+     * the embedder identities ask for the least, and for the least and the greatest under one name; the invocation account's three counts by
+     * kind or category are each one statement that selects counts and no column, naming every constant of
+     * its enumeration, {@code other} being the total less those. No index is added. The containment
+     * candidates, the review list's read by path, the winning seeds and the members of one partition stay
+     * as they stand, and the containment candidates' bounded form goes to #476, after #468. Its two
+     * edits, to {@code pipeline} and to {@code embedding}, move the run ids of seed measurement, embedding
+     * scoring, arrangement and generation, and add none to content census or content redundancy. ADR-222
+     * moves all six in the same build, so the edits add no replay to it, on the condition the record's
+     * section 5 states: that no build with ADR-222 and without them is run over the working directory
+     * first (amends ADR-218, ADR-220, ADR-198 and ADR-060's list of exceptions; decides #477).
+     */
+    public static final String THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING = FILE
+            + "0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md";
+
     private Adr() {
     }
 }
