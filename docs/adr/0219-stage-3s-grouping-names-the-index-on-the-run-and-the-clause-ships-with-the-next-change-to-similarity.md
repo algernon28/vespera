@@ -192,7 +192,7 @@ In its own commit, the `analyst` making the test-side edits first and `spec-impl
 | `similarity.ShingleIndexesInTheSchemaTest`, six tests where it had four | three as before: that `schema.sql` puts no index on the hash, that `shingle_by_run_id` is on the run alone, and that containment retrieval needs `shingle_by_hash`. One described anew, its assertions unchanged: that a plain read of a run's rows goes through `shingle_by_run_id` in both states, which is ADR-182's sentence about a statement nothing ships. It is kept, by the operator's answer after the gate, for what it shows beside the two new ones: the same rows of the same run, read with nothing grouped, are not drawn to `shingle_by_hash`, so it is the `GROUP BY` that draws the planner there. Context faults this test for holding nothing that ships while described as holding what `DocumentFrequency` sends; described as a contrast, it claims no more than it holds. Two new: that the grouping with §1's clause is planned through `shingle_by_run_id`, sorting for its `GROUP BY`, with the same plan in both states; and that the grouping without it is planned through `shingle_by_hash` once that is built, which is why the clause is needed and stays true of SQLite after it ships |
 | `similarity.TheGroupingsPinShipsWithTheNextChangeToSimilarityTest`, new, one test | §2: that `similarity`'s sources are the ones this record was written against, or `DocumentFrequency` carries the clause. Deleted by the change that shipped the clause, as §5 has it (#473) |
 
-All ten pass today. No test lands failing or disabled.
+All ten pass today (nine since the change that shipped the clause deleted the third class's one, #473). No test lands failing or disabled.
 
 **What no test holds.**
 

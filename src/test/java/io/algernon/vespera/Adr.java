@@ -1300,8 +1300,8 @@ public final class Adr {
      * nothing shipped calls leave the code, and the embedding module's model-name pattern is written once;
      * the LLM chunking seam, the windowed fallback and a second Docling reference resolver are decided gone
      * and leave with the next change to extraction, and a test-only content-identity read with the next
-     * change to corpus; a javadoc states its own contract and cites its ADR; AGENTS.md carries no history
-     * (amends ADR-029 and ADR-046; read with ADR-209 section 1).
+     * change to corpus, both of which ADR-220's change was (#469); a javadoc states its own contract and
+     * cites its ADR; AGENTS.md carries no history (amends ADR-029 and ADR-046; read with ADR-209 section 1).
      */
     public static final String NOTHING_SHIPS_THAT_NO_DECISION_REQUIRES_AND_NOTHING_CALLS = FILE
             + "0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md";
@@ -1363,6 +1363,8 @@ public final class Adr {
      * occurrence's containment candidates, held on the heap. The reads of ADR-218 section 3 that are left and
      * that #472 does not take are #477's. Being the next change to {@code similarity}, it ships ADR-219's
      * clause in stage 3's grouping, which is ADR-219's decision and moves no run id this record did not.
+     * Re-minting {@code extraction} and {@code corpus}, it also carries out the removals ADR-216 section 5
+     * deferred to the next change to each (#469), which move no run id this record did not either.
      */
     public static final String NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN = FILE
             + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";

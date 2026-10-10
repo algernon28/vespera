@@ -180,8 +180,9 @@ class ShingleIndexesInTheSchemaTest {
         String withTheHashIndexBuilt = planOf(THE_GROUPING_PINNED, "a-stage-3-run", "a-run");
 
         claim(
-                "the count that names the index on the run is the count left to choose with that one clause"
-                        + " added after the table's name, so the two counts planned here differ in nothing else",
+                "the count planned below is written with the words that tell the database which index to read"
+                        + " through, placed after the table's name; it is otherwise the same count that"
+                        + " another check plans without those words",
                 () -> assertThat(THE_GROUPING_PINNED).contains("FROM shingle " + THE_PIN + " WHERE run_id = ?"));
         claim(
                 "with no hash index, the count told to read through the index on the run does, and sorts the"
