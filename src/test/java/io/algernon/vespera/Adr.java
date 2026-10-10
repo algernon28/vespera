@@ -1445,6 +1445,16 @@ public final class Adr {
     public static final String NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES = FILE
             + "0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md";
 
+    /**
+     * ADR-227 -- the relevance floor's step withdraws the below-threshold removals its scoring run has
+     * standing in every case, the one where the vectors carry no single embedder identity included, so
+     * {@code FloorReach} no longer answers whether to. Withdrawing publishes more, the direction ADR-042
+     * warns of, and is taken on ADR-118 and ADR-088. The step's lines are unchanged; the run ids of seed
+     * measurement, embedding scoring, arrangement and generation move (amends ADR-226; decides #486).
+     */
+    public static final String THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE = FILE
+            + "0227-the-relevance-floors-step-withdraws-its-standing-removals-where-the-vectors-carry-no-single-embedder-identity.md";
+
     private Adr() {
     }
 }

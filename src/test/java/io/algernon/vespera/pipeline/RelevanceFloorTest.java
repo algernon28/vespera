@@ -208,21 +208,22 @@ class RelevanceFloorTest {
     }
 
     @Test
-    @Story("Where the vectors carry no single embedder identity, nothing is removed and nothing is withdrawn")
-    @DisplayName("With no single embedder identity under the vectors, the floor neither removes nor withdraws")
-    void noSingleIdentityNeitherRemovesNorWithdraws() {
+    @Story("Where the vectors carry no single embedder identity, nothing is removed")
+    @DisplayName("With no single embedder identity under the vectors, the floor removes nothing")
+    @Issue("486")
+    @Link(name = "ADR-227", url = Adr.THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE, type = "adr")
+    void noSingleIdentityRemovesNothing() {
         profileWithFloor("0.42");
         aLabelGivenUnder(THIS_RUNS_IDENTITY);
 
         FloorReach reach = floor.reachFor(Optional.empty(), THE_STEP_THAT_ASKS);
 
+        // Whether the removals already standing are withdrawn is no longer the floor's to answer: the
+        // step withdraws them in every case (ADR-227), and RelevanceFloorInvocationTest holds that.
         claim(
-                "nothing is removed: there is no one scale for the number to be on",
+                "nothing is removed, whatever the number and the answers: there is no one scale for the"
+                        + " number to be on",
                 () -> assertThat(reach.removesBelow()).isEmpty());
-        claim(
-                "and the removals the run already has stand, as they did before the rule moved: that case"
-                        + " withdraws nothing either",
-                () -> assertThat(reach.withdrawsStandingRemovals()).isFalse());
     }
 
     private void profileWithFloor(String value) {

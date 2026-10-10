@@ -397,6 +397,57 @@ class RelevanceFloorInvocationTest {
                 () -> assertThat(scoringRunIdsFor(root)).hasSize(TWO_SCORING_RUNS));
     }
 
+    @Test
+    @Story("A second embedder identity under the model's name withdraws removals the threshold had already made")
+    @DisplayName("Once the vectors carry two identities for the model, no removal the threshold made still stands")
+    @Issue("486")
+    @Link(name = "ADR-227", url = Adr.THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE, type = "adr")
+    @Link(name = "ADR-118", url = Adr.THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY, type = "adr")
+    void aSecondEmbedderIdentityWithdrawsTheRemovals(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, thisRunsIdentity());
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+        cli.run("run", root.toString());
+        long removedUnderOneIdentity = belowThresholdCountFor(root);
+        List<String> theScoringRunsBefore = scoringRunIdsFor(root);
+        String aSecondIdentity = thisRunsIdentity().replace(";digest=", ";digest=0ff0");
+        everyVectorAlsoStoredUnder(aSecondIdentity);
+        try {
+            cli.run("run", root.toString());
+        } finally {
+            // The vectors are keyed by content and not by walk, and this class's tests share one
+            // database, so the second identity is taken away again before the next test reads them.
+            jdbcTemplate.update("DELETE FROM vector WHERE embedder_identity = ?", aSecondIdentity);
+        }
+
+        claim(
+                "the threshold had removed all " + CORPUS_DOCUMENTS + " documents while the vectors carried"
+                        + " one identity, so there were removals to withdraw",
+                () -> assertThat(removedUnderOneIdentity).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "nothing stands removed any more: with two identities under the model's name there is no"
+                        + " one scale for the threshold to be on, and a removal made on a scale that is no"
+                        + " longer known to be this one must not outlive it",
+                () -> assertThat(belowThresholdCountFor(root)).isZero());
+        claim(
+                "and the scoring runs are the ones there were before: the removals were withdrawn by the"
+                        + " run that made them deciding again, not left behind under a run nobody reads",
+                () -> assertThat(scoringRunIdsFor(root)).isEqualTo(theScoringRunsBefore));
+    }
+
+    /**
+     * Every stored vector written once more under a second identity of the same model, as a pull that
+     * changed the model's digest leaves them.
+     */
+    private void everyVectorAlsoStoredUnder(String aSecondIdentity) {
+        jdbcTemplate.update(
+                "INSERT INTO vector SELECT content_hash, chunker_identity, chunking_rule_identity, ordinal, ?,"
+                        + " embedding FROM vector",
+                aSecondIdentity);
+    }
+
     private List<String> belowThresholdRunIdsFor(Path root) {
         return jdbcTemplate.queryForList(
                 "SELECT DISTINCT v.run_id FROM verdict v JOIN file_occurrence f ON f.id = v.occurrence_id"
