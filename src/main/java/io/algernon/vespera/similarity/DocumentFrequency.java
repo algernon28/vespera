@@ -31,6 +31,9 @@ import org.springframework.stereotype.Component;
  * <p>Counted in the database, in one grouping of the run's rows and then a check of the walk's occurrences
  * a page at a time that takes off what the ruled-out ones contributed (ADR-211 section 3). Nothing here
  * grows with the corpus in the heap: a page of ids and one count for each granularity.
+ *
+ * <p>The grouping names {@code shingle_by_run_id} ({@code INDEXED BY}), so SQLite reads the run's rows in the
+ * order they were written and sorts them itself whether or not {@code shingle_by_hash} is built (ADR-219).
  */
 @Component
 public class DocumentFrequency {
@@ -81,7 +84,7 @@ public class DocumentFrequency {
                             "INSERT INTO shingle_document_frequency"
                                     + " (run_id, shingle_parameter_identity, shingle_hash, document_count, total_count)"
                                     + " SELECT ?, shingle_parameter_identity, shingle_hash,"
-                                    + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle WHERE run_id = ?"
+                                    + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle INDEXED BY shingle_by_run_id WHERE run_id = ?"
                                     + " GROUP BY shingle_parameter_identity, shingle_hash"
                                     + " HAVING COUNT(DISTINCT occurrence_id) >= 2")) {
                         grouping.setString(1, stage3RunId.value());
