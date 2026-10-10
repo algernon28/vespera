@@ -148,7 +148,7 @@ class TheAccountsCountsByKindSortNothingTest {
 
         claim(
                 "the verdicts are counted over both runs under the two kinds stored, two broken and one passed,"
-                        + " and no line is written for any of the seven kinds no row carries, or for other",
+                        + " and no line is written for any kind no row carries, or for other",
                 () -> assertThat(linesOpening(lines, VERDICT_LINE))
                         .containsExactly(VERDICT_LINE + "BROKEN count=2", VERDICT_LINE + "PASSED count=1"));
         claim(
@@ -294,8 +294,10 @@ class TheAccountsCountsByKindSortNothingTest {
 
     /**
      * The statement answers one count for each constant by position, and the writer reads them back by
-     * position too: a constant put in, or moved, in an enumeration without the text following would write
-     * one constant's count under another's name. So every constant is given a count no other has.
+     * position too. A constant moved in an enumeration without the text following would write one
+     * constant's count under another's name; one put in without it would make the read of the counts fail
+     * and end the account there, with no line of that count. So every constant is given a count no other
+     * has, and every constant's line is claimed: either slip fails here.
      */
     @Test
     @Story("A count is written under the name of the kind it counts")

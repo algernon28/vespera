@@ -1370,9 +1370,9 @@ public final class Adr {
             + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
 
     /**
-     * ADR-224 -- of the seven reads of ADR-218's section 3 that no other ticket held, three sort nothing
-     * once built and four stay excepted from the bound read into the survivors record, by the operator's
-     * choice, each with its measured bytes a row. The two reads of the embedder identities ask for the
+     * ADR-224 -- of the seven rows of ADR-218's table of sorting reads that no other ticket held, three
+     * rows, five statements, sort nothing and four rows stay excepted from the bound read into the
+     * survivors record, by the operator's choice, each with its measured bytes a row. The two reads of the embedder identities ask for the
      * least, and for the least and the greatest under one name; the invocation account's three counts by
      * kind or category are each one statement that selects counts and no column, naming every constant of
      * its enumeration, {@code other} being the total less those. No index is added. The containment

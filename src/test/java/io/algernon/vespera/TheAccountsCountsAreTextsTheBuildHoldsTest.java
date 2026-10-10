@@ -24,12 +24,14 @@ import org.junit.jupiter.api.Test;
  * <p>It has to be a text of the compiled class, completed at run time by the list of runs alone, because
  * that is what {@link EveryStatementThatSortsIsRecordedTest} plans: a statement put together from the
  * enumeration at run time is in no compiled text, so that test would pass it unread whatever it sorted.
- * And it has to name every constant, because a constant the text leaves out is counted as {@code other}
- * with nothing failing: this test is what fails when an enumeration gains a constant and the text does not.
+ * And it has to name every constant, because the account reads one count back for each constant of the
+ * enumeration: where the enumeration has a constant the text leaves out, the read of that count fails in a
+ * run and the account ends there, without that count's lines or anything after them. This test is what
+ * fails first, when an enumeration gains a constant and the text does not, so that no build ships so.
  *
  * <p>Read from the compiled form, as {@link EachTableIsNamedOnlyByItsOwnerTest} reads the account's
- * statements. Before ADR-224 is built the three texts are {@code GROUP BY}s that name no constant, and this
- * fails on each.
+ * statements. Before ADR-224 was built the three texts were {@code GROUP BY}s that named no constant, and
+ * this failed on the first.
  */
 @Epic("Pipeline")
 @Feature("The invocation account")
@@ -48,7 +50,8 @@ class TheAccountsCountsAreTextsTheBuildHoldsTest {
         claim("the class that writes the account holds texts, so what follows did read it", () -> assertThat(texts).isNotEmpty());
         claim(
                 "one text of the class reads the verdicts, and it names every declared kind of verdict: a kind"
-                        + " declared later and not added to it would be counted as other and nothing would say so",
+                        + " declared later and not added to it would make the reading of the counts fail, and"
+                        + " the account would end there",
                 () -> assertThat(textsOver(texts, "verdict"))
                         .hasSize(1)
                         .allSatisfy(text -> assertThat(text).contains(quotedNamesOf(VerdictKind.values()))));

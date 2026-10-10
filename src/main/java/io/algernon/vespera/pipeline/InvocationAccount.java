@@ -44,7 +44,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * by a closed enumeration (a stored value that is none of them is written as {@code other}), an exception
  * is written as class names, and a progress line is written only when its whole text has the shape a
  * progress counter gives it. The SQL selects counts and sums of comparisons with the enumeration's
- * constants, and no column: never {@code detail}, {@code reason}, {@code label}, {@code title} or a path
+ * constants, and carries no column out: never {@code detail}, {@code reason}, {@code label}, {@code title} or a path
  * (ADR-224).
  *
  * <p>A failure to write never fails the invocation (ADR-198 section 6).
