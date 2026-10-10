@@ -1445,6 +1445,20 @@ public final class Adr {
     public static final String NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES = FILE
             + "0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md";
 
+    /**
+     * ADR-225 -- stage 4b sorts and holds nothing that grows with the signed occurrences sharing a band value
+     * or with the occurrences sharing one occurrence's rarest hashes: a page's candidate pairs are found from
+     * the page's band rows that share a value and each such value's rows read a thousand at a time, a pair
+     * already in one component not scored again; an occurrence's containment candidates are merged from one
+     * ordered read for each of its rarest hashes, a thousand rows at a time, and gone through a thousand at a
+     * time. {@code shingle_by_hash} gains the occurrence as its third column, and every read of one
+     * occurrence's shingles names the index on the occurrence, which that column would otherwise draw it
+     * from. The verdicts are the same. An occurrence's rarest shingles still sort, bounded by one occurrence
+     * (amends ADR-221, ADR-220, ADR-218 and ADR-224; decides #476).
+     */
+    public static final String STAGE_4B_READS_ITS_CANDIDATES_A_THOUSAND_AT_A_TIME = FILE
+            + "0225-stage-4b-reads-its-candidate-pairs-and-containment-candidates-a-thousand-at-a-time-and-shingle-by-hash-ends-in-the-occurrence.md";
+
     private Adr() {
     }
 }
