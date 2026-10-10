@@ -42,10 +42,16 @@ class SeedScriptedExtractionBeans {
     static final String EMPTY_SEED = "empty-seed.pdf";
 
     /**
-     * A seed whose only text is a running page header (ADR-231, #496): it produced text, so it is usable,
-     * and the chunker leaves a page header out, so it has no chunk and nothing of it is embedded.
+     * A seed whose only text is a running page header (ADR-231, #496): the chunker leaves a page header out,
+     * so it has no chunk and nothing of it is embedded. Since ADR-232 (#499) it is an unusable seed.
      */
     static final String HEADER_ONLY_SEED = "header-only-seed.pdf";
+
+    /**
+     * A corpus file whose only text is a page header and a page footer (ADR-232, #499): text, and none of it
+     * text the chunker cuts a chunk from. A {@code .txt} name, so that nothing is claimed of stage 1 by it.
+     */
+    static final String HEADERS_AND_FOOTERS_ONLY = "page-headers-and-footers-only.txt";
 
     /**
      * A file Docling refuses to open: the other way a pass can end with no text for an occurrence. On
@@ -165,10 +171,16 @@ class SeedScriptedExtractionBeans {
     private static final String WITH_A_PAGE_HEADER_ALONE = "{\"document\":{\"json_content\":{\"texts\":["
             + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"}]}}}";
 
+    /** A successful conversion whose text items are a page header and a page footer and nothing else. */
+    private static final String WITH_A_PAGE_HEADER_AND_A_PAGE_FOOTER_ALONE = "{\"document\":{\"json_content\":{\"texts\":["
+            + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"},"
+            + "{\"text\":\"Page 1 of 1\",\"label\":\"page_footer\"}]}}}";
+
     @Bean
     DoclingExtractor doclingExtractor(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         PathScriptedExtractor extractor = new PathScriptedExtractor()
                 .cachingInto(jdbcTemplate)
+                .answering(HEADERS_AND_FOOTERS_ONLY, response(WITH_A_PAGE_HEADER_AND_A_PAGE_FOOTER_ALONE))
                 .answering(HEADER_ONLY_SEED, response(WITH_A_PAGE_HEADER_ALONE))
                 .answering(EMPTY_SEED, response(WITHOUT_TEXT))
                 .answering(REFUSED_CONVERSION, refused())

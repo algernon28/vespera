@@ -225,9 +225,9 @@ class RelevanceScoringTasklet implements Tasklet {
             @Override
             public void seedLeftOutWithNoChunk(OccurrenceId seed) {
                 LOG.warn(
-                        "seed occurrence {} produced text and no chunk: all of its text is in page headers and"
-                                + " footers, which are not embedded, so it has no vector and is left out of the"
-                                + " seeds every survivor is scored against",
+                        "seed occurrence {} produced text and no chunk: it is recorded as usable and no chunk is"
+                                + " stored for it, so it has no vector and is left out of the seeds every"
+                                + " survivor is scored against",
                         seed.value());
             }
 

@@ -1517,6 +1517,19 @@ public final class Adr {
             FILE
                     + "0231-the-embedding-step-stops-unrecorded-where-the-embedding-model-was-pulled-while-it-ran-and-scoring-refuses-a-seed-whose-chunks-have-no-vector.md";
 
+    /**
+     * ADR-232 -- stage 2's tier 1 and the seed's usability bar, one rule, count the text the chunker cuts
+     * chunks from: a corpus file whose only text is in page headers and footers earns {@code
+     * degenerate-output} under a reason of its own, where it survived, had no chunk and stopped relevance
+     * scoring on every invocation; and a seed of that kind is recorded as an unusable seed, where ADR-231
+     * section 2a left it out with a warning. No verdict kind, no DDL and no delete; every stage from
+     * extraction to generation is minted again (amends ADR-070, ADR-083, ADR-145 and ADR-231 in the
+     * sentences it names; decides #499).
+     */
+    public static final String A_FILE_WHOSE_ONLY_TEXT_IS_IN_PAGE_HEADERS_AND_FOOTERS_IS_DEGENERATE_OUTPUT_AND_SUCH_A_SEED_IS_UNUSABLE =
+            FILE
+                    + "0232-a-file-whose-only-text-is-in-page-headers-and-footers-is-degenerate-output-at-stage-2-and-a-seed-of-that-kind-is-an-unusable-seed.md";
+
     private Adr() {
     }
 }

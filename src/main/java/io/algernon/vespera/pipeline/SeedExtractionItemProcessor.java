@@ -2,7 +2,6 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.extraction.DoclingCallRejectedException;
 import io.algernon.vespera.extraction.DoclingConnectionLostException;
-import io.algernon.vespera.extraction.DoclingDocumentTexts;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.DoclingResponse;
 import io.algernon.vespera.extraction.ExtractionMetrics;
@@ -41,7 +40,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>The usability bar is {@link UsableText}, which <em>is</em> stage 2's tier 1 rather than a copy of
  * it — ADR-083 fixes the bar as tier 1 "exactly" and no stricter, and two implementations of one
- * sentence is how that instruction would drift.
+ * sentence is how that instruction would drift. The processor hands it the conversion and records the
+ * reason it answers, reading no text itself (ADR-232).
  *
  * <p><b>A file that will not open is a different fact from an unusable seed (ADR-155).</b> Hashing the
  * file is the one archive access {@link #doProcess} makes before any conversion is attempted, and only
@@ -125,15 +125,12 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
         // (ADR-092), and a seed folder's worth of extracted text is not a thing to hold until then.
         ExtractionMetrics.Measurement measurement = extractionMetrics.measure(response);
 
-        String text = DoclingDocumentTexts.lines(response.rawResponse());
-        if (!UsableText.hasAlphanumericContent(text)) {
-            // Recorded, never judged, and it does not stop the run: scoring proceeds against whatever
-            // survived extraction, and a corrected seed folder is a different run because the seed
-            // folder is part of what that run's identity is derived from (ADR-083).
-            return SeedExtractionOutcome.unusable(
-                    occurrenceId, contentHash, measurement, UsableText.NO_ALPHANUMERIC_CONTENT);
-        }
-        return SeedExtractionOutcome.usable(occurrenceId, contentHash, measurement);
+        // An unusable seed is recorded, never judged, and does not stop the run: scoring proceeds against
+        // whatever survived extraction, and a corrected seed folder is a different run because the seed
+        // folder is part of what that run's identity is derived from (ADR-083).
+        return UsableText.whyUnusable(response.rawResponse())
+                .map(reason -> SeedExtractionOutcome.unusable(occurrenceId, contentHash, measurement, reason))
+                .orElseGet(() -> SeedExtractionOutcome.usable(occurrenceId, contentHash, measurement));
     }
 
     /**

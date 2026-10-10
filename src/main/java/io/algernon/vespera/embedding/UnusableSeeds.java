@@ -7,7 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * {@code embedding}'s record of the seeds that produced no text (ADR-083), behind this class and
+ * {@code embedding}'s record of the seeds that produced no text, or none outside their page headers and footers (ADR-083, ADR-232), behind this class and
  * nothing else querying the table (ADR-041).
  *
  * <p><b>There is no verdict method here, deliberately.</b> This module cannot write one — the
@@ -31,7 +31,7 @@ public class UnusableSeeds {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** Records that {@code occurrenceId} produced no text under {@code runId}, and why. */
+    /** Records that {@code occurrenceId} produced no text, or none outside its page headers and footers, under {@code runId}, and why. */
     public void record(OccurrenceId occurrenceId, RunId runId, String reason) {
         jdbcTemplate.update(
                 "INSERT INTO unusable_seed (occurrence_id, run_id, reason) VALUES (?, ?, ?)",

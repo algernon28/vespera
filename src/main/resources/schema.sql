@@ -494,9 +494,10 @@ CREATE INDEX IF NOT EXISTS redundant_with_by_run_id ON redundant_with (run_id);
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
 CREATE INDEX IF NOT EXISTS redundant_with_by_redundant_with_occurrence_id ON redundant_with (redundant_with_occurrence_id);
 
--- embedding's own table (ADR-083): a seed document that produced no text, recorded as data rather
--- than judged. The bar is stage 2's tier 1 exactly -- no alphanumeric content at all after
--- whitespace normalisation (ADR-070) -- and deliberately no stricter, since a confidence threshold
+-- embedding's own table (ADR-083): a seed document that produced no text, or none outside its page
+-- headers and footers (ADR-232), recorded as data rather than judged. The bar is stage 2's tier 1
+-- exactly -- no alphanumeric content outside page headers and footers, after whitespace
+-- normalisation (ADR-070, ADR-232) -- and deliberately no stricter, since a confidence threshold
 -- for seeds is one nobody has measured.
 --
 -- There is no verdict here and there never will be: every kind in the closed vocabulary (ADR-042)

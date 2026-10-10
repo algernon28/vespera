@@ -1,5 +1,7 @@
 # ADR-070 — `extraction-failed` splits on Docling's status; `degenerate-output` is a two-tier floor
 
+> **Partly amended — see [ADR-232](0232-a-file-whose-only-text-is-in-page-headers-and-footers-is-degenerate-output-at-stage-2-and-a-seed-of-that-kind-is-an-unusable-seed.md).** Everything this record decides stands. The text tier 1 reads is the extracted text outside page headers and footers, which is the text the chunker cuts chunks from: a conversion with a letter or a digit only in page headers and footers is `degenerate-output`, under a reason of its own. Tier 2 is not touched.
+
 - **Date**: 2026-09-02
 - **Status**: accepted
 - **Amends**: none (narrows how ADR-010's "can fail silently" is to be read, the same move ADR-068 made on ADR-067's boundary)

@@ -145,6 +145,42 @@ class ASeedWithNoVectorStopsScoringTest {
                 () -> assertThat(resident.keySet()).containsExactly(THE_FIRST_SEED, THE_SECOND_SEED));
     }
 
+    /** A corpus document that has no vector stored under any identity. */
+    private static final OccurrenceId A_CORPUS_DOCUMENT = new OccurrenceId(4023);
+
+    /**
+     * The survivor's side of the same refusal, and its words since ADR-232 section 4 (#499): it no longer
+     * calls a survivor with no chunk impossible on the strength of #108, which was wrong about a file of page
+     * headers and footers, and says what now keeps such a file from reaching it.
+     */
+    @Test
+    @Issue("499")
+    @Link(name = "ADR-232", url = Adr.A_FILE_WHOSE_ONLY_TEXT_IS_IN_PAGE_HEADERS_AND_FOOTERS_IS_DEGENERATE_OUTPUT_AND_SUCH_A_SEED_IS_UNUSABLE, type = "adr")
+    @Story("A document with no vector of the scoring's own model stops the scoring")
+    @DisplayName("Scoring a corpus document with no stored vector stops, names the model's identity it looked under, and says why such a document should not exist")
+    void aSurvivorWithNoVectorIsRefusedInWordsThatAreTrue() {
+        claim(
+                "the scoring stops on document " + A_CORPUS_DOCUMENT.value() + ", names the identity it looked"
+                        + " for vectors under, says that a file with no text outside page headers and footers"
+                        + " is removed before this, and no longer calls the case impossible by construction",
+                () -> assertThatThrownBy(() -> scoring()
+                                .scoreAndRecord(
+                                        A_CORPUS_DOCUMENT,
+                                        new io.algernon.vespera.ledger.RunId("a-scoring-run"),
+                                        "a-corpus-document",
+                                        CHUNKER_IDENTITY,
+                                        CHUNKING_RULE_IDENTITY,
+                                        READ_UNDER,
+                                        Map.of()))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("occurrence " + A_CORPUS_DOCUMENT.value())
+                        .hasMessageContaining("under embedder identity " + READ_UNDER)
+                        .hasMessageContaining(
+                                "stage 2 removes a file with no text outside page headers and footers")
+                        .satisfies(refusal ->
+                                assertThat(refusal.getMessage()).doesNotContain("impossible by construction")));
+    }
+
     /** The two seeds, in order, each with its content hash and the number of chunks given for it. */
     private static Map<OccurrenceId, SeedChunks> seeds(int chunksOfTheFirst, int chunksOfTheSecond) {
         Map<OccurrenceId, SeedChunks> seeds = new LinkedHashMap<>();
