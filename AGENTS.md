@@ -32,7 +32,7 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 - Prose written for a reader outside this project is free of the lists altogether; ADR-122 enumerates the audiences, and this is deliberately not a second copy of that list. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
 - **Cluster** renders as *group*.
 
-**`docs/adr/`** holds 221 decisions, ADR-001 to ADR-221, and two things about it are invisible from the files:
+**`docs/adr/`** holds 222 decisions, ADR-001 to ADR-222, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.
@@ -115,6 +115,7 @@ node --test src/test/hooks/working-directory-counts.test.mjs
 
 - **The pom carries what a recorded decision requires** (ADR-046), not what current code happens to use. A new dependency wants a decision behind it.
 - **A javadoc states its class's own contract and cites the ADR it implements; it does not restate that ADR** (ADR-216). A javadoc that disagrees with its code is corrected in a change that already re-mints its module, or at any time in `ledger` or `profile`, which no stage's version names (ADR-216 §7).
+- **A stage's version names `pipeline` only while a class of `pipeline` holds a rule that shapes that stage's output** (ADR-222, amending ADR-058): a rule decides a verdict, a cache key, a cluster or text of the deliverable. ADR-222 lists the eight there are and the stage each belongs to. A class added to `pipeline` is listed in `PipelineHoldsOnlyTheRulesOnRecordTest`, as holding a rule or none, in the change that adds it; a ninth rule needs a record, and its stage names `pipeline` from the same change.
 - **The module rule binds only where it is declared.** `ApplicationModules.verify()` constrains a module that declares `allowedDependencies`; an undeclared one is wide open, since the attribute defaults to `*`. `ModuleBoundariesTest` fails when a module ships without a declaration.
 - **Census is Windows-first.** Its identity rules rest on measured NTFS behaviour — case folding that disagrees with the JDK, filenames with no UTF-8 encoding, reparse points — so some tests are guarded to Windows and say so.
 - **Measure rather than argue.** Decisions here are settled by execution where execution is possible, and the measurement belongs in the record. Probes are throwaway and live outside the repository.
