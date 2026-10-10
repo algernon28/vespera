@@ -5,7 +5,10 @@
 // it. docs/adr/0215 closes the .claude folders, the home folder's and a checkout's, and the H, J, M, Q,
 // T, U, V, W, X, Y and L4 cases are held to it; K231 and J1601 to J1611 hold where the two records meet.
 // docs/adr/0217 reads every path once more on Windows, as Windows opens its names, without the stream
-// name, dots and spaces that end each, and the Z cases are held to it.
+// name, dots and spaces that end each, and the Z cases are held to it. docs/adr/0233 reads what stands
+// beside the name .claude in a token's text, a leading ~ in a file tool's field, a place a link in the
+// guard's own .claude leads to, and on Windows a name of dots with a stream name, and the I cases are
+// held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -106,13 +109,16 @@ const COUNTS = `${HOOKS}/working-directory-counts.mjs`;
 // The file that is held: the draft's when VESPERA_GUARD_DRAFT names a folder that holds it, else this
 // checkout's. A draft folder that is not there stops the run: a mistyped name must not end in a green
 // run of the files that are already installed. Neither may it lie in a .claude folder, where no agent
-// writes.
+// writes: a name of its path, as written and as its links and an 8.3 name lead, is compared with .claude
+// as the guard compares one, with its case folded and, on Windows, without a stream name after a colon
+// and the dots and spaces that end it (docs/adr/0233).
 const DRAFT = process.env.VESPERA_GUARD_DRAFT ? fwd(resolve(process.env.VESPERA_GUARD_DRAFT)) : null;
 if (DRAFT && !existsSync(DRAFT)) throw new Error(`VESPERA_GUARD_DRAFT names ${DRAFT}, which is not there`);
-if (DRAFT && DRAFT.toLowerCase().split("/").includes(".claude")) {
+const isClaudeName = (name) => (windows ? name.replace(/:[^]*$/, "").replace(/[. ]+$/, "") : name).toLowerCase() === ".claude";
+if (DRAFT && [DRAFT, fwd(realpathSync.native(DRAFT))].some((path) => path.split("/").some(isClaudeName))) {
   throw new Error(`VESPERA_GUARD_DRAFT names ${DRAFT}, which lies in a .claude folder; a draft is kept outside every one`);
 }
-// Nor may it hold none of the four files: every case would then be held against what is installed.
+// Nor may it hold none of the five files: every case would then be held against what is installed.
 if (DRAFT && ![WRAPPER, GUARD, COUNTS, ALLOW_LIST, SETTINGS].some((file) => existsSync(`${DRAFT}/${file.slice(".claude/".length)}`))) {
   throw new Error(`VESPERA_GUARD_DRAFT names ${DRAFT}, which holds none of the guard's five files, so nothing of it would be held`);
 }
@@ -1301,11 +1307,110 @@ cases.push(
   ["Z407", "Get-ChildItem of a quoted token that is two spaces", "PowerShell", { command: "Get-ChildItem '  '" }, ALLOWED, { cwd: T }],
 );
 
+/* ---------- beside the name .claude, in a field and through a link, held to docs/adr/0233 ---------- */
+
+// docs/adr/0233 amends docs/adr/0215 and docs/adr/0217. A token's text names .claude where a special
+// parameter of the shell, or the start of a variable with a word for when it has no value, stands before
+// the name, and where an expansion that may be empty is joined after it; the first name of a token headed
+// by / is .claude whatever stands before it, as an option's is; a leading ~ in a file tool's field is the
+// home folder; a place a link in the guard's own .claude leads to is closed as that folder is; and on
+// Windows a name of dots with a stream name after it is a name made only of dots, and a stream name that
+// holds a line terminator is a stream name.
+
+// A skill installed by another tool and handed to Claude Code by a link in the checkout's .claude, as this
+// repository's .gitignore says .claude/skills/<skill> are on the operator's machine; a skill beside it that
+// no link names; and a link of the same kind whose skill is not installed yet.
+const INSTALLED = `${C}/.opencode/skills`;
+put(`${INSTALLED}/linked-skill/SKILL.md`, "fixture\n");
+put(`${INSTALLED}/unlinked-skill/SKILL.md`, "fixture\n");
+let linkedFromClaude = linkable;
+if (linkedFromClaude) {
+  try {
+    symlinkSync(native(`${INSTALLED}/linked-skill`), native(`${C}/.claude/skills/linked-skill`), windows ? "junction" : "dir");
+    symlinkSync(native(`${INSTALLED}/not-installed`), native(`${C}/.claude/skills/not-installed`), windows ? "junction" : "dir");
+  } catch {
+    linkedFromClaude = false;
+  }
+}
+if (
+  !existsSync(`${C}/.claude/skills/linked-skill/SKILL.md`) ||
+  !isLink(`${C}/.claude/skills/not-installed`) ||
+  existsSync(`${C}/.claude/skills/not-installed`)
+) {
+  linkedFromClaude = false;
+}
+
+cases.push(
+  /* I1. What may stand before the name .claude in a token's text: a special parameter of the shell, as $*
+     and $! are, which is empty in a shell started for one command; and the start of a variable with a
+     word for when it has no value, where the word is the name, in a path from the root, which is not read
+     as a path. */
+  ["I101", "a redirect into the settings after $*, joined to the name .claude", "Bash", { command: "echo x > $*.claude/settings.json" }, REFUSED],
+  ["I102", "cat of the settings after $!, joined to the name .claude", "Bash", { command: "cat $!.claude/settings.json" }, REFUSED],
+  ["I103", "cp into the guard after $?, quoted, joined to the name .claude", "Bash", { command: 'cp README.md "$?.claude/hooks/private-paths-guard.mjs"' }, REFUSED],
+  ["I104", "Set-Content of the settings after PowerShell's $^, joined to the name .claude", "PowerShell", { command: String.raw`Set-Content $^.claude\settings.json x` }, REFUSED],
+  ["I105", "a redirect into the settings by a path from the root, one name of which is a variable whose word for no value is .claude", "Bash", { command: "echo x > /x/${VESPERA_GUARD_HAS_NO_VALUE:-.claude}/settings.json" }, REFUSED],
+  ["I106", "the same with the rest of the path in the word, and no colon before the sign", "Bash", { command: "echo x > /x/${VESPERA_GUARD_HAS_NO_VALUE-.claude/settings.json}" }, REFUSED],
+  ["I107", "a variable whose word for no value only ends in .claude, in a path from the root", "Bash", { command: "cat /x/${VESPERA_GUARD_HAS_NO_VALUE:-notes.claude}/y" }, ALLOWED],
+
+  /* I2. What may follow the name: an expansion that may be empty, joined to it, which the text takes off
+     the name, with whatever follows the $, as it takes off a stream name. */
+  ["I201", "a redirect into the settings with a variable that has no value joined after the name .claude", "Bash", { command: "echo x > .claude$VESPERA_GUARD_HAS_NO_VALUE/settings.json" }, REFUSED],
+  ["I202", "the same with the variable in braces", "Bash", { command: "echo x > .claude${VESPERA_GUARD_HAS_NO_VALUE}/settings.json" }, REFUSED],
+  ["I203", "the same with an empty command substitution, whose parentheses part the token", "Bash", { command: "echo x > .claude$(true)/settings.json" }, REFUSED],
+  ["I204", "the same with $*", "Bash", { command: "echo x > .claude$*/settings.json" }, REFUSED],
+  ["I205", "Set-Content with PowerShell's variable joined after the name .claude", "PowerShell", { command: String.raw`Set-Content .claude$env:VESPERA_GUARD_HAS_NO_VALUE\settings.json x` }, REFUSED],
+  ["I206", "a redirect into the settings by a path from the root, with a variable joined after the name .claude", "Bash", { command: "echo x > /x/.claude$VESPERA_GUARD_HAS_NO_VALUE/settings.json" }, REFUSED],
+  ["I207", "a worktree's README.md with a variable joined after the name .claude, which is read on from worktrees", "Bash", { command: "cat .claude$VESPERA_GUARD_HAS_NO_VALUE/worktrees/wt/README.md" }, ALLOWED],
+
+  /* I3. The first name of a token headed by /, which is how a Windows program's option runs into its
+     value, is .claude whatever stands before it, as the first name of a token headed by - is. */
+  ["I301", "a compiler whose output option, written as a Windows option, has the guard attached", "Bash", { command: "cl /Fe.claude/hooks/private-paths-guard.mjs x.c" }, REFUSED],
+  ["I302", "the same in a PowerShell command, written with backslashes", "PowerShell", { command: String.raw`cl /Fe.claude\hooks\private-paths-guard.mjs x.c` }, REFUSED],
+  ["I303", "the same option with the .claude folder alone attached", "Bash", { command: "cl /Fe.claude x.c" }, REFUSED],
+  ["I304", "the same option with a folder attached whose name goes on after .claude", "Bash", { command: "cl /Fo.claude-out/x.obj x.c" }, ALLOWED],
+
+  /* I4. A leading ~ in a file tool's field, alone or before a separator, is the home folder, as it is at
+     the head of a token of a shell command. */
+  ["I401", "Read of ~/Documents/x.txt, which the allow list does not name", "Read", { file_path: "~/Documents/x.txt" }, REFUSED],
+  ["I402", "Read of ~/.claude/settings.json, which the allow list does not name", "Read", { file_path: "~/.claude/settings.json" }, REFUSED],
+  ["I403", "Write under ~/Documents", "Write", { file_path: "~/Documents/new.txt", content: "x" }, REFUSED],
+  ["I404", "Grep whose path is ~/Documents", "Grep", { pattern: "x", path: "~/Documents" }, REFUSED],
+  ["I405", "Glob whose pattern begins at ~/Documents", "Glob", { pattern: "~/Documents/**/*.txt" }, REFUSED],
+  ["I406", "Read of ~ and a backslash before Documents", "Read", { file_path: String.raw`~\Documents\x.txt` }, REFUSED],
+  ["I407", "Read of ~/.m2/settings.xml, which the allow list names", "Read", { file_path: "~/.m2/settings.xml" }, ALLOWED],
+  ["I408", "Write into the memory directory by ~", "Write", { file_path: "~/.claude/projects/fixture-project/memory/a-new-note.md", content: "x" }, ALLOWED],
+
+  /* I5. A place a link in the checkout's own .claude leads to is closed as that folder is, since a later
+     session loads what is there as the folder's own. Read and Grep are let through, as they are in the
+     folder itself. */
+  ["I501", "Write of a skill's file in the place a link in the checkout's .claude leads to", "Write", { file_path: `${INSTALLED}/linked-skill/SKILL.md`, content: "x" }, REFUSED, { needsLinksFromClaude: true }],
+  ["I502", "Edit of that file", "Edit", { file_path: `${INSTALLED}/linked-skill/SKILL.md`, old_string: "a", new_string: "b" }, REFUSED, { needsLinksFromClaude: true }],
+  ["I503", "a redirect into that file by a relative path", "Bash", { command: "echo x >> .opencode/skills/linked-skill/SKILL.md" }, REFUSED, { needsLinksFromClaude: true }],
+  ["I504", "Write of a file in the place a link leads to that is not there yet", "Write", { file_path: `${INSTALLED}/not-installed/SKILL.md`, content: "x" }, REFUSED, { needsLinksFromClaude: true }],
+  ["I505", "Read of the skill's file in the place a link leads to", "Read", { file_path: `${INSTALLED}/linked-skill/SKILL.md` }, ALLOWED, { needsLinksFromClaude: true }],
+  ["I506", "Grep whose path is that place", "Grep", { pattern: "x", path: `${INSTALLED}/linked-skill` }, ALLOWED, { needsLinksFromClaude: true }],
+  ["I507", "Write of the file of a skill beside it, to which no link leads", "Write", { file_path: `${INSTALLED}/unlinked-skill/SKILL.md`, content: "x" }, ALLOWED, { needsLinksFromClaude: true }],
+  ["I508", "ls of the folder that holds the place a link leads to", "Bash", { command: "ls .opencode/skills" }, ALLOWED, { needsLinksFromClaude: true }],
+
+  /* I6. On Windows a name of dots with a stream name after it is a name made only of dots, which is
+     refused, and not . or .., which would be folded as a climb; and a stream name that holds a line
+     terminator is taken off a name as any stream name is. */
+  ["I601", "Write beneath a name of two dots and a stream name", "Write", { file_path: `${T}/scratch/..:x/note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["I602", "Write beneath a name of one dot and a stream name", "Write", { file_path: `${T}/scratch/.:x/note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["I603", "Get-Content beneath a name of two dots and a stream name, by a relative path", "PowerShell", { command: String.raw`Get-Content scratch\..:x\note.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["I604", "Write of the checkout's settings through a stream name of .claude that holds a line terminator", "Write", { file_path: `${C}/.claude:x\ny/settings.json`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["I605", "Read of a report through a stream name of the working directory that holds a line terminator", "Read", { file_path: `${WD}:x\ny/report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+);
+
 for (const [id, what, tool, input, expected, options = {}] of cases) {
   const skip =
     options.windows && !windows
       ? `not started on this platform: ${options.windows}`
-      : (options.needsLink && !linkable) || (options.needsFurtherLinks && !linkedFurther) || (options.needsLinksToClaude && !linkedToClaude)
+      : (options.needsLink && !linkable) ||
+          (options.needsFurtherLinks && !linkedFurther) ||
+          (options.needsLinksToClaude && !linkedToClaude) ||
+          (options.needsLinksFromClaude && !linkedFromClaude)
         ? `not started on this platform: ${NO_LINK}`
         : options.needsShortName && !SHORT_NAME_OF_CLAUDE
           ? `not started here: ${NO_SHORT_NAME}`

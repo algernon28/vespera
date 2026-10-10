@@ -1,5 +1,7 @@
 # ADR-217 — On Windows the private-paths guard reads every path as Windows opens its names, without the dots, spaces and stream name that end each
 
+> **Partly amended — see [ADR-233](0233-the-private-paths-guard-reads-what-stands-beside-the-name-claude-a-leading-tilde-in-a-field-and-a-link-out-of-its-own-folder.md).** §2's "a name made only of dots, spaces or a stream name" now takes in a name of dots with a stream name after it, which is not read as `.` or `..`; and §1's stream name runs to the end of the name, a line terminator in it included. Everything else in this record stands.
+
 - **Date**: 2026-10-09
 - **Status**: accepted. The guard's change is drafted outside every `.claude` folder and put in place by the operator, as [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) §7 has it. This record, its cases and the guard land in one change.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:

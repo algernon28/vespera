@@ -1530,6 +1530,21 @@ public final class Adr {
             FILE
                     + "0232-a-file-whose-only-text-is-in-page-headers-and-footers-is-degenerate-output-at-stage-2-and-a-seed-of-that-kind-is-an-unusable-seed.md";
 
+    /**
+     * ADR-233 -- the private-paths guard reads what stands beside the name {@code .claude} in a token's
+     * text: a special parameter of the shell and the start of a variable with a word may stand before it,
+     * an expansion that may be empty is taken off after it, and a token headed by {@code /} is an option
+     * as one headed by {@code -} is; a leading {@code ~} in a file tool's field is the home folder, as it
+     * is at the head of a token; a place a link in the guard's own {@code .claude} folder leads to is
+     * closed as that folder is; and on Windows a name of dots with a stream name after it is a name made
+     * only of dots, and a stream name runs to the end of its name. The unused {@code within} is removed
+     * (amends ADR-215 sections 3(c), 5, 7 and 8 and ADR-217 sections 1 and 2; keeps ADR-196, ADR-201 and
+     * ADR-212; nothing under {@code src/main} changes). Its tests are Node tests under {@code
+     * src/test/hooks}.
+     */
+    public static final String THE_GUARD_READS_WHAT_STANDS_BESIDE_THE_NAME_CLAUDE_AND_A_LINK_OUT_OF_ITS_FOLDER = FILE
+            + "0233-the-private-paths-guard-reads-what-stands-beside-the-name-claude-a-leading-tilde-in-a-field-and-a-link-out-of-its-own-folder.md";
+
     private Adr() {
     }
 }

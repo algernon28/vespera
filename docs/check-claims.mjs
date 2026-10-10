@@ -457,7 +457,7 @@ function readmeSection(heading, name) {
 
 // "Running it" once said that Vespera starts its own sidecars, and the packaged jar has never
 // carried the compose support that would do it (#304, ADR-158). The section now names a build, a
-// compose file, three services, a build context, three ports, a model and a jar path. Each of
+// compose file, two services, a build context, two ports, a model and a jar path. Each of
 // those is a value some file in the tree holds, so each is read out of the section and
 // compared with that file. The section is parsed, rather than one sentence matched, because an
 // operator copies these lines into a shell, and a stale one fails in a way nothing here would see.
