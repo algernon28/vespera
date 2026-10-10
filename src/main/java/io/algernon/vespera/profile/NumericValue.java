@@ -32,8 +32,8 @@ public record NumericValue(String value, String provenance, Measurement measurem
      *
      * <p>Every reader of a numeric key asks this and switches on the answer, which is what stops two
      * readers of one key disagreeing about it — ADR-117 needs the floor's reach ({@code FloorReach}, asked
-     * through {@code RelevanceFloor}) and the scoring run's identity to agree, and before ADR-120 they got that from a comment in each asking the
-     * other to match.
+     * through {@code RelevanceFloor}) and the scoring run's identity to agree, and before ADR-120 they
+     * got that from a comment in each asking the other to match.
      */
     @JsonIgnore
     public Reading reading() {

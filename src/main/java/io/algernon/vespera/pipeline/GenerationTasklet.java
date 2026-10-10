@@ -645,11 +645,8 @@ class GenerationTasklet implements Tasklet {
      * call, so a document's decoded pictures live only for the one call that decodes them, and ADR-149
      * §9's one-document bound on memory holds regardless of how many times a survivor is asked about.
      *
-     * <p><b>An {@code IMAGE} or {@code BMP} survivor shows no pictures</b> (ADR-150 §4, ADR-167): the picture Docling would crop
-     * from it is a re-sampled region of the original, not a second document worth carrying alongside it.
-     * No {@code VIDEO} survivor can exist while ADR-168 stands, since stage 1 removes every video as
-     * out of scope, but the filter covers it too, for the same reason a still Docling took from one
-     * would be a re-sampled frame and not a second document (ADR-168).
+     * <p>A survivor whose recorded format {@link DocumentPicture#listedFor} says lists no pictures shows
+     * none, and its cache key is not read (ADR-150 §4, ADR-226).
      * The format is read under the byte-level-reduction run this invocation arrived at (ADR-154), which
      * {@link #execute} resolves once, rather than re-derived from the current implementation version,
      * which would match nothing after that version changes.
@@ -702,7 +699,8 @@ class GenerationTasklet implements Tasklet {
     /**
      * Some of the arrangement's survivors, as {@code documents.csv} carries them (ADR-104, ADR-112):
      * gathered from {@code document_cluster}, the ledger's own facts, the content hash {@code extraction}
-     * recorded for each (ADR-206) and the scores read for them. A survivor with no score shows {@code 0.0}.
+     * recorded for each (ADR-206) and the scores read for them, each listed through
+     * {@link ListedSurvivor#of}, which decides what one with no score on record shows (ADR-226).
      *
      * @param seedPathOf a seed's path, asked once for each survivor
      * @param listed called after each survivor is listed
