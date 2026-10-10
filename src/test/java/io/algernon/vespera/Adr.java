@@ -1369,6 +1369,21 @@ public final class Adr {
     public static final String NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN = FILE
             + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
 
+    /**
+     * ADR-224 -- of the seven reads of ADR-218's section 3 that no other ticket held, three sort nothing
+     * once built and four stay excepted from the bound read into the survivors record, by the operator's
+     * choice, each with its measured bytes a row. The two reads of the embedder identities ask for the
+     * least, and for the least and the greatest under one name; the invocation account's three counts by
+     * kind or category are each one statement that selects counts and no column, naming every constant of
+     * its enumeration, {@code other} being the total less those. No index is added. The containment
+     * candidates, the review list's read by path, the winning seeds and the members of one partition stay
+     * as they stand, and the containment candidates' bounded form goes to #476, after #468. The build moves
+     * the run ids of the stages whose version names {@code pipeline} or {@code embedding} (amends ADR-218,
+     * ADR-220, ADR-198 and ADR-060's list of exceptions; decides #477).
+     */
+    public static final String THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING = FILE
+            + "0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md";
+
     private Adr() {
     }
 }

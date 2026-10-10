@@ -219,16 +219,13 @@ public class RelevanceDistribution {
      * when these vectors were made.
      *
      * <p>Empty when nothing has been embedded. Where more than one identity is present the rows do
-     * not say which is the newest, so a caller should treat this as a stamp on a file rather than as
-     * proof of what scored a document.
+     * not say which is the newest, and this answers the least of them, so a caller should treat it as a
+     * stamp on a file rather than as proof of what scored a document. It asks for the least and sorts
+     * nothing (ADR-224).
      */
     public Optional<String> anyEmbedderIdentity() {
-        return jdbcTemplate
-                .query(
-                        "SELECT DISTINCT embedder_identity FROM vector ORDER BY embedder_identity",
-                        (resultSet, rowNumber) -> resultSet.getString("embedder_identity"))
-                .stream()
-                .findFirst();
+        return Optional.ofNullable(jdbcTemplate.queryForObject(
+                "SELECT MIN(embedder_identity) FROM vector", String.class));
     }
 
     /**
@@ -304,12 +301,17 @@ public class RelevanceDistribution {
      * remove", which is the direction that loses no archive.
      */
     public Optional<String> embedderIdentityFor(String modelName) {
-        List<String> identities = jdbcTemplate.query(
-                "SELECT DISTINCT embedder_identity FROM vector WHERE embedder_identity LIKE ? ESCAPE '\\'"
-                        + " ORDER BY embedder_identity",
-                (resultSet, rowNumber) -> resultSet.getString("embedder_identity"),
+        // One identity answers to the name when the least and the greatest are the same (ADR-224 section 1).
+        return jdbcTemplate.queryForObject(
+                "SELECT MIN(embedder_identity), MAX(embedder_identity) FROM vector"
+                        + " WHERE embedder_identity LIKE ? ESCAPE '\\'",
+                (resultSet, rowNumber) -> {
+                    String least = resultSet.getString(1);
+                    return least != null && least.equals(resultSet.getString(2))
+                            ? Optional.of(least)
+                            : Optional.<String>empty();
+                },
                 EmbedderIdentity.likePatternFor(modelName));
-        return identities.size() == 1 ? Optional.of(identities.getFirst()) : Optional.empty();
     }
 
     /**

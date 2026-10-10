@@ -26,7 +26,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -44,8 +43,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * stage names are checked against the closed sets this package already holds, counts are numbers grouped
  * by a closed enumeration (a stored value that is none of them is written as {@code other}), an exception
  * is written as class names, and a progress line is written only when its whole text has the shape a
- * progress counter gives it. The SQL selects counts and closed columns, never {@code detail}, {@code
- * reason}, {@code label}, {@code title} or a path.
+ * progress counter gives it. The SQL selects counts and sums of comparisons with the enumeration's
+ * constants, and no column: never {@code detail}, {@code reason}, {@code label}, {@code title} or a path
+ * (ADR-224).
  *
  * <p>A failure to write never fails the invocation (ADR-198 section 6).
  */
@@ -205,12 +205,28 @@ final class InvocationAccount implements JobExecutionListener {
                     run.value());
             writeQuietly("counts occurrences=" + occurrences);
         });
-        grouped("SELECT kind, COUNT(*) FROM verdict WHERE run_id IN " + in + " GROUP BY kind", args, "verdict kind",
-                kind -> closed(VerdictKind.class, kind, false));
-        grouped("SELECT category, COUNT(*) FROM extraction_fault WHERE run_id IN " + in + " GROUP BY category", args,
-                "extraction-fault category", category -> closed(FailureCategory.class, category, true));
-        grouped("SELECT kind, COUNT(*) FROM cluster_fault WHERE run_id IN " + in + " GROUP BY kind", args,
-                "cluster-fault kind", kind -> closed(ClusterFaultKind.class, kind, false));
+        // ADR-224 section 1: a total and a sum for each constant in declaration order, each text written out
+        // whole so that a test plans it, NOCASE because a category is stored in lower case.
+        counted("SELECT COUNT(*), SUM(kind = 'BROKEN' COLLATE NOCASE),"
+                + " SUM(kind = 'DUPLICATE_OF' COLLATE NOCASE), SUM(kind = 'SUPERSEDED_BY' COLLATE NOCASE),"
+                + " SUM(kind = 'OUT_OF_SCOPE' COLLATE NOCASE), SUM(kind = 'EXTRACTION_FAILED' COLLATE NOCASE),"
+                + " SUM(kind = 'DEGENERATE_OUTPUT' COLLATE NOCASE), SUM(kind = 'REDUNDANT_WITH' COLLATE NOCASE),"
+                + " SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE), SUM(kind = 'PASSED' COLLATE NOCASE)"
+                + " FROM verdict WHERE run_id IN " + in, args, "verdict kind", VerdictKind.class, false);
+        counted("SELECT COUNT(*),"
+                + " SUM(category = 'POLICY' COLLATE NOCASE), SUM(category = 'CAPACITY' COLLATE NOCASE),"
+                + " SUM(category = 'SOURCE_UNAVAILABLE' COLLATE NOCASE),"
+                + " SUM(category = 'TARGET_UNAVAILABLE' COLLATE NOCASE), SUM(category = 'TIMEOUT' COLLATE NOCASE),"
+                + " SUM(category = 'INTERNAL' COLLATE NOCASE), SUM(category = 'BACKEND_FAILURE' COLLATE NOCASE),"
+                + " SUM(category = 'INFERENCE_FAILURE' COLLATE NOCASE), SUM(category = 'UNKNOWN' COLLATE NOCASE)"
+                + " FROM extraction_fault WHERE run_id IN " + in, args, "extraction-fault category",
+                FailureCategory.class, true);
+        counted("SELECT COUNT(*),"
+                + " SUM(kind = 'PROMPT_EVALUATION_CEILING' COLLATE NOCASE),"
+                + " SUM(kind = 'ANSWER_RAN_OUT_OF_ROOM' COLLATE NOCASE), SUM(kind = 'SCHEMA_VIOLATION' COLLATE NOCASE),"
+                + " SUM(kind = 'CITATION_NOT_IN_RANGE' COLLATE NOCASE)"
+                + " FROM cluster_fault WHERE run_id IN " + in, args, "cluster-fault kind",
+                ClusterFaultKind.class, false);
         Long clusters = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM cluster WHERE run_id IN " + in, Long.class, args);
         Long written = jdbcTemplate.queryForObject(
@@ -218,25 +234,29 @@ final class InvocationAccount implements JobExecutionListener {
         line("counts clusters arranged=" + clusters + " written=" + written);
     }
 
-    private void grouped(String sql, Object[] args, String what, Function<String, String> allowed)
+    /**
+     * One line for each constant of {@code type} that a row carries, and one for {@code other}, the rows that
+     * carry none: the total less the sums, so a stored value is never written (ADR-224 section 1). The sums
+     * come in the order the constants are declared, which the text names.
+     */
+    private <E extends Enum<E>> void counted(String sql, Object[] args, String what, Class<E> type, boolean lowerCase)
             throws IOException {
         Map<String, Long> totals = new TreeMap<>();
         jdbcTemplate.query(sql, resultSet -> {
-            totals.merge(allowed.apply(resultSet.getString(1)), resultSet.getLong(2), Long::sum);
+            long other = resultSet.getLong(1);
+            E[] kinds = type.getEnumConstants();
+            for (int i = 0; i < kinds.length; i++) {
+                long sum = resultSet.getLong(i + 2); // NULL over no rows reads as 0
+                other -= sum;
+                totals.put(lowerCase ? kinds[i].name().toLowerCase(Locale.ROOT) : kinds[i].name(), sum);
+            }
+            totals.put("other", other);
         }, args);
         for (Map.Entry<String, Long> total : totals.entrySet()) {
-            line("counts " + what + "=" + total.getKey() + " count=" + total.getValue());
-        }
-    }
-
-    /** The enumeration's own name for a stored value, or {@code other}: never the stored text itself. */
-    private static <E extends Enum<E>> String closed(Class<E> type, String stored, boolean lowerCase) {
-        for (E value : type.getEnumConstants()) {
-            if (value.name().equalsIgnoreCase(stored)) {
-                return lowerCase ? value.name().toLowerCase(Locale.ROOT) : value.name();
+            if (total.getValue() > 0) {
+                line("counts " + what + "=" + total.getKey() + " count=" + total.getValue());
             }
         }
-        return "other";
     }
 
     /** A run id is a hexadecimal digest; anything else is not written. */
