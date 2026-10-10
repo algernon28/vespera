@@ -76,6 +76,12 @@ class MethodsNothingShippedCallsAreGoneTest {
     /** Where the outcome type lived before ADR-226. */
     private static final String RELEVANCE_FLOOR_STATE = "io.algernon.vespera.pipeline.RelevanceFloor$State";
 
+    /** The reader of a run's scores, which also names the embedder identity its vectors carry. */
+    private static final String RELEVANCE_DISTRIBUTION = "io.algernon.vespera.embedding.RelevanceDistribution";
+
+    /** How many things the read of an embedder identity takes: the embedding model's name, and its artefact. */
+    private static final int A_NAME_AND_AN_ARTEFACT = 2;
+
     /** The clusters a run made, as the embedding module records them. */
     private static final String DOCUMENT_CLUSTERS = "io.algernon.vespera.embedding.DocumentClusters";
 
@@ -119,6 +125,35 @@ class MethodsNothingShippedCallsAreGoneTest {
         claim(
                 "nor is the outcome type of the code that runs the stages still there to declare it",
                 () -> assertThat(loads(RELEVANCE_FLOOR_STATE)).isFalse());
+    }
+
+    /**
+     * ADR-228: every step that wants the identity of a run's vectors asks for it by the embedding model's
+     * name and the artefact the run names, so the read by the name alone has no caller, and the label file
+     * is stamped with that identity, so the least identity of any model has none either.
+     */
+    @Test
+    @Story("Nothing ships that nothing calls")
+    @DisplayName("No embedder identity is read by an embedding model's name alone, or as the least of every model's")
+    @Issue("488")
+    @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
+    void noEmbedderIdentityIsReadByAModelsNameAlone() throws ClassNotFoundException {
+        Class<?> distribution =
+                Class.forName(RELEVANCE_DISTRIBUTION, false, MethodsNothingShippedCallsAreGoneTest.class.getClassLoader());
+        List<Integer> whatTheIdentitysReadTakes = Arrays.stream(distribution.getDeclaredMethods())
+                .filter(method -> !method.isSynthetic() && method.getName().equals("embedderIdentityFor"))
+                .map(Method::getParameterCount)
+                .toList();
+
+        claim(
+                "the reader of the scores names an embedder identity in one way, from " + A_NAME_AND_AN_ARTEFACT
+                        + " things: the embedding model's name and the artefact a run names for it. A read by the"
+                        + " name alone would answer for the vectors of every pull of that model",
+                () -> assertThat(whatTheIdentitysReadTakes).containsExactly(A_NAME_AND_AN_ARTEFACT));
+        claim(
+                "and it declares no anyEmbedderIdentity: the label file is stamped with the identity of the run"
+                        + " it was written under, and nothing else asked for the least identity of every model",
+                () -> assertThat(declaredMethodsOf(RELEVANCE_DISTRIBUTION)).doesNotContain("anyEmbedderIdentity"));
     }
 
     @Test

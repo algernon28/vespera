@@ -328,7 +328,7 @@ class TheRelevanceReportCountsTheAnswersAModelGaveInvocationTest {
                 true,
                 theFirstScoringRunOver(root),
                 1.0,
-                relevanceDistribution.embedderIdentityFor(MODEL_NAME).orElseThrow(),
+                jdbcTemplate.queryForObject("SELECT DISTINCT embedder_identity FROM vector", String.class),
                 A_LABELLER);
     }
 
@@ -340,7 +340,7 @@ class TheRelevanceReportCountsTheAnswersAModelGaveInvocationTest {
                 true,
                 theFirstScoringRunOver(root),
                 1.0,
-                relevanceDistribution.embedderIdentityFor(MODEL_NAME).orElseThrow());
+                jdbcTemplate.queryForObject("SELECT DISTINCT embedder_identity FROM vector", String.class));
     }
 
     private RunId theFirstScoringRunOver(Path root) {

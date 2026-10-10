@@ -101,7 +101,7 @@ class RelevanceFloorTasklet implements Tasklet {
         // documents here. Not yet a decision this run can be finished on -- a later invocation, once
         // embedding-scoring has actually run, may answer differently under this very run id.
         Optional<String> currentIdentity =
-                TimedStatement.of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName));
+                TimedStatement.of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact()));
         FloorReach reach = relevanceFloor.reachFor(currentIdentity, STAGE);
 
         // Every removal this run has standing goes before the reach is acted on, whichever way it

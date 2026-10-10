@@ -208,7 +208,8 @@ class RelevanceReportTasklet implements Tasklet {
                 RelevanceLabelFile.render(
                         scoring.value(),
                         TimedStatement.of(
-                                        STAGE, "reading", "read", "the embedder identities", relevanceDistribution::anyEmbedderIdentity)
+                                        STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(
+                                                modelName, stageRuns.embeddingModelArtefact()))
                                 .orElse(modelName),
                         // The preamble's seed-walk gate is open, and SeedGate opens it only for a seed
                         // folder the profile names and that canonicalises, so this is always present
@@ -242,7 +243,7 @@ class RelevanceReportTasklet implements Tasklet {
             return Optional.empty();
         }
         Optional<String> currentIdentity = TimedStatement.of(
-                STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName.get()));
+                STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName.get(), stageRuns.embeddingModelArtefact()));
         if (currentIdentity.isEmpty()) {
             return Optional.empty();
         }

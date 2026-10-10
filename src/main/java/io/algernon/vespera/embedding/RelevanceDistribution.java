@@ -211,24 +211,6 @@ public class RelevanceDistribution {
     }
 
     /**
-     * The embedder identity the stored vectors carry, when they all carry the same one.
-     *
-     * <p>ADR-084 makes a vector carry its whole embedder identity, composed from what the runtime
-     * reported when the vector was made. It is knowable here and nowhere cheaper: recomputing it
-     * would mean asking the runtime what it is today, which is a different question from what it was
-     * when these vectors were made.
-     *
-     * <p>Empty when nothing has been embedded. Where more than one identity is present the rows do
-     * not say which is the newest, and this answers the least of them, so a caller should treat it as a
-     * stamp on a file rather than as proof of what scored a document. It asks for the least and sorts
-     * nothing (ADR-224).
-     */
-    public Optional<String> anyEmbedderIdentity() {
-        return Optional.ofNullable(jdbcTemplate.queryForObject(
-                "SELECT MIN(embedder_identity) FROM vector", String.class));
-    }
-
-    /**
      * Every scored document under {@code scoringRunId}, handed out a page of up to {@value #SCORES_IN_A_PAGE}
      * at a time in the order the scores were written, each page one statement asked for only when the page in
      * hand has been gone through (ADR-220 section 13). Nothing is held between pages and nothing needs closing;
@@ -290,18 +272,16 @@ public class RelevanceDistribution {
     }
 
     /**
-     * The embedder identity the vectors of {@code modelName} carry, when exactly one identity
-     * answers to that name — this run's own scale, as opposed to {@link #anyEmbedderIdentity}'s
-     * stamp over every model the database has ever held.
+     * The embedder identity the vectors of {@code modelName} under {@code artefact} carry, when exactly one
+     * identity answers to that name, digest and weight dtype (ADR-228).
      *
-     * <p>Empty where nothing has been embedded under the name, and empty too where more than one
-     * identity answers to it: a model whose manifest digest, dtype or dimension changed under the
-     * same name has produced two scales, and naming either as the current one would be a guess. The
-     * caller that asks this in order to decide whether a threshold applies reads empty as "do not
-     * remove", which is the direction that loses no archive.
+     * <p>Empty where nothing has been embedded under them, and empty too where more than one identity
+     * answers: two dimensions under one digest have produced two scales, and naming either as the current
+     * one would be a guess. The caller that asks this in order to decide whether a threshold applies reads
+     * empty as "do not remove", which is the direction that loses no archive.
      */
-    public Optional<String> embedderIdentityFor(String modelName) {
-        // One identity answers to the name when the least and the greatest are the same (ADR-224 section 1).
+    public Optional<String> embedderIdentityFor(String modelName, ModelArtefact artefact) {
+        // One identity answers to the name, digest and weight dtype when the least and the greatest are the same (ADR-224 section 1).
         return jdbcTemplate.queryForObject(
                 "SELECT MIN(embedder_identity), MAX(embedder_identity) FROM vector"
                         + " WHERE embedder_identity LIKE ? ESCAPE '\\'",
@@ -311,7 +291,7 @@ public class RelevanceDistribution {
                             ? Optional.of(least)
                             : Optional.<String>empty();
                 },
-                EmbedderIdentity.likePatternFor(modelName));
+                EmbedderIdentity.likePatternFor(modelName, artefact));
     }
 
     /**

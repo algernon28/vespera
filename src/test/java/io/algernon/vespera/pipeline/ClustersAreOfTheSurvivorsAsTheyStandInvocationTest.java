@@ -447,7 +447,8 @@ class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
     }
 
     private String thisRunsIdentity() {
-        return relevanceDistribution.embedderIdentityFor(MODEL_NAME).orElseThrow();
+        // One row, or the read throws: the vectors here are all the scripted runtime's (ADR-228).
+        return jdbcTemplate.queryForObject("SELECT DISTINCT embedder_identity FROM vector", String.class);
     }
 
     /** One answer about one of this corpus's documents, as given while {@code embedderIdentity} was in use. */

@@ -318,6 +318,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             Map.entry(
                     "RelevanceScoringTasklet",
                     Set.of(
+                            "embedding.ModelArtefact",
+                            "embedding.RelevanceDistribution",
                             "embedding.RelevanceScoring",
                             "embedding.ScoringProgress",
                             "embedding.UnusableSeed",
@@ -337,7 +339,11 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "profile.TextValue")),
             Map.entry(
                     "RelevanceFloorTasklet",
-                    Set.of("embedding.FloorReach", "embedding.RelevanceDistribution", "embedding.RelevanceScoring")),
+                    Set.of(
+                            "embedding.FloorReach",
+                            "embedding.ModelArtefact",
+                            "embedding.RelevanceDistribution",
+                            "embedding.RelevanceScoring")),
             Map.entry(
                     "ClusteringTasklet",
                     Set.of(
@@ -347,6 +353,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             // it: whether its recorded work is done again is wiring (ADR-230 section 2).
                             "embedding.DocumentCluster",
                             "embedding.DocumentClusters",
+                            "embedding.ModelArtefact",
+                            "embedding.RelevanceDistribution",
                             "embedding.RetainedEdgeSpread",
                             "extraction.ChunkingRule",
                             "extraction.ChunkingRuleIdentity",
@@ -358,6 +366,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "corpus.Walk",
                             "embedding.FloorReach",
                             "embedding.LabelledSpread",
+                            "embedding.ModelArtefact",
                             "embedding.RelevanceDistribution",
                             "embedding.RelevanceLabel",
                             "embedding.RelevanceLabels",

@@ -305,12 +305,14 @@ class StageFiveReportsItsProgressInvocationTest {
         everyLineIsTheCounters(SEED_KEYS, SEED_VECTORS, SCORING_SURVIVORS);
         claim(
                 "scoring says what it is reading and how long each read took, each line once, in the order it"
-                        + " reads: the seed folder's files and the unusable seeds, for the seeds whose keys it reads, and"
-                        + " then that it counts the documents left, which it goes through as it reads them",
+                        + " reads: the seed folder's files and the unusable seeds, for the seeds whose keys it reads,"
+                        + " the embedder identities, for the one its run's vectors carry, and then"
+                        + " that it counts the documents left, which it goes through as it reads them",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_D))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_D, SEED_OCCURRENCES),
                                 StatementLines.timedRead(STAGE_FIVE_D, UNUSABLE_SEEDS),
+                                StatementLines.timedRead(STAGE_FIVE_D, EMBEDDER_IDENTITIES),
                                 StatementLines.timedCount(STAGE_FIVE_D, CORPUS_SURVIVORS))));
     }
 
@@ -376,13 +378,15 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(BLOCKS)).isEmpty());
         everyLineIsTheCounters(RELEVANCE_FLOOR, REPORT_ANSWERS, PARTITIONS);
         claim(
-                "grouping says it read the seed partitions and the members of the one partition, and says"
+                "grouping says it read the seed partitions, the embedder identities, which it reads before any"
+                        + " partition, and the members of the one partition, and says"
                         + " nothing of the documents left, asking only which of that partition's members are left,"
                         + " and nothing of its group sizes: it kept no member, so nothing was grouped and no sizes"
                         + " were read",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_F))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
+                                StatementLines.timedRead(STAGE_FIVE_F, EMBEDDER_IDENTITIES),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 1"))));
         claim(
                 "with a threshold that is a number and applies, the floor step makes two reads and a count and says"
@@ -444,11 +448,13 @@ class StageFiveReportsItsProgressInvocationTest {
         everyLineIsTheCounters(PARTITIONS, KEYS_READ_OF_THE_ONE, BLOCKS);
         claim(
                 "grouping says what it is reading and how long each read took, each line once, in the order it"
-                        + " reads: the seed partitions, the members of the one partition, and, once that partition"
+                        + " reads: the seed partitions, the embedder identities, for the one its run's vectors"
+                        + " carry, the members of the one partition, and, once that partition"
                         + " is grouped, the sizes of its groups; and nothing of reading the documents left",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_F))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
+                                StatementLines.timedRead(STAGE_FIVE_F, EMBEDDER_IDENTITIES),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 1"),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the cluster sizes of partition 1 of 1"))));
     }
@@ -808,11 +814,13 @@ class StageFiveReportsItsProgressInvocationTest {
                 });
         claim(
                 "it says what it is reading and how long each read took, each line once, in the order it reads:"
-                        + " the seed partitions; the members of partition 1 of 2 and, once it is grouped, its group"
+                        + " the seed partitions; the embedder identities, once for both partitions; the members of"
+                        + " partition 1 of 2 and, once it is grouped, its group"
                         + " sizes; then the same of partition 2 of 2; and nothing of reading the documents left",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_F))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_F, "the seed partitions"),
+                                StatementLines.timedRead(STAGE_FIVE_F, EMBEDDER_IDENTITIES),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 2"),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the cluster sizes of partition 1 of 2"),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 2 of 2"),
@@ -1046,7 +1054,7 @@ class StageFiveReportsItsProgressInvocationTest {
      * embedder this run used was in use, which is what makes a threshold calibrated to this scale.
      */
     private void anAnswerGivenUnderThisRunsIdentity(Path root, Path seeds) {
-        String identity = relevanceDistribution.embedderIdentityFor(MODEL_NAME).orElseThrow();
+        String identity = jdbcTemplate.queryForObject("SELECT DISTINCT embedder_identity FROM vector", String.class);
         String aDocument = jdbcTemplate.queryForObject(
                 "SELECT f.path FROM file_occurrence f JOIN walk w ON w.id = f.walk_id"
                         + " WHERE w.root = ? ORDER BY f.path LIMIT 1",

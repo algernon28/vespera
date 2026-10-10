@@ -14,6 +14,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,15 +24,16 @@ import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 
 /**
- * The two reads {@link RelevanceDistribution} makes of the embedder identities the {@code vector} table
- * keeps answer what they answered and keep nothing in temporary storage (ADR-224 section 1): {@link
- * RelevanceDistribution#anyEmbedderIdentity} asks for the least identity, and {@link
- * RelevanceDistribution#embedderIdentityFor} for the least and the greatest under one embedding model's
- * name, which are the same where exactly one answers to it.
+ * The one read {@link RelevanceDistribution} makes of the embedder identities the {@code vector} table keeps
+ * answers the identity a run's vectors carry and keeps nothing in temporary storage (ADR-224 section 1, as
+ * ADR-228 amends it): it asks for the least and the greatest identity under an embedding model's name and
+ * the artefact a run names for it, the manifest digest and the weight dtype, which are the same where
+ * exactly one answers.
  *
- * <p>Before ADR-224 is built both statements carry {@code DISTINCT} and sort every row of {@code vector}
- * (ADR-218, row 15). The claims on what is answered pass against that code and have to go on passing; the
- * claim on the plans fails against it.
+ * <p>ADR-224 held two reads here, the second being the least identity over every model, for a stamp on the
+ * label file. ADR-228 takes that read away: the file is stamped with the identity of the run it was written
+ * under. And it narrows the first from the model's name to the name and the artefact, so that the vectors
+ * an earlier pull left under the same name do not make the answer "none".
  *
  * <p>The database is the shipped {@code schema.sql} in memory, on a connection of this test's own, with a
  * few rows. A plan over a few rows is not a plan over millions: no size is held here, as none is held by
@@ -40,28 +42,30 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 @Epic("Embedding")
 @Feature("Embedder identity")
 @Issue("477")
+@Issue("488")
 @Link(name = "ADR-224", url = Adr.THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING, type = "adr")
 @Link(name = "ADR-218", url = Adr.EVERY_STATEMENT_WHOSE_TEMPORARY_FILES_GROW_IS_AN_EXCEPTION_WITH_ITS_SIZE, type = "adr")
+@Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
 class TheEmbedderIdentityReadsSortNothingTest {
 
-    /** An embedding model whose name sorts first of the two stored. */
-    private static final String FIRST_MODEL = "alpha-embed";
-
-    /** An embedding model whose name sorts after {@link #FIRST_MODEL}'s. */
-    private static final String SECOND_MODEL = "beta-embed";
+    /** The embedding model the vectors are stored under. */
+    private static final String THE_MODEL = "alpha-embed";
 
     /** An embedding model no vector is stored under. */
     private static final String A_MODEL_NOBODY_STORED = "gamma-embed";
 
     private static final String DIGEST = "7f9c2ba4e88f827d616045507605853ed73b8093f6efbc88eb1a6eacfa66ef26";
 
-    /** A second manifest digest, so that one model's name carries two identities. */
+    /** A second manifest digest, so that one model's name carries the identities of two pulls. */
     private static final String ANOTHER_DIGEST = "0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9";
 
     private static final String DTYPE = "F16";
 
-    /** Each fixture vector has four components; the length plays no part in what is read. */
+    /** Each fixture vector has four components. */
     private static final int DIMENSION = 4;
+
+    /** A second number of components, so that one artefact carries two identities. */
+    private static final int ANOTHER_DIMENSION = 2;
 
     private static final float[] A_VECTOR = {1f, 0f, 0f, 0f};
 
@@ -94,79 +98,84 @@ class TheEmbedderIdentityReadsSortNothingTest {
     }
 
     @Test
-    @Story("The identity stamped on a report is read without sorting the vectors")
-    @DisplayName("With no vector stored there is no identity to stamp")
+    @Story("An embedding model's identity is named only where exactly one answers to its name and artefact")
+    @DisplayName("With no vector stored there is no identity to answer")
     void noIdentityWhereNoVectorIsStored() {
         claim(
                 "no identity is answered over a table with no vector in it",
-                () -> assertThat(distribution.anyEmbedderIdentity()).isEmpty());
+                () -> assertThat(identityUnder(THE_MODEL, DIGEST)).isEmpty());
     }
 
     @Test
-    @Story("The identity stamped on a report is read without sorting the vectors")
-    @DisplayName("With vectors under two identities the stamp is the one that sorts first")
-    void theLeastIdentityIsAnswered() {
-        store(SECOND_MODEL, DIGEST);
-        store(FIRST_MODEL, DIGEST);
+    @Story("An embedding model's identity is named only where exactly one answers to its name and artefact")
+    @DisplayName("The vectors of an earlier pull under the same name do not hide the identity of the pull asked about")
+    void aSecondPullUnderTheNameDoesNotMakeItTwo() {
+        store(THE_MODEL, DIGEST, DIMENSION);
+        store(THE_MODEL, ANOTHER_DIGEST, DIMENSION);
 
         claim(
-                "the identity answered is the first of the two in text order, though it was stored second:"
-                        + " which of several is answered does not depend on the order they were written in",
-                () -> assertThat(distribution.anyEmbedderIdentity()).contains(identityOf(FIRST_MODEL, DIGEST)));
+                "asked about the embedding model under the first digest, the identity answered is the one stored"
+                        + " under it, though the same name carries a second: a run names the digest it was"
+                        + " embedded under, so the other pull's vectors are not its concern",
+                () -> assertThat(identityUnder(THE_MODEL, DIGEST)).contains(identityOf(THE_MODEL, DIGEST, DIMENSION)));
+        claim(
+                "and asked about it under the second digest, the answer is the second identity",
+                () -> assertThat(identityUnder(THE_MODEL, ANOTHER_DIGEST))
+                        .contains(identityOf(THE_MODEL, ANOTHER_DIGEST, DIMENSION)));
     }
 
     @Test
-    @Story("An embedding model's identity is named only where exactly one answers to its name")
-    @DisplayName("One identity under a name is answered, two under one name answer nothing, and so does a name nobody stored")
-    void oneIdentityUnderANameIsAnsweredAndTwoAreNot() {
-        store(FIRST_MODEL, DIGEST);
-        store(SECOND_MODEL, DIGEST);
-        store(SECOND_MODEL, ANOTHER_DIGEST);
+    @Story("An embedding model's identity is named only where exactly one answers to its name and artefact")
+    @DisplayName("Two identities under one name and one artefact answer nothing, and so does a name nobody stored")
+    void twoIdentitiesUnderOneArtefactAreNotAnswered() {
+        store(THE_MODEL, DIGEST, DIMENSION);
+        store(THE_MODEL, DIGEST, ANOTHER_DIMENSION);
 
         claim(
-                "the embedding model stored under one identity answers that identity",
-                () -> assertThat(distribution.embedderIdentityFor(FIRST_MODEL)).contains(identityOf(FIRST_MODEL, DIGEST)));
-        claim(
-                "the embedding model stored under two identities answers neither: naming one would be a guess",
-                () -> assertThat(distribution.embedderIdentityFor(SECOND_MODEL)).isEmpty());
+                "the embedding model stored under two identities of one digest and one weight format, which"
+                        + " differ in the length of their vectors, answers neither: naming one would be a guess",
+                () -> assertThat(identityUnder(THE_MODEL, DIGEST)).isEmpty());
         claim(
                 "an embedding model no vector is stored under answers nothing",
-                () -> assertThat(distribution.embedderIdentityFor(A_MODEL_NOBODY_STORED)).isEmpty());
+                () -> assertThat(identityUnder(A_MODEL_NOBODY_STORED, DIGEST)).isEmpty());
     }
 
     @Test
-    @Story("The identity stamped on a report is read without sorting the vectors")
-    @DisplayName("Neither read of the identities keeps rows in temporary storage")
-    void neitherReadKeepsRowsInTemporaryStorage() {
-        store(FIRST_MODEL, DIGEST);
-        store(SECOND_MODEL, DIGEST);
+    @Story("The identity of a run's vectors is read without sorting the vectors")
+    @DisplayName("The read of the identities keeps no rows in temporary storage")
+    void theReadKeepsNoRowsInTemporaryStorage() {
+        store(THE_MODEL, DIGEST, DIMENSION);
+        store(THE_MODEL, ANOTHER_DIGEST, DIMENSION);
         log.clear();
 
-        distribution.anyEmbedderIdentity();
-        distribution.embedderIdentityFor(FIRST_MODEL);
+        identityUnder(THE_MODEL, DIGEST);
         List<String> reads = log.said();
 
         claim(
-                "two statements were sent, one for each read, and both read the table of vectors",
-                () -> assertThat(reads).hasSize(2).allMatch(sql -> sql.contains("FROM vector")));
+                "one statement was sent, and it read the table of vectors",
+                () -> assertThat(reads).hasSize(1).allMatch(sql -> sql.contains("FROM vector")));
         claim(
-                "the database plans neither through a temporary B-tree: a read that did would sort a row for"
-                        + " every vector stored, under every embedder, to answer one or two identities",
+                "the database does not plan it through a temporary B-tree: a read that did would sort a row for"
+                        + " every vector stored, under every embedder, to answer one identity",
                 () -> assertThat(reads)
                         .allSatisfy(sql -> assertThat(planOf(sql))
                                 .as("the plan of: %s", sql)
                                 .noneMatch(detail -> detail.contains("TEMP B-TREE"))));
     }
 
-    /** Stores {@value #CHUNKS_UNDER_EACH_IDENTITY} chunks' vectors under the identity of {@code model} and {@code digest}. */
-    private void store(String model, String digest) {
+    private Optional<String> identityUnder(String model, String digest) {
+        return distribution.embedderIdentityFor(model, new ModelArtefact(digest, DTYPE));
+    }
+
+    /** Stores {@value #CHUNKS_UNDER_EACH_IDENTITY} chunks' vectors under the identity of the three. */
+    private void store(String model, String digest, int dimension) {
         for (int ordinal = 0; ordinal < CHUNKS_UNDER_EACH_IDENTITY; ordinal++) {
-            cache.put(CONTENT_HASH, CHUNKER, CHUNKING_RULE, ordinal, identityOf(model, digest), A_VECTOR);
+            cache.put(CONTENT_HASH, CHUNKER, CHUNKING_RULE, ordinal, identityOf(model, digest, dimension), A_VECTOR);
         }
     }
 
-    private static String identityOf(String model, String digest) {
-        return EmbedderIdentity.withoutInstruction(model, digest, DTYPE, DIMENSION).value();
+    private static String identityOf(String model, String digest, int dimension) {
+        return EmbedderIdentity.withoutInstruction(model, digest, DTYPE, dimension).value();
     }
 
     /** The plan SQLite gives {@code sql}, every placeholder bound to a text, which changes no plan here. */

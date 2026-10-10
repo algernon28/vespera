@@ -42,9 +42,13 @@ public class RelevanceScoring {
             Map<OccurrenceId, String> seedContentHashesByOccurrence,
             String chunkerIdentity,
             String chunkingRuleIdentity,
-            String modelName) {
+            String embedderIdentity) {
         return residentSeedVectors(
-                seedContentHashesByOccurrence, chunkerIdentity, chunkingRuleIdentity, modelName, ScoringProgress.NONE);
+                seedContentHashesByOccurrence,
+                chunkerIdentity,
+                chunkingRuleIdentity,
+                embedderIdentity,
+                ScoringProgress.NONE);
     }
 
     /**
@@ -55,13 +59,13 @@ public class RelevanceScoring {
             Map<OccurrenceId, String> seedContentHashesByOccurrence,
             String chunkerIdentity,
             String chunkingRuleIdentity,
-            String modelName,
+            String embedderIdentity,
             ScoringProgress progress) {
         Map<OccurrenceId, List<float[]>> resident = new LinkedHashMap<>();
         progress.toReadSeedVectors(seedContentHashesByOccurrence.size());
         for (Map.Entry<OccurrenceId, String> seed : seedContentHashesByOccurrence.entrySet()) {
             List<float[]> vectors =
-                    vectorCache.vectorsFor(seed.getValue(), chunkerIdentity, chunkingRuleIdentity, modelName);
+                    vectorCache.vectorsFor(seed.getValue(), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
             if (!vectors.isEmpty()) {
                 resident.put(seed.getKey(), vectors);
             }
@@ -150,7 +154,7 @@ public class RelevanceScoring {
      * (stage 2 removes documents with no text before a survivor is ever chunked), so a row here would
      * misreport an assumption as a measurement (ADR-020, "Confirm, do not assume"). The message names
      * what is actually possible rather than tier 1's no-text floor, which ADR-139 measured innocent of
-     * this: an occurrence no stage ever examined, or vectors a changed embedding model never wrote.
+     * this: an occurrence no stage ever examined, or vectors another pull of the embedding model wrote.
      */
     public void scoreAndRecord(
             OccurrenceId occurrenceId,
@@ -158,16 +162,16 @@ public class RelevanceScoring {
             String contentHash,
             String chunkerIdentity,
             String chunkingRuleIdentity,
-            String modelName,
+            String embedderIdentity,
             Map<OccurrenceId, List<float[]>> residentSeedVectors) {
         List<float[]> survivorChunkVectors =
-                vectorCache.vectorsFor(contentHash, chunkerIdentity, chunkingRuleIdentity, modelName);
+                vectorCache.vectorsFor(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
         if (survivorChunkVectors.isEmpty()) {
             throw new IllegalStateException(
                     "occurrence " + occurrenceId.value() + " has no stored chunk vectors to score; a"
                             + " corpus survivor with no chunks was confirmed impossible by construction"
                             + " (#108) -- if this is reached, either no stage ever examined this occurrence,"
-                            + " or a changed embedding model never wrote vectors for it");
+                            + " or another pull of the embedding model wrote its vectors");
         }
         RelevanceScore score = scorer.score(survivorChunkVectors, residentSeedVectors);
         scoreCache.record(occurrenceId, runId, score);

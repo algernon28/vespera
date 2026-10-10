@@ -78,13 +78,22 @@ public record EmbedderIdentity(
     }
 
     /**
-     * The {@code LIKE} pattern matching every identity {@link #value()} composes for {@code modelName}, for a
-     * statement written with {@code ESCAPE '\'}. The name's backslash, {@code %} and {@code _} are escaped,
-     * so the name matches only literally (ADR-216).
+     * The {@code LIKE} pattern matching every identity {@link #value()} composes for {@code modelName} under
+     * {@code artefact}, whatever the dimension and instruction, for a statement written with {@code ESCAPE '\'}.
+     * The backslash, {@code %} and {@code _} of each of the three parts are escaped, so no
+     * character of them is a wildcard (ADR-216, ADR-228). ASCII letters still match in either case, as SQLite's
+     * {@code LIKE} folds them: two identities differing only in case both answer, so none is single and
+     * a caller reading "no single identity" removes nothing.
      */
-    static String likePatternFor(String modelName) {
-        String escaped = modelName.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-        return "model=" + escaped + ";%";
+    static String likePatternFor(String modelName, ModelArtefact artefact) {
+        return "model=" + escaped(modelName)
+                + ";digest=" + escaped(artefact.digest())
+                + ";dtype=" + escaped(artefact.weightDtype())
+                + ";%";
+    }
+
+    private static String escaped(String part) {
+        return part.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private static void requireStated(String part, String value) {

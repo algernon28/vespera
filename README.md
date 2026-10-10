@@ -204,6 +204,8 @@ docker compose -p vespera exec ollama ollama pull <embeddingModel>
 docker compose -p vespera exec ollama ollama pull qwen3:8b
 ```
 
+Pulling the embedding model again can change it, because a name can be published again with other contents. Vespera then treats it as another model: the next `vespera run` embeds and scores every document again, the relevance threshold removes nothing until the sample is answered again from the new label file, and the arrangement has to be approved again. Pull it again only when you mean to.
+
 **Run it.** Each `vespera` in this file is this command:
 
 ```

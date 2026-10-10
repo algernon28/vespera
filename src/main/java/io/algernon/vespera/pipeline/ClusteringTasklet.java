@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.embedding.Clustering;
 import io.algernon.vespera.embedding.ClusteringProgress;
+import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RetainedEdgeSpread;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
@@ -79,6 +80,7 @@ class ClusteringTasklet implements Tasklet {
     private final Ledger ledger;
     private final HybridChunker hybridChunker;
     private final Clustering clustering;
+    private final RelevanceDistribution relevanceDistribution;
     private final DocumentClusters documentClusters;
     private final ExtractionCacheKeys cacheKeys;
     private final Path workingDirectory;
@@ -91,9 +93,11 @@ class ClusteringTasklet implements Tasklet {
             Ledger ledger,
             HybridChunker hybridChunker,
             Clustering clustering,
+            RelevanceDistribution relevanceDistribution,
             DocumentClusters documentClusters,
             JdbcTemplate jdbcTemplate,
             @Value("${vespera.working-dir}") Path workingDirectory) {
+        this.relevanceDistribution = relevanceDistribution;
         this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
@@ -133,6 +137,19 @@ class ClusteringTasklet implements Tasklet {
                                 scoring.value());
                         return false;
                     }
+
+                    // Scores are recorded, so the vectors have to be under one identity (ADR-228).
+                    String embedderIdentity = TimedStatement.of(
+                                    STAGE,
+                                    "reading",
+                                    "read",
+                                    "the embedder identities",
+                                    () -> relevanceDistribution.embedderIdentityFor(
+                                            modelName, stageRuns.embeddingModelArtefact()))
+                            .orElseThrow(() -> new IllegalStateException("the vectors under " + modelName
+                                    + " carry no single embedder identity for the digest and weight dtype scoring"
+                                    + " run " + scoring.value()
+                                    + " names, so there is no one set of vectors to cluster"));
 
                     documentClusters.discardForRun(scoring);
 
@@ -186,7 +203,7 @@ class ClusteringTasklet implements Tasklet {
                                 contentHashesOf(extractionRun, members, keysRead),
                                 chunkerIdentity,
                                 chunkingRuleIdentity,
-                                modelName,
+                                embedderIdentity,
                                 blocksOfPartition(partition + 1, partitions.size()));
                         // Read back rather than returned from the pass: a cluster exists as the set of
                         // rows carrying its identity, so the sizes a reader is shown are the rows, not

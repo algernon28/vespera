@@ -66,21 +66,18 @@ class VectorCache {
      * rather than the corpus's, which is what lets a caller hold a survivor's vectors and discard them
      * before reading the next (ADR-085).
      *
-     * <p>Matched against {@code modelName} by prefix, not the whole embedder identity: the digest,
-     * dtype and dimension a bake-off model reports are exactly what this method does not need to
-     * recompute to find the vectors the currently-named model already produced. {@code modelName}
-     * itself is escaped before it enters the pattern, since a name carrying a literal {@code %} or
-     * {@code _} must never be read as a wildcard.
+     * <p>Matched against {@code embedderIdentity} whole, with {@code =} (ADR-228).
      */
-    List<float[]> vectorsFor(String contentHash, String chunkerIdentity, String chunkingRuleIdentity, String modelName) {
+    List<float[]> vectorsFor(
+            String contentHash, String chunkerIdentity, String chunkingRuleIdentity, String embedderIdentity) {
         return jdbcTemplate.query(
                 "SELECT embedding FROM vector WHERE content_hash = ? AND chunker_identity = ?"
-                        + " AND chunking_rule_identity = ? AND embedder_identity LIKE ? ESCAPE '\\' ORDER BY ordinal",
+                        + " AND chunking_rule_identity = ? AND embedder_identity = ? ORDER BY ordinal",
                 (resultSet, rowNumber) -> floatsFrom(resultSet.getBytes("embedding")),
                 contentHash,
                 chunkerIdentity,
                 chunkingRuleIdentity,
-                EmbedderIdentity.likePatternFor(modelName));
+                embedderIdentity);
     }
 
     private static byte[] littleEndianFloat32(float[] vector) {
