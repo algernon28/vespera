@@ -8,8 +8,10 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -29,12 +31,37 @@ import org.junit.jupiter.api.Test;
  * <p>Read by reflection over each class's own declared methods, so a method of the same name added to
  * another class does not satisfy a claim here. Written before the change it pins: against the tree it was
  * written on, every test here fails, naming the method that is still there.
+ *
+ * <p><b>The dead code in the two other modules is gone too</b> (ADR-216 section 5, #469), carried by the
+ * change ADR-220 records, which re-mints both: {@code corpus}'s read of the representative, which only
+ * tests called, and {@code extraction}'s three structureless fallback types and its second copy of the rule
+ * that resolves a Docling reference. The last three tests hold those. They were written after that change,
+ * so none of the three was seen to fail.
  */
 @Epic("Architecture")
 @Feature("Dead code")
 @Issue("352")
+@Issue("469")
 @Link(name = "ADR-216", url = Adr.NOTHING_SHIPS_THAT_NO_DECISION_REQUIRES_AND_NOTHING_CALLS, type = "adr")
+@Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class MethodsNothingShippedCallsAreGoneTest {
+
+    /** The record of content identity and of which copy stands for the others. */
+    private static final String CONTENT_IDENTITY = "io.algernon.vespera.corpus.ContentIdentity";
+
+    private static final String EXTRACTION = "io.algernon.vespera.extraction.";
+
+    /** The three types of the structureless fallback, both halves and the seam between them. */
+    private static final List<String> THE_STRUCTURELESS_FALLBACK = List.of(
+            EXTRACTION + "StructurelessChunkingFallback",
+            EXTRACTION + "LlmStructurelessChunkingFallback",
+            EXTRACTION + "WindowedStructurelessChunkingFallback");
+
+    /** The one class of the module that resolves a Docling reference, by a method the picture reader calls too. */
+    private static final String THE_ONE_RESOLVER = EXTRACTION + "DoclingDocumentTexts";
+
+    /** The type of a node of Docling's JSON, by its simple name: what a resolver takes and answers. */
+    private static final String A_JSON_NODE = "JsonNode";
 
     /** The ledger's record of walks. */
     private static final String WALKS = "io.algernon.vespera.ledger.Walks";
@@ -84,6 +111,72 @@ class MethodsNothingShippedCallsAreGoneTest {
         claim(
                 "and it no longer declares partitionsFor, which neither shipped code nor any test called",
                 () -> assertThat(methods).doesNotContain("partitionsFor"));
+    }
+
+    @Test
+    @Story("Nothing ships that nothing calls")
+    @DisplayName("The record of identical files no longer answers which copy stands for another, a question only tests asked")
+    void contentIdentityNoLongerAnswersWhichCopyStandsForAnother() throws ClassNotFoundException {
+        Set<String> methods = declaredMethodsOf(CONTENT_IDENTITY);
+
+        claim(
+                "the record was read and still writes which copy stands for another, so the table a person may"
+                        + " query is still filled",
+                () -> assertThat(methods).contains("recordSupersededBy"));
+        claim(
+                "and it no longer declares representativeFor: no shipped class asked it, and a test that wants"
+                        + " to know reads the table itself",
+                () -> assertThat(methods).doesNotContain("representativeFor"));
+    }
+
+    @Test
+    @Story("Nothing ships that nothing calls")
+    @DisplayName("Nothing is left of the two ways of splitting a document that has no structure, neither of which ever split one")
+    void theStructurelessFallbackIsGone() {
+        ClassLoader shipped = MethodsNothingShippedCallsAreGoneTest.class.getClassLoader();
+        List<String> stillThere = THE_STRUCTURELESS_FALLBACK.stream()
+                .filter(type -> {
+                    try {
+                        Class.forName(type, false, shipped);
+                        return true;
+                    } catch (ClassNotFoundException gone) {
+                        return false;
+                    }
+                })
+                .toList();
+
+        claim(
+                "none of the three types is there to load: the one that asked a model threw when used, and the"
+                        + " one that cut by word count was only ever handed empty text",
+                () -> assertThat(stillThere).isEmpty());
+    }
+
+    @Test
+    @Story("Nothing ships that nothing calls")
+    @DisplayName("One class works out what a reference inside a converted document points at, and no second copy of that rule exists")
+    void oneClassOfExtractionResolvesADoclingReference() throws ClassNotFoundException, IOException {
+        Set<String> resolvers = new TreeSet<>();
+        for (String shippedClass : ShippedClasses.stringsByClass().keySet()) {
+            if (!shippedClass.startsWith(EXTRACTION)) {
+                continue;
+            }
+            Class<?> type = Class.forName(shippedClass, false, MethodsNothingShippedCallsAreGoneTest.class.getClassLoader());
+            boolean resolves = Arrays.stream(type.getDeclaredMethods())
+                    .filter(method -> !method.isSynthetic())
+                    .anyMatch(method -> method.getReturnType().getSimpleName().equals(A_JSON_NODE)
+                            && method.getParameterCount() == 2
+                            && method.getParameterTypes()[0].getSimpleName().equals(A_JSON_NODE)
+                            && method.getParameterTypes()[1] == String.class);
+            if (resolves) {
+                resolvers.add(shippedClass);
+            }
+        }
+
+        claim(
+                "of the classes that read a converted document, exactly one declares a method that takes the"
+                        + " document and a reference and answers what the reference points at: the reader of a"
+                        + " document's texts, which the reader of its pictures calls instead of keeping a copy",
+                () -> assertThat(resolvers).containsExactly(THE_ONE_RESOLVER));
     }
 
     /** The names of the methods {@code className} itself declares, synthetic ones left out. */
