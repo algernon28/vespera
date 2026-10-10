@@ -1440,7 +1440,7 @@ public final class Adr {
      * why a cluster is unwritten, and a survivor with no score listed with 0.0, to {@code synthesis}; every
      * profile key as written, to {@code profile}, which generation's version now names. Persisted names,
      * cache keys and operator text are unchanged; every stage from extraction to generation is minted once
-     * (amends ADR-222, ADR-058, ADR-157, ADR-190, ADR-186, ADR-100, ADR-133 and ADR-152; decides #479).
+     * (amends ADR-222, ADR-058, ADR-157, ADR-190, ADR-186, ADR-100, ADR-150, ADR-133 and ADR-152; decides #479).
      */
     public static final String NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES = FILE
             + "0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md";
