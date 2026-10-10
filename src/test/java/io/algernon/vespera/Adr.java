@@ -1336,9 +1336,9 @@ public final class Adr {
     /**
      * ADR-219 -- stage 3's grouping of the shingle rows runs with {@code shingle_by_hash} present after a
      * stop of stage 3 over one corpus root while another reaches stage 4b (and, until ADR-222, after a
-     * build that moved {@code pipeline} alone); SQLite then answers it through that index, writing no temporary file and
-     * taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk, where it does not
-     * name its index. The statement names it, {@code INDEXED BY shingle_by_run_id}, by the operator's
+     * build that moved {@code pipeline} alone); SQLite then answers it through that index, writing no
+     * temporary file and taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk,
+     * where it does not name its index. The statement names it, {@code INDEXED BY shingle_by_run_id}, by the operator's
      * choice, and is then planned through the index on the run in both states. The clause was to ship with
      * the next change that moves {@code similarity}, and shipped with ADR-220's, in pull request #478; the
      * run ids of stages 2 to 6b move with that change (amends ADR-182, ADR-211 and ADR-218; decides #473).

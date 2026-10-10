@@ -36,15 +36,22 @@ import org.junit.jupiter.api.Test;
  *       ones on record, so a class that starts to write or choose a verdict, or to write the deliverable,
  *       fails;
  *   <li>the stages whose version names {@code pipeline} are the stages with a rule on record;
- *   <li>the classes of the three stages whose version does not name {@code pipeline} name the capability
- *       types on record ({@link #COLLABORATORS_ON_RECORD}) and no other, since a rule added to one of
- *       them moves no run id.
+ *   <li>the eight classes of content census, content redundancy and arrangement, whose versions do not
+ *       name {@code pipeline}, name the types of the capability modules and of {@code profile} on record
+ *       ({@link #COLLABORATORS_ON_RECORD}) and no other, since a rule added to one of them moves no run
+ *       id.
  * </ul>
  *
  * <p><b>What it cannot see</b>: a rule added to a class already on record that names no verdict kind,
- * does not write the deliverable and, in a class of those three stages, needs no capability type the class
- * did not name already. A class on record as holding no rule that has since been deleted is not reported
- * either, so that a change which removes one does not have to edit this list.
+ * does not write the deliverable and, in one of those eight classes, needs no type the class did not name
+ * already. A type nested in a type already named is not seen as new, because the name is read up to the
+ * {@code $}. {@code ledger}'s types are not listed for the eight: a verdict is written and discarded by
+ * its {@code VerdictKind}, which the second test holds. The other classes those three stages run through,
+ * {@code OccurrenceReader}, {@code TaskletSteps}, {@code RunCompletion}, {@code ReportedStatements} and
+ * {@code TimedStatement} among them, and the classes of stages 1 and 2, whose versions never named {@code
+ * pipeline}, are held by the first two tests alone. A class on record as holding no rule that has since
+ * been deleted is not reported either, so that a change which removes one does not have to edit this
+ * list.
  */
 @Epic("Architecture")
 @Feature("Module boundaries")
@@ -190,14 +197,18 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
      */
     private static final Set<String> NAMING_THE_DELIVERABLE = Set.of("GenerationTasklet", "NextAction");
 
-    /** A type of one of the five modules a stage's version can name, as a compiled class writes it. */
-    private static final Pattern A_CAPABILITY_TYPE =
-            Pattern.compile("io/algernon/vespera/(corpus|extraction|similarity|embedding|synthesis)/(\\w+)");
+    /**
+     * A type of one of the five capability modules or of {@code profile}, as a compiled class writes it,
+     * read up to the first character that is not a letter, a digit or an underscore: a nested type answers
+     * for the type it is nested in.
+     */
+    private static final Pattern A_CAPABILITY_TYPE = Pattern.compile(
+            "io/algernon/vespera/(corpus|extraction|similarity|embedding|synthesis|profile)/(\\w+)");
 
     /**
      * The classes that run content census, content redundancy and arrangement, with every type of {@code
-     * corpus}, {@code extraction}, {@code similarity}, {@code embedding} and {@code synthesis} each names,
-     * as {@code module.Type}: what it calls, what it hands over and what comes back. Those stages' versions
+     * corpus}, {@code extraction}, {@code similarity}, {@code embedding}, {@code synthesis} and {@code
+     * profile} each names, as {@code module.Type}: what it calls, what it hands over and what comes back. Those stages' versions
      * do not name {@code pipeline}, so each class here was read as handing these their values and deciding
      * nothing by them (ADR-222, the stages with no rule in {@code pipeline}).
      */
@@ -207,14 +218,18 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "extraction.ConfidenceDistribution",
                             "extraction.ExtractionStatement",
                             "extraction.ExtractionStatementProgress",
+                            "profile.Measurement",
+                            "profile.Profile",
+                            "profile.ProfileStore",
                             "similarity.DocumentFrequency",
                             "similarity.FrequencyProgress",
                             "similarity.SimilarityStatement"),
-            "RedundancyGate", Set.of(),
+            "RedundancyGate", Set.of("profile.NumericValue", "profile.Profile", "profile.ProfileStore"),
             "RedundancyBoilerplate", Set.of("similarity.BoilerplateShingles"),
             "RedundancySignatureItemWriter", Set.of("similarity.RedundancySignatures"),
             "RedundancyJobConfiguration",
                     Set.of(
+                            "profile.NumericValue",
                             "similarity.RedundancySignatures",
                             "similarity.ShingleHashIndex",
                             "similarity.SimilarityStatement",
@@ -246,7 +261,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "synthesis.LeadDocument",
                             "synthesis.Partition",
                             "synthesis.RecordedCluster"),
-            "ArrangementGate", Set.of());
+            "ArrangementGate", Set.of("profile.Profile", "profile.ProfileStore", "profile.TextValue"));
 
     @Test
     @Story("A stage is identified by the code that runs the stages only while that code decides something for it")
@@ -284,7 +299,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                         + " identified by this code again. A type on record that is no longer named comes"
                         + " off the list",
                 () -> assertThat(named)
-                        .as("the types of the five modules each class names, by class")
+                        .as("the types of the six modules each class names, by class")
                         .containsExactlyInAnyOrderEntriesOf(onRecord));
     }
 
@@ -340,9 +355,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                 () -> assertThat(namingAKind).containsExactlyInAnyOrderElementsOf(NAMING_A_VERDICT_KIND));
         claim(
                 "and two classes name the code that writes the final documents: the stage that writes the"
-                        + " final documents, which calls it, and the closing line, which reads only the name of the folder"
-                        + " they are written in. A third would be handing that code something to write"
-                        + " that nobody recorded",
+                        + " final documents, which calls it, and the closing line, which reads only the"
+                        + " name of the folder they are written in. A third would be handing that code"
+                        + " something to write that nobody recorded",
                 () -> assertThat(namingTheDeliverable).containsExactlyInAnyOrderElementsOf(NAMING_THE_DELIVERABLE));
     }
 
