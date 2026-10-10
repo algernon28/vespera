@@ -54,6 +54,7 @@ import org.springframework.stereotype.Component;
 @JobScope
 class StageRuns {
 
+    private final Ledger ledger;
     private final RunMint runMint;
     private final InvocationRuns invocationRuns;
     private final Path canonicalRoot;
@@ -92,6 +93,7 @@ class StageRuns {
             OllamaClient ollamaClient,
             @Value("#{jobParameters['root']}") Path root,
             @Value("#{jobExecution.executionContext}") ExecutionContext executionContext) {
+        this.ledger = ledger;
         this.invocationRuns = new InvocationRuns(executionContext);
         this.runMint = new RunMint(ledger, implementationVersions, invocationRuns);
         this.canonicalRoot = Walk.canonicalRoot(root);
@@ -240,9 +242,13 @@ class StageRuns {
         if (arrangement == null) {
             RunId scoringRunId = embeddingScoring();
             WalkId walk = runMint.finishedWalk(canonicalRoot, "the documents can be arranged");
+            long standingRemovals = ledger.verdicts().verdictsUnder(scoringRunId);
             arrangement = runMint.mint(
                     StageModules.ARRANGEMENT,
-                    new ArrangementConfigConsumed(canonicalRoot.toString(), scoringRunId.value()),
+                    new ArrangementConfigConsumed(
+                            canonicalRoot.toString(),
+                            scoringRunId.value(),
+                            standingRemovals == 0 ? null : standingRemovals),
                     walk,
                     Optional.of(scoringRunId));
         }
@@ -314,8 +320,16 @@ class StageRuns {
     private record EmbeddingScoringConfigConsumed(
             String root, String embeddingModel, String measurementRunId, Double relevanceScoreFloor) {}
 
-    /** Stage 6a's own {@code ConfigConsumed}, unchanged. */
-    private record ArrangementConfigConsumed(String corpusRoot, String scoringRunId) {}
+    /**
+     * Stage 6a's own {@code ConfigConsumed}, extended once (ADR-230 section 3). {@code standingRemovals}
+     * is how many verdicts stand under the scoring run when this run is minted, which names which of the
+     * scoring run's two sets of survivors the arrangement is of. It is written only where it is not zero,
+     * so an arrangement over a scoring run with no removal standing keeps the id it had.
+     */
+    private record ArrangementConfigConsumed(
+            String corpusRoot,
+            String scoringRunId,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Long standingRemovals) {}
 
     /**
      * Stage 6b's own {@code ConfigConsumed}, extended once from the run class this replaces.
