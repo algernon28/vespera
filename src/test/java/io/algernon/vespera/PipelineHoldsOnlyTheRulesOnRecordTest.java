@@ -274,7 +274,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                     Set.of(
                             "extraction.DoclingCallRejectedException",
                             "extraction.DoclingConnectionLostException",
-                            "extraction.DoclingDocumentTexts",
+                            // ADR-232: the seed pass asks UsableText about the conversion and reads no text itself.
                             "extraction.DoclingExtractor",
                             "extraction.DoclingResponse",
                             "extraction.ExtractionMetrics",

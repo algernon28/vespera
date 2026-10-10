@@ -1,5 +1,7 @@
 # ADR-083 — The seed set is extracted by stage 5, and an unusable seed is recorded rather than gating
 
+> **Partly amended — see [ADR-232](0232-a-file-whose-only-text-is-in-page-headers-and-footers-is-degenerate-output-at-stage-2-and-a-seed-of-that-kind-is-an-unusable-seed.md).** Everything this record decides stands. A seed is still unusable on exactly the ground stage 2's tier 1 uses, and that ground is now no alphanumeric content outside page headers and footers: a seed whose only text is in them is an unusable seed.
+
 - **Date**: 2026-09-06
 - **Status**: accepted
 - **Amends**: none (fills the gap ADR-064 left: it settled that a seed folder is *walked*, and nothing settled that it is extracted)

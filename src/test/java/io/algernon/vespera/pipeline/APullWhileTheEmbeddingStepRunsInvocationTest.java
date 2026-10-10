@@ -44,9 +44,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * finished, so that scoring runs again where the embedding step is recorded and makes no comparison: the way
  * into the same state that the embedding step's own check does not close.
  *
- * <p><b>And one seed that never had a vector to lose.</b> The fifth test adds a seed whose only text is a
- * page header, which the chunker leaves out: usable, with no chunk and so nothing to embed. It is left out
- * of the seeds scoring reads, with a line, and is not refused.
+ * <p><b>A seed that never had a vector to lose is not here any more.</b> A fifth test held that a seed whose
+ * only text is a page header is usable, is left out of the seeds scoring reads with a line, and is not
+ * refused (ADR-231 section 2a). Since ADR-232 (#499) such a seed is an unusable seed, and {@link
+ * AFileOfPageHeadersAndFootersOnlyInvocationTest} holds that.
  *
  * <p><b>Every file is written with its folder's name in it.</b> A vector is keyed by content and not by
  * walk, and the tests of every class sharing this context share one database, so a file with the bytes of
@@ -361,53 +362,6 @@ class APullWhileTheEmbeddingStepRunsInvocationTest {
                 "and scoring is not recorded as finished, so the next invocation tries it again",
                 () -> assertThat(finishedRows(theRun, StepNames.RELEVANCE_SCORING))
                         .isZero());
-    }
-
-    @Test
-    @Story("A seed document with nothing to embed is left out and the scoring goes on")
-    @DisplayName("A seed document whose only text is a page header has no vector, is not recorded as unusable, and does not stop the scoring")
-    void aSeedWithNothingToEmbedIsLeftOutAndScoringGoesOn(
-            @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
-        aCorpus(root, seeds);
-        Files.writeString(
-                seeds.resolve(SeedScriptedExtractionBeans.HEADER_ONLY_SEED),
-                "a seed that converts to a page header alone, of " + seeds.getFileName());
-        profile(seeds);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success: a seed document that has nothing to embed is a fact about"
-                        + " that document, known before anything is scored, and not a vector gone missing",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "no seed document is recorded as unusable: the page header is text, so the seed document"
-                        + " produced some",
-                () -> assertThat(unusableSeedsOf(seeds)).isZero());
-        claim(
-                "the " + SEED_DOCUMENTS + " seed documents with a body have vectors and the one with a page"
-                        + " header alone has none",
-                () -> assertThat(documentsWithVectorsUnder(seeds, EmbeddingScriptedBeans.DIGEST))
-                        .isEqualTo(SEED_DOCUMENTS));
-        claim(
-                "all " + CORPUS_DOCUMENTS + " corpus documents are scored, and scoring is recorded as finished",
-                () -> assertThat(scoringRunIdsFor(root)).singleElement().satisfies(run -> {
-                    assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
-                    assertThat(finishedRows(run, StepNames.RELEVANCE_SCORING)).isEqualTo(RECORDED_ONCE);
-                }));
-        claim(
-                "and the operator is told which seed document was left out and why",
-                () -> assertThat(output.getAll()).contains("produced text and no chunk"));
-    }
-
-    /** How many seeds found beneath {@code seeds} are recorded as unusable, under any run. */
-    private long unusableSeedsOf(Path seeds) {
-        Long unusable = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM unusable_seed u JOIN file_occurrence f ON f.id = u.occurrence_id"
-                        + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
-                Long.class,
-                walkRoot(seeds));
-        return unusable == null ? 0 : unusable;
     }
 
     /** Each score under {@code run} with its document and the seed it was computed against, by document. */

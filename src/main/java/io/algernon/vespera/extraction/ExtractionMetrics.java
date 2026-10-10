@@ -288,7 +288,10 @@ public class ExtractionMetrics {
     public DegeneracyVerdict writeAndJudge(
             OccurrenceId occurrenceId, RunId runId, DoclingResponse response, Double confidenceFloor) {
         ExtractionMetric metric = computeAndInsert(occurrenceId, runId, response);
-        return DegeneracyFloor.evaluate(metric, confidenceFloor);
+        // Tier 1 reads the text outside page headers and footers (ADR-232), before tier 2 is looked at.
+        return UsableText.whyUnusable(response.rawResponse())
+                .map(reason -> new DegeneracyVerdict(true, reason))
+                .orElseGet(() -> DegeneracyFloor.evaluate(metric, confidenceFloor));
     }
 
     private ExtractionMetric computeAndInsert(OccurrenceId occurrenceId, RunId runId, DoclingResponse response) {

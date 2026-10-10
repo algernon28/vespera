@@ -41,9 +41,6 @@ public class HybridChunker {
     /** Docling's own heading labels: each one starts a fresh chunk and becomes its leading context. */
     private static final Set<String> HEADING_LABELS = Set.of("title", "section_header");
 
-    /** Labels carrying no document content — running headers/footers repeat on every page. */
-    private static final Set<String> NOISE_LABELS = Set.of("page_header", "page_footer");
-
     private final ChunkCache cache;
 
     HybridChunker(ChunkCache cache) {
@@ -85,7 +82,8 @@ public class HybridChunker {
 
     /**
      * Structure-first chunking, at word granularity so a single text item long enough to exceed the
-     * word budget on its own still splits: a heading flushes whatever is accumulated so far and
+     * word budget on its own still splits: page headers and footers ({@link DocumentText#pageHeaderOrFooter},
+     * the same items stage 2's tier 1 leaves out, ADR-232) are skipped, a heading flushes whatever is accumulated so far and
      * leads the next chunk's words, and every other item's words are appended to the same running
      * accumulation, windowed to the budget by {@link #windowWords}.
      */
@@ -94,7 +92,7 @@ public class HybridChunker {
         List<String> pendingWords = new ArrayList<>();
 
         for (DocumentText item : texts) {
-            if (NOISE_LABELS.contains(item.label())) {
+            if (item.pageHeaderOrFooter()) {
                 continue;
             }
             if (HEADING_LABELS.contains(item.label())) {

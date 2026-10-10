@@ -1,14 +1,20 @@
 package io.algernon.vespera.extraction;
 
+import java.util.List;
+import java.util.Optional;
+
 /**
  * Stage 2's tier-1 bar, exposed for the one other caller entitled to ask it: whether a document
- * produced any text at all (ADR-070, ADR-083).
+ * produced any text a person could call the document's (ADR-070, ADR-083, ADR-232).
  *
  * <p>This exists so the seed set's usability bar and the corpus's {@code degenerate-output} tier 1
  * are the same rule rather than two implementations of the same sentence. ADR-083 fixes the bar as
- * "stage 2's tier 1 exactly — no alphanumeric content at all" and <b>no stricter</b>, since a
- * confidence threshold for seeds is one nobody has measured; a second copy of the predicate is
- * exactly how a "no stricter" instruction drifts into a slightly different one.
+ * "stage 2's tier 1 exactly" and <b>no stricter</b>, since a confidence threshold for seeds is one
+ * nobody has measured; a second copy of the predicate is exactly how a "no stricter" instruction
+ * drifts into a slightly different one.
+ *
+ * <p>The text it reads is the conversion's items outside page headers and footers, the items
+ * {@link HybridChunker} cuts chunks from.
  *
  * <p>Public where {@link TextMetrics} and {@link DegeneracyFloor} stay package-private, because the
  * seed pass lives in {@code pipeline} and a capability module may not be reached into. The whole
@@ -26,14 +32,29 @@ public final class UsableText {
      */
     public static final String NO_ALPHANUMERIC_CONTENT = "zero alphanumeric content after whitespace normalisation";
 
+    /** The reason where some item has a letter or a digit and none outside page headers and footers has. */
+    public static final String ONLY_IN_PAGE_HEADERS_AND_FOOTERS =
+            "zero alphanumeric content outside page headers and footers";
+
     private UsableText() {}
 
     /**
-     * Whether {@code text} carries any letter or digit once whitespace is collapsed — so empty,
-     * whitespace-only and punctuation-only text all read the same way, which is the property tier 1
-     * was written for.
+     * Why {@code rawDoclingResponse} has no usable text, or empty where it has some: {@link
+     * #NO_ALPHANUMERIC_CONTENT} where no item holds a letter or a digit once whitespace is collapsed (so
+     * empty, whitespace-only and punctuation-only text all read the same way), {@link
+     * #ONLY_IN_PAGE_HEADERS_AND_FOOTERS} where some item does and none outside page headers and footers does.
      */
-    public static boolean hasAlphanumericContent(String text) {
-        return TextMetrics.alphanumericCharacterCount(TextMetrics.normalizeWhitespace(text)) > 0;
+    public static Optional<String> whyUnusable(String rawDoclingResponse) {
+        List<DocumentText> items = DoclingDocumentTexts.parse(rawDoclingResponse);
+        if (items.stream().anyMatch(item -> !item.pageHeaderOrFooter() && hasAlphanumeric(item))) {
+            return Optional.empty();
+        }
+        return Optional.of(items.stream().anyMatch(UsableText::hasAlphanumeric)
+                ? ONLY_IN_PAGE_HEADERS_AND_FOOTERS
+                : NO_ALPHANUMERIC_CONTENT);
+    }
+
+    private static boolean hasAlphanumeric(DocumentText item) {
+        return TextMetrics.alphanumericCharacterCount(TextMetrics.normalizeWhitespace(item.text())) > 0;
     }
 }

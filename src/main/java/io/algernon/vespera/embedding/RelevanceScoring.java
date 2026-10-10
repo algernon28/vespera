@@ -34,8 +34,8 @@ public class RelevanceScoring {
 
     /**
      * Loads every usable seed document's chunk vectors, keyed by seed occurrence — the resident side
-     * of ADR-085's shape, built once and held for the whole scoring pass. A seed with no chunk is left out
-     * (ADR-231 section 2a); a seed with a chunk and no stored vector under the embedder identity is refused
+     * of ADR-085's shape, built once and held for the whole scoring pass. A seed with no chunk, which a usable
+     * seed has only where the embedding step never chunked it (ADR-232), is left out (ADR-231 section 2a); a seed with a chunk and no stored vector under the embedder identity is refused
      * (section 2): scoring without it would measure every survivor against fewer seeds.
      *
      * @throws IllegalStateException on the first seed with a chunk and no stored vector under {@code embedderIdentity}
@@ -165,11 +165,9 @@ public class RelevanceScoring {
      *
      * <p>Throws rather than scoring zero if {@code occurrenceId} has no stored vectors under {@code
      * embedderIdentity}: a zero would record a document nothing was measured of as one measured
-     * irrelevant (ADR-020, "Confirm, do not assume"). Three ways into it are known: an occurrence no stage
-     * ever examined; vectors another pull of the embedding model wrote (ADR-231); and a survivor whose only
-     * text is in page headers and footers, which stage 2's no-text floor counts and the chunker leaves out,
-     * so that it has no chunk. The last is not handled: it stops scoring on every invocation, and the
-     * message, which still calls a survivor with no chunks impossible by construction, does not name it.
+     * irrelevant (ADR-020, "Confirm, do not assume"). Two ways into it are known: an occurrence no stage
+     * ever examined; and vectors another pull of the embedding model wrote (ADR-231). A survivor has a chunk
+     * because stage 2 removes a file with no text outside page headers and footers (ADR-232).
      */
     public void scoreAndRecord(
             OccurrenceId occurrenceId,
@@ -183,9 +181,10 @@ public class RelevanceScoring {
                 vectorCache.vectorsFor(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
         if (survivorChunkVectors.isEmpty()) {
             throw new IllegalStateException(
-                    "occurrence " + occurrenceId.value() + " has no stored chunk vectors to score; a"
-                            + " corpus survivor with no chunks was confirmed impossible by construction"
-                            + " (#108) -- if this is reached, either no stage ever examined this occurrence,"
+                    "occurrence " + occurrenceId.value() + " has no stored chunk vectors to score under embedder identity "
+                            + embedderIdentity
+                            + "; stage 2 removes a file with no text outside page headers and footers, so a"
+                            + " corpus survivor has a chunk -- either no stage ever examined this occurrence,"
                             + " or another pull of the embedding model wrote its vectors");
         }
         RelevanceScore score = scorer.score(survivorChunkVectors, residentSeedVectors);

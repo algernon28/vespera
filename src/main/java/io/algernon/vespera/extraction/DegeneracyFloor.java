@@ -12,7 +12,9 @@ final class DegeneracyFloor {
     /**
      * Tier 1, unconditional: {@code alphanumeric_char_count == 0} against the metric's own column,
      * using {@link TextMetrics}' one shared whitespace-normalisation rule — so empty, whitespace-only
-     * and punctuation-only text all read the same way. Tier 2, only once {@code confidenceFloor} is
+     * and punctuation-only text all read the same way. That column counts every item, page headers and
+     * footers included; the text outside them is judged before this is reached, by {@link
+     * UsableText#whyUnusable} (ADR-232). Tier 2, only once {@code confidenceFloor} is
      * set (ADR-070's <b>observe before enforce</b>): the mean confidence score below the configured
      * threshold, on Docling's own 0-to-1 scale. A {@code null} mean score — the {@code .docx}/{@code
      * .txt} case, where confidence is never computed — never crosses tier 2, whatever it is set to.

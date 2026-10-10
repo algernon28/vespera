@@ -94,7 +94,7 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 **Run:** the same command. The document converter has to be running.
 
-**What it does.** Sends every surviving file to the document converter and stores the text, with measurements of how well it came out. A file the converter cannot read is marked, skipped and listed in `extraction-failures.html`. This is the long stage: on a large archive it runs for hours or days.
+**What it does.** Sends every surviving file to the document converter and stores the text, with measurements of how well it came out. A file the converter cannot read is marked, skipped and listed in `extraction-failures.html`. A file that converts to no text, or to text only in page headers and footers, is removed as holding nothing to read, and the reason recorded says which. This is the long stage: on a large archive it runs for hours or days.
 
 **Optional values.** `degenerateOutputConfidenceFloor` (left unset, nothing is removed for extracting badly) and `extractionAttempt` (see below).
 
@@ -145,9 +145,9 @@ Stage 5 is seven steps and spans three invocations, with `vespera label` between
 
 **Needs:** `seedFolder`, and stage 4 finished.
 
-**What they do.** `seed-extraction` converts the documents in your seed folder, with the same converter. `seed-corpus-comparison` measures how far they resemble the archive and writes `seed-corpus-comparison.html`. It reports and enforces nothing.
+**What they do.** `seed-extraction` converts the documents in your seed folder, with the same converter. An exemplar that converts to no text, or to text only in page headers and footers, is recorded as unusable: nothing is scored against it, and the others are used. `seed-corpus-comparison` measures how far they resemble the archive and writes `seed-corpus-comparison.html`. It reports and enforces nothing.
 
-**Where they stop.** They are gated when no seed folder is named, the folder could not be walked, no exemplar produced any text, or an exemplar would not open. The gated line says which. A converter failure on one of your exemplars stops the command and names the file.
+**Where they stop.** They are gated when no seed folder is named, the folder could not be walked, no exemplar produced any text outside page headers and footers, or an exemplar would not open. The gated line says which. A converter failure on one of your exemplars stops the command and names the file.
 
 **Resume.** Interrupted, each discards its own rows and does its work again, reading conversions back from the store. Seed extraction is not recorded as finished while an exemplar will not open, so it is tried again on every invocation until the file opens or you take it out of the folder.
 
@@ -157,7 +157,7 @@ Stage 5 is seven steps and spans three invocations, with `vespera label` between
 
 **What they do.** `embedding-scoring` turns each piece of text into a vector. `relevance-scoring` scores every surviving document against your exemplars.
 
-**Where they stop.** Gated with `no embedding model is named`, or for the same exemplar reasons as above. `embedding-scoring` stops the command if the embedding model was pulled again, and changed, while it was computing vectors: the step is not recorded as finished and nothing is scored. Run the same command again: it embeds again, storing the vectors that are missing under the model as it is now, and scores from those. `relevance-scoring` fails if one of your exemplars that produced text has no vector under the model this scoring uses; the message gives the exemplar's number in the database, not its path. An exemplar whose only text is page headers and footers has nothing to score against: it is left out, and a warning in the log gives its number in the database.
+**Where they stop.** Gated with `no embedding model is named`, or for the same exemplar reasons as above. `embedding-scoring` stops the command if the embedding model was pulled again, and changed, while it was computing vectors: the step is not recorded as finished and nothing is scored. Run the same command again: it embeds again, storing the vectors that are missing under the model as it is now, and scores from those. `relevance-scoring` fails if one of your usable exemplars has no vector under the model this scoring uses; the message gives the exemplar's number in the database, not its path.
 
 **Resume.** Vectors are stored by content and by model, not by the run, so vectors already computed are kept across a stop, across a change of floor, and across a new walk of a changed archive. A pull that changes the embedding model is the exception: Vespera treats it as another model, does not use the vectors computed before the pull, and computes every vector again. The earlier vectors stay in the database, and are used again only if Ollama serves the earlier model again. Interrupted, `relevance-scoring` discards its own scores and computes them again from the stored vectors. Ollama has to be running whenever these two steps do work, even when every vector is already stored.
 

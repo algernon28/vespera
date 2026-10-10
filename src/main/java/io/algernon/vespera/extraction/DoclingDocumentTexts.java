@@ -15,9 +15,10 @@ import tools.jackson.databind.node.MissingNode;
 /**
  * A Docling response's extracted text (ADR-145): its text items and its tables' rows, in the reading
  * order of the JSON/{@code DoclingDocument} export {@link DoclingClient} requests, each read once. It is
- * the one reading of "extracted text" in the system -- the metrics and the no-text floor
- * ({@link ExtractedText}), the chunker and a document's title (ADR-029, ADR-106), and, through
- * {@link #lines}, {@code pipeline}'s shingler and seed pass all read it.
+ * the one reading of "extracted text" in the system -- the metrics ({@link ExtractedText}),
+ * the no-text floor and the seed bar ({@link UsableText}, which leave out the items labelled page header or
+ * page footer, ADR-232), the chunker and a document's title (ADR-029, ADR-106), and, through
+ * {@link #lines}, {@code pipeline}'s shingler all read it.
  *
  * <p><b>Reading order is Docling's {@code body} tree</b>, then its {@code furniture} (page headers and
  * footers), each child a reference into {@code texts}, {@code tables}, {@code groups} or
@@ -50,7 +51,7 @@ public final class DoclingDocumentTexts {
 
     /**
      * The document's extracted text as one string, an item per line -- what {@code pipeline} hands the
-     * shingler and reads a seed's usability from.
+     * shingler.
      */
     public static String lines(String rawDoclingResponse) {
         return parse(rawDoclingResponse).stream().map(DocumentText::text).collect(Collectors.joining("\n"));

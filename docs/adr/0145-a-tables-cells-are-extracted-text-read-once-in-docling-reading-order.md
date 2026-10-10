@@ -1,5 +1,7 @@
 # ADR-145 — A table's cells are extracted text, read once, in Docling's reading order
 
+> **Partly amended — see [ADR-232](0232-a-file-whose-only-text-is-in-page-headers-and-footers-is-degenerate-output-at-stage-2-and-a-seed-of-that-kind-is-an-unusable-seed.md).** Everything this record decides stands: the one reading of extracted text, its order and its table rows. The no-text floor no longer reads all of it: it reads the items outside page headers and footers, as the chunker does, and the metrics still read every item.
+
 - **Date**: 2026-09-24
 - **Status**: accepted
 - **Replaces**: the reading of "extracted text" recorded in `ExtractionOutputText`'s javadoc for [#50](https://github.com/algernon28/vespera/issues/50): *"Reads only `document.json_content.texts[].text` — table cell text, picture captions and layout are not part of 'extracted text' here."* No ADR carried that reading. It was one class's, and two other readers had adopted the same slice independently.
