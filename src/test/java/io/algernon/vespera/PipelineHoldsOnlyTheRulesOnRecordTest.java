@@ -349,6 +349,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                     Set.of(
                             "embedding.Clustering",
                             "embedding.ClusteringProgress",
+                            // Read to ask which occurrences the run's clusters hold, and decides nothing by
+                            // it: whether its recorded work is done again is wiring (ADR-230 section 2).
+                            "embedding.DocumentCluster",
                             "embedding.DocumentClusters",
                             "embedding.ModelArtefact",
                             "embedding.RelevanceDistribution",

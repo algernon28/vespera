@@ -167,13 +167,13 @@ Stage 5 is seven steps and spans three invocations, with `vespera label` between
 
 **What it does.** Once `relevanceScoreFloor` is set, removes the documents scoring below it. This is the first step that removes anything for being irrelevant.
 
-**Resume.** This step is never recorded as finished. On every invocation it withdraws the removals it made under this scoring and decides again, because the answers you gave with `vespera label` can change what it should do without changing anything else. It calls no sidecar.
+**Resume.** This step is never recorded as finished. On every invocation it withdraws the removals it made under this scoring and decides again, because the answers you gave with `vespera label` can change what it should do without changing anything else. It calls no sidecar. When an answer changes what it removes, the groups are formed again (5f) and the arrangement is a different one (6a).
 
 ### 5f — the groups
 
 **What it does.** `clustering` groups the survivors under each exemplar and writes `cluster-sizes.html`.
 
-**Resume.** Interrupted, it discards its own groups and forms them again from the stored vectors. Finished, it is skipped.
+**Resume.** Interrupted, it discards its own groups and forms them again from the stored vectors. Finished, it checks that its groups still hold exactly the documents the floor leaves. If they do, it is skipped. If the floor has since removed a grouped document, or brought back one that has no group, it forms every group again from the stored vectors and writes `cluster-sizes.html` again.
 
 ### The questions
 
@@ -207,7 +207,7 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 **Resume.** Interrupted, it discards its own rows and arranges again. Finished, it is not arranged again.
 
-**An approval is for one arrangement.** If anything upstream changes afterwards (the archive, the embedding model, the floor, an extraction attempt), the groups are formed again, the arrangement has a new name, and the old approval opens nothing. The last line says the approval does not match and gives you the new name. Read the page again before you copy it.
+**An approval is for one arrangement.** If anything upstream changes afterwards (the archive, the embedding model, the floor, an extraction attempt), the groups are formed again, the arrangement has a new name, and the old approval opens nothing. The last line says the approval does not match and gives you the new name. Read the page again before you copy it. The same holds when your answers change what the floor removes without the floor itself changing: the arrangement with those removals and the one without are two arrangements, each with its own name, approval and written groups, and going back to the earlier answers arrives at the earlier one again.
 
 ## Stage 6b — generation
 
