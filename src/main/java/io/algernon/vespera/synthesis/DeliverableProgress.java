@@ -14,8 +14,8 @@ package io.algernon.vespera.synthesis;
  * files; and last, after the loop, the rows of the manifest. An entry for a document the cluster no longer
  * holds reads no picture and is neither in the total nor reported.
  *
- * <p>Every method does nothing by default, so the signatures without a progress argument hand on {@link
- * #NONE}.
+ * <p>Every method does nothing by default, and {@link #NONE} overrides none, for a caller with no line to
+ * write.
  */
 public interface DeliverableProgress {
 
