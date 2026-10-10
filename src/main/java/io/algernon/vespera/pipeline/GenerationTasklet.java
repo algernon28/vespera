@@ -551,8 +551,9 @@ class GenerationTasklet implements Tasklet {
         }
         long survivorCount = arranged.stream().mapToLong(ArrangedPartition::memberCount).sum();
         StageProgress listed = StageProgress.over("Stage 6b (generation, survivors listed)", survivorCount);
-        // The tree reads every arranged occurrence twice, a page at a time, and asks for the pair of reads in
-        // the order it makes them: the furniture rule's first pass, then the manifest.
+        // The tree reads every arranged occurrence twice, a page at a time, once for the furniture rule's first
+        // pass and once for the manifest; each read is registered and told under its own statement, so neither
+        // is told apart by which comes first (ADR-223 section 6, section 13).
         ReportedStatements reads = ReportedStatements.saying()
                 .paged(
                         EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_PICTURES,

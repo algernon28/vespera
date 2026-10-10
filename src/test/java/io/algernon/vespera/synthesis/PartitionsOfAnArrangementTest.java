@@ -133,6 +133,40 @@ class PartitionsOfAnArrangementTest {
                 });
     }
 
+    @Test
+    @Story("An arrangement is read one exemplar at a time")
+    @DisplayName("One group's size and places are asked for by its key, under one arrangement and no other")
+    void oneClustersPlaceIsAskedForByItsKey() {
+        RunId sameKeys = new Ledger(jdbcTemplate)
+                .runs()
+                .startRun("arrangement", "d" + System.nanoTime(), "{}", theWalkOf(first), List.of());
+        clusters.record(sameKeys, new ArrangedCluster(first, 5, 7, 1, 1), new ClusterLabel("Same key, another arrangement"));
+
+        claim(
+                "a group recorded under the arrangement answers its size, its exemplar's place and its own place,"
+                        + " as the arrangement stored them",
+                () -> {
+                    assertThat(clusters.placeOf(arrangement, first, 5)).contains(new ArrangedCluster(first, 5, 1, 2, 1));
+                    assertThat(clusters.placeOf(arrangement, first, 0)).contains(new ArrangedCluster(first, 0, 2, 2, 2));
+                    assertThat(clusters.placeOf(arrangement, second, 0)).contains(new ArrangedCluster(second, 0, 3, 1, 1));
+                });
+        claim(
+                "a number the arrangement does not record under that exemplar answers nothing, even where another"
+                        + " arrangement records it, so the manifest can stop on a document whose group is not carried",
+                () -> {
+                    assertThat(clusters.placeOf(arrangement, first, 1)).isEmpty();
+                    assertThat(clusters.placeOf(arrangement, first, 9)).isEmpty();
+                    assertThat(clusters.placeOf(arrangement, second, 5)).isEmpty();
+                });
+        claim(
+                "where another arrangement records a group with the same exemplar and number, each arrangement"
+                        + " answers its own row and never the other's",
+                () -> {
+                    assertThat(clusters.placeOf(arrangement, first, 5)).contains(new ArrangedCluster(first, 5, 1, 2, 1));
+                    assertThat(clusters.placeOf(sameKeys, first, 5)).contains(new ArrangedCluster(first, 5, 7, 1, 1));
+                });
+    }
+
     private static OccurrenceId anOccurrence(Ledger ledger, WalkId walk, String path) {
         ledger.occurrences().fileOccurrence(walk, new OccurrencePath(path), 1, Instant.EPOCH, Instant.EPOCH);
         return ledger.occurrences().occurrenceId(walk, new OccurrencePath(path)).orElseThrow();
