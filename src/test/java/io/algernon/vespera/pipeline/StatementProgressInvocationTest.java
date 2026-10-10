@@ -255,7 +255,8 @@ class StatementProgressInvocationTest {
         claim(
                 "the table holds " + (tableRows - runRows) + " rows that are not this extraction's, fewer than the "
                         + OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT + " past which the build's count stops"
-                        + " short of the rows and the line below is never written, so that line is owed here",
+                        + " short of the rows and the line below can never be written; below it, whether it is"
+                        + " written turns on where the last callback falls",
                 () -> assertThat(tableRows - runRows).isLessThan(OTHER_ROWS_PAST_WHICH_THE_COUNT_FALLS_SHORT));
         claim(
                 "once the rows are gone through, one line says so, and that writing the index says nothing"

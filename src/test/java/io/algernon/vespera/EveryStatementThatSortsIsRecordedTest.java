@@ -55,11 +55,12 @@ import org.springframework.util.StreamUtils;
  * the rows of one occurrence already in order, which a page of them is not; any other mark is planned as
  * one bound value in brackets.
  *
- * <p><b>Every statement is planned twice</b>, because a working directory is in one of two states and a
- * plan can differ between them: as {@code schema.sql} leaves the database, which is how it stands from
- * stage 2's first chunk until stage 4b, and with {@code shingle_by_hash} built by the statement {@code
- * ShingleHashIndex} ships, which is how it stands from stage 4b until stage 2 next runs (ADR-182). The
- * statements that sort are held for each state.
+ * <p><b>Every statement is planned twice</b>: as {@code schema.sql} leaves the database, which is how it
+ * stands from stage 2's first chunk until stage 4b, and with {@code shingle_by_hash} built by the statement
+ * {@code ShingleHashIndex} ships. Since ADR-221 that index is over the rows of one run, and here it is
+ * built for a run no planned statement names, so the second state is a database holding another run's
+ * index, which SQLite may use for none of the statements planned: it has the first state's plans. What
+ * the index does for its own run is {@code ShingleIndexesInTheSchemaTest}'s to hold.
  *
  * <p>Three things in a plan count as temporary storage: a temp B-tree, a materialised subquery, and the
  * list SQLite builds for {@code IN (SELECT ...)}. A scalar subquery holds one value and does not.
@@ -67,6 +68,8 @@ import org.springframework.util.StreamUtils;
  * <p><b>What this does not hold.</b>
  *
  * <ul>
+ *   <li>No plan with the run's own index usable: how many statements of a class sort is not held for a
+ *       database whose {@code shingle_by_hash} is the index of the run the statements name.
  *   <li>No size: the bytes a row ADR-218 states were measured by a probe outside the repository, over
  *       millions of rows, and a test of this suite cannot watch the temporary files of the process
  *       (ADR-211 section 12).

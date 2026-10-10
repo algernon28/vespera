@@ -230,7 +230,7 @@ class ShingleIndexesInTheSchemaTest {
     @Test
     @Story("When the index on word-sequence hashes exists")
     @DisplayName("Counting how often each word sequence recurs, left to choose, reads through a hash index built over every extraction's rows, as an earlier version built it, and not through one built for a single extraction")
-    void theGroupingWithoutAPinGoesThroughTheHashIndexOnceItIsBuilt() throws SQLException {
+    void theGroupingWithoutAPinGoesThroughAHashIndexOverEveryRunsRowsAndNotThroughOneRunsOwn() throws SQLException {
         String withoutTheHashIndex = planOf(THE_GROUPING, "a-stage-3-run", A_RUN);
         try (Statement statement = connection.createStatement()) {
             statement.executeUpdate(BUILD_THE_WHOLE_TABLE_FORM);
