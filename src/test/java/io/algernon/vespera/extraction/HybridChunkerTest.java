@@ -127,7 +127,7 @@ class HybridChunkerTest {
     }
 
     @Test
-    @Story("A structureless document falls back safely")
+    @Story("A structureless document yields no chunks")
     @DisplayName("A document with no structural text items produces no chunks, rather than failing")
     void structurelessDocumentProducesNoChunks() {
         HybridChunker chunker = chunker();
@@ -135,8 +135,7 @@ class HybridChunkerTest {
         List<Chunk> chunks = chunker.chunk(STRUCTURELESS_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
 
         claim(
-                "a document Docling reported no structure for produces no chunks, through the"
-                        + " disabled-by-default structureless fallback, rather than throwing",
+                "a document Docling reported no structure for produces no chunks, rather than throwing",
                 () -> assertThat(chunks).isEmpty());
     }
 
