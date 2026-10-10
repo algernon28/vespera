@@ -159,7 +159,7 @@ Stage 5 is seven steps and spans three invocations, with `vespera label` between
 
 **Where they stop.** Gated with `no embedding model is named`, or for the same exemplar reasons as above.
 
-**Resume.** Vectors are stored by content and by model, not by the run, so vectors already computed are kept across a stop, across a change of floor, and across a new walk of a changed archive. Interrupted, `relevance-scoring` discards its own scores and computes them again from the stored vectors. Ollama has to be running whenever these two steps do work, even when every vector is already stored.
+**Resume.** Vectors are stored by content and by model, not by the run, so vectors already computed are kept across a stop, across a change of floor, and across a new walk of a changed archive. They are not kept across a pull that changes the model: that is a different scoring, and it embeds again. Interrupted, `relevance-scoring` discards its own scores and computes them again from the stored vectors. Ollama has to be running whenever these two steps do work, even when every vector is already stored.
 
 ### 5e — the floor
 
@@ -245,7 +245,7 @@ Three things to know about this table:
 
 - **Any change above stage 6a ends in a new arrangement to approve.** That is the cost of going back, and it is deliberate: an approval never outlives what it approved.
 - **Nothing is deleted when you change a value.** The old stage's results stay recorded beside the new ones. Put the old value back and the next invocation finds that work already recorded and continues from it at no cost. So trying a stricter floor and returning to the looser one is cheap in both directions.
-- **The two expensive things are kept across almost everything**: a converted document, as long as the converter image is the same, and a vector, as long as the embedding model is the same.
+- **The two expensive things are kept across almost everything**: a converted document, as long as the converter image is the same, and a vector, as long as the embedding model is the same. Pulling the embedding model again can make it another model under the same name: Vespera then embeds and scores every document again, and the arrangement has to be approved again.
 
 ### The archive changed
 
