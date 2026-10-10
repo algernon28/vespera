@@ -47,7 +47,7 @@ import org.springframework.stereotype.Component;
  * one).
  *
  * <p>It ends by writing the size distribution, because the cluster count is not chosen and therefore
- * cannot be known in advance: whoever builds the page tree above these clusters needs to see what
+ * cannot be known in advance: whoever builds the deliverable above these clusters needs to see what
  * shape they came out in before they build it.
  *
  * <p>Gated exactly as the scoring step before it is, and for the same reasons: with no model named,
@@ -189,7 +189,9 @@ class ClusteringTasklet implements Tasklet {
                         // Read back rather than returned from the pass: a cluster exists as the set of
                         // rows carrying its identity, so the sizes a reader is shown are the rows, not
                         // what the arithmetic meant to write.
-                        reported.add(new ClusterSizeReport.Partition(
+                        // The sizes are let go once the five numbers the page shows are taken from them
+                        // (ADR-223 section 2).
+                        reported.add(ClusterSizeReport.Partition.of(
                                 pathOf(winningSeed),
                                 TimedStatement.of(
                                         STAGE, "reading", "read",

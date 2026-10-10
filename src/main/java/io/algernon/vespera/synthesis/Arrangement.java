@@ -21,10 +21,6 @@ import java.util.Map;
  */
 public final class Arrangement {
 
-    /** Partitions run largest-first, ties broken on the seed's own path. */
-    private static final Comparator<Partition> BY_SIZE_THEN_SEED_PATH =
-            Comparator.comparingInt(Partition::documentCount).reversed().thenComparing(Partition::seedPath);
-
     /**
      * Clusters run in two tiers — every cluster of several documents, then every cluster of one —
      * each tier closest-to-the-seed first, ties broken on the ordinal.
@@ -87,19 +83,28 @@ public final class Arrangement {
         return List.copyOf(partitions);
     }
 
-    /** Every cluster in {@code partitions}, each carrying the place this rule gives it. */
-    public static List<ArrangedCluster> order(List<Partition> partitions) {
+    /**
+     * The seeds of {@code memberCounts} in the order their partitions run (ADR-112, ADR-223 section 3): the
+     * partition with the most documents first, ties on the seed's own path in {@code seedPaths}. Nothing of any
+     * document under a seed is needed, only how many there are.
+     */
+    public static List<OccurrenceId> inOrder(Map<OccurrenceId, Integer> memberCounts, Map<OccurrenceId, String> seedPaths) {
+        return memberCounts.keySet().stream()
+                .sorted(Comparator.comparingInt((OccurrenceId seed) -> memberCounts.get(seed))
+                        .reversed()
+                        .thenComparing(seedPaths::get))
+                .toList();
+    }
+
+    /** Every cluster of {@code partition}, each carrying the place this rule gives it under {@code partitionOrder}. */
+    public static List<ArrangedCluster> order(Partition partition, int partitionOrder) {
+        List<Cluster> clustersInOrder =
+                partition.clusters().stream().sorted(SUBSTANTIAL_FIRST_THEN_CLOSEST).toList();
         List<ArrangedCluster> arranged = new ArrayList<>();
-        List<Partition> inOrder = partitions.stream().sorted(BY_SIZE_THEN_SEED_PATH).toList();
-        for (int partition = 0; partition < inOrder.size(); partition++) {
-            Partition current = inOrder.get(partition);
-            List<Cluster> clustersInOrder =
-                    current.clusters().stream().sorted(SUBSTANTIAL_FIRST_THEN_CLOSEST).toList();
-            for (int cluster = 0; cluster < clustersInOrder.size(); cluster++) {
-                Cluster member = clustersInOrder.get(cluster);
-                arranged.add(new ArrangedCluster(
-                        current.seed(), member.ordinal(), member.documentCount(), partition + 1, cluster + 1));
-            }
+        for (int cluster = 0; cluster < clustersInOrder.size(); cluster++) {
+            Cluster member = clustersInOrder.get(cluster);
+            arranged.add(new ArrangedCluster(
+                    partition.seed(), member.ordinal(), member.documentCount(), partitionOrder, cluster + 1));
         }
         return List.copyOf(arranged);
     }

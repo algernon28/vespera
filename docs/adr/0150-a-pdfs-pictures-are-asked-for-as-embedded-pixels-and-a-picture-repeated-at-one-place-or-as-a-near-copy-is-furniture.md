@@ -1,5 +1,7 @@
 # ADR-150 — A PDF's pictures are asked for as embedded pixels, and a picture repeated at one place or as a near-copy is furniture
 
+> **Partly amended — see [ADR-223](0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md).** §5's *"The first pass of ADR-149 §9 keeps, for each picture, the digest, the width and height, the difference hash and the place"* no longer holds as written: condition (d) is decided as each document's pictures are read, so no place is kept past its document, and what is kept is the digest and the difference hash of each distinct picture. §3's rule and its population stand.
+
 - **Date**: 2026-09-25
 - **Status**: accepted
 - **Amends**: [ADR-147](0147-the-docling-sidecar-is-a-derived-image-with-libreoffice-writer-and-impress-and-the-image-joins-the-extractor-identity.md). The extractor identity it composes keeps its shape, `docling-serve;image=<name>;<versions>;<sent options>`. It changes value, because the sent options gain `image_export_mode=embedded`. Every conversion cached under the old value is made again once (§2).

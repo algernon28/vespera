@@ -372,7 +372,7 @@ class DeliverableTest {
     @Story("The tree is named after the run that produced it")
     @DisplayName("The tree lands in the working directory under the full name of the run that wrote it")
     void namesTheTreeAfterTheRunThatProducedIt(@TempDir Path workingDirectory) {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE)),
@@ -431,7 +431,7 @@ class DeliverableTest {
             arrangement.add(aCluster(place, THE_LABEL + " " + place, FIRST_PLACE, place));
         }
 
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 arrangement,
@@ -476,7 +476,7 @@ class DeliverableTest {
                     A_SCORE));
         }
 
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory, provenance(THE_SEED_FOLDER_VALUE), arrangement, List.of(), survivors);
 
         claim(
@@ -503,7 +503,7 @@ class DeliverableTest {
                 new ArrangedCluster(THE_SEED, FIRST_ORDINAL, FORTY_DOCUMENTS, FIRST_PLACE, SECOND_PLACE),
                 new ClusterLabel(THE_NAME_THAT_SORTS_FIRST));
 
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(lastButPlacedFirst, firstButPlacedSecond),
@@ -535,7 +535,7 @@ class DeliverableTest {
         RecordedCluster unwritten = aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE);
         RecordedCluster written = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
 
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(unwritten, written),
@@ -587,12 +587,12 @@ class DeliverableTest {
         RecordedCluster unwritten = aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE);
         RecordedCluster written = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
         List<RecordedCluster> arrangement = List.of(unwritten, written);
-        List<RecordedSynthesisDoc> writing = List.of(writingFor(A_LATER_ORDINAL, 12L));
+        List<ListedDoc> writing = List.of(writingFor(A_LATER_ORDINAL, 12L));
 
-        Path plainTree = Deliverable.writeTo(
+        Path plainTree = ListedArrangement.writeTo(
                 plain, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),
                 SurvivorPictures.none(), Map.of());
-        Path treeWithReason = Deliverable.writeTo(
+        Path treeWithReason = ListedArrangement.writeTo(
                 withReason, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),
                 SurvivorPictures.none(), Map.of(ClusterSlot.of(unwritten), why));
 
@@ -627,7 +627,7 @@ class DeliverableTest {
         RecordedCluster hostile = aCluster(FIRST_ORDINAL, A_NAME_WITH_A_BREAK_AND_A_PIPE, FIRST_PLACE, FIRST_PLACE);
         RecordedCluster after = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
 
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(hostile, after),
@@ -667,7 +667,7 @@ class DeliverableTest {
     @Issue("246")
     @Link(name = "ADR-134", url = Adr.A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND, type = "adr")
     void keepsTheLinkWholeWhenANameCarriesABracket(@TempDir Path workingDirectory) throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, A_NAME_WITH_A_BRACKET, FIRST_PLACE, FIRST_PLACE)),
@@ -694,7 +694,7 @@ class DeliverableTest {
     @Issue("249")
     @Link(name = "ADR-134", url = Adr.A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND, type = "adr")
     void keepsTheCellWholeWhenANameCarriesABackslashBeforeAPipe(@TempDir Path workingDirectory) throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, A_NAME_WITH_A_BACKSLASH_BEFORE_A_PIPE, FIRST_PLACE, FIRST_PLACE)),
@@ -728,7 +728,7 @@ class DeliverableTest {
     @Issue("251")
     @Link(name = "ADR-136", url = Adr.THE_ANGLE_BRACKET_AND_THE_AMPERSAND_ARE_ESCAPED, type = "adr")
     void keepsATagVisibleWhereverTheIndexCarriesAName(@TempDir Path workingDirectory) throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, A_NAME_WITH_A_TAG_AND_AN_AMPERSAND, FIRST_PLACE, FIRST_PLACE)),
@@ -790,11 +790,11 @@ class DeliverableTest {
     @Issue("251")
     @Link(name = "ADR-136", url = Adr.THE_ANGLE_BRACKET_AND_THE_AMPERSAND_ARE_ESCAPED, type = "adr")
     void keepsATagVisibleInTheColumnTheWritingNamesTheClusterIn(@TempDir Path workingDirectory) throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE)),
-                List.of(new RecordedSynthesisDoc(
+                List.of(new ListedDoc(
                         THE_SEED,
                         FIRST_ORDINAL,
                         new SynthesisDoc(
@@ -849,13 +849,13 @@ class DeliverableTest {
     @Issue("258")
     @Link(name = "ADR-138", url = Adr.A_BRACKET_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN, type = "adr")
     void keepsABracketedNameFromComposingALinkOfItsOwn(@TempDir Path workingDirectory) throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(
                         aCluster(FIRST_ORDINAL, A_TITLE_THAT_IS_ITSELF_AN_IMAGE, FIRST_PLACE, FIRST_PLACE),
                         aCluster(A_LATER_ORDINAL, A_NAME_THAT_IS_ITSELF_A_LINK, FIRST_PLACE, SECOND_PLACE)),
-                List.of(new RecordedSynthesisDoc(
+                List.of(new ListedDoc(
                         THE_SEED,
                         FIRST_ORDINAL,
                         new SynthesisDoc(
@@ -939,13 +939,13 @@ class DeliverableTest {
     @Issue("261")
     @Link(name = "ADR-148", url = Adr.A_BACKTICK_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN, type = "adr")
     void keepsABacktickedNameFromTurningIntoCode(@TempDir Path workingDirectory) throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(
                         aCluster(FIRST_ORDINAL, A_LABEL_WITH_BACKTICKS_AROUND_A_BRACKET, FIRST_PLACE, FIRST_PLACE),
                         aCluster(A_LATER_ORDINAL, AN_UNLINKED_LABEL_WITH_ONE_BACKTICK, FIRST_PLACE, SECOND_PLACE)),
-                List.of(new RecordedSynthesisDoc(
+                List.of(new ListedDoc(
                         THE_SEED,
                         FIRST_ORDINAL,
                         new SynthesisDoc(
@@ -1036,7 +1036,7 @@ class DeliverableTest {
     @DisplayName("The index speaks of groups, and the constants behind it speak of clusters")
     @Link(name = "ADR-122", url = Adr.THE_VOCABULARY_BINDS_OUR_NAMES_NOT_RENDERED_PROSE, type = "adr")
     void rendersTheTermForTheReaderWhileNamingClustersInTheCode(@TempDir Path workingDirectory) throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE)),
@@ -1062,7 +1062,7 @@ class DeliverableTest {
     @Story("The archive is referenced and never read at the moment the tree is written")
     @DisplayName("A tree is written whole over an archive this machine cannot reach at all")
     void writesTheWholeTreeWithoutReachingTheArchive(@TempDir Path workingDirectory) throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 new DeliverableProvenance(
                         RUN_ID,
@@ -1102,7 +1102,7 @@ class DeliverableTest {
     @DisplayName("The listing carries every document with its place in the archive and its place in the order")
     void carriesEverySurvivorIntoTheListingWithPathsRelativeToTheArchive(@TempDir Path workingDirectory)
             throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, THE_LABEL, SECOND_PLACE, SECOND_PLACE)),
@@ -1145,7 +1145,7 @@ class DeliverableTest {
     @Story("Whatever comes after the hand-off can be built without reading the prose")
     @DisplayName("A document whose name carries a comma still reads back as one column, not two")
     void quotesAValueThatWouldOtherwiseSplitTheRowInTwo(@TempDir Path workingDirectory) throws IOException {
-        Path tree = Deliverable.writeTo(
+        Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
                 List.of(aCluster(FIRST_ORDINAL, THE_LABEL, SECOND_PLACE, SECOND_PLACE)),
@@ -1203,8 +1203,8 @@ class DeliverableTest {
     }
 
     /** The writing kept against the hostile-name cluster, whose heading carries a break of its own. */
-    private static RecordedSynthesisDoc writingOverTheHostileCluster() {
-        return new RecordedSynthesisDoc(
+    private static ListedDoc writingOverTheHostileCluster() {
+        return new ListedDoc(
                 THE_SEED,
                 FIRST_ORDINAL,
                 new SynthesisDoc(
@@ -1289,7 +1289,7 @@ class DeliverableTest {
     }
 
     /** The writing stage 6b kept against the cluster identified by {@code ordinal}, over both its documents. */
-    private static RecordedSynthesisDoc writingFor(int ordinal) {
+    private static ListedDoc writingFor(int ordinal) {
         return writingFor(ordinal, 10L);
     }
 
@@ -1300,13 +1300,13 @@ class DeliverableTest {
      * membership from that list (ADR-133): a fixture naming documents the cluster does not hold is
      * the integrity failure the writer refuses, so each of these names the survivors beside it.
      */
-    private static RecordedSynthesisDoc writingFor(int ordinal, long firstOccurrenceId) {
+    private static ListedDoc writingFor(int ordinal, long firstOccurrenceId) {
         return writingFor(ordinal, new OccurrenceId(firstOccurrenceId), new OccurrenceId(firstOccurrenceId + 1));
     }
 
     /** The same again, over exactly the documents named, in the order the call's ordinals were minted. */
-    private static RecordedSynthesisDoc writingFor(int ordinal, OccurrenceId... sent) {
-        return new RecordedSynthesisDoc(
+    private static ListedDoc writingFor(int ordinal, OccurrenceId... sent) {
+        return new ListedDoc(
                 THE_SEED, ordinal, new SynthesisDoc(THE_TITLE, THE_PROSE, List.of(sent)));
     }
 

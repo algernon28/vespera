@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -13,7 +14,7 @@ import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
+import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -379,7 +380,7 @@ class GenerationInvocationTest {
                 "and the group still holds both documents: what was read is a matter of how much would"
                         + " fit, and what belongs to the group is not -- a reader is shown every document"
                         + " under it, which is what keeps writing from part of a group honest",
-                () -> assertThat(clusters.forRun(theApprovedArrangement(root)))
+                () -> assertThat(WholeRun.clusters(jdbcTemplate,theApprovedArrangement(root)))
                         .singleElement()
                         .satisfies(recorded ->
                                 assertThat(recorded.cluster().documentCount()).isEqualTo(TWO_DOCUMENTS)));
@@ -493,12 +494,12 @@ class GenerationInvocationTest {
                         + " than pointing back at what the first read: a wider window is a different reading"
                         + " of the same documents, and what a reader opens has to be the reading that was"
                         + " asked for",
-                () -> assertThat(synthesisDocs.forRun(new RunId(generationRuns(root).getLast())))
+                () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,new RunId(generationRuns(root).getLast())))
                         .hasSize(ONE_PIECE_OF_WRITING));
         claim(
                 "and the first record keeps the writing it produced, so the earlier reading is still there"
                         + " to be compared against rather than having been written over",
-                () -> assertThat(synthesisDocs.forRun(new RunId(generationRuns(root).getFirst())))
+                () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,new RunId(generationRuns(root).getFirst())))
                         .hasSize(ONE_PIECE_OF_WRITING));
     }
 
@@ -748,10 +749,10 @@ class GenerationInvocationTest {
     }
 
     /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
-    private List<RecordedSynthesisDoc> generatedDocs(Path root) {
+    private List<ListedDoc> generatedDocs(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
-                .flatMap(run -> synthesisDocs.forRun(run).stream())
+                .flatMap(run -> WholeRun.synthesisDocs(jdbcTemplate,run).stream())
                 .toList();
     }
 

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.pipeline.GenerationScriptedBeans.ScriptedAnswer;
@@ -14,8 +15,8 @@ import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
 import io.algernon.vespera.synthesis.ClusterFaults;
-import io.algernon.vespera.synthesis.RecordedClusterFault;
-import io.algernon.vespera.synthesis.RecordedSynthesisDoc;
+import io.algernon.vespera.synthesis.ListedFault;
+import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -335,7 +336,7 @@ class GenerationBreakerInvocationTest {
         cli.run("run", root.toString());
 
         Path tree = UnwrittenPage.treeOf(workingDirectory, generationRuns(root).getLast());
-        List<RecordedClusterFault> reasons = reasonsKept(root);
+        List<ListedFault> reasons = reasonsKept(root);
         claim(
                 "the step stopped on " + THE_STREAK_THAT_STOPS_THE_STEP + " reasons, one for each group"
                         + " whose answer was turned down, so the pages below are the pages of a stopped step",
@@ -846,18 +847,18 @@ class GenerationBreakerInvocationTest {
     }
 
     /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
-    private List<RecordedSynthesisDoc> writingKept(Path root) {
+    private List<ListedDoc> writingKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
-                .flatMap(run -> synthesisDocs.forRun(run).stream())
+                .flatMap(run -> WholeRun.synthesisDocs(jdbcTemplate,run).stream())
                 .toList();
     }
 
     /** Every reason stage 6b kept for a cluster of {@code root} it left unwritten. */
-    private List<RecordedClusterFault> reasonsKept(Path root) {
+    private List<ListedFault> reasonsKept(Path root) {
         return generationRuns(root).stream()
                 .map(RunId::new)
-                .flatMap(run -> clusterFaults.forRun(run).stream())
+                .flatMap(run -> WholeRun.clusterFaults(jdbcTemplate,run).stream())
                 .toList();
     }
 

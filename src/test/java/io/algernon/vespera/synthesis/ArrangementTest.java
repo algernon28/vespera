@@ -10,7 +10,10 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -54,7 +57,7 @@ class ArrangementTest {
         Partition small = partition(1, "acoustics.docx", scores(0.9));
         Partition large = partition(2, "safety.docx", scores(0.1, 0.2, 0.3));
 
-        List<ArrangedCluster> arranged = Arrangement.order(List.of(small, large));
+        List<ArrangedCluster> arranged = arranged(List.of(small, large));
 
         claim(
                 "the group holding " + LARGER_PARTITION_DOCUMENTS + " documents is placed ahead of the"
@@ -72,7 +75,7 @@ class ArrangementTest {
         Cluster severalButFurther = new Cluster(1, scores(LOWER_SCORE, LOWER_SCORE));
         Partition partition = new Partition(new OccurrenceId(1), "safety.docx", List.of(loneButClosest, severalButFurther));
 
-        List<ArrangedCluster> arranged = Arrangement.order(List.of(partition));
+        List<ArrangedCluster> arranged = arranged(List.of(partition));
 
         claim(
                 "the pair of documents comes first even though the single document is the closest thing"
@@ -91,7 +94,7 @@ class ArrangementTest {
         Cluster closer = new Cluster(1, scores(TOP_SCORE, TOP_SCORE));
         Partition partition = new Partition(new OccurrenceId(1), "safety.docx", List.of(further, closer));
 
-        List<ArrangedCluster> arranged = Arrangement.order(List.of(partition));
+        List<ArrangedCluster> arranged = arranged(List.of(partition));
 
         claim(
                 "of two groups the same size, the one whose documents average closer to the seed comes"
@@ -109,7 +112,7 @@ class ArrangementTest {
         Cluster earlier = new Cluster(FIRST_ORDINAL, scores(TOP_SCORE, TOP_SCORE));
         Partition partition = new Partition(new OccurrenceId(1), "safety.docx", List.of(later, earlier));
 
-        List<ArrangedCluster> arranged = Arrangement.order(List.of(partition));
+        List<ArrangedCluster> arranged = arranged(List.of(partition));
 
         claim(
                 "two groups that cannot be told apart by size or by closeness are still ordered the same"
@@ -126,7 +129,7 @@ class ArrangementTest {
         Partition later = partition(1, "safety.docx", scores(TOP_SCORE));
         Partition earlier = partition(2, "acoustics.docx", scores(TOP_SCORE));
 
-        List<ArrangedCluster> arranged = Arrangement.order(List.of(later, earlier));
+        List<ArrangedCluster> arranged = arranged(List.of(later, earlier));
 
         claim(
                 "two equally large groups are ordered by the filenames of the documents the operator"
@@ -134,6 +137,33 @@ class ArrangementTest {
                         + " is the one handle the operator has on this order, since renaming their own"
                         + " file is how they move a group up the page",
                 () -> assertThat(partitionOrderOf(arranged, earlier)).isLessThan(partitionOrderOf(arranged, later)));
+    }
+
+    /**
+     * Every cluster of {@code partitions} with the place the two rules give it, arranged as stage 6a arranges
+     * since ADR-223: the partitions are put in order from their sizes and their seeds' paths alone, and then
+     * each partition's clusters are ordered on their own, at the place that order gave the partition.
+     */
+    private static List<ArrangedCluster> arranged(List<Partition> partitions) {
+        Map<OccurrenceId, Integer> memberCounts = new LinkedHashMap<>();
+        Map<OccurrenceId, String> seedPaths = new LinkedHashMap<>();
+        for (Partition partition : partitions) {
+            memberCounts.put(
+                    partition.seed(),
+                    partition.clusters().stream().mapToInt(Cluster::documentCount).sum());
+            seedPaths.put(partition.seed(), partition.seedPath());
+        }
+        List<OccurrenceId> inOrder = Arrangement.inOrder(memberCounts, seedPaths);
+        List<ArrangedCluster> arranged = new ArrayList<>();
+        for (int place = 0; place < inOrder.size(); place++) {
+            OccurrenceId seed = inOrder.get(place);
+            Partition partition = partitions.stream()
+                    .filter(candidate -> candidate.seed().equals(seed))
+                    .findFirst()
+                    .orElseThrow();
+            arranged.addAll(Arrangement.order(partition, place + 1));
+        }
+        return arranged;
     }
 
     private static int clusterOrderOf(List<ArrangedCluster> arranged, Cluster cluster) {

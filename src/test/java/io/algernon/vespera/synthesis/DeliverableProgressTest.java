@@ -57,7 +57,7 @@ class DeliverableProgressTest {
     void announcesEachLoopOnceAndSumsTheFilesAndEntries(@TempDir Path workingDirectory) {
         List<String> events = new ArrayList<>();
 
-        Deliverable.writeTo(
+        ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(workingDirectory),
                 List.of(
@@ -98,11 +98,11 @@ class DeliverableProgressTest {
         List<String> events = new ArrayList<>();
         OccurrenceId noLongerHeld = new OccurrenceId(99);
 
-        Deliverable.writeTo(
+        ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(workingDirectory),
                 List.of(cluster(FIRST_SEED, 0, 1, 1, 1, "First group")),
-                List.of(new RecordedSynthesisDoc(
+                List.of(new ListedDoc(
                         FIRST_SEED, 0, new SynthesisDoc("A title", "It says [1] and [2].", List.of(noLongerHeld, new OccurrenceId(10))))),
                 List.of(member(10, FIRST_SEED, FIRST_SEED_PATH, 0)),
                 SurvivorPictures.none(),

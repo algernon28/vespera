@@ -10,7 +10,8 @@ import java.util.OptionalInt;
  * is measured against the bundled SQLite by {@code StatementStepsPerRowTest}, and {@code
  * StatementStepsPerRowAreTheDeclaredOnesTest} is what holds each declaration here to that measurement.
  *
- * <p>The constants are the statements of {@link SeedCorpusComparison#measure}, in the order it issues them.
+ * <p>The first five constants are the statements of {@link SeedCorpusComparison#measure}, in the order it
+ * issues them; the last two are stage 6b's, which makes those reads itself.
  */
 public enum EmbeddingStatement {
 
@@ -30,7 +31,17 @@ public enum EmbeddingStatement {
     CORPUS_METRICS_AGAIN,
 
     /** The read of the {@code extraction_metric} rows under the measurement run, the seeds' measurements. */
-    SEED_METRICS(12);
+    SEED_METRICS(12),
+
+    /**
+     * Stage 6b's read of every arranged occurrence, a page at a time through {@link DocumentClusters#eachPage},
+     * for the furniture rule's first pass over the tree (ADR-223 section 8). Told by the caller, which makes
+     * the read.
+     */
+    ARRANGED_OCCURRENCES_FOR_PICTURES,
+
+    /** The same read, made again for the manifest after the tree's last partition (ADR-223 section 8). */
+    ARRANGED_OCCURRENCES_FOR_THE_MANIFEST;
 
     private final OptionalInt stepsPerRow;
 

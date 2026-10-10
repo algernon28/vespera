@@ -23,6 +23,9 @@ import org.junit.jupiter.api.Test;
  *
  * <p><b>Every expected index here is what {@code Deliverable.writeTo} wrote at {@code 4b99a03}</b> for
  * the same provenance, arrangement, writing and survivors.
+ *
+ * <p>Since ADR-223 the index is appended a partition at a time and nothing composes it whole, so the lists
+ * here go through {@link ListedArrangement}, which drives the page as the tree's writer does.
  */
 @Epic("Synthesis")
 @Feature("The tree the operator is handed")
@@ -78,7 +81,7 @@ class IndexPageTest {
                         new ArrangedCluster(THE_SEED, 0, 4, 1, 1), new ClusterLabel("Fire Suppression | Retrofits")),
                 new RecordedCluster(
                         new ArrangedCluster(THE_SEED, 1, 2, 1, 2), new ClusterLabel("Sprinkler\nMaintenance")));
-        List<RecordedSynthesisDoc> written = List.of(new RecordedSynthesisDoc(
+        List<ListedDoc> written = List.of(new ListedDoc(
                 THE_SEED,
                 0,
                 new SynthesisDoc("Retrofitting `Suppression`, 2018 [draft]", "Both [1] and [2].", List.of())));
@@ -90,7 +93,7 @@ class IndexPageTest {
                         + " paths resolve against, heads the partition with its seed path escaped as a heading,"
                         + " links the written cluster's label escaped as a cell to its page, and shows the"
                         + " unwritten one's label folded with no link -- byte for byte as the deliverable wrote it",
-                () -> assertThat(IndexPage.contents(
+                () -> assertThat(ListedArrangement.indexContents(
                                 new DeliverableProvenance(
                                         "run-1", 7L, "/srv/archive", List.of(new NamedValue("relevanceFloor", "0.42"))),
                                 arrangement,
@@ -111,10 +114,10 @@ class IndexPageTest {
                     new ClusterLabel("Group " + (ordinal + 1))));
             survivors.add(survivor(100 + ordinal, ordinal, "seeds/Seed One.pdf"));
         }
-        List<RecordedSynthesisDoc> written =
-                List.of(new RecordedSynthesisDoc(THE_SEED, 9, new SynthesisDoc("Tenth", "x", List.of())));
+        List<ListedDoc> written =
+                List.of(new ListedDoc(THE_SEED, 9, new SynthesisDoc("Tenth", "x", List.of())));
 
-        String index = IndexPage.contents(
+        String index = ListedArrangement.indexContents(
                 new DeliverableProvenance("run-2", 3L, "/srv/archive", List.of()), arrangement, written, survivors);
 
         claim(
@@ -126,22 +129,22 @@ class IndexPageTest {
 
     @Test
     @Story("The index lists every cluster under its partition")
-    @DisplayName("A partition whose seed no survivor names stops the writer, since its directory cannot be named")
-    void refusesAPartitionNoSurvivorNames() {
-        List<RecordedCluster> arrangement = List.of(new RecordedCluster(
-                new ArrangedCluster(new OccurrenceId(2), 0, 1, 1, 1), new ClusterLabel("Orphaned")));
-
+    @DisplayName("A partition with no seed path is refused before it can reach the index, since its directory cannot be named")
+    void refusesAPartitionWithNoSeedPath() {
         claim(
-                "the partition's directory is named from its seed's path, which only a survivor carries, so a"
-                        + " partition no survivor names is refused with the seed it is about",
-                () -> assertThatThrownBy(() -> IndexPage.contents(
-                                new DeliverableProvenance("run-3", 1L, "/srv/archive", List.of()),
-                                arrangement,
-                                List.of(),
-                                List.of(survivor(10, 0, "seeds/Seed One.pdf"))))
+                "the partition's directory is named from its seed's path, so a partition handed over with none"
+                        + " is refused where it is made, naming the seed it is about, and the index is never"
+                        + " asked to head a table with nothing",
+                () -> assertThatThrownBy(() -> new ListedPartition(new OccurrenceId(2), null, 1, 1))
                         .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessage("no survivor names the seed of partition 2; a partition directory cannot be"
-                                + " named without it"));
+                        .hasMessage("seed partition 2 has no seed path; a partition directory cannot be named"
+                                + " without it"));
+        claim(
+                "a seed path of nothing but spaces names no directory either, and is refused in the same words",
+                () -> assertThatThrownBy(() -> new ListedPartition(new OccurrenceId(2), "  ", 1, 1))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("seed partition 2 has no seed path; a partition directory cannot be named"
+                                + " without it"));
     }
 
     private static ListedSurvivor survivor(long occurrence, int clusterOrdinal, String seedPath) {

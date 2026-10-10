@@ -37,18 +37,18 @@ class ClusterSlotTest {
 
     @Test
     @Story("One key names a cluster")
-    @DisplayName("A cluster, its writing, its fault and each of its members all give the same key")
+    @DisplayName("A cluster and each of its members give the same key")
     void everyValueOfOneClusterGivesOneKey() {
         ClusterSlot expected = new ClusterSlot(THE_SEED, THE_ORDINAL);
 
+        // A synthesis doc and a fault no longer travel with their cluster's identity: since ADR-223 each is
+        // asked for by this key, so the key is what the asker already holds and nothing reads one off them.
         claim(
-                "the arranged cluster, the synthesis doc written over it, the fault recorded against it and a"
-                        + " survivor in it each give the key of seed 1, ordinal 4, so a map keyed by one is read"
-                        + " by any of the others",
+                "the arranged cluster and a survivor in it each give the key of seed 1, ordinal 4, so a"
+                        + " survivor is lined up with its cluster, and the cluster's writing and fault are"
+                        + " asked for, by one key",
                 () -> assertThat(List.of(
                                 ClusterSlot.of(arranged(THE_SEED, THE_ORDINAL)),
-                                ClusterSlot.of(written(THE_SEED, THE_ORDINAL)),
-                                ClusterSlot.of(faulted(THE_SEED, THE_ORDINAL)),
                                 ClusterSlot.of(member(THE_SEED, THE_ORDINAL))))
                         .containsOnly(expected));
     }
@@ -60,8 +60,8 @@ class ClusterSlotTest {
         claim(
                 "the same ordinal under another seed is another cluster, since an ordinal counts within its"
                         + " partition",
-                () -> assertThat(ClusterSlot.of(written(ANOTHER_SEED, THE_ORDINAL)))
-                        .isNotEqualTo(ClusterSlot.of(written(THE_SEED, THE_ORDINAL))));
+                () -> assertThat(ClusterSlot.of(arranged(ANOTHER_SEED, THE_ORDINAL)))
+                        .isNotEqualTo(ClusterSlot.of(arranged(THE_SEED, THE_ORDINAL))));
         claim(
                 "another ordinal under the same seed is another cluster",
                 () -> assertThat(ClusterSlot.of(member(THE_SEED, ANOTHER_ORDINAL)))
@@ -85,15 +85,6 @@ class ClusterSlotTest {
 
     private static RecordedCluster arranged(OccurrenceId seed, int ordinal) {
         return new RecordedCluster(new ArrangedCluster(seed, ordinal, 2, 1, 1), new ClusterLabel("Sprinklers"));
-    }
-
-    private static RecordedSynthesisDoc written(OccurrenceId seed, int ordinal) {
-        return new RecordedSynthesisDoc(seed, ordinal, new SynthesisDoc("Title", "Prose [1].", List.of()));
-    }
-
-    private static RecordedClusterFault faulted(OccurrenceId seed, int ordinal) {
-        return new RecordedClusterFault(
-                seed, ordinal, new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, "not the shape asked for"));
     }
 
     private static ListedSurvivor member(OccurrenceId seed, int ordinal) {

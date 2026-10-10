@@ -82,7 +82,7 @@ class EntryPicturesTest {
 
     @Test
     @Story("A picture that recurs is furniture and is left out")
-    @DisplayName("The first pass asks each document once, however often it is listed, and reports each one")
+    @DisplayName("The first pass asks each document once and reports each one")
     void asksEachDocumentOnceInTheFirstPass() {
         Map<OccurrenceId, Integer> asked = new HashMap<>();
         List<String> reported = new ArrayList<>();
@@ -98,8 +98,11 @@ class EntryPicturesTest {
             }
         };
 
-        EntryPictures.among(
-                List.of(FIRST, SECOND, FIRST),
+        // Each document is listed once. A document listed twice has no way to arise since ADR-223: the pass is
+        // fed from the arrangement's own membership, which holds a document once under one run, so the set that
+        // kept a second listing from being asked again is gone, and the claim about it with it.
+        ListedArrangement.picturesAmong(
+                List.of(FIRST, SECOND),
                 occurrence -> {
                     asked.merge(occurrence, 1, Integer::sum);
                     return List.of();
@@ -107,12 +110,12 @@ class EntryPicturesTest {
                 recording);
 
         claim(
-                "each of the two documents is asked for its pictures once in this pass, the one listed twice"
-                        + " included, so the second pass's ask is the second and last (ADR-149)",
+                "each of the two documents is asked for its pictures once in this pass, so the second pass's"
+                        + " ask is the second and last (ADR-149)",
                 () -> assertThat(asked).containsOnlyKeys(FIRST.occurrence(), SECOND.occurrence())
                         .allSatisfy((occurrence, count) -> assertThat(count).isOne()));
         claim(
-                "the pass announces the two distinct documents before it begins and reports each as listed",
+                "the pass announces the two documents before it begins and reports each as listed",
                 () -> assertThat(reported).containsExactly("to list 2", "listed", "listed"));
     }
 
@@ -120,7 +123,7 @@ class EntryPicturesTest {
     @Story("A picture that recurs is furniture and is left out")
     @DisplayName("A picture two documents share, and one in the converter's page furniture, are furniture; a unique one is not")
     void findsWhatIsFurniture() {
-        EntryPictures pictures = EntryPictures.among(
+        EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST, SECOND),
                 source(Map.of(
                         FIRST.occurrence(), List.of(png(A_DIAGRAM), png(A_SHARED_LOGO)),
@@ -138,7 +141,7 @@ class EntryPicturesTest {
     @Story("A picture only one document carries is shown under that document")
     @DisplayName("A picture is written beside the page under its digest's name and shown, indented, under its entry")
     void writesAPictureAndShowsItUnderTheEntry(@TempDir Path pageDirectory) throws IOException {
-        EntryPictures pictures = EntryPictures.among(
+        EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST), source(Map.of(FIRST.occurrence(), List.of(png(A_DIAGRAM)))), DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
@@ -160,7 +163,7 @@ class EntryPicturesTest {
     @Story("A picture that recurs is furniture and is left out")
     @DisplayName("An entry whose only pictures are furniture gains nothing, and no picture directory is made")
     void leavesFurnitureOut(@TempDir Path pageDirectory) throws IOException {
-        EntryPictures pictures = EntryPictures.among(
+        EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST, SECOND),
                 source(Map.of(
                         FIRST.occurrence(), List.of(png(A_SHARED_LOGO)),
@@ -183,7 +186,7 @@ class EntryPicturesTest {
     @Story("A picture's alt text is the converter's caption or nothing")
     @DisplayName("A caption becomes alt text folded onto one line and escaped by the membership entry's rule")
     void escapesTheCaptionAsAltText(@TempDir Path pageDirectory) throws IOException {
-        EntryPictures pictures = EntryPictures.among(
+        EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST),
                 source(Map.of(FIRST.occurrence(), List.of(new ListedPicture("image/png", A_DIAGRAM, false, A_HOSTILE_CAPTION)))),
                 DeliverableProgress.NONE);
@@ -226,7 +229,7 @@ class EntryPicturesTest {
     @DisplayName("A JPEG is written as .jpg, and a picture of a kind with no extension is counted rather than written")
     void writesAJpegAndCountsAnUnwrittenKind(@TempDir Path pageDirectory) throws IOException {
         byte[] jpeg = bytes("a jpeg");
-        EntryPictures pictures = EntryPictures.among(
+        EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST),
                 source(Map.of(
                         FIRST.occurrence(),
@@ -249,7 +252,7 @@ class EntryPicturesTest {
     @Story("A picture only one document carries is shown under that document")
     @DisplayName("Under a two-digit entry a picture is indented four spaces, so it stays inside that entry")
     void indentsByTheWidthOfTheEntrysNumber(@TempDir Path pageDirectory) throws IOException {
-        EntryPictures pictures = EntryPictures.among(
+        EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST), source(Map.of(FIRST.occurrence(), List.of(png(A_DIAGRAM)))), DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
@@ -266,7 +269,7 @@ class EntryPicturesTest {
         List<ListedPicture> many = IntStream.range(0, count)
                 .mapToObj(n -> png(bytes("picture " + n)))
                 .toList();
-        EntryPictures pictures = EntryPictures.among(
+        EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST), source(Map.of(FIRST.occurrence(), many)), DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
         pictures.appendUnder(page, FIRST, 1, pageDirectory, THE_PICTURE_DIRECTORY);

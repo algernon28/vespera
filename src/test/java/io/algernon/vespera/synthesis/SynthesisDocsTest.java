@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
@@ -92,7 +93,7 @@ class SynthesisDocsTest {
                         + " with every marker exactly where it was, and the group itself -- because the"
                         + " page a reader opens is built from this row, and a row that had been tidied"
                         + " would describe writing nobody produced",
-                () -> assertThat(docs.forRun(run)).singleElement().satisfies(recorded -> {
+                () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,run)).singleElement().satisfies(recorded -> {
                     assertThat(recorded.winningSeed()).isEqualTo(seed);
                     assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
                     assertThat(recorded.doc().title()).isEqualTo(TITLE);
@@ -103,7 +104,7 @@ class SynthesisDocsTest {
                         + " the text above reads back as the earliest audit and [2] as the later one: a"
                         + " count of them would say how much was read and nothing about which number"
                         + " means which document, and nothing downstream can work that out again",
-                () -> assertThat(docs.forRun(run))
+                () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,run))
                         .singleElement()
                         .satisfies(recorded ->
                                 assertThat(recorded.doc().sent()).containsExactly(earliest, later)));
@@ -139,7 +140,7 @@ class SynthesisDocsTest {
                         + " are gone: a row left over from a call nothing was kept from would take a"
                         + " number the writing uses, and every entry after it would move -- which is the"
                         + " wrong link this record exists to make impossible",
-                () -> assertThat(docs.forRun(run))
+                () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,run))
                         .singleElement()
                         .satisfies(recorded -> assertThat(recorded.doc().sent())
                                 .containsExactly(earliest, later)

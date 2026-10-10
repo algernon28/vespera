@@ -1,11 +1,13 @@
 package io.algernon.vespera.pipeline;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
- * Renders the arrangement as one self-contained HTML page (ADR-107) — plain, hand-assembled HTML, no
+ * Writes the arrangement as one self-contained HTML page (ADR-107) — plain, hand-assembled HTML, no
  * templating library, the shared {@link ReportPage} module the reports beside the database all
- * supply their title, prose and rows to (ADR-046, ADR-130).
+ * supply their title, prose and rows to (ADR-046, ADR-130) — as its partitions come: {@link #open}, then
+ * {@link #partition} for each, then {@link #close} (ADR-223 section 3).
  *
  * <p><b>This page is a gate, not a report.</b> The other five beside the database inform a number the
  * operator then supplies; this one asks for a decision about the thing it is showing. So it carries
@@ -54,9 +56,15 @@ final class ArrangementReport {
         }
     }
 
-    static String render(String approvalName, String corpusRoot, List<Partition> partitions) {
-        StringBuilder body = new StringBuilder();
-        body.append(ReportPage.heading(1, "How the documents are arranged"))
+    private static final String TITLE = "How the documents are arranged";
+
+    /**
+     * Everything of the page before its first partition: what is being asked, and the name to approve. The
+     * page is written as its partitions come, so none is needed to begin it (ADR-223 section 3).
+     */
+    static void open(Appendable page, String approvalName, String corpusRoot) throws IOException {
+        page.append(ReportPage.head(TITLE))
+                .append(ReportPage.heading(1, "How the documents are arranged"))
                 .append(ReportPage.paragraph("Every document that survived is here, under the exemplar"
                         + " it was matched to and in the group it formed with the documents nearest it."
                         + " Nothing has been removed, merged or renamed to produce this page, and"
@@ -82,33 +90,37 @@ final class ArrangementReport {
                 .append(ReportPage.paragraph("Write down what you actually checked in"
                         + " <code>provenance</code> beside it. Nothing verifies it; it is there so that"
                         + " whoever reads this archive later knows what the approval was worth."));
+    }
 
-        if (partitions.isEmpty()) {
-            return ReportPage.render(
-                    "How the documents are arranged",
-                    body.append(ReportPage.paragraph(
-                                    "No document was matched to an exemplar, so there is nothing to"
-                                            + " arrange."))
-                            .toString());
+    /** One partition's heading, its line of counts and its table, appended once its rows are read back. */
+    static void partition(Appendable page, Partition partition) throws IOException {
+        StringBuilder rows = new StringBuilder();
+        for (Cluster cluster : partition.clusters()) {
+            rows.append(ReportPage.row(
+                    ReportPage.textCell(cluster.label()),
+                    ReportPage.numberCell(cluster.documentCount()),
+                    ReportPage.linkCell(cluster.leadDocumentLink(), cluster.leadDocument())));
         }
+        page.append(ReportPage.heading(2, partition.seedPath()))
+                .append(ReportPage.paragraph(partition.documentCount() + " document(s) in "
+                        + partition.clusters().size() + " group(s)."))
+                .append(ReportPage.table(
+                        ReportPage.headerRow("Group", "Documents", "Named after"),
+                        rows.toString()));
+    }
 
-        for (Partition partition : partitions) {
-            StringBuilder rows = new StringBuilder();
-            for (Cluster cluster : partition.clusters()) {
-                rows.append(ReportPage.row(
-                        ReportPage.textCell(cluster.label()),
-                        ReportPage.numberCell(cluster.documentCount()),
-                        ReportPage.linkCell(cluster.leadDocumentLink(), cluster.leadDocument())));
-            }
-            body.append(ReportPage.heading(2, partition.seedPath()))
-                    .append(ReportPage.paragraph(partition.documentCount() + " document(s) in "
-                            + partition.clusters().size() + " group(s)."))
-                    .append(ReportPage.table(
-                            ReportPage.headerRow("Group", "Documents", "Named after"),
-                            rows.toString()));
+    /**
+     * Everything of the page after its last partition, or, where {@code partitionsWritten} is none, the
+     * sentence that there is nothing to arrange.
+     */
+    static void close(Appendable page, int partitionsWritten) throws IOException {
+        if (partitionsWritten == 0) {
+            page.append(ReportPage.paragraph(
+                            "No document was matched to an exemplar, so there is nothing to arrange."))
+                    .append(ReportPage.tail());
+            return;
         }
-
-        body.append(ReportPage.heading(2, "How to read this"))
+        page.append(ReportPage.heading(2, "How to read this"))
                 .append(ReportPage.paragraph("Exemplars are in order of how much of the archive sits"
                         + " under them, largest first, so the substantial part of what you have is at"
                         + " the top. Within each one, groups holding several documents come before"
@@ -121,8 +133,7 @@ final class ArrangementReport {
                         + " different settings is cheap compared with what comes next."))
                 .append(ReportPage.paragraph("A group holding one document is a real outcome rather"
                         + " than a mistake: it means that document was collected on its own merits and"
-                        + " not because it belongs with the others."));
-
-        return ReportPage.render("How the documents are arranged", body.toString());
+                        + " not because it belongs with the others."))
+                .append(ReportPage.tail());
     }
 }

@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
@@ -93,7 +94,7 @@ class ArrangementInvocationTest {
         cli.run("run", root.toString());
 
         claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        List<RecordedCluster> arranged = clusters.forRun(theArrangementRun());
+        List<RecordedCluster> arranged = WholeRun.clusters(jdbcTemplate,theArrangementRun());
         claim(
                 "every group the previous step formed has a row of its own, which is the level that did"
                         + " not exist before it: that step records which documents share a group without"
@@ -132,7 +133,7 @@ class ArrangementInvocationTest {
                 "the group is named after what its leading document calls itself, which is a name a"
                         + " reviewer can check by opening that document -- the filename is the fallback for"
                         + " documents that have no title of their own, not the first choice",
-                () -> assertThat(clusters.forRun(theArrangementRun()))
+                () -> assertThat(WholeRun.clusters(jdbcTemplate,theArrangementRun()))
                         .singleElement()
                         .satisfies(recorded ->
                                 assertThat(recorded.label().value())

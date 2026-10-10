@@ -116,7 +116,11 @@ class GenerationReportsItsProgressInvocationTest {
     private static final int ONE_ENTRY_PER_CLUSTER = 1;
 
     private static final String CLUSTERS = "Stage 6b (generation, clusters)";
+    /** The counter stage 6b no longer has since ADR-223: a score is read by its key in loops that count already. */
     private static final String SCORES = "Stage 6b (generation, scores read)";
+
+    /** The counter over the listing's rows, which are written in a read of their own since ADR-223. */
+    private static final String MANIFEST = "Stage 6b (generation, manifest rows)";
     private static final String LISTED = "Stage 6b (generation, survivors listed)";
     private static final String PICTURES = "Stage 6b (generation, pictures listed)";
     private static final String PARTITIONS = "Stage 6b (generation, partitions written)";
@@ -184,19 +188,27 @@ class GenerationReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(CLUSTERS))
                         .containsExactlyElementsOf(ProgressLines.expected(CLUSTERS, SIX_CLUSTERS)));
         theTreesCountersRan(root, SIX_CLUSTERS);
+        long membership = membershipBehind(theApprovedArrangement(root));
         claim(
                 "the step says what it is reading and how long each read took, each line once, in the order it"
-                        + " reads: which document is in which group, the groups recorded, the groups already"
-                        + " written, the faults still standing once the last group is gone through, and, for the"
-                        + " tree, the groups written and the faults recorded",
+                        + " reads: the partitions of the arrangement, its one partition's recorded groups and"
+                        + " then that partition's documents, the faults still standing once the last group is"
+                        + " gone through; and, for the tree, every arranged document a page at a time for its"
+                        + " pictures, the partition's groups and documents again, and every arranged document a"
+                        + " page at a time for the listing. It reads no whole run's documents, groups, writing"
+                        + " or faults at once",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_SIX_B))
                         .containsExactlyElementsOf(StatementLines.inOrder(
-                                StatementLines.timedRead(STAGE_SIX_B, "the cluster membership"),
-                                StatementLines.timedRead(STAGE_SIX_B, "the recorded clusters"),
-                                StatementLines.timedRead(STAGE_SIX_B, "the clusters already written"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the seed partitions of the arrangement"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the recorded clusters of partition 1 of 1"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the members of partition 1 of 1"),
                                 StatementLines.timedRead(STAGE_SIX_B, "the standing faults"),
-                                StatementLines.timedRead(STAGE_SIX_B, "the clusters written"),
-                                StatementLines.timedRead(STAGE_SIX_B, "the faults recorded"))));
+                                StatementLines.countedRead(
+                                        STAGE_SIX_B, "the arranged occurrences, for their pictures", membership),
+                                StatementLines.timedRead(STAGE_SIX_B, "the recorded clusters of partition 1 of 1"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the members of partition 1 of 1"),
+                                StatementLines.countedRead(
+                                        STAGE_SIX_B, "the arranged occurrences, for the manifest", membership))));
     }
 
     @Test
@@ -223,16 +235,21 @@ class GenerationReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(CLUSTERS))
                         .containsExactlyElementsOf(ProgressLines.expected(CLUSTERS, SIX_CLUSTERS).subList(0, 5)));
         theTreesCountersRan(root, SIX_CLUSTERS);
+        long membership = membershipBehind(theApprovedArrangement(root));
         claim(
                 "a walk that stops never reads the faults still standing, so the step says nothing of that"
-                        + " read; every other read is said as on a clean finish, the two for the tree included",
+                        + " read; every other read is said as on a clean finish, those for the tree included",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_SIX_B))
                         .containsExactlyElementsOf(StatementLines.inOrder(
-                                StatementLines.timedRead(STAGE_SIX_B, "the cluster membership"),
-                                StatementLines.timedRead(STAGE_SIX_B, "the recorded clusters"),
-                                StatementLines.timedRead(STAGE_SIX_B, "the clusters already written"),
-                                StatementLines.timedRead(STAGE_SIX_B, "the clusters written"),
-                                StatementLines.timedRead(STAGE_SIX_B, "the faults recorded"))));
+                                StatementLines.timedRead(STAGE_SIX_B, "the seed partitions of the arrangement"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the recorded clusters of partition 1 of 1"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the members of partition 1 of 1"),
+                                StatementLines.countedRead(
+                                        STAGE_SIX_B, "the arranged occurrences, for their pictures", membership),
+                                StatementLines.timedRead(STAGE_SIX_B, "the recorded clusters of partition 1 of 1"),
+                                StatementLines.timedRead(STAGE_SIX_B, "the members of partition 1 of 1"),
+                                StatementLines.countedRead(
+                                        STAGE_SIX_B, "the arranged occurrences, for the manifest", membership))));
     }
 
     /**
@@ -324,22 +341,26 @@ class GenerationReportsItsProgressInvocationTest {
     }
 
     /**
-     * The tree's six counters after any exit: the scores read and the survivors listed over the membership
-     * under the scoring run, the pictures asked for over the distinct survivors, which are the same here,
-     * the one partition, the {@code clusters} cluster files, and one membership entry with a document for
-     * each cluster.
+     * The tree's six counters after any exit: the survivors listed, the pictures asked for and the listing's
+     * rows, each over the membership under the scoring run, the one partition, the {@code clusters} cluster
+     * files, and one membership entry with a document for each cluster. The counter over the scores read is
+     * gone (ADR-223 section 8, C6).
      */
     private void theTreesCountersRan(Path root, int clusters) {
         long membership = membershipBehind(theApprovedArrangement(root));
         claim(
-                "the scores of the " + membership + " members under the scoring run are read, and the same "
-                        + membership + " survivors are listed for the tree and asked for their pictures",
+                "the " + membership + " survivors under the scoring run are listed for the tree, asked for"
+                        + " their pictures and written to the listing, a counter each",
                 () -> {
-                    assertThat(progressOf(SCORES)).containsExactlyElementsOf(ProgressLines.expected(SCORES, membership));
                     assertThat(progressOf(LISTED)).containsExactlyElementsOf(ProgressLines.expected(LISTED, membership));
                     assertThat(progressOf(PICTURES))
                             .containsExactlyElementsOf(ProgressLines.expected(PICTURES, membership));
+                    assertThat(progressOf(MANIFEST))
+                            .containsExactlyElementsOf(ProgressLines.expected(MANIFEST, membership));
                 });
+        claim(
+                "no counter is kept over the scores read: a score is read by its key in loops that count already",
+                () -> assertThat(progressOf(SCORES)).isEmpty());
         claim(
                 "the one partition is written, its " + clusters + " cluster files, and one membership entry in each",
                 () -> {
@@ -349,7 +370,7 @@ class GenerationReportsItsProgressInvocationTest {
                     assertThat(progressOf(ENTRIES))
                             .containsExactlyElementsOf(ProgressLines.expected(ENTRIES, (long) clusters * ONE_ENTRY_PER_CLUSTER));
                 });
-        everyLineIsTheCounters(CLUSTERS, SCORES, LISTED, PICTURES, PARTITIONS, FILES, ENTRIES);
+        everyLineIsTheCounters(CLUSTERS, LISTED, MANIFEST, PICTURES, PARTITIONS, FILES, ENTRIES);
     }
 
     private void everyLineIsTheCounters(String... counters) {

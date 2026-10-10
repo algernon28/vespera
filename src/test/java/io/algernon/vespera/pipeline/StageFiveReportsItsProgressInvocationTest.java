@@ -119,8 +119,12 @@ class StageFiveReportsItsProgressInvocationTest {
     private static final String REPORT_ANSWERS = "Stage 5 (relevance report, answers matched)";
     private static final String ARRANGEMENT_SCORES = "Stage 6a (arrangement, scores read)";
     private static final String ARRANGEMENT_MEMBERS = "Stage 6a (arrangement, members gathered)";
-    private static final String ARRANGEMENT_CLUSTERS = "Stage 6a (arrangement, clusters)";
-    private static final String ARRANGEMENT_PAGE_ROWS = "Stage 6a (arrangement, page rows)";
+    /**
+     * The two counters stage 6a opens for each seed partition since ADR-223, a partition's clusters being
+     * known only once its members are read. This class's corpus has one seed, so one partition, the first of one.
+     */
+    private static final String ARRANGEMENT_CLUSTERS = "Stage 6a (arrangement, clusters, partition 1 of 1)";
+    private static final String ARRANGEMENT_PAGE_ROWS = "Stage 6a (arrangement, page rows, partition 1 of 1)";
     private static final String ARRANGEMENT_PAGE_PARTITIONS = "Stage 6a (arrangement, page partitions)";
 
     /** Each stage's own name, which its statement lines open with. */
@@ -517,7 +521,7 @@ class StageFiveReportsItsProgressInvocationTest {
         everyLineIsTheCounters(
                 ARRANGEMENT_SCORES, ARRANGEMENT_MEMBERS, ARRANGEMENT_CLUSTERS, ARRANGEMENT_PAGE_ROWS,
                 ARRANGEMENT_PAGE_PARTITIONS);
-        theArrangementSaidItsTwoReads();
+        theArrangementSaidItsReads(false);
     }
 
     /**
@@ -559,22 +563,32 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> assertThat(progressOf(ARRANGEMENT_CLUSTERS)).isEmpty());
         everyLineIsTheCounters(
                 ARRANGEMENT_SCORES, ARRANGEMENT_MEMBERS, ARRANGEMENT_PAGE_ROWS, ARRANGEMENT_PAGE_PARTITIONS);
-        theArrangementSaidItsTwoReads();
+        theArrangementSaidItsReads(true);
     }
 
     /**
-     * That the arrangement said it read the membership and then the groups recorded, and how long each took,
-     * once each: on the branch that records them and on the branch that finds them recorded, which reads
-     * them for the page it writes again.
+     * That the arrangement said each read it makes, and how long each took, once each and in the order it
+     * makes them (ADR-223 section 8, lines L1 to L4). It no longer reads the run's whole membership or every
+     * group recorded. It reads which exemplars have documents under them, to know whether there is anything
+     * to arrange; where the arrangement was already recorded, the partitions of that arrangement; and then,
+     * for its one partition, the documents under it and the groups recorded for it.
      */
-    private void theArrangementSaidItsTwoReads() {
+    private void theArrangementSaidItsReads(boolean alreadyRecorded) {
+        List<List<String>> reads = new ArrayList<>();
+        reads.add(StatementLines.timedRead(STAGE_SIX_A, "the seed partitions"));
+        if (alreadyRecorded) {
+            reads.add(StatementLines.timedRead(STAGE_SIX_A, "the seed partitions of the arrangement"));
+        }
+        reads.add(StatementLines.timedRead(STAGE_SIX_A, "the members of partition 1 of 1"));
+        reads.add(StatementLines.timedRead(STAGE_SIX_A, "the recorded clusters of partition 1 of 1"));
         claim(
-                "the arrangement says it is reading which document is in which group, and how long that took,"
-                        + " and then the same of the groups recorded: each line once, in that order",
+                "the arrangement says it is reading the exemplars that have documents under them, then"
+                        + (alreadyRecorded ? " the partitions of the arrangement it finds recorded, then" : "")
+                        + " its one partition's documents and that partition's recorded groups, and how long"
+                        + " each took: each line once, in that order, and no read of every document or every"
+                        + " group at once",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_SIX_A))
-                        .containsExactlyElementsOf(StatementLines.inOrder(
-                                StatementLines.timedRead(STAGE_SIX_A, "the cluster membership"),
-                                StatementLines.timedRead(STAGE_SIX_A, "the recorded clusters"))));
+                        .containsExactlyElementsOf(reads.stream().flatMap(List::stream).toList()));
     }
 
     /**

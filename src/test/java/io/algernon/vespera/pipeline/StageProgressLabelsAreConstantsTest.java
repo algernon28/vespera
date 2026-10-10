@@ -34,8 +34,15 @@ import org.junit.jupiter.api.Test;
  * {@code src/main} is read as concatenated parts. The first part is a string literal starting {@code
  * "Stage "}, or {@code stage}, the constant {@code RedundancyResolutionTasklet} builds its labels from.
  * Every other part is a string literal, or a name allowed in that one file: {@code stage} in {@code
- * RedundancyResolutionTasklet}, and {@code place} and {@code of}, the two numbers it counts partitions
- * with, in {@code ClusteringTasklet}.
+ * RedundancyResolutionTasklet}, and {@code place} and {@code of}, the two numbers a stage counts seed
+ * partitions with, in {@code ClusteringTasklet} and, since ADR-223 gave stage 6a a counter for each
+ * partition as stage 5f has, in {@code ArrangementTasklet}.
+ *
+ * <p><b>A part is a string literal only where it is one from its first quote to its last.</b> Until #472 a
+ * part passed if it merely began with a quote, so {@code "Stage … %s".formatted(anything)} passed, and so
+ * would a literal followed by any call on it: the one shape that can carry a document's title into a label
+ * while still opening with literal text. A label that needs a number says so by concatenating a name this
+ * class allows, where the scan can read which name it is.
  */
 @Epic("Pipeline")
 @Feature("The invocation account")
@@ -50,7 +57,12 @@ class StageProgressLabelsAreConstantsTest {
     /** The names a label may concatenate with its literal text, and the one file each is allowed in. */
     private static final Map<String, Set<String>> NAMES_ALLOWED_BY_FILE = Map.of(
             "RedundancyResolutionTasklet.java", Set.of("stage"),
-            "ClusteringTasklet.java", Set.of("place", "of"));
+            "ClusteringTasklet.java", Set.of("place", "of"),
+            "ArrangementTasklet.java", Set.of("place", "of"));
+
+    /** A whole string literal and nothing after it: an opening quote, no unescaped quote inside, a closing quote. */
+    private static final java.util.regex.Pattern A_WHOLE_STRING_LITERAL =
+            java.util.regex.Pattern.compile("\"(?:[^\"\\\\]|\\\\.)*\"");
 
     /** Fewer than this many calls means the scan found nothing, and nothing found would pass every claim. */
     private static final int AT_LEAST_THIS_MANY_COUNTERS = 40;
@@ -86,7 +98,36 @@ class StageProgressLabelsAreConstantsTest {
         boolean opensRight = first.startsWith("\"Stage ") || (first.equals("stage") && allowedHere.contains(first));
         return opensRight
                 && parts.stream()
-                        .allMatch(part -> part.startsWith("\"") || allowedHere.contains(part));
+                        .allMatch(part -> A_WHOLE_STRING_LITERAL.matcher(part).matches() || allowedHere.contains(part));
+    }
+
+    @Test
+    @Story("A progress label is spelled by code and never built from a document")
+    @DisplayName("A label that opens with literal text and then formats something into it is not taken for literal text")
+    void aLiteralWithACallOnItIsNotALiteral() {
+        claim(
+                "text with a placeholder, filled by a call on it, is refused: what fills the placeholder is"
+                        + " whatever the call is handed, and the scan cannot read that it is a number",
+                () -> assertThat(isConstant(new Label(
+                                "ArrangementTasklet.java", "\"Stage 6a (arrangement, clusters, partition %d of %d)\".formatted(place")))
+                        .isFalse());
+        claim(
+                "the same label built by joining literal text to the two numbers a stage counts its exemplars"
+                        + " with is accepted in the file those names are allowed in",
+                () -> assertThat(isConstant(new Label(
+                                "ArrangementTasklet.java",
+                                "\"Stage 6a (arrangement, clusters, partition \" + place + \" of \" + of + \")\"")))
+                        .isTrue());
+        claim(
+                "and refused in a file they are not allowed in, where the same two names could be anything",
+                () -> assertThat(isConstant(new Label(
+                                "GenerationTasklet.java",
+                                "\"Stage 6b (generation, clusters, partition \" + place + \" of \" + of + \")\"")))
+                        .isFalse());
+        claim(
+                "literal text alone, with a bracket and a comma inside it, is still literal text",
+                () -> assertThat(isConstant(new Label("GenerationTasklet.java", "\"Stage 6b (generation, clusters)\"")))
+                        .isTrue());
     }
 
     /** Splits on a {@code +} outside a string literal, keeping each part trimmed. */

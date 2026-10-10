@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-221](0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md).** One figure of §4's table no longer holds: `SHINGLE_HASH_INDEX_BUILD` (11) in the row for `similarity.SimilarityStatement`. Stage 4b builds `shingle_by_hash` over the rows of the one stage-2 run it reads, and the constant declares 12, the most a row takes, which is a row of that run; a row of another run takes 3. Everything else in this record stands.
 
+> **Partly amended — see [ADR-223](0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md).** Of §3's lines, 6a's two and 6b's `the cluster membership`, `the recorded clusters`, `the clusters already written`, `the clusters written` and `the faults recorded` are struck, and the lines ADR-223 §8 names stand in their place. §4's list of `SynthesisStatement`'s constants loses `WRITTEN`, and its list of `EmbeddingStatement`'s gains `ARRANGED_OCCURRENCES_FOR_PICTURES` and `ARRANGED_OCCURRENCES_FOR_THE_MANIFEST`.
+
 - **Date**: 2026-10-06
 - **Status**: accepted
 - **Extends**: [ADR-193](0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md) §4, §6 and §7: every statement of its part (b) is given the `<stage>` its lines open with, the four enums are listed with their constants, and one statement §6 could not have named is given a form (§2).

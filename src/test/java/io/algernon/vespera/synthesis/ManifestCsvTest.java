@@ -23,6 +23,9 @@ import org.junit.jupiter.api.Test;
  *
  * <p><b>The expected file is what {@code Deliverable.writeManifest} wrote at {@code 4b99a03}</b> for the
  * same arrangement and survivors.
+ *
+ * <p>Since ADR-223 the manifest is written a page of survivors at a time and nothing composes it whole, so the
+ * lists here go through {@link ListedArrangement}, which hands them over as the tree's writer is handed them.
  */
 @Epic("Synthesis")
 @Feature("The listing of every document the tree arranges")
@@ -60,7 +63,7 @@ class ManifestCsvTest {
                 "the file is the header naming the columns as the ledger names them, then each survivor in the"
                         + " order it was handed over, with the partition order and cluster order 6a gave its"
                         + " cluster, byte for byte as the deliverable wrote it",
-                () -> assertThat(ManifestCsv.contents(anArrangement(), itsSurvivors())).isEqualTo(THE_MANIFEST));
+                () -> assertThat(ListedArrangement.manifestContents(anArrangement(), itsSurvivors())).isEqualTo(THE_MANIFEST));
     }
 
     @Test
@@ -106,7 +109,7 @@ class ManifestCsvTest {
                 "the arrangement is total over its survivors (ADR-105), so a row of 0,0 for the stray would be"
                         + " two plausible numbers in a file built to be loaded into a table; the writer throws,"
                         + " naming the survivor, its cluster and its seed",
-                () -> assertThatThrownBy(() -> ManifestCsv.contents(anArrangement(), withAStray))
+                () -> assertThatThrownBy(() -> ListedArrangement.manifestContents(anArrangement(), withAStray))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessage("survivor 15 names cluster 7 of seed 1, which the arrangement does not carry"));
     }

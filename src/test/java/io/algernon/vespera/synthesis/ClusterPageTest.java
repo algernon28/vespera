@@ -266,7 +266,7 @@ class ClusterPageTest {
 
     /** Pictures for a tree whose documents carry none. */
     private static EntryPictures noPictures() {
-        return EntryPictures.among(List.of(), SurvivorPictures.none(), DeliverableProgress.NONE);
+        return ListedArrangement.picturesAmong(List.of(), SurvivorPictures.none(), DeliverableProgress.NONE);
     }
 
     private static ListedSurvivor member(long occurrence, String path, double score) {

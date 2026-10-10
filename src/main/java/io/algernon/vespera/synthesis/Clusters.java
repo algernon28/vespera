@@ -2,7 +2,10 @@ package io.algernon.vespera.synthesis;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -58,25 +61,73 @@ public class Clusters {
     }
 
     /**
-     * Every cluster recorded under {@code runId}, in the order the arrangement gives them.
+     * The seed partitions recorded under {@code arrangement}, one row each with how many clusters sit in it and
+     * how many documents they hold (ADR-223 section 4), in the order the arrangement places them.
      *
-     * <p>Ordered by the stored columns rather than re-sorted, because the arrangement the operator
-     * approved and the arrangement a reader receives have to be the same one (ADR-112).
+     * <p>Read grouped by the seed, planned by the table's primary key with nothing sorted, and put in the
+     * stored order on the heap: the arrangement the operator approved and the arrangement a reader receives
+     * have to be the same one (ADR-112).
      */
-    public List<RecordedCluster> forRun(RunId runId) {
-        return jdbcTemplate.query(
-                "SELECT winning_seed_occurrence_id, cluster_ordinal, label, document_count,"
-                        + " partition_order, cluster_order FROM cluster WHERE run_id = ?"
-                        + " ORDER BY partition_order, cluster_order",
+    public List<ArrangedPartition> partitionsOf(RunId arrangement) {
+        List<ArrangedPartition> partitions = new ArrayList<>(jdbcTemplate.query(
+                "SELECT winning_seed_occurrence_id, MIN(partition_order) AS partition_order,"
+                        + " COUNT(*) AS clusters, SUM(document_count) AS members FROM cluster"
+                        + " WHERE run_id = ? GROUP BY winning_seed_occurrence_id",
+                (resultSet, rowNumber) -> new ArrangedPartition(
+                        new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
+                        resultSet.getInt("partition_order"),
+                        resultSet.getInt("clusters"),
+                        resultSet.getInt("members")),
+                arrangement.value()));
+        partitions.sort(Comparator.comparingInt(ArrangedPartition::partitionOrder));
+        return partitions;
+    }
+
+    /** The winning seeds of {@link #partitionsOf}, in the same order. */
+    public List<OccurrenceId> seedsOf(RunId arrangement) {
+        return partitionsOf(arrangement).stream().map(ArrangedPartition::winningSeed).toList();
+    }
+
+    /**
+     * The clusters recorded under {@code arrangement} in {@code winningSeed}'s partition, in the order the
+     * arrangement gives them (ADR-223 section 3): read unordered and put in the stored {@code cluster_order}
+     * on the heap, so that nothing is sorted by the database and no rule of the order is applied a second time.
+     */
+    public List<RecordedCluster> ofPartition(RunId arrangement, OccurrenceId winningSeed) {
+        List<RecordedCluster> recorded = new ArrayList<>(jdbcTemplate.query(
+                "SELECT cluster_ordinal, label, document_count, partition_order, cluster_order FROM cluster"
+                        + " WHERE run_id = ? AND winning_seed_occurrence_id = ?",
                 (resultSet, rowNumber) -> new RecordedCluster(
                         new ArrangedCluster(
-                                new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
+                                winningSeed,
                                 resultSet.getInt("cluster_ordinal"),
                                 resultSet.getInt("document_count"),
                                 resultSet.getInt("partition_order"),
                                 resultSet.getInt("cluster_order")),
                         new ClusterLabel(resultSet.getString("label"))),
-                runId.value());
+                arrangement.value(),
+                winningSeed.value()));
+        recorded.sort(Comparator.comparingInt((RecordedCluster cluster) -> cluster.cluster().clusterOrder()));
+        return recorded;
+    }
+
+    /** The two places {@code arrangement} gives one cluster, read by its key, or empty where it records none. */
+    public Optional<ArrangedCluster> placeOf(RunId arrangement, OccurrenceId winningSeed, int clusterOrdinal) {
+        return jdbcTemplate
+                .query(
+                        "SELECT document_count, partition_order, cluster_order FROM cluster WHERE run_id = ?"
+                                + " AND winning_seed_occurrence_id = ? AND cluster_ordinal = ?",
+                        (resultSet, rowNumber) -> new ArrangedCluster(
+                                winningSeed,
+                                clusterOrdinal,
+                                resultSet.getInt("document_count"),
+                                resultSet.getInt("partition_order"),
+                                resultSet.getInt("cluster_order")),
+                        arrangement.value(),
+                        winningSeed.value(),
+                        clusterOrdinal)
+                .stream()
+                .findFirst();
     }
 
     /** How many clusters are recorded under {@code runId}. A count the database makes, reading no column of any row (ADR-220 section 7). */

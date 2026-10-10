@@ -33,9 +33,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * ADR-204 section 4, "on every path but one that throws", for {@code synthesis} (ADR-193 section 7, #411):
- * each of the two statements of {@code ClusterGeneration.write}, both timed, is started and never said to
- * have ended where it throws. The table a read goes to is dropped once the read has been announced, so the
- * read itself is what fails.
+ * the one statement of {@code ClusterGeneration.write} that is announced, the timed count of the standing
+ * faults, is started and never said to have ended where it throws. The table the read goes to is dropped once
+ * the read has been announced, so the read itself is what fails.
+ *
+ * <p><b>There were two such statements until ADR-223.</b> The read of the clusters already written is gone:
+ * whether a cluster is written is asked by its key, one row at a time, which is a lookup and is announced by
+ * nobody (ADR-193 section 1), so the test that dropped {@code synthesis_doc} under it went with it.
  *
  * <p><b>No Spring context, and a database file of its own</b> ({@link PoolOfTwo}, in a folder JUnit removes).
  * A test that drops a table, and commits what its fixture writes, may not do either in the in-memory
@@ -77,19 +81,6 @@ class SynthesisStatementThatThrowsTest {
 
     @Test
     @Story("Writing over the groups says what it is reading")
-    @DisplayName("A read of the groups already written that throws is not said to have ended, and the walk is never announced")
-    void theReadOfWhatIsWrittenThatThrowsIsNotSaidToHaveEnded() {
-        claim(
-                "writing fails as the template reports any statement's failure, once the table is gone",
-                () -> assertThatThrownBy(() -> writeDroppingATable(SynthesisStatement.WRITTEN, "synthesis_doc"))
-                        .isInstanceOf(DataAccessException.class));
-        claim(
-                "the caller was told the read started, with no total, and nothing after it",
-                () -> assertThat(calls).containsExactly(starting(SynthesisStatement.WRITTEN)));
-    }
-
-    @Test
-    @Story("Writing over the groups says what it is reading")
     @DisplayName("A read of the standing faults that throws is not said to have ended")
     void theReadOfTheStandingFaultsThatThrowsIsNotSaidToHaveEnded() {
         claim(
@@ -97,14 +88,10 @@ class SynthesisStatementThatThrowsTest {
                 () -> assertThatThrownBy(() -> writeDroppingATable(SynthesisStatement.STANDING_FAULTS, "cluster_fault"))
                         .isInstanceOf(DataAccessException.class));
         claim(
-                "the caller was told the first read started and ended, the walk over no group was announced,"
-                        + " and the second read started, with no total, and never that it ended",
+                "the caller was told the walk over no group was announced, with no read before it, and then"
+                        + " that the read of the standing faults started, with no total, and never that it ended",
                 () -> assertThat(calls)
-                        .containsExactly(
-                                starting(SynthesisStatement.WRITTEN),
-                                "statementEnded(" + SynthesisStatement.WRITTEN + ")",
-                                "toGoThrough 0",
-                                starting(SynthesisStatement.STANDING_FAULTS)));
+                        .containsExactly("toGoThrough 0", starting(SynthesisStatement.STANDING_FAULTS)));
     }
 
     private static String starting(SynthesisStatement statement) {
@@ -123,6 +110,7 @@ class SynthesisStatementThatThrowsTest {
                         new ClusterSynthesis(neverAsked), new SynthesisDocs(jdbcTemplate), new ClusterFaults(jdbcTemplate))
                 .write(
                         run,
+                        0,
                         List.of(),
                         recorded -> new ClusterMaterial(SEED_PATH, List.of()),
                         MODEL_NAME,
