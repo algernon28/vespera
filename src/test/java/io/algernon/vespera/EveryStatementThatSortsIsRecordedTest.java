@@ -120,6 +120,9 @@ class EveryStatementThatSortsIsRecordedTest {
 
     private static final String PACKAGE = "io.algernon.vespera.";
 
+    /** What stands for the run id in the index build applied for the second planning: 64 lowercase hex characters. */
+    private static final String A_RUN_ID_OF_THE_MINTED_FORM = "a".repeat(64);
+
     /** The class whose one index build is applied for the second planning. */
     private static final String THE_CLASS_THAT_BUILDS_THE_HASH_INDEX = PACKAGE + "similarity.ShingleHashIndex";
 
@@ -302,8 +305,15 @@ class EveryStatementThatSortsIsRecordedTest {
                         .findFirst()
                         .orElseThrow(() -> new IllegalStateException(
                                 "the class that builds the index holds no statement that builds one"));
+                // Since ADR-221 the statement carries the stage-2 run it is built for, joined in at run time,
+                // so the compiled text holds a mark where the run id goes: an id of the minted form is put
+                // there. Every statement below is planned with whole numbers bound, so none of them names
+                // that run and the index is another run's to each: the plans of this state are the plans
+                // with an index SQLite may not use, and what the index does for its own run's containment
+                // read is ShingleIndexesInTheSchemaTest's.
+                String forARun = VALUE_JOINED_IN.matcher(build).replaceAll(A_RUN_ID_OF_THE_MINTED_FORM);
                 try (Statement statement = database.createStatement()) {
-                    statement.execute(build);
+                    statement.execute(forARun);
                 }
             }
             for (Map.Entry<String, List<String>> shipped : strings.entrySet()) {
@@ -315,7 +325,9 @@ class EveryStatementThatSortsIsRecordedTest {
                     String lists = LIST_JOINED_IN.matcher(text).replaceAll(Matcher.quoteReplacement(A_LIST_OF_TWO_BOUND_VALUES));
                     String statement = VALUE_JOINED_IN.matcher(lists).replaceAll(Matcher.quoteReplacement(ONE_BOUND_VALUE));
                     try {
-                        if (INDEX_BUILD.matcher(statement).matches() | keepsRowsInTemporaryStorage(database, statement)) {
+                        // An index build is counted for what it is and is not planned: ADR-221's carries no
+                        // IF NOT EXISTS, so with the index already there it could not be.
+                        if (INDEX_BUILD.matcher(statement).matches() || keepsRowsInTemporaryStorage(database, statement)) {
                             sorting.computeIfAbsent(name, ignored -> new ArrayList<>()).add(statement);
                         }
                         planned++;

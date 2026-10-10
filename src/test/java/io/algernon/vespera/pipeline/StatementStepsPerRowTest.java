@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.similarity.TheRunsHashIndex;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -106,9 +107,20 @@ class StatementStepsPerRowTest {
     /** One step a callback: every step counted. */
     private static final int EVERY_STEP = 1;
 
-    /** The index stage 4b builds, which {@code schema.sql} does not declare (ADR-182). */
-    private static final String SHINGLE_BY_HASH =
-            "CREATE INDEX IF NOT EXISTS shingle_by_hash ON shingle (run_id, shingle_parameter_identity, shingle_hash)";
+    /**
+     * The index stage 4b builds, which {@code schema.sql} does not declare (ADR-182): since ADR-221, over the
+     * rows of one stage-2 run, here {@link #RUN_READ}'s.
+     */
+    private static final String SHINGLE_BY_HASH = TheRunsHashIndex.statementFor(RUN_READ);
+
+    /**
+     * Steps stage 4b's build takes for a row of the run it is built for: the eight of any build and one for
+     * each of its two columns, and two more to read the row's run and compare it (ADR-221 section 5).
+     */
+    static final int HASH_INDEX_STEPS_A_ROW_OF_ITS_RUN = 12;
+
+    /** Steps the same build takes for a row of any other run, which it reads, compares and leaves out. */
+    static final int HASH_INDEX_STEPS_A_ROW_OF_ANOTHER_RUN = 3;
 
     /** An index statement of {@code schema.sql}, as {@code StartUpIndexAnnouncement} reads them. */
     private static final Pattern INDEX_STATEMENT = Pattern.compile(
@@ -147,7 +159,6 @@ class StatementStepsPerRowTest {
     @DisplayName("Building an index takes eight steps for every row, and one more for every column it indexes")
     void anIndexBuildTakesEightStepsARowAndOneForEachColumn() throws SQLException, IOException {
         List<IndexStatement> builds = new ArrayList<>(indexStatementsOf(schema()));
-        builds.addAll(indexStatementsOf(SHINGLE_BY_HASH + ";"));
         Set<String> tables = new LinkedHashSet<>();
         builds.forEach(build -> tables.add(build.table()));
 
@@ -176,8 +187,44 @@ class StatementStepsPerRowTest {
                             .isCloseTo((long) expected * DIFFERENCE, within(NEAR_ENOUGH)));
         }
         claim(
-                "every index the schema declares was measured, and the one stage 4b builds besides it",
-                () -> assertThat(builds).extracting(IndexStatement::index).contains("shingle_by_hash", "shingle_by_run_id"));
+                "every index the schema declares was measured, the one on a run's shingle rows among them; the"
+                        + " one stage 4b builds is over part of a table's rows, takes other steps, and has a"
+                        + " check of its own",
+                () -> assertThat(builds)
+                        .extracting(IndexStatement::index)
+                        .contains("shingle_by_run_id")
+                        .doesNotContain("shingle_by_hash"));
+    }
+
+    /**
+     * ADR-221 section 5: the build reads every row of the table and keeps the rows of one run, so its steps
+     * are not one figure a row of the table. Twelve for a row of the run is the most a row takes, which is
+     * what the build declares, so that steps divided by it are never ahead of the rows read.
+     */
+    @Test
+    @Story("A long statement inside the database reports how far it has gone")
+    @DisplayName("Building the index over one run's text fragments takes twelve steps for each of that run's rows and three for each row of another run")
+    void theBuildOverOneRunsRowsTakesTwelveStepsARowOfTheRunAndThreeARowOfAnother() throws SQLException {
+        IndexStatement build = new IndexStatement(SHINGLE_BY_HASH, "shingle_by_hash", "shingle", 2);
+        write("shingle", RUN_READ, FEWER);
+        long atFewer = buildSteps(build);
+        write("shingle", RUN_READ, DIFFERENCE);
+        long atMore = buildSteps(build);
+        write("shingle", EARLIER_RUN, DIFFERENCE);
+        long withAnotherRunsRows = buildSteps(build);
+
+        claim(
+                "building the index over one run's rows takes " + HASH_INDEX_STEPS_A_ROW_OF_ITS_RUN
+                        + " steps for every row of that run, to within " + NEAR_ENOUGH + " steps over "
+                        + DIFFERENCE + " rows",
+                () -> assertThat(atMore - atFewer)
+                        .isCloseTo((long) HASH_INDEX_STEPS_A_ROW_OF_ITS_RUN * DIFFERENCE, within(NEAR_ENOUGH)));
+        claim(
+                "and " + HASH_INDEX_STEPS_A_ROW_OF_ANOTHER_RUN + " for every row of another run in the same"
+                        + " table, which it reads and leaves out, to within " + NEAR_ENOUGH + " steps over "
+                        + DIFFERENCE + " such rows",
+                () -> assertThat(withAnotherRunsRows - atMore)
+                        .isCloseTo((long) HASH_INDEX_STEPS_A_ROW_OF_ANOTHER_RUN * DIFFERENCE, within(NEAR_ENOUGH)));
     }
 
     @Test
