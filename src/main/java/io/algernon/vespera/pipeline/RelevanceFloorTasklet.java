@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.embedding.FloorReach;
 import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.ledger.Ledger;
@@ -24,8 +25,9 @@ import org.springframework.stereotype.Component;
  * <p><b>This is not a gate.</b> {@link RedundancyGate} stops stage 4 because a boilerplate floor is
  * an input that stage cannot work without; the relevance threshold is the opposite, since this run
  * is what produces the data the threshold is calibrated from. Gating on it would mean never
- * producing the report that lets anyone set it. So the step runs in all three of {@link
- * RelevanceFloor}'s states and finishes in each; what changes is only whether a verdict is written.
+ * producing the report that lets anyone set it. So the step runs whatever {@link
+ * RelevanceFloor} says the floor lets it do and finishes in each case; what changes is only whether a
+ * verdict is written.
  *
  * <p><b>It runs before clustering, and that ordering is the whole of ADR-087's "costs nothing".</b>
  * A document removed here is not a survivor by the time the clustering step reads the partition, so
@@ -52,12 +54,6 @@ class RelevanceFloorTasklet implements Tasklet {
 
     /** Stage 5e's own name, which its statement lines open with. */
     private static final String STAGE = "Stage 5e (relevance floor)";
-
-    /**
-     * What the verdict row records as its reason. It names the number and the scale it was read on,
-     * because a removal a person is reading a year later has to say what it was measured against.
-     */
-    static final String REASON = "relevance score below the floor set in the profile";
 
     private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
@@ -105,7 +101,8 @@ class RelevanceFloorTasklet implements Tasklet {
         // embedding-scoring has actually run, may answer differently under this very run id.
         Optional<String> currentIdentity =
                 TimedStatement.of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName));
-        if (currentIdentity.isEmpty()) {
+        FloorReach reach = relevanceFloor.reachFor(currentIdentity, STAGE);
+        if (!reach.withdrawsStandingRemovals()) {
             LOG.info(
                     "stage 5's relevance-floor step removed nothing: the vectors under {} carry no single"
                             + " embedder identity, so there is no one scale for a threshold to be on. A"
@@ -115,52 +112,49 @@ class RelevanceFloorTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        RelevanceFloor.State state = relevanceFloor.stateFor(currentIdentity.get(), STAGE);
-
-        // Every removal this run has standing goes before the state is acted on, whichever way it
+        // Every removal this run has standing goes before the reach is acted on, whichever way it
         // turns out (ADR-118). The answers decide this step and no run names them, so the decision can
         // turn either way between two invocations: a threshold that became applicable removes
         // documents, and one that stopped being applicable must withdraw the removals it already made.
-        // Discarding only inside the applicable branch would keep the harsher half of that.
+        // Discarding only where it applies would keep the harsher half of that.
         ledger.verdicts().discardVerdicts(scoring, VerdictKind.BELOW_THRESHOLD);
 
-        switch (state) {
-            case RelevanceFloor.Unset ignored -> {
-                LOG.info("stage 5's relevance-floor step removed nothing: no relevance threshold is set."
-                        + " Every scored survivor stands, and the labelling report is what a person reads"
-                        + " to choose the number.");
-            }
-            case RelevanceFloor.CalibratedElsewhere elsewhere -> LOG.info(
+        if (reach.floor().isEmpty()) {
+            LOG.info("stage 5's relevance-floor step removed nothing: no relevance threshold is set."
+                    + " Every scored survivor stands, and the labelling report is what a person reads"
+                    + " to choose the number.");
+        } else if (reach.removesBelow().isEmpty()) {
+            LOG.info(
                     "stage 5's relevance-floor step removed nothing: the threshold {} was read off"
                             + " labels given under {}, and this run scored under {}. A threshold is a"
                             + " number on a scale and the model is the scale, so applying it here would"
                             + " remove documents against a distribution it was never calibrated on. The"
                             + " labelling report says so too.",
-                    elsewhere.value(),
-                    elsewhere.calibratedUnder(),
-                    elsewhere.currentIdentity());
-            case RelevanceFloor.Applicable applicable -> {
-                // Counted, then written a page at a time: nothing holds every occurrence below the floor
-                // (ADR-220 section 5). The verdicts of a page go in the step's one transaction before the
-                // next page is read.
-                long below = TimedStatement.of(
-                        STAGE, "counting", "counted", "the scores below the floor",
-                        () -> relevanceScoring.countScoredBelow(scoring, applicable.value()));
-                StageProgress written =
-                        StageProgress.over("Stage 5e (relevance floor, below-threshold verdicts)", below);
-                relevanceScoring.eachPageScoredBelow(scoring, applicable.value(), page -> {
-                    for (OccurrenceId occurrenceId : page) {
-                        ledger.verdicts().verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, REASON);
-                        written.itemDone();
-                    }
-                });
-                LOG.info(
-                        "Stage 5e (relevance floor) finished under scoring run {}: threshold {}, {}"
-                                + " survivor(s) removed as below-threshold",
-                        scoring.value(),
-                        applicable.value(),
-                        below);
-            }
+                    reach.floor().getAsDouble(),
+                    String.join(", ", reach.answeredUnder()),
+                    currentIdentity.get());
+        } else {
+            double threshold = reach.removesBelow().getAsDouble();
+            // Counted, then written a page at a time: nothing holds every occurrence below the floor
+            // (ADR-220 section 5). The verdicts of a page go in the step's one transaction before the
+            // next page is read.
+            long below = TimedStatement.of(
+                    STAGE, "counting", "counted", "the scores below the floor",
+                    () -> relevanceScoring.countScoredBelow(scoring, threshold));
+            StageProgress written =
+                    StageProgress.over("Stage 5e (relevance floor, below-threshold verdicts)", below);
+            relevanceScoring.eachPageScoredBelow(scoring, threshold, page -> {
+                for (OccurrenceId occurrenceId : page) {
+                    ledger.verdicts().verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, FloorReach.REASON);
+                    written.itemDone();
+                }
+            });
+            LOG.info(
+                    "Stage 5e (relevance floor) finished under scoring run {}: threshold {}, {}"
+                            + " survivor(s) removed as below-threshold",
+                    scoring.value(),
+                    threshold,
+                    below);
         }
         return RepeatStatus.FINISHED;
     }

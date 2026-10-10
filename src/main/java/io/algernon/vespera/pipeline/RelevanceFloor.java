@@ -1,40 +1,32 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.embedding.RelevanceLabel;
+import io.algernon.vespera.embedding.FloorReach;
 import io.algernon.vespera.embedding.RelevanceLabels;
-import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import org.springframework.stereotype.Component;
 
 /**
- * What stage 5 is entitled to do with the relevance threshold (ADR-088, #112) — three states, only
- * one of which removes anything.
+ * The wiring that asks {@code embedding} what the relevance threshold lets stage 5e do (ADR-088,
+ * #112, ADR-226): it hands {@link FloorReach} the floor's number, the embedder identity and a read of
+ * the recorded answers, and decides nothing itself.
  *
  * <p><b>This is not a gate, and must not be built as one.</b> ADR-080's gate stops stage 4 because a
  * boilerplate floor is an <em>input</em> that stage cannot work without. The relevance threshold is
  * the opposite: the run is what produces the data the threshold is calibrated from, so gating on it
- * would mean never producing the report that lets anyone set it. The run proceeds in all three
- * states; what changes is only whether a verdict is written.
+ * would mean never producing the report that lets anyone set it. The run proceeds whatever the floor
+ * lets it do; what changes is only whether a verdict is written.
  *
- * <p><b>A threshold is a number on a scale, and the model is the scale.</b> A floor read off one
- * model's scores says nothing about another model's, so applying it after the model changed would
- * write removals against a distribution it was never calibrated on. Which scale a floor belongs to
- * is not something the profile records — and deliberately is not going to be, since that would be a
- * second thing an operator has to keep in step by hand. It is read instead from the labels the
- * number is meant to have been read off: {@code relevance_label} rows carry the embedder identity
- * that was on screen when the answer was given (ADR-088), which is exactly the scale the judgement
- * was made against.
- *
- * <p><b>A floor with no labels behind it is applied.</b> ADR-088 is explicit that nothing checks a
- * threshold was ever labelled — provenance is free text and that is what provenance is for (ADR-031)
- * — so an unlabelled floor is an ordinary operator-supplied number, and there is no recorded scale
- * for it to disagree with. What is refused is not "a floor nobody calibrated" but "a floor whose
- * recorded calibration was against a different model".
+ * <p><b>A threshold is a number on a scale, and the model is the scale.</b> Which scale a floor
+ * belongs to is not something the profile records, since that would be a second thing an operator has
+ * to keep in step by hand. It is read instead from the labels the number is meant to have been read
+ * off: {@code relevance_label} rows carry the embedder identity that was on screen when the answer was
+ * given (ADR-088), and {@link FloorReach} compares them with the run's.
  */
 @Component
 class RelevanceFloor {
@@ -47,82 +39,36 @@ class RelevanceFloor {
         this.relevanceLabels = relevanceLabels;
     }
 
-    /** What the floor entitles this run to do. */
-    sealed interface State {}
-
-    /** Nobody has answered the key. Stage 5 scores, clusters and reports, and removes nothing. */
-    record Unset() implements State {}
-
     /**
-     * A number is set, and the labels it was read off were given against another model's scores — or
-     * against several models', which is the same answer for the same reason. Treated identically to
-     * {@link Unset} — but the report says so, because a value silently ignored is worse than one that
-     * was never set.
+     * What the floor lets the step asked for do, for a run whose vectors carry {@code
+     * currentEmbedderIdentity}.
      *
-     * @param calibratedUnder the embedder identity those labels carry, or all of them where they
-     *     disagree, so the report can name what the number was actually read off
+     * <p>The number is the one the scoring run is identified by ({@link RelevanceScoreFloorValue}), so
+     * the number that removes is the number that names the run. A value that is not a number reads as
+     * unset rather than failing the run: the profile is a file a person edits by hand, and ADR-047 says
+     * an invocation ends having recorded what it learned (ADR-120).
+     *
+     * <p>The one read this makes, of the answers recorded for the seed set, is said under {@code
+     * stage}, the name of the step that asked, {@code Stage 5e (relevance floor)} or {@code Stage 5
+     * (relevance report)} (ADR-193, ADR-204 section 3). It is issued only where there is an identity, a
+     * number and a seed set is named.
      */
-    record CalibratedElsewhere(double value, String calibratedUnder, String currentIdentity) implements State {}
-
-    /** A number set on this run's own scale. The only state that writes a verdict. */
-    record Applicable(double value) implements State {}
-
-    /**
-     * The floor's state for a run whose vectors carry {@code currentEmbedderIdentity}.
-     *
-     * <p>A value that is not a number reads as unset rather than failing the run: the profile is a
-     * file a person edits by hand, ADR-047 says an invocation ends having recorded what it learned,
-     * and a typo in one key is not a reason to lose a whole scoring pass. Since ADR-120 that judgement
-     * is made once, in {@link NumericValue#reading()}, rather than by a catch here that four other
-     * readers had to be asked to match.
-     *
-     * <p>Unreadable and unset are one answer <em>to this question</em> and not the same state: the
-     * operator is told which one it was, by the closing line rather than by anything here.
-     *
-     * <p>The one read this makes, of the answers recorded for the seed set, is said under {@code stage},
-     * the name of the step that asked, {@code Stage 5e (relevance floor)} or {@code Stage 5 (relevance
-     * report)} (ADR-193, ADR-204 section 3). It is issued only where the floor is a number and a seed set
-     * is named.
-     */
-    State stateFor(String currentEmbedderIdentity, String stage) {
-        Profile profile = profileStore.load();
-        if (!(profile.relevanceScoreFloor().reading() instanceof NumericValue.Answered answered)) {
-            return new Unset();
-        }
-        double value = answered.number();
-        List<String> calibratedUnder = calibratedUnder(stage);
-        if (calibratedUnder.isEmpty() || calibratedUnder.equals(List.of(currentEmbedderIdentity))) {
-            return new Applicable(value);
-        }
-        return new CalibratedElsewhere(value, String.join(", ", calibratedUnder), currentEmbedderIdentity);
-    }
-
-    /**
-     * The embedder identities the answers for the named seed set were given against, in occurrence
-     * order and without repetition.
-     *
-     * <p>Empty where nobody has answered anything, which is the one case that lets a floor apply
-     * unchallenged: there is no recorded scale for it to disagree with, and ADR-088 is explicit that
-     * nothing checks a threshold was ever labelled.
-     *
-     * <p><b>More than one is not the same as none.</b> A label set spanning two models is a
-     * half-re-ingested pass, and it is evidence that some of the calibration was done on a scale this
-     * run is not using. Reading that as "no recorded scale" and applying the floor would delete
-     * archive on an ambiguity, which is the asymmetric failure ADR-042 names: an over-block loses an
-     * archive invisibly, while an under-block leaves a document to be removed by a later, better
-     * informed run.
-     */
-    private List<String> calibratedUnder(String stage) {
-        Optional<String> seedSet = seedSet();
-        if (seedSet.isEmpty()) {
-            return List.of();
-        }
-        // Timed: the read has no run, so no span (ADR-193 section 6).
-        return TimedStatement.of(stage, "reading", "read", "the recorded answers", () -> relevanceLabels.forSeedSet(seedSet.get()))
-                .stream()
-                .map(RelevanceLabel::embedderIdentity)
-                .distinct()
-                .toList();
+    FloorReach reachFor(Optional<String> currentEmbedderIdentity, String stage) {
+        Double value = RelevanceScoreFloorValue.readFrom(profileStore).value();
+        return FloorReach.of(
+                currentEmbedderIdentity,
+                value == null ? OptionalDouble.empty() : OptionalDouble.of(value),
+                () -> {
+                    // The answers recorded for the seed set, none where no seed folder is named.
+                    Optional<String> seedSet = seedSet();
+                    if (seedSet.isEmpty()) {
+                        return List.of();
+                    }
+                    // Timed: the read has no run, so no span (ADR-193 section 6).
+                    return TimedStatement.of(
+                            stage, "reading", "read", "the recorded answers",
+                            () -> relevanceLabels.forSeedSet(seedSet.get()));
+                });
     }
 
     /** The seed folder the answers are about, canonicalised the way every other reader of it is. */

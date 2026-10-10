@@ -54,6 +54,27 @@ public class DoclingExtractor {
     }
 
     /**
+     * Converts a seed, sent as the format detection found, except that a file the cross-format floor
+     * stopped is sent as {@code UNRECOGNISED}: the bytes said nothing, which is true, and a file with no
+     * bytes to read converts to a failure, which is the answer. A seed folder has no floor in front of it,
+     * so such a file reaches the unusable-seed path rather than stopping the step (ADR-226, moving
+     * ADR-222's rule 1).
+     */
+    public DoclingResponse convertSeed(
+            Path file,
+            String contentHash,
+            ExtractorIdentity extractorIdentity,
+            DetectedFormat detected,
+            DetectedSubtype subtype) {
+        return convert(
+                file,
+                contentHash,
+                extractorIdentity,
+                detected == DetectedFormat.FLOOR_STOPPED ? DetectedFormat.UNRECOGNISED : detected,
+                subtype);
+    }
+
+    /**
      * Converts {@code file} under {@code extractorIdentity}, hashing it here first (ADR-067's
      * boundary question for an occurrence stage 1 left unhashed — no size-collision group, so no
      * {@code content_hash} row exists to key the cache with). The hash computed here is used only to
