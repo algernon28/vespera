@@ -1300,8 +1300,8 @@ public final class Adr {
      * nothing shipped calls leave the code, and the embedding module's model-name pattern is written once;
      * the LLM chunking seam, the windowed fallback and a second Docling reference resolver are decided gone
      * and leave with the next change to extraction, and a test-only content-identity read with the next
-     * change to corpus; a javadoc states its own contract and cites its ADR; AGENTS.md carries no history
-     * (amends ADR-029 and ADR-046; read with ADR-209 section 1).
+     * change to corpus, both of which ADR-220's change was (#469); a javadoc states its own contract and
+     * cites its ADR; AGENTS.md carries no history (amends ADR-029 and ADR-046; read with ADR-209 section 1).
      */
     public static final String NOTHING_SHIPS_THAT_NO_DECISION_REQUIRES_AND_NOTHING_CALLS = FILE
             + "0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md";
@@ -1337,14 +1337,37 @@ public final class Adr {
      * ADR-219 -- stage 3's grouping of the shingle rows runs with {@code shingle_by_hash} present after a
      * build that moves {@code pipeline} alone, and after a stop of stage 3 over one corpus root while
      * another reaches stage 4b; SQLite then answers it through that index, writing no temporary file and
-     * taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk. The statement is to
-     * name its index, {@code INDEXED BY shingle_by_run_id}, by the operator's choice, and the clause ships
-     * with the next change that moves {@code similarity}; until then stage 3 is slow in that state. No run
-     * id moves now; stages 2 to 6b move when the clause ships (amends ADR-182, ADR-211 and ADR-218; decides
-     * #473, which stays open until the clause ships).
+     * taking 4.8 to 6.2 times as long on synthetic ledgers on a warm solid-state disk, where it does not
+     * name its index. The statement names it, {@code INDEXED BY shingle_by_run_id}, by the operator's
+     * choice, and is then planned through the index on the run in both states. The clause was to ship with
+     * the next change that moves {@code similarity}, and shipped with ADR-220's, in pull request #478; the
+     * run ids of stages 2 to 6b move with that change (amends ADR-182, ADR-211 and ADR-218; decides #473).
      */
     public static final String STAGE_3S_GROUPING_IS_PINNED_TO_THE_INDEX_ON_THE_RUN = FILE
             + "0219-stage-3s-grouping-names-the-index-on-the-run-and-the-clause-ships-with-the-next-change-to-similarity.md";
+
+    /**
+     * ADR-220 -- no class holds every occurrence of a run: a resumed stage 2 asks a page of survivors at a time
+     * which it already recorded, and reads a stopped run's faults a page at a time; the census compares two walks a
+     * page of each at a time; stage 4b finds its candidate pairs a page of signed occurrences at a time, an
+     * occurrence's rarest shingles with its own rows, and asks by key which candidates are signed and which phase 1
+     * removed; 5e counts the scores below the floor and writes a page at a time; the relevance report reads a page
+     * of scores at a time and each band gives its twelve of least key; a stage-2 fault is written where its
+     * set-aside is heard and resolved a page at a time; the review list is written as its rows come; a count reads
+     * no row. 5f's cluster sizes, 6a and 6b are held for a ticket of their own (amends ADR-181 section 1, ADR-199
+     * sections 1 and 2, ADR-193 sections 6 and 7, ADR-192 sections 2, 4 and 5, ADR-088's draw, ADR-139 section 2's
+     * mechanism; #458). Its section 15 reads it against ADR-218: two of that record's sorting reads are gone, and
+     * of the two sorting statements stage 4b gains, an occurrence's rarest shingles is bounded by one occurrence,
+     * and a page's candidate pairs grows with the signed occurrences that share a bucket, is not measured, and is
+     * excepted as it stands by the operator's choice, its size and its bounded form being #476's, as are one
+     * occurrence's containment candidates, held on the heap. The reads of ADR-218 section 3 that are left and
+     * that #472 does not take are #477's. Being the next change to {@code similarity}, it ships ADR-219's
+     * clause in stage 3's grouping, which is ADR-219's decision and moves no run id this record did not.
+     * Re-minting {@code extraction} and {@code corpus}, it also carries out the removals ADR-216 section 5
+     * deferred to the next change to each (#469), which move no run id this record did not either.
+     */
+    public static final String NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN = FILE
+            + "0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md";
 
     private Adr() {
     }

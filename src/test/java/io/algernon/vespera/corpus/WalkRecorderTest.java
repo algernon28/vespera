@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -108,7 +110,7 @@ class WalkRecorderTest {
 
         claim(
                 "the one file written was recorded as an occurrence under the walk's own id",
-                () -> assertThat(ledger.occurrences().occurrencesForWalk(walkId))
+                () -> assertThat(recordedAgainst(walkId))
                         .extracting(RecordedOccurrence::path)
                         .containsExactly(new OccurrencePath("a.txt")));
     }
@@ -132,7 +134,7 @@ class WalkRecorderTest {
 
         claim(
                 "the unstorable name was recorded as one anomaly under the walk's own id",
-                () -> assertThat(anomalyLog.anomaliesForWalk(walkId))
+                () -> assertThat(anomaliesAgainst(walkId))
                         .extracting(RecordedAnomaly::kind)
                         .containsExactly(WalkAnomalyKind.UNENCODABLE_PATH));
     }
@@ -157,7 +159,7 @@ class WalkRecorderTest {
                 () -> assertThat(resumed).isEqualTo(stopped));
         claim(
                 "both files are recorded exactly once between the two sessions",
-                () -> assertThat(ledger.occurrences().occurrencesForWalk(resumed))
+                () -> assertThat(recordedAgainst(resumed))
                         .extracting(RecordedOccurrence::path)
                         .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
         claim(
@@ -290,7 +292,7 @@ class WalkRecorderTest {
         claim(
                 "both files are recorded exactly once: the entry the first session reported and dropped was"
                         + " walked again, not lost and not doubled",
-                () -> assertThat(ledger.occurrences().occurrencesForWalk(resumed))
+                () -> assertThat(recordedAgainst(resumed))
                         .extracting(RecordedOccurrence::path)
                         .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
     }
@@ -333,7 +335,7 @@ class WalkRecorderTest {
         claim(
                 "and the one file that was there is recorded once beneath it, not " + TWO_LOOKS + " times:"
                         + " the second look's copy of it went with the look that was discarded",
-                () -> assertThat(ledger().occurrences().occurrencesForWalk(first)).hasSize(THE_ONE_FILE));
+                () -> assertThat(recordedAgainst(first)).hasSize(THE_ONE_FILE));
     }
 
     /** The one entry the scripted look meets and cannot take in as a file, which it writes down instead. */
@@ -470,6 +472,32 @@ class WalkRecorderTest {
     }
 
     /** How many records of looking at {@code root} the database holds. */
+    /**
+     * What a walk recorded, read by a statement of this test's own, in the order it recorded it: since ADR-220
+     * the ledger hands no caller a whole walk, and asks only whether two walks recorded the same.
+     */
+    private List<RecordedOccurrence> recordedAgainst(WalkId walkId) {
+        return jdbcTemplate.query(
+                "SELECT path, size_bytes, last_modified, creation_time FROM file_occurrence WHERE walk_id = ? ORDER BY id",
+                (resultSet, rowNumber) -> new RecordedOccurrence(
+                        new OccurrencePath(resultSet.getString("path")),
+                        resultSet.getLong("size_bytes"),
+                        Instant.parse(resultSet.getString("last_modified")),
+                        Instant.parse(resultSet.getString("creation_time"))),
+                walkId.value());
+    }
+
+    /** The walk anomalies a walk recorded, read the same way, for the same reason. */
+    private List<RecordedAnomaly> anomaliesAgainst(WalkId walkId) {
+        return jdbcTemplate.query(
+                "SELECT path_rendering, kind, detail FROM walk_anomaly WHERE walk_id = ? ORDER BY id",
+                (resultSet, rowNumber) -> new RecordedAnomaly(
+                        resultSet.getString("path_rendering"),
+                        WalkAnomalyKind.valueOf(resultSet.getString("kind")),
+                        resultSet.getString("detail")),
+                walkId.value());
+    }
+
     private int looksAt(Path root) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM walk WHERE root = ?",

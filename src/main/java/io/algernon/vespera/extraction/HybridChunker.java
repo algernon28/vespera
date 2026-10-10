@@ -45,17 +45,16 @@ public class HybridChunker {
     private static final Set<String> NOISE_LABELS = Set.of("page_header", "page_footer");
 
     private final ChunkCache cache;
-    private final StructurelessChunkingFallback structurelessFallback;
 
-    HybridChunker(ChunkCache cache, StructurelessChunkingFallback structurelessFallback) {
+    HybridChunker(ChunkCache cache) {
         this.cache = cache;
-        this.structurelessFallback = structurelessFallback;
     }
 
     /**
      * The chunks for {@code rawDoclingResponse} under {@code rule}, cached by content hash plus
      * this chunker's identity plus {@code rule}'s own — a cache hit returns the stored chunks
-     * without re-chunking.
+     * without re-chunking. A structureless document, one with no text item and no table row, yields
+     * no chunks (ADR-029, as amended by ADR-216).
      */
     public List<Chunk> chunk(String rawDoclingResponse, String contentHash, ChunkingRule rule) {
         List<Chunk> cached = cache.get(contentHash, CHUNKER_IDENTITY, rule.identity().value());
@@ -63,8 +62,7 @@ public class HybridChunker {
             return cached;
         }
         List<DocumentText> texts = DoclingDocumentTexts.parse(rawDoclingResponse);
-        List<String> chunkTexts =
-                texts.isEmpty() ? structurelessFallback.chunk("", rule) : chunkStructured(texts, rule);
+        List<String> chunkTexts = texts.isEmpty() ? List.of() : chunkStructured(texts, rule);
         List<Chunk> chunks = numbered(chunkTexts, rule);
         cache.put(contentHash, CHUNKER_IDENTITY, rule.identity().value(), chunks);
         return chunks;
@@ -89,8 +87,7 @@ public class HybridChunker {
      * Structure-first chunking, at word granularity so a single text item long enough to exceed the
      * word budget on its own still splits: a heading flushes whatever is accumulated so far and
      * leads the next chunk's words, and every other item's words are appended to the same running
-     * accumulation, windowed to the budget exactly as {@link #windowWords} does for
-     * structureless text.
+     * accumulation, windowed to the budget by {@link #windowWords}.
      */
     private static List<String> chunkStructured(List<DocumentText> texts, ChunkingRule rule) {
         List<String> chunks = new ArrayList<>();

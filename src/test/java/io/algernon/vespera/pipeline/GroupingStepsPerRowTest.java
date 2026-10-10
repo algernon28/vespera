@@ -53,7 +53,9 @@ import org.sqlite.ProgressHandler;
  * <p>A newer SQLite that takes more steps for any of the shapes fails this, and that is when the declared
  * figure changes; one that takes fewer fails nothing, the share only ending a little earlier. {@link
  * StatementStepsPerRowAreTheDeclaredOnesTest} holds the declaration to the figure here. The statement is
- * written out below as ADR-211 section 3 gives it; {@code DocumentFrequencyIsCountedInTheDatabaseTest} holds
+ * written out below as ADR-211 section 3 gives it, with the clause ADR-219 section 1 adds after the table's
+ * name, which leaves the steps as they were measured without it; {@code
+ * DocumentFrequencyIsCountedInTheDatabaseTest} holds
  * what the code issues to the same shape.
  *
  * <p>Green before ADR-211 is built: it measures SQLite, not the application.
@@ -95,10 +97,10 @@ class GroupingStepsPerRowTest {
     private static final String STAGE_2 = "b".repeat(64);
     private static final String STAGE_3 = "c".repeat(64);
 
-    /** ADR-211 section 3's grouping, as written there. */
+    /** ADR-211 section 3's grouping, as written there, with ADR-219 section 1's clause: the statement shipped. */
     private static final String GROUPING = "INSERT INTO shingle_document_frequency (run_id, shingle_parameter_identity,"
             + " shingle_hash, document_count, total_count) SELECT ?, shingle_parameter_identity, shingle_hash,"
-            + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle WHERE run_id = ?"
+            + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle INDEXED BY shingle_by_run_id WHERE run_id = ?"
             + " GROUP BY shingle_parameter_identity, shingle_hash HAVING COUNT(DISTINCT occurrence_id) >= 2";
 
     @TempDir

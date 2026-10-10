@@ -42,11 +42,11 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
  * test below is of the plain read, which nothing ships, and is described as that. It is kept for the
  * contrast (ADR-219, Tests): the same rows of the same run, read with nothing grouped, are not drawn to
  * {@code shingle_by_hash}, so it is the {@code GROUP BY} that draws the planner there. The fifth holds what the
- * grouping does as it ships, which is why ADR-219 pins it; and the fourth holds that the grouping with
- * ADR-219's clause, {@code INDEXED BY shingle_by_run_id}, is answered through the index on the run in both
- * states. The clause is not in {@code DocumentFrequency} yet: it ships with the next change to {@code
- * similarity} (ADR-219 section 2), and that change adds, to {@code
- * DocumentFrequencyIsCountedInTheDatabaseTest}, the claim that the grouping sent carries it.
+ * grouping does without ADR-219's clause, which is why ADR-219 pins it; and the fourth holds that the
+ * grouping with the clause, {@code INDEXED BY shingle_by_run_id}, is answered through the index on the run
+ * in both states. The clause is in {@code DocumentFrequency}: it shipped with the change to {@code
+ * similarity} that ADR-220 records (ADR-219 section 2), and {@code
+ * DocumentFrequencyIsCountedInTheDatabaseTest} holds that the grouping sent carries it.
  *
  * <p>Read on a database of this test's own, made by running the shipped {@code schema.sql} into a fresh
  * in-memory SQLite, the way a start runs it into an empty working directory. A shared test database
@@ -80,7 +80,10 @@ class ShingleIndexesInTheSchemaTest {
     private static final String A_PLAIN_READ_OF_A_RUN =
             "SELECT occurrence_id, shingle_parameter_identity, shingle_hash FROM shingle WHERE run_id = ?";
 
-    /** Stage 3's grouping of a run's rows without its insert, as {@code DocumentFrequency} sends it today. */
+    /**
+     * Stage 3's grouping of a run's rows without its insert and without ADR-219's clause: what {@code
+     * DocumentFrequency} sent from ADR-211 until the clause shipped. Nothing in {@code src/main} sends it.
+     */
     private static final String THE_GROUPING = "SELECT ?, shingle_parameter_identity, shingle_hash,"
             + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle WHERE run_id = ?"
             + " GROUP BY shingle_parameter_identity, shingle_hash HAVING COUNT(DISTINCT occurrence_id) >= 2";
@@ -88,7 +91,7 @@ class ShingleIndexesInTheSchemaTest {
     /** The clause ADR-219 decides for it, after the table's name. */
     private static final String THE_PIN = "INDEXED BY shingle_by_run_id";
 
-    /** The grouping as ADR-219 section 1 writes it, which {@code DocumentFrequency} does not send yet. */
+    /** The grouping as ADR-219 section 1 writes it and {@code DocumentFrequency} sends it, without its insert. */
     private static final String THE_GROUPING_PINNED =
             THE_GROUPING.replace("FROM shingle WHERE", "FROM shingle " + THE_PIN + " WHERE");
 
@@ -177,8 +180,9 @@ class ShingleIndexesInTheSchemaTest {
         String withTheHashIndexBuilt = planOf(THE_GROUPING_PINNED, "a-stage-3-run", "a-run");
 
         claim(
-                "the count that names the index on the run is the count sent today with that one clause added"
-                        + " after the table's name, so what is planned below differs from it in nothing else",
+                "the count planned below is written with the words that tell the database which index to read"
+                        + " through, placed after the table's name; it is otherwise the same count that"
+                        + " another check plans without those words",
                 () -> assertThat(THE_GROUPING_PINNED).contains("FROM shingle " + THE_PIN + " WHERE run_id = ?"));
         claim(
                 "with no hash index, the count told to read through the index on the run does, and sorts the"
@@ -195,8 +199,8 @@ class ShingleIndexesInTheSchemaTest {
 
     /**
      * Why ADR-219's clause is needed, and so true of SQLite with the clause shipped or not: this is the
-     * grouping without it. It passes today because {@code DocumentFrequency} sends this text, and goes on
-     * passing after the clause ships because it plans this text and not what is sent.
+     * grouping without it. It plans this text and not what {@code DocumentFrequency} sends, which carries
+     * the clause, so it holds what SQLite would do were the clause taken out again.
      */
     @Test
     @Story("When the index on word-sequence hashes exists")

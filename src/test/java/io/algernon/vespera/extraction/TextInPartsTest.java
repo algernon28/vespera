@@ -730,7 +730,7 @@ class TextInPartsTest {
                             .mapToDouble(DoclingResponse::processingTimeSeconds)
                             .sum());
                 });
-        HybridChunker chunker = new HybridChunker(new ChunkCache(jdbcTemplate), new WindowedStructurelessChunkingFallback());
+        HybridChunker chunker = new HybridChunker(new ChunkCache(jdbcTemplate));
         claim(
                 "and the chunks are the same",
                 () -> assertThat(chunker.chunk(merged.rawResponse(), "0".repeat(63) + "1", ChunkingRule.DEFAULT))

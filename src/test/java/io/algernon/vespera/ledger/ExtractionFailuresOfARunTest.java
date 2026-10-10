@@ -11,6 +11,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,9 +22,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * {@link Verdicts#extractionFailures}: what stage 2's review list is read from (ADR-175 section 7). It
- * returns the occurrences carrying {@code extraction-failed} under one run, each with its path and the
- * verdict's reason, in path order, and nothing else.
+ * {@link Verdicts#eachExtractionFailure}: what stage 2's review list is read from (ADR-175 section 7). It
+ * hands over the occurrences carrying {@code extraction-failed} under one run, each with its path and the
+ * verdict's reason, in path order, and nothing else; and {@link Verdicts#extractionFailureCount} counts them.
+ * Since ADR-220 they are handed over one at a time as they are read, where {@code extractionFailures} handed
+ * them out as one list, as large as the run's failures, which a disk that lists and will not read makes every
+ * survivor of the run.
  *
  * <p>Until #392 this query was held only through whole invocations. Those never put a
  * verdict of another kind, or of another run, beside the ones the list should show, and the order
@@ -38,6 +42,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Feature("Survivors")
 @Issue("392")
 @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
+@Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class ExtractionFailuresOfARunTest {
 
     /** A stage name for the two run rows: both are runs of one stage over one walk. */
@@ -81,7 +86,8 @@ class ExtractionFailuresOfARunTest {
         ledger.verdicts().verdict(anotherKind, asked, VerdictKind.DEGENERATE_OUTPUT, "another kind");
         ledger.verdicts().verdict(anotherRun, other, VerdictKind.EXTRACTION_FAILED, "another run");
 
-        List<RemovedOccurrence> failures = ledger.verdicts().extractionFailures(asked);
+        List<RemovedOccurrence> failures = new ArrayList<>();
+        ledger.verdicts().eachExtractionFailure(asked, failures::add);
 
         claim(
                 "the two documents the run failed to convert are returned, each with its path and the reason"
@@ -97,11 +103,20 @@ class ExtractionFailuresOfARunTest {
                 () -> assertThat(failures)
                         .extracting(RemovedOccurrence::path)
                         .doesNotContain(REMOVED_AS_ANOTHER_KIND, REMOVED_UNDER_ANOTHER_RUN));
+        List<RemovedOccurrence> ofTheOtherRun = new ArrayList<>();
+        ledger.verdicts().eachExtractionFailure(other, ofTheOtherRun::add);
         claim(
-                "asked of the other run, it returns that run's one failed conversion and nothing of this one's",
-                () -> assertThat(ledger.verdicts().extractionFailures(other))
+                "asked of the other run, it hands over that run's one failed conversion and nothing of this one's",
+                () -> assertThat(ofTheOtherRun)
                         .extracting(RemovedOccurrence::path)
                         .containsExactly(REMOVED_UNDER_ANOTHER_RUN));
+        claim(
+                "and the count of each run's failed conversions is the number handed over: two for this run, one"
+                        + " for the other",
+                () -> assertThat(List.of(
+                                ledger.verdicts().extractionFailureCount(asked),
+                                ledger.verdicts().extractionFailureCount(other)))
+                        .containsExactly(2L, 1L));
     }
 
     private static OccurrenceId record(Ledger ledger, WalkId walkId, String path) {

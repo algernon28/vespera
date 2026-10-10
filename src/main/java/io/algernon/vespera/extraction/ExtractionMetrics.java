@@ -7,6 +7,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -37,6 +38,9 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ExtractionMetrics {
+
+    /** The most occurrences one statement names: the ledger's own page. */
+    private static final int OCCURRENCES_IN_A_STATEMENT = 1_000;
 
     private final JdbcTemplate jdbcTemplate;
     private final LanguageDetection languageDetection;
@@ -73,31 +77,50 @@ public class ExtractionMetrics {
     }
 
     /**
-     * The occurrences carrying a metrics row under {@code runId} (ADR-181 section 1): what a stopped
-     * stage 2's committed chunks recorded, which a resumed step does not read again.
+     * Which of {@code occurrences} carry a metrics row under {@code runId} (ADR-181 section 1, ADR-220
+     * section 2): what a stopped stage 2's committed chunks recorded, which a resumed step does not read
+     * again, asked by key for a page of survivors at a time and never read whole.
+     *
+     * <p>One statement for each {@value #OCCURRENCES_IN_A_STATEMENT} occurrences it is given, planned as a
+     * lookup by the table's primary key; none for an empty collection.
      */
-    public Set<OccurrenceId> occurrencesForRun(RunId runId) {
-        return occurrencesForRun(runId, ExtractionStatementProgress.NONE);
+    public Set<OccurrenceId> recordedAmong(RunId runId, Collection<OccurrenceId> occurrences) {
+        Set<OccurrenceId> recorded = new HashSet<>();
+        for (List<OccurrenceId> batch : inBatches(occurrences)) {
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(runId.value());
+            batch.forEach(id -> arguments.add(id.value()));
+            jdbcTemplate.query(
+                    "SELECT occurrence_id FROM extraction_metric WHERE run_id = ? AND occurrence_id IN ("
+                            + placeholders(batch.size()) + ")",
+                    resultSet -> {
+                        recorded.add(new OccurrenceId(resultSet.getLong("occurrence_id")));
+                    },
+                    arguments.toArray());
+        }
+        return recorded;
     }
 
     /**
-     * The same, counted (ADR-199 section 1): {@code progress} is told its total before the read (empty
-     * where the run holds no row), the steps SQLite has taken at each callback, and that it ended. The read
-     * is always issued, and where the run holds no row it finds none.
+     * How many occurrences carry a metrics row under {@code runId} (ADR-199 section 1, ADR-220 section 2):
+     * what the resume line states. {@code progress} is told its total before the read (empty where the run
+     * holds no row), the steps SQLite has taken at each callback, and that it ended. The read is always
+     * issued, and where the run holds no row it finds none; the rows are counted as they are read and none
+     * is kept.
      */
-    public Set<OccurrenceId> occurrencesForRun(RunId runId, ExtractionStatementProgress progress) {
+    public long recordedCount(RunId runId, ExtractionStatementProgress progress) {
         OptionalLong rowsUpTo = metricRowsUpTo(runId);
         ExtractionStatement statement = ExtractionStatement.RECORDED_OCCURRENCES;
         progress.statementStarting(statement, rowsUpTo);
-        Set<OccurrenceId> recorded = StatementSteps.counted(
+        long recorded = StatementSteps.counted(
                 jdbcTemplate, steps -> progress.stepsTaken(statement, steps), connection -> {
-                    Set<OccurrenceId> found = new HashSet<>();
+                    long found = 0;
                     try (PreparedStatement read = connection.prepareStatement(
                             "SELECT occurrence_id FROM extraction_metric WHERE run_id = ?")) {
                         read.setString(1, runId.value());
                         try (ResultSet rows = read.executeQuery()) {
                             while (rows.next()) {
-                                found.add(new OccurrenceId(rows.getLong("occurrence_id")));
+                                found++;
                             }
                         }
                     }
@@ -118,27 +141,39 @@ public class ExtractionMetrics {
     /**
      * The alphanumeric character count recorded under {@code runId} for each of {@code occurrences},
      * holding only those that have a row (ADR-209 section 3.2): what redundancy resolution ranks the
-     * members of a component by. Asking about no occurrence makes no statement.
+     * members of a component by. Asked of the database {@value #OCCURRENCES_IN_A_STATEMENT} occurrences at
+     * most to a statement (ADR-220 section 4); asking about no occurrence makes no statement.
      */
     public Map<OccurrenceId, Long> alphanumericCharCounts(RunId runId, Collection<OccurrenceId> occurrences) {
         Map<OccurrenceId, Long> counts = new HashMap<>();
-        if (occurrences.isEmpty()) {
-            return counts;
+        for (List<OccurrenceId> batch : inBatches(occurrences)) {
+            List<Object> args = new ArrayList<>();
+            args.add(runId.value());
+            batch.forEach(id -> args.add(id.value()));
+            jdbcTemplate.query(
+                    "SELECT occurrence_id, alphanumeric_char_count FROM extraction_metric"
+                            + " WHERE run_id = ? AND occurrence_id IN (" + placeholders(batch.size()) + ")",
+                    resultSet -> {
+                        counts.put(
+                                new OccurrenceId(resultSet.getLong("occurrence_id")),
+                                resultSet.getLong("alphanumeric_char_count"));
+                    },
+                    args.toArray());
         }
-        String placeholders = occurrences.stream().map(id -> "?").collect(Collectors.joining(","));
-        List<Object> args = new ArrayList<>();
-        args.add(runId.value());
-        occurrences.forEach(id -> args.add(id.value()));
-        jdbcTemplate.query(
-                "SELECT occurrence_id, alphanumeric_char_count FROM extraction_metric"
-                        + " WHERE run_id = ? AND occurrence_id IN (" + placeholders + ")",
-                resultSet -> {
-                    counts.put(
-                            new OccurrenceId(resultSet.getLong("occurrence_id")),
-                            resultSet.getLong("alphanumeric_char_count"));
-                },
-                args.toArray());
         return counts;
+    }
+
+    private static List<List<OccurrenceId>> inBatches(Collection<OccurrenceId> occurrences) {
+        List<OccurrenceId> all = occurrences instanceof List<OccurrenceId> list ? list : new ArrayList<>(occurrences);
+        List<List<OccurrenceId>> batches = new ArrayList<>();
+        for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_STATEMENT) {
+            batches.add(all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_STATEMENT)));
+        }
+        return batches;
+    }
+
+    private static String placeholders(int count) {
+        return String.join(", ", Collections.nCopies(count, "?"));
     }
 
     /**

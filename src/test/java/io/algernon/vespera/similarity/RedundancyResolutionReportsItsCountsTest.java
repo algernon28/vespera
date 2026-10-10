@@ -31,9 +31,13 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * The contract of {@code ResolutionProgress} (ADR-192 section 5, #412), through which {@code
  * RedundancyResolution.resolve} tells its caller about its five counted loops and its one running count: the
- * candidate pairs scored, the occurrence profiles read, the components resolved, the near-duplicate verdicts
- * written (summed across the components, announced once), the signed occurrences checked for containment, and
- * each containment candidate gone through, which has no total.
+ * signed occurrences whose candidate pairs have been scored, the occurrence profiles read, the components
+ * resolved, the near-duplicate verdicts written (summed across the components, announced once), the signed
+ * occurrences checked for containment, and each containment candidate gone through, which has no total.
+ *
+ * <p>Since ADR-220 the first loop counts signed occurrences and not pairs: the pairs are found a page of signed
+ * occurrences at a time, so how many there are is known only once the last page is read, and an item is a
+ * signed occurrence whose pairs, as the lesser member, have all been scored.
  *
  * <p>Whole-job tests see only the lines {@code pipeline} writes, and a loop of zero items writes none, so
  * "once, before the first item, zero included" and "summed and announced once" can be seen only here.
@@ -49,6 +53,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Feature("Progress reporting")
 @Issue("412")
 @Link(name = "ADR-192", url = Adr.EVERY_LOOP_REPORTS_ITS_PROGRESS, type = "adr")
+@Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class RedundancyResolutionReportsItsCountsTest {
 
     private static final double NO_BOILERPLATE_FLOOR = 0.9;
@@ -58,6 +63,9 @@ class RedundancyResolutionReportsItsCountsTest {
     private static final String COMPONENTS = "to-resolve ";
     private static final String VERDICTS = "to-write-verdicts ";
     private static final String CONTAINMENT = "to-check ";
+
+    /** A signed document whose candidate pairs have all been scored (ADR-220). */
+    private static final String CANDIDATES = "candidates";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -77,15 +85,16 @@ class RedundancyResolutionReportsItsCountsTest {
         long pairs = fixture.pairsSharingABand();
         claim("the signatures put at least one pair forward", () -> assertThat(pairs).isPositive());
         claim(
-                "each counted loop is announced exactly once, with its total: the pairs that share a band, the two"
-                        + " members of the one component, the one component, its one member that is not the"
-                        + " survivor, and the three signed documents",
+                "each counted loop is announced exactly once, with its total: the three signed documents whose"
+                        + " candidates are scored, the two members of the one component, the one component, its one"
+                        + " member that is not the survivor, and the three signed documents again, checked for a"
+                        + " container",
                 () -> assertThat(progress.announcements())
-                        .containsExactly(SCORE + pairs, PROFILES + 2, COMPONENTS + 1, VERDICTS + 1, CONTAINMENT + 3));
+                        .containsExactly(SCORE + 3, PROFILES + 2, COMPONENTS + 1, VERDICTS + 1, CONTAINMENT + 3));
         claim(
                 "and each item is reported as many times as its loop's total",
                 () -> {
-                    assertThat(progress.count("pair")).isEqualTo(pairs);
+                    assertThat(progress.count(CANDIDATES)).isEqualTo(3);
                     assertThat(progress.count("profile")).isEqualTo(2);
                     assertThat(progress.count("component")).isEqualTo(1);
                     assertThat(progress.count("verdict")).isEqualTo(1);
@@ -95,7 +104,7 @@ class RedundancyResolutionReportsItsCountsTest {
                 "every item comes after its loop's announcement and before the next loop's, and the verdict comes"
                         + " before the component it belongs to is reported resolved",
                 () -> assertThat(progress.events)
-                        .containsSubsequence(SCORE + pairs, "pair", PROFILES + 2, "profile", COMPONENTS + 1,
+                        .containsSubsequence(SCORE + 3, CANDIDATES, PROFILES + 2, "profile", COMPONENTS + 1,
                                 VERDICTS + 1, "verdict", "component", CONTAINMENT + 3, "checked"));
     }
 
@@ -163,15 +172,16 @@ class RedundancyResolutionReportsItsCountsTest {
         fixture.resolve(progress, true);
 
         claim(
-                "no two documents share a band, so the pair, profile, component and verdict loops are each"
-                        + " announced with zero, once, and report nothing, and the containment loop is announced with"
-                        + " two and reports both",
+                "no two documents share a band, so the profile, component and verdict loops are each announced with"
+                        + " zero, once, and report nothing; the candidates loop is announced with the two signed"
+                        + " documents and reports both, each found to have no candidate, and the containment loop is"
+                        + " announced with two and reports both",
                 () -> {
                     assertThat(progress.announcements())
-                            .containsExactly(SCORE + 0, PROFILES + 0, COMPONENTS + 0, VERDICTS + 0, CONTAINMENT + 2);
+                            .containsExactly(SCORE + 2, PROFILES + 0, COMPONENTS + 0, VERDICTS + 0, CONTAINMENT + 2);
+                    assertThat(progress.count(CANDIDATES)).isEqualTo(2);
                     assertThat(progress.count("checked")).isEqualTo(2);
-                    assertThat(progress.count("pair") + progress.count("profile") + progress.count("component")
-                                    + progress.count("verdict"))
+                    assertThat(progress.count("profile") + progress.count("component") + progress.count("verdict"))
                             .isZero();
                 });
     }
@@ -268,8 +278,8 @@ class RedundancyResolutionReportsItsCountsTest {
         }
 
         @Override
-        public void pairScored() {
-            events.add("pair");
+        public void candidatesScored() {
+            events.add(CANDIDATES);
         }
 
         @Override

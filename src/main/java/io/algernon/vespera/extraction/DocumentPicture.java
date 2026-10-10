@@ -9,7 +9,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.MissingNode;
 
 /**
  * One picture a Docling response carries, with its pixels (ADR-149, #285): the survivor's own
@@ -113,7 +112,7 @@ public record DocumentPicture(
             if (!read.add(ref)) {
                 continue;
             }
-            JsonNode item = resolve(content, ref);
+            JsonNode item = DoclingDocumentTexts.resolve(content, ref);
             if (item.isMissingNode()) {
                 continue;
             }
@@ -124,15 +123,6 @@ public record DocumentPicture(
                 collectPictureRefs(content, item, order, read);
             }
         }
-    }
-
-    /** {@code #/pictures/3} is the fourth entry of {@code content.pictures}; anything else resolves to nothing. */
-    private static JsonNode resolve(JsonNode content, String ref) {
-        String[] parts = ref.split("/");
-        if (parts.length != 3 || !"#".equals(parts[0]) || !parts[2].chars().allMatch(Character::isDigit)) {
-            return MissingNode.getInstance();
-        }
-        return content.path(parts[1]).path(Integer.parseInt(parts[2]));
     }
 
     /** {@code picture}, or empty where it carries no data URI. */
@@ -187,7 +177,7 @@ public record DocumentPicture(
         List<String> texts = new ArrayList<>();
         for (JsonNode captionRef : picture.path("captions")) {
             String ref = captionRef.path("$ref").asString("");
-            JsonNode item = resolve(content, ref);
+            JsonNode item = DoclingDocumentTexts.resolve(content, ref);
             String text = item.path("text").asString("");
             if (!text.isBlank()) {
                 texts.add(text);

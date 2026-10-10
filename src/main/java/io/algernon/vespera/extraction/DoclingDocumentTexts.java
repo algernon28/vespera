@@ -93,7 +93,7 @@ public final class DoclingDocumentTexts {
     }
 
     /** {@code #/texts/3} is the fourth entry of {@code content.texts}; anything else resolves to nothing. */
-    private static JsonNode resolve(JsonNode content, String ref) {
+    static JsonNode resolve(JsonNode content, String ref) {
         String[] parts = ref.split("/");
         if (parts.length != 3 || !"#".equals(parts[0]) || !parts[2].chars().allMatch(Character::isDigit)) {
             return MissingNode.getInstance();
