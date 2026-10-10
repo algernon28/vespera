@@ -265,7 +265,7 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
     @Test
     @Story("What a changed folder leaves of the work done before the change")
-    @DisplayName("Labelling by the model reads the scoring the label file names, though the folder has been observed again since, and with the conversion keys of that scoring's extraction removed it fails before asking anything")
+    @DisplayName("Labelling by the local labeller reads the scoring the label file names, though the folder has been observed again since, and with the conversion keys of that scoring's extraction removed it fails before asking anything")
     void labellingReadsTheRunTheLabelFileNamesThoughItsWalkIsNoLongerTheLatest(
             @TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
@@ -300,10 +300,10 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
         cli.run("label", "--auto");
 
-        claim("labelling by the model reports success", () -> assertThat(cli.getExitCode())
+        claim("labelling by the local labeller reports success", () -> assertThat(cli.getExitCode())
                 .isEqualTo(CommandLine.ExitCode.OK));
         claim(
-                "the model was put questions, each with the opening of its document, read from the"
+                "the local labeller was put questions, each with the opening of its document, read from the"
                         + " conversion the first extraction recorded a key for",
                 () -> assertThat(OPENINGS_PUT).isNotEmpty().allSatisfy(opening -> assertThat(opening)
                         .hasValueSatisfying(text -> assertThat(text).contains(WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH))));
@@ -323,10 +323,10 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
                 "the first extraction had recorded conversion keys, so removing them removed something",
                 () -> assertThat(removed).isPositive());
         claim(
-                "with those keys removed, labelling by the model fails, where it had answered " + questions
+                "with those keys removed, labelling by the local labeller fails, where it had answered " + questions
                         + " question(s) a moment before: it reports an error of the program's and not success",
                 () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.SOFTWARE));
-        claim("and it puts no question to the model", () -> assertThat(OPENINGS_PUT).isEmpty());
+        claim("and it puts no question to the local labeller", () -> assertThat(OPENINGS_PUT).isEmpty());
     }
 
     private void invoke(Path root) {
