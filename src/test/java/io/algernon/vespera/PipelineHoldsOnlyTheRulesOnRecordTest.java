@@ -177,8 +177,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
     /**
      * The classes of {@code pipeline} whose compiled form names the verdict vocabulary. Stage 1's and
      * stage 2's hand on the verdict {@code corpus} and {@code extraction} decided, or discard an unfinished
-     * attempt's; stage 4b's discards one too; {@code InvocationAccount} checks a kind against the closed
-     * vocabulary; and {@code RelevanceFloorTasklet} is rule 3.
+     * attempt's; stage 4b's discards one too; {@code InvocationAccount} counts the verdicts under each kind
+     * of the closed vocabulary; and {@code RelevanceFloorTasklet} is rule 3.
      */
     private static final Set<String> NAMING_A_VERDICT_KIND = Set.of(
             "ByteLevelReductionTasklet",

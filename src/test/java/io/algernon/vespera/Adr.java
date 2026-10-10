@@ -1390,9 +1390,10 @@ public final class Adr {
      * candidates, the review list's read by path, the winning seeds and the members of one partition stay
      * as they stand, and the containment candidates' bounded form goes to #476, after #468. Its two
      * edits, to {@code pipeline} and to {@code embedding}, move the run ids of seed measurement, embedding
-     * scoring, arrangement and generation, and add none to content census or content redundancy, which
-     * ADR-222 moves in the same build (amends ADR-218, ADR-220, ADR-198 and ADR-060's list of exceptions;
-     * decides #477).
+     * scoring, arrangement and generation, and add none to content census or content redundancy. ADR-222
+     * moves all six in the same build, so the edits add no replay to it, on the condition the record's
+     * section 5 states: that no build with ADR-222 and without them is run over the working directory
+     * first (amends ADR-218, ADR-220, ADR-198 and ADR-060's list of exceptions; decides #477).
      */
     public static final String THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING = FILE
             + "0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md";
