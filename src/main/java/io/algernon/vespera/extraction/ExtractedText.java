@@ -31,8 +31,8 @@ final class ExtractedText {
     static ExtractedText from(String rawResponse) {
         JsonNode root = JSON_MAPPER.readTree(rawResponse);
         JsonNode content = root.path("document").path("json_content");
-        // ADR-145: the one reading of extracted text, tables included, so the metrics measure what the
-        // shingler and the chunker read.
+        // ADR-145: the one reading of extracted text, tables included, so the metrics measure every
+        // item, as the shingler reads them; the chunker and tier 1 leave page headers and footers out (ADR-232).
         String joinedText = DoclingDocumentTexts.parse(rawResponse).stream()
                 .map(DocumentText::text)
                 .collect(Collectors.joining(" "))

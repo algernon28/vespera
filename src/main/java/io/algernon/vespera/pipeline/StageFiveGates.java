@@ -111,7 +111,7 @@ final class StageFiveGates {
          * ADR-080, ADR-089) — the three causes {@link SeedGate} answers as one.
          */
         SEED_WALK("no seed folder is named, or stage 4's gate is shut, or the seed walk has not finished"),
-        /** A seed folder whose documents produced no text (ADR-083). */
+        /** A seed folder whose documents produced no text, or none outside their page headers and footers (ADR-083, ADR-232). */
         USABLE_SEED("no seed document produced any text"),
         /** A seed file that would not open when seed extraction read it (ADR-155). */
         SEED_FILE_COULD_NOT_OPEN("a seed file could not be opened");

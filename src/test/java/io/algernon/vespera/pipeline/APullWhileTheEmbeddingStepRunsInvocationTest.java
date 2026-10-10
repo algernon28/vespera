@@ -47,7 +47,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>A seed that never had a vector to lose is not here any more.</b> A fifth test held that a seed whose
  * only text is a page header is usable, is left out of the seeds scoring reads with a line, and is not
  * refused (ADR-231 section 2a). Since ADR-232 (#499) such a seed is an unusable seed, and {@link
- * AFileOfPageHeadersAndFootersOnlyInvocationTest} holds that.
+ * AFileOfPageHeadersAndFootersOnlyInvocationTest} holds that. The leave-out and its line stay for a usable
+ * seed with no chunk stored, a state no conversion makes any more, so the last test here makes it by hand.
  *
  * <p><b>Every file is written with its folder's name in it.</b> A vector is keyed by content and not by
  * walk, and the tests of every class sharing this context share one database, so a file with the bytes of
@@ -362,6 +363,76 @@ class APullWhileTheEmbeddingStepRunsInvocationTest {
                 "and scoring is not recorded as finished, so the next invocation tries it again",
                 () -> assertThat(finishedRows(theRun, StepNames.RELEVANCE_SCORING))
                         .isZero());
+    }
+
+    /**
+     * The one way left to the warning for a usable seed with no chunk (ADR-231 section 2a, as ADR-232 section
+     * 3 leaves it, #499): no seed's conversion chunks to nothing any more, so the state is made by hand, as
+     * the test above makes its own. One seed's stored chunks are removed and the row recording that scoring
+     * finished with them, so that scoring runs again where the embedding step is recorded and chunks nothing.
+     *
+     * <p><b>The exit code is not claimed.</b> Scoring done again against one seed fewer gives the documents
+     * that seed had won another winning seed, and what the steps after scoring do with groups already
+     * recorded under the same run is ADR-231's Context and not this test's matter. What is claimed is what
+     * scoring itself did: it said so, left the seed out, did not refuse it, scored, and recorded itself.
+     */
+    @Test
+    @Issue("499")
+    @Link(name = "ADR-232", url = Adr.A_FILE_WHOSE_ONLY_TEXT_IS_IN_PAGE_HEADERS_AND_FOOTERS_IS_DEGENERATE_OUTPUT_AND_SUCH_A_SEED_IS_UNUSABLE, type = "adr")
+    @Story("A seed document with nothing to embed is left out and the scoring goes on")
+    @DisplayName("Scoring done again where one usable seed document has no stored piece of text says that it produced text and none was cut from it, leaves it out, and scores every document")
+    void aUsableSeedWithNoChunkStoredIsLeftOutWithALineAndScoringGoesOn(
+            @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds);
+        cli.run("run", root.toString());
+        String theRun = scoringRunIdsFor(root).getFirst();
+        long scoredBefore = countUnder("relevance_score", theRun);
+        int chunkRowsRemoved = oneSeedsChunksRemoved(seeds);
+        forgetThatItFinished(theRun, StepNames.RELEVANCE_SCORING);
+        int saidBefore = output.getAll().length();
+
+        cli.run("run", root.toString());
+
+        String saidByTheSecondInvocation = output.getAll().substring(saidBefore);
+        claim(
+                "the first invocation scored all " + CORPUS_DOCUMENTS + " corpus documents, and one seed"
+                        + " document's stored pieces of text were then removed, at least one row of them",
+                () -> {
+                    assertThat(scoredBefore).isEqualTo(CORPUS_DOCUMENTS);
+                    assertThat(chunkRowsRemoved).isPositive();
+                });
+        claim(
+                "the second invocation says a seed document produced text and no piece was cut from it, and"
+                        + " gives it as a seed document",
+                () -> assertThat(saidByTheSecondInvocation)
+                        .contains("seed occurrence")
+                        .contains("produced text and no chunk"));
+        claim(
+                "it does not stop on that seed document as one whose vectors are missing: with nothing cut"
+                        + " from it there is nothing it should have a vector for",
+                () -> assertThat(saidByTheSecondInvocation).doesNotContain("has no stored chunk vectors"));
+        claim(
+                "under the scoring run the first made, all " + CORPUS_DOCUMENTS + " corpus documents are"
+                        + " scored and scoring is recorded as finished: the scoring went on without the seed"
+                        + " document",
+                () -> {
+                    assertThat(scoringRunIdsFor(root)).containsExactly(theRun);
+                    assertThat(countUnder("relevance_score", theRun)).isEqualTo(CORPUS_DOCUMENTS);
+                    assertThat(finishedRows(theRun, StepNames.RELEVANCE_SCORING)).isEqualTo(RECORDED_ONCE);
+                });
+    }
+
+    /**
+     * Removes every stored chunk of one seed of {@code seeds}, the one of the least occurrence id, and answers
+     * how many rows that was. {@code chunk_cache} is keyed by content and by no run.
+     */
+    private int oneSeedsChunksRemoved(Path seeds) {
+        return jdbcTemplate.update(
+                "DELETE FROM chunk_cache WHERE content_hash = (SELECT k.content_hash FROM extraction_cache_key k"
+                        + " JOIN file_occurrence f ON f.id = k.occurrence_id JOIN walk w ON w.id = f.walk_id"
+                        + " WHERE w.root = ? ORDER BY k.occurrence_id LIMIT 1)",
+                walkRoot(seeds));
     }
 
     /** Each score under {@code run} with its document and the seed it was computed against, by document. */

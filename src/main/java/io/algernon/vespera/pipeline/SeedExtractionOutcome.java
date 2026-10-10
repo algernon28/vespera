@@ -31,7 +31,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
  *     file would not open
  * @param measurement the row measured off what the extractor answered with, for every seed it
  *     converted, or {@code null} for a seed whose file would not open
- * @param unusableReason why it produced no text, or {@code null} for a seed that did
+ * @param unusableReason why it produced no text, or none outside its page headers and footers (ADR-232), or {@code null} for a seed that did
  */
 record SeedExtractionOutcome(
         OccurrenceId occurrenceId, String contentHash, ExtractionMetrics.Measurement measurement, String unusableReason) {
@@ -39,18 +39,19 @@ record SeedExtractionOutcome(
     /**
      * The reason recorded for a seed whose file would not open when seed extraction read it (ADR-155
      * section 1). Distinct from {@link io.algernon.vespera.extraction.UsableText#NO_ALPHANUMERIC_CONTENT}:
-     * that reason is a fact about a document a conversion carried no text from or was refused for; this
+     * that reason (and {@code UsableText#ONLY_IN_PAGE_HEADERS_AND_FOOTERS}) is a fact about a document a
+     * conversion carried no text, or none outside its page headers and footers, from or was refused for; this
      * one is a fact about the archive at the moment it was read, and says nothing about the document.
      */
     static final String FILE_COULD_NOT_BE_OPENED = "the file could not be opened when seed extraction read it";
 
-    /** A seed that produced text, and is therefore something ADR-020's maximum can be taken over. */
+    /** A seed that produced text outside its page headers and footers, and is therefore something ADR-020's maximum can be taken over. */
     static SeedExtractionOutcome usable(
             OccurrenceId occurrenceId, String contentHash, ExtractionMetrics.Measurement measurement) {
         return new SeedExtractionOutcome(occurrenceId, contentHash, measurement, null);
     }
 
-    /** A seed that produced no text, recorded as data rather than judged. */
+    /** A seed that produced no text, or none outside its page headers and footers, recorded as data rather than judged. */
     static SeedExtractionOutcome unusable(
             OccurrenceId occurrenceId, String contentHash, ExtractionMetrics.Measurement measurement, String reason) {
         return new SeedExtractionOutcome(occurrenceId, contentHash, measurement, reason);

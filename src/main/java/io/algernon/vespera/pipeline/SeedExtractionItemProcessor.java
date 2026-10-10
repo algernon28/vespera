@@ -125,8 +125,8 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
         // (ADR-092), and a seed folder's worth of extracted text is not a thing to hold until then.
         ExtractionMetrics.Measurement measurement = extractionMetrics.measure(response);
 
-        // Recorded, never judged, and it does not stop the run: scoring proceeds against whatever
-        // survived extraction, and a corrected seed folder is a different run because the seed
+        // An unusable seed is recorded, never judged, and does not stop the run: scoring proceeds against
+        // whatever survived extraction, and a corrected seed folder is a different run because the seed
         // folder is part of what that run's identity is derived from (ADR-083).
         return UsableText.whyUnusable(response.rawResponse())
                 .map(reason -> SeedExtractionOutcome.unusable(occurrenceId, contentHash, measurement, reason))

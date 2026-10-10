@@ -282,7 +282,8 @@ public class ExtractionMetrics {
 
     /**
      * Records the metrics row for {@code response}, and judges the two-tier {@code degenerate-output}
-     * floor against it (ADR-070) — {@code confidenceFloor} is {@code pipeline}'s reading of the
+     * floor against it (ADR-070). Tier 1 is asked of {@link UsableText} first, which reads the text outside
+     * page headers and footers (ADR-232); {@code confidenceFloor} is {@code pipeline}'s reading of the
      * profile's tier-2 key, {@code null} while it ships unset.
      */
     public DegeneracyVerdict writeAndJudge(

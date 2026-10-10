@@ -151,7 +151,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             // ADR-020's scoring function is a maximum over the seed set, and over an empty set it is
             // undefined -- a value the pipeline requires and does not have. A seed whose file would not
             // open is not usable either, because no one knows whether it would be (ADR-155) -- and it
-            // is counted in unusableSeedCount the same as one that converted with no text in it.
+            // is counted in unusableSeedCount the same as one that converted with no text, or none outside its page headers and footers (ADR-232).
             log.warn(
                     "No seed document produced any text, so stage 5 minted no run: {} seed documents were"
                             + " extracted and none of them was usable. Fix the seed folder and run again.",

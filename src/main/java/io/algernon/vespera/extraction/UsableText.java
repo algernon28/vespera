@@ -13,8 +13,9 @@ import java.util.Optional;
  * nobody has measured; a second copy of the predicate is exactly how a "no stricter" instruction
  * drifts into a slightly different one.
  *
- * <p>The text it reads is the conversion's items outside page headers and footers, the items
- * {@link HybridChunker} cuts chunks from.
+ * <p>The text that decides is the conversion's items outside page headers and footers, the items
+ * {@link HybridChunker} cuts chunks from; the page headers and footers are read only to choose which
+ * reason to give.
  *
  * <p>Public where {@link TextMetrics} and {@link DegeneracyFloor} stay package-private, because the
  * seed pass lives in {@code pipeline} and a capability module may not be reached into. The whole
