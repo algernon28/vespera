@@ -60,7 +60,7 @@ class ASeedWithNoVectorStopsScoringTest {
 
     private static final int BOTH_SEEDS = 2;
 
-    /** A seed whose text was cut into one chunk, which is one thing to embed. */
+    /** A document whose text was cut into one chunk, which is one thing to embed: each seed and the corpus document here. */
     private static final int ONE_CHUNK = 1;
 
     /** A seed whose text the chunker left out whole, so there is nothing of it to embed. */
@@ -200,6 +200,7 @@ class ASeedWithNoVectorStopsScoringTest {
                                         A_CORPUS_DOCUMENT,
                                         new io.algernon.vespera.ledger.RunId("a-scoring-run"),
                                         "a-corpus-document",
+                                        ONE_CHUNK,
                                         CHUNKER_IDENTITY,
                                         CHUNKING_RULE_IDENTITY,
                                         READ_UNDER,

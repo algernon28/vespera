@@ -21,6 +21,7 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,9 @@ class RelevanceFloorTest {
      */
     private static final String THE_STEP_THAT_ASKS = "Stage 5e (relevance floor)";
 
+    /** The run the floor is asked for, which no answer here is recorded from. */
+    private static final RunId A_SCORING_RUN_NO_ANSWER_WAS_RECORDED_FROM = new RunId("a-scoring-run-with-no-answers");
+
     @TempDir
     static Path workingDirectory;
 
@@ -105,7 +109,7 @@ class RelevanceFloorTest {
     void anUnansweredFloorRemovesNothing() {
         profileWithFloor(null);
 
-        FloorReach reach = floor.reachFor(Optional.of(THIS_RUNS_IDENTITY), THE_STEP_THAT_ASKS);
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
 
         claim(
                 "nothing is removed, which is what the key ships as: the run is what produces the data the"
@@ -124,7 +128,7 @@ class RelevanceFloorTest {
         profileWithFloor("0.42");
         aLabelGivenUnder(ANOTHER_MODELS_IDENTITY);
 
-        FloorReach reach = floor.reachFor(Optional.of(THIS_RUNS_IDENTITY), THE_STEP_THAT_ASKS);
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
 
         claim(
                 "the number is set and still nothing is removed: a threshold is a number on a scale, the"
@@ -148,7 +152,7 @@ class RelevanceFloorTest {
         profileWithFloor("0.42");
         aLabelGivenUnder(THIS_RUNS_IDENTITY);
 
-        FloorReach reach = floor.reachFor(Optional.of(THIS_RUNS_IDENTITY), THE_STEP_THAT_ASKS);
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
 
         claim(
                 "the floor applies, and the number it removes below is the number the operator wrote: this is"
@@ -162,7 +166,7 @@ class RelevanceFloorTest {
     void anUnlabelledFloorIsApplied() {
         profileWithFloor("0.42");
 
-        FloorReach reach = floor.reachFor(Optional.of(THIS_RUNS_IDENTITY), THE_STEP_THAT_ASKS);
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
 
         claim(
                 "a floor with no answers behind it applies: ADR-088 is explicit that nothing checks a"
@@ -178,7 +182,7 @@ class RelevanceFloorTest {
     void aThresholdThatIsNotANumberRemovesNothing() {
         profileWithFloor("about a half");
 
-        FloorReach reach = floor.reachFor(Optional.of(THIS_RUNS_IDENTITY), THE_STEP_THAT_ASKS);
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
 
         claim(
                 "the run is not lost to a typo in one key of a file a person edits by hand: ADR-047 says"
@@ -198,7 +202,7 @@ class RelevanceFloorTest {
         aLabelGivenUnder(THIS_RUNS_IDENTITY);
         aLabelGivenUnder(ANOTHER_MODELS_IDENTITY);
 
-        FloorReach reach = floor.reachFor(Optional.of(THIS_RUNS_IDENTITY), THE_STEP_THAT_ASKS);
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
 
         claim(
                 "answers spanning two models are a half-repeated labelling, and the honest reading is that"
@@ -216,7 +220,7 @@ class RelevanceFloorTest {
         profileWithFloor("0.42");
         aLabelGivenUnder(THIS_RUNS_IDENTITY);
 
-        FloorReach reach = floor.reachFor(Optional.empty(), THE_STEP_THAT_ASKS);
+        FloorReach reach = reachFor(Optional.empty());
 
         // Whether the removals already standing are withdrawn is no longer the floor's to answer: the
         // step withdraws them in every case (ADR-227), and RelevanceFloorInvocationTest holds that.
@@ -224,6 +228,20 @@ class RelevanceFloorTest {
                 "nothing is removed, whatever the number and the answers: there is no one scale for the"
                         + " number to be on",
                 () -> assertThat(reach.removesBelow()).isEmpty());
+    }
+
+    /**
+     * What the floor lets the step do, asked as the floor's step asks: with the number read from the profile
+     * as the scoring run is minted with it ({@link RelevanceScoreFloorValue}), and for a scoring run no answer
+     * was recorded from, so that every answer recorded for the seed set is read (ADR-228 section 5).
+     */
+    private FloorReach reachFor(Optional<String> identity) {
+        Double value = RelevanceScoreFloorValue.readFrom(profileStore).value();
+        return floor.reachFor(
+                identity,
+                THE_STEP_THAT_ASKS,
+                value == null ? OptionalDouble.empty() : OptionalDouble.of(value),
+                A_SCORING_RUN_NO_ANSWER_WAS_RECORDED_FROM);
     }
 
     private void profileWithFloor(String value) {

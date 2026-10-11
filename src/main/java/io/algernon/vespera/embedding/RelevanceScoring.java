@@ -22,9 +22,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class RelevanceScoring {
 
-    /** A survivor has a chunk (ADR-232), so at least one vector is wanted where the count is not known. */
-    private static final int AT_LEAST_ONE_CHUNK = 1;
-
     private final VectorCache vectorCache;
     private final RelevanceScorer scorer;
     private final RelevanceScoreCache scoreCache;
@@ -172,38 +169,14 @@ public class RelevanceScoring {
      * {@code runId} — never materialising more than this one survivor's own chunk vectors alongside
      * the seed side already held resident (ADR-085).
      *
-     * <p>Throws rather than scoring zero if {@code occurrenceId} has no stored vectors (or, where the count
-     * of its chunks is given, fewer than that) under {@code
-     * embedderIdentity}: a zero would record a document nothing was measured of as one measured
-     * irrelevant (ADR-020, "Confirm, do not assume"). Two ways into it are known: an occurrence no stage
+     * <p>Throws rather than scoring zero if {@code occurrenceId} has fewer stored vectors under {@code
+     * embedderIdentity} than its {@code chunkCount} chunks, none included: a zero would record a document
+     * nothing was measured of as one measured irrelevant (ADR-020, "Confirm, do not assume"). Two ways into it are known: an occurrence no stage
      * ever examined; and vectors another pull of the embedding model wrote (ADR-231). A survivor has a chunk
-     * because stage 2 removes a file with no text outside page headers and footers (ADR-232).
-     */
-    public void scoreAndRecord(
-            OccurrenceId occurrenceId,
-            RunId runId,
-            String contentHash,
-            String chunkerIdentity,
-            String chunkingRuleIdentity,
-            String embedderIdentity,
-            Map<OccurrenceId, List<float[]>> residentSeedVectors) {
-        scoreAndRecord(
-                occurrenceId,
-                runId,
-                contentHash,
-                AT_LEAST_ONE_CHUNK,
-                chunkerIdentity,
-                chunkingRuleIdentity,
-                embedderIdentity,
-                residentSeedVectors);
-    }
-
-    /**
-     * As {@link #scoreAndRecord(OccurrenceId, RunId, String, String, String, String, Map)}, for a survivor
-     * known to have {@code chunkCount} chunks: fewer vectors than that under {@code embedderIdentity} is
-     * refused as none is, because a pull and a pull back between two chunks of one document leaves it with
-     * a vector for only some of them, and scored on those it would be measured on a part of itself with no
-     * line saying so (ADR-231 sections 3 and 5).
+     * because stage 2 removes a file with no text outside page headers and footers (ADR-232). Fewer
+     * vectors than chunks is refused as none is, because a pull and a pull back between two chunks of one
+     * document leaves it with a vector for only some of them, and scored on those it would be measured on a
+     * part of itself with no line saying so (ADR-231 sections 3 and 5).
      */
     public void scoreAndRecord(
             OccurrenceId occurrenceId,

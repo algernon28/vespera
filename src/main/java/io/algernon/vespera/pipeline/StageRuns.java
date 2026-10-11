@@ -263,6 +263,16 @@ class StageRuns {
     }
 
     /**
+     * The embedding model's name a step's gate reads (ADR-084): the profile's until the scoring run is minted
+     * in this invocation, and the name it was minted under from then on, without minting it. A model cleared
+     * or renamed in the profile after the mint is read by the next run, not by the later steps of this one
+     * (ADR-228 section 2, ADR-117).
+     */
+    Optional<String> embeddingModelNamed() {
+        return embeddingScoring == null ? embeddingModelGate.modelName() : Optional.of(embeddingModelName);
+    }
+
+    /**
      * The relevance floor the scoring run was minted under, empty where it was unset then, which mints that
      * run if it has not yet been. The number that removes is the number that names the run (ADR-117).
      */

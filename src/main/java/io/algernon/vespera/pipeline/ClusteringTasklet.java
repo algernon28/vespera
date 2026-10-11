@@ -73,7 +73,6 @@ class ClusteringTasklet implements Tasklet {
     /** The size report's name in the working directory, beside the profile and the database (ADR-054). */
     static final String CLUSTER_SIZES_FILE_NAME = "cluster-sizes.html";
 
-    private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
     private final StageRuns stageRuns;
@@ -86,7 +85,6 @@ class ClusteringTasklet implements Tasklet {
     private final Path workingDirectory;
 
     ClusteringTasklet(
-            EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
             StageRuns stageRuns,
@@ -98,7 +96,6 @@ class ClusteringTasklet implements Tasklet {
             JdbcTemplate jdbcTemplate,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.relevanceDistribution = relevanceDistribution;
-        this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
@@ -113,7 +110,7 @@ class ClusteringTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
-                "stage 5's clustering step", embeddingModelGate, seedGate, usableSeedGate);
+                "stage 5's clustering step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;

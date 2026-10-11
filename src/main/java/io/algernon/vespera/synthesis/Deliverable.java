@@ -48,8 +48,9 @@ import java.util.Map;
  * comes from its own {@code partitionOrder}, and a cluster's from its own {@code clusterOrder}.
  *
  * <p><b>The index and the manifest are written beside their targets and moved into place</b> (ADR-223
- * section 6): each is whole where it appears, so a write that fails partway leaves the pair the write before
- * left, or none, and a finished tree holds no {@value #PART_SUFFIX} file.
+ * section 6): each is whole where it appears, so a write that fails before the first move leaves the pair the
+ * write before left, or none; one whose manifest fails to move after the index has moved leaves the new index
+ * beside the manifest before it. A finished tree holds no {@value #PART_SUFFIX} file.
  */
 public final class Deliverable {
 
@@ -132,8 +133,9 @@ public final class Deliverable {
             EntryPictures entryPictures = EntryPictures.among(source, pictures, progress);
             Path indexPart = writeIndexAndClusterFiles(tree, provenance, partitions, source, entryPictures, progress);
             Path manifestPart = writeManifest(tree, source, progress);
-            // Both are whole before either is moved, so a write that fails leaves the pair the write before
-            // left, or none (ADR-223 section 6). The index is still the last of the pages to appear.
+            // Both are whole before either is moved, so a write that fails before the first move leaves the pair
+            // the write before left, or none; only the manifest's own move failing leaves the new index beside the
+            // old manifest (ADR-223 section 6). The index is still the last of the pages to appear.
             moveIntoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
             moveIntoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
             return tree;

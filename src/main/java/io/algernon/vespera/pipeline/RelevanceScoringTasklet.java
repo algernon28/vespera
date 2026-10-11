@@ -54,7 +54,6 @@ class RelevanceScoringTasklet implements Tasklet {
     /** Stage 5d's own name, which its statement lines open with. */
     private static final String STAGE = "Stage 5d (relevance scoring)";
 
-    private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
     private final StageRuns stageRuns;
@@ -66,7 +65,6 @@ class RelevanceScoringTasklet implements Tasklet {
     private final ExtractionCacheKeys cacheKeys;
 
     RelevanceScoringTasklet(
-            EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
             StageRuns stageRuns,
@@ -77,7 +75,6 @@ class RelevanceScoringTasklet implements Tasklet {
             UnusableSeeds unusableSeeds,
             JdbcTemplate jdbcTemplate) {
         this.relevanceDistribution = relevanceDistribution;
-        this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
@@ -91,7 +88,7 @@ class RelevanceScoringTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
-                "stage 5's relevance-scoring step", embeddingModelGate, seedGate, usableSeedGate);
+                "stage 5's relevance-scoring step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;

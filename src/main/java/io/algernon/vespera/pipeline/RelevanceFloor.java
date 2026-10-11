@@ -41,47 +41,20 @@ class RelevanceFloor {
     }
 
     /**
-     * What the floor lets the step asked for do, for a run whose vectors carry {@code
-     * currentEmbedderIdentity}.
-     *
-     * <p>The number is the profile's as it stands now. A step of a run asks the overload below instead, so
-     * that the number that removes is the number that names the run ({@link RelevanceScoreFloorValue}). A
-     * value that is not a number reads as
-     * unset rather than failing the run: the profile is a file a person edits by hand, and ADR-047 says
-     * an invocation ends having recorded what it learned (ADR-120).
-     *
-     * <p>The one read this makes, of the answers recorded for the seed set, is said under {@code
-     * stage}, the name of the step that asked, {@code Stage 5e (relevance floor)} or {@code Stage 5
-     * (relevance report)} (ADR-193, ADR-204 section 3). It is issued only where there is an identity, a
-     * number and a seed set is named.
-     */
-    FloorReach reachFor(Optional<String> currentEmbedderIdentity, String stage) {
-        Double value = RelevanceScoreFloorValue.readFrom(profileStore).value();
-        return reachFor(
-                currentEmbedderIdentity,
-                stage,
-                value == null ? OptionalDouble.empty() : OptionalDouble.of(value),
-                Optional.empty());
-    }
-
-    /**
-     * As {@link #reachFor(Optional, String)}, for the floor the scoring run {@code scoring} was minted
-     * under and not the profile's now, which an operator may have saved since (ADR-117, ADR-228).
+     * What the floor lets the step asked for do, for the scoring run {@code scoring}, whose vectors carry
+     * {@code currentEmbedderIdentity}, by {@code floor}, the number that run was minted under and not the
+     * profile's now, which an operator may have saved since (ADR-117, ADR-228). A value in the profile that is
+     * not a number was minted as unset ({@link RelevanceScoreFloorValue}), so it removes nothing rather than
+     * failing the run (ADR-120).
      *
      * <p>The answers read are those {@link RelevanceLabels#forSeedSet(String, RunId)} gives for that run,
      * so that answers given from its label file say which scale the number is on (ADR-228 section 5,
-     * ADR-088 section 3).
+     * ADR-088 section 3). That one read is said under {@code stage}, the name of the step that asked, {@code
+     * Stage 5e (relevance floor)} or {@code Stage 5 (relevance report)} (ADR-193, ADR-204 section 3). It is
+     * issued only where there is an identity, a number and a seed set is named.
      */
     FloorReach reachFor(
             Optional<String> currentEmbedderIdentity, String stage, OptionalDouble floor, RunId scoring) {
-        return reachFor(currentEmbedderIdentity, stage, floor, Optional.of(scoring));
-    }
-
-    private FloorReach reachFor(
-            Optional<String> currentEmbedderIdentity,
-            String stage,
-            OptionalDouble floor,
-            Optional<RunId> scoring) {
         return FloorReach.of(
                 currentEmbedderIdentity,
                 floor,
@@ -94,9 +67,7 @@ class RelevanceFloor {
                     // Timed: the read has no run, so no span (ADR-193 section 6).
                     return TimedStatement.of(
                             stage, "reading", "read", "the recorded answers",
-                            () -> scoring.isPresent()
-                                    ? relevanceLabels.forSeedSet(seedSet.get(), scoring.get())
-                                    : relevanceLabels.forSeedSet(seedSet.get()));
+                            () -> relevanceLabels.forSeedSet(seedSet.get(), scoring));
                 });
     }
 

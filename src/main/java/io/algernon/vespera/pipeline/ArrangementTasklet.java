@@ -89,7 +89,6 @@ class ArrangementTasklet implements Tasklet {
      */
     static final String ARRANGEMENT_FILE_NAME = "arrangement.html";
 
-    private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
     private final StageRuns stageRuns;
@@ -103,7 +102,6 @@ class ArrangementTasklet implements Tasklet {
     private final Path workingDirectory;
 
     ArrangementTasklet(
-            EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
             StageRuns stageRuns,
@@ -115,7 +113,6 @@ class ArrangementTasklet implements Tasklet {
             DocumentTitles documentTitles,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${vespera.working-dir}") Path workingDirectory) {
-        this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
@@ -132,7 +129,7 @@ class ArrangementTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
-                "the arrangement step", embeddingModelGate, seedGate, usableSeedGate);
+                "the arrangement step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;

@@ -139,6 +139,14 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
                         + " was pulled, and the documents embedded are kept",
                 () -> assertThat(theRuns).singleElement().satisfies(run ->
                         assertThat(finishedRows(run, StepNames.EMBEDDING_SCORING)).isEqualTo(RECORDED_ONCE)));
+        claim(
+                "and the steps after it go on under that run, as they do for a renamed model: all "
+                        + CORPUS_DOCUMENTS + " documents are scored and grouped under it, and no step after"
+                        + " the embedding is stopped for the profile naming no model any longer",
+                () -> assertThat(theRuns).singleElement().satisfies(run -> {
+                    assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
+                    assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
+                }));
     }
 
     @Test

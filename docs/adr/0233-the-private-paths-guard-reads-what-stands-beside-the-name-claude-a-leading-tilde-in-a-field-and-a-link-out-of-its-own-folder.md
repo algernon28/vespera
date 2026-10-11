@@ -8,7 +8,7 @@
   - §3(c)'s "the first name of a token headed by `-`": a token headed by `/` is read the same way, since a Windows program's option runs into its value after a slash (§3 below);
   - §8's item on what a token that is not read as a path passes, which §1 and §2 narrow;
   - §5's links, which gain a link out of the `.claude` folder the guard lies in (§5 below);
-  - §3(b)'s "a change to the guard, a list, the settings or an agent definition is drafted outside every `.claude` folder": the test that holds the draft is held to the guard's own reading of a `.claude` name (§7 below).
+  - §7's "a change to the guard, a list, the settings or an agent definition is drafted outside every `.claude` folder": the test that holds the draft is held to the guard's own reading of a `.claude` name (§7 below).
 - **Amends**: [ADR-217](0217-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md) §2, "a name made only of dots, spaces or a stream name": a name of dots with a stream name after it is such a name, and is not read as `.` or `..`; and §1's stream name, which runs to the end of the name, a line terminator in it included (§6 below).
 - **Keeps**: ADR-196's rule (§1), its allow list, its "decision is made from the path's text, before the file system is asked" (§2) wherever the file system need not be asked, its bounds and every way §6 makes the hook fail closed; ADR-201 whole; ADR-215's rule (§1), its three checks and its draft-and-install (§7); ADR-217's reading as Windows opens its names; and ADR-212's one admitted command.
 - **Settles**: the guard and operator-document findings of the batch recorded with this change.
@@ -25,7 +25,7 @@ A security review of the guard against `HEAD` found seven readings of a `.claude
 - `echo x > .claude$X/settings.json`, with `$X` unset, ended with exit 0: the empty expansion after the name hid `.claude` from `CLAUDE_IN_TEXT`, which read `.claude$x` and found no `.claude` name.
 - `Read` of `~/.claude/settings.json` and of `~/Documents/x.txt` ended with exit 0: `absoluteOf` resolved a leading `~` in a field against the current directory, where `readToken` reads it as the home folder in a shell command.
 - `Write` of `linked-skill/SKILL.md` through `.claude/skills/linked-skill`, a link into `.opencode/skills/` as this repository's `.gitignore` describes, ended with exit 0: the guard does not read a link out of its own `.claude` folder, and a later session loads the skill the link hands it.
-- `node --test src/test/hooks/private-paths-guard.test.mjs` against the guard before this build: of the 42 I cases this record adds, 24 failed, each a call that guard let through, 13 passed, and 5 were not started on Linux. Against the draft of this record's guard, with `VESPERA_GUARD_DRAFT`: 929 tests, 755 passed, 174 skipped, none failed, in about 52 s.
+- `node --test src/test/hooks/private-paths-guard.test.mjs` against the guard before this build: of the 39 I cases this record adds, 25 failed, each a call that guard let through, 9 passed, and 5 were not started on Linux (counted again on 2026-10-11 with the guard of `7538077` held as a draft; 42, 24 and 13 were first written here, and were wrong). Against the draft of this record's guard, with `VESPERA_GUARD_DRAFT`: 929 tests, 755 passed, 174 skipped, none failed, in about 52 s.
 
 **Traced through the code, not executed on Windows** (ADR-217's precedent, the operator's machine being Windows):
 

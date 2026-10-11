@@ -79,7 +79,6 @@ class RelevanceReportTasklet implements Tasklet {
     private static final String STAGE = "Stage 5 (relevance report)";
 
     private final DocumentOpening documentOpening;
-    private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
     private final StageRuns stageRuns;
@@ -91,7 +90,6 @@ class RelevanceReportTasklet implements Tasklet {
     private final Path workingDirectory;
 
     RelevanceReportTasklet(
-            EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
             StageRuns stageRuns,
@@ -107,7 +105,6 @@ class RelevanceReportTasklet implements Tasklet {
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.documentOpening =
                 new DocumentOpening(extractor, extractorIdentity, hybridChunker, new ExtractionCacheKeys(jdbcTemplate));
-        this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
@@ -144,7 +141,7 @@ class RelevanceReportTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
         StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
-                "stage 5's relevance-report step", embeddingModelGate, seedGate, usableSeedGate);
+                "stage 5's relevance-report step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;

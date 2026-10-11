@@ -47,9 +47,13 @@ final class StageFiveGates {
      * The three gates a scoring-half step consults: a model named (ADR-084), a finished seed walk
      * (ADR-064), and a seed that produced text (ADR-083), in that order — and, ADR-155's addition, a
      * seed file that would not open.
+     *
+     * <p>The model asked about is the one {@link StageRuns#embeddingModelNamed()} answers: the profile's
+     * until the scoring run is minted, and the name that run was minted under from then on, so a model
+     * cleared from the profile part-way through an invocation shuts no step of a run already started
+     * (ADR-228 section 2, ADR-117).
      */
-    static Preamble modelSeedWalkUsable(
-            String subject, EmbeddingModelGate model, SeedGate seeds, UsableSeedGate usable) {
+    static Preamble modelSeedWalkUsable(String subject, StageRuns model, SeedGate seeds, UsableSeedGate usable) {
         Preamble open = modelAndSeedWalk(subject, model, seeds);
         if (!open.isOpen()) {
             return open;
@@ -70,8 +74,8 @@ final class StageFiveGates {
      * asked either seed-usability question, which let it mint a scoring run behind ADR-083's gate and
      * ADR-155's (#309).
      */
-    private static Preamble modelAndSeedWalk(String subject, EmbeddingModelGate model, SeedGate seeds) {
-        Optional<String> modelName = model.modelName();
+    private static Preamble modelAndSeedWalk(String subject, StageRuns model, SeedGate seeds) {
+        Optional<String> modelName = model.embeddingModelNamed();
         if (modelName.isEmpty()) {
             return shut(subject, Gate.EMBEDDING_MODEL);
         }
