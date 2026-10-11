@@ -106,6 +106,7 @@ import org.springframework.util.StreamUtils;
 @Issue("476")
 @Link(name = "ADR-225", url = Adr.STAGE_4B_READS_ITS_CANDIDATES_A_THOUSAND_AT_A_TIME, type = "adr")
 @Link(name = "ADR-060", url = Adr.SURVIVORS_IS_AN_ITEM_READER, type = "adr")
+@Link(name = "ADR-236", url = Adr.A_PARTITIONS_READS_SEEK_ONLY_ITS_RUNS_ROWS, type = "adr")
 class EveryStatementThatSortsIsRecordedTest {
 
     /**
@@ -184,10 +185,9 @@ class EveryStatementThatSortsIsRecordedTest {
             // Rows 10 and 11: the partitions, and the members of one. Row 9, the scores below the floor in
             // occurrence order, is gone: 5e reads a page of them at a time by row number (ADR-220 section 5).
             Map.entry("embedding.RelevanceScoreCache", 2),
-            // Row 12: the cluster sizes of one partition. Row 13, the run's membership in occurrence order, is
-            // gone: a partition's members are read unordered and the run's a page at a time by the primary
-            // key (ADR-223 sections 3 and 7).
-            Map.entry("embedding.DocumentClusters", 1),
+            // Rows 12 and 13 are gone: a partition's cluster sizes are counted in cluster order by the index
+            // on the seed, the run and the cluster (ADR-236), its members are read unordered and the run's a
+            // page at a time by the primary key (ADR-223 sections 3 and 7).
             // Bounded by the seed set: the unusable seeds.
             Map.entry("embedding.UnusableSeeds", 1)));
 
@@ -218,7 +218,10 @@ class EveryStatementThatSortsIsRecordedTest {
             "pipeline.StartUpIndexAnnouncement", 1,
             "ledger.Walks", 1));
 
-    /** The indexes of {@code schema.sql} that rows 3 to 5 of ADR-218's table list: thirty-one, by name. */
+    /**
+     * The indexes of {@code schema.sql} that rows 3 to 5 of ADR-218's table list, thirty-one, and the one
+     * ADR-236 adds to its class: thirty-two, by name.
+     */
     private static final List<String> SCHEMA_INDEXES_RECORDED = List.of(
             "call_exemplar_by_occurrence_id",
             "call_exemplar_by_winning_seed_occurrence_id",
@@ -228,6 +231,7 @@ class EveryStatementThatSortsIsRecordedTest {
             "detected_format_by_run_id",
             "document_cluster_by_run_id",
             "document_cluster_by_winning_seed_occurrence_id",
+            "document_cluster_by_winning_seed_run_and_cluster",
             "extraction_cache_key_by_run_id",
             "extraction_fault_by_run_id",
             "extraction_metric_by_run_id",

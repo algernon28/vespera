@@ -1563,6 +1563,16 @@ public final class Adr {
     public static final String A_MANIFEST_CELL_A_SPREADSHEET_WOULD_RUN_IS_WRITTEN_BEHIND_A_QUOTE = FILE
             + "0235-a-path-in-the-manifest-a-spreadsheet-would-run-as-a-formula-is-written-behind-a-single-quote.md";
 
+    /**
+     * ADR-236 -- {@code document_cluster} gains an index on the winning seed, the run and the cluster ordinal,
+     * so that the three reads of one seed partition go to that seed's rows under one scoring run and the
+     * sizes of its clusters are counted in order, sorting nothing; the build start-up makes of it joins
+     * ADR-218's class of index builds with its measured size, and ADR-218's row 12 is gone (settles review
+     * register finding R21).
+     */
+    public static final String A_PARTITIONS_READS_SEEK_ONLY_ITS_RUNS_ROWS = FILE
+            + "0236-a-seed-partitions-reads-seek-its-rows-under-one-scoring-run-by-an-index-on-the-seed-the-run-and-the-cluster.md";
+
     private Adr() {
     }
 }
