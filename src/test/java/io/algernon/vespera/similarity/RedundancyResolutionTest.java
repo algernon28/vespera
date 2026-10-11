@@ -442,12 +442,13 @@ class RedundancyResolutionTest {
      * Each page's pair loop asked, for every row of a bucket, whether each lesser member of the page in that
      * bucket was already in the row's component, one pair at a time: for a family of near-copies that share a
      * bucket that is half the square of the family for each band, though after the first pairs every answer
-     * is yes. On the code before ADR-238, the 3,000 near-copies here took 11.9 s to resolve; with it, 0.95 s
-     * (ADR-238, Measured). The bound is four times the second.
+     * is yes. Run alone, the 4,000 near-copies here took 17.3 s to resolve on the code before ADR-238 and 1.6 s
+     * with it (ADR-238). The bound is several times the second and well under the first; it is a time on the
+     * clock, as ADR-238 says, since nothing else tells the two apart.
      */
     @Test
     @Story("A redundancy set resolves as a whole, not pair by pair")
-    @DisplayName("Three thousand copies of one document are resolved to one in seconds, not in time that grows with the square of their number")
+    @DisplayName("Four thousand copies of one document are resolved to one in seconds, not in time that grows with the square of their number")
     @Link(name = "ADR-238", url = Adr.A_ROW_ALREADY_IN_THE_COMPONENT_OF_A_BUCKETS_LESSER_MEMBERS_IS_PASSED_OVER, type = "adr")
     void aFamilyOfCopiesIsResolvedInTimeThatDoesNotGrowWithTheSquareOfItsSize() {
         Fixture fixture = fixture();
@@ -467,7 +468,7 @@ class RedundancyResolutionTest {
                 () -> assertThat(redundantWithVerdictCount()).isEqualTo(COPIES - 1));
         claim(
                 "and resolving them takes less than " + A_FEW_SECONDS.toSeconds() + " seconds: once the copies are one"
-                        + " group, a row of a bucket they share is passed over with one question, and not with one"
+                        + " redundancy set, a row of a bucket they share is passed over with one question, and not with one"
                         + " for each of the page's copies in that bucket (it took " + took.toMillis() + " ms)",
                 () -> assertThat(took).isLessThan(A_FEW_SECONDS));
     }
