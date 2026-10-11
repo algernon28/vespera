@@ -27,9 +27,9 @@ Every test you propose goes in your **report**, as code, for a human or `analyst
 
 Four things that will otherwise cost you an hour:
 
-- **`VesperaApplicationTests` needs a Docker daemon.** It starts Ollama and docling-serve through Testcontainers and takes minutes cold. Check with `docker info` before blaming the code, and say plainly in your report if it could not run — a suite that did not run is not a suite that passed.
+- **Six integration tests need a Docker daemon.** The `*IT` classes run only under `./mvnw verify`, and six of them start their sidecar through Testcontainers, taking minutes cold; `AGENTS.md`'s "Building and testing" names them. Check with `docker info` before blaming the code, and say plainly in your report if they could not run — a suite that did not run is not a suite that passed.
 - **Surefire's console output truncates the cause.** The real stack is in `target/surefire-reports/<class>.txt`. Read that before forming a theory.
-- **`src/test/resources/application.yaml` shadows `src/main/resources/application.yaml`** entirely: same classpath resource name, test classes first. A property set only in the main file does not apply under test.
+- **Test configuration is `src/test/resources/application-test.yaml`, under the `test` profile**, so it layers over `src/main/resources/application.yaml`: a property the test file does not set keeps its main value under test. A test file named `application.yaml` would shadow the main file entirely, which is why there is none.
 - **Report the numbers, never the impression.** `Tests run: N, Failures: F, Errors: E, Skipped: S`. A skipped test is not a passing test: several tests here abort by assumption when the environment cannot create a symlink or an unusual filename, and a run where those aborted has checked less than it appears to.
 
 ## Diagnosing a failure
