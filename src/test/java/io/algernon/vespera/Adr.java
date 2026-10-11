@@ -1573,6 +1573,15 @@ public final class Adr {
     public static final String A_PARTITIONS_READS_SEEK_ONLY_ITS_RUNS_ROWS = FILE
             + "0236-a-seed-partitions-reads-seek-its-rows-under-one-scoring-run-by-an-index-on-the-seed-the-run-and-the-cluster.md";
 
+    /**
+     * ADR-237 -- stage 4b's read of one hash's occurrences carries the stage-2 run written into its text, as
+     * the index built for that run does, and is prepared once for the containment pass where the pass runs in
+     * one transaction, so that binding a hash never has SQLite compile it again (amends ADR-221 section 2 and
+     * ADR-225 section 2; settles review register finding R20).
+     */
+    public static final String THE_READ_OF_ONE_HASHS_OCCURRENCES_IS_PREPARED_ONCE_A_PASS = FILE
+            + "0237-the-read-of-one-hashs-occurrences-names-its-run-in-its-text-and-is-prepared-once-for-the-containment-pass.md";
+
     private Adr() {
     }
 }

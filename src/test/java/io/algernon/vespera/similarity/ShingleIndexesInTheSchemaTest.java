@@ -125,10 +125,11 @@ class ShingleIndexesInTheSchemaTest {
 
     /**
      * Containment retrieval's read of the occurrences that carry one hash, a page of them at a time in
-     * occurrence order, as {@code RedundancyResolution} sends it since ADR-225 section 2.
+     * occurrence order, as {@code RedundancyResolution} sends it since ADR-225 section 2, with {@link #A_RUN}
+     * written into its text as stage 4b writes its stage-2 run since ADR-237.
      */
     private static final String ONE_HASHS_OCCURRENCES = "SELECT DISTINCT occurrence_id FROM shingle"
-            + " WHERE run_id = ? AND shingle_parameter_identity = ? AND shingle_hash = ?"
+            + " WHERE run_id = '" + A_RUN + "' AND shingle_parameter_identity = ? AND shingle_hash = ?"
             + " AND occurrence_id > ? ORDER BY occurrence_id LIMIT 1000";
 
     /** The clause every shipped read of one occurrence's shingles carries since ADR-225 section 4. */
@@ -277,11 +278,10 @@ class ShingleIndexesInTheSchemaTest {
     }
 
     /**
-     * ADR-221 section 2: the search is sent with the run as a bound value, and SQLite matches that value to
-     * the one the index was built for when it plans the statement again with its values bound (SQLite 3.20.0,
-     * "The query planner examines the values of bound parameters to help determine if a partial index is
-     * usable"). Planned here as {@code RedundancyResolution} sends it, values bound before the plan is read.
-     * The third claim is why stage 4b's check of whose index it finds has to be exact.
+     * ADR-237, amending ADR-221 section 2: the search is sent with the run written into its text, as the index's
+     * own text has it, so SQLite sees when it prepares the statement that the index may answer it, and binding a
+     * hash does not have it prepared again. Planned here as {@code RedundancyResolution} sends it. The third
+     * claim is why stage 4b's check of whose index it finds has to be exact.
      *
      * <p>Since ADR-225 section 2 the search is one read for each hash, of that hash's occurrences in order, and
      * the index ends in the occurrence (section 3): the read is answered from the index alone and sorts nothing.
@@ -290,7 +290,7 @@ class ShingleIndexesInTheSchemaTest {
     @Story("When the index on word-sequence hashes exists")
     @DisplayName("Looking for documents that contain another is answered through the hash index once it is built for that run's rows, in order and with nothing sorted, and cannot be without it or with another run's")
     void containmentRetrievalNeedsTheIndexOnTheHash() throws SQLException {
-        Object[] arguments = {A_RUN, ShingleParameters.DEFAULT.identity(), ANY, ANY};
+        Object[] arguments = {ShingleParameters.DEFAULT.identity(), ANY, ANY};
         try (Statement statement = connection.createStatement()) {
             statement.executeUpdate("DROP INDEX IF EXISTS " + BY_HASH);
         }
@@ -311,7 +311,7 @@ class ShingleIndexesInTheSchemaTest {
                 () -> assertThat(withoutIt).doesNotContain(BY_HASH).doesNotContain("shingle_hash="));
         claim(
                 "and once the redundancy check has built it over the rows of that run, the same search, sent"
-                        + " with the run as a value and not written into its text, looks the hash up in it: \""
+                        + " with the run written into its text as the index's is, looks the hash up in it: \""
                         + withIt + "\"",
                 () -> assertThat(withIt).contains(BY_HASH).contains("shingle_hash="));
         claim(

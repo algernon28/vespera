@@ -8,8 +8,10 @@ import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.StatementSteps;
 import io.algernon.vespera.ledger.VerdictKind;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,7 +27,9 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Consumer;
+import javax.sql.DataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Component;
 
 /**
@@ -364,87 +368,91 @@ public class RedundancyResolution {
         RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
         progress.toCheckForContainment(signedOccurrences);
 
-        eachPageOfSigned(stage4RunId, page -> {
-            // Asked of the database, a page at a time, what phase 1 removed (ADR-220 section 4).
-            Set<Long> removedInThePage = removedAmong(stage4RunId, page);
-            for (long a : page) {
-                if (removedInThePage.contains(a)) {
-                    progress.checkedForContainment();
-                    continue;
-                }
-                long[] setA = shingleSets.get(a);
-                List<Long> rareHashes = rarestHashes(
-                        stage3RunId, stage2RunId, a, boilerplateHashes, thresholds.rareShingleSampleSize());
-                if (rareHashes.isEmpty()) {
-                    progress.checkedForContainment();
-                    continue;
-                }
-
-                long[] bestContainer = {-1};
-                double[] bestScore = {-1};
-                eachBatchOfCandidates(stage2RunId, rareHashes, thresholds.rareShingleHitCount(), candidates -> {
-                    // Which of this batch are signed, and which this pass removed already, asked by key.
-                    List<Long> others = candidates.stream().filter(b -> b != a).toList();
-                    Set<Long> signed = signedAmong(stage4RunId, others);
-                    Set<Long> removedCandidates = removedAmong(stage4RunId, others);
-
-                    for (long b : candidates) {
-                        // Every path out of one candidate is counted, the ones that skip it included.
-                        boolean skipped = b == a || removedCandidates.contains(b) || !signed.contains(b);
-                        if (skipped) {
-                            progress.containmentCandidateGoneThrough();
-                            continue;
-                        }
-                        // A cheap, deliberately approximate pre-filter (a COUNT, not a fetched set): it compares
-                        // against b's raw shingle row count, which is always >= its true boilerplate-stripped size, so
-                        // it can only ever admit an extra candidate for exact scoring to reject, never wrongly
-                        // exclude a true one. The same "retrieval overshoots, scoring corrects" shape ADR-081
-                        // already accepts for LSH banding, applied here to the |B| > |A| guard.
-                        if (shingleSets.rawSize(b) <= setA.length) {
-                            progress.containmentCandidateGoneThrough();
-                            continue;
-                        }
-                        long[] setB = shingleSets.get(b);
-                        if (setB.length <= setA.length) {
-                            progress.containmentCandidateGoneThrough();
-                            continue;
-                        }
-                        double containmentScore = containment(setA, setB);
-                        if (containmentScore < thresholds.containmentIndex()) {
-                            progress.containmentCandidateGoneThrough();
-                            continue;
-                        }
-                        // Multiple containers passing the cut is not addressed by ADR-079/081: this class picks
-                        // the highest-scoring one, ties broken by the lowest occurrence id, purely for a
-                        // deterministic single row under redundant_with's (occurrence_id, run_id) primary key.
-                        if (containmentScore > bestScore[0]
-                                || (containmentScore == bestScore[0] && b < bestContainer[0])) {
-                            bestScore[0] = containmentScore;
-                            bestContainer[0] = b;
-                        }
-                        progress.containmentCandidateGoneThrough();
+        // One statement for every read of one hash's occurrences in the pass, where the pass is one transaction
+        // (ADR-237).
+        try (OneHashsOccurrences hashReads = new OneHashsOccurrences(stage2RunId)) {
+            eachPageOfSigned(stage4RunId, page -> {
+                // Asked of the database, a page at a time, what phase 1 removed (ADR-220 section 4).
+                Set<Long> removedInThePage = removedAmong(stage4RunId, page);
+                for (long a : page) {
+                    if (removedInThePage.contains(a)) {
+                        progress.checkedForContainment();
+                        continue;
                     }
-                });
+                    long[] setA = shingleSets.get(a);
+                    List<Long> rareHashes = rarestHashes(
+                            stage3RunId, stage2RunId, a, boilerplateHashes, thresholds.rareShingleSampleSize());
+                    if (rareHashes.isEmpty()) {
+                        progress.checkedForContainment();
+                        continue;
+                    }
 
-                // A document a row of this run already names as the one kept in another's place, a
-                // near-duplicate's survivor or a container, is not removed in its turn, so that no pointer
-                // names a removed document (ADR-234).
-                if (bestContainer[0] >= 0 && !namedAsKept(stage4RunId, a)) {
-                    writeVerdict(
-                            stage4RunId,
-                            a,
-                            bestContainer[0],
-                            "contained-in",
-                            bestScore[0],
-                            String.format(
-                                    Locale.ROOT,
-                                    "contained in occurrence %d at containment %.4f",
-                                    bestContainer[0],
-                                    bestScore[0]));
+                    long[] bestContainer = {-1};
+                    double[] bestScore = {-1};
+                    eachBatchOfCandidates(hashReads, rareHashes, thresholds.rareShingleHitCount(), candidates -> {
+                        // Which of this batch are signed, and which this pass removed already, asked by key.
+                        List<Long> others = candidates.stream().filter(b -> b != a).toList();
+                        Set<Long> signed = signedAmong(stage4RunId, others);
+                        Set<Long> removedCandidates = removedAmong(stage4RunId, others);
+
+                        for (long b : candidates) {
+                            // Every path out of one candidate is counted, the ones that skip it included.
+                            boolean skipped = b == a || removedCandidates.contains(b) || !signed.contains(b);
+                            if (skipped) {
+                                progress.containmentCandidateGoneThrough();
+                                continue;
+                            }
+                            // A cheap, deliberately approximate pre-filter (a COUNT, not a fetched set): it compares
+                            // against b's raw shingle row count, which is always >= its true boilerplate-stripped size, so
+                            // it can only ever admit an extra candidate for exact scoring to reject, never wrongly
+                            // exclude a true one. The same "retrieval overshoots, scoring corrects" shape ADR-081
+                            // already accepts for LSH banding, applied here to the |B| > |A| guard.
+                            if (shingleSets.rawSize(b) <= setA.length) {
+                                progress.containmentCandidateGoneThrough();
+                                continue;
+                            }
+                            long[] setB = shingleSets.get(b);
+                            if (setB.length <= setA.length) {
+                                progress.containmentCandidateGoneThrough();
+                                continue;
+                            }
+                            double containmentScore = containment(setA, setB);
+                            if (containmentScore < thresholds.containmentIndex()) {
+                                progress.containmentCandidateGoneThrough();
+                                continue;
+                            }
+                            // Multiple containers passing the cut is not addressed by ADR-079/081: this class picks
+                            // the highest-scoring one, ties broken by the lowest occurrence id, purely for a
+                            // deterministic single row under redundant_with's (occurrence_id, run_id) primary key.
+                            if (containmentScore > bestScore[0]
+                                    || (containmentScore == bestScore[0] && b < bestContainer[0])) {
+                                bestScore[0] = containmentScore;
+                                bestContainer[0] = b;
+                            }
+                            progress.containmentCandidateGoneThrough();
+                        }
+                    });
+
+                    // A document a row of this run already names as the one kept in another's place, a
+                    // near-duplicate's survivor or a container, is not removed in its turn, so that no pointer
+                    // names a removed document (ADR-234).
+                    if (bestContainer[0] >= 0 && !namedAsKept(stage4RunId, a)) {
+                        writeVerdict(
+                                stage4RunId,
+                                a,
+                                bestContainer[0],
+                                "contained-in",
+                                bestScore[0],
+                                String.format(
+                                        Locale.ROOT,
+                                        "contained in occurrence %d at containment %.4f",
+                                        bestContainer[0],
+                                        bestScore[0]));
+                    }
+                    progress.checkedForContainment();
                 }
-                progress.checkedForContainment();
-            }
-        });
+            });
+        }
     }
 
     /**
@@ -534,18 +542,18 @@ public class RedundancyResolution {
      * Hands the containment candidates for one document A's {@code rareHashes} (ADR-081) to {@code batch}, in
      * ascending order and up to {@value #OCCURRENCES_IN_A_PAGE} at a time: the occurrences carrying at least
      * {@code hitThreshold} of them, merged from one ordered read for each hash (ADR-225 section 2). Each read
-     * uses {@code shingle_by_hash} over this run's rows, reached because the run is bound (ADR-221 section
-     * 2), from the index alone and sorting nothing. The index is there because stage 4b builds it before
+     * uses {@code shingle_by_hash} over this run's rows, reached because the run is written into the
+     * statement as the index's own text has it (ADR-237), from the index alone and sorting nothing. The index is there because stage 4b builds it before
      * this class runs, not because stage 2 kept it (ADR-182). Where A has fewer hashes than a candidate must
      * carry none is read. Nothing here holds a posting list: one page of each read, and one batch.
      */
     private void eachBatchOfCandidates(
-            RunId stage2RunId, List<Long> rareHashes, int hitThreshold, Consumer<List<Long>> batch) {
+            OneHashsOccurrences hashReads, List<Long> rareHashes, int hitThreshold, Consumer<List<Long>> batch) {
         if (rareHashes.size() < hitThreshold) {
             return;
         }
         List<OccurrencesOfAHash> reads =
-                rareHashes.stream().map(hash -> new OccurrencesOfAHash(stage2RunId, hash)).toList();
+                rareHashes.stream().map(hash -> new OccurrencesOfAHash(hashReads, hash)).toList();
         List<Long> candidates = new ArrayList<>();
         while (true) {
             // Fewer reads with an occurrence left than a candidate must be found in means no candidate is
@@ -582,17 +590,84 @@ public class RedundancyResolution {
         }
     }
 
-    /** Up to {@value #OCCURRENCES_IN_A_PAGE} occurrences carrying {@code hash}, in ascending order, those after {@code after}. */
-    private List<Long> occurrencesOfAHash(RunId stage2RunId, long hash, long after) {
-        return jdbcTemplate.query(
-                "SELECT DISTINCT occurrence_id FROM shingle"
-                        + " WHERE run_id = ? AND shingle_parameter_identity = ? AND shingle_hash = ?"
-                        + " AND occurrence_id > ? ORDER BY occurrence_id LIMIT " + OCCURRENCES_IN_A_PAGE,
-                (resultSet, rowNumber) -> resultSet.getLong(1),
-                stage2RunId.value(),
-                ShingleParameters.DEFAULT.identity(),
-                hash,
-                after);
+    /** The text of the read of one hash's occurrences, with {@code stage2RunId} written into it (ADR-237). */
+    private static String oneHashsOccurrences(String stage2RunId) {
+        return "SELECT DISTINCT occurrence_id FROM shingle WHERE run_id = '" + stage2RunId + "'"
+                + " AND shingle_parameter_identity = ? AND shingle_hash = ?"
+                + " AND occurrence_id > ? ORDER BY occurrence_id LIMIT " + OCCURRENCES_IN_A_PAGE;
+    }
+
+    /**
+     * The read of one hash's occurrences for a containment pass, with the stage-2 run written into its text as
+     * {@code shingle_by_hash}'s own text has it, so that SQLite sees at preparing that the index may answer
+     * it and does not compile it again when a hash is bound (ADR-237). Where the pass runs in one transaction,
+     * as stage 4b's step runs it, the statement is prepared once on that transaction's connection and kept
+     * for the pass; outside one, each read prepares it on a connection it gives back, so that no connection
+     * is held while the caller asks the database anything else (ADR-223 section 6).
+     */
+    private final class OneHashsOccurrences implements AutoCloseable {
+
+        private final String statement;
+        private final DataSource dataSource;
+        private Connection keptOn;
+        private PreparedStatement kept;
+
+        OneHashsOccurrences(RunId stage2RunId) {
+            this.statement = oneHashsOccurrences(ShingleHashIndex.writtenInto(stage2RunId));
+            this.dataSource = jdbcTemplate.getDataSource();
+        }
+
+        /** Up to {@value #OCCURRENCES_IN_A_PAGE} occurrences carrying {@code hash}, in ascending order, those after {@code after}. */
+        List<Long> after(long hash, long after) {
+            Connection connection = DataSourceUtils.getConnection(dataSource);
+            try {
+                if (DataSourceUtils.isConnectionTransactional(connection, dataSource)) {
+                    if (connection != keptOn) {
+                        closeKept();
+                        kept = connection.prepareStatement(statement);
+                        keptOn = connection;
+                    }
+                    return read(kept, hash, after);
+                }
+                try (PreparedStatement once = connection.prepareStatement(statement)) {
+                    return read(once, hash, after);
+                }
+            } catch (SQLException e) {
+                throw jdbcTemplate.getExceptionTranslator().translate("reading one hash's occurrences", statement, e);
+            } finally {
+                DataSourceUtils.releaseConnection(connection, dataSource);
+            }
+        }
+
+        private List<Long> read(PreparedStatement read, long hash, long after) throws SQLException {
+            read.setString(1, ShingleParameters.DEFAULT.identity());
+            read.setLong(2, hash);
+            read.setLong(3, after);
+            List<Long> occurrences = new ArrayList<>();
+            try (ResultSet rows = read.executeQuery()) {
+                while (rows.next()) {
+                    occurrences.add(rows.getLong(1));
+                }
+            }
+            return occurrences;
+        }
+
+        @Override
+        public void close() {
+            try {
+                closeKept();
+            } catch (SQLException e) {
+                throw jdbcTemplate.getExceptionTranslator().translate("closing the read of one hash's occurrences", statement, e);
+            }
+        }
+
+        private void closeKept() throws SQLException {
+            if (kept != null) {
+                kept.close();
+                kept = null;
+                keptOn = null;
+            }
+        }
     }
 
     /** The occurrences carrying one hash, in ascending order, a page of up to {@value #OCCURRENCES_IN_A_PAGE} at a time. */
@@ -601,21 +676,21 @@ public class RedundancyResolution {
         /** What {@link #head} answers once the hash has no occurrence left; no occurrence id is this great. */
         static final long NONE_LEFT = Long.MAX_VALUE;
 
-        private final RunId stage2RunId;
+        private final OneHashsOccurrences reads;
         private final long hash;
         private List<Long> page = List.of();
         private int next;
         private boolean lastPage;
 
-        OccurrencesOfAHash(RunId stage2RunId, long hash) {
-            this.stage2RunId = stage2RunId;
+        OccurrencesOfAHash(OneHashsOccurrences reads, long hash) {
+            this.reads = reads;
             this.hash = hash;
         }
 
         long head() {
             if (next == page.size() && !lastPage) {
                 long after = page.isEmpty() ? Long.MIN_VALUE : page.getLast();
-                page = occurrencesOfAHash(stage2RunId, hash, after);
+                page = reads.after(hash, after);
                 next = 0;
                 lastPage = page.size() < OCCURRENCES_IN_A_PAGE;
             }

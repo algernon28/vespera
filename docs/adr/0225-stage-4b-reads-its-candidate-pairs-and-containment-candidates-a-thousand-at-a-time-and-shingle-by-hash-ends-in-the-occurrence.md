@@ -1,5 +1,7 @@
 # ADR-225 — Stage 4b reads its candidate pairs and its containment candidates a thousand at a time and sorts neither, `shingle_by_hash` ends in the occurrence, and every read of one occurrence's shingles names its index
 
+> **Partly amended — see [ADR-237](0237-the-read-of-one-hashs-occurrences-names-its-run-in-its-text-and-is-prepared-once-for-the-containment-pass.md).** §2's *"The run is a bound value, as ADR-221 §2 decides"*, and the `run_id = ?` of the statement it shows, no longer hold: the stage-2 run is written into the read's text, as the index's own text has it, and the statement is prepared once for the containment pass where the pass is one transaction. The read, its order, its pages and the merge stand.
+
 > **Partly amended — see [ADR-231](0231-the-embedding-step-stops-unrecorded-where-the-embedding-model-was-pulled-while-it-ran-and-scoring-refuses-a-seed-whose-chunks-have-no-vector.md).** Nothing this record decides is touched. One sentence of §8 is: it names #488 and #489 as joining the one build, and #496 joins it too, by the operator's word of 2026-10-10, and is its last ticket. No build is cut until #496's change is on `main`.
 
 - **Date**: 2026-10-10

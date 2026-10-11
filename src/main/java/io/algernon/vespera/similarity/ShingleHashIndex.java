@@ -55,6 +55,20 @@ public class ShingleHashIndex {
         jdbcTemplate.execute(DROP);
     }
 
+    /**
+     * {@code stage2RunId} as it is written into a statement's text, the index's and the read of one hash's
+     * occurrences alike (ADR-221 section 4, ADR-237): the id itself, once it is known to be of the form {@code
+     * RunId.of} mints, which holds nothing a statement could read as anything but the text of a value.
+     *
+     * @throws IllegalArgumentException where it is not of that form
+     */
+    static String writtenInto(RunId stage2RunId) {
+        if (!A_MINTED_RUN_ID.matcher(stage2RunId.value()).matches()) {
+            throw new IllegalArgumentException("A stage-2 run id is 64 lowercase hexadecimal characters");
+        }
+        return stage2RunId.value();
+    }
+
     /** Whether the index is there at this moment, as {@code sqlite_master} holds it. */
     public boolean exists() {
         Long found = jdbcTemplate.queryForObject(
@@ -88,11 +102,8 @@ public class ShingleHashIndex {
      * callback, and that it has ended (ADR-193 sections 2 and 7).
      */
     public Optional<Duration> buildFor(RunId stage2RunId, SimilarityStatementProgress progress) {
-        if (!A_MINTED_RUN_ID.matcher(stage2RunId.value()).matches()) {
-            throw new IllegalArgumentException("A stage-2 run id is 64 lowercase hexadecimal characters");
-        }
         String build = "CREATE INDEX " + NAME + " ON shingle (shingle_parameter_identity, shingle_hash, occurrence_id)"
-                + " WHERE run_id = '" + stage2RunId.value() + "'";
+                + " WHERE run_id = '" + writtenInto(stage2RunId) + "'";
         boolean theRuns = jdbcTemplate
                 .queryForList(
                         "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'shingle' AND name = ?",
