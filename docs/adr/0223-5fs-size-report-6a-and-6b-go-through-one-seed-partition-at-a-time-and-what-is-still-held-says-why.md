@@ -1,5 +1,9 @@
 # ADR-223 — 5f's size report, 6a and 6b go through one seed partition at a time: no class of theirs holds every arranged occurrence, their pages and the manifest are written as their rows come, and what is still held says why
 
+> **Partly amended — see [ADR-242](0242-a-page-moved-over-its-place-is-moved-again-a-few-times-where-the-move-is-refused-as-access-denied.md).** §3's move of `arrangement.html` and §6's two moves of step 7 are each made by `ledger.ReplacingMove`, attempted again up to five times in all, the waits doubling from a tenth of a second, where the move is refused as access denied, as Windows refuses it while another program holds the file. A move that succeeds is the same one atomic move that replaces. Everything else stands.
+
+> **Partly amended — see [ADR-241](0241-the-manifest-asks-a-pages-places-together-a-clusters-synthesis-doc-is-read-once-and-a-survivors-pictures-are-looked-up-by-its-listed-key.md).** §6's `placeOf(ClusterSlot)` is `placesOf(Set<ClusterSlot>)`, which the manifest asks once a page, and §13 item 1's `Clusters.placeOf` is `Clusters.placesOf`. A cluster's synthesis doc is read once, for its file and its row of the index, which `IndexPage.partitionHeading` and `IndexPage.clusterRow` append as the cluster files are written, in place of §6's `IndexPage.partition`; §13 item 5 and the Consequences' *"It reads each cluster's doc twice by its key"* no longer hold. The bytes of every page and of the manifest stand, and so does everything else.
+
 > **Partly amended — see [ADR-240](0240-the-tree-asks-what-it-lists-of-each-survivor-a-page-of-survivors-at-a-time.md).** What the tree lists of each survivor, its path, its content key and its score, is asked of a page of survivors in one statement each, not by key for each survivor in each of the three passes; the lookups by key for each cluster, the doc read twice and an exemplar's score and key asked as it is sent stand.
 
 - **Date**: 2026-10-10

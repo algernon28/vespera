@@ -71,7 +71,15 @@ public final class ListedArrangement {
                         .toList(),
                 cluster -> Optional.ofNullable(writtenByCluster.get(cluster)),
                 cluster -> Optional.ofNullable(unwritten.get(cluster)),
-                cluster -> Optional.ofNullable(placeByCluster.get(cluster)),
+                clusters -> {
+                    Map<ClusterSlot, ArrangedCluster> places = new LinkedHashMap<>();
+                    clusters.forEach(cluster -> {
+                        if (placeByCluster.containsKey(cluster)) {
+                            places.put(cluster, placeByCluster.get(cluster));
+                        }
+                    });
+                    return places;
+                },
                 everySurvivorAPageAtATime,
                 everySurvivorAPageAtATime);
     }
@@ -124,7 +132,7 @@ public final class ListedArrangement {
                 workingDirectory, provenance, of(arrangement, written, survivors, unwritten), pictures, progress);
     }
 
-    /** {@code index.md} for these lists, whole: its opening lines, then each partition's table as the writer appends it. */
+    /** {@code index.md} for these lists, whole: its opening lines, then each partition's heading and rows as the writer appends them. */
     static String indexContents(
             DeliverableProvenance provenance,
             List<RecordedCluster> arrangement,
@@ -136,7 +144,11 @@ public final class ListedArrangement {
         try {
             IndexPage.open(index, provenance);
             for (ListedPartition partition : partitions) {
-                IndexPage.partition(index, partition, partitions.size(), source.clustersOf(partition), source::writtenOver);
+                IndexPage.partitionHeading(index, partition);
+                for (RecordedCluster recorded : source.clustersOf(partition)) {
+                    IndexPage.clusterRow(
+                            index, partition, partitions.size(), recorded, source.writtenOver(ClusterSlot.of(recorded)));
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

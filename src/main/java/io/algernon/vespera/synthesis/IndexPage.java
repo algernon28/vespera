@@ -1,17 +1,17 @@
 package io.algernon.vespera.synthesis;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * {@code index.md}, the mechanical listing at the root of every tree (ADR-103, ADR-112, ADR-122), and
  * the names it and the tree beneath it give their partitions and cluster files.
  *
  * <p>It is appended to as its rows come (ADR-223 section 6): {@link #open} writes what produced the tree,
- * then {@link #partition} writes one partition's table, and nothing here holds the index whole.
+ * then {@link #partitionHeading} opens one partition's table and {@link #clusterRow} appends each of its rows,
+ * as the cluster's file is written from the same synthesis doc (ADR-241), and nothing here holds the index
+ * whole.
  *
  * <p><b>The order is rendered, never re-derived.</b> The partitions and the clusters arrive already in the
  * order the operator approved (ADR-112), and neither level here is sorted again — a partition's position
@@ -27,31 +27,36 @@ final class IndexPage {
 
     private IndexPage() {}
 
-    /**
-     * One partition's heading and table of clusters, appended to {@code index}.
-     *
-     * @param partitionCount how many partitions the tree has, which pads the partition's directory name
-     * @param clusters the partition's clusters, in stored order
-     * @param writtenOver the writing over a cluster, empty where there is none
-     */
-    static void partition(
-            Appendable index,
-            ListedPartition partition,
-            int partitionCount,
-            List<RecordedCluster> clusters,
-            Function<ClusterSlot, Optional<SynthesisDoc>> writtenOver)
-            throws IOException {
-        int clusterWidth = widthOf(partition.clusterCount());
-        String partitionDirName = partitionDirectoryName(partition, partitionCount);
+    /** One partition's heading and the head of its table of clusters, appended to {@code index}. */
+    static void partitionHeading(Appendable index, ListedPartition partition) throws IOException {
         index.append("\n## ")
                 .append(MarkdownSurroundings.ATX_HEADING.escape(partition.seedPath()))
                 .append("\n\n")
                 .append(TABLE_HEADER)
                 .append('\n')
                 .append("|---|---|---|\n");
-        for (RecordedCluster recorded : clusters) {
-            appendRow(index, partitionDirName, clusterWidth, recorded, writtenOver.apply(ClusterSlot.of(recorded)));
-        }
+    }
+
+    /**
+     * One cluster's row of its partition's table, appended to {@code index} after {@link #partitionHeading} and
+     * the rows of the clusters before it, in stored order.
+     *
+     * @param partitionCount how many partitions the tree has, which pads the partition's directory name
+     * @param doc the writing over the cluster, empty where there is none
+     */
+    static void clusterRow(
+            Appendable index,
+            ListedPartition partition,
+            int partitionCount,
+            RecordedCluster recorded,
+            Optional<SynthesisDoc> doc)
+            throws IOException {
+        appendRow(
+                index,
+                partitionDirectoryName(partition, partitionCount),
+                widthOf(partition.clusterCount()),
+                recorded,
+                doc);
     }
 
     /**

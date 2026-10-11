@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-223](0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md).** In §9, `Deliverable.writeTo` no longer takes lists, so *"The five-parameter form stays"* no longer holds: it takes a source it asks one seed partition at a time, and a tree written with `SurvivorPictures.none()` is still the tree written without pictures. §1's rule and its population, every picture of every survivor the tree lists, stand.
 
+> **Partly amended — see [ADR-241](0241-the-manifest-asks-a-pages-places-together-a-clusters-synthesis-doc-is-read-once-and-a-survivors-pictures-are-looked-up-by-its-listed-key.md).** In §9, `SurvivorPictures.of` is handed the `ListedSurvivor` and not its `OccurrenceId`, so a survivor's pictures are looked up by the content hash its listing read, with no lookup of their own. The two passes, the one survivor's pixels held at a time and everything else of §9 stand.
+
 - **Date**: 2026-09-25
 - **Status**: accepted
 - **Amends**: [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md), on two points (§10). First, where it refuses the extracted text ("Why not the extracted text either"): a survivor's pictures are carved out of that refusal, within the rule and the budget below. The extracted text stays refused, and so does any copy of an original, a standalone image file included (§4). Second, where it says 6b does not check that the originals are still there: writing the tree now reads every listed survivor's original in full, once, to hash it. That read still records no verdict and still keeps the entry. It is a read, not an existence check.

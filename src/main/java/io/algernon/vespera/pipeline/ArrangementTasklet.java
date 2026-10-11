@@ -10,6 +10,7 @@ import io.algernon.vespera.embedding.ScoringProgress;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.Arrangement;
@@ -26,7 +27,6 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -199,10 +199,11 @@ class ArrangementTasklet implements Tasklet {
     /**
      * Writes the page an approval names, a partition at a time, to a file beside {@code arrangement.html} and
      * moves it over that file once it is whole, so that a step that fails partway leaves the page before it
-     * or none (ADR-223 section 3). Where {@code recording}, each partition is arranged, labelled and recorded
-     * first; either way its rows are read back before its part of the page is written, so what a reviewer is
-     * shown, and an approval then names, is the same whether this invocation just wrote those rows or is only
-     * rendering a page for a run an earlier invocation finished (ADR-112, ADR-115, ADR-154 §2).
+     * or none (ADR-223 section 3), the move attempted again where it is refused as access denied (ADR-242).
+     * Where {@code recording}, each partition is arranged, labelled and recorded first; either way its rows are
+     * read back before its part of the page is written, so what a reviewer is shown, and an approval then names,
+     * is the same whether this invocation just wrote those rows or is only rendering a page for a run an earlier
+     * invocation finished (ADR-112, ADR-115, ADR-154 §2).
      *
      * @return how many clusters the page shows, read back from the rows recorded under {@code arrangement}
      */
@@ -263,7 +264,7 @@ class ArrangementTasklet implements Tasklet {
                 }
                 ArrangementReport.close(page, of);
             }
-            Files.move(part, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            ReplacingMove.ATOMIC.intoPlace(part, file);
         } catch (IOException e) {
             throw new UncheckedIOException("could not write " + file, e);
         }

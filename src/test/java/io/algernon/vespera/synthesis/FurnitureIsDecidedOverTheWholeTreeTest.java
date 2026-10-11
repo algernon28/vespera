@@ -73,9 +73,9 @@ class FurnitureIsDecidedOverTheWholeTreeTest {
                         ThreePartitions.survivors(),
                         Map.of(),
                         ONE_SURVIVOR_IN_A_PAGE),
-                occurrence -> {
-                    asked.add(occurrence);
-                    return picturesOf(occurrence);
+                survivor -> {
+                    asked.add(survivor.occurrence());
+                    return picturesOf(survivor.occurrence());
                 },
                 DeliverableProgress.NONE);
 

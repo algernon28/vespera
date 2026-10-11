@@ -2,13 +2,17 @@ package io.algernon.vespera.synthesis;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * The manifest, {@code documents.csv}: one row per survivor, in the order given (ADR-104, ADR-112), and
  * the RFC 4180 quoting its two path columns need (ADR-136 §5).
  *
  * <p>It is written as its rows come, a page of survivors at a time, and nothing here holds the file whole
- * (ADR-223 section 7).
+ * (ADR-223 section 7). The places of a page's clusters are asked for together, once for the page (ADR-241).
  *
  * <p>The CSV is the surrounding that answers to a parser, so its rule is a doubled quote and not a row of
  * {@link MarkdownSurroundings} (ADR-137 §4). It is opened in a spreadsheet too, so a path that one would run
@@ -36,9 +40,12 @@ final class ManifestCsv {
         csv.append(HEADER).append('\n');
         try {
             source.eachPageOfSurvivorsForTheManifest(page -> {
+                Set<ClusterSlot> clusters = new LinkedHashSet<>();
+                page.forEach(survivor -> clusters.add(ClusterSlot.of(survivor)));
+                Map<ClusterSlot, ArrangedCluster> places = clusters.isEmpty() ? Map.of() : source.placesOf(clusters);
                 for (ListedSurvivor survivor : page) {
                     try {
-                        append(csv, survivor, source);
+                        append(csv, survivor, places);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -50,8 +57,9 @@ final class ManifestCsv {
         }
     }
 
-    private static void append(Appendable csv, ListedSurvivor survivor, ArrangedSurvivors source) throws IOException {
-        ArrangedCluster cluster = source.placeOf(ClusterSlot.of(survivor))
+    private static void append(Appendable csv, ListedSurvivor survivor, Map<ClusterSlot, ArrangedCluster> places)
+            throws IOException {
+        ArrangedCluster cluster = Optional.ofNullable(places.get(ClusterSlot.of(survivor)))
                 .orElseThrow(() ->
                         // ADR-105 and #175 §6: the arrangement is total over the survivors it was built from,
                         // so a survivor with no cluster row is a broken invariant, not a document the

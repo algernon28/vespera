@@ -147,7 +147,7 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
                         whole::survivorsOf,
                         whole::writtenOver,
                         whole::whyUnwritten,
-                        whole::placeOf,
+                        whole::placesOf,
                         page -> {
                             asked.add("for their pictures");
                             whole.eachPageOfSurvivorsForTheirPictures(page);

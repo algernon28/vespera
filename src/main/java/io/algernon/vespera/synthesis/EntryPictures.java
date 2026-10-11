@@ -80,7 +80,7 @@ final class EntryPictures {
         source.eachPageOfSurvivorsForTheirPictures(page -> {
             for (ListedSurvivor survivor : page) {
                 List<PictureEntry> ofOneOccurrence = new ArrayList<>();
-                for (ListedPicture picture : pictures.of(survivor.occurrence())) {
+                for (ListedPicture picture : pictures.of(survivor)) {
                     String digest = sha256Hex(picture.pixels());
                     if (picture.inFurnitureLayer()) {
                         furniture.add(digest);
@@ -127,7 +127,7 @@ final class EntryPictures {
     void appendUnder(StringBuilder page, ListedSurvivor member, int ordinal, Path pageDirectory, String pictureDirectoryName)
             throws IOException {
         List<NamedPicture> kept = new ArrayList<>();
-        for (ListedPicture picture : source.of(member.occurrence())) {
+        for (ListedPicture picture : source.of(member)) {
             String digest = sha256Hex(picture.pixels());
             if (!furniture.contains(digest)) {
                 kept.add(new NamedPicture(picture, digest));

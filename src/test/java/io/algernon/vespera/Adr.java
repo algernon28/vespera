@@ -1612,6 +1612,25 @@ public final class Adr {
     public static final String THE_TREE_ASKS_ABOUT_A_PAGE_OF_SURVIVORS_AT_A_TIME = FILE
             + "0240-the-tree-asks-what-it-lists-of-each-survivor-a-page-of-survivors-at-a-time.md";
 
+    /**
+     * ADR-241 -- the manifest asks for the places of a page's clusters at once, a cluster's synthesis doc is read
+     * once, for its file and its row of the index, and a survivor's pictures are looked up by the content hash its
+     * listing read, with no lookup of their own. The bytes of every page stand (amends ADR-240 section 1, ADR-223
+     * sections 6, 7 and 13 and ADR-149 section 9; settles what ADR-240 left of review register finding R24).
+     */
+    public static final String THE_MANIFEST_ASKS_A_PAGES_PLACES_AND_A_SYNTHESIS_DOC_IS_READ_ONCE = FILE
+            + "0241-the-manifest-asks-a-pages-places-together-a-clusters-synthesis-doc-is-read-once-and-a-survivors-pictures-are-looked-up-by-its-listed-key.md";
+
+    /**
+     * ADR-242 -- every page moved over its place, the arrangement page, the review list, the index and the
+     * manifest, is moved by {@code ledger.ReplacingMove}, attempted again up to five times in all, the waits
+     * doubling from a tenth of a second, where Windows refuses the move as access denied while another program
+     * holds the file; any other failure is thrown at once (amends ADR-223 sections 3 and 6; settles review
+     * register finding R18).
+     */
+    public static final String A_MOVE_REFUSED_AS_ACCESS_DENIED_IS_ATTEMPTED_AGAIN = FILE
+            + "0242-a-page-moved-over-its-place-is-moved-again-a-few-times-where-the-move-is-refused-as-access-denied.md";
+
     private Adr() {
     }
 }

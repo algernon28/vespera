@@ -1,5 +1,7 @@
 # ADR-240 — The tree asks what it lists of each survivor a page of survivors at a time
 
+> **Partly amended — see [ADR-241](0241-the-manifest-asks-a-pages-places-together-a-clusters-synthesis-doc-is-read-once-and-a-survivors-pictures-are-looked-up-by-its-listed-key.md).** §1's cluster place asked by its key for each row of the manifest and its doc read twice no longer stand: the manifest asks a page's places together, and a cluster's doc is read once, for its file and its row of the index. The first item of *What this does not decide* is decided: a survivor's pictures are looked up by the content hash §2's read gives the page, with no lookup of their own. §2 and everything else stand.
+
 - **Date**: 2026-10-11
 - **Status**: accepted on 2026-10-11, on the operator's word (*"do R24 with its ADR-223 check"*). What of the finding stands after that check, and the form of the change, are the session's calls.
 - **Amends**: [ADR-223](0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md)'s Consequences, *"a lookup by key for each cluster and each survivor of the manifest"*, for the survivors: what the tree lists of each, its path, its content key and its score, is asked of a page of survivors in one statement each (§2). Its lookups by key for each cluster stand, and so does the rest of ADR-223. ADR-223 carries a note at its head.

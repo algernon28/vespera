@@ -534,7 +534,8 @@ class GenerationTasklet implements Tasklet {
      * <p>The content hash is the key {@code extraction} recorded for each survivor, the one its conversion
      * is cached under (ADR-151, ADR-206). Stage 1 hashes only within size-matched groups, so its own record
      * covers only some survivors, and stage 2's covers every one. It is read again each time a survivor is
-     * listed, in the first pass, the partition's listing and the manifest. No archive file is opened.
+     * listed, in the first pass, the partition's listing and the manifest, with the survivor's score and path,
+     * each a page of survivors at a time (ADR-240). No archive file is opened.
      */
     private Path writeDeliverable(
             RunId generation,
@@ -592,7 +593,7 @@ class GenerationTasklet implements Tasklet {
                 slot -> Optional.of(Unwritten.of(
                         Optional.ofNullable(foundThisRun.get(slot)),
                         () -> clusterFaults.forCluster(generation, slot.winningSeed(), slot.clusterOrdinal()))),
-                slot -> clusters.placeOf(arrangement, slot.winningSeed(), slot.clusterOrdinal()),
+                slots -> clusters.placesOf(arrangement, slots),
                 page -> eachPageOfSurvivors(
                         EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_PICTURES,
                         reads, survivorCount, scoring, extractionRun, page),
@@ -603,7 +604,7 @@ class GenerationTasklet implements Tasklet {
                 workingDirectory,
                 provenance,
                 source,
-                survivorPictures(byteLevelReductionRun, extractionRun),
+                survivorPictures(byteLevelReductionRun),
                 treeProgress());
     }
 
@@ -638,30 +639,31 @@ class GenerationTasklet implements Tasklet {
      * #openingChunkOf} follows to reach a document's cached conversion, joined to {@link
      * DocumentPictures} instead of {@link LeadingChunks}.
      *
-     * <p><b>The same value as {@link ListedSurvivor#contentHash()}, and no hash of the file.</b>
+     * <p><b>{@link ListedSurvivor#contentHash()} itself, and no hash of the file.</b>
      * Both the manifest's column and this lookup are keyed on the hash {@code extraction} recorded for
-     * the survivor (ADR-151, ADR-206), read from the record each time it is asked for.
+     * the survivor (ADR-151, ADR-206), which the listing read for its page of survivors and hands over with
+     * the survivor (ADR-241).
      *
      * <p>The pixels themselves are not cached: {@link #picturesFor}'s query and decode run on every
      * call, so a document's decoded pictures live only for the one call that decodes them, and ADR-149
      * §9's one-document bound on memory holds regardless of how many times a survivor is asked about.
      *
      * <p>A survivor whose recorded format {@link DocumentPicture#listedFor} says lists no pictures shows
-     * none, and its cache key is not read (ADR-150 §4, ADR-226).
+     * none, and its cached conversion is not read (ADR-150 §4, ADR-226).
      * The format is read under the byte-level-reduction run this invocation arrived at (ADR-154), which
      * {@link #execute} resolves once, rather than re-derived from the current implementation version,
      * which would match nothing after that version changes.
      */
-    private SurvivorPictures survivorPictures(RunId byteLevelReductionRun, RunId extractionRun) {
-        return occurrenceId -> {
+    private SurvivorPictures survivorPictures(RunId byteLevelReductionRun) {
+        return survivor -> {
             boolean showsNoPictures = detectedFormats
-                    .formatFor(occurrenceId, byteLevelReductionRun)
+                    .formatFor(survivor.occurrence(), byteLevelReductionRun)
                     .filter(format -> !DocumentPicture.listedFor(format))
                     .isPresent();
             if (showsNoPictures) {
                 return List.of();
             }
-            return picturesFor(cacheKeys.requireForOccurrence(occurrenceId, extractionRun));
+            return picturesFor(survivor.contentHash());
         };
     }
 

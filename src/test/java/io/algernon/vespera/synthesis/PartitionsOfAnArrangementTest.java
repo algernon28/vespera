@@ -17,6 +17,8 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Feature("Recording the arrangement")
 @Issue("472")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
+@Link(name = "ADR-241", url = Adr.THE_MANIFEST_ASKS_A_PAGES_PLACES_AND_A_SYNTHESIS_DOC_IS_READ_ONCE, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 class PartitionsOfAnArrangementTest {
 
@@ -135,35 +138,43 @@ class PartitionsOfAnArrangementTest {
 
     @Test
     @Story("An arrangement is read one exemplar at a time")
-    @DisplayName("One group's size and places are asked for by its key, under one arrangement and no other")
-    void oneClustersPlaceIsAskedForByItsKey() {
+    @DisplayName("Groups' sizes and places are asked for by their keys, several at once, under one arrangement and no other")
+    void clustersPlacesAreAskedForByTheirKeys() {
         RunId sameKeys = new Ledger(jdbcTemplate)
                 .runs()
                 .startRun("arrangement", "d" + System.nanoTime(), "{}", theWalkOf(first), List.of());
         clusters.record(sameKeys, new ArrangedCluster(first, 5, 7, 1, 1), new ClusterLabel("Same key, another arrangement"));
+        Set<ClusterSlot> askedFor = Set.of(
+                new ClusterSlot(first, 5),
+                new ClusterSlot(first, 0),
+                new ClusterSlot(second, 0),
+                new ClusterSlot(first, 1),
+                new ClusterSlot(first, 9),
+                new ClusterSlot(second, 5));
+        Map<ClusterSlot, ArrangedCluster> places = clusters.placesOf(arrangement, askedFor);
 
         claim(
                 "a group recorded under the arrangement answers its size, its exemplar's place and its own place,"
-                        + " as the arrangement stored them",
+                        + " as the arrangement stored them, groups of two exemplars asked for together",
                 () -> {
-                    assertThat(clusters.placeOf(arrangement, first, 5)).contains(new ArrangedCluster(first, 5, 1, 2, 1));
-                    assertThat(clusters.placeOf(arrangement, first, 0)).contains(new ArrangedCluster(first, 0, 2, 2, 2));
-                    assertThat(clusters.placeOf(arrangement, second, 0)).contains(new ArrangedCluster(second, 0, 3, 1, 1));
+                    assertThat(places).containsEntry(new ClusterSlot(first, 5), new ArrangedCluster(first, 5, 1, 2, 1));
+                    assertThat(places).containsEntry(new ClusterSlot(first, 0), new ArrangedCluster(first, 0, 2, 2, 2));
+                    assertThat(places).containsEntry(new ClusterSlot(second, 0), new ArrangedCluster(second, 0, 3, 1, 1));
                 });
         claim(
                 "a number the arrangement does not record under that exemplar answers nothing, even where another"
                         + " arrangement records it, so the manifest can stop on a document whose group is not carried",
-                () -> {
-                    assertThat(clusters.placeOf(arrangement, first, 1)).isEmpty();
-                    assertThat(clusters.placeOf(arrangement, first, 9)).isEmpty();
-                    assertThat(clusters.placeOf(arrangement, second, 5)).isEmpty();
-                });
+                () -> assertThat(places)
+                        .doesNotContainKeys(new ClusterSlot(first, 1), new ClusterSlot(first, 9), new ClusterSlot(second, 5))
+                        .hasSize(3));
         claim(
                 "where another arrangement records a group with the same exemplar and number, each arrangement"
                         + " answers its own row and never the other's",
                 () -> {
-                    assertThat(clusters.placeOf(arrangement, first, 5)).contains(new ArrangedCluster(first, 5, 1, 2, 1));
-                    assertThat(clusters.placeOf(sameKeys, first, 5)).contains(new ArrangedCluster(first, 5, 7, 1, 1));
+                    assertThat(clusters.placesOf(arrangement, Set.of(new ClusterSlot(first, 5))))
+                            .containsExactly(Map.entry(new ClusterSlot(first, 5), new ArrangedCluster(first, 5, 1, 2, 1)));
+                    assertThat(clusters.placesOf(sameKeys, Set.of(new ClusterSlot(first, 5))))
+                            .containsExactly(Map.entry(new ClusterSlot(first, 5), new ArrangedCluster(first, 5, 7, 1, 1)));
                 });
     }
 
