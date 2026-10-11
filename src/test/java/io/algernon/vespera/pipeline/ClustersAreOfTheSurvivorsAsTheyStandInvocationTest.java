@@ -227,7 +227,9 @@ class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
 
         claim(
                 "approving the arrangement made before the removals opens nothing: it arranges documents"
-                        + " that have since been removed, so nothing is written over it",
+                        + " that have since been removed, and with both removed nothing is left to arrange, so"
+                        + " nothing is written. That an approval is of the one set of documents it was given"
+                        + " for, where some are left, is the claim of the test over three documents",
                 () -> assertThat(generationRunsOf(root)).isEmpty());
         claim("and that invocation reports success, an approval that opens nothing being no failure", () -> assertThat(
                         cli.getExitCode())

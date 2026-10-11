@@ -65,20 +65,20 @@ import org.springframework.util.StreamUtils;
  *
  * <p><b>Every statement is planned twice</b>: as {@code schema.sql} leaves the database, which is how it
  * stands from stage 2's first chunk until stage 4b, and with {@code shingle_by_hash} built by the statement
- * {@code ShingleHashIndex} ships. Since ADR-221 that index is over the rows of one run, and here it is
- * built for a run no planned statement names, so the second state is a database holding another run's
- * index, which SQLite may use for none of the statements planned: it has the first state's plans. What
- * the index does for its own run is {@code ShingleIndexesInTheSchemaTest}'s to hold.
+ * {@code ShingleHashIndex} ships. Since ADR-221 that index is over the rows of one run, so in the second
+ * state every value is bound to that run's id, as stage 4b binds it: a statement over that run's rows may go
+ * through the index, and one that sorts without it may sort nothing with it. Stage 4b's read of one hash's
+ * occurrences does exactly that (ADR-225), so the second state counts one statement fewer in {@code
+ * RedundancyResolution}; a statement that sorts only once the index is there would count one more.
  *
- * <p>Three things in a plan count as temporary storage: a temp B-tree, a materialised subquery, and the
- * list SQLite builds for {@code IN (SELECT ...)}. A scalar subquery holds one value and does not.
+ * <p>Four things in a plan count as temporary storage: a temp B-tree, a materialised subquery, the list
+ * SQLite builds for {@code IN (SELECT ...)}, and an automatic index, which SQLite builds for one statement
+ * and drops after it. A scalar subquery holds one value and does not.
  *
  * <p><b>What this does not hold.</b>
  *
  * <ul>
- *   <li>No plan with the run's own index usable: how many statements of a class sort is not held for a
- *       database whose {@code shingle_by_hash} is the index of the run the statements name.
- *   <li>No size: the bytes a row ADR-218 states were measured by a probe outside the repository, over
+ *  *   <li>No size: the bytes a row ADR-218 states were measured by a probe outside the repository, over
  *       millions of rows, and a test of this suite cannot watch the temporary files of the process
  *       (ADR-211 section 12).
  *   <li>No plan over rows: the tables are empty and carry no statistics. A working directory's carry no
@@ -106,6 +106,7 @@ import org.springframework.util.StreamUtils;
 @Issue("476")
 @Link(name = "ADR-225", url = Adr.STAGE_4B_READS_ITS_CANDIDATES_A_THOUSAND_AT_A_TIME, type = "adr")
 @Link(name = "ADR-060", url = Adr.SURVIVORS_IS_AN_ITEM_READER, type = "adr")
+@Link(name = "ADR-236", url = Adr.A_PARTITIONS_READS_SEEK_ONLY_ITS_RUNS_ROWS, type = "adr")
 class EveryStatementThatSortsIsRecordedTest {
 
     /**
@@ -134,8 +135,12 @@ class EveryStatementThatSortsIsRecordedTest {
 
     private static final String ONE_BOUND_VALUE = "(?)";
 
-    /** What a plan says where the statement keeps rows in temporary storage. */
-    private static final List<String> TEMPORARY_STORAGE_IN_A_PLAN = List.of("TEMP B-TREE", "MATERIALIZE", "LIST SUBQUERY");
+    /**
+     * What a plan says where the statement keeps rows in temporary storage: an automatic index is one SQLite
+     * builds for the statement and drops after it, in temporary storage too.
+     */
+    private static final List<String> TEMPORARY_STORAGE_IN_A_PLAN =
+            List.of("TEMP B-TREE", "MATERIALIZE", "LIST SUBQUERY", "AUTOMATIC");
 
     private static final Pattern SCHEMA_INDEX =
             Pattern.compile("^CREATE INDEX IF NOT EXISTS ([a-z_]+) ON ", Pattern.MULTILINE);
@@ -180,18 +185,25 @@ class EveryStatementThatSortsIsRecordedTest {
             // Rows 10 and 11: the partitions, and the members of one. Row 9, the scores below the floor in
             // occurrence order, is gone: 5e reads a page of them at a time by row number (ADR-220 section 5).
             Map.entry("embedding.RelevanceScoreCache", 2),
-            // Row 12: the cluster sizes of one partition. Row 13, the run's membership in occurrence order, is
-            // gone: a partition's members are read unordered and the run's a page at a time by the primary
-            // key (ADR-223 sections 3 and 7).
-            Map.entry("embedding.DocumentClusters", 1),
+            // Rows 12 and 13 are gone: a partition's cluster sizes are counted in cluster order by the index
+            // on the seed, the run and the cluster (ADR-236), its members are read unordered and the run's a
+            // page at a time by the primary key (ADR-223 sections 3 and 7).
             // Bounded by the seed set: the unusable seeds.
             Map.entry("embedding.UnusableSeeds", 1)));
 
     /**
-     * The same once stage 4b has built {@code shingle_by_hash}, which is what ADR-218 says of the two
-     * states under Measured.
+     * The same once stage 4b has built {@code shingle_by_hash} for the run the statements name, which is
+     * what ADR-218 says of the two states under Measured: stage 4b's read of one hash's occurrences in
+     * occurrence order goes through the index and sorts nothing (ADR-225), so {@code RedundancyResolution}
+     * holds one statement that sorts, an occurrence's rarest shingles.
      */
-    private static final Map<String, Integer> RECORDED_WITH_THE_HASH_INDEX = new TreeMap<>(RECORDED);
+    private static final Map<String, Integer> RECORDED_WITH_THE_HASH_INDEX = withTheHashIndex();
+
+    private static Map<String, Integer> withTheHashIndex() {
+        Map<String, Integer> recorded = new TreeMap<>(RECORDED);
+        recorded.put("similarity.RedundancyResolution", 1);
+        return recorded;
+    }
 
     /**
      * How many texts of each shipped class open as a statement does and cannot be planned as they stand,
@@ -206,7 +218,10 @@ class EveryStatementThatSortsIsRecordedTest {
             "pipeline.StartUpIndexAnnouncement", 1,
             "ledger.Walks", 1));
 
-    /** The indexes of {@code schema.sql} that rows 3 to 5 of ADR-218's table list: thirty-one, by name. */
+    /**
+     * The indexes of {@code schema.sql} that rows 3 to 5 of ADR-218's table list, thirty-one, and the one
+     * ADR-236 adds to its class: thirty-two, by name.
+     */
     private static final List<String> SCHEMA_INDEXES_RECORDED = List.of(
             "call_exemplar_by_occurrence_id",
             "call_exemplar_by_winning_seed_occurrence_id",
@@ -216,6 +231,7 @@ class EveryStatementThatSortsIsRecordedTest {
             "detected_format_by_run_id",
             "document_cluster_by_run_id",
             "document_cluster_by_winning_seed_occurrence_id",
+            "document_cluster_by_winning_seed_run_and_cluster",
             "extraction_cache_key_by_run_id",
             "extraction_fault_by_run_id",
             "extraction_metric_by_run_id",
@@ -328,10 +344,8 @@ class EveryStatementThatSortsIsRecordedTest {
                                 "the class that builds the index holds no statement that builds one"));
                 // Since ADR-221 the statement carries the stage-2 run it is built for, joined in at run time,
                 // so the compiled text holds a mark where the run id goes: an id of the minted form is put
-                // there. Every statement below is planned with whole numbers bound, so none of them names
-                // that run and the index is another run's to each: the plans of this state are the plans
-                // with an index SQLite may not use, and what the index does for its own run's containment
-                // read is ShingleIndexesInTheSchemaTest's.
+                // there, and every statement below is planned with that id bound, so that a statement over
+                // the run's rows may use the index as it does in stage 4b.
                 String forARun = VALUE_JOINED_IN.matcher(build).replaceAll(A_RUN_ID_OF_THE_MINTED_FORM);
                 try (Statement statement = database.createStatement()) {
                     statement.execute(forARun);
@@ -348,7 +362,8 @@ class EveryStatementThatSortsIsRecordedTest {
                     try {
                         // An index build is counted for what it is and is not planned: ADR-221's carries no
                         // IF NOT EXISTS, so with the index already there it could not be.
-                        if (INDEX_BUILD.matcher(statement).matches() || keepsRowsInTemporaryStorage(database, statement)) {
+                        if (INDEX_BUILD.matcher(statement).matches()
+                                || keepsRowsInTemporaryStorage(database, statement, withTheHashIndex)) {
                             sorting.computeIfAbsent(name, ignored -> new ArrayList<>()).add(statement);
                         }
                         planned++;
@@ -361,11 +376,16 @@ class EveryStatementThatSortsIsRecordedTest {
         return new Survey(sorting, unplanned, planned);
     }
 
-    private static boolean keepsRowsInTemporaryStorage(Connection database, String statement) throws SQLException {
+    private static boolean keepsRowsInTemporaryStorage(Connection database, String statement, boolean boundToTheIndexedRun)
+            throws SQLException {
         try (PreparedStatement plan = database.prepareStatement("EXPLAIN QUERY PLAN " + statement)) {
             int values = plan.getParameterMetaData().getParameterCount();
             for (int value = 1; value <= values; value++) {
-                plan.setInt(value, 1);
+                if (boundToTheIndexedRun) {
+                    plan.setString(value, A_RUN_ID_OF_THE_MINTED_FORM);
+                } else {
+                    plan.setInt(value, 1);
+                }
             }
             boolean kept = false;
             try (ResultSet steps = plan.executeQuery()) {

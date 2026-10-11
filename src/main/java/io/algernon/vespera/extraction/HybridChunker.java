@@ -59,7 +59,7 @@ public class HybridChunker {
             return cached;
         }
         List<DocumentText> texts = DoclingDocumentTexts.parse(rawDoclingResponse);
-        List<String> chunkTexts = texts.isEmpty() ? List.of() : chunkStructured(texts, rule);
+        List<String> chunkTexts = chunkStructured(texts, rule);
         List<Chunk> chunks = numbered(chunkTexts, rule);
         cache.put(contentHash, CHUNKER_IDENTITY, rule.identity().value(), chunks);
         return chunks;

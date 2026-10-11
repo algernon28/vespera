@@ -1,5 +1,6 @@
 package io.algernon.vespera.extraction;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import java.util.List;
@@ -34,7 +35,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public class ExtractionFaults {
 
     /** The most fault rows one statement of a read brings back. */
-    private static final int ROWS_IN_A_PAGE = 1_000;
+    private static final int ROWS_IN_A_PAGE = KeysetPages.ROWS_IN_A_PAGE;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -94,26 +95,19 @@ public class ExtractionFaults {
      * reads (ADR-220 section 14). A page is handed over after its statement has finished.
      */
     void eachPageOfRows(RunId runId, Consumer<List<FaultRow>> page) {
-        long after = Long.MIN_VALUE;
-        while (true) {
-            List<FaultRow> rows = jdbcTemplate.query(
-                    "SELECT rowid, occurrence_id, category, detail FROM extraction_fault"
-                            + " WHERE run_id = ? AND rowid > ? ORDER BY rowid LIMIT " + ROWS_IN_A_PAGE,
-                    (resultSet, rowNumber) -> new FaultRow(
-                            resultSet.getLong("rowid"),
-                            new OccurrenceId(resultSet.getLong("occurrence_id")),
-                            resultSet.getString("category"),
-                            resultSet.getString("detail")),
-                    runId.value(),
-                    after);
-            if (!rows.isEmpty()) {
-                page.accept(rows);
-                after = rows.getLast().rowid();
-            }
-            if (rows.size() < ROWS_IN_A_PAGE) {
-                return;
-            }
-        }
+        new KeysetPages<FaultRow>(
+                        jdbcTemplate,
+                        "SELECT rowid, occurrence_id, category, detail FROM extraction_fault"
+                                + " WHERE run_id = ? AND rowid > ? ORDER BY rowid LIMIT " + ROWS_IN_A_PAGE,
+                        List.of(runId.value()),
+                        List.of(Long.MIN_VALUE),
+                        row -> List.of(row.rowid()),
+                        (resultSet, rowNumber) -> new FaultRow(
+                                resultSet.getLong("rowid"),
+                                new OccurrenceId(resultSet.getLong("occurrence_id")),
+                                resultSet.getString("category"),
+                                resultSet.getString("detail")))
+                .eachPage(page);
     }
 
     /** One fault row as read back: the number it was written under, which the read pages by, and what it says. */

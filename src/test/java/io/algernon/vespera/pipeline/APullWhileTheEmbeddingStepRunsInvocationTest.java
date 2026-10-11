@@ -91,6 +91,15 @@ class APullWhileTheEmbeddingStepRunsInvocationTest {
     /** A seed on each side of the pull. */
     private static final long ONE_SEED = 1;
 
+    /** How many chunks the scripted conversion of the long document is cut into. */
+    private static final int CHUNKS_OF_THE_LONG_DOCUMENT = 2;
+
+    /** The runtime is pulled again once the long document's first chunk is embedded. */
+    private static final int ONE_CHUNK_EMBEDDED = 1;
+
+    /** The one corpus document of the test that has one. */
+    private static final long ONE_DOCUMENT = 1;
+
     /** A step recorded as finished is recorded in one row. */
     private static final long RECORDED_ONCE = 1;
 
@@ -473,6 +482,50 @@ class APullWhileTheEmbeddingStepRunsInvocationTest {
                 walkRoot(walked),
                 "%;digest=" + digest + ";%");
         return documents == null ? 0 : documents;
+    }
+
+    /**
+     * ADR-231 section 5, the row for a pull and a pull back within one embedding step: "a survivor or a seed
+     * embedded between them has no vector under the run's identity, and scoring throws on it [...] This is the
+     * one case left stuck, and it is loud." {@code ChunkEmbedder} asks for the artefact once for each chunk,
+     * so the two pulls can fall between two chunks of one document. Here the one corpus document converts to more words than one chunk holds and is cut into
+     * {@value #CHUNKS_OF_THE_LONG_DOCUMENT} chunks and embedded first; the runtime reports another digest once
+     * its first chunk is embedded and the first again once its second is, so its second chunk alone is under
+     * the other digest, and the step's check at its end sees the digest it began with.
+     */
+    @Test
+    @Story("The embedding model pulled again while documents are being embedded stops the work")
+    @DisplayName("A pull and a pull back between two pieces of one document stop the scoring rather than score that document on the piece that is left")
+    void aSurvivorWithAVectorForOnlyOneOfItsChunksStopsScoring(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        Files.writeString(
+                root.resolve(SeedScriptedExtractionBeans.TWO_CHUNKS_OF_TEXT), "a corpus document of " + root.getFileName());
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document of " + seeds.getFileName());
+        profile(seeds);
+        EmbeddingScriptedBeans.pullsAgainOnceItHasEmbedded(ONE_CHUNK_EMBEDDED, A_SECOND_PULLS_DIGEST);
+        EmbeddingScriptedBeans.pullsBackOnceItHasEmbedded(CHUNKS_OF_THE_LONG_DOCUMENT);
+
+        cli.run("run", root.toString());
+
+        List<String> theRuns = scoringRunIdsFor(root);
+        claim(
+                "the corpus document has vectors under both digests, one of its " + CHUNKS_OF_THE_LONG_DOCUMENT
+                        + " pieces under each",
+                () -> {
+                    assertThat(documentsWithVectorsUnder(root, EmbeddingScriptedBeans.DIGEST)).isEqualTo(ONE_DOCUMENT);
+                    assertThat(documentsWithVectorsUnder(root, A_SECOND_PULLS_DIGEST)).isEqualTo(ONE_DOCUMENT);
+                });
+        claim(
+                "embedding is recorded as finished under the one run started: the runtime reported at the end"
+                        + " the digest it reported at the start",
+                () -> assertThat(theRuns).singleElement().satisfies(run ->
+                        assertThat(finishedRows(run, StepNames.EMBEDDING_SCORING)).isEqualTo(RECORDED_ONCE)));
+        claim(
+                "the invocation fails: the document has a piece with no vector under the scoring's digest",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "and the document is not scored on the one piece that is left",
+                () -> assertThat(countUnder("relevance_score", theRuns.getFirst())).isZero());
     }
 
     /** Removes the record that {@code step} finished under {@code run}, so the next invocation does it again. */

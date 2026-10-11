@@ -212,8 +212,8 @@ The forms of `writeTo` that take lists go (ADR-216; §11, ruling 4), which amend
 3. The three totals are announced: the partitions, the cluster files, which is the sum of the partitions' cluster counts, and the membership entries, which is `survivorCount()`. An entry carries a document exactly where a survivor of the cluster is listed, so the entries with a document are the survivors the arrangement arranges, and the loop over every cluster that counted them goes.
 4. `index.md.part` is opened in the tree and the index's opening lines written, `IndexPage.open(Appendable index, DeliverableProvenance provenance)`.
 5. Each partition, in stored order: its directory, its clusters and its survivors read; for each cluster its doc asked by key and, where it has none, why; the cluster file written by `ClusterPage.write` as now. The partition's table is appended to the index, `IndexPage.partition(Appendable index, ListedPartition partition, int partitionCount, List<RecordedCluster> clusters, Function<ClusterSlot, Optional<SynthesisDoc>> writtenOver)`. The partition is let go before the next.
-6. `index.md.part` is moved over `index.md`. The index is the last of the pages to appear, as now.
-7. The manifest (§7).
+6. The manifest (§7), written whole to `documents.csv.part` beside its target.
+7. `index.md.part` is moved over `index.md`, then `documents.csv.part` over `documents.csv`. The index is the last of the pages to appear, as now. (First written as the index moved before the manifest was written; the build of `f64e30c` writes both before either moves, and this step says so.)
 
 **The bytes are the same.**
 
@@ -223,7 +223,7 @@ The forms of `writeTo` that take lists go (ADR-216; §11, ruling 4), which amend
 - Why a cluster is unwritten keeps today's order of reasons: what this invocation found (`unsendable`), then a recorded fault, then *not reached*.
 - The index's rows are appended in the order they are composed in today.
 
-**A page that fails partway.** A cluster file is written whole, as now. `index.md` and `documents.csv` are each written beside the target and moved (§11, answer 5), so a tree a failure interrupts holds the index and the manifest of the write before it, or none, beside cluster files of this one. A tree left with a `.part` file was not finished.
+**A page that fails partway.** A cluster file is written whole, as now. `index.md` and `documents.csv` are each written beside the target and moved (§11, answer 5), so a tree a failure interrupts before the first move holds the index and the manifest of the write before it, or none, beside cluster files of this one; a failure of the manifest's own move, after the index's, leaves this write's index beside the manifest before it. A tree left with a `.part` file was not finished.
 
 ### 7. The manifest is a read of its own, and the furniture rule keeps less
 

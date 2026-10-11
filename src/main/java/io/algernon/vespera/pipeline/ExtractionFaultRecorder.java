@@ -38,9 +38,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * The discriminator is ADR-071's own breaker and introduces no new number (ADR-139 section 3): a step
  * that completed is a step in which five service-scope failures never landed consecutively, so the
  * sidecar answered for every faulted occurrence's neighbours and each refusal reads as a property of
- * what was uploaded rather than of the sidecar. A step the breaker stopped leaves the fault rows
- * standing and writes no verdict at all -- there, no occurrence is judged on the strength of a sidecar
- * that had already stopped answering.
+ * what was uploaded rather than of the sidecar. A step the breaker stopped writes no verdict at all --
+ * there, no occurrence is judged on the strength of a sidecar that had already stopped answering. The
+ * fault rows of its committed chunks stand; the chunk it stopped in rolls back, its fault rows with it,
+ * and its occurrences are read again by the next invocation (ADR-220 section 14).
  *
  * <p>Step-scoped for the same reason {@link ExtractionCircuitBreaker} is: it has to be the one instance the
  * whole step execution sees, so that {@code afterStep} knows whether this instance recorded anything.

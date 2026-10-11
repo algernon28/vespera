@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.embedding.RelevanceLabel;
 import io.algernon.vespera.embedding.RelevanceLabels;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -17,6 +18,7 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -54,6 +56,9 @@ class UnreadableFloorsTest {
 
     /** The scale this run's vectors are on. Any name will do: no answer is recorded against it. */
     private static final String AN_EMBEDDER = "an-embedder;deadbeef;F16";
+
+    /** The run the step is asked for; no answer is recorded for any run here. */
+    private static final RunId A_SCORING_RUN = new RunId("a-scoring-run");
 
     /**
      * A label reader that answers nothing.
@@ -133,7 +138,12 @@ class UnreadableFloorsTest {
 
         claim(
                 "the step removes nothing, because there is no number for it to remove anything by",
-                () -> assertThat(step.reachFor(Optional.of(AN_EMBEDDER), "Stage 5e (relevance floor)").removesBelow())
+                () -> assertThat(step.reachFor(
+                                        Optional.of(AN_EMBEDDER),
+                                        "Stage 5e (relevance floor)",
+                                        asMinted(RelevanceScoreFloorValue.readFrom(profileStore).value()),
+                                        A_SCORING_RUN)
+                                .removesBelow())
                         .isEmpty());
         claim(
                 "and the value that names the work carries no number either -- asserted against the very"
@@ -141,5 +151,10 @@ class UnreadableFloorsTest {
                         + " two spellings of one mistake have to name one piece of work, or the same"
                         + " corpus is recorded twice over for reasons nobody can see",
                 () -> assertThat(RelevanceScoreFloorValue.readFrom(profileStore).value()).isNull());
+    }
+
+    /** The floor as the scoring run is minted with it: the value read, or none (ADR-117). */
+    private static OptionalDouble asMinted(Double value) {
+        return value == null ? OptionalDouble.empty() : OptionalDouble.of(value);
     }
 }

@@ -639,6 +639,12 @@ CREATE INDEX IF NOT EXISTS document_cluster_by_run_id ON document_cluster (run_i
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
 CREATE INDEX IF NOT EXISTS document_cluster_by_winning_seed_occurrence_id ON document_cluster (winning_seed_occurrence_id);
 
+-- One seed partition's memberships under one scoring run, which 5f, 6a and 6b each read: by this index the
+-- reads go to that seed's rows of the run they name and not to its rows of every scoring run kept, and the
+-- partition's cluster sizes are counted in cluster order, sorting nothing (ADR-236). Additive, so no module's
+-- schema version moves; a database that lacks it builds it once, at start-up, as ADR-218 section 2 records.
+CREATE INDEX IF NOT EXISTS document_cluster_by_winning_seed_run_and_cluster ON document_cluster (winning_seed_occurrence_id, run_id, cluster_ordinal);
+
 -- embedding's own table (ADR-088, ADR-097): a person's recorded answer about one document -- relevant
 -- to this seed set, or not. Keyed by the path relative to the corpus root (ADR-051) and the seed set,
 -- and never by the run or the occurrence, because a label answers a question that stays true however

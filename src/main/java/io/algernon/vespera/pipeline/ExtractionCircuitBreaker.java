@@ -53,11 +53,11 @@ class ExtractionCircuitBreaker
     @Override
     public void onSkipInProcess(OccurrenceId item, Throwable t) {
         InARow row = failuresInARow.setAside();
-        // ADR-093: this is the case that motivated logging at all -- a service-scope failure writes no
-        // row at the moment it is thrown (ADR-071), so this WARN is the only record it happened at this
-        // instant. ExtractionFaultRecorder turns it into a fault row afterward and, where the step goes
-        // on to complete, an extraction-failed verdict (ADR-139); the streak below may still trip the
-        // breaker first.
+        // ADR-093: this is the case that motivated logging at all. ExtractionFaultRecorder writes the
+        // fault row in the chunk's own transaction (ADR-220 section 14) and, where the step goes on to
+        // complete, resolves it into an extraction-failed verdict (ADR-139); where the streak below trips
+        // the breaker, the chunk rolls back with its fault rows, and this WARN is the only record left
+        // that the failure happened.
         log.warn(
                 "[extraction] service-scope failure on {} (consecutive streak: {}/{}): {}",
                 item.value(),

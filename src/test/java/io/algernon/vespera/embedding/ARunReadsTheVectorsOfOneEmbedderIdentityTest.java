@@ -51,6 +51,9 @@ import org.springframework.test.context.ActiveProfiles;
 class ARunReadsTheVectorsOfOneEmbedderIdentityTest {
 
     private static final String MODEL = "qwen3-embedding:0.6b";
+
+    /** The survivor here is one chunk long, and each identity stores one vector for it. */
+    private static final int ONE_CHUNK = 1;
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
     private static final String CHUNKING_RULE_IDENTITY = "words-512-v1";
     private static final String DIGEST = "d34db33f";
@@ -228,7 +231,7 @@ class ARunReadsTheVectorsOfOneEmbedderIdentityTest {
         Map<OccurrenceId, List<float[]>> resident =
                 scoring.residentSeedVectors(seeds, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER);
         scoring.scoreAndRecord(
-                survivor, run, "survivor", CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER, resident);
+                survivor, run, "survivor", ONE_CHUNK, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER, resident);
     }
 
     private double scoreOf(RunId run, OccurrenceId survivor) {

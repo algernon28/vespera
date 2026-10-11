@@ -48,8 +48,9 @@ import java.util.Map;
  * comes from its own {@code partitionOrder}, and a cluster's from its own {@code clusterOrder}.
  *
  * <p><b>The index and the manifest are written beside their targets and moved into place</b> (ADR-223
- * section 6): each is whole where it appears, so a write that fails partway leaves the pair the write before
- * left, or none, and a finished tree holds no {@value #PART_SUFFIX} file.
+ * section 6): each is whole where it appears, so a write that fails before the first move leaves the pair the
+ * write before left, or none; one whose manifest fails to move after the index has moved leaves the new index
+ * beside the manifest before it. A finished tree holds no {@value #PART_SUFFIX} file.
  */
 public final class Deliverable {
 
@@ -130,15 +131,21 @@ public final class Deliverable {
         try {
             Files.createDirectories(tree);
             EntryPictures entryPictures = EntryPictures.among(source, pictures, progress);
-            writeIndexAndClusterFiles(tree, provenance, partitions, source, entryPictures, progress);
-            writeManifest(tree, source, progress);
+            Path indexPart = writeIndexAndClusterFiles(tree, provenance, partitions, source, entryPictures, progress);
+            Path manifestPart = writeManifest(tree, source, progress);
+            // Both are whole before either is moved, so a write that fails before the first move leaves the pair
+            // the write before left, or none; only the manifest's own move failing leaves the new index beside the
+            // old manifest (ADR-223 section 6). The index is still the last of the pages to appear.
+            moveIntoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
+            moveIntoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
             return tree;
         } catch (IOException e) {
             throw new UncheckedIOException("could not write the deliverable tree at " + tree, e);
         }
     }
 
-    private static void writeIndexAndClusterFiles(
+    /** Writes every cluster file and the index beside its target, and returns where the index is. */
+    private static Path writeIndexAndClusterFiles(
             Path tree,
             DeliverableProvenance provenance,
             List<ListedPartition> partitions,
@@ -185,17 +192,18 @@ public final class Deliverable {
                 progress.partitionWritten();
             }
         }
-        moveIntoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
+        return indexPart;
     }
 
-    private static void writeManifest(Path tree, ArrangedSurvivors source, DeliverableProgress progress)
+    /** Writes the manifest beside its target, and returns where it is. */
+    private static Path writeManifest(Path tree, ArrangedSurvivors source, DeliverableProgress progress)
             throws IOException {
         progress.toWriteManifestRows(source.survivorCount());
         Path manifestPart = tree.resolve(MANIFEST_FILE_NAME + PART_SUFFIX);
         try (Writer csv = Files.newBufferedWriter(manifestPart, StandardCharsets.UTF_8)) {
             ManifestCsv.write(csv, source, progress);
         }
-        moveIntoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
+        return manifestPart;
     }
 
     /** {@code part} over {@code target} in one move, so that a reader finds the old page or the new and no half of either. */

@@ -49,7 +49,7 @@ final class ReviewListReport {
                     + " run. A file whose reason begins with could not be read, rejected, crashed the converter, timeout,"
                     + " capacity, target_unavailable or internal left nothing stored, so the next run of"
                     + " this stage asks the converter about it again."));
-            out.write("<table>\n");
+            out.write(ReportPage.tableOpened());
             out.write(ReportPage.headerRow("Path", "Why"));
             try {
                 eachFailure.accept(failure -> {
@@ -63,7 +63,7 @@ final class ReviewListReport {
             } catch (UncheckedIOException e) {
                 throw e.getCause();
             }
-            out.write("</table>\n");
+            out.write(ReportPage.tableClosed());
         }
         out.write(ReportPage.tail());
     }

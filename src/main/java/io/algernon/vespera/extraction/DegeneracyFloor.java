@@ -1,5 +1,7 @@
 package io.algernon.vespera.extraction;
 
+import java.util.Locale;
+
 /**
  * The two-tier {@code degenerate-output} floor over an already-computed {@link ExtractionMetric}
  * (ADR-070): a pure judgement, kept apart from {@link ExtractionMetrics} so the rule can be pinned
@@ -28,7 +30,11 @@ final class DegeneracyFloor {
             if (meanScore != null && meanScore < confidenceFloor) {
                 return new DegeneracyVerdict(
                         true,
-                        "mean confidence score %.3f below the configured floor %.3f".formatted(meanScore, confidenceFloor));
+                        String.format(
+                                Locale.ROOT,
+                                "mean confidence score %.3f below the configured floor %.3f",
+                                meanScore,
+                                confidenceFloor));
             }
         }
         return DegeneracyVerdict.notDegenerate();

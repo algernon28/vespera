@@ -55,6 +55,9 @@ class RelevanceScoringMemoryCeilingTest {
     private static final int CORPUS_DOCUMENT_COUNT = 20_000;
     private static final int SEED_DOCUMENT_COUNT = 4;
     private static final int CHUNKS_PER_SEED_DOCUMENT = 10;
+
+    /** Each corpus survivor is one chunk long, as {@link #insertCorpusDocuments} stores it. */
+    private static final int CHUNKS_PER_CORPUS_DOCUMENT = 1;
     private static final int DIMENSION = 4;
     private static final String MODEL = "qwen3-embedding:0.6b";
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
@@ -88,6 +91,7 @@ class RelevanceScoringMemoryCeilingTest {
                     corpusOccurrences.get(i),
                     runId,
                     "corpus-" + i,
+                    CHUNKS_PER_CORPUS_DOCUMENT,
                     CHUNKER_IDENTITY,
                     CHUNKING_RULE_IDENTITY,
                     "model=" + MODEL + EMBEDDER_IDENTITY_SUFFIX,

@@ -54,7 +54,7 @@ Stop and route it, rather than coding around it:
 ./mvnw test -Dtest='YourNewTest' -DfailIfNoSpecifiedTests=false
 ```
 
-The real failure cause is in `target/surefire-reports/<class>.txt`, not in Surefire's console output, which truncates. And `src/test/resources/application.yaml` shadows the main file entirely — same classpath name — so a property set only in the main file does not apply under test.
+The real failure cause is in `target/surefire-reports/<class>.txt`, not in Surefire's console output, which truncates. And test configuration is `src/test/resources/application-test.yaml` under the `test` profile, which layers over the main `application.yaml` rather than replacing it, so a property the test file does not set keeps its main value under test.
 
 ## Report
 

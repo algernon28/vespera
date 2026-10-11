@@ -45,7 +45,7 @@ If your implementation seems to need `corpus` to call `extraction`, you have fou
 
 Notes that will save you time:
 
-- `VesperaApplicationTests` starts Ollama and docling-serve through Testcontainers, so it needs a Docker daemon and takes a few minutes on a cold run. The two unit-test classes need neither.
+- The integration tests (`*IT`) run only under `./mvnw verify`, never under `./mvnw test`; six of them start their sidecar through Testcontainers, need a Docker daemon and take minutes on a cold run. `AGENTS.md`'s "Building and testing" names which. Every other test class needs neither.
 - Test configuration is `application-test.yaml` under the `test` profile, so it layers over `src/main/resources/application.yaml` rather than replacing it.
 - Surefire's own output is often truncated; the real cause is in `target/surefire-reports/<class>.txt`.
 - Run `./mvnw test` before reporting. "It compiles" is not a result.

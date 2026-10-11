@@ -1,6 +1,7 @@
 package io.algernon.vespera.similarity;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -56,6 +57,11 @@ final class UnionFind {
     /** Whether both occurrences are held and share a root; adds neither, so a pair already joined costs no member. */
     boolean joined(long a, long b) {
         return parent.containsKey(a) && parent.containsKey(b) && find(a) == find(b);
+    }
+
+    /** Every occurrence a union has named, the members of every component, as a view of what is held. */
+    Set<Long> members() {
+        return Collections.unmodifiableSet(parent.keySet());
     }
 
     /**

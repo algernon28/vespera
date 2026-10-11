@@ -199,13 +199,13 @@ class StatementStepsPerRowTest {
 
     /**
      * ADR-221 section 5: the build reads every row of the table and keeps the rows of one run, so its steps
-     * are not one figure a row of the table. Twelve for a row of the run is the most a row takes, which is
+     * are not one figure a row of the table. Thirteen for a row of the run is the most a row takes, which is
      * what the build declares, so that steps divided by it are never ahead of the rows read.
      */
     @Test
     @Story("A long statement inside the database reports how far it has gone")
-    @DisplayName("Building the index over one run's text fragments takes twelve steps for each of that run's rows and three for each row of another run")
-    void theBuildOverOneRunsRowsTakesTwelveStepsARowOfTheRunAndThreeARowOfAnother() throws SQLException {
+    @DisplayName("Building the index over one run's text fragments takes thirteen steps for each of that run's rows and three for each row of another run")
+    void theBuildOverOneRunsRowsTakesThirteenStepsARowOfTheRunAndThreeARowOfAnother() throws SQLException {
         IndexStatement build = new IndexStatement(SHINGLE_BY_HASH, "shingle_by_hash", "shingle", 2);
         write("shingle", RUN_READ, FEWER);
         long atFewer = buildSteps(build);

@@ -47,20 +47,16 @@ public interface ClusterExemplars {
             GenerationProgress progress) {
         List<Exemplar> exemplars = new ArrayList<>();
         for (OccurrenceId member : members) {
-            Double score = scoreOf.apply(member).orElse(null);
-            if (score == null) {
-                throw new IllegalStateException("occurrence " + member.value()
-                        + " is in a cluster being written over but carries no relevance score, so the"
-                        + " documents of that cluster cannot be put in order");
-            }
+            double score = scoreOf.apply(member).orElseThrow(() -> new IllegalStateException("occurrence "
+                    + member.value() + " is in a cluster being written over but carries no relevance score, so"
+                    + " the documents of that cluster cannot be put in order"));
             Optional<OpeningText> opening = openingChunk.of(member);
             if (opening.isEmpty()) {
                 progress.nothingChunkedFrom(member);
-            }
-            progress.occurrenceOpened();
-            if (opening.isEmpty()) {
+                progress.occurrenceOpened();
                 continue;
             }
+            progress.occurrenceOpened();
             exemplars.add(new Exemplar(member, opening.get().text(), opening.get().wordCount(), score));
         }
         return List.copyOf(exemplars);

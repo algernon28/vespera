@@ -54,6 +54,16 @@ class SeedScriptedExtractionBeans {
     static final String HEADERS_AND_FOOTERS_ONLY = "page-headers-and-footers-only.txt";
 
     /**
+     * A corpus file whose conversion is {@link #WORDS_OF_TWO_CHUNKS} words of body text, more than one chunk
+     * holds, so the chunker cuts it into two (ADR-231 section 5, a pull and a pull back between two chunks of
+     * one document). A {@code .txt} name, so that nothing is claimed of stage 1 by it.
+     */
+    static final String TWO_CHUNKS_OF_TEXT = "two-chunks-of-text.txt";
+
+    /** More words than one chunk of the default chunking rule holds, and fewer than two do. */
+    static final int WORDS_OF_TWO_CHUNKS = 600;
+
+    /**
      * A file Docling refuses to open: the other way a pass can end with no text for an occurrence. On
      * the corpus side it is an {@code extraction-failed} verdict at once (ADR-143); on the seed side, an
      * unusable seed (ADR-083).
@@ -176,12 +186,18 @@ class SeedScriptedExtractionBeans {
             + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"},"
             + "{\"text\":\"Page 1 of 1\",\"label\":\"page_footer\"}]}}}";
 
+    /** A successful conversion of {@link #WORDS_OF_TWO_CHUNKS} words of body text, under a title. */
+    private static final String WITH_TWO_CHUNKS_OF_TEXT = "{\"document\":{\"json_content\":{\"texts\":["
+            + "{\"text\":\"" + STUBBED_TITLE + "\",\"label\":\"title\"},"
+            + "{\"text\":\"" + String.join(" ", java.util.Collections.nCopies(WORDS_OF_TWO_CHUNKS, "word")) + "\"}]}}}";
+
     @Bean
     DoclingExtractor doclingExtractor(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         PathScriptedExtractor extractor = new PathScriptedExtractor()
                 .cachingInto(jdbcTemplate)
                 .answering(HEADERS_AND_FOOTERS_ONLY, response(WITH_A_PAGE_HEADER_AND_A_PAGE_FOOTER_ALONE))
                 .answering(HEADER_ONLY_SEED, response(WITH_A_PAGE_HEADER_ALONE))
+                .answering(TWO_CHUNKS_OF_TEXT, response(WITH_TWO_CHUNKS_OF_TEXT))
                 .answering(EMPTY_SEED, response(WITHOUT_TEXT))
                 .answering(REFUSED_CONVERSION, refused())
                 .answering(CONVERTER_FAULT, failing(FailureCategory.INTERNAL, CONVERTER_FAULT_MESSAGE))

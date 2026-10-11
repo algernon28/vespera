@@ -112,7 +112,7 @@ class FloorReachTest {
                         + " it stood: after the embedder identities and before any removal is withdrawn",
                 () -> assertThat(asked).hasValue(1));
         claim(
-                "nothing checks that a floor was ever labelled (ADR-088), so it removes below the number the"
+                "nothing checks that a floor was ever labelled, so it removes below the number the"
                         + " profile sets",
                 () -> assertThat(reach.removesBelow()).hasValue(FLOOR));
     }

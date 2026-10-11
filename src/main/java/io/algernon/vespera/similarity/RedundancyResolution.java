@@ -1,8 +1,10 @@
 package io.algernon.vespera.similarity;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.StatementSteps;
 import io.algernon.vespera.ledger.VerdictKind;
@@ -12,13 +14,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -76,7 +78,7 @@ public class RedundancyResolution {
     static final long SHINGLE_SET_CACHE_BUDGET_HASHES = 16L * 1024 * 1024;
 
     /** The most occurrences one page, or one statement naming occurrences, holds: the ledger's own page. */
-    static final int OCCURRENCES_IN_A_PAGE = 1_000;
+    static final int OCCURRENCES_IN_A_PAGE = KeysetPages.ROWS_IN_A_PAGE;
 
     /**
      * What a raw shingle count is charged against {@link #SHINGLE_SET_CACHE_BUDGET_HASHES}, in hashes: the 75
@@ -177,22 +179,15 @@ public class RedundancyResolution {
      * rowid>?)}, sorting nothing.
      */
     private void eachPageOfSigned(RunId stage4RunId, Consumer<List<Long>> page) {
-        long after = Long.MIN_VALUE;
-        while (true) {
-            List<SignedRow> rows = jdbcTemplate.query(
-                    "SELECT rowid, occurrence_id FROM minhash_signature WHERE run_id = ? AND rowid > ?"
-                            + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
-                    (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)),
-                    stage4RunId.value(),
-                    after);
-            if (!rows.isEmpty()) {
-                page.accept(rows.stream().map(SignedRow::occurrenceId).toList());
-                after = rows.getLast().rowid();
-            }
-            if (rows.size() < OCCURRENCES_IN_A_PAGE) {
-                return;
-            }
-        }
+        new KeysetPages<SignedRow>(
+                        jdbcTemplate,
+                        "SELECT rowid, occurrence_id FROM minhash_signature WHERE run_id = ? AND rowid > ?"
+                                + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
+                        List.of(stage4RunId.value()),
+                        List.of(Long.MIN_VALUE),
+                        row -> List.of(row.rowid()),
+                        (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)))
+                .eachPage(rows -> page.accept(rows.stream().map(SignedRow::occurrenceId).toList()));
     }
 
     /**
@@ -242,12 +237,8 @@ public class RedundancyResolution {
             }
         });
 
-        Set<Long> componentMembers = new HashSet<>();
-        List<Set<Long>> resolvableComponents = new ArrayList<>();
-        for (Set<Long> component : unionFind.components()) {
-            resolvableComponents.add(component);
-            componentMembers.addAll(component);
-        }
+        Collection<Set<Long>> resolvableComponents = unionFind.components();
+        Set<Long> componentMembers = unionFind.members();
 
         Map<Long, OccurrenceProfile> profiles = loadOccurrenceProfiles(stage2RunId, componentMembers, alphanumericCounts, progress);
         progress.toResolveComponents(resolvableComponents.size());
@@ -274,7 +265,7 @@ public class RedundancyResolution {
                         survivor,
                         "near-duplicate",
                         score,
-                        "near-duplicate of occurrence %d at Jaccard %.4f".formatted(survivor, score));
+                        String.format(Locale.ROOT, "near-duplicate of occurrence %d at Jaccard %.4f", survivor, score));
                 progress.nearDuplicateVerdictWritten();
             }
             progress.componentResolved();
@@ -293,7 +284,7 @@ public class RedundancyResolution {
         Map<Bucket, List<Long>> buckets = new HashMap<>();
         jdbcTemplate.query(
                 "SELECT a.occurrence_id, a.band_ordinal, a.band_hash FROM signature_band a"
-                        + " WHERE a.run_id = ? AND a.occurrence_id IN (" + placeholders(page.size()) + ")"
+                        + " WHERE a.run_id = ? AND a.occurrence_id IN (" + Placeholders.of(page.size()) + ")"
                         + " AND EXISTS (SELECT 1 FROM signature_band b WHERE b.run_id = a.run_id"
                         + " AND b.band_ordinal = a.band_ordinal AND b.band_hash = a.band_hash"
                         + " AND b.rowid <> a.rowid)",
@@ -310,27 +301,16 @@ public class RedundancyResolution {
      * by rowid on from the last one, each row once its statement has finished (ADR-225 section 1).
      */
     private void eachRowOfBucket(RunId stage4RunId, Bucket bucket, Consumer<SignedRow> row) {
-        long after = Long.MIN_VALUE;
-        while (true) {
-            List<SignedRow> rows = jdbcTemplate.query(
-                    "SELECT rowid, occurrence_id FROM signature_band"
-                            + " WHERE run_id = ? AND band_ordinal = ? AND band_hash = ? AND rowid > ?"
-                            + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
-                    (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)),
-                    stage4RunId.value(),
-                    bucket.ordinal(),
-                    bucket.hash(),
-                    after);
-            rows.forEach(row);
-            if (rows.size() < OCCURRENCES_IN_A_PAGE) {
-                return;
-            }
-            after = rows.getLast().rowid();
-        }
-    }
-
-    private static String placeholders(int count) {
-        return String.join(", ", Collections.nCopies(count, "?"));
+        new KeysetPages<SignedRow>(
+                        jdbcTemplate,
+                        "SELECT rowid, occurrence_id FROM signature_band"
+                                + " WHERE run_id = ? AND band_ordinal = ? AND band_hash = ? AND rowid > ?"
+                                + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
+                        List.of(stage4RunId.value(), bucket.ordinal(), bucket.hash()),
+                        List.of(Long.MIN_VALUE),
+                        signed -> List.of(signed.rowid()),
+                        (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)))
+                .eachPage(rows -> rows.forEach(row));
     }
 
     private static long survivorOf(Set<Long> component, Map<Long, OccurrenceProfile> profiles) {
@@ -403,7 +383,7 @@ public class RedundancyResolution {
                 long[] bestContainer = {-1};
                 double[] bestScore = {-1};
                 eachBatchOfCandidates(stage2RunId, rareHashes, thresholds.rareShingleHitCount(), candidates -> {
-                    // Which of this batch are signed, and which phase 1 removed, asked by key.
+                    // Which of this batch are signed, and which this pass removed already, asked by key.
                     List<Long> others = candidates.stream().filter(b -> b != a).toList();
                     Set<Long> signed = signedAmong(stage4RunId, others);
                     Set<Long> removedCandidates = removedAmong(stage4RunId, others);
@@ -446,14 +426,21 @@ public class RedundancyResolution {
                     }
                 });
 
-                if (bestContainer[0] >= 0) {
+                // A document a row of this run already names as the one kept in another's place, a
+                // near-duplicate's survivor or a container, is not removed in its turn, so that no pointer
+                // names a removed document (ADR-234).
+                if (bestContainer[0] >= 0 && !namedAsKept(stage4RunId, a)) {
                     writeVerdict(
                             stage4RunId,
                             a,
                             bestContainer[0],
                             "contained-in",
                             bestScore[0],
-                            "contained in occurrence %d at containment %.4f".formatted(bestContainer[0], bestScore[0]));
+                            String.format(
+                                    Locale.ROOT,
+                                    "contained in occurrence %d at containment %.4f",
+                                    bestContainer[0],
+                                    bestScore[0]));
                 }
                 progress.checkedForContainment();
             }
@@ -500,14 +487,28 @@ public class RedundancyResolution {
     }
 
     /**
-     * Which of {@code occurrences} phase 1 removed as near-duplicates under {@code stage4RunId}, asked by key
-     * of {@code redundant_with}, this module's: a containment verdict phase 2 writes is not among them.
+     * Which of {@code occurrences} this pass has removed under {@code stage4RunId}, as near-duplicates or as
+     * contained, asked by key of {@code redundant_with}, this module's. A removed document is never named as
+     * a container, so no pointer names a removed document (ADR-234).
      */
     private Set<Long> removedAmong(RunId stage4RunId, Collection<Long> occurrences) {
-        return among(
-                "SELECT occurrence_id FROM redundant_with WHERE run_id = ? AND relation = 'near-duplicate'",
-                stage4RunId,
-                occurrences);
+        return among("SELECT occurrence_id FROM redundant_with WHERE run_id = ?", stage4RunId, occurrences);
+    }
+
+    /**
+     * Whether a row of {@code stage4RunId} already names {@code occurrence} as the document kept in another's
+     * place, a near-duplicate's survivor or a container (ADR-234): one descent of the index on that column,
+     * asked only of a document a container was found for. Sorts nothing.
+     */
+    private boolean namedAsKept(RunId stage4RunId, long occurrence) {
+        return !jdbcTemplate
+                .queryForList(
+                        "SELECT occurrence_id FROM redundant_with WHERE redundant_with_occurrence_id = ? AND run_id = ?"
+                                + " LIMIT 1",
+                        Long.class,
+                        occurrence,
+                        stage4RunId.value())
+                .isEmpty();
     }
 
     /** {@code select} narrowed to a list of occurrences, in statements of at most one page of them. */
@@ -520,7 +521,7 @@ public class RedundancyResolution {
             arguments.add(stage4RunId.value());
             arguments.addAll(batch);
             jdbcTemplate.query(
-                    select + " AND occurrence_id IN (" + placeholders(batch.size()) + ")",
+                    select + " AND occurrence_id IN (" + Placeholders.of(batch.size()) + ")",
                     resultSet -> {
                         found.add(resultSet.getLong("occurrence_id"));
                     },
@@ -547,8 +548,18 @@ public class RedundancyResolution {
                 rareHashes.stream().map(hash -> new OccurrencesOfAHash(stage2RunId, hash)).toList();
         List<Long> candidates = new ArrayList<>();
         while (true) {
-            long least = reads.stream().mapToLong(OccurrencesOfAHash::head).min().orElseThrow();
-            if (least == OccurrencesOfAHash.NONE_LEFT) {
+            // Fewer reads with an occurrence left than a candidate must be found in means no candidate is
+            // left to find, so the rest are not paged through.
+            long least = OccurrencesOfAHash.NONE_LEFT;
+            int left = 0;
+            for (OccurrencesOfAHash read : reads) {
+                long head = read.head();
+                if (head != OccurrencesOfAHash.NONE_LEFT) {
+                    left++;
+                    least = Math.min(least, head);
+                }
+            }
+            if (left < hitThreshold) {
                 break;
             }
             int hits = 0;
@@ -706,7 +717,7 @@ public class RedundancyResolution {
                 return (long[]) held;
             }
             long[] loaded = load(occurrenceId);
-            keep(key, loaded, loaded.length);
+            keep(key, loaded);
             return loaded;
         }
 
@@ -735,19 +746,24 @@ public class RedundancyResolution {
                     stage2RunId.value(),
                     ShingleParameters.DEFAULT.identity());
             int size = count == null ? 0 : count;
-            keep(key, size, RAW_COUNT_CHARGE_HASHES);
+            keep(key, size);
             return size;
         }
 
-        private void keep(CacheKey key, Object value, long chargeInHashes) {
+        private void keep(CacheKey key, Object value) {
             cache.put(key, value);
-            hashesHeld += chargeInHashes;
+            hashesHeld += chargeOf(key, value);
             Iterator<Map.Entry<CacheKey, Object>> eldestFirst = cache.entrySet().iterator();
             while (hashesHeld > SHINGLE_SET_CACHE_BUDGET_HASHES && cache.size() > 1) {
                 Map.Entry<CacheKey, Object> eldest = eldestFirst.next();
-                hashesHeld -= eldest.getKey().raw() ? RAW_COUNT_CHARGE_HASHES : ((long[]) eldest.getValue()).length;
+                hashesHeld -= chargeOf(eldest.getKey(), eldest.getValue());
                 eldestFirst.remove();
             }
+        }
+
+        /** What an entry costs the budget, the one rule both its keeping and its eviction read. */
+        private static long chargeOf(CacheKey key, Object value) {
+            return key.raw() ? RAW_COUNT_CHARGE_HASHES : ((long[]) value).length;
         }
 
         private long[] load(long occurrenceId) {

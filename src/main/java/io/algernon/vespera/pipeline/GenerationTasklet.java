@@ -253,6 +253,8 @@ class GenerationTasklet implements Tasklet {
                     List<ArrangedPartition> partitions = TimedStatement.of(
                             STAGE, "reading", "read", "the seed partitions of the arrangement",
                             () -> clusters.partitionsOf(arrangement));
+                    // Each seed's place, counted from one, which every line of a read of one partition names
+                    // and the tree's reads name again (ADR-223 section 8).
                     Map<OccurrenceId, Integer> places = new HashMap<>();
                     for (ArrangedPartition partition : partitions) {
                         places.put(partition.winningSeed(), places.size() + 1);
@@ -313,7 +315,7 @@ class GenerationTasklet implements Tasklet {
                         stopTheStep(contribution, chunkContext, stopped.turnedDownInARow(), generation);
                         writeDeliverable(
                                 generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                                arrangement, scoring, partitions, outcome.unsendable());
+                                arrangement, scoring, partitions, places, outcome.unsendable());
                         return false;
                     }
                     if (outcome instanceof GenerationOutcome.LeftUnfinished unfinished) {
@@ -331,14 +333,14 @@ class GenerationTasklet implements Tasklet {
                                 generation.value());
                         writeDeliverable(
                                 generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                                arrangement, scoring, partitions, outcome.unsendable());
+                                arrangement, scoring, partitions, places, outcome.unsendable());
                         return false;
                     }
 
                     GenerationOutcome.Finished finished = (GenerationOutcome.Finished) outcome;
                     Path tree = writeDeliverable(
                             generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                            arrangement, scoring, partitions, outcome.unsendable());
+                            arrangement, scoring, partitions, places, outcome.unsendable());
                     LOG.info(
                             "The generation step finished under {}, over the arrangement approved as {}:"
                                     + " {} synthesis doc(s) written under model {} in a window of {}, {}"
@@ -541,14 +543,11 @@ class GenerationTasklet implements Tasklet {
             RunId arrangement,
             RunId scoring,
             List<ArrangedPartition> arranged,
+            Map<OccurrenceId, Integer> places,
             Map<ClusterSlot, Unwritten> foundThisRun) {
         DeliverableProvenance provenance = new DeliverableProvenance(
                 generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
         RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
-        Map<OccurrenceId, Integer> places = new HashMap<>();
-        for (ArrangedPartition partition : arranged) {
-            places.put(partition.winningSeed(), places.size() + 1);
-        }
         long survivorCount = arranged.stream().mapToLong(ArrangedPartition::memberCount).sum();
         StageProgress listed = StageProgress.over("Stage 6b (generation, survivors listed)", survivorCount);
         // The tree reads every arranged occurrence twice, a page at a time, once for the furniture rule's first

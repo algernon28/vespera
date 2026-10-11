@@ -114,6 +114,35 @@ class ManifestCsvTest {
                         .hasMessage("survivor 15 names cluster 7 of seed 1, which the arrangement does not carry"));
     }
 
+    @Test
+    @Story("A path a spreadsheet would run as a formula is written so that it is shown as text")
+    @DisplayName("A path that begins with =, +, - or @ is written behind a leading quote, so a spreadsheet opening the listing shows it and runs nothing")
+    @Link(name = "ADR-235", url = Adr.A_MANIFEST_CELL_A_SPREADSHEET_WOULD_RUN_IS_WRITTEN_BEHIND_A_QUOTE, type = "adr")
+    void aPathASpreadsheetWouldRunIsWrittenBehindAQuote() {
+        List<ListedSurvivor> formulas = List.of(
+                survivor(10, "=SUM(A1).txt", FIRST_ORDINAL, 0.9),
+                survivor(11, "+1 notes.pdf", FIRST_ORDINAL, 0.8),
+                survivor(12, "-draft.docx", FIRST_ORDINAL, 0.7),
+                survivor(13, "@cmd, x.pdf", SECOND_ORDINAL, 0.6),
+                survivor(14, "reports/=a.pdf", SECOND_ORDINAL, 0.5));
+
+        String manifest = ListedArrangement.manifestContents(anArrangement(), formulas);
+
+        claim(
+                "each path that begins with a sign a spreadsheet reads as the start of a formula is written with a"
+                        + " single quote before it, which the spreadsheet shows as text and does not run",
+                () -> assertThat(manifest)
+                        .contains("\n10,'=SUM(A1).txt,")
+                        .contains("\n11,'+1 notes.pdf,")
+                        .contains("\n12,'-draft.docx,"));
+        claim(
+                "a path that also needs quoting is quoted around the quote that neutralises it",
+                () -> assertThat(manifest).contains("\n13,\"'@cmd, x.pdf\","));
+        claim(
+                "and a path whose sign is not its first character is written as the archive spells it",
+                () -> assertThat(manifest).contains("\n14,reports/=a.pdf,"));
+    }
+
     /** Two clusters in one partition, 6a's first and second. */
     private static List<RecordedCluster> anArrangement() {
         return List.of(

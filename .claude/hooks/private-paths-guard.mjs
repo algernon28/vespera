@@ -4,8 +4,8 @@
 // shell command, a path in a .claude folder that is closed (below). The operator's archives can hold
 // sensitive documents, and nothing that reads a document may reach a hosted model: a document is read
 // only by local models. ADR-196 (docs/adr/0196) is the record, ADR-201 (docs/adr/0201), ADR-215
-// (docs/adr/0215) and ADR-217 (docs/adr/0217) amend it, and src/test/hooks/private-paths-guard.test.mjs
-// holds this file to all four.
+// (docs/adr/0215), ADR-217 (docs/adr/0217) and ADR-233 (docs/adr/0233) amend it, and
+// src/test/hooks/private-paths-guard.test.mjs holds this file to all five.
 //
 // It is registered for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell.
 // It is an allow list and not a list of archives, so an archive on a new path is refused without anyone
@@ -28,19 +28,28 @@
 // closed path. A closed path is refused to Edit, Write and NotebookEdit and to a Bash or PowerShell
 // command that names it, as a path, as its current directory or as a folder it names, and is let through
 // to Read, Grep and Glob. A closed path is judged from its text before the file system is asked about it,
-// and again, after that question, on where its links lead.
+// and again, after that question, on where its links lead. And a place that a link in the .claude folder
+// this file lies in leads to, outside projects, plans and worktrees, is closed as that folder is
+// (ADR-233 section 5): a later session loads what is there as the folder's own. Those links are found by
+// a walk of that folder that never follows one and looks at no more than WALK_LIMIT names, a link is
+// followed as far as where it leads is there, a link whose target cannot be read is passed over, and a
+// folder too large to walk refuses every tool that writes.
 //
 // A Bash or PowerShell command, but the one admitted below, is also refused for the text of any token that
 // spells a closed .claude folder, whether or not the token is read as a path below (ADR-215 section
 // 3(c)), so that a token headed by two variables, by a variable that has no value, by an option with its
 // value attached, or by a root with no drive is not let through for not being read. The token is cut at
 // / and \ and its .. folded against the name before it. A name of it is .claude, with its case folded and
-// any dots, spaces, stream name and sentence punctuation after it taken off, only when nothing stands
-// before it in the name, or what stands there ends in one of = : , { } @ or in a variable ($NAME,
-// ${NAME}, ${env:NAME}, $env:NAME or %NAME%); so main..claude, notes.claude and .claude.json are not that
-// name. The one exception is the first name of a token headed by -, where an option's letters run into its
-// value: it is that name whatever stands before .claude in it, so --author=someone.claude is refused. The
-// command is refused when
+// any dots, spaces, stream name, sentence punctuation and expansion after it taken off (an expansion is a
+// $ and whatever follows it, or %NAME%, since it may be empty: ADR-233 section 2), only when nothing
+// stands before it in the name, or what stands there ends in one of = : , { } @, in a variable ($NAME,
+// ${NAME}, ${env:NAME}, $env:NAME or %NAME%), in a $ and one character that is no name's, which is how a
+// special parameter such as $* or $! is written, or in the start of a variable with a word for when it
+// has no value, ${NAME:- and its kin (ADR-233 section 1); so main..claude, notes.claude and .claude.json
+// are not that name. The one exception is the first name of a token headed by - or by /, where an
+// option's letters run into its value, as in -o.claude and in a Windows program's /Fe.claude (ADR-233
+// section 3): it is that name whatever stands before .claude in it, so --author=someone.claude is refused.
+// The command is refused when
 // such a name is the last of the token or is followed by any name but projects, plans or worktrees. That
 // next name is compared by the one function the path rule uses as well: with its case folded, and, where
 // it is the last name of the token, with sentence punctuation, dots and spaces taken off, so that
@@ -50,15 +59,18 @@
 // on the last name of a token, where sentence punctuation is taken off on purpose. It refuses more than
 // the path rule in these places, each on purpose: sentence punctuation after .claude itself; a dot after
 // .claude where the system is not Windows; a stream name after .claude where the system is not Windows;
-// the first name of an option, whatever stands before .claude in it; and whatever the rule lets stand
-// before .claude in a name (= : , { } @ or a variable), which the path rule does not take for the folder.
+// an expansion after .claude; the first name of an option, whatever stands before .claude in it; and
+// whatever the rule lets stand before .claude in a name (= : , { } @, a variable, a special parameter or
+// the start of a variable with a word), which the path rule does not take for the folder.
 // It sees a literal spelling and nothing
 // else: it asks the file system nothing, so it does not know an 8.3 name or a link that leads to a
 // .claude folder, and a quote or an escape inside the name hides it. It refuses a URL and git show
 // HEAD:.claude/settings.json on purpose. A change to this file or to a list is drafted outside every
 // .claude folder and installed by the operator.
 //
-// What it reads of a call: a file tool's own path fields; Grep's glob and Glob's pattern; the current
+// What it reads of a call: a file tool's own path fields, in which a leading ~, alone or before a
+// separator, is the home folder, as it is at the head of a token (ADR-233 section 4); Grep's glob and
+// Glob's pattern; the current
 // directory (the call's cwd, or this checkout when the call gives none) of a Grep or Glob without a path
 // and of a Bash or PowerShell command; and the text of that command. In the text it reads drive paths,
 // a bare drive, ~ and a variable at the head of a token (replaced by its value in this process's
@@ -118,7 +130,9 @@
 // they do; in a shell command it is a folder the command names where it is one, and a plain relative
 // name that Windows opens as another name is read for that name. A path with a name made only of dots,
 // spaces or a stream name, and that is neither . nor .., is refused on Windows, since what Windows opens
-// for it is not known. One such name is not refused: a relative token of a command that is only spaces,
+// for it is not known; a name of dots with a stream name after it, ..:x or .:x, is such a name and is not
+// read as .. or . (ADR-233 section 6), and a stream name runs to the end of its name, a line terminator in
+// it included. One such name is not refused: a relative token of a command that is only spaces,
 // as the ' ' of tr '\n' ' ' is, which is answered from the folder it is read against, as a plain name
 // that is not there is. Elsewhere a dot, a space and a colon are part of a name and nothing changes.
 //
@@ -153,7 +167,9 @@
 // and a value, one of them a path on a drive with no separator after the colon, as in bash -c "cat
 // {a:1,Q:name}", whose part after the colon is read and whose drive is not; a link that only Git Bash's runtime follows, such as a symlink written as a file for Cygwin, which is a
 // plain file to this process; a working directory that the walk down from a search root does not reach
-// (below); and any tool outside the eight, among them every mcp__* tool and Monitor. A session whose
+// (below); a link into a place from a .claude folder but the one this file lies in, from beneath
+// projects, plans or worktrees in that one, or made after its walk (ADR-233 section 5); and any tool
+// outside the eight, among them every mcp__* tool and Monitor. A session whose
 // own .claude/settings.json registers no hook never runs this file. For all of those the written rule
 // in AGENTS.md is the only protection.
 //
@@ -193,7 +209,7 @@
 // lets it through, and stderr is what Claude reads.
 
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -224,18 +240,26 @@ const CLOSED =
 
 const norm = (p) => resolve(p).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
 const under = (path, root) => path === root || path.startsWith(root + "/");
-const within = (path, roots) => roots.some((r) => under(path, r));
 const drive = (letter, rest) => `${letter.toUpperCase()}:/${rest}`;
 
 // A name as PowerShell opens it: on Windows the dots and spaces that end a name are not part of it, and
 // . and .. are not names.
 const withoutTrailing = (name) => (windows && name !== "." && name !== ".." ? name.replace(/[. ]+$/, "") : name);
+// A stream name runs from a name's first colon to its end, whatever characters it holds, a line
+// terminator among them (ADR-233 section 6).
+const STREAM = /:[^]*$/;
 // Whether a name in a path's text is a .claude folder, with its case folded. On Windows a stream name,
 // after a colon, leads to the folder it is a stream of.
-const isClaudeFolder = (name) => withoutTrailing((windows ? name.replace(/:.*$/, "") : name).toLowerCase()) === ".claude";
+const isClaudeFolder = (name) => withoutTrailing((windows ? name.replace(STREAM, "") : name).toLowerCase()) === ".claude";
 // A name as PowerShell opens it, on Windows: a stream name after a colon taken off, then the dots and
-// spaces that end it. Elsewhere the name as written.
-const asOpened = (name) => withoutTrailing(windows ? name.replace(/:.*$/, "") : name);
+// spaces that end it. Elsewhere the name as written. A name of dots with a stream name after it, ..:x or
+// .:x, is made only of dots and a stream name, and is left with nothing, as ...:x is, and not with .. or
+// ., which a path folds as a climb or as the folder itself (ADR-233 section 6).
+const asOpened = (name) => {
+  if (!windows) return name;
+  const unstreamed = name.replace(STREAM, "");
+  return unstreamed !== name && /^\.+$/.test(unstreamed) ? "" : withoutTrailing(unstreamed);
+};
 
 // An absolute path as PowerShell opens it (ADR-217): on Windows each name after its root is taken as
 // asOpened takes it, so wd.\report.html is wd\report.html, the name Node answers "not there" for. The
@@ -274,18 +298,23 @@ function closedFolder(path) {
   return false;
 }
 
-// A name of a token that is .claude by ADR-215 section 3(c): .claude, then only a stream name and what
-// NAME_END takes off, and before it nothing, or one of = : , { } @, or a variable ($NAME, ${NAME},
-// ${env:NAME}, $env:NAME or %NAME%). The lazy prefix lets the first .claude that fits decide, so
-// .claude.json and .claudeignore are not that name and neither are main..claude and notes.claude.
-const CLAUDE_IN_TEXT = /^([^]*?)\.claude(?::[^]*|[,.;:)\]}…\s])*$/;
-const BEFORE_CLAUDE = /(?:^|[=:,{}@]|\$\w+|\$env:\w+|\$\{[^{}]*\}|%\w+%)$/;
+// A name of a token that is .claude by ADR-215 section 3(c): .claude, then only a stream name, what
+// NAME_END takes off and an expansion that may be empty, which is a $ and whatever follows it, or %NAME%
+// (ADR-233 section 2); and before it nothing, or one of = : , { } @, or a variable ($NAME, ${NAME},
+// ${env:NAME}, $env:NAME or %NAME%), or a $ and one character that is neither a name's nor a brace, as a
+// special parameter of the shell is written ($* $@ $# $? $- $$ $! and PowerShell's $^), or the start of
+// a variable with a word for when it has no value, ${NAME:- and its kin, whose word begins with the name
+// (ADR-233 section 1). The lazy prefix lets the first .claude that fits decide, so .claude.json and
+// .claudeignore are not that name and neither are main..claude and notes.claude.
+const CLAUDE_IN_TEXT = /^([^]*?)\.claude(?::[^]*|\$[^]*|%\w+%|[,.;:)\]}…\s])*$/;
+const BEFORE_CLAUDE = /(?:^|[=:,{}@]|\$\w+|\$env:\w+|\$\{[^{}]*\}|%\w+%|\$[^\w{]|\$\{[^{}]*[-=+?])$/;
 
 // Whether the text of one token of a shell command names a closed .claude folder (ADR-215 section 3(c)),
 // whatever heads the token and whether or not anything else reads it as a path. The token is cut at / and
 // \ with .. folded against the name before it. A name is .claude when CLAUDE_IN_TEXT fits it and either
-// BEFORE_CLAUDE accepts what stands before .claude, or it is the first name of a token headed by -, which
-// still has to end in .claude as CLAUDE_IN_TEXT reads it. The token is closed when that name is the last,
+// BEFORE_CLAUDE accepts what stands before .claude, or it is the first name of a token headed by - or by
+// / (ADR-233 section 3), which still has to end in .claude as CLAUDE_IN_TEXT reads it. The token is
+// closed when that name is the last,
 // or the next is not an open name by opensBeneathClaude, which takes NAME_END off only where that next
 // name is the last of the token, and is read on from an open one, as closedFolder does. Asks the file
 // system nothing.
@@ -295,7 +324,7 @@ function closedInText(token) {
     if (name === "..") names.pop();
     else if (name !== "" && name !== ".") names.push(name.toLowerCase());
   }
-  const option = token.startsWith("-");
+  const option = /^[-/]/.test(token);
   for (let i = 0; i < names.length; i++) {
     const claude = CLAUDE_IN_TEXT.exec(names[i]);
     if (!claude || !(BEFORE_CLAUDE.test(claude[1]) || (option && i === 0))) continue;
@@ -312,10 +341,18 @@ function fromGitBash(p) {
   return m ? drive(m[1], m[2] ?? "") : p;
 }
 
+// A field's or a token's text with its backslashes written as slashes, and a leading ~, alone or before a
+// separator, read as the home folder (ADR-233 section 4). A token of a command reaches here with its ~
+// already read so, and a file tool's field with it as written.
+const fromHome = (text) => {
+  const s = String(text).replace(/\\/g, "/");
+  return /^~(?=$|\/)/.test(s) ? homedir().replace(/\\/g, "/") + s.slice(1) : s;
+};
+
 // The absolute path a field or a token names when the call's current directory is base, with .. folded
 // as text. The backslash separates folders in every form this reads, on every platform.
 function absoluteOf(text, base) {
-  return resolve(base, fromGitBash(String(text).replace(/\\/g, "/")));
+  return resolve(base, fromGitBash(fromHome(text)));
 }
 
 const isDirectory = (p) => {
@@ -356,12 +393,57 @@ function realPath(absolute) {
   return known;
 }
 
+// The places links in the .claude folder this file lies in lead to (ADR-233 section 5), each with its
+// link, followed as far as where it leads is there, so that a place a link names before it is made is one
+// too. The walk goes breadth-first from that folder, passes over projects, plans and worktrees directly
+// beneath a folder named .claude, as closedFolder opens them, never follows a link, passes over a folder
+// it cannot list and a link whose target it cannot read, and looks at no more than WALK_LIMIT names: null
+// when there are more, since a link among the rest cannot be ruled out. Walked once for a call.
+function placesLinkedFromClosed() {
+  const linked = [];
+  const queue = [resolve(here, "..")];
+  let looked = 0;
+  for (let next = 0; next < queue.length; next++) {
+    const folder = queue[next];
+    let entries;
+    try {
+      entries = readdirSync(folder, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    const inClaude = isClaudeFolder(basename(folder));
+    for (const entry of entries) {
+      if (++looked > WALK_LIMIT) return null;
+      if (inClaude && opensBeneathClaude(entry.name, false)) continue;
+      const path = join(folder, entry.name);
+      if (entry.isSymbolicLink()) {
+        let leadsTo = null;
+        try {
+          leadsTo = realpathSync.native(path);
+        } catch {
+          try {
+            leadsTo = followed(resolve(folder, readlinkSync(path)));
+          } catch {
+            // a link whose target cannot be read is passed over
+          }
+        }
+        if (leadsTo) linked.push({ link: path, leadsTo, key: norm(leadsTo) });
+      } else if (entry.isDirectory()) {
+        queue.push(path);
+      }
+    }
+  }
+  return linked;
+}
+let linkedPlaces;
+const linkedFromClosed = () => (linkedPlaces === undefined ? (linkedPlaces = placesLinkedFromClosed()) : linkedPlaces);
+
 // The path as the file system walks it, when it holds a .. (and null when it holds none): from the real
 // path of the folder it is read against, or from its root when it is absolute, and at each .. the parent
 // of the real path reached so far, one realPath for each folder a .. is taken from. A name that is not
 // there is put back as text, which is what realPath does with it.
 function walkedOf(text, base) {
-  const s = fromGitBash(String(text).replace(/\\/g, "/"));
+  const s = fromGitBash(fromHome(text));
   if (!s.split("/").includes("..")) return null;
   const { root } = parse(s);
   let current = root ? resolve(base, root) : realPath(base);
@@ -895,6 +977,15 @@ function refusalsOf(call) {
     if (!leadsTo) return turnedDown(`a link leads from it to ${found.real}, outside the allow list`);
     if (writes && leadsTo.read) return turnedDown(`a link leads from it to ${found.real}, ${READ_ONLY}`);
     if (writes && closedFolder(realText)) return turnedDown(`a link leads from it to ${found.real}, ${CLOSED}`);
+    // A place a link in the closed .claude folder leads to is closed as that folder is (ADR-233 section 5).
+    if (writes) {
+      const linked = linkedFromClosed();
+      if (linked === null) {
+        return turnedDown(`ruling out a link to it from the .claude folder ${resolve(here, "..")} would take more than ${WALK_LIMIT} names`);
+      }
+      const into = linked.find(({ key }) => under(text, key) || under(realText, key));
+      if (into) return turnedDown(`the link ${into.link} leads to ${into.leadsTo}, so it is ${CLOSED}`);
+    }
     if (found.inside) return turnedDown(`inside the Vespera working directory ${found.inside}`);
     if (searchRoot) {
       const below = workingDirectoryBelow(found.real);

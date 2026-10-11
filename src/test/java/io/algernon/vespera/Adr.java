@@ -1530,6 +1530,49 @@ public final class Adr {
             FILE
                     + "0232-a-file-whose-only-text-is-in-page-headers-and-footers-is-degenerate-output-at-stage-2-and-a-seed-of-that-kind-is-an-unusable-seed.md";
 
+    /**
+     * ADR-233 -- the private-paths guard reads what stands beside the name {@code .claude} in a token's
+     * text: a special parameter of the shell and the start of a variable with a word may stand before it,
+     * an expansion that may be empty is taken off after it, and a token headed by {@code /} is an option
+     * as one headed by {@code -} is; a leading {@code ~} in a file tool's field is the home folder, as it
+     * is at the head of a token; a place a link in the guard's own {@code .claude} folder leads to is
+     * closed as that folder is; and on Windows a name of dots with a stream name after it is a name made
+     * only of dots, and a stream name runs to the end of its name. The unused {@code within} is removed
+     * (amends ADR-215 sections 3(c), 5, 7 and 8 and ADR-217 sections 1 and 2; keeps ADR-196, ADR-201 and
+     * ADR-212; nothing under {@code src/main} changes). Its tests are Node tests under {@code
+     * src/test/hooks}.
+     */
+    public static final String THE_GUARD_READS_WHAT_STANDS_BESIDE_THE_NAME_CLAUDE_AND_A_LINK_OUT_OF_ITS_FOLDER = FILE
+            + "0233-the-private-paths-guard-reads-what-stands-beside-the-name-claude-a-leading-tilde-in-a-field-and-a-link-out-of-its-own-folder.md";
+
+    /**
+     * ADR-234 -- stage 4b's containment removes no document a row of its run already names as kept and
+     * names no removed document as a container, so no redundancy pointer names a document the same pass
+     * removed; a candidate cut of the relevance report keeps the documents whose band is at or above the
+     * band it opens; and a verdict reason is formatted in one locale (amends ADR-079 and ADR-088's cuts).
+     */
+    public static final String NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT = FILE
+            + "0234-no-redundancy-pointer-names-a-removed-document-a-cut-is-read-from-the-band-and-a-verdict-reason-is-written-in-one-locale.md";
+
+    /**
+     * ADR-235 -- a path in {@code documents.csv} that begins with {@code =}, {@code +}, {@code -} or {@code @}
+     * is written behind a single quote, so that a spreadsheet opening the listing shows it as text and runs no
+     * formula (settles review register finding R32, on the operator's answer; amends ADR-104 and ADR-136 §5 in
+     * that one respect).
+     */
+    public static final String A_MANIFEST_CELL_A_SPREADSHEET_WOULD_RUN_IS_WRITTEN_BEHIND_A_QUOTE = FILE
+            + "0235-a-path-in-the-manifest-a-spreadsheet-would-run-as-a-formula-is-written-behind-a-single-quote.md";
+
+    /**
+     * ADR-236 -- {@code document_cluster} gains an index on the winning seed, the run and the cluster ordinal,
+     * so that the three reads of one seed partition go to that seed's rows under one scoring run and the
+     * sizes of its clusters are counted in order, sorting nothing; the build start-up makes of it joins
+     * ADR-218's class of index builds with its measured size, and ADR-218's row 12 is gone (settles review
+     * register finding R21).
+     */
+    public static final String A_PARTITIONS_READS_SEEK_ONLY_ITS_RUNS_ROWS = FILE
+            + "0236-a-seed-partitions-reads-seek-its-rows-under-one-scoring-run-by-an-index-on-the-seed-the-run-and-the-cluster.md";
+
     private Adr() {
     }
 }

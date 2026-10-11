@@ -69,7 +69,6 @@ class EmbeddingScoringTasklet implements Tasklet {
     /** Stage 5c's own name, which its statement lines open with. */
     private static final String STAGE = "Stage 5c (embedding scoring)";
 
-    private final EmbeddingModelGate embeddingModelGate;
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
     private final StageRuns stageRuns;
@@ -83,7 +82,6 @@ class EmbeddingScoringTasklet implements Tasklet {
     private final ExtractionCacheKeys cacheKeys;
 
     EmbeddingScoringTasklet(
-            EmbeddingModelGate embeddingModelGate,
             SeedGate seedGate,
             UsableSeedGate usableSeedGate,
             StageRuns stageRuns,
@@ -95,7 +93,6 @@ class EmbeddingScoringTasklet implements Tasklet {
             UnusableSeeds unusableSeeds,
             OllamaClient ollamaClient,
             JdbcTemplate jdbcTemplate) {
-        this.embeddingModelGate = embeddingModelGate;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
@@ -112,7 +109,7 @@ class EmbeddingScoringTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
-                "stage 5's scoring step", embeddingModelGate, seedGate, usableSeedGate);
+                "stage 5's scoring step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
             return RepeatStatus.FINISHED;

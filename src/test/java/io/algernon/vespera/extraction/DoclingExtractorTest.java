@@ -185,7 +185,7 @@ class DoclingExtractorTest {
                 "a seed with no bytes to read is sent once, as unrecognised: the bytes said nothing, which is"
                         + " true, and it converts to a failure, which is the answer. A seed folder has no floor"
                         + " in front of it, so such a seed reaches the unusable-seed path rather than stopping"
-                        + " the step (ADR-226, moving ADR-222's rule 1)",
+                        + " the step",
                 () -> assertThat(sent)
                         .containsExactly(new Sent(seed, CONTENT_HASH, IDENTITY, DetectedFormat.UNRECOGNISED, DetectedSubtype.CSV)));
         claim(

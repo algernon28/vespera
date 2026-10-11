@@ -100,7 +100,17 @@ final class ReportPage {
 
     /** A table around a header row and already-assembled body rows. */
     static String table(String headers, String rows) {
-        return "<table>\n" + headers + rows + "</table>\n";
+        return tableOpened() + headers + rows + tableClosed();
+    }
+
+    /** What opens a table, for a page that streams its rows between this and {@link #tableClosed()}. */
+    static String tableOpened() {
+        return "<table>\n";
+    }
+
+    /** What closes a table {@link #tableOpened()} opened. */
+    static String tableClosed() {
+        return "</table>\n";
     }
 
     /** A table's header row, one escaped {@code <th>} per label. */

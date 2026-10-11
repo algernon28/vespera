@@ -35,10 +35,12 @@ public class RelevanceScoring {
     /**
      * Loads every usable seed document's chunk vectors, keyed by seed occurrence — the resident side
      * of ADR-085's shape, built once and held for the whole scoring pass. A seed with no chunk, which a usable
-     * seed has only where the embedding step never chunked it (ADR-232), is left out (ADR-231 section 2a); a seed with a chunk and no stored vector under the embedder identity is refused
-     * (section 2): scoring without it would measure every survivor against fewer seeds.
+     * seed has only where the embedding step never chunked it (ADR-232), is left out (ADR-231 section 2a); a seed with a stored vector under the embedder identity for fewer of its chunks than it has, none
+     * included, is refused (section 2): scoring without it would measure every survivor against fewer seeds,
+     * or against a part of one.
      *
-     * @throws IllegalStateException on the first seed with a chunk and no stored vector under {@code embedderIdentity}
+     * @throws IllegalStateException on the first seed with a chunk and fewer stored vectors under {@code
+     *     embedderIdentity} than it has chunks
      */
     public Map<OccurrenceId, List<float[]>> residentSeedVectors(
             Map<OccurrenceId, SeedChunks> usableSeedsByOccurrence,
@@ -56,8 +58,8 @@ public class RelevanceScoring {
     /**
      * As {@link #residentSeedVectors(Map, String, String, String)}, telling {@code progress} how many seeds
      * will be read, once, before the first, and each seed as it is gone through (ADR-192 section 5). A seed with no chunk
-     * is told to {@code progress} as left out and counted; a seed with a chunk and no vector stops the read
-     * before it is counted (ADR-231 section 2).
+     * is told to {@code progress} as left out and counted; a seed with a vector for fewer chunks than it has
+     * stops the read before it is counted (ADR-231 section 2).
      */
     public Map<OccurrenceId, List<float[]>> residentSeedVectors(
             Map<OccurrenceId, SeedChunks> usableSeedsByOccurrence,
@@ -75,9 +77,13 @@ public class RelevanceScoring {
             }
             List<float[]> vectors = vectorCache.vectorsFor(
                     seed.getValue().contentHash(), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
-            if (vectors.isEmpty()) {
+            if (vectors.size() < seed.getValue().chunkCount()) {
                 throw new IllegalStateException("seed occurrence " + seed.getKey().value()
-                        + " has no stored chunk vectors under embedder identity " + embedderIdentity
+                        + (vectors.isEmpty()
+                                ? " has no stored chunk vectors"
+                                : " has stored chunk vectors for only " + vectors.size() + " of its "
+                                        + seed.getValue().chunkCount() + " chunks")
+                        + " under embedder identity " + embedderIdentity
                         + "; a usable seed is embedded by the step before this one, so either that step did not"
                         + " embed it or another pull of the embedding model wrote its vectors -- scoring without"
                         + " it would measure every survivor against fewer seeds than the seed set holds");
@@ -163,26 +169,34 @@ public class RelevanceScoring {
      * {@code runId} — never materialising more than this one survivor's own chunk vectors alongside
      * the seed side already held resident (ADR-085).
      *
-     * <p>Throws rather than scoring zero if {@code occurrenceId} has no stored vectors under {@code
-     * embedderIdentity}: a zero would record a document nothing was measured of as one measured
-     * irrelevant (ADR-020, "Confirm, do not assume"). Two ways into it are known: an occurrence no stage
+     * <p>Throws rather than scoring zero if {@code occurrenceId} has fewer stored vectors under {@code
+     * embedderIdentity} than its {@code chunkCount} chunks, none included: a zero would record a document
+     * nothing was measured of as one measured irrelevant (ADR-020, "Confirm, do not assume"). Two ways into it are known: an occurrence no stage
      * ever examined; and vectors another pull of the embedding model wrote (ADR-231). A survivor has a chunk
-     * because stage 2 removes a file with no text outside page headers and footers (ADR-232).
+     * because stage 2 removes a file with no text outside page headers and footers (ADR-232). Fewer
+     * vectors than chunks is refused as none is, because a pull and a pull back between two chunks of one
+     * document leaves it with a vector for only some of them, and scored on those it would be measured on a
+     * part of itself with no line saying so (ADR-231 sections 3 and 5).
      */
     public void scoreAndRecord(
             OccurrenceId occurrenceId,
             RunId runId,
             String contentHash,
+            int chunkCount,
             String chunkerIdentity,
             String chunkingRuleIdentity,
             String embedderIdentity,
             Map<OccurrenceId, List<float[]>> residentSeedVectors) {
         List<float[]> survivorChunkVectors =
                 vectorCache.vectorsFor(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
-        if (survivorChunkVectors.isEmpty()) {
+        if (survivorChunkVectors.isEmpty() || survivorChunkVectors.size() < chunkCount) {
             throw new IllegalStateException(
-                    "occurrence " + occurrenceId.value() + " has no stored chunk vectors to score under embedder identity "
-                            + embedderIdentity
+                    "occurrence " + occurrenceId.value()
+                            + (survivorChunkVectors.isEmpty()
+                                    ? " has no stored chunk vectors"
+                                    : " has stored chunk vectors for only " + survivorChunkVectors.size() + " of its "
+                                            + chunkCount + " chunks")
+                            + " to score under embedder identity " + embedderIdentity
                             + "; stage 2 removes a file with no text outside page headers and footers, so a"
                             + " corpus survivor has a chunk -- either no stage ever examined this occurrence,"
                             + " or another pull of the embedding model wrote its vectors");

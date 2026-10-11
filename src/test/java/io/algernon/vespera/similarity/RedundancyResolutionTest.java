@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -69,6 +70,9 @@ class RedundancyResolutionTest {
 
     /** A document's set, which signatures and exact scoring read alike, and a candidate container's size. */
     private static final int PER_DOCUMENT_QUERY_SHAPES = 2;
+
+    /** What a document in the middle of a chain holds on top of the one inside it, and inside the one around it. */
+    private static final int MIDDLE_EXTRA_SHINGLES = 400;
 
     /** How many documents sit wholly inside one container, each sharing nothing with the others. */
     private static final int CHAPTERS_INSIDE_ONE_VOLUME = 3;
@@ -342,6 +346,105 @@ class RedundancyResolutionTest {
         claim(
                 "and stage 4 wrote no verdict of any kind over them",
                 () -> assertThat(redundantWithVerdictCount()).isZero());
+    }
+
+    @Test
+    @Story("No pointer names a document the same pass removed")
+    @DisplayName("Of a document inside a second that is inside a third, no document is left pointing at one that was itself removed")
+    @Link(name = "ADR-234", url = Adr.NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT, type = "adr")
+    void aChainOfContainmentsLeavesNoPointerAtARemovedDocument() {
+        Fixture fixture = fixture();
+        Set<Long> inner = shingles(0, CONTAINED_SHINGLES);
+        Set<Long> middle = new LinkedHashSet<>(inner);
+        middle.addAll(shingles(10_000, MIDDLE_EXTRA_SHINGLES));
+        Set<Long> outer = new LinkedHashSet<>(middle);
+        outer.addAll(shingles(20_000, CONTAINER_EXTRA_SHINGLES));
+        OccurrenceId chapter = fixture.document("chapter.pdf", inner, THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        fixture.document("part.pdf", middle, THINNER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+        fixture.document("volume.pdf", outer, FULLER_TEXT, Instant.parse("2023-01-01T00:00:00Z"));
+
+        fixture.resolve();
+
+        claim(
+                "the chapter, the smallest of the three, is removed: it is wholly inside both others",
+                () -> assertThat(redundantWith(chapter)).isNotNull());
+        claim(
+                "and every document the pass points a removed one at is a document the pass kept -- a reader"
+                        + " following the pointer finds the text, not another pointer",
+                () -> assertThat(pointersAtRemovedDocuments()).isEmpty());
+    }
+
+    @Test
+    @Story("No pointer names a document the same pass removed")
+    @DisplayName("The copy kept of two near-identical documents is not removed afterwards for lying inside a third, leaving the other copy pointing at nothing kept")
+    @Link(name = "ADR-234", url = Adr.NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT, type = "adr")
+    void aNearDuplicateSurvivorInsideAnotherDocumentLeavesNoPointerAtARemovedDocument() {
+        Fixture fixture = fixture();
+        Set<Long> digitalShingles = shingles(1, 100);
+        OccurrenceId scan = fixture.document("scan.pdf", shingles(0, 100), THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        fixture.document("digital.pdf", digitalShingles, FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+        Set<Long> anthology = new LinkedHashSet<>(digitalShingles);
+        anthology.addAll(shingles(10_000, CONTAINER_EXTRA_SHINGLES));
+        fixture.document("anthology.pdf", anthology, FULLER_TEXT, Instant.parse("2023-01-01T00:00:00Z"));
+
+        fixture.resolve();
+
+        claim(
+                "the scan is removed as a near-duplicate of the digital copy",
+                () -> assertThat(relationOf(scan)).isEqualTo("near-duplicate"));
+        claim(
+                "and every document the pass points a removed one at is a document the pass kept",
+                () -> assertThat(pointersAtRemovedDocuments()).isEmpty());
+    }
+
+    @Test
+    @Story("The reason a document was removed reads the same on every machine")
+    @DisplayName("A removal's stated reason writes its score with a decimal point, whatever language the machine is set to")
+    @Link(name = "ADR-234", url = Adr.NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT, type = "adr")
+    void theReasonWritesItsScoreTheSameWayInEveryLocale() {
+        Locale before = Locale.getDefault(Locale.Category.FORMAT);
+        Locale.setDefault(Locale.Category.FORMAT, Locale.GERMANY);
+        try {
+            Fixture fixture = fixture();
+            OccurrenceId scan =
+                    fixture.document("scan.pdf", shingles(0, 100), THINNER_TEXT, Instant.parse("2020-01-01T00:00:00Z"));
+            fixture.document("digital.pdf", shingles(1, 100), FULLER_TEXT, Instant.parse("2026-01-01T00:00:00Z"));
+            Set<Long> contained = shingles(5_000, CONTAINED_SHINGLES);
+            Set<Long> container = new LinkedHashSet<>(contained);
+            container.addAll(shingles(10_000, CONTAINER_EXTRA_SHINGLES));
+            OccurrenceId chapter =
+                    fixture.document("chapter.pdf", contained, THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+            fixture.document("volume.pdf", container, FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+
+            fixture.resolve();
+
+            claim(
+                    "on a machine whose numbers are written with a decimal comma, the near-duplicate's reason"
+                            + " still reads its Jaccard as 0.9802, so the same corpus records the same words"
+                            + " wherever it is run",
+                    () -> assertThat(reasonOf(scan)).endsWith("at Jaccard 0.9802"));
+            claim(
+                    "and the contained document's reason reads its containment as 1.0000",
+                    () -> assertThat(reasonOf(chapter)).endsWith("at containment 1.0000"));
+        } finally {
+            Locale.setDefault(Locale.Category.FORMAT, before);
+        }
+    }
+
+    /** Every pointer whose target is itself removed under the same run, as "removed -> target". */
+    private List<String> pointersAtRemovedDocuments() {
+        return jdbcTemplate.query(
+                "SELECT r.occurrence_id, r.redundant_with_occurrence_id FROM redundant_with r"
+                        + " JOIN redundant_with t ON t.occurrence_id = r.redundant_with_occurrence_id"
+                        + " AND t.run_id = r.run_id",
+                (resultSet, rowNumber) -> resultSet.getLong(1) + " -> " + resultSet.getLong(2));
+    }
+
+    private String reasonOf(OccurrenceId occurrenceId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT reason FROM verdict WHERE occurrence_id = ? AND kind = 'REDUNDANT_WITH'",
+                String.class,
+                occurrenceId.value());
     }
 
     /** {@code count} consecutive shingle hashes from {@code from} — an explicit set, so overlaps are exact. */

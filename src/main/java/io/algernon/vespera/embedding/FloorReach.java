@@ -38,10 +38,7 @@ public final class FloorReach {
      */
     public static FloorReach of(
             Optional<String> embedderIdentity, OptionalDouble floor, Supplier<List<RelevanceLabel>> answers) {
-        if (embedderIdentity.isEmpty()) {
-            return new FloorReach(floor, List.of(), OptionalDouble.empty());
-        }
-        if (floor.isEmpty()) {
+        if (embedderIdentity.isEmpty() || floor.isEmpty()) {
             return new FloorReach(floor, List.of(), OptionalDouble.empty());
         }
         List<String> answeredUnder =

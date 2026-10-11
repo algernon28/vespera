@@ -105,6 +105,36 @@ class EmbeddingScriptedBeans {
         digestOfThePullPartWay = digest;
     }
 
+    /** How many calls the embedding double answers before the runtime is pulled back to {@link #DIGEST}. */
+    private static int callsBeforeThePullBack = NO_PULL_PART_WAY;
+
+    /**
+     * Scripts this fixture's runtime as pulled back to {@link #DIGEST} once the embedding double has answered
+     * {@code calls} calls since the scripts were last dropped. With {@link #pullsAgainOnceItHasEmbedded} for an
+     * earlier call it is a pull and a pull back within one embedding step (ADR-231 section 5): the chunks of
+     * the calls between the two are stored under the other digest, and the step's own check at its end sees
+     * the digest it began with.
+     */
+    static void pullsBackOnceItHasEmbedded(int calls) {
+        callsBeforeThePullBack = calls;
+    }
+
+    /** How many calls the embedding double answers before {@link #editWhileEmbedding} is run. */
+    private static int callsBeforeTheEdit = NO_PULL_PART_WAY;
+
+    /** What is done once {@link #callsBeforeTheEdit} calls have been answered; nothing unless a test says. */
+    private static Runnable editWhileEmbedding = () -> {};
+
+    /**
+     * Scripts {@code edit} to be done once the embedding double has answered {@code calls} calls since the
+     * scripts were last dropped: a change made while stage 5's embedding step runs, after the scoring run
+     * was minted, such as an operator saving the profile mid-invocation.
+     */
+    static void onceItHasEmbedded(int calls, Runnable edit) {
+        callsBeforeTheEdit = calls;
+        editWhileEmbedding = edit;
+    }
+
     /** The weight dtype this fixture's runtime reports now: {@link #DTYPE} until a test says otherwise. */
     private static String dtypeServed = DTYPE;
 
@@ -186,6 +216,9 @@ class EmbeddingScriptedBeans {
         dtypeServed = DTYPE;
         callsBeforeThePull = NO_PULL_PART_WAY;
         digestOfThePullPartWay = null;
+        callsBeforeThePullBack = NO_PULL_PART_WAY;
+        callsBeforeTheEdit = NO_PULL_PART_WAY;
+        editWhileEmbedding = () -> {};
     }
 
     @Bean
@@ -253,6 +286,12 @@ class EmbeddingScriptedBeans {
             embeddingCallsMade++;
             if (embeddingCallsMade == callsBeforeThePull) {
                 digestServed = digestOfThePullPartWay;
+            }
+            if (embeddingCallsMade == callsBeforeThePullBack) {
+                digestServed = DIGEST;
+            }
+            if (embeddingCallsMade == callsBeforeTheEdit) {
+                editWhileEmbedding.run();
             }
             float[] vector = new float[dimension];
             Arrays.fill(vector, 1f);

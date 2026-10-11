@@ -14,7 +14,8 @@ import io.algernon.vespera.ledger.OccurrencePath;
  * @param seedSet the seed folder it was judged against, which is what an operator means by a seed
  *     set and what stays the same across the re-walks census performs every invocation
  * @param relevant the answer itself
- * @param runId the run that put the question, kept as context and never as part of the identity
+ * @param runId the run that put the question, never part of the identity; where a scoring run has answers of its
+ *     own, the floor reads those and no others (ADR-228 section 5)
  * @param scoreShown what the person had in front of them when they answered
  * @param embedderIdentity what produced that score, so a later reader can tell whether two answers
  *     were given against numbers on the same scale

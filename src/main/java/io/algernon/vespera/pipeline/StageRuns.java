@@ -13,6 +13,7 @@ import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.ObjectProvider;
@@ -47,8 +48,9 @@ import org.springframework.stereotype.Component;
  * <p>Each stage keeps its own private {@code ConfigConsumed} record and its own module list, in the
  * shape and order {@code RunIdentityGoldenTest} holds for it (ADR-157 §1, §2). Each accessor also reads
  * its inputs in a fixed order, and an input that is not a run (the extractor identity, the relevance
- * floor, the embedding model's artefact, the generation model's weights digest) is read fresh when its
- * run is minted, never when this holder is built.
+ * floor, the embedding model's name and artefact, the generation model's weights digest) is read fresh when its
+ * run is minted, never when this holder is built. The scoring run's three are then kept, and handed to
+ * the steps after it, which read what the run names and not the profile again (ADR-228, ADR-117).
  */
 @Component
 @JobScope
@@ -75,7 +77,9 @@ class StageRuns {
     private double contentRedundancyFloor;
     private RunId seedMeasurement;
     private RunId embeddingScoring;
+    private String embeddingModelName;
     private ModelArtefact embeddingModelArtefact;
+    private Double relevanceScoreFloor;
     private RunId arrangement;
     private RunId generation;
 
@@ -241,9 +245,40 @@ class StageRuns {
                             relevanceScoreFloor),
                     walk,
                     Optional.of(measurementRunId));
+            embeddingModelName = modelName;
             embeddingModelArtefact = artefact;
+            this.relevanceScoreFloor = relevanceScoreFloor;
         }
         return embeddingScoring;
+    }
+
+    /**
+     * The embedding model's name the scoring run was minted under, which mints that run if it has not yet
+     * been. Every later step of the run reads by this name and not by the profile's, which an operator may
+     * have saved since (ADR-228 sections 2 and 4, ADR-117).
+     */
+    String embeddingModelName() {
+        embeddingScoring();
+        return embeddingModelName;
+    }
+
+    /**
+     * The embedding model's name a step's gate reads (ADR-084): the profile's until the scoring run is minted
+     * in this invocation, and the name it was minted under from then on, without minting it. A model cleared
+     * or renamed in the profile after the mint is read by the next run, not by the later steps of this one
+     * (ADR-228 section 2, ADR-117).
+     */
+    Optional<String> embeddingModelNamed() {
+        return embeddingScoring == null ? embeddingModelGate.modelName() : Optional.of(embeddingModelName);
+    }
+
+    /**
+     * The relevance floor the scoring run was minted under, empty where it was unset then, which mints that
+     * run if it has not yet been. The number that removes is the number that names the run (ADR-117).
+     */
+    OptionalDouble relevanceScoreFloor() {
+        embeddingScoring();
+        return relevanceScoreFloor == null ? OptionalDouble.empty() : OptionalDouble.of(relevanceScoreFloor);
     }
 
     /** The artefact the scoring run was minted under, which mints that run if it has not yet been (ADR-228). */
@@ -258,8 +293,7 @@ class StageRuns {
      */
     boolean embeddingModelArtefactStillReported() {
         ModelArtefact minted = embeddingModelArtefact();
-        String modelName = embeddingModelGate.modelName().orElseThrow();
-        return ollamaClient.artefactOf(modelName).equals(minted);
+        return ollamaClient.artefactOf(embeddingModelName).equals(minted);
     }
 
     /** Stage 6a's run, minted the first time this is called in this invocation. */

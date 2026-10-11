@@ -36,6 +36,15 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
 class LabelledSpreadTest {
 
+    /** A score that is exactly the fourth of five bands' lower edge over 0.0 to 0.5, as a person reads it. */
+    private static final double ON_THE_FOURTH_BANDS_LOWER_EDGE = 0.3;
+
+    /** The fourth band, counted from zero. */
+    private static final int THE_FOURTH_BAND = 3;
+
+    /** The cuts are the edges between bands, so the cut at the fourth band's lower edge is the third, counted from zero. */
+    private static final int THE_CUT_AT_THE_FOURTH_BANDS_LOWER_EDGE = 2;
+
     @Test
     @Story("The engine does the arithmetic and never writes the number")
     @DisplayName("Each candidate cut says how many documents it keeps and how many it discards")
@@ -79,6 +88,33 @@ class LabelledSpreadTest {
         claim(
                 "and the one just under it is discarded",
                 () -> assertThat(spread.cuts().getFirst().discarded()).isEqualTo(1));
+    }
+
+    @Test
+    @Story("The engine does the arithmetic and never writes the number")
+    @DisplayName("A document scoring a band's lower edge is on the same side of the cut at that edge as the band counts it")
+    @Link(name = "ADR-234", url = Adr.NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT, type = "adr")
+    void aDocumentOnABandsLowerEdgeSurvivesTheCutAtThatEdge() {
+        // Bands over 0.0 to 0.5 are 0.1 wide, and the third cut is the fourth band's lower bound, which the
+        // arithmetic gives as 0.30000000000000004 and which the page shows as 0.30.
+        Map<OccurrenceId, Boolean> answers = new LinkedHashMap<>();
+        answers.put(new OccurrenceId(1), true);
+        LabelledSpread.Spread spread = LabelledSpread.of(
+                aDistributionFrom(0.0, 0.5), List.of(scored(1, ON_THE_FOURTH_BANDS_LOWER_EDGE)), answers);
+        LabelledSpread.CandidateCut cutAtThatEdge = spread.cuts().get(THE_CUT_AT_THE_FOURTH_BANDS_LOWER_EDGE);
+
+        claim(
+                "the answer about the document scoring " + ON_THE_FOURTH_BANDS_LOWER_EDGE + " is counted in the"
+                        + " fourth band",
+                () -> assertThat(spread.bandLabels().get(THE_FOURTH_BAND).labelled()).isEqualTo(1));
+        claim(
+                "and the cut at that band's lower edge keeps it, as a threshold of 0.30 written from the page"
+                        + " would: a document the page counts in a band is never also counted below that band's"
+                        + " own edge",
+                () -> {
+                    assertThat(cutAtThatEdge.surviving()).isEqualTo(1);
+                    assertThat(cutAtThatEdge.labelledAbove()).isEqualTo(1);
+                });
     }
 
     @Test
