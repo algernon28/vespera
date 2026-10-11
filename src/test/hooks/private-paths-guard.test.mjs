@@ -1351,7 +1351,9 @@ cases.push(
   ["I104", "Set-Content of the settings after PowerShell's $^, joined to the name .claude", "PowerShell", { command: String.raw`Set-Content $^.claude\settings.json x` }, REFUSED],
   ["I105", "a redirect into the settings by a path from the root, one name of which is a variable whose word for no value is .claude", "Bash", { command: "echo x > /x/${VESPERA_GUARD_HAS_NO_VALUE:-.claude}/settings.json" }, REFUSED],
   ["I106", "the same with the rest of the path in the word, and no colon before the sign", "Bash", { command: "echo x > /x/${VESPERA_GUARD_HAS_NO_VALUE-.claude/settings.json}" }, REFUSED],
-  ["I107", "a variable whose word for no value only ends in .claude, in a path from the root", "Bash", { command: "cat /x/${VESPERA_GUARD_HAS_NO_VALUE:-notes.claude}/y" }, ALLOWED],
+  // In the checkout, so that on Windows, where a path from the root is read, the allow list admits it
+  // and only the text decides.
+  ["I107", "a variable whose word for no value only ends in .claude, in a path from the root", "Bash", { command: `cat ${C}/\${VESPERA_GUARD_HAS_NO_VALUE:-notes.claude}/y` }, ALLOWED],
 
   /* I2. What may follow the name: an expansion that may be empty, joined to it, which the text takes off
      the name, with whatever follows the $, as it takes off a stream name. */
