@@ -10,6 +10,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileSystemException;
@@ -140,6 +141,49 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
                     assertThat(thrown).isSameAs(unmovable);
                     assertThat(attempts[0]).isOne();
                     assertThat(waited).isEmpty();
+                });
+    }
+
+    @Test
+    @Story("A page is put in its place whole")
+    @DisplayName("A move whose wait between attempts is interrupted stops there, says it was interrupted and keeps the interruption")
+    void aMoveInterruptedWhileItWaitsStopsAndKeepsTheInterruption(@TempDir Path directory) throws IOException {
+        Path part = page(directory.resolve("index.md.part"), THE_NEW_PAGE);
+        Path target = page(directory.resolve("index.md"), THE_OLD_PAGE);
+        int[] attempts = {0};
+
+        Throwable thrown;
+        boolean interruptedAfter;
+        try {
+            thrown = catchThrowable(() -> new ReplacingMove(
+                            refusedAsAccessDenied(Integer.MAX_VALUE, attempts),
+                            millis -> {
+                                throw new InterruptedException("stopped while waiting");
+                            })
+                    .intoPlace(part, target));
+        } finally {
+            // Read and cleared here, so that no later test runs on a thread left interrupted.
+            interruptedAfter = Thread.interrupted();
+        }
+
+        claim(
+                "an interrupted wait is thrown as an interrupted read or write, carrying the refusal it was waiting"
+                        + " to try again",
+                () -> {
+                    assertThat(thrown).isInstanceOf(InterruptedIOException.class);
+                    assertThat(thrown.getSuppressed()).singleElement().isInstanceOf(AccessDeniedException.class);
+                });
+        claim(
+                "the move is not attempted again after the interruption, and the thread is still marked interrupted",
+                () -> {
+                    assertThat(attempts[0]).isOne();
+                    assertThat(interruptedAfter).isTrue();
+                });
+        claim(
+                "the page in its place is the old one, and the new one is still beside it",
+                () -> {
+                    assertThat(Files.readString(target, StandardCharsets.UTF_8)).isEqualTo(THE_OLD_PAGE);
+                    assertThat(Files.readString(part, StandardCharsets.UTF_8)).isEqualTo(THE_NEW_PAGE);
                 });
     }
 
