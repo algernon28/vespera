@@ -18,6 +18,7 @@ import io.algernon.vespera.extraction.PicturePlace;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
@@ -711,17 +712,21 @@ class GenerationTasklet implements Tasklet {
             RunId extractionRun,
             Function<OccurrenceId, String> seedPathOf,
             Runnable listed) {
-        Map<OccurrenceId, Double> scores =
-                relevanceScoring.scoresFor(scoring, members.stream().map(DocumentCluster::occurrenceId).toList());
+        // What the tree lists of each, asked of a page of members at a time (ADR-240).
+        List<OccurrenceId> occurrences = members.stream().map(DocumentCluster::occurrenceId).toList();
+        Map<OccurrenceId, Double> scores = relevanceScoring.scoresFor(scoring, occurrences);
+        Map<OccurrenceId, OccurrencePath> paths = ledger.occurrences().pathsOf(occurrences);
+        Map<OccurrenceId, String> contentKeys = cacheKeys.requireForOccurrences(occurrences, extractionRun);
         List<ListedSurvivor> survivors = new ArrayList<>(members.size());
         for (DocumentCluster member : members) {
+            OccurrencePath path = paths.get(member.occurrenceId());
+            if (path == null) {
+                throw new IllegalStateException("no facts recorded for occurrence " + member.occurrenceId().value());
+            }
             survivors.add(ListedSurvivor.of(
                     member.occurrenceId(),
-                    ledger.occurrences().factsFor(member.occurrenceId())
-                            .map(OccurrenceFacts::path)
-                            .orElseThrow(() -> new IllegalStateException(
-                                    "no facts recorded for occurrence " + member.occurrenceId().value())),
-                    cacheKeys.requireForOccurrence(member.occurrenceId(), extractionRun),
+                    path,
+                    contentKeys.get(member.occurrenceId()),
                     member.winningSeedOccurrenceId(),
                     seedPathOf.apply(member.winningSeedOccurrenceId()),
                     member.clusterOrdinal(),

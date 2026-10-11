@@ -1603,6 +1603,15 @@ public final class Adr {
     public static final String A_PAGE_READS_OF_A_BAND_VALUE_ONLY_THE_ROWS_THAT_CAN_PAIR_WITH_IT = FILE
             + "0239-a-pages-read-of-a-bucket-hands-back-only-the-rows-above-its-least-occurrence-in-it.md";
 
+    /**
+     * ADR-240 -- 6b's tree asks what it lists of each survivor, its path, its content key and its score, a page
+     * of survivors at a time, where it asked one survivor at a time in each of its three passes; the manifest's
+     * cluster place, the doc read twice and the exemplar's score by key stand as ADR-223 records them (amends
+     * ADR-223's "a lookup by key for each survivor"; settles review register finding R24).
+     */
+    public static final String THE_TREE_ASKS_ABOUT_A_PAGE_OF_SURVIVORS_AT_A_TIME = FILE
+            + "0240-the-tree-asks-what-it-lists-of-each-survivor-a-page-of-survivors-at-a-time.md";
+
     private Adr() {
     }
 }

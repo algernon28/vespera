@@ -1,7 +1,10 @@
 package io.algernon.vespera.ledger;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -108,6 +111,28 @@ public class Occurrences {
                         occurrenceId.value())
                 .stream()
                 .findFirst();
+    }
+
+    /**
+     * The path recorded for each of {@code occurrences}, holding only those that have a row: asked of the
+     * table's primary key {@value KeysetPages#ROWS_IN_A_PAGE} occurrences at most to a statement, none for
+     * an empty collection (ADR-240). For a stage that lists a page of occurrences by their paths.
+     */
+    public Map<OccurrenceId, OccurrencePath> pathsOf(Collection<OccurrenceId> occurrences) {
+        Map<OccurrenceId, OccurrencePath> paths = new HashMap<>();
+        List<OccurrenceId> all = List.copyOf(occurrences);
+        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
+            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+            jdbcTemplate.query(
+                    "SELECT id, path FROM file_occurrence WHERE id IN (" + Placeholders.of(batch.size()) + ")",
+                    resultSet -> {
+                        paths.put(
+                                new OccurrenceId(resultSet.getLong("id")),
+                                new OccurrencePath(resultSet.getString("path")));
+                    },
+                    batch.stream().map(OccurrenceId::value).toArray());
+        }
+        return paths;
     }
 
     /** The id of an occurrence within a walk, for a stage holding a path and needing the key. */

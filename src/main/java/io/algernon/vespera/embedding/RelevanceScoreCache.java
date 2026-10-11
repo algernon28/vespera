@@ -1,8 +1,13 @@
 package io.algernon.vespera.embedding;
 
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -128,6 +133,34 @@ class RelevanceScoreCache {
      */
     void discardForRun(RunId runId) {
         jdbcTemplate.update("DELETE FROM relevance_score WHERE run_id = ?", runId.value());
+    }
+
+    /**
+     * The scores {@code runId} recorded for {@code occurrences}, holding only those that have one: asked of
+     * the table's primary key {@value #OCCURRENCES_IN_A_PAGE} occurrences at most to a statement, and
+     * none for an empty collection (ADR-240).
+     */
+    Map<OccurrenceId, RelevanceScore> forOccurrences(Collection<OccurrenceId> occurrences, RunId runId) {
+        Map<OccurrenceId, RelevanceScore> scores = new HashMap<>();
+        List<OccurrenceId> all = List.copyOf(occurrences);
+        for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_PAGE) {
+            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_PAGE));
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(runId.value());
+            batch.forEach(occurrence -> arguments.add(occurrence.value()));
+            jdbcTemplate.query(
+                    "SELECT occurrence_id, score, winning_seed_occurrence_id FROM relevance_score"
+                            + " WHERE run_id = ? AND occurrence_id IN (" + Placeholders.of(batch.size()) + ")",
+                    resultSet -> {
+                        scores.put(
+                                new OccurrenceId(resultSet.getLong("occurrence_id")),
+                                new RelevanceScore(
+                                        resultSet.getDouble("score"),
+                                        new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id"))));
+                    },
+                    arguments.toArray());
+        }
+        return scores;
     }
 
     /** The score {@code runId} recorded for {@code occurrenceId}, if any — a test's own way to read one back. */
