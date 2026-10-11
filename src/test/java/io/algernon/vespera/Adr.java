@@ -1554,6 +1554,15 @@ public final class Adr {
     public static final String NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT = FILE
             + "0234-no-redundancy-pointer-names-a-removed-document-a-cut-is-read-from-the-band-and-a-verdict-reason-is-written-in-one-locale.md";
 
+    /**
+     * ADR-235 -- a path in {@code documents.csv} that begins with {@code =}, {@code +}, {@code -} or {@code @}
+     * is written behind a single quote, so that a spreadsheet opening the listing shows it as text and runs no
+     * formula (settles review register finding R32, on the operator's answer; amends ADR-104 and ADR-136 §5 in
+     * that one respect).
+     */
+    public static final String A_MANIFEST_CELL_A_SPREADSHEET_WOULD_RUN_IS_WRITTEN_BEHIND_A_QUOTE = FILE
+            + "0235-a-path-in-the-manifest-a-spreadsheet-would-run-as-a-formula-is-written-behind-a-single-quote.md";
+
     private Adr() {
     }
 }

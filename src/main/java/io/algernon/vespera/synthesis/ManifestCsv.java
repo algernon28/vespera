@@ -11,7 +11,8 @@ import java.io.UncheckedIOException;
  * (ADR-223 section 7).
  *
  * <p>The CSV is the surrounding that answers to a parser, so its rule is a doubled quote and not a row of
- * {@link MarkdownSurroundings} (ADR-137 §4).
+ * {@link MarkdownSurroundings} (ADR-137 §4). It is opened in a spreadsheet too, so a path that one would run
+ * as a formula is written behind a single quote (ADR-235).
  */
 final class ManifestCsv {
 
@@ -62,7 +63,7 @@ final class ManifestCsv {
                                 + survivor.winningSeed().value() + ", which the arrangement does not carry"));
         csv.append(String.valueOf(survivor.occurrence().value()))
                 .append(',')
-                .append(quoted(survivor.path().value()))
+                .append(cell(survivor.path().value()))
                 .append(',')
                 .append(survivor.contentHash())
                 .append(',')
@@ -70,7 +71,7 @@ final class ManifestCsv {
                 .append(',')
                 .append(String.valueOf(survivor.score()))
                 .append(',')
-                .append(quoted(survivor.seedPath()))
+                .append(cell(survivor.seedPath()))
                 .append(',')
                 .append(String.valueOf(survivor.clusterOrdinal()))
                 .append(',')
@@ -78,6 +79,27 @@ final class ManifestCsv {
                 .append(',')
                 .append(String.valueOf(cluster.clusterOrder()))
                 .append('\n');
+    }
+
+    /**
+     * {@code field} as one cell of a path column: {@link #quoted} after {@link #shownAsText}.
+     */
+    static String cell(String field) {
+        return quoted(shownAsText(field));
+    }
+
+    /**
+     * {@code field} with a single quote before it where it begins with a character a spreadsheet reads as
+     * the start of a formula, {@code =}, {@code +}, {@code -} or {@code @}, or with a tab or a carriage
+     * return, which some read past to one; otherwise unchanged (ADR-235). A spreadsheet opening the listing
+     * then shows the path as text and runs nothing; a parser reading the file gets the quote as the path's
+     * first character, which is the price ADR-235 accepts.
+     */
+    static String shownAsText(String field) {
+        if (!field.isEmpty() && "=+-@\t\r".indexOf(field.charAt(0)) >= 0) {
+            return "'" + field;
+        }
+        return field;
     }
 
     /**
