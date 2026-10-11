@@ -279,10 +279,11 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
     }
 
     /** The placeholders in the statement's list of documents, {@code occurrence_id IN (…)}; none where it has none. */
+    /** How many occurrences {@code sql} names: those of its list, or one asked by key with {@code = ?}. */
     private static int occurrencesNamedBy(String sql) {
         Matcher list = OCCURRENCE_LIST.matcher(sql);
         if (!list.find()) {
-            return 0;
+            return sql.contains("occurrence_id = ?") ? 1 : 0;
         }
         return (int) list.group(1).chars().filter(character -> character == '?').count();
     }

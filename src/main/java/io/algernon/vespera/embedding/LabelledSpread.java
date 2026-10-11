@@ -90,44 +90,38 @@ public final class LabelledSpread {
         for (int cut = 0; cut < cutCount; cut++) {
             cutScores[cut] = distribution.bands().get(cut + 1).lowerBound();
         }
+        // What each cut keeps; what it discards is the rest, of the documents and of the answers.
         int[] surviving = new int[cutCount];
-        int[] discarded = new int[cutCount];
         int[] labelledAbove = new int[cutCount];
         int[] relevantAbove = new int[cutCount];
-        int[] labelledBelow = new int[cutCount];
-        int[] relevantBelow = new int[cutCount];
 
         int[] labelled = new int[bands];
         int[] relevant = new int[bands];
+        int total = 0;
         int counted = 0;
+        int relevantCounted = 0;
         for (RelevanceDistribution.Scored document : scored) {
             Boolean answer = answers.get(document.occurrenceId());
+            int band = RelevanceDistribution.bandOf(document.score(), lowest, width, bands);
+            total++;
             if (answer != null) {
-                int band = RelevanceDistribution.bandOf(document.score(), lowest, width, bands);
                 labelled[band]++;
+                counted++;
                 if (answer) {
                     relevant[band]++;
+                    relevantCounted++;
                 }
-                counted++;
             }
-            for (int cut = 0; cut < cutCount; cut++) {
-                // At or above the cut survives, matching the floor the verdict step applies: it removes a
-                // document scoring strictly below the number, so a document sitting exactly on it stays.
-                boolean survives = document.score() >= cutScores[cut];
-                if (survives) {
-                    surviving[cut]++;
-                } else {
-                    discarded[cut]++;
-                }
-                if (answer == null) {
-                    continue;
-                }
-                if (survives) {
+            // A cut is the lower edge of the band after it, and a document survives it where its band is at
+            // or above that one. That is at or above the cut, matching the floor the verdict step applies,
+            // which removes a document scoring strictly below the number; and it is read from the band, so
+            // a score on an edge the arithmetic puts a hair above it is on the same side as the band counts
+            // it (RelevanceDistribution.bandOf's tolerance).
+            for (int cut = 0; cut < band && cut < cutCount; cut++) {
+                surviving[cut]++;
+                if (answer != null) {
                     labelledAbove[cut]++;
                     relevantAbove[cut] += answer ? 1 : 0;
-                } else {
-                    labelledBelow[cut]++;
-                    relevantBelow[cut] += answer ? 1 : 0;
                 }
             }
         }
@@ -141,11 +135,11 @@ public final class LabelledSpread {
             cuts.add(new CandidateCut(
                     cutScores[cut],
                     surviving[cut],
-                    discarded[cut],
+                    total - surviving[cut],
                     labelledAbove[cut],
                     relevantAbove[cut],
-                    labelledBelow[cut],
-                    relevantBelow[cut]));
+                    counted - labelledAbove[cut],
+                    relevantCounted - relevantAbove[cut]));
         }
         return new Spread(List.copyOf(bandLabels), List.copyOf(cuts), counted);
     }

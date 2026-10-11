@@ -2,6 +2,7 @@ package io.algernon.vespera.similarity;
 
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.StatementSteps;
 import io.algernon.vespera.ledger.WalkId;
@@ -12,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -140,7 +140,7 @@ public class DocumentFrequency {
             arguments.addAll(survivors);
             jdbcTemplate.query(
                     "SELECT shingle_parameter_identity, COUNT(DISTINCT occurrence_id) FROM shingle"
-                            + " WHERE run_id = ? AND occurrence_id IN (" + placeholders(survivors.size()) + ")"
+                            + " WHERE run_id = ? AND occurrence_id IN (" + Placeholders.of(survivors.size()) + ")"
                             + " GROUP BY shingle_parameter_identity",
                     resultSet -> {
                         shingledSurvivors.merge(resultSet.getString(1), resultSet.getLong(2), Long::sum);
@@ -148,7 +148,7 @@ public class DocumentFrequency {
                     arguments.toArray());
         }
         if (!ruledOut.isEmpty()) {
-            String names = placeholders(ruledOut.size());
+            String names = Placeholders.of(ruledOut.size());
             List<Object> takeOff = new ArrayList<>();
             takeOff.add(stage3RunId.value());
             takeOff.add(stage2RunId.value());
@@ -175,10 +175,6 @@ public class DocumentFrequency {
                             + " WHERE run_id = ? AND occurrence_id IN (" + names + "))",
                     deletion.toArray());
         }
-    }
-
-    private static String placeholders(int count) {
-        return java.util.stream.IntStream.range(0, count).mapToObj(i -> "?").collect(Collectors.joining(", "));
     }
 
     /**

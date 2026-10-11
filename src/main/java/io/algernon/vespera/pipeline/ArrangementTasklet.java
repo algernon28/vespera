@@ -183,14 +183,15 @@ class ArrangementTasklet implements Tasklet {
                 () -> clusters.discardForRun(arrangement),
                 () -> {
                     List<OccurrenceId> seeds = Arrangement.inOrder(memberCounts, seedPaths);
-                    int[] clustersAndDocuments = writePage(scoring, arrangement, seeds, seedPaths, scoresRead, gathered, true);
+                    int clustersArranged =
+                            writePage(scoring, arrangement, seeds, seedPaths, scoresRead, gathered, true);
                     LOG.info(
                             "The arrangement step finished under {}: {} seed partition(s), {} cluster(s), {}"
                                     + " document(s)",
                             arrangement.value(),
                             seeds.size(),
-                            clustersAndDocuments[0],
-                            clustersAndDocuments[1]);
+                            clustersArranged,
+                            members);
                     return true;
                 });
     }
@@ -203,10 +204,9 @@ class ArrangementTasklet implements Tasklet {
      * shown, and an approval then names, is the same whether this invocation just wrote those rows or is only
      * rendering a page for a run an earlier invocation finished (ADR-112, ADR-115, ADR-154 §2).
      *
-     * @return how many clusters were arranged and how many documents they hold, both nothing where not
-     *     {@code recording}
+     * @return how many clusters the page shows, read back from the rows recorded under {@code arrangement}
      */
-    private int[] writePage(
+    private int writePage(
             RunId scoring,
             RunId arrangement,
             List<OccurrenceId> seeds,
@@ -216,7 +216,7 @@ class ArrangementTasklet implements Tasklet {
             boolean recording) {
         Path file = workingDirectory.resolve(ARRANGEMENT_FILE_NAME);
         Path part = workingDirectory.resolve(ARRANGEMENT_FILE_NAME + ".part");
-        int[] arranged = new int[2];
+        int clustersShown = 0;
         try {
             Files.createDirectories(workingDirectory);
             try (Writer page = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
@@ -227,7 +227,7 @@ class ArrangementTasklet implements Tasklet {
                 int of = seeds.size();
                 for (int place = 1; place <= of; place++) {
                     OccurrenceId seed = seeds.get(place - 1);
-                    String whichPartition = "partition " + place + " of " + seeds.size();
+                    String whichPartition = "partition " + place + " of " + of;
                     List<DocumentCluster> read = TimedStatement.of(
                             STAGE, "reading", "read", "the members of " + whichPartition,
                             () -> documentClusters.membersOf(scoring, seed));
@@ -248,27 +248,26 @@ class ArrangementTasklet implements Tasklet {
                                     LeadDocument.labelled(cluster, documents, this::titleOf, this::pathObjectOf);
                             clusters.record(arrangement, cluster, labelled.label());
                             leads.put(new ClusterSlot(cluster.winningSeed(), cluster.ordinal()), labelled.leadDocument());
-                            arranged[0]++;
-                            arranged[1] += cluster.documentCount();
                             labelledAndRecorded.itemDone();
                         }
                     }
                     List<RecordedCluster> recorded = TimedStatement.of(
                             STAGE, "reading", "read", "the recorded clusters of " + whichPartition,
                             () -> clusters.ofPartition(arrangement, seed));
+                    clustersShown += recorded.size();
                     ArrangementReport.partition(
                             page,
                             new ArrangementReport.Partition(
-                                    seedPaths.get(seed), rowsOf(recorded, leads, documents, place, seeds.size())));
+                                    seedPaths.get(seed), rowsOf(recorded, leads, documents, place, of)));
                     partitionsDrawn.itemDone();
                 }
-                ArrangementReport.close(page, seeds.size());
+                ArrangementReport.close(page, of);
             }
             Files.move(part, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             throw new UncheckedIOException("could not write " + file, e);
         }
-        return arranged;
+        return clustersShown;
     }
 
     /**

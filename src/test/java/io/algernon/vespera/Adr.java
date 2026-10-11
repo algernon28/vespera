@@ -1545,6 +1545,15 @@ public final class Adr {
     public static final String THE_GUARD_READS_WHAT_STANDS_BESIDE_THE_NAME_CLAUDE_AND_A_LINK_OUT_OF_ITS_FOLDER = FILE
             + "0233-the-private-paths-guard-reads-what-stands-beside-the-name-claude-a-leading-tilde-in-a-field-and-a-link-out-of-its-own-folder.md";
 
+    /**
+     * ADR-234 -- stage 4b's containment removes no document a row of its run already names as kept and
+     * names no removed document as a container, so no redundancy pointer names a document the same pass
+     * removed; a candidate cut of the relevance report keeps the documents whose band is at or above the
+     * band it opens; and a verdict reason is formatted in one locale (amends ADR-079 and ADR-088's cuts).
+     */
+    public static final String NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT = FILE
+            + "0234-no-redundancy-pointer-names-a-removed-document-a-cut-is-read-from-the-band-and-a-verdict-reason-is-written-in-one-locale.md";
+
     private Adr() {
     }
 }

@@ -1,13 +1,13 @@
 package io.algernon.vespera.extraction;
 
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.StatementSteps;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,9 +15,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Component;
 
 /**
@@ -86,18 +88,14 @@ public class ExtractionMetrics {
      */
     public Set<OccurrenceId> recordedAmong(RunId runId, Collection<OccurrenceId> occurrences) {
         Set<OccurrenceId> recorded = new HashSet<>();
-        for (List<OccurrenceId> batch : inBatches(occurrences)) {
-            List<Object> arguments = new ArrayList<>();
-            arguments.add(runId.value());
-            batch.forEach(id -> arguments.add(id.value()));
-            jdbcTemplate.query(
-                    "SELECT occurrence_id FROM extraction_metric WHERE run_id = ? AND occurrence_id IN ("
-                            + placeholders(batch.size()) + ")",
-                    resultSet -> {
-                        recorded.add(new OccurrenceId(resultSet.getLong("occurrence_id")));
-                    },
-                    arguments.toArray());
-        }
+        eachRowAmong(
+                runId,
+                occurrences,
+                size -> "SELECT occurrence_id FROM extraction_metric WHERE run_id = ? AND occurrence_id IN ("
+                        + Placeholders.of(size) + ")",
+                resultSet -> {
+                    recorded.add(new OccurrenceId(resultSet.getLong("occurrence_id")));
+                });
         return recorded;
     }
 
@@ -146,34 +144,38 @@ public class ExtractionMetrics {
      */
     public Map<OccurrenceId, Long> alphanumericCharCounts(RunId runId, Collection<OccurrenceId> occurrences) {
         Map<OccurrenceId, Long> counts = new HashMap<>();
-        for (List<OccurrenceId> batch : inBatches(occurrences)) {
-            List<Object> args = new ArrayList<>();
-            args.add(runId.value());
-            batch.forEach(id -> args.add(id.value()));
-            jdbcTemplate.query(
-                    "SELECT occurrence_id, alphanumeric_char_count FROM extraction_metric"
-                            + " WHERE run_id = ? AND occurrence_id IN (" + placeholders(batch.size()) + ")",
-                    resultSet -> {
-                        counts.put(
-                                new OccurrenceId(resultSet.getLong("occurrence_id")),
-                                resultSet.getLong("alphanumeric_char_count"));
-                    },
-                    args.toArray());
-        }
+        eachRowAmong(
+                runId,
+                occurrences,
+                size -> "SELECT occurrence_id, alphanumeric_char_count FROM extraction_metric"
+                        + " WHERE run_id = ? AND occurrence_id IN (" + Placeholders.of(size) + ")",
+                resultSet -> {
+                    counts.put(
+                            new OccurrenceId(resultSet.getLong("occurrence_id")),
+                            resultSet.getLong("alphanumeric_char_count"));
+                });
         return counts;
     }
 
-    private static List<List<OccurrenceId>> inBatches(Collection<OccurrenceId> occurrences) {
+    /**
+     * The one batched lookup by key both reads above make: {@code occurrences} asked about {@value
+     * #OCCURRENCES_IN_A_STATEMENT} at most to a statement, {@code statementFor} given how many a statement
+     * names, its first placeholder bound to {@code runId} and the rest to the occurrences; none for an empty
+     * collection.
+     */
+    private void eachRowAmong(
+            RunId runId,
+            Collection<OccurrenceId> occurrences,
+            IntFunction<String> statementFor,
+            RowCallbackHandler row) {
         List<OccurrenceId> all = occurrences instanceof List<OccurrenceId> list ? list : new ArrayList<>(occurrences);
-        List<List<OccurrenceId>> batches = new ArrayList<>();
         for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_STATEMENT) {
-            batches.add(all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_STATEMENT)));
+            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_STATEMENT));
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(runId.value());
+            batch.forEach(id -> arguments.add(id.value()));
+            jdbcTemplate.query(statementFor.apply(batch.size()), row, arguments.toArray());
         }
-        return batches;
-    }
-
-    private static String placeholders(int count) {
-        return String.join(", ", Collections.nCopies(count, "?"));
     }
 
     /**
@@ -224,7 +226,7 @@ public class ExtractionMetrics {
         if (occurrences.isEmpty()) {
             return;
         }
-        String placeholders = occurrences.stream().map(id -> "?").collect(Collectors.joining(", "));
+        String placeholders = Placeholders.of(occurrences.size());
         List<Object> arguments = new ArrayList<>();
         arguments.add(runId.value());
         occurrences.forEach(id -> arguments.add(id.value()));
