@@ -38,7 +38,7 @@ Keeping one statement with the run bound saves little, since binding the run has
 
 - In stage 4b's step, the read of one hash's occurrences is compiled once a containment pass, where it was compiled twice a read.
 - `EveryStatementThatSortsIsRecordedTest` reads a run written into a statement's text as the index's run in its second state and as a run no index is built for in its first, and counts as before: the read sorts without the index and not with it.
-- **Which run ids move**: the change touches `similarity`, which the branch that carries it already moves (`4f0f242`), so stages 2 to 6b are minted once in that build and this record adds no move to it. On its own it would move them. The candidates read, and so every verdict, are unchanged.
+- **Which run ids move**: the change touches `similarity`, so extraction, content census and content redundancy are minted again for it, and seed measurement, embedding scoring, arrangement and generation through their upstream runs: stages 2 to 6b move (ADR-058, ADR-048), as ADR-225 §8 reads a change to `similarity`. It comes after [#502](https://github.com/algernon28/vespera/pull/502), which moved them too, so a working directory a build of #502 has run over runs stage 2 onward again once more. The candidates read, and so every verdict, are unchanged; what is paid is the time.
 
 ## Tests
 
