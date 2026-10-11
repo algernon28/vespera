@@ -1,5 +1,6 @@
 package io.algernon.vespera.embedding;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
@@ -25,9 +26,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class RelevanceScoreCache {
-
-    /** The most occurrences one page of {@link #eachPageScoredBelow} holds. */
-    private static final int OCCURRENCES_IN_A_PAGE = 1_000;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -96,34 +94,26 @@ class RelevanceScoreCache {
 
     /**
      * Hands the occurrences {@code runId} scored strictly below {@code floor} to {@code page}, a page of up
-     * to {@value #OCCURRENCES_IN_A_PAGE} at a time in the order the scores were written (ADR-220 section 5),
-     * each page once its statement has finished and before the next is asked for. Strictly below, as {@link
-     * #countScoredBelow}. Each page is planned by {@code relevance_score_by_run_id (run_id=? AND rowid>?)},
-     * sorting nothing.
+     * to {@value KeysetPages#ROWS_IN_A_PAGE} at a time in the order the scores were written (ADR-220 section
+     * 5), each page once its statement has finished and before the next is asked for. Strictly below, as
+     * {@link #countScoredBelow}. Each page is planned by {@code relevance_score_by_run_id (run_id=? AND
+     * rowid>?)}, sorting nothing.
      */
     void eachPageScoredBelow(RunId runId, double floor, Consumer<List<OccurrenceId>> page) {
-        long after = Long.MIN_VALUE;
-        while (true) {
-            long[] last = {after};
-            List<OccurrenceId> occurrences = jdbcTemplate.query(
-                    "SELECT rowid, occurrence_id FROM relevance_score WHERE run_id = ? AND score < ?"
-                            + " AND rowid > ? ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
-                    (resultSet, rowNumber) -> {
-                        last[0] = resultSet.getLong(1);
-                        return new OccurrenceId(resultSet.getLong("occurrence_id"));
-                    },
-                    runId.value(),
-                    floor,
-                    after);
-            if (!occurrences.isEmpty()) {
-                page.accept(occurrences);
-            }
-            if (occurrences.size() < OCCURRENCES_IN_A_PAGE) {
-                return;
-            }
-            after = last[0];
-        }
+        new KeysetPages<ScoreRow>(
+                        jdbcTemplate,
+                        "SELECT rowid, occurrence_id FROM relevance_score WHERE run_id = ? AND score < ?"
+                                + " AND rowid > ? ORDER BY rowid LIMIT " + KeysetPages.ROWS_IN_A_PAGE,
+                        List.of(runId.value(), floor),
+                        List.of(Long.MIN_VALUE),
+                        row -> List.of(row.rowid()),
+                        (resultSet, rowNumber) -> new ScoreRow(
+                                resultSet.getLong(1), new OccurrenceId(resultSet.getLong("occurrence_id"))))
+                .eachPage(rows -> page.accept(rows.stream().map(ScoreRow::occurrence).toList()));
     }
+
+    /** One score row as read back: the number it was written under, which the read pages by, and its occurrence. */
+    private record ScoreRow(long rowid, OccurrenceId occurrence) {}
 
     /**
      * Deletes every relevance-score row recorded under {@code runId} — the discard half of
@@ -137,14 +127,14 @@ class RelevanceScoreCache {
 
     /**
      * The scores {@code runId} recorded for {@code occurrences}, holding only those that have one: asked of
-     * the table's primary key {@value #OCCURRENCES_IN_A_PAGE} occurrences at most to a statement, and
+     * the table's primary key {@value KeysetPages#ROWS_IN_A_PAGE} occurrences at most to a statement, and
      * none for an empty collection (ADR-240).
      */
     Map<OccurrenceId, RelevanceScore> forOccurrences(Collection<OccurrenceId> occurrences, RunId runId) {
         Map<OccurrenceId, RelevanceScore> scores = new HashMap<>();
         List<OccurrenceId> all = List.copyOf(occurrences);
-        for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_PAGE) {
-            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_PAGE));
+        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
+            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
             List<Object> arguments = new ArrayList<>();
             arguments.add(runId.value());
             batch.forEach(occurrence -> arguments.add(occurrence.value()));

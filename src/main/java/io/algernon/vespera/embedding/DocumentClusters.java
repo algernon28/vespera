@@ -1,5 +1,6 @@
 package io.algernon.vespera.embedding;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import java.util.ArrayList;
@@ -26,9 +27,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class DocumentClusters {
-
-    /** The most memberships one page of {@link #eachPage} holds. */
-    private static final int MEMBERS_IN_A_PAGE = 1_000;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -91,31 +89,23 @@ public class DocumentClusters {
 
     /**
      * Hands every membership recorded under {@code runId} to {@code page}, a page of up to {@value
-     * #MEMBERS_IN_A_PAGE} at a time in occurrence order, each once its statement has finished (ADR-223
+     * KeysetPages#ROWS_IN_A_PAGE} at a time in occurrence order, each once its statement has finished (ADR-223
      * section 7). Each page begins after the last occurrence of the one before, and is planned by the primary
      * key with the run compared as a value, so that the index on the run is not chosen and nothing is sorted.
      */
     public void eachPage(RunId runId, Consumer<List<DocumentCluster>> page) {
-        long after = Long.MIN_VALUE;
-        while (true) {
-            List<DocumentCluster> members = jdbcTemplate.query(
-                    "SELECT occurrence_id, winning_seed_occurrence_id, cluster_ordinal FROM document_cluster"
-                            + " WHERE occurrence_id > ? AND +run_id = ? ORDER BY occurrence_id LIMIT "
-                            + MEMBERS_IN_A_PAGE,
-                    (resultSet, rowNumber) -> new DocumentCluster(
-                            new OccurrenceId(resultSet.getLong("occurrence_id")),
-                            new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
-                            resultSet.getInt("cluster_ordinal")),
-                    after,
-                    runId.value());
-            if (!members.isEmpty()) {
-                page.accept(members);
-            }
-            if (members.size() < MEMBERS_IN_A_PAGE) {
-                return;
-            }
-            after = members.getLast().occurrenceId().value();
-        }
+        new KeysetPages<DocumentCluster>(
+                        jdbcTemplate,
+                        "SELECT occurrence_id, winning_seed_occurrence_id, cluster_ordinal FROM document_cluster"
+                                + " WHERE occurrence_id > ? AND +run_id = ? ORDER BY occurrence_id LIMIT "
+                                + KeysetPages.ROWS_IN_A_PAGE,
+                        List.of(Long.MIN_VALUE, runId.value()),
+                        last -> List.of(last.occurrenceId().value(), runId.value()),
+                        (resultSet, rowNumber) -> new DocumentCluster(
+                                new OccurrenceId(resultSet.getLong("occurrence_id")),
+                                new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
+                                resultSet.getInt("cluster_ordinal")))
+                .eachPage(page);
     }
 
     /**
