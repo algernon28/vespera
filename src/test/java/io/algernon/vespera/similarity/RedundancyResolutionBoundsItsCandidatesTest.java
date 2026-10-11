@@ -76,6 +76,9 @@ class RedundancyResolutionBoundsItsCandidatesTest {
     /** The most rows one statement takes, and the most occurrences one statement names. */
     private static final int A_PAGE = 1_000;
 
+    /** How many times a statement prepared once for the whole check is prepared. */
+    private static final int ONCE = 1;
+
     /** Signed occurrences sharing one band value: more than a page, so its rows are read in two statements. */
     private static final int SHARING_ONE_BAND_VALUE = 1_050;
 
@@ -177,6 +180,7 @@ class RedundancyResolutionBoundsItsCandidatesTest {
     private RunId stage2;
     private RunId stage4;
     private List<String> said;
+    private List<String> saidInFull;
     private int candidatesGoneThrough;
     private int writtenTwice;
 
@@ -219,9 +223,12 @@ class RedundancyResolutionBoundsItsCandidatesTest {
                     }
                     return null;
                 });
-        new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
-                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()), counting);
-        said = log.said().stream().distinct().toList();
+        // In one transaction, as the step that resolves runs it (TaskletSteps.taskletStep).
+        new TransactionTemplate(new JdbcTransactionManager(log.jdbcTemplate().getDataSource()))
+                .executeWithoutResult(status -> new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
+                        .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()), counting));
+        saidInFull = log.said();
+        said = saidInFull.stream().distinct().toList();
     }
 
     @AfterAll
@@ -285,6 +292,29 @@ class RedundancyResolutionBoundsItsCandidatesTest {
                                         Long.class,
                                         stage4.value()))
                         .containsExactlyElementsOf(removed.stream().map(Removed::occurrence).toList()));
+    }
+
+    @Test
+    @Story("Redundancy resolution holds no list that grows with how many documents resemble one another")
+    @DisplayName("The read of the documents carrying one rare word sequence is prepared once for the whole check, with the piece of work it reads written into it")
+    @Link(name = "ADR-237", url = Adr.THE_READ_OF_ONE_HASHS_OCCURRENCES_IS_PREPARED_ONCE_A_PASS, type = "adr")
+    void theReadOfOneHashsOccurrencesIsPreparedOnceForThePass() {
+        List<String> preparedForOneHash = saidInFull.stream()
+                .filter(sql -> sql.contains("FROM shingle") && sql.contains("shingle_hash = ?"))
+                .toList();
+
+        claim(
+                "the documents carrying each of a document's rarest word sequences were read many times over, a"
+                        + " read for each word sequence of each document checked, and the statement for it was"
+                        + " prepared once: the database compiles it once for the whole check, not once a read",
+                () -> assertThat(preparedForOneHash).hasSize(ONCE));
+        claim(
+                "and the piece of work whose word sequences it reads is written into the statement, not bound to"
+                        + " it, so that binding a word sequence never has the database compile it again to see"
+                        + " whether the index built for that piece of work may answer it",
+                () -> assertThat(preparedForOneHash).singleElement().satisfies(sql -> assertThat(sql)
+                        .contains("run_id = '" + stage2.value() + "'")
+                        .doesNotContain("run_id = ?")));
     }
 
     @Test

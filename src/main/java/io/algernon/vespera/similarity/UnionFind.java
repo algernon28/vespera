@@ -23,6 +23,7 @@ import java.util.Set;
 final class UnionFind {
 
     private final Map<Long, Long> parent = new HashMap<>();
+    private long unions;
 
     long find(long element) {
         long root = element;
@@ -51,7 +52,18 @@ final class UnionFind {
         long rootB = find(b);
         if (rootA != rootB) {
             parent.put(rootA, rootB);
+            unions++;
         }
+    }
+
+    /** How many unions have joined two components so far: a component's members change only when this does. */
+    long unions() {
+        return unions;
+    }
+
+    /** Whether a union has named {@code element}; asks without adding it, as {@link #joined} does. */
+    boolean holds(long element) {
+        return parent.containsKey(element);
     }
 
     /** Whether both occurrences are held and share a root; adds neither, so a pair already joined costs no member. */

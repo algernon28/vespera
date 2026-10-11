@@ -22,6 +22,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class RelevanceScoring {
 
+    /** The most occurrences one statement asks the scores of (ADR-240). */
+    private static final int OCCURRENCES_ASKED_AT_ONCE = 1_000;
+
     private final VectorCache vectorCache;
     private final RelevanceScorer scorer;
     private final RelevanceScoreCache scoreCache;
@@ -121,15 +124,25 @@ public class RelevanceScoring {
 
     /**
      * As {@link #scoresFor(RunId, Collection)}, telling {@code progress} how many occurrences will be read,
-     * once, before the first, and each occurrence as it is read, scored or not (ADR-192 section 5).
+     * once, before the first, and each occurrence as it is read, scored or not (ADR-192 section 5). The
+     * scores are asked a page of up to 1,000 occurrences at a time, by the table's key (ADR-240), and each
+     * occurrence of a page is told once its statement has finished.
      */
     public Map<OccurrenceId, Double> scoresFor(
             RunId runId, Collection<OccurrenceId> occurrences, ScoringProgress progress) {
         Map<OccurrenceId, Double> scores = new LinkedHashMap<>();
         progress.toReadScores(occurrences.size());
-        for (OccurrenceId occurrence : occurrences) {
-            scoreCache.forOccurrence(occurrence, runId).ifPresent(score -> scores.put(occurrence, score.score()));
-            progress.scoreRead();
+        List<OccurrenceId> all = List.copyOf(occurrences);
+        for (int from = 0; from < all.size(); from += OCCURRENCES_ASKED_AT_ONCE) {
+            List<OccurrenceId> page = all.subList(from, Math.min(all.size(), from + OCCURRENCES_ASKED_AT_ONCE));
+            Map<OccurrenceId, RelevanceScore> found = scoreCache.forOccurrences(page, runId);
+            for (OccurrenceId occurrence : page) {
+                RelevanceScore score = found.get(occurrence);
+                if (score != null) {
+                    scores.put(occurrence, score.score());
+                }
+                progress.scoreRead();
+            }
         }
         return scores;
     }

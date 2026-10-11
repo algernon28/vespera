@@ -593,17 +593,16 @@ class ShingleHashIndexInvocationTest {
 
     /**
      * SQLite's plan for containment retrieval's read of one hash's occurrences, as {@code RedundancyResolution}
-     * sends it since ADR-225 section 2, under {@code run}.
+     * sends it since ADR-225 section 2, with {@code run} written into its text since ADR-237.
      */
     private String containmentPlanFor(String run) {
         return String.join(
                 " | ",
                 jdbcTemplate.query(
                         "EXPLAIN QUERY PLAN SELECT DISTINCT occurrence_id FROM shingle"
-                                + " WHERE run_id = ? AND shingle_parameter_identity = ? AND shingle_hash = ?"
+                                + " WHERE run_id = '" + run + "' AND shingle_parameter_identity = ? AND shingle_hash = ?"
                                 + " AND occurrence_id > ? ORDER BY occurrence_id LIMIT 1000",
                         (resultSet, rowNumber) -> resultSet.getString("detail"),
-                        run,
                         A_GRANULARITY,
                         NONE,
                         NONE));

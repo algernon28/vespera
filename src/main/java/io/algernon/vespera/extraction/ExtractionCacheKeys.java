@@ -1,8 +1,13 @@
 package io.algernon.vespera.extraction;
 
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -23,6 +28,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public class ExtractionCacheKeys {
 
     private final JdbcTemplate jdbcTemplate;
+
+    /** The most occurrences one statement asks the keys of (ADR-240). */
+    private static final int OCCURRENCES_ASKED_AT_ONCE = 1_000;
 
     public ExtractionCacheKeys(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -62,6 +70,37 @@ public class ExtractionCacheKeys {
                 .orElseThrow(() -> new IllegalStateException("occurrence " + occurrenceId.value()
                         + " has no extraction cache key on record under run " + runId.value()
                         + ", although the step that measured it records one for every document it measured"));
+    }
+
+    /**
+     * The key recorded for each of {@code occurrences} under {@code runId}, asked of the table's primary key
+     * {@value #OCCURRENCES_ASKED_AT_ONCE} occurrences at most to a statement (ADR-240), and an error where one
+     * has none, as {@link #requireForOccurrence} has it.
+     */
+    public Map<OccurrenceId, String> requireForOccurrences(Collection<OccurrenceId> occurrences, RunId runId) {
+        Map<OccurrenceId, String> keys = new HashMap<>();
+        List<OccurrenceId> all = List.copyOf(occurrences);
+        for (int from = 0; from < all.size(); from += OCCURRENCES_ASKED_AT_ONCE) {
+            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_ASKED_AT_ONCE));
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(runId.value());
+            batch.forEach(occurrence -> arguments.add(occurrence.value()));
+            jdbcTemplate.query(
+                    "SELECT content_hash, occurrence_id FROM extraction_cache_key"
+                            + " WHERE run_id = ? AND occurrence_id IN (" + Placeholders.of(batch.size()) + ")",
+                    resultSet -> {
+                        keys.put(new OccurrenceId(resultSet.getLong(2)), resultSet.getString(1));
+                    },
+                    arguments.toArray());
+        }
+        for (OccurrenceId occurrence : all) {
+            if (!keys.containsKey(occurrence)) {
+                throw new IllegalStateException("occurrence " + occurrence.value()
+                        + " has no extraction cache key on record under run " + runId.value()
+                        + ", although the step that measured it records one for every document it measured");
+            }
+        }
+        return keys;
     }
 
     /**

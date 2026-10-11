@@ -133,6 +133,12 @@ class EveryStatementThatSortsIsRecordedTest {
 
     private static final String A_LIST_OF_TWO_BOUND_VALUES = "IN (?, ?)";
 
+    /** A run id joined into a statement's text between quotes, as stage 4b's read of one hash's occurrences joins it. */
+    private static final Pattern RUN_WRITTEN_IN = Pattern.compile("'[\\u0001\\u0002]'");
+
+    /** A run id of the minted form that no index is built for. */
+    private static final String A_RUN_NO_INDEX_IS_BUILT_FOR = "b".repeat(64);
+
     private static final String ONE_BOUND_VALUE = "(?)";
 
     /**
@@ -357,7 +363,12 @@ class EveryStatementThatSortsIsRecordedTest {
                     if (!STATEMENT.matcher(text).matches()) {
                         continue;
                     }
-                    String lists = LIST_JOINED_IN.matcher(text).replaceAll(Matcher.quoteReplacement(A_LIST_OF_TWO_BOUND_VALUES));
+                    // A run written into a statement's text, as stage 4b writes its stage-2 run (ADR-237), is the
+                    // run the index is built for in the second state, and a value no index is built for in the
+                    // first.
+                    String runs = RUN_WRITTEN_IN.matcher(text).replaceAll(Matcher.quoteReplacement(
+                            "'" + (withTheHashIndex ? A_RUN_ID_OF_THE_MINTED_FORM : A_RUN_NO_INDEX_IS_BUILT_FOR) + "'"));
+                    String lists = LIST_JOINED_IN.matcher(runs).replaceAll(Matcher.quoteReplacement(A_LIST_OF_TWO_BOUND_VALUES));
                     String statement = VALUE_JOINED_IN.matcher(lists).replaceAll(Matcher.quoteReplacement(ONE_BOUND_VALUE));
                     try {
                         // An index build is counted for what it is and is not planned: ADR-221's carries no

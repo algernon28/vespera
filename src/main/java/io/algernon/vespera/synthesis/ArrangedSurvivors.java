@@ -1,7 +1,9 @@
 package io.algernon.vespera.synthesis;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -14,7 +16,9 @@ import java.util.function.LongSupplier;
  * names none of them (ADR-110).
  *
  * <p>Every answer is of one partition, one cluster or one page of survivors, and none is kept: the writer asks
- * again where it needs a value again.
+ * again where it needs a value again. Whoever answers a page or a partition of survivors reads what each needs a
+ * page at a time and not one survivor at a time (ADR-240), and the places of a page's clusters are asked together
+ * (ADR-241).
  */
 public interface ArrangedSurvivors {
 
@@ -36,8 +40,8 @@ public interface ArrangedSurvivors {
     /** Why nothing was written over {@code cluster}; asked only of a cluster with no writing. */
     Optional<Unwritten> whyUnwritten(ClusterSlot cluster);
 
-    /** The two places the arrangement gives {@code cluster}, or empty where it records none. */
-    Optional<ArrangedCluster> placeOf(ClusterSlot cluster);
+    /** The two places the arrangement gives each of {@code clusters}, holding only those it records. */
+    Map<ClusterSlot, ArrangedCluster> placesOf(Set<ClusterSlot> clusters);
 
     /** Hands every survivor to {@code page} once, a page at a time, in occurrence order, for the pictures. */
     void eachPageOfSurvivorsForTheirPictures(Consumer<List<ListedSurvivor>> page);
@@ -53,7 +57,7 @@ public interface ArrangedSurvivors {
             Function<ListedPartition, List<ListedSurvivor>> survivorsOf,
             Function<ClusterSlot, Optional<SynthesisDoc>> writtenOver,
             Function<ClusterSlot, Optional<Unwritten>> whyUnwritten,
-            Function<ClusterSlot, Optional<ArrangedCluster>> placeOf,
+            Function<Set<ClusterSlot>, Map<ClusterSlot, ArrangedCluster>> placesOf,
             Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheirPictures,
             Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheManifest) {
         return new ArrangedSurvivors() {
@@ -88,8 +92,8 @@ public interface ArrangedSurvivors {
             }
 
             @Override
-            public Optional<ArrangedCluster> placeOf(ClusterSlot cluster) {
-                return placeOf.apply(cluster);
+            public Map<ClusterSlot, ArrangedCluster> placesOf(Set<ClusterSlot> clusters) {
+                return placesOf.apply(clusters);
             }
 
             @Override

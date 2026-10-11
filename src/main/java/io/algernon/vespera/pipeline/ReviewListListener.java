@@ -1,13 +1,13 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.ledger.RunId;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
@@ -39,11 +39,18 @@ class ReviewListListener implements StepExecutionListener {
     private final Ledger ledger;
     private final StageRuns stageRuns;
     private final Path workingDirectory;
+    private final ReplacingMove moves;
 
     ReviewListListener(Ledger ledger, StageRuns stageRuns, Path workingDirectory) {
+        this(ledger, stageRuns, workingDirectory, ReplacingMove.ATOMIC);
+    }
+
+    /** A listener whose page is put in place by {@code moves}, which the shipped form gives as {@link ReplacingMove#ATOMIC}. */
+    ReviewListListener(Ledger ledger, StageRuns stageRuns, Path workingDirectory, ReplacingMove moves) {
         this.ledger = ledger;
         this.stageRuns = stageRuns;
         this.workingDirectory = workingDirectory;
+        this.moves = moves;
     }
 
     /**
@@ -53,7 +60,8 @@ class ReviewListListener implements StepExecutionListener {
      * written (#319): there is no run to list, and asking for one would call the sidecar again.
      *
      * <p>The page is written beside its place and moved there once whole, as {@code arrangement.html} is
-     * (ADR-223 section 3), so a write that fails partway, in the file or in the read of its rows, leaves the
+     * (ADR-223 section 3), by the move that is attempted again where it is refused as access denied (ADR-242),
+     * so a write that fails partway, in the file or in the read of its rows, leaves the
      * review list before it, or none. Either failure is said in one error line, and neither is thrown
      * (ADR-175 section 7).
      */
@@ -77,7 +85,7 @@ class ReviewListListener implements StepExecutionListener {
             try (Writer out = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
                 ReviewListReport.write(out, failures, each -> ledger.verdicts().eachExtractionFailure(run, each));
             }
-            Files.move(part, page, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            moves.intoPlace(part, page);
             timed.end();
         } catch (IOException | DataAccessException e) {
             // Said, not thrown, whether the file or the read of its rows failed: Spring Batch only logs what an

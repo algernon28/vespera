@@ -1,16 +1,17 @@
 package io.algernon.vespera.synthesis;
 
+import io.algernon.vespera.ledger.ReplacingMove;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-109, ADR-111, ADR-112,
@@ -48,9 +49,10 @@ import java.util.Map;
  * comes from its own {@code partitionOrder}, and a cluster's from its own {@code clusterOrder}.
  *
  * <p><b>The index and the manifest are written beside their targets and moved into place</b> (ADR-223
- * section 6): each is whole where it appears, so a write that fails before the first move leaves the pair the
- * write before left, or none; one whose manifest fails to move after the index has moved leaves the new index
- * beside the manifest before it. A finished tree holds no {@value #PART_SUFFIX} file.
+ * section 6), each move attempted again where it is refused as access denied (ADR-242): each is whole where
+ * it appears, so a write that fails before the first move leaves the pair the write before left, or none; one
+ * whose manifest fails to move after the index has moved leaves the new index beside the manifest before it. A
+ * finished tree holds no {@value #PART_SUFFIX} file.
  */
 public final class Deliverable {
 
@@ -126,6 +128,21 @@ public final class Deliverable {
             ArrangedSurvivors source,
             SurvivorPictures pictures,
             DeliverableProgress progress) {
+        return writeTo(workingDirectory, provenance, source, pictures, progress, ReplacingMove.ATOMIC);
+    }
+
+    /**
+     * As {@link #writeTo(Path, DeliverableProvenance, ArrangedSurvivors, SurvivorPictures, DeliverableProgress)},
+     * the index and the manifest put in place by {@code moves}, which the shipped form gives as {@link
+     * ReplacingMove#ATOMIC} (ADR-242).
+     */
+    static Path writeTo(
+            Path workingDirectory,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            SurvivorPictures pictures,
+            DeliverableProgress progress,
+            ReplacingMove moves) {
         Path tree = workingDirectory.resolve(DIRECTORY_NAME).resolve(provenance.runId());
         List<ListedPartition> partitions = source.partitions();
         try {
@@ -136,8 +153,8 @@ public final class Deliverable {
             // Both are whole before either is moved, so a write that fails before the first move leaves the pair
             // the write before left, or none; only the manifest's own move failing leaves the new index beside the
             // old manifest (ADR-223 section 6). The index is still the last of the pages to appear.
-            moveIntoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
-            moveIntoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
+            moves.intoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
+            moves.intoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
             return tree;
         } catch (IOException e) {
             throw new UncheckedIOException("could not write the deliverable tree at " + tree, e);
@@ -174,21 +191,23 @@ public final class Deliverable {
                 Path partitionDir = tree.resolve(IndexPage.partitionDirectoryName(partition, partitions.size()));
                 Files.createDirectories(partitionDir);
                 int clusterWidth = IndexPage.widthOf(partition.clusterCount());
+                IndexPage.partitionHeading(index, partition);
                 for (RecordedCluster recorded : clusters) {
                     ClusterSlot slot = ClusterSlot.of(recorded);
-                    SynthesisDoc doc = source.writtenOver(slot).orElse(null);
+                    // One read of the cluster's synthesis doc serves its file and its row of the index (ADR-241).
+                    Optional<SynthesisDoc> doc = source.writtenOver(slot);
                     ClusterPage.write(
                             partitionDir.resolve(IndexPage.clusterFileName(recorded, clusterWidth)),
                             recorded,
-                            doc,
-                            doc == null ? source.whyUnwritten(slot).orElse(null) : null,
+                            doc.orElse(null),
+                            doc.isEmpty() ? source.whyUnwritten(slot).orElse(null) : null,
                             membersByCluster.getOrDefault(slot, List.of()),
                             provenance.corpusRoot(),
                             pictures,
                             progress);
                     progress.clusterFileWritten();
+                    IndexPage.clusterRow(index, partition, partitions.size(), recorded, doc);
                 }
-                IndexPage.partition(index, partition, partitions.size(), clusters, source::writtenOver);
                 progress.partitionWritten();
             }
         }
@@ -204,10 +223,5 @@ public final class Deliverable {
             ManifestCsv.write(csv, source, progress);
         }
         return manifestPart;
-    }
-
-    /** {@code part} over {@code target} in one move, so that a reader finds the old page or the new and no half of either. */
-    private static void moveIntoPlace(Path part, Path target) throws IOException {
-        Files.move(part, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
     }
 }

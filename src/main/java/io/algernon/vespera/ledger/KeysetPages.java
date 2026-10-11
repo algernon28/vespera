@@ -21,6 +21,10 @@ import org.springframework.jdbc.core.RowMapper;
  * rows, asked for only when the page in hand has been handed out, and starting after the last row of the
  * one before. A page that comes back short ends the read. Nothing is held between pages, so there is
  * nothing to close, and every {@link #iterator()} and {@link #eachPage} starts again at the first page.
+ *
+ * <p>A key that is not a column the caller hands on, such as a rowid, is read into a carrier row the row
+ * mapper makes, and {@link #map} hands out what the caller wants of each. A statement that binds its key
+ * before another argument is given each page's arguments whole, by the second constructor.
  */
 public final class KeysetPages<T> implements Iterable<T> {
 
@@ -29,12 +33,13 @@ public final class KeysetPages<T> implements Iterable<T> {
 
     private final JdbcTemplate jdbcTemplate;
     private final String sql;
-    private final List<Object> fixedArguments;
-    private final List<Object> keyBeforeTheFirstRow;
-    private final Function<T, List<Object>> keyAfter;
+    private final List<Object> argumentsOfTheFirstPage;
+    private final Function<T, List<Object>> argumentsAfter;
     private final RowMapper<T> rowMapper;
 
     /**
+     * A read whose statement binds its key after every other argument.
+     *
      * @param sql a page's statement, carrying its bound as {@code LIMIT} in the text
      * @param fixedArguments the arguments before the key, the same on every page
      * @param keyBeforeTheFirstRow the arguments after them on the first page
@@ -47,12 +52,44 @@ public final class KeysetPages<T> implements Iterable<T> {
             List<Object> keyBeforeTheFirstRow,
             Function<T, List<Object>> keyAfter,
             RowMapper<T> rowMapper) {
+        this(
+                jdbcTemplate,
+                sql,
+                joined(fixedArguments, keyBeforeTheFirstRow),
+                joinedAfter(List.copyOf(fixedArguments), keyAfter),
+                rowMapper);
+    }
+
+    /**
+     * A read whose statement binds its key where its text puts it, before another argument as well as after
+     * one: the caller gives every argument of a page, in the order the text binds them.
+     *
+     * @param sql a page's statement, carrying its bound as {@code LIMIT} in the text
+     * @param argumentsOfTheFirstPage every argument of the first page's statement
+     * @param argumentsAfter every argument of the page that follows the page ending in a given row
+     */
+    public KeysetPages(
+            JdbcTemplate jdbcTemplate,
+            String sql,
+            List<Object> argumentsOfTheFirstPage,
+            Function<T, List<Object>> argumentsAfter,
+            RowMapper<T> rowMapper) {
         this.jdbcTemplate = jdbcTemplate;
         this.sql = sql;
-        this.fixedArguments = List.copyOf(fixedArguments);
-        this.keyBeforeTheFirstRow = List.copyOf(keyBeforeTheFirstRow);
-        this.keyAfter = keyAfter;
+        this.argumentsOfTheFirstPage = List.copyOf(argumentsOfTheFirstPage);
+        this.argumentsAfter = argumentsAfter;
         this.rowMapper = rowMapper;
+    }
+
+    private static List<Object> joined(List<Object> first, List<Object> then) {
+        List<Object> arguments = new ArrayList<>(first);
+        arguments.addAll(then);
+        return arguments;
+    }
+
+    private static <T> Function<T, List<Object>> joinedAfter(
+            List<Object> fixedArguments, Function<T, List<Object>> keyAfter) {
+        return last -> joined(fixedArguments, keyAfter.apply(last));
     }
 
     /**
@@ -60,23 +97,44 @@ public final class KeysetPages<T> implements Iterable<T> {
      * caller that goes through a page of rows at a time and asks the database about the page as a whole.
      */
     public void eachPage(Consumer<List<T>> page) {
-        List<Object> key = keyBeforeTheFirstRow;
+        List<Object> arguments = argumentsOfTheFirstPage;
         while (true) {
-            List<T> fetched = fetch(key);
+            List<T> fetched = fetch(arguments);
             if (!fetched.isEmpty()) {
                 page.accept(fetched);
             }
             if (fetched.size() < ROWS_IN_A_PAGE) {
                 return;
             }
-            key = keyAfter.apply(fetched.getLast());
+            arguments = argumentsAfter.apply(fetched.getLast());
         }
     }
 
-    private List<T> fetch(List<Object> key) {
-        List<Object> arguments = new ArrayList<>(fixedArguments);
-        arguments.addAll(key);
+    private List<T> fetch(List<Object> arguments) {
         return jdbcTemplate.query(sql, rowMapper, arguments.toArray());
+    }
+
+    /**
+     * The same read handing out {@code each} of a row in the row's place, a page asked for when the page in
+     * hand has been handed out, as by {@link #iterator()}: for a read whose rows carry a key the caller does
+     * not hand on.
+     */
+    public <R> Iterable<R> map(Function<? super T, ? extends R> each) {
+        return () -> {
+            Iterator<T> rows = iterator();
+            return new Iterator<>() {
+
+                @Override
+                public boolean hasNext() {
+                    return rows.hasNext();
+                }
+
+                @Override
+                public R next() {
+                    return each.apply(rows.next());
+                }
+            };
+        };
     }
 
     @Override
@@ -84,7 +142,7 @@ public final class KeysetPages<T> implements Iterable<T> {
         return new Iterator<>() {
 
             private final Deque<T> page = new ArrayDeque<>();
-            private List<Object> key = keyBeforeTheFirstRow;
+            private List<Object> arguments = argumentsOfTheFirstPage;
             private boolean exhausted;
 
             @Override
@@ -104,13 +162,13 @@ public final class KeysetPages<T> implements Iterable<T> {
             }
 
             private void fetchNextPage() {
-                List<T> fetched = fetch(key);
+                List<T> fetched = fetch(arguments);
                 page.addAll(fetched);
                 if (fetched.size() < ROWS_IN_A_PAGE) {
                     exhausted = true;
                 }
                 if (!fetched.isEmpty()) {
-                    key = keyAfter.apply(fetched.get(fetched.size() - 1));
+                    arguments = argumentsAfter.apply(fetched.get(fetched.size() - 1));
                 }
             }
         };

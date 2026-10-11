@@ -1,12 +1,11 @@
 package io.algernon.vespera.embedding;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -68,9 +67,6 @@ public class RelevanceDistribution {
     /** FNV-1a's 64-bit multiplier. */
     private static final long FNV_PRIME = 0x100000001b3L;
 
-    /** The most scores one statement of a read brings back. */
-    private static final int SCORES_IN_A_PAGE = 1_000;
-
     private final JdbcTemplate jdbcTemplate;
 
     public RelevanceDistribution(JdbcTemplate jdbcTemplate) {
@@ -129,7 +125,7 @@ public class RelevanceDistribution {
      * How the scores under {@code scoringRunId} are spread, and which documents to put to a person.
      *
      * <p>Two reads (ADR-220 section 13): the range and count of the run's scores by one aggregate statement,
-     * then the scores themselves a page of up to {@value #SCORES_IN_A_PAGE} at a time, planned by {@code
+     * then the scores themselves a page of up to {@value KeysetPages#ROWS_IN_A_PAGE} at a time, planned by {@code
      * relevance_score_by_run_id (run_id=? AND rowid>?)} and sorting nothing. The order the rows come in decides
      * nothing: a document's key depends on the run, its band and its number alone.
      *
@@ -211,56 +207,31 @@ public class RelevanceDistribution {
     }
 
     /**
-     * Every scored document under {@code scoringRunId}, handed out a page of up to {@value #SCORES_IN_A_PAGE}
-     * at a time in the order the scores were written, each page one statement asked for only when the page in
-     * hand has been gone through (ADR-220 section 13). Nothing is held between pages and nothing needs closing;
-     * each iterator starts again at the first page.
+     * Every scored document under {@code scoringRunId}, handed out a page of up to {@value
+     * KeysetPages#ROWS_IN_A_PAGE} at a time in the order the scores were written, each page one statement asked
+     * for only when the page in hand has been gone through (ADR-220 section 13). Nothing is held between pages
+     * and nothing needs closing; each iterator starts again at the first page.
      */
     Iterable<Scored> scoredUnder(RunId scoringRunId) {
-        return () -> new Iterator<>() {
-
-            private final ArrayDeque<Scored> page = new ArrayDeque<>();
-            private long after = Long.MIN_VALUE;
-            private boolean exhausted;
-
-            @Override
-            public boolean hasNext() {
-                if (page.isEmpty() && !exhausted) {
-                    fetchNextPage();
-                }
-                return !page.isEmpty();
-            }
-
-            @Override
-            public Scored next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException();
-                }
-                return page.poll();
-            }
-
-            private void fetchNextPage() {
-                long[] last = {after};
-                List<Scored> fetched = jdbcTemplate.query(
+        return new KeysetPages<ScoredRow>(
+                        jdbcTemplate,
                         "SELECT rowid, occurrence_id, score, winning_seed_occurrence_id FROM relevance_score"
-                                + " WHERE run_id = ? AND rowid > ? ORDER BY rowid LIMIT " + SCORES_IN_A_PAGE,
-                        (resultSet, rowNumber) -> {
-                            last[0] = resultSet.getLong(1);
-                            return new Scored(
-                                    new OccurrenceId(resultSet.getLong("occurrence_id")),
-                                    resultSet.getDouble("score"),
-                                    new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")));
-                        },
-                        scoringRunId.value(),
-                        after);
-                page.addAll(fetched);
-                if (fetched.size() < SCORES_IN_A_PAGE) {
-                    exhausted = true;
-                }
-                after = last[0];
-            }
-        };
+                                + " WHERE run_id = ? AND rowid > ? ORDER BY rowid LIMIT "
+                                + KeysetPages.ROWS_IN_A_PAGE,
+                        List.of(scoringRunId.value()),
+                        List.of(Long.MIN_VALUE),
+                        row -> List.of(row.rowid()),
+                        (resultSet, rowNumber) -> new ScoredRow(
+                                resultSet.getLong(1),
+                                new Scored(
+                                        new OccurrenceId(resultSet.getLong("occurrence_id")),
+                                        resultSet.getDouble("score"),
+                                        new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")))))
+                .map(ScoredRow::scored);
     }
+
+    /** One score row as read back: the number it was written under, which the read pages by, and the document. */
+    private record ScoredRow(long rowid, Scored scored) {}
 
     /**
      * How {@code answers} fall across {@code scoringRunId}'s bands, and what each candidate cut would

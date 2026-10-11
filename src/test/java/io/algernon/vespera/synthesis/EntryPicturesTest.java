@@ -103,8 +103,8 @@ class EntryPicturesTest {
         // kept a second listing from being asked again is gone, and the claim about it with it.
         ListedArrangement.picturesAmong(
                 List.of(FIRST, SECOND),
-                occurrence -> {
-                    asked.merge(occurrence, 1, Integer::sum);
+                survivor -> {
+                    asked.merge(survivor.occurrence(), 1, Integer::sum);
                     return List.of();
                 },
                 recording);
@@ -277,7 +277,7 @@ class EntryPicturesTest {
     }
 
     private static SurvivorPictures source(Map<OccurrenceId, List<ListedPicture>> pictures) {
-        return occurrence -> pictures.getOrDefault(occurrence, List.of());
+        return survivor -> pictures.getOrDefault(survivor.occurrence(), List.of());
     }
 
     private static ListedPicture png(byte[] pixels) {

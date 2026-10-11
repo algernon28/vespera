@@ -1573,6 +1573,64 @@ public final class Adr {
     public static final String A_PARTITIONS_READS_SEEK_ONLY_ITS_RUNS_ROWS = FILE
             + "0236-a-seed-partitions-reads-seek-its-rows-under-one-scoring-run-by-an-index-on-the-seed-the-run-and-the-cluster.md";
 
+    /**
+     * ADR-237 -- stage 4b's read of one hash's occurrences carries the stage-2 run written into its text, as
+     * the index built for that run does, and is prepared once for the containment pass where the pass runs in
+     * one transaction, so that binding a hash never has SQLite compile it again (amends ADR-221 section 2 and
+     * ADR-225 section 2; settles review register finding R20).
+     */
+    public static final String THE_READ_OF_ONE_HASHS_OCCURRENCES_IS_PREPARED_ONCE_A_PASS = FILE
+            + "0237-the-read-of-one-hashs-occurrences-names-its-run-in-its-text-and-is-prepared-once-for-the-containment-pass.md";
+
+    /**
+     * ADR-238 -- stage 4b's pair loop passes over a row of a bucket that is already in the one component of
+     * every lesser member the page has in that bucket, asking once where it asked once for each of them; the
+     * components, the verdicts and the scores are the same. ADR-225's offer of a pair once for each band it
+     * shares, its scoring of a pair below the cut once for each, and its reading of a bucket again for each
+     * page stand (settles review register finding R23).
+     */
+    public static final String A_ROW_ALREADY_IN_THE_COMPONENT_OF_A_BUCKETS_LESSER_MEMBERS_IS_PASSED_OVER = FILE
+            + "0238-a-bucket-row-already-in-the-component-of-the-pages-lesser-members-in-that-bucket-is-passed-over-with-one-question.md";
+
+    /**
+     * ADR-239 -- a page's read of one bucket hands back only the rows whose occurrence is greater than the least
+     * occurrence of the page in that bucket, the only rows that can make a pair with the page there, so a page
+     * whose occurrence is the greatest of a bucket is handed none of it; the pairs offered, the components, the
+     * verdicts and the scores are the same. ADR-225's first statement, its offer of a pair once for each band it
+     * shares and its reading of a bucket for each page stand, as ADR-238 leaves them (amends ADR-225 section 1's
+     * second statement; settles the part of review register finding R23 that ADR-238 left).
+     */
+    public static final String A_PAGE_READS_OF_A_BAND_VALUE_ONLY_THE_ROWS_THAT_CAN_PAIR_WITH_IT = FILE
+            + "0239-a-pages-read-of-a-bucket-hands-back-only-the-rows-above-its-least-occurrence-in-it.md";
+
+    /**
+     * ADR-240 -- 6b's tree asks what it lists of each survivor, its path, its content key and its score, a page
+     * of survivors at a time, where it asked one survivor at a time in each of its three passes; the manifest's
+     * cluster place, the doc read twice and the exemplar's score by key stand as ADR-223 records them (amends
+     * ADR-223's "a lookup by key for each survivor"; settles review register finding R24).
+     */
+    public static final String THE_TREE_ASKS_ABOUT_A_PAGE_OF_SURVIVORS_AT_A_TIME = FILE
+            + "0240-the-tree-asks-what-it-lists-of-each-survivor-a-page-of-survivors-at-a-time.md";
+
+    /**
+     * ADR-241 -- the manifest asks for the places of a page's clusters at once, a cluster's synthesis doc is read
+     * once, for its file and its row of the index, and a survivor's pictures are looked up by the content hash its
+     * listing read, with no lookup of their own. The bytes of every page stand (amends ADR-240 section 1, ADR-223
+     * sections 6, 7 and 13 and ADR-149 section 9; settles what ADR-240 left of review register finding R24).
+     */
+    public static final String THE_MANIFEST_ASKS_A_PAGES_PLACES_AND_A_SYNTHESIS_DOC_IS_READ_ONCE = FILE
+            + "0241-the-manifest-asks-a-pages-places-together-a-clusters-synthesis-doc-is-read-once-and-a-survivors-pictures-are-looked-up-by-its-listed-key.md";
+
+    /**
+     * ADR-242 -- every page moved over its place, the arrangement page, the review list, the index and the
+     * manifest, is moved by {@code ledger.ReplacingMove}, attempted again up to five times in all, the waits
+     * doubling from a tenth of a second, where Windows refuses the move as access denied while another program
+     * holds the file; any other failure is thrown at once (amends ADR-223 sections 3 and 6; settles review
+     * register finding R18).
+     */
+    public static final String A_MOVE_REFUSED_AS_ACCESS_DENIED_IS_ATTEMPTED_AGAIN = FILE
+            + "0242-a-page-moved-over-its-place-is-moved-again-a-few-times-where-the-move-is-refused-as-access-denied.md";
+
     private Adr() {
     }
 }

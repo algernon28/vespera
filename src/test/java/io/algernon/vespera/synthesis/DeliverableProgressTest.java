@@ -70,7 +70,7 @@ class DeliverableProgressTest {
                         member(11, FIRST_SEED, FIRST_SEED_PATH, 1),
                         member(12, FIRST_SEED, FIRST_SEED_PATH, 1),
                         member(20, SECOND_SEED, SECOND_SEED_PATH, 0)),
-                occurrence -> occurrence.value() == 10
+                survivor -> survivor.occurrence().value() == 10
                         ? List.of(new ListedPicture(PNG, "a diagram".getBytes(StandardCharsets.UTF_8), false, ""))
                         : List.of(),
                 Map.of(),

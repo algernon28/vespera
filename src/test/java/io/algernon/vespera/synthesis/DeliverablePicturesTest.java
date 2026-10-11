@@ -434,9 +434,9 @@ class DeliverablePicturesTest {
                         cluster(SECOND_ORDINAL, 2, SECOND_PLACE, THE_OTHER_LABEL)),
                 List.of(),
                 members,
-                occurrence -> {
-                    asked.merge(occurrence, 1, Integer::sum);
-                    return pictures.getOrDefault(occurrence, List.of());
+                survivor -> {
+                    asked.merge(survivor.occurrence(), 1, Integer::sum);
+                    return pictures.getOrDefault(survivor.occurrence(), List.of());
                 });
 
         claim(
@@ -868,7 +868,7 @@ class DeliverablePicturesTest {
                 arrangement,
                 written,
                 members,
-                occurrence -> source.getOrDefault(occurrence, List.of()));
+                survivor -> source.getOrDefault(survivor.occurrence(), List.of()));
     }
 
     private static RecordedCluster cluster(int ordinal, int documentCount, int clusterOrder, String label) {

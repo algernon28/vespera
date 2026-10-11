@@ -1,11 +1,16 @@
 package io.algernon.vespera.synthesis;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -111,23 +116,44 @@ public class Clusters {
         return recorded;
     }
 
-    /** The two places {@code arrangement} gives one cluster, read by its key, or empty where it records none. */
-    public Optional<ArrangedCluster> placeOf(RunId arrangement, OccurrenceId winningSeed, int clusterOrdinal) {
-        return jdbcTemplate
-                .query(
-                        "SELECT document_count, partition_order, cluster_order FROM cluster WHERE run_id = ?"
-                                + " AND winning_seed_occurrence_id = ? AND cluster_ordinal = ?",
-                        (resultSet, rowNumber) -> new ArrangedCluster(
-                                winningSeed,
-                                clusterOrdinal,
-                                resultSet.getInt("document_count"),
-                                resultSet.getInt("partition_order"),
-                                resultSet.getInt("cluster_order")),
-                        arrangement.value(),
-                        winningSeed.value(),
-                        clusterOrdinal)
-                .stream()
-                .findFirst();
+    /**
+     * The two places {@code arrangement} gives each of {@code clusters}, holding only those it records: the
+     * manifest's question for a page of survivors (ADR-241). One statement for each winning seed among them and
+     * each {@value KeysetPages#ROWS_IN_A_PAGE} of its ordinals, planned as a lookup by the table's primary key;
+     * none for an empty collection.
+     */
+    public Map<ClusterSlot, ArrangedCluster> placesOf(RunId arrangement, Collection<ClusterSlot> clusters) {
+        Map<OccurrenceId, List<Integer>> ordinalsBySeed = new LinkedHashMap<>();
+        for (ClusterSlot cluster : clusters) {
+            ordinalsBySeed.computeIfAbsent(cluster.winningSeed(), seed -> new ArrayList<>()).add(cluster.clusterOrdinal());
+        }
+        Map<ClusterSlot, ArrangedCluster> places = new HashMap<>();
+        ordinalsBySeed.forEach((winningSeed, ordinals) -> {
+            for (int from = 0; from < ordinals.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
+                List<Integer> batch = ordinals.subList(from, Math.min(ordinals.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+                List<Object> arguments = new ArrayList<>();
+                arguments.add(arrangement.value());
+                arguments.add(winningSeed.value());
+                arguments.addAll(batch);
+                jdbcTemplate.query(
+                        "SELECT cluster_ordinal, document_count, partition_order, cluster_order FROM cluster"
+                                + " WHERE run_id = ? AND winning_seed_occurrence_id = ? AND cluster_ordinal IN ("
+                                + Placeholders.of(batch.size()) + ")",
+                        resultSet -> {
+                            int ordinal = resultSet.getInt("cluster_ordinal");
+                            places.put(
+                                    new ClusterSlot(winningSeed, ordinal),
+                                    new ArrangedCluster(
+                                            winningSeed,
+                                            ordinal,
+                                            resultSet.getInt("document_count"),
+                                            resultSet.getInt("partition_order"),
+                                            resultSet.getInt("cluster_order")));
+                        },
+                        arguments.toArray());
+            }
+        });
+        return places;
     }
 
     /** How many clusters are recorded under {@code runId}. A count the database makes, reading no column of any row (ADR-220 section 7). */
