@@ -15,6 +15,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -73,6 +74,12 @@ class RedundancyResolutionTest {
 
     /** What a document in the middle of a chain holds on top of the one inside it, and inside the one around it. */
     private static final int MIDDLE_EXTRA_SHINGLES = 400;
+
+    /** Copies of one text, sharing every band: four pages of signed documents. */
+    private static final int COPIES = 4_000;
+
+    /** Several times what resolving {@link #COPIES} copies takes with ADR-238, and well under what it took before. */
+    private static final Duration A_FEW_SECONDS = Duration.ofSeconds(6);
 
     /** How many documents sit wholly inside one container, each sharing nothing with the others. */
     private static final int CHAPTERS_INSIDE_ONE_VOLUME = 3;
@@ -431,6 +438,40 @@ class RedundancyResolutionTest {
         }
     }
 
+    /**
+     * Each page's pair loop asked, for every row of a bucket, whether each lesser member of the page in that
+     * bucket was already in the row's component, one pair at a time: for a family of near-copies that share a
+     * bucket that is half the square of the family for each band, though after the first pairs every answer
+     * is yes. On the code before ADR-238, the 3,000 near-copies here took 11.9 s to resolve; with it, 0.95 s
+     * (ADR-238, Measured). The bound is four times the second.
+     */
+    @Test
+    @Story("A redundancy set resolves as a whole, not pair by pair")
+    @DisplayName("Three thousand copies of one document are resolved to one in seconds, not in time that grows with the square of their number")
+    @Link(name = "ADR-238", url = Adr.A_ROW_ALREADY_IN_THE_COMPONENT_OF_A_BUCKETS_LESSER_MEMBERS_IS_PASSED_OVER, type = "adr")
+    void aFamilyOfCopiesIsResolvedInTimeThatDoesNotGrowWithTheSquareOfItsSize() {
+        Fixture fixture = fixture();
+        Set<Long> theOneText = shingles(0, 100);
+        for (int copy = 0; copy < COPIES; copy++) {
+            fixture.document("copy-" + copy + ".pdf", theOneText, THINNER_TEXT + copy, Instant.parse("2021-01-01T00:00:00Z"));
+        }
+        fixture.signAndMeasure();
+        jdbcTemplate.execute(TheRunsHashIndex.statementFor(fixture.stage2RunId.value()));
+
+        long started = System.nanoTime();
+        fixture.resolveSigned();
+        Duration took = Duration.ofNanos(System.nanoTime() - started);
+
+        claim(
+                "every copy but one is removed, all " + (COPIES - 1) + " pointing at the one kept",
+                () -> assertThat(redundantWithVerdictCount()).isEqualTo(COPIES - 1));
+        claim(
+                "and resolving them takes less than " + A_FEW_SECONDS.toSeconds() + " seconds: once the copies are one"
+                        + " group, a row of a bucket they share is passed over with one question, and not with one"
+                        + " for each of the page's copies in that bucket (it took " + took.toMillis() + " ms)",
+                () -> assertThat(took).isLessThan(A_FEW_SECONDS));
+    }
+
     /** Every pointer whose target is itself removed under the same run, as "removed -> target". */
     private List<String> pointersAtRemovedDocuments() {
         return jdbcTemplate.query(
@@ -558,6 +599,23 @@ class RedundancyResolutionTest {
                 signatures.write(
                         new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
             }
+            new RedundancyResolution(jdbcTemplate, ledger)
+                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate));
+        }
+
+        /** Stage 3's document frequency and every survivor's signature: the pass before resolution. */
+        void signAndMeasure() {
+            new DocumentFrequency(jdbcTemplate, ledger).measure(stage3RunId, stage2RunId);
+            RedundancySignatures signatures = new RedundancySignatures(jdbcTemplate);
+            for (Long occurrenceId : jdbcTemplate.queryForList(
+                    "SELECT DISTINCT occurrence_id FROM shingle WHERE run_id = ?", Long.class, stage2RunId.value())) {
+                signatures.write(
+                        new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
+            }
+        }
+
+        /** Resolution alone, over what {@link #signAndMeasure} wrote. */
+        void resolveSigned() {
             new RedundancyResolution(jdbcTemplate, ledger)
                     .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate));
         }

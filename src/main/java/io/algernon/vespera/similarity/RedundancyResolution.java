@@ -224,17 +224,25 @@ public class RedundancyResolution {
         UnionFind unionFind = new UnionFind();
         progress.toScorePairs(signedOccurrences);
         eachPageOfSigned(stage4RunId, page -> {
-            sharedBucketsOf(stage4RunId, page).forEach((bucket, lessers) -> eachRowOfBucket(stage4RunId, bucket, row -> {
-                for (long lesser : lessers) {
+            sharedBucketsOf(stage4RunId, page).forEach((bucket, lessers) -> {
+                OneComponent ofTheLessers = new OneComponent(unionFind, lessers);
+                eachRowOfBucket(stage4RunId, bucket, row -> {
                     long greater = row.occurrenceId();
-                    // A pair of one component changes nothing whatever it scores, so it is not scored.
-                    if (lesser < greater && !unionFind.joined(lesser, greater)
-                            && jaccard(shingleSets.get(lesser), shingleSets.get(greater))
-                                    >= thresholds.nearDuplicateJaccard()) {
-                        unionFind.union(lesser, greater);
+                    // Where every lesser of the bucket is already in the greater's component, every pair of the
+                    // row is of one component, and none is gone through (ADR-238).
+                    if (ofTheLessers.holds(greater)) {
+                        return;
                     }
-                }
-            }));
+                    for (long lesser : lessers) {
+                        // A pair of one component changes nothing whatever it scores, so it is not scored.
+                        if (lesser < greater && !unionFind.joined(lesser, greater)
+                                && jaccard(shingleSets.get(lesser), shingleSets.get(greater))
+                                        >= thresholds.nearDuplicateJaccard()) {
+                            unionFind.union(lesser, greater);
+                        }
+                    }
+                });
+            });
             // Told together, once every pair whose lesser member is in the page has been gone through.
             for (int scored = 0; scored < page.size(); scored++) {
                 progress.candidatesScored();
@@ -273,6 +281,52 @@ public class RedundancyResolution {
                 progress.nearDuplicateVerdictWritten();
             }
             progress.componentResolved();
+        }
+    }
+
+    /**
+     * Whether one component holds every lesser member a page has in one bucket, and an occurrence besides:
+     * then each pair of that occurrence with those members is of one component, which the pair loop passes
+     * over one pair at a time (ADR-238). The component the lessers share is found once, and found again
+     * only after a union, so that a bucket of near-copies, once they are one component, costs a lookup a
+     * row and not one for each lesser of the page.
+     */
+    private static final class OneComponent {
+
+        private static final long NONE = Long.MIN_VALUE;
+
+        private final UnionFind unionFind;
+        private final List<Long> lessers;
+        private long unionsSeen = -1;
+        private long root = NONE;
+
+        OneComponent(UnionFind unionFind, List<Long> lessers) {
+            this.unionFind = unionFind;
+            this.lessers = lessers;
+        }
+
+        boolean holds(long occurrence) {
+            if (unionsSeen != unionFind.unions()) {
+                root = commonRoot();
+                unionsSeen = unionFind.unions();
+            }
+            return root != NONE && unionFind.holds(occurrence) && unionFind.find(occurrence) == root;
+        }
+
+        private long commonRoot() {
+            long common = NONE;
+            for (long lesser : lessers) {
+                if (!unionFind.holds(lesser)) {
+                    return NONE;
+                }
+                long its = unionFind.find(lesser);
+                if (common == NONE) {
+                    common = its;
+                } else if (its != common) {
+                    return NONE;
+                }
+            }
+            return common;
         }
     }
 

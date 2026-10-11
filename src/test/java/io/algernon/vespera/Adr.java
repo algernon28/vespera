@@ -1582,6 +1582,16 @@ public final class Adr {
     public static final String THE_READ_OF_ONE_HASHS_OCCURRENCES_IS_PREPARED_ONCE_A_PASS = FILE
             + "0237-the-read-of-one-hashs-occurrences-names-its-run-in-its-text-and-is-prepared-once-for-the-containment-pass.md";
 
+    /**
+     * ADR-238 -- stage 4b's pair loop passes over a row of a bucket that is already in the one component of
+     * every lesser member the page has in that bucket, asking once where it asked once for each of them; the
+     * components, the verdicts and the scores are the same. ADR-225's offer of a pair once for each band it
+     * shares, its scoring of a pair below the cut once for each, and its reading of a bucket again for each
+     * page stand (settles review register finding R23).
+     */
+    public static final String A_ROW_ALREADY_IN_THE_COMPONENT_OF_A_BUCKETS_LESSER_MEMBERS_IS_PASSED_OVER = FILE
+            + "0238-a-bucket-row-already-in-the-component-of-the-pages-lesser-members-in-that-bucket-is-passed-over-with-one-question.md";
+
     private Adr() {
     }
 }
