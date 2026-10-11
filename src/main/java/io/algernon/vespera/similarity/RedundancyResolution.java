@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,7 +62,8 @@ import org.springframework.stereotype.Component;
  * <p><b>Nothing here holds a set of every signed occurrence, of every band row, of every pair, of every
  * removal or of every frequency (ADR-220 section 4).</b> The signed occurrences are counted once and read a
  * page of 1,000 at a time; the pairs of a page are found a bucket at a time, 1,000 rows of a bucket at a
- * time, scored as they come, and a pair already in one component is not scored again; an occurrence's
+ * time, of those rows only the ones whose occurrence is greater than the least of the page in that bucket
+ * (ADR-239), scored as they come, and a pair already in one component is not scored again; an occurrence's
  * containment candidates are merged from one ordered read of 1,000 occurrences at a time for each of its
  * rarest hashes and gone through 1,000 at a time (ADR-225 sections 1 and 2); whether an occurrence is
  * signed or was removed is asked of the database by key; an occurrence's rarest shingles are found with
@@ -226,7 +228,8 @@ public class RedundancyResolution {
         eachPageOfSigned(stage4RunId, page -> {
             sharedBucketsOf(stage4RunId, page).forEach((bucket, lessers) -> {
                 OneComponent ofTheLessers = new OneComponent(unionFind, lessers);
-                eachRowOfBucket(stage4RunId, bucket, row -> {
+                // A row of no greater occurrence than every one of the page in the bucket pairs with none of them.
+                eachRowOfBucketAbove(stage4RunId, bucket, Collections.min(lessers), row -> {
                     long greater = row.occurrenceId();
                     // Where every lesser of the bucket is already in the greater's component, every pair of the
                     // row is of one component, and none is gone through (ADR-238).
@@ -355,16 +358,20 @@ public class RedundancyResolution {
     }
 
     /**
-     * Hands every row of {@code bucket} to {@code row}, up to {@value #OCCURRENCES_IN_A_PAGE} read at a time
-     * by rowid on from the last one, each row once its statement has finished (ADR-225 section 1).
+     * Hands every row of {@code bucket} whose occurrence is greater than {@code least} to {@code row}, up to
+     * {@value #OCCURRENCES_IN_A_PAGE} read at a time by rowid on from the last one, each row once its statement
+     * has finished (ADR-225 section 1). {@code least} is the least occurrence of the page in the bucket: a row
+     * of no greater occurrence makes no pair with the page there, since a pair is found in the page of its
+     * lesser member, so it is not handed back (ADR-239). The statement itself passes such a row over, going
+     * through {@code signature_band_by_bucket} as before and sorting nothing.
      */
-    private void eachRowOfBucket(RunId stage4RunId, Bucket bucket, Consumer<SignedRow> row) {
+    private void eachRowOfBucketAbove(RunId stage4RunId, Bucket bucket, long least, Consumer<SignedRow> row) {
         new KeysetPages<SignedRow>(
                         jdbcTemplate,
                         "SELECT rowid, occurrence_id FROM signature_band"
-                                + " WHERE run_id = ? AND band_ordinal = ? AND band_hash = ? AND rowid > ?"
-                                + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
-                        List.of(stage4RunId.value(), bucket.ordinal(), bucket.hash()),
+                                + " WHERE run_id = ? AND band_ordinal = ? AND band_hash = ? AND occurrence_id > ?"
+                                + " AND rowid > ? ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
+                        List.of(stage4RunId.value(), bucket.ordinal(), bucket.hash(), least),
                         List.of(Long.MIN_VALUE),
                         signed -> List.of(signed.rowid()),
                         (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)))

@@ -1592,6 +1592,17 @@ public final class Adr {
     public static final String A_ROW_ALREADY_IN_THE_COMPONENT_OF_A_BUCKETS_LESSER_MEMBERS_IS_PASSED_OVER = FILE
             + "0238-a-bucket-row-already-in-the-component-of-the-pages-lesser-members-in-that-bucket-is-passed-over-with-one-question.md";
 
+    /**
+     * ADR-239 -- a page's read of one bucket hands back only the rows whose occurrence is greater than the least
+     * occurrence of the page in that bucket, the only rows that can make a pair with the page there, so a page
+     * whose occurrence is the greatest of a bucket is handed none of it; the pairs offered, the components, the
+     * verdicts and the scores are the same. ADR-225's first statement, its offer of a pair once for each band it
+     * shares and its reading of a bucket for each page stand, as ADR-238 leaves them (amends ADR-225 section 1's
+     * second statement; settles the part of review register finding R23 that ADR-238 left).
+     */
+    public static final String A_PAGE_READS_OF_A_BAND_VALUE_ONLY_THE_ROWS_THAT_CAN_PAIR_WITH_IT = FILE
+            + "0239-a-pages-read-of-a-bucket-hands-back-only-the-rows-above-its-least-occurrence-in-it.md";
+
     private Adr() {
     }
 }
