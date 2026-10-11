@@ -48,7 +48,7 @@ class StatementProgressTest {
 
     /**
      * What the build of {@code shingle_by_hash} declared until ADR-221, 8 steps a row and one for each of the
-     * three columns it then had: a sample ratio now, the build declaring 12, the most a row takes.
+     * three columns it then had: a sample ratio now, the build declaring 13, the most a row takes.
      */
     private static final int BUILD_STEPS_PER_ROW = 11;
 

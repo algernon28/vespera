@@ -212,7 +212,7 @@ class SimilarityStatementProgressOrderTest {
                         + " documents, over up to the " + signatureRows + " signature rows of its run, and the"
                         + " near-duplicates' metrics, with no total. The bands and the shingle frequencies are read a"
                         + " page of signed documents or a document at a time inside the loops that report, so neither"
-                        + " is a read of its own (ADR-220)",
+                        + " is a read of its own",
                 () -> assertThat(recorder.statements())
                         .containsExactly(
                                 starting(SimilarityStatement.SIGNED_OCCURRENCES, OptionalLong.of(signatureRows)),

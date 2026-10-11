@@ -159,8 +159,9 @@ class AFileOfPageHeadersAndFootersOnlyInvocationTest {
                         + " text was",
                 () -> assertThat(unusableSeedReasonsOf(seeds)).containsExactly(THE_REASON));
         claim(
-                "the " + SEEDS_WITH_A_BODY + " seed documents with a body have vectors and the unusable one"
-                        + " has none",
+                "the " + SEEDS_WITH_A_BODY + " seed documents with a body have vectors. That the unusable one has"
+                        + " none says nothing of how it was judged, since it has nothing to embed either way: the"
+                        + " claim above holds that",
                 () -> assertThat(documentsWithVectors(seeds)).isEqualTo(SEEDS_WITH_A_BODY));
         claim(
                 "all " + DOCUMENTS_WITH_A_BODY + " corpus documents are scored, and scoring is recorded as"

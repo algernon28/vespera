@@ -54,6 +54,25 @@ class EveryTableKeyedByARunIsOnRecordTest {
 
     private static final Pattern A_DELETE = Pattern.compile("^\\s*DELETE FROM ([a-z_]+)\\b(.*)", Pattern.DOTALL);
 
+    /** An insert that writes over the row it meets, and the columns it is said to meet a row on. */
+    private static final Pattern AN_UPSERT = Pattern.compile(
+            "^\\s*INSERT INTO ([a-z_]+)\\b.*\\bON CONFLICT \\(([^)]*)\\) DO UPDATE\\b.*", Pattern.DOTALL);
+
+    /** An insert that replaces the row it meets on the table's primary key. */
+    private static final Pattern A_REPLACE =
+            Pattern.compile("^\\s*(?:INSERT OR REPLACE INTO|REPLACE INTO) ([a-z_]+)\\b.*", Pattern.DOTALL);
+
+    private static final Pattern AN_UPDATE = Pattern.compile("^\\s*UPDATE ([a-z_]+)\\b.*", Pattern.DOTALL);
+
+    private static final Pattern PRIMARY_KEY = Pattern.compile("PRIMARY KEY \\(([^)]*)\\)");
+
+    /**
+     * The tables keyed by a run whose rows a shipped statement writes over across runs: a recorded answer
+     * and its provenance, kept by path and seed set and naming the latest run that asked (ADR-088, ADR-197,
+     * ADR-228 section 5).
+     */
+    private static final Set<String> WRITTEN_OVER_ACROSS_RUNS = Set.of("relevance_label", "relevance_label_provenance");
+
     /** The twenty-six tables ADR-229 states the growth of, each with the module that owns it. */
     private static final Map<String, String> ON_RECORD = new TreeMap<>(Map.ofEntries(
             Map.entry("run_upstream", "ledger"),
@@ -170,6 +189,44 @@ class EveryTableKeyedByARunIsOnRecordTest {
         claim("nor the shipped configuration, where the database's address is written", () -> assertThat(
                         givesPagesBack.matcher(resource("application.yaml")).find())
                 .isFalse());
+    }
+
+    @Test
+    @Story("Nothing removes the rows of work done earlier")
+    @DisplayName("No shipped statement writes over a row such a table keeps for an earlier piece of work, but the two that keep an answer about a document")
+    void noShippedStatementWritesOverAnotherRunsRow() throws IOException, ClassNotFoundException {
+        Map<String, String> primaryKeys = new TreeMap<>();
+        Matcher table = OWNED_TABLE.matcher(schema());
+        while (table.find()) {
+            Matcher key = PRIMARY_KEY.matcher(table.group(3));
+            primaryKeys.put(table.group(2), key.find() ? key.group(1) : "");
+        }
+        Set<String> writtenOverAcrossRuns = new TreeSet<>();
+        for (Map.Entry<String, List<String>> shipped : ShippedClasses.stringsByClass().entrySet()) {
+            for (String text : shipped.getValue()) {
+                Matcher upsert = AN_UPSERT.matcher(text);
+                if (upsert.matches() && ON_RECORD.containsKey(upsert.group(1)) && !upsert.group(2).contains("run_id")) {
+                    writtenOverAcrossRuns.add(upsert.group(1));
+                }
+                Matcher replace = A_REPLACE.matcher(text);
+                if (replace.matches() && ON_RECORD.containsKey(replace.group(1))
+                        && !primaryKeys.getOrDefault(replace.group(1), "").contains("run_id")) {
+                    writtenOverAcrossRuns.add(replace.group(1));
+                }
+                Matcher update = AN_UPDATE.matcher(text);
+                if (update.matches() && ON_RECORD.containsKey(update.group(1))) {
+                    writtenOverAcrossRuns.add(update.group(1));
+                }
+            }
+        }
+
+        claim(
+                "the only tables keyed by a piece of work whose rows a shipped statement writes over, where the"
+                        + " row it writes over may be one an earlier piece of work wrote, are the answers about a"
+                        + " document and who gave them: an answer is about the document and the seed folder, and"
+                        + " names the latest piece of work that asked it; every other such row stays as the work"
+                        + " that wrote it left it",
+                () -> assertThat(writtenOverAcrossRuns).isEqualTo(WRITTEN_OVER_ACROSS_RUNS));
     }
 
     private static String schema() throws IOException {

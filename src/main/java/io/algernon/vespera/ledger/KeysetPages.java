@@ -6,6 +6,7 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -13,16 +14,18 @@ import org.springframework.jdbc.core.RowMapper;
 /**
  * A long read of the ledger, handed out a page at a time by keyset (ADR-209 section 2).
  *
- * <p>The one pager of {@code ledger}, shared by the three reads that can be as long as a walk. Each
- * page is one statement on the application's {@link JdbcTemplate}, of at most {@link #ROWS_IN_A_PAGE}
+ * <p>The one pager of {@code ledger}, shared by the three reads that can be as long as a walk, and public
+ * since the review of 2026-10-10 so that a capability module's read of a page at a time by a key its rows
+ * carry is one constructor call and not a loop of its own (ADR-040: every module may name {@code ledger}).
+ * Each page is one statement on the {@link JdbcTemplate} it is given, of at most {@link #ROWS_IN_A_PAGE}
  * rows, asked for only when the page in hand has been handed out, and starting after the last row of the
  * one before. A page that comes back short ends the read. Nothing is held between pages, so there is
- * nothing to close, and every {@link #iterator()} starts again at the first page.
+ * nothing to close, and every {@link #iterator()} and {@link #eachPage} starts again at the first page.
  */
-final class KeysetPages<T> implements Iterable<T> {
+public final class KeysetPages<T> implements Iterable<T> {
 
     /** The most rows one statement of a read brings back. */
-    static final int ROWS_IN_A_PAGE = 1_000;
+    public static final int ROWS_IN_A_PAGE = 1_000;
 
     private final JdbcTemplate jdbcTemplate;
     private final String sql;
@@ -37,7 +40,7 @@ final class KeysetPages<T> implements Iterable<T> {
      * @param keyBeforeTheFirstRow the arguments after them on the first page
      * @param keyAfter the arguments after them on the page that follows the page ending in a given row
      */
-    KeysetPages(
+    public KeysetPages(
             JdbcTemplate jdbcTemplate,
             String sql,
             List<Object> fixedArguments,
@@ -50,6 +53,30 @@ final class KeysetPages<T> implements Iterable<T> {
         this.keyBeforeTheFirstRow = List.copyOf(keyBeforeTheFirstRow);
         this.keyAfter = keyAfter;
         this.rowMapper = rowMapper;
+    }
+
+    /**
+     * Hands each page to {@code page} once its statement has finished, an empty page never: the form for a
+     * caller that goes through a page of rows at a time and asks the database about the page as a whole.
+     */
+    public void eachPage(Consumer<List<T>> page) {
+        List<Object> key = keyBeforeTheFirstRow;
+        while (true) {
+            List<T> fetched = fetch(key);
+            if (!fetched.isEmpty()) {
+                page.accept(fetched);
+            }
+            if (fetched.size() < ROWS_IN_A_PAGE) {
+                return;
+            }
+            key = keyAfter.apply(fetched.getLast());
+        }
+    }
+
+    private List<T> fetch(List<Object> key) {
+        List<Object> arguments = new ArrayList<>(fixedArguments);
+        arguments.addAll(key);
+        return jdbcTemplate.query(sql, rowMapper, arguments.toArray());
     }
 
     @Override
@@ -77,9 +104,7 @@ final class KeysetPages<T> implements Iterable<T> {
             }
 
             private void fetchNextPage() {
-                List<Object> arguments = new ArrayList<>(fixedArguments);
-                arguments.addAll(key);
-                List<T> fetched = jdbcTemplate.query(sql, rowMapper, arguments.toArray());
+                List<T> fetched = fetch(key);
                 page.addAll(fetched);
                 if (fetched.size() < ROWS_IN_A_PAGE) {
                     exhausted = true;

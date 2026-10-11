@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.AppenderBase;
 import io.algernon.vespera.extraction.FailureCategory;
+import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
 import java.io.BufferedWriter;
@@ -21,7 +22,6 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -197,7 +197,9 @@ final class InvocationAccount implements JobExecutionListener {
             return;
         }
         Object[] args = ids.toArray();
-        String in = "(" + String.join(",", Collections.nCopies(args.length, "?")) + ")";
+        // The run ids' placeholders, which each statement brackets after its own IN, so that a test planning
+        // the text reads a list there (ADR-224).
+        String runIds = Placeholders.of(args.length);
         runs.runOf(StepNames.BYTE_LEVEL_REDUCTION).ifPresent(run -> {
             Long occurrences = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM file_occurrence WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)",
@@ -212,25 +214,25 @@ final class InvocationAccount implements JobExecutionListener {
                 + " SUM(kind = 'OUT_OF_SCOPE' COLLATE NOCASE), SUM(kind = 'EXTRACTION_FAILED' COLLATE NOCASE),"
                 + " SUM(kind = 'DEGENERATE_OUTPUT' COLLATE NOCASE), SUM(kind = 'REDUNDANT_WITH' COLLATE NOCASE),"
                 + " SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE), SUM(kind = 'PASSED' COLLATE NOCASE)"
-                + " FROM verdict WHERE run_id IN " + in, args, "verdict kind", VerdictKind.class, false);
+                + " FROM verdict WHERE run_id IN (" + runIds + ")", args, "verdict kind", VerdictKind.class, false);
         counted("SELECT COUNT(*),"
                 + " SUM(category = 'POLICY' COLLATE NOCASE), SUM(category = 'CAPACITY' COLLATE NOCASE),"
                 + " SUM(category = 'SOURCE_UNAVAILABLE' COLLATE NOCASE),"
                 + " SUM(category = 'TARGET_UNAVAILABLE' COLLATE NOCASE), SUM(category = 'TIMEOUT' COLLATE NOCASE),"
                 + " SUM(category = 'INTERNAL' COLLATE NOCASE), SUM(category = 'BACKEND_FAILURE' COLLATE NOCASE),"
                 + " SUM(category = 'INFERENCE_FAILURE' COLLATE NOCASE), SUM(category = 'UNKNOWN' COLLATE NOCASE)"
-                + " FROM extraction_fault WHERE run_id IN " + in, args, "extraction-fault category",
+                + " FROM extraction_fault WHERE run_id IN (" + runIds + ")", args, "extraction-fault category",
                 FailureCategory.class, true);
         counted("SELECT COUNT(*),"
                 + " SUM(kind = 'PROMPT_EVALUATION_CEILING' COLLATE NOCASE),"
                 + " SUM(kind = 'ANSWER_RAN_OUT_OF_ROOM' COLLATE NOCASE), SUM(kind = 'SCHEMA_VIOLATION' COLLATE NOCASE),"
                 + " SUM(kind = 'CITATION_NOT_IN_RANGE' COLLATE NOCASE)"
-                + " FROM cluster_fault WHERE run_id IN " + in, args, "cluster-fault kind",
+                + " FROM cluster_fault WHERE run_id IN (" + runIds + ")", args, "cluster-fault kind",
                 ClusterFaultKind.class, false);
         Long clusters = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM cluster WHERE run_id IN " + in, Long.class, args);
+                "SELECT COUNT(*) FROM cluster WHERE run_id IN (" + runIds + ")", Long.class, args);
         Long written = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM synthesis_doc WHERE run_id IN " + in, Long.class, args);
+                "SELECT COUNT(*) FROM synthesis_doc WHERE run_id IN (" + runIds + ")", Long.class, args);
         line("counts clusters arranged=" + clusters + " written=" + written);
     }
 

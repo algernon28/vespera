@@ -13,6 +13,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,34 +44,48 @@ class TheAccountsCountsAreTextsTheBuildHoldsTest {
 
     @Test
     @Story("A count by kind reads its rows once and sorts none of them")
-    @DisplayName("The text of each of the three counts is written out in the class, and names every declared kind")
+    @DisplayName("The text of each of the three counts is written out in the class, and names every declared kind in the order it is declared")
     void eachCountsTextNamesEveryConstantOfItsEnumeration() throws Exception {
         List<String> texts = ShippedClasses.stringsByClass().getOrDefault(THE_CLASS_THAT_COUNTS_FOR_THE_ACCOUNT, List.of());
 
         claim("the class that writes the account holds texts, so what follows did read it", () -> assertThat(texts).isNotEmpty());
         claim(
-                "one text of the class reads the verdicts, and it names every declared kind of verdict: a kind"
-                        + " declared later and not added to it would make the reading of the counts fail, and"
-                        + " the account would end there",
+                "one text of the class reads the verdicts, and it names every declared kind of verdict, once each"
+                        + " and in the order they are declared: a kind declared later and not added to it would make"
+                        + " the reading of the counts fail, and the account would end there; and the counts are"
+                        + " read back in that order, so a text in any other would print each count under"
+                        + " another kind's name",
                 () -> assertThat(textsOver(texts, "verdict"))
                         .hasSize(1)
-                        .allSatisfy(text -> assertThat(text).contains(quotedNamesOf(VerdictKind.values()))));
+                        .allSatisfy(text -> assertThat(namedIn(text)).containsExactly(quotedNamesOf(VerdictKind.values()))));
         claim(
-                "one text of the class reads the conversion faults, and it names every declared category",
+                "one text of the class reads the conversion faults, and it names every declared category, once"
+                        + " each and in the order they are declared",
                 () -> assertThat(textsOver(texts, "extraction_fault"))
                         .hasSize(1)
-                        .allSatisfy(text -> assertThat(text).contains(quotedNamesOf(FailureCategory.values()))));
+                        .allSatisfy(text -> assertThat(namedIn(text)).containsExactly(quotedNamesOf(FailureCategory.values()))));
         claim(
-                "one text of the class reads the faults of groups, and it names every declared kind",
+                "one text of the class reads the faults of groups, and it names every declared kind, once each"
+                        + " and in the order they are declared",
                 () -> assertThat(textsOver(texts, "cluster_fault"))
                         .hasSize(1)
-                        .allSatisfy(text -> assertThat(text).contains(quotedNamesOf(ClusterFaultKind.values()))));
+                        .allSatisfy(text -> assertThat(namedIn(text)).containsExactly(quotedNamesOf(ClusterFaultKind.values()))));
     }
 
     /** The texts that read {@code table}, and no table whose name only begins so. */
     private static List<String> textsOver(List<String> texts, String table) {
         Pattern reads = Pattern.compile("\\bFROM " + table + "\\b");
         return texts.stream().filter(text -> reads.matcher(text).find()).toList();
+    }
+
+    /** Every value {@code text} names between single quotes, in the order it names them. */
+    private static List<String> namedIn(String text) {
+        Matcher quoted = Pattern.compile("'[A-Z_]+'").matcher(text);
+        List<String> named = new java.util.ArrayList<>();
+        while (quoted.find()) {
+            named.add(quoted.group());
+        }
+        return named;
     }
 
     /** Each constant's name between single quotes, as a statement's text names a stored value. */

@@ -31,19 +31,19 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-087", url = Adr.CLUSTERS_ARE_MODULARITY_COMMUNITIES, type = "adr")
 class ClusterSizesPageKeepsFiveNumbersAPartitionTest {
 
-    /** Six groups, out of size order as the database hands them: 40, 1, 12, 1, 3 and 1 documents. */
+    /** Six clusters, out of size order as the database hands them: 40, 1, 12, 1, 3 and 1 documents. */
     private static final List<Integer> SIX_SIZES = List.of(40, 1, 12, 1, 3, 1);
 
     private static final int DOCUMENTS = 58;
 
-    private static final int GROUPS = 6;
+    private static final int CLUSTERS = 6;
 
     private static final int LARGEST = 40;
 
     /** Of 1, 1, 1, 3, 12 and 40 the two middle sizes are 1 and 3, and the page has always shown the upper. */
     private static final int MIDDLE = 3;
 
-    private static final int GROUPS_OF_ONE = 3;
+    private static final int CLUSTERS_OF_ONE = 3;
 
     @Test
     @Story("The sizes page keeps five numbers for each exemplar")
@@ -52,25 +52,25 @@ class ClusterSizesPageKeepsFiveNumbersAPartitionTest {
         ClusterSizeReport.Partition row = ClusterSizeReport.Partition.of("seeds/contracts.pdf", SIX_SIZES, Optional.empty());
 
         claim(
-                "the six sizes sum to " + DOCUMENTS + " documents in " + GROUPS + " groups",
+                "the six sizes sum to " + DOCUMENTS + " documents in " + CLUSTERS + " groups",
                 () -> {
                     assertThat(row.documentCount()).isEqualTo(DOCUMENTS);
-                    assertThat(row.clusterCount()).isEqualTo(GROUPS);
+                    assertThat(row.clusterCount()).isEqualTo(CLUSTERS);
                 });
         claim(
                 "the largest group holds " + LARGEST + ", the middle one " + MIDDLE + ", the upper of the two"
-                        + " middle sizes, and " + GROUPS_OF_ONE + " groups hold one document",
+                        + " middle sizes, and " + CLUSTERS_OF_ONE + " groups hold one document",
                 () -> {
                     assertThat(row.largest()).isEqualTo(LARGEST);
                     assertThat(row.median()).isEqualTo(MIDDLE);
-                    assertThat(row.singletons()).isEqualTo(GROUPS_OF_ONE);
+                    assertThat(row.singletons()).isEqualTo(CLUSTERS_OF_ONE);
                 });
     }
 
     @Test
     @Story("The sizes page keeps five numbers for each exemplar")
     @DisplayName("An exemplar with no group keeps five zeroes")
-    void anExemplarWithNoGroupKeepsZeroes() {
+    void anExemplarWithNoClusterKeepsZeroes() {
         ClusterSizeReport.Partition row = ClusterSizeReport.Partition.of("seeds/empty.pdf", List.of(), Optional.empty());
 
         claim(
@@ -88,14 +88,14 @@ class ClusterSizesPageKeepsFiveNumbersAPartitionTest {
                 List.of(ClusterSizeReport.Partition.of("seeds/contracts.pdf", SIX_SIZES, Optional.empty())));
 
         claim(
-                "the row reads the exemplar, then " + DOCUMENTS + ", " + GROUPS + ", " + LARGEST + ", " + MIDDLE
-                        + " and " + GROUPS_OF_ONE + ", cell after cell, as it did when the row carried every size",
+                "the row reads the exemplar, then " + DOCUMENTS + ", " + CLUSTERS + ", " + LARGEST + ", " + MIDDLE
+                        + " and " + CLUSTERS_OF_ONE + ", cell after cell, as it did when the row carried every size",
                 () -> assertThat(page)
                         .contains(ReportPage.textCell("seeds/contracts.pdf")
                                 + ReportPage.numberCell(DOCUMENTS)
-                                + ReportPage.numberCell(GROUPS)
+                                + ReportPage.numberCell(CLUSTERS)
                                 + ReportPage.numberCell(LARGEST)
                                 + ReportPage.numberCell(MIDDLE)
-                                + ReportPage.numberCell(GROUPS_OF_ONE)));
+                                + ReportPage.numberCell(CLUSTERS_OF_ONE)));
     }
 }

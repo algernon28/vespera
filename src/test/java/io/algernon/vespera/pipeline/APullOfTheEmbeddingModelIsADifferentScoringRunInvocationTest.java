@@ -266,7 +266,7 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
         profile(seeds, null);
         cli.run("run", root.toString());
         String theRun = scoringRunIdsFor(root).getFirst();
-        List<String> theGroupsBefore = clustersUnder(theRun);
+        List<String> theClustersBefore = clustersUnder(theRun);
         everyVectorAlsoStoredUnderAnotherDigest(fixtureDimensionOr(0) / HALF);
         forgetThatItFinished(theRun, StepNames.CLUSTERING);
 
@@ -283,7 +283,7 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
                 "and each of the " + CORPUS_DOCUMENTS + " documents has a group again, the one it had. Two"
                         + " documents are grouped alike whatever vectors are read, so this says the second"
                         + " pass went through with the shorter vectors stored, not which it read",
-                () -> assertThat(clustersUnder(theRun)).hasSize(CORPUS_DOCUMENTS).isEqualTo(theGroupsBefore));
+                () -> assertThat(clustersUnder(theRun)).hasSize(CORPUS_DOCUMENTS).isEqualTo(theClustersBefore));
     }
 
     @Test
@@ -295,7 +295,7 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
         profile(seeds, null);
         cli.run("run", root.toString());
         String theRun = scoringRunIdsFor(root).getFirst();
-        List<String> theGroupsBefore = clustersUnder(theRun);
+        List<String> theClustersBefore = clustersUnder(theRun);
         everyVectorAlsoStoredUnderTheSameDigestWithAnotherDimension();
         forgetThatItFinished(theRun, StepNames.CLUSTERING);
 
@@ -311,7 +311,7 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
         claim(
                 "the " + CORPUS_DOCUMENTS + " documents' groups are as the first invocation left them: the step"
                         + " stopped before it discarded any",
-                () -> assertThat(clustersUnder(theRun)).hasSize(CORPUS_DOCUMENTS).isEqualTo(theGroupsBefore));
+                () -> assertThat(clustersUnder(theRun)).hasSize(CORPUS_DOCUMENTS).isEqualTo(theClustersBefore));
         claim(
                 "and grouping is not recorded as finished, so the next invocation tries it again",
                 () -> assertThat(finishedRows(theRun, StepNames.CLUSTERING)).isZero());

@@ -1,5 +1,6 @@
 package io.algernon.vespera.similarity;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -77,7 +78,7 @@ public class RedundancyResolution {
     static final long SHINGLE_SET_CACHE_BUDGET_HASHES = 16L * 1024 * 1024;
 
     /** The most occurrences one page, or one statement naming occurrences, holds: the ledger's own page. */
-    static final int OCCURRENCES_IN_A_PAGE = 1_000;
+    static final int OCCURRENCES_IN_A_PAGE = KeysetPages.ROWS_IN_A_PAGE;
 
     /**
      * What a raw shingle count is charged against {@link #SHINGLE_SET_CACHE_BUDGET_HASHES}, in hashes: the 75
@@ -178,22 +179,15 @@ public class RedundancyResolution {
      * rowid>?)}, sorting nothing.
      */
     private void eachPageOfSigned(RunId stage4RunId, Consumer<List<Long>> page) {
-        long after = Long.MIN_VALUE;
-        while (true) {
-            List<SignedRow> rows = jdbcTemplate.query(
-                    "SELECT rowid, occurrence_id FROM minhash_signature WHERE run_id = ? AND rowid > ?"
-                            + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
-                    (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)),
-                    stage4RunId.value(),
-                    after);
-            if (!rows.isEmpty()) {
-                page.accept(rows.stream().map(SignedRow::occurrenceId).toList());
-                after = rows.getLast().rowid();
-            }
-            if (rows.size() < OCCURRENCES_IN_A_PAGE) {
-                return;
-            }
-        }
+        new KeysetPages<SignedRow>(
+                        jdbcTemplate,
+                        "SELECT rowid, occurrence_id FROM minhash_signature WHERE run_id = ? AND rowid > ?"
+                                + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
+                        List.of(stage4RunId.value()),
+                        List.of(Long.MIN_VALUE),
+                        row -> List.of(row.rowid()),
+                        (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)))
+                .eachPage(rows -> page.accept(rows.stream().map(SignedRow::occurrenceId).toList()));
     }
 
     /**
@@ -307,23 +301,16 @@ public class RedundancyResolution {
      * by rowid on from the last one, each row once its statement has finished (ADR-225 section 1).
      */
     private void eachRowOfBucket(RunId stage4RunId, Bucket bucket, Consumer<SignedRow> row) {
-        long after = Long.MIN_VALUE;
-        while (true) {
-            List<SignedRow> rows = jdbcTemplate.query(
-                    "SELECT rowid, occurrence_id FROM signature_band"
-                            + " WHERE run_id = ? AND band_ordinal = ? AND band_hash = ? AND rowid > ?"
-                            + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
-                    (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)),
-                    stage4RunId.value(),
-                    bucket.ordinal(),
-                    bucket.hash(),
-                    after);
-            rows.forEach(row);
-            if (rows.size() < OCCURRENCES_IN_A_PAGE) {
-                return;
-            }
-            after = rows.getLast().rowid();
-        }
+        new KeysetPages<SignedRow>(
+                        jdbcTemplate,
+                        "SELECT rowid, occurrence_id FROM signature_band"
+                                + " WHERE run_id = ? AND band_ordinal = ? AND band_hash = ? AND rowid > ?"
+                                + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
+                        List.of(stage4RunId.value(), bucket.ordinal(), bucket.hash()),
+                        List.of(Long.MIN_VALUE),
+                        signed -> List.of(signed.rowid()),
+                        (resultSet, rowNumber) -> new SignedRow(resultSet.getLong(1), resultSet.getLong(2)))
+                .eachPage(rows -> rows.forEach(row));
     }
 
     private static long survivorOf(Set<Long> component, Map<Long, OccurrenceProfile> profiles) {

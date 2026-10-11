@@ -73,8 +73,8 @@ class ListedSurvivorTest {
                 Map.of(new OccurrenceId(8), 0.73));
 
         claim(
-                "a survivor whose score is not on record is still listed, every survivor being listed"
-                        + " (ADR-104), and its score is 0.0, the value the manifest has always shown for it",
+                "a survivor whose score is not on record is still listed, every survivor being listed,"
+                        + " and its score is 0.0, the value the manifest has always shown for it",
                 () -> assertThat(listed.score()).isEqualTo(0.0));
         claim(
                 "and nothing else about it changes",

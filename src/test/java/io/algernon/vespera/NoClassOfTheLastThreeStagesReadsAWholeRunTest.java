@@ -111,7 +111,7 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
     @Test
     @Story("Nothing that writes a page is handed a whole run as a list")
     @DisplayName("The arrangement is ordered one exemplar's groups at a time, and its page and the sizes page keep no list of every group")
-    void theArrangementAndItsPagesKeepNoListOfEveryGroup() throws ClassNotFoundException {
+    void theArrangementAndItsPagesKeepNoListOfEveryCluster() throws ClassNotFoundException {
         claim(
                 "the groups are put in order one exemplar at a time: no ordering takes every exemplar's groups"
                         + " at once",
@@ -136,8 +136,55 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
                         .contains("documentCount", "clusterCount", "largest", "median", "singletons"));
     }
 
+    @Test
+    @Story("Nothing that writes a page is handed a whole run as a list")
+    @DisplayName("A way in that takes a whole run in any kind of collection is caught, not only one that takes a list")
+    void aWayInTakingAnyCollectionIsCaught() {
+        claim(
+                "each way in of the stand-in below takes a whole run as something other than a list -- a"
+                        + " collection, a set, an iterable, a stream, an array, an array list or a map -- and the"
+                        + " check the claims above make finds every one of them",
+                () -> assertThat(Arrays.stream(WaysInThatTakeAWholeRun.class.getDeclaredMethods())
+                                .filter(method -> !method.isSynthetic()))
+                        .hasSize(WAYS_IN_THAT_TAKE_A_WHOLE_RUN)
+                        .allSatisfy(method -> assertThat(takesAList(method))
+                                .as("whether %s takes a list", method)
+                                .isTrue()));
+    }
+
+    /** How many ways in {@link WaysInThatTakeAWholeRun} declares. */
+    private static final int WAYS_IN_THAT_TAKE_A_WHOLE_RUN = 7;
+
+    /** A stand-in with one way in for each kind of collection a whole run could be handed as. */
+    @SuppressWarnings("unused")
+    private static final class WaysInThatTakeAWholeRun {
+        void collection(java.util.Collection<Object> all) {}
+
+        void set(java.util.Set<Object> all) {}
+
+        void iterable(Iterable<Object> all) {}
+
+        void stream(java.util.stream.Stream<Object> all) {}
+
+        void array(Object[] all) {}
+
+        void arrayList(java.util.ArrayList<Object> all) {}
+
+        void map(java.util.Map<Object, Object> all) {}
+    }
+
+    /**
+     * Whether {@code method} takes anything a whole run could be handed in: a list, and as much any other
+     * collection, iterable, stream, map or array, which a form put back to take a run would reach for as
+     * readily.
+     */
     private static boolean takesAList(Method method) {
-        return Arrays.asList(method.getParameterTypes()).contains(List.class);
+        return Arrays.stream(method.getParameterTypes())
+                .anyMatch(type -> type.isArray()
+                        // A path is iterable over its names, and is no run.
+                        || (Iterable.class.isAssignableFrom(type) && !java.nio.file.Path.class.isAssignableFrom(type))
+                        || java.util.Map.class.isAssignableFrom(type)
+                        || java.util.stream.BaseStream.class.isAssignableFrom(type));
     }
 
     private static List<String> namesOf(Method[] methods) {
