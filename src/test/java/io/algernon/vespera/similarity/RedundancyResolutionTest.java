@@ -404,6 +404,54 @@ class RedundancyResolutionTest {
                 () -> assertThat(pointersAtRemovedDocuments()).isEmpty());
     }
 
+    /**
+     * Whether a row of the run already names a document as the one kept in another's place cannot change while
+     * that document's candidate containers are gone through, so it is asked first, and a document so named has
+     * none gone through (ADR-244, amending ADR-234 section 1). The occurrences are checked in the order their
+     * signatures were written, the scan's, the digital copy's and the anthology's.
+     */
+    @Test
+    @Story("No pointer names a document the same pass removed")
+    @DisplayName("The copy kept of two near-identical documents is not measured against the documents that might contain it, since it is kept whatever they hold")
+    @Link(name = "ADR-234", url = Adr.NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT, type = "adr")
+    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
+    void aDocumentKeptForAnotherHasNoContainerCandidateGoneThrough() {
+        Fixture fixture = fixture();
+        Set<Long> digitalShingles = shingles(1, 100);
+        fixture.document("scan.pdf", shingles(0, 100), THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        OccurrenceId digital =
+                fixture.document("digital.pdf", digitalShingles, FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+        Set<Long> anthology = new LinkedHashSet<>(digitalShingles);
+        anthology.addAll(shingles(10_000, CONTAINER_EXTRA_SHINGLES));
+        fixture.document("anthology.pdf", anthology, FULLER_TEXT, Instant.parse("2023-01-01T00:00:00Z"));
+        List<Integer> candidatesOfEachChecked = new ArrayList<>(List.of(0));
+        ResolutionProgress counting = (ResolutionProgress) java.lang.reflect.Proxy.newProxyInstance(
+                ResolutionProgress.class.getClassLoader(), new Class<?>[] {ResolutionProgress.class}, (proxy, method, arguments) -> {
+                    if (method.getName().equals("containmentCandidateGoneThrough")) {
+                        candidatesOfEachChecked.set(
+                                candidatesOfEachChecked.size() - 1, candidatesOfEachChecked.getLast() + 1);
+                    } else if (method.getName().equals("checkedForContainment")) {
+                        candidatesOfEachChecked.add(0);
+                    }
+                    return null;
+                });
+
+        fixture.resolve(counting);
+        candidatesOfEachChecked.removeLast();
+
+        claim(
+                "the digital copy is kept, as the one the scan is redundant with",
+                () -> assertThat(redundantWith(digital)).isNull());
+        claim(
+                "each of the three documents is checked for a container once, the scan first, removed already, then"
+                        + " the digital copy, then the anthology",
+                () -> assertThat(candidatesOfEachChecked).hasSize(3));
+        claim(
+                "and the digital copy has no candidate container gone through: it is kept whatever contains it, so"
+                        + " the anthology, which holds all of its text, is not measured against it",
+                () -> assertThat(candidatesOfEachChecked.get(1)).isZero());
+    }
+
     @Test
     @Story("The reason a document was removed reads the same on every machine")
     @DisplayName("A removal's stated reason writes its score with a decimal point, whatever language the machine is set to")
@@ -602,6 +650,19 @@ class RedundancyResolutionTest {
             }
             new RedundancyResolution(jdbcTemplate, ledger)
                     .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate));
+        }
+
+        /** The same pass, telling {@code progress} about its loops. */
+        void resolve(ResolutionProgress progress) {
+            signAndMeasure();
+            new RedundancyResolution(jdbcTemplate, ledger)
+                    .resolve(
+                            stage4RunId,
+                            stage3RunId,
+                            stage2RunId,
+                            Set.of(),
+                            RecordedAlphanumericCounts.over(jdbcTemplate),
+                            progress);
         }
 
         /** Stage 3's document frequency and every survivor's signature: the pass before resolution. */

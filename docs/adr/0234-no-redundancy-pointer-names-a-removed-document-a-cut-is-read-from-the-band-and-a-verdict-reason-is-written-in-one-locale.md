@@ -1,5 +1,7 @@
 # ADR-234 — No redundancy pointer names a document the same pass removed, a candidate cut is read from the band, and a verdict reason is written in one locale
 
+> **Partly amended — see [ADR-244](0244-the-floors-answers-are-those-under-the-runs-embedder-identity-a-move-refused-as-a-sharing-violation-is-attempted-again-and-a-document-kept-for-another-is-checked-for-no-container.md).** Of §1, two clauses: an occurrence a row of the run names as kept no longer has its candidates gone through and counted, and whether it is so named is asked of every signed occurrence phase 2 has not removed, before its rarest hashes are read, not only of one a container was found for. What phase 2 writes is unchanged.
+
 - **Date**: 2026-10-11
 - **Status**: accepted on 2026-10-11, on the call of the session that worked the review register of 2026-10-10 ("work the To do items ... write a test that fails on the current code first, and drop the finding if the test passes"). No question was put to a person. Each finding below had a test written first that failed on the code before this change, and passes after it.
 - **Amends**: [ADR-079](0079-redundant-with-covers-near-duplication-and-containment-the-fuller-rendering-survives.md), in what phase 2 may remove (§1); [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md)'s candidate cuts, in which side of a cut a document on its edge is counted (§2).

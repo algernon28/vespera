@@ -135,19 +135,24 @@ class RedundancyResolutionBoundsItsCandidatesTest {
     private static final int CARRIER_WRITTEN_TWICE = 0;
 
     /**
-     * Signed occurrences, still standing, whose rarest shingles are the contained occurrence's: itself, the
-     * three that hold all but one, and the two that hold all. Each has every container and itself as candidates.
+     * Signed occurrences, still standing and kept in no other's place when their turn comes, whose rarest
+     * shingles are the contained occurrence's: itself, the three that hold all but one, and the second of the
+     * two that hold all. Each has every container and itself as candidates. The first of the two that hold all
+     * is named as the container the contained occurrence is redundant with before its turn, and so has none
+     * gone through (ADR-244).
      */
-    private static final int CHECKED_AGAINST_EVERY_CONTAINER = 1 + ALL_BUT_ONE + 2;
-
-    /** The occurrence the removed container is redundant with has two candidates: itself and the removed one. */
-    private static final int CANDIDATES_OF_THE_REMOVED_CONTAINERS_SURVIVOR = 2;
+    private static final int CHECKED_AGAINST_EVERY_CONTAINER = 1 + ALL_BUT_ONE + 1;
 
     /**
-     * Candidates gone through in the whole resolution where each is gone through once: 6 times 1,108, and 2.
-     * No other occurrence has the 24 rarest shingles a candidate must carry. Were the occurrences of one hash
-     * not made distinct, the carrier written twice would be handed on twice to each of the six, and this would
-     * be 6 more.
+     * The occurrence the removed container is redundant with has none gone through: it is kept in the removed
+     * container's place by phase 1, so it is not checked for a container of its own (ADR-244).
+     */
+    private static final int CANDIDATES_OF_THE_REMOVED_CONTAINERS_SURVIVOR = 0;
+
+    /**
+     * Candidates gone through in the whole resolution where each is gone through once: 5 times 1,108. No other
+     * occurrence has the 24 rarest shingles a candidate must carry. Were the occurrences of one hash not made
+     * distinct, the carrier written twice would be handed on twice to each of the five, and this would be 5 more.
      */
     private static final int CANDIDATES_GONE_THROUGH =
             CHECKED_AGAINST_EVERY_CONTAINER * (CONTAINERS + 1) + CANDIDATES_OF_THE_REMOVED_CONTAINERS_SURVIVOR;

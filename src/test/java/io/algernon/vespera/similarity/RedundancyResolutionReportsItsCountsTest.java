@@ -142,14 +142,16 @@ class RedundancyResolutionReportsItsCountsTest {
         fixture.document("a.pdf", shingles(0, 100));
         fixture.document("b.pdf", shingles(1, 100));
         fixture.document("c.pdf", shingles(10_000, 100));
+        fixture.document("d.pdf", shingles(10_000, 40));
         Recording progress = new Recording();
 
         fixture.resolve(progress, true);
 
-        int toCheck = progress.events.indexOf(CONTAINMENT + 3);
+        int toCheck = progress.events.indexOf(CONTAINMENT + 4);
         claim(
-                "the survivor of the near-identical pair has rare shingles its partner shares, so at least one"
-                        + " candidate is reported",
+                "the document inside another has rare shingles the other shares, so at least one candidate is"
+                        + " reported; the survivor of the near-identical pair has none, being kept in its partner's"
+                        + " place whatever contains it",
                 () -> assertThat(progress.count("candidate")).isPositive());
         claim(
                 "every candidate is reported after the containment loop is announced, and none has a total of its"

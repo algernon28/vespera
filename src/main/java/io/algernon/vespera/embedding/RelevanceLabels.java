@@ -170,20 +170,22 @@ public class RelevanceLabels {
     }
 
     /**
-     * Every answer given against {@code seedSet} that was recorded from the label file {@code run} wrote,
-     * or, where none was, every answer given against it.
+     * Every answer given against {@code seedSet} under {@code embedderIdentity}, the scale a scoring run's
+     * scores are on, or, where none was, every answer given against it (ADR-244, applying ADR-228 section 5).
      *
-     * <p>An answer recorded from a run's label file is one given about that run's sample. Answers given
-     * earlier about other documents, under another pull of the embedding model, would otherwise stand
-     * beside them with an identity of their own and keep a threshold from applying to any corpus larger
-     * than one sample (ADR-228 section 5). A run no answer has been recorded from has no sample answered
-     * yet, and is read as {@link #forSeedSet(String)} reads (ADR-088 section 3).
+     * <p>An answer recorded under a run's identity was given from a label file a run of that scale wrote,
+     * whichever run it was: the floor joins a run's identity (ADR-117), so a floor set from one run's report is
+     * another run, of the same scale. Answers given earlier under another pull of the embedding model, about
+     * documents no later sample asked about, would otherwise stand beside them with an identity of their own and
+     * keep a threshold from applying to any corpus larger than one sample. Where no answer is under that identity,
+     * every answer is read, as {@link #forSeedSet(String)} reads, and those of another scale keep the floor from
+     * applying (ADR-088 section 3, ADR-226 section 3).
      */
-    public List<RelevanceLabel> forSeedSet(String seedSet, RunId run) {
+    public List<RelevanceLabel> forSeedSet(String seedSet, String embedderIdentity) {
         List<RelevanceLabel> all = forSeedSet(seedSet);
-        List<RelevanceLabel> fromThisRun =
-                all.stream().filter(answer -> answer.runId().equals(run.value())).toList();
-        return fromThisRun.isEmpty() ? all : fromThisRun;
+        List<RelevanceLabel> onThisScale =
+                all.stream().filter(answer -> answer.embedderIdentity().equals(embedderIdentity)).toList();
+        return onThisScale.isEmpty() ? all : onThisScale;
     }
 
     /** How many answers stand against {@code seedSet} — the size of the pass, partial or complete. */

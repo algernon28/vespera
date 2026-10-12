@@ -492,6 +492,55 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
                         .containsEntry(run, (long) MORE_THAN_ONE_SAMPLE)));
     }
 
+    /**
+     * The floor joins the scoring run's identity (ADR-117), so a floor set after the new pull's sample was
+     * answered is a third run, from whose label file no answer has been recorded yet. The answers that say which
+     * scale the number is on are those given under the run's embedder identity, the second pull's, whichever
+     * run's label file they were given from (ADR-244, applying ADR-228 section 5): the first pull's answers about
+     * documents the second sample did not ask about stay recorded under the first pull's identity and do not
+     * keep the floor from applying.
+     */
+    @Test
+    @Story("After a pull the threshold applies again once the sample is answered under the new pull")
+    @DisplayName("On a corpus larger than one sample, a threshold set after the new pull's labelling file is answered removes at once, though answers given before the pull stand beside them")
+    @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
+    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
+    void aThresholdSetAfterTheNewPullsSampleIsAnsweredAppliesAtOnce(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpusOf(root, seeds, MORE_THAN_ONE_SAMPLE);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        Set<String> askedBeforeThePull = documentsAskedAbout();
+        everyQuestionAnsweredAndRecorded();
+        EmbeddingScriptedBeans.hasPulledAgainAs(A_SECOND_PULLS_DIGEST);
+        cli.run("run", root.toString());
+        Set<String> askedAfterThePull = documentsAskedAbout();
+        everyQuestionAnsweredAndRecorded();
+        List<String> theRunsBeforeTheThreshold = scoringRunIdsFor(root);
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+
+        cli.run("run", root.toString());
+
+        List<String> theRunOfTheThreshold = theRunsNotAmong(root, theRunsBeforeTheThreshold);
+        claim(
+                "the labelling file written after the pull did not ask about every document the first asked"
+                        + " about, so answers given under the first pull stand beside those given under the second",
+                () -> assertThat(askedAfterThePull.containsAll(askedBeforeThePull)).isFalse());
+        claim(
+                "the threshold made a scoring run of its own, the " + THREE_SCORING_RUNS + "rd of this corpus",
+                () -> {
+                    assertThat(theRunOfTheThreshold).hasSize(1);
+                    assertThat(scoringRunIdsFor(root)).hasSize(THREE_SCORING_RUNS);
+                });
+        claim("the last invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and that run removes all " + MORE_THAN_ONE_SAMPLE + " documents in the invocation that made it:"
+                        + " the answers given under the second pull, whose scale its scores are on, say the number"
+                        + " is on that scale, and the first pull's answers do not keep it from applying",
+                () -> assertThat(theRunOfTheThreshold).singleElement().satisfies(run -> assertThat(removalsByRun(root))
+                        .containsEntry(run, (long) MORE_THAN_ONE_SAMPLE)));
+    }
+
     /** The corpus documents the labelling file the last invocation wrote asks about, by file name. */
     private Set<String> documentsAskedAbout() throws IOException {
         Set<String> asked = new TreeSet<>();
