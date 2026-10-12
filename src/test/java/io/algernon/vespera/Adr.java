@@ -1631,6 +1631,17 @@ public final class Adr {
     public static final String A_MOVE_REFUSED_AS_ACCESS_DENIED_IS_ATTEMPTED_AGAIN = FILE
             + "0242-a-page-moved-over-its-place-is-moved-again-a-few-times-where-the-move-is-refused-as-access-denied.md";
 
+    /**
+     * ADR-244 -- the answers the relevance floor is read against are those given under the scoring run's embedder
+     * identity, a page's move refused as Windows refuses a file another program holds open is attempted again
+     * whatever error Java names it by short of a more specific type, a document already kept in another's place
+     * is not checked for a container, the embedding step mints its run under the model its gate read, a keyset
+     * read refuses a statement it cannot tell the end of, and scoring asks a page of survivors' chunk counts
+     * together (amends ADR-242 section 3 and ADR-234 section 1; applies ADR-228 sections 2 and 5).
+     */
+    public static final String THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN = FILE
+            + "0244-the-floors-answers-are-those-under-the-runs-embedder-identity-a-move-refused-as-a-sharing-violation-is-attempted-again-and-a-document-kept-for-another-is-checked-for-no-container.md";
+
     private Adr() {
     }
 }

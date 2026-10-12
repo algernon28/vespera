@@ -2,6 +2,7 @@ package io.algernon.vespera.ledger;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.StatementLog;
@@ -51,6 +52,9 @@ class KeysetPagesTest {
 
     /** The most rows one page holds. */
     private static final int A_PAGE = KeysetPages.ROWS_IN_A_PAGE;
+
+    /** Half the pager's page. */
+    private static final int HALF_A_PAGE = A_PAGE / 2;
 
     /** Two full pages and the 500 rows left. */
     private static final List<Integer> PAGE_SIZES = List.of(A_PAGE, A_PAGE, ROWS_ON_A_SHELF - 2 * A_PAGE);
@@ -159,6 +163,42 @@ class KeysetPagesTest {
                     assertThat(again).containsExactlyElementsOf(expected);
                     assertThat(pagesAsked()).hasSize(PAGE_SIZES.size());
                 });
+    }
+
+    /**
+     * A page that comes back short ends the read, so a statement bounded by any other number than a page is
+     * refused when the read is made, and not read to a wrong end (ADR-244).
+     */
+    @Test
+    @Story("A long read is held a page at a time")
+    @DisplayName("A read whose statement takes fewer rows a page than the pager's page, or sets no bound at all, is refused before anything is asked of the database")
+    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
+    void aStatementBoundByAnotherNumberThanAPageIsRefused() {
+        Throwable halfAPage = catchThrowable(() -> oddShelfBoundBy(" LIMIT " + HALF_A_PAGE));
+        Throwable noBound = catchThrowable(() -> oddShelfBoundBy(""));
+
+        claim(
+                "a statement that takes " + HALF_A_PAGE + " rows a page is refused: its first page would come back"
+                        + " short of the pager's " + A_PAGE + " and end the read after " + HALF_A_PAGE + " of the"
+                        + " shelf's " + ROWS_ON_A_SHELF + " rows",
+                () -> assertThat(halfAPage)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("LIMIT " + A_PAGE));
+        claim(
+                "and so is one that sets no bound, whose one page would hold every row",
+                () -> assertThat(noBound)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("LIMIT " + A_PAGE));
+        claim("nothing was asked of the database", () -> assertThat(pagesAsked()).isEmpty());
+    }
+
+    private KeysetPages<NumberedRow> oddShelfBoundBy(String bound) {
+        return new KeysetPages<>(
+                log.jdbcTemplate(),
+                "SELECT id, label FROM numbered_row WHERE id > ? AND shelf = ? ORDER BY id" + bound,
+                List.of(Long.MIN_VALUE, ODD_SHELF),
+                (NumberedRow last) -> List.of(last.id(), ODD_SHELF),
+                (resultSet, rowNumber) -> new NumberedRow(resultSet.getLong("id"), resultSet.getString("label")));
     }
 
     private List<String> pagesAsked() {

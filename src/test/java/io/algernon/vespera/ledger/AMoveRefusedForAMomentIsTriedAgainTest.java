@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -42,6 +43,10 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
     private static final String THE_OLD_PAGE = "the page written before";
 
     private static final String THE_NEW_PAGE = "the page written now";
+
+    /** The reason Java gives for {@code ERROR_SHARING_VIOLATION} on an English Windows. */
+    private static final String WINDOWS_SHARING_VIOLATION =
+            "The process cannot access the file because it is being used by another process";
 
     /** How many times the stand-in refuses the move before it lets it through, fewer than the attempts made. */
     private static final int REFUSED_TWICE = 2;
@@ -85,6 +90,47 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
                 });
     }
 
+    /**
+     * On Windows a program holding the page open without letting others share it makes the move fail with
+     * {@code ERROR_SHARING_VIOLATION}, which Java gives as a plain {@link FileSystemException} carrying no code
+     * and a reason in the machine's language (ADR-244, amending ADR-242 section 3).
+     */
+    @Test
+    @Story("A page is put in its place whole")
+    @DisplayName("A page whose move is refused twice because another program is using the file is moved on the third attempt, after two short waits")
+    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
+    void aMoveRefusedTwiceAsASharingViolationIsMadeOnTheThirdAttempt(@TempDir Path directory) throws IOException {
+        Path part = page(directory.resolve("index.md.part"), THE_NEW_PAGE);
+        Path target = page(directory.resolve("index.md"), THE_OLD_PAGE);
+        List<Long> waited = new ArrayList<>();
+        int[] attempts = {0};
+
+        Throwable thrown = catchThrowable(() -> new ReplacingMove(
+                        (from, to) -> {
+                            attempts[0]++;
+                            if (attempts[0] <= REFUSED_TWICE) {
+                                throw new FileSystemException(from.toString(), to.toString(), WINDOWS_SHARING_VIOLATION);
+                            }
+                            Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                        },
+                        waited::add)
+                .intoPlace(part, target));
+
+        claim("the move went through, and nothing was thrown", () -> assertThat(thrown).isNull());
+        claim(
+                "the page in its place is the new one, and the page beside it is gone",
+                () -> {
+                    assertThat(Files.readString(target, StandardCharsets.UTF_8)).isEqualTo(THE_NEW_PAGE);
+                    assertThat(part).doesNotExist();
+                });
+        claim(
+                "it was attempted three times, the first two refused, with a wait after each refusal",
+                () -> {
+                    assertThat(attempts[0]).isEqualTo(REFUSED_TWICE + 1);
+                    assertThat(waited).hasSize(REFUSED_TWICE);
+                });
+    }
+
     @Test
     @Story("A page is put in its place whole")
     @DisplayName("A page whose move is refused at every attempt is left beside its place after five attempts, and the refusal is thrown")
@@ -118,13 +164,14 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
 
     @Test
     @Story("A page is put in its place whole")
-    @DisplayName("A move that fails for any other reason than access denied is not attempted again")
+    @DisplayName("A move that fails for a reason Java names, other than access denied, is not attempted again")
     void anotherFailureIsNotTriedAgain(@TempDir Path directory) throws IOException {
         Path part = page(directory.resolve("index.md.part"), THE_NEW_PAGE);
         Path target = page(directory.resolve("index.md"), THE_OLD_PAGE);
         List<Long> waited = new ArrayList<>();
         int[] attempts = {0};
-        FileSystemException unmovable = new FileSystemException(part.toString(), target.toString(), "the disk is full");
+        FileSystemException unmovable =
+                new NoSuchFileException(part.toString(), target.toString(), "the folder the page goes in is gone");
 
         Throwable thrown = catchThrowable(() -> new ReplacingMove(
                         (from, to) -> {

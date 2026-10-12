@@ -9,9 +9,11 @@ import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ChunkingRule;
 import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.HybridChunker;
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -159,22 +161,52 @@ class RelevanceScoringTasklet implements Tasklet {
                             residentSeedVectors.size());
                     StageProgress scored =
                             StageProgress.over("Stage 5d (relevance scoring, corpus survivors)", survivorCount);
+                    // Scored a page of survivors at a time, each page's keys and chunk counts asked together
+                    // (ADR-244).
+                    List<OccurrenceId> page = new ArrayList<>(KeysetPages.ROWS_IN_A_PAGE);
                     for (OccurrenceId occurrenceId : ledger.verdicts().survivors(measurementRun)) {
-                        String contentHash = cacheKeys.requireForOccurrence(occurrenceId, extractionRun);
-                        relevanceScoring.scoreAndRecord(
-                                occurrenceId,
-                                scoring,
-                                contentHash,
-                                hybridChunker.chunkCount(contentHash, ChunkingRule.DEFAULT),
-                                chunkerIdentity,
-                                chunkingRuleIdentity,
-                                identity.get(),
-                                residentSeedVectors);
-                        scored.itemDone();
+                        page.add(occurrenceId);
+                        if (page.size() == KeysetPages.ROWS_IN_A_PAGE) {
+                            scorePage(page, scoring, extractionRun, identity.get(), residentSeedVectors, scored);
+                            page.clear();
+                        }
+                    }
+                    if (!page.isEmpty()) {
+                        scorePage(page, scoring, extractionRun, identity.get(), residentSeedVectors, scored);
                     }
                     LOG.info("Stage 5d (relevance scoring) finished under scoring run {}", scoring.value());
                     return true;
                 });
+    }
+
+    /**
+     * Scores and records each survivor of {@code page} against the resident seeds, in the page's order: the keys
+     * stage 2 recorded for the page (ADR-206) and how many chunks each was cut into are asked of the page at once,
+     * and not one survivor at a time (ADR-244).
+     */
+    private void scorePage(
+            List<OccurrenceId> page,
+            RunId scoring,
+            RunId extractionRun,
+            String embedderIdentity,
+            Map<OccurrenceId, List<float[]>> residentSeedVectors,
+            StageProgress scored) {
+        Map<OccurrenceId, String> contentHashes = cacheKeys.requireForOccurrences(page, extractionRun);
+        Map<String, Integer> chunkCounts =
+                hybridChunker.chunkCounts(new HashSet<>(contentHashes.values()), ChunkingRule.DEFAULT);
+        for (OccurrenceId occurrenceId : page) {
+            String contentHash = contentHashes.get(occurrenceId);
+            relevanceScoring.scoreAndRecord(
+                    occurrenceId,
+                    scoring,
+                    contentHash,
+                    chunkCounts.getOrDefault(contentHash, 0),
+                    hybridChunker.identity(),
+                    ChunkingRule.DEFAULT.identity().value(),
+                    embedderIdentity,
+                    residentSeedVectors);
+            scored.itemDone();
+        }
     }
 
     /**

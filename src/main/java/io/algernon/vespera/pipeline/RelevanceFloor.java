@@ -3,7 +3,6 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.FloorReach;
 import io.algernon.vespera.embedding.RelevanceLabels;
-import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.nio.file.Path;
@@ -41,20 +40,19 @@ class RelevanceFloor {
     }
 
     /**
-     * What the floor lets the step asked for do, for the scoring run {@code scoring}, whose vectors carry
-     * {@code currentEmbedderIdentity}, by {@code floor}, the number that run was minted under and not the
-     * profile's now, which an operator may have saved since (ADR-117, ADR-228). A value in the profile that is
-     * not a number was minted as unset ({@link RelevanceScoreFloorValue}), so it removes nothing rather than
-     * failing the run (ADR-120).
+     * What the floor lets the step asked for do, for the scoring run whose vectors carry {@code
+     * currentEmbedderIdentity}, by {@code floor}, the number that run was minted under and not the profile's
+     * now, which an operator may have saved since (ADR-117, ADR-228). A value in the profile that is not a
+     * number was minted as unset ({@link RelevanceScoreFloorValue}), so it removes nothing rather than failing
+     * the run (ADR-120).
      *
-     * <p>The answers read are those {@link RelevanceLabels#forSeedSet(String, RunId)} gives for that run,
-     * so that answers given from its label file say which scale the number is on (ADR-228 section 5,
+     * <p>The answers read are those {@link RelevanceLabels#forSeedSet(String, String)} gives for that identity,
+     * so that answers given under the run's scale say which scale the number is on (ADR-244, ADR-228 section 5,
      * ADR-088 section 3). That one read is said under {@code stage}, the name of the step that asked, {@code
      * Stage 5e (relevance floor)} or {@code Stage 5 (relevance report)} (ADR-193, ADR-204 section 3). It is
      * issued only where there is an identity, a number and a seed set is named.
      */
-    FloorReach reachFor(
-            Optional<String> currentEmbedderIdentity, String stage, OptionalDouble floor, RunId scoring) {
+    FloorReach reachFor(Optional<String> currentEmbedderIdentity, String stage, OptionalDouble floor) {
         return FloorReach.of(
                 currentEmbedderIdentity,
                 floor,
@@ -67,7 +65,7 @@ class RelevanceFloor {
                     // Timed: the read has no run, so no span (ADR-193 section 6).
                     return TimedStatement.of(
                             stage, "reading", "read", "the recorded answers",
-                            () -> relevanceLabels.forSeedSet(seedSet.get(), scoring));
+                            () -> relevanceLabels.forSeedSet(seedSet.get(), currentEmbedderIdentity.orElseThrow()));
                 });
     }
 

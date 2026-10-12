@@ -51,7 +51,8 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>It sends nothing under a model Ollama does not serve on this machine</b> (ADR-202). Once the
  * gates are open and before the measurement run or the scoring run is resolved, the embedding model's name
- * is put through {@link LocalOllamaModel#refusalOf}, once, and every chunk is sent under that name. A
+ * the gates read is put through {@link LocalOllamaModel#refusalOf}, once, the scoring run is minted under that
+ * name (ADR-244), and every chunk is sent under it. A
  * refusal stops the step as generation's stop does (ADR-111): one line at error level, the step failed, no
  * exception thrown, and no run minted. Where a gate is shut nothing is sent, so nothing is asked of Ollama.
  *
@@ -126,7 +127,9 @@ class EmbeddingScoringTasklet implements Tasklet {
         }
 
         RunId measurementRun = stageRuns.seedMeasurement();
-        RunId scoring = stageRuns.embeddingScoring();
+        // Minted under the name the gates read and the check asked about, and not under the profile read
+        // again, which an operator may have saved since (ADR-244).
+        RunId scoring = stageRuns.embeddingScoringUnder(modelName);
 
         // Nothing is discarded (ADR-157 §5): a vector is content under an instrument, not a judgement
         // under a run (ADR-085), so it is keyed outside the run and re-embedding it would cost a second

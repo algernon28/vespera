@@ -3,6 +3,7 @@ package io.algernon.vespera.ledger;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -10,13 +11,18 @@ import java.nio.file.StandardCopyOption;
 /**
  * A page written beside its place, moved over it in one move that replaces it, so that a reader finds the old
  * page or the new and no half of either (ADR-223 sections 3 and 6), and moved again a few times where the move
- * is refused as access denied (ADR-242).
+ * is refused as access denied (ADR-242) or by an error Java has no more specific type for (ADR-244).
  *
  * <p><b>Why a refusal is worth a second attempt.</b> On Windows a program that has just opened the page or its
- * place without letting it be deleted, a virus scanner looking at what was written, an indexer or a folder kept
- * in step with a cloud, makes the move fail as access denied for as long as it holds the file, which is usually
- * a moment. At 6b such a failure would roll back every synthesis doc the invocation wrote. Any other failure is
- * thrown at once: it is not one a program holding the file lifts.
+ * place without letting it be deleted or shared, a virus scanner looking at what was written, an indexer or a
+ * folder kept in step with a cloud, makes the move fail for as long as it holds the file, which is usually a
+ * moment: as access denied, which Java gives as {@link AccessDeniedException}, or as a sharing or lock
+ * violation, which Java gives as a {@link FileSystemException} of no subclass, keeping no error code and a
+ * reason in the machine's language. So the type is what is read, and never the reason: a failure of exactly
+ * that type is attempted again, a full disk among them, said after the attempts are spent. At 6b such a failure
+ * would roll back every synthesis doc the invocation wrote. A failure Java names by a subclass, a missing
+ * file or folder among them, and any other {@link IOException}, is thrown at once: it is not one a program
+ * holding the file lifts.
  *
  * <p><b>How often, and how long.</b> {@value #ATTEMPTS} attempts, the waits between them doubling from {@value
  * #FIRST_WAIT_MILLIS} milliseconds, 1.5 seconds in all, after which the last refusal is thrown as it came. The
@@ -41,7 +47,7 @@ public final class ReplacingMove {
         void forMillis(long millis) throws InterruptedException;
     }
 
-    /** How many times a move refused as access denied is attempted in all, the first included. */
+    /** How many times a refused move is attempted in all, the first included. */
     static final int ATTEMPTS = 5;
 
     /** The wait after the first refusal, in milliseconds; each wait after it is twice the one before. */
@@ -63,10 +69,10 @@ public final class ReplacingMove {
     }
 
     /**
-     * {@code part} over {@code target}, attempted again after a wait where the move is refused as access denied,
-     * up to {@value #ATTEMPTS} attempts in all.
+     * {@code part} over {@code target}, attempted again after a wait where the move is refused as access denied
+     * or by a {@link FileSystemException} of no subclass, up to {@value #ATTEMPTS} attempts in all.
      *
-     * @throws AccessDeniedException the last refusal, where every attempt was refused; {@code part} is then
+     * @throws FileSystemException the last refusal, where every attempt was refused; {@code part} is then
      *     still beside {@code target}, and {@code target} as it was
      * @throws InterruptedIOException where the thread is interrupted while it waits, the interruption kept
      */
@@ -76,8 +82,8 @@ public final class ReplacingMove {
             try {
                 move.move(part, target);
                 return;
-            } catch (AccessDeniedException refused) {
-                if (attempt == ATTEMPTS) {
+            } catch (FileSystemException refused) {
+                if (!isLiftedByTheHolder(refused) || attempt == ATTEMPTS) {
                     throw refused;
                 }
                 try {
@@ -92,5 +98,14 @@ public final class ReplacingMove {
                 waitMillis *= 2;
             }
         }
+    }
+
+    /**
+     * Whether {@code refused} is how Java gives a refusal that a program holding the file lifts once it lets go:
+     * access denied, or a sharing or lock violation, which Java gives as a {@link FileSystemException} itself and
+     * no subclass (ADR-244).
+     */
+    private static boolean isLiftedByTheHolder(FileSystemException refused) {
+        return refused instanceof AccessDeniedException || refused.getClass() == FileSystemException.class;
     }
 }

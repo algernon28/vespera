@@ -135,6 +135,18 @@ class EmbeddingScriptedBeans {
         editWhileEmbedding = edit;
     }
 
+    /** What is done the first time {@code /api/show} is asked about a name; nothing unless a test says. */
+    private static Runnable editWhenFirstShown = () -> {};
+
+    /**
+     * Scripts {@code edit} to be done the first time {@code /api/show} is asked about a name since the scripts
+     * were last dropped, before it answers: a change made while stage 5's embedding step asks whether its model
+     * runs on this machine, after the step's gates read the profile and before its run is minted (ADR-202).
+     */
+    static void whenFirstAskedWhereAModelRuns(Runnable edit) {
+        editWhenFirstShown = edit;
+    }
+
     /** The weight dtype this fixture's runtime reports now: {@link #DTYPE} until a test says otherwise. */
     private static String dtypeServed = DTYPE;
 
@@ -219,6 +231,7 @@ class EmbeddingScriptedBeans {
         callsBeforeThePullBack = NO_PULL_PART_WAY;
         callsBeforeTheEdit = NO_PULL_PART_WAY;
         editWhileEmbedding = () -> {};
+        editWhenFirstShown = () -> {};
     }
 
     @Bean
@@ -255,6 +268,9 @@ class EmbeddingScriptedBeans {
             @Override
             public boolean isRemote(String modelName) {
                 SHOWN.add(modelName);
+                Runnable edit = editWhenFirstShown;
+                editWhenFirstShown = () -> {};
+                edit.run();
                 if (NEVER_PULLED.contains(modelName)) {
                     throw HttpClientErrorException.create(
                             HttpStatus.NOT_FOUND,

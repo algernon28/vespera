@@ -62,8 +62,8 @@ class ReviewListListener implements StepExecutionListener {
      * <p>The page is written beside its place and moved there once whole, as {@code arrangement.html} is
      * (ADR-223 section 3), by the move that is attempted again where it is refused as access denied (ADR-242),
      * so a write that fails partway, in the file or in the read of its rows, leaves the
-     * review list before it, or none. Either failure is said in one error line, and neither is thrown
-     * (ADR-175 section 7).
+     * review list before it, or none. A failure of the file, of the read of its rows or of their count is said
+     * in one error line, and none is thrown (ADR-175 section 7).
      */
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
@@ -77,9 +77,19 @@ class ReviewListListener implements StepExecutionListener {
         // eachExtractionFailure is issued before the line after (ADR-220 section 6).
         TimedStatement.Started timed = TimedStatement.begin(
                 "Stage 2 (extraction)", "reading", "read", "the occurrences it could not read");
-        long failures = ledger.verdicts().extractionFailureCount(run);
         Path page = workingDirectory.resolve(FILE_NAME);
         Path part = workingDirectory.resolve(FILE_NAME + ".part");
+        long failures;
+        try {
+            failures = ledger.verdicts().extractionFailureCount(run);
+        } catch (DataAccessException e) {
+            log.error(
+                    "Stage 2 (extraction): the files that could not be read could not be counted, and the list of"
+                            + " them could not be written to {}: {}",
+                    page.toAbsolutePath(),
+                    e.toString());
+            return stepExecution.getExitStatus();
+        }
         try {
             Files.createDirectories(workingDirectory);
             try (Writer out = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {

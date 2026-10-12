@@ -223,33 +223,49 @@ class StageRuns {
      */
     RunId embeddingScoring() {
         if (embeddingScoring == null) {
-            String modelName = embeddingModelGate
+            mintEmbeddingScoring(embeddingModelGate
                     .modelName()
                     .orElseThrow(() -> new IllegalStateException(
-                            "the embedding-scoring run must not be minted while embeddingModel is unset"));
-            RunId measurementRunId = seedMeasurement();
-            // Read here, fresh on every mint, rather than through a bean of its own: this holder is
-            // @JobScope, so this is the freshness ADR-117 needs a changed profile value to be seen with.
-            Double relevanceScoreFloor = RelevanceScoreFloorValue.readFrom(profileStore).value();
-            // The artefact is read once, here, beside the floor (ADR-228).
-            ModelArtefact artefact = ollamaClient.artefactOf(modelName);
-            WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 5");
-            embeddingScoring = runMint.mint(
-                    StageModules.EMBEDDING_SCORING,
-                    new EmbeddingScoringConfigConsumed(
-                            canonicalRoot.toString(),
-                            modelName,
-                            artefact.digest(),
-                            artefact.weightDtype(),
-                            measurementRunId.value(),
-                            relevanceScoreFloor),
-                    walk,
-                    Optional.of(measurementRunId));
-            embeddingModelName = modelName;
-            embeddingModelArtefact = artefact;
-            this.relevanceScoreFloor = relevanceScoreFloor;
+                            "the embedding-scoring run must not be minted while embeddingModel is unset")));
         }
         return embeddingScoring;
+    }
+
+    /**
+     * Gate 3's scoring run, minted the first time this or {@link #embeddingScoring()} is called in this
+     * invocation, under {@code modelName}: the model the caller's gate read and asked Ollama about, so that a
+     * profile saved between that read and the mint is read by the next run and not by this one (ADR-228
+     * section 2, ADR-202 section 2, ADR-244). Where the run was minted already, it is that run.
+     */
+    RunId embeddingScoringUnder(String modelName) {
+        if (embeddingScoring == null) {
+            mintEmbeddingScoring(modelName);
+        }
+        return embeddingScoring;
+    }
+
+    private void mintEmbeddingScoring(String modelName) {
+        RunId measurementRunId = seedMeasurement();
+        // Read here, fresh on every mint, rather than through a bean of its own: this holder is
+        // @JobScope, so this is the freshness ADR-117 needs a changed profile value to be seen with.
+        Double relevanceScoreFloor = RelevanceScoreFloorValue.readFrom(profileStore).value();
+        // The artefact is read once, here, beside the floor (ADR-228).
+        ModelArtefact artefact = ollamaClient.artefactOf(modelName);
+        WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 5");
+        embeddingScoring = runMint.mint(
+                StageModules.EMBEDDING_SCORING,
+                new EmbeddingScoringConfigConsumed(
+                        canonicalRoot.toString(),
+                        modelName,
+                        artefact.digest(),
+                        artefact.weightDtype(),
+                        measurementRunId.value(),
+                        relevanceScoreFloor),
+                walk,
+                Optional.of(measurementRunId));
+        embeddingModelName = modelName;
+        embeddingModelArtefact = artefact;
+        this.relevanceScoreFloor = relevanceScoreFloor;
     }
 
     /**

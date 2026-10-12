@@ -50,7 +50,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * those from the first page of the run's memberships on: that read, a page of {@code document_cluster} in
  * occurrence order, is the one {@code GenerationTasklet} makes for the tree's passes over every survivor and
  * for nothing else. What the generation walk asks before it, a score and a content key for each exemplar it
- * sends, is ADR-223 section 5's and is not counted.
+ * sends, is ADR-223 section 5's and is not counted. Since ADR-241 a survivor's pictures are looked up by the
+ * content key its listing read, so no content key is asked one survivor at a time in the tree.
  */
 @CascadeSliceTest
 @Import({SeedScriptedExtractionBeans.class, TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest.KeptStatements.class})
@@ -79,9 +80,6 @@ class TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest {
 
     /** One occurrence's content key under a run, asked by its key. */
     private static final String ONE_CONTENT_KEY = "FROM extraction_cache_key WHERE occurrence_id = ? AND run_id = ?";
-
-    /** The tree reads each survivor's pictures twice, for the furniture rule and for its group's file (ADR-149 section 9). */
-    private static final int PICTURE_PASSES = 2;
 
     /**
      * Keeps the text of every statement the pool's connections prepare, whichever class issues it, as {@code
@@ -167,7 +165,7 @@ class TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest {
 
     @Test
     @Story("The listing is written a page of documents at a time")
-    @DisplayName("While the final documents are written, each document's path and score are asked a page of documents at a time, and its content key only where its pictures are read")
+    @DisplayName("While the final documents are written, each document's path, score and content key are asked a page of documents at a time, and its pictures are looked up by the key its listing read")
     void theTreeAsksAboutAPageOfSurvivorsAtATime(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         KeptStatements.PREPARED.clear();
@@ -195,10 +193,10 @@ class TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest {
                         + " each pass; a page of documents' paths are asked in one statement",
                 () -> assertThat(count(theTrees, ONE_PATH)).isLessThan(SURVIVORS));
         claim(
-                "and a content key was asked for by itself only where a document's pictures are read, "
-                        + PICTURE_PASSES + " times for each of the " + SURVIVORS + " documents, and not again for"
-                        + " the listing of its row",
-                () -> assertThat(count(theTrees, ONE_CONTENT_KEY)).isLessThanOrEqualTo(PICTURE_PASSES * SURVIVORS));
+                "and no document's content key was asked for by itself: a page of documents' keys are asked in one"
+                        + " statement, and a document's pictures are looked up by the key its listing read, in"
+                        + " both passes that read them",
+                () -> assertThat(count(theTrees, ONE_CONTENT_KEY)).isZero());
     }
 
     private static int indexOfFirst(List<String> prepared, String statement) {
