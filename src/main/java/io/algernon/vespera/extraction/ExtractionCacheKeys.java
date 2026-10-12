@@ -1,5 +1,6 @@
 package io.algernon.vespera.extraction;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
@@ -28,9 +29,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public class ExtractionCacheKeys {
 
     private final JdbcTemplate jdbcTemplate;
-
-    /** The most occurrences one statement asks the keys of (ADR-240). */
-    private static final int OCCURRENCES_ASKED_AT_ONCE = 1_000;
 
     public ExtractionCacheKeys(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -74,14 +72,14 @@ public class ExtractionCacheKeys {
 
     /**
      * The key recorded for each of {@code occurrences} under {@code runId}, asked of the table's primary key
-     * {@value #OCCURRENCES_ASKED_AT_ONCE} occurrences at most to a statement (ADR-240), and an error where one
+     * a page of the ledger's, {@value KeysetPages#ROWS_IN_A_PAGE} occurrences, at most to a statement (ADR-240, ADR-243), and an error where one
      * has none, as {@link #requireForOccurrence} has it.
      */
     public Map<OccurrenceId, String> requireForOccurrences(Collection<OccurrenceId> occurrences, RunId runId) {
         Map<OccurrenceId, String> keys = new HashMap<>();
         List<OccurrenceId> all = List.copyOf(occurrences);
-        for (int from = 0; from < all.size(); from += OCCURRENCES_ASKED_AT_ONCE) {
-            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_ASKED_AT_ONCE));
+        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
+            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
             List<Object> arguments = new ArrayList<>();
             arguments.add(runId.value());
             batch.forEach(occurrence -> arguments.add(occurrence.value()));

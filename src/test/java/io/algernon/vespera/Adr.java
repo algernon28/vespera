@@ -1631,6 +1631,16 @@ public final class Adr {
     public static final String A_MOVE_REFUSED_AS_ACCESS_DENIED_IS_ATTEMPTED_AGAIN = FILE
             + "0242-a-page-moved-over-its-place-is-moved-again-a-few-times-where-the-move-is-refused-as-access-denied.md";
 
+    /**
+     * ADR-243 -- the reads that ask a page of occurrences by key, the content keys of {@code extraction} and the
+     * scores of {@code embedding}, take the ledger's one page size, {@code KeysetPages.ROWS_IN_A_PAGE}, and keep
+     * none of their own; the scores are cut into pages once, where they are asked of the table. Rides the re-mint
+     * ADR-237 to ADR-242 already make, on the operator's word that no run was made since (applies ADR-216 section
+     * 1; settles architect follow-up A11).
+     */
+    public static final String THE_READS_BY_KEY_TAKE_THE_LEDGERS_PAGE = FILE
+            + "0243-the-reads-that-ask-a-page-of-occurrences-by-key-take-the-ledgers-page-and-cut-it-once.md";
+
     private Adr() {
     }
 }

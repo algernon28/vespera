@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -126,15 +127,20 @@ class RelevanceScoreCache {
     }
 
     /**
-     * The scores {@code runId} recorded for {@code occurrences}, holding only those that have one: asked of
-     * the table's primary key {@value KeysetPages#ROWS_IN_A_PAGE} occurrences at most to a statement, and
-     * none for an empty collection (ADR-240).
+     * The scores {@code runId} recorded for {@code occurrences}, a page of {@value KeysetPages#ROWS_IN_A_PAGE}
+     * occurrences at most at a time, asked of the table's primary key in one statement a page and none for an
+     * empty collection (ADR-240): {@code page} is handed each page, in the order given, with the scores of those
+     * of its occurrences that have one, once its statement has finished. The one place the scores are cut into
+     * pages (ADR-243).
      */
-    Map<OccurrenceId, RelevanceScore> forOccurrences(Collection<OccurrenceId> occurrences, RunId runId) {
-        Map<OccurrenceId, RelevanceScore> scores = new HashMap<>();
+    void forOccurrences(
+            Collection<OccurrenceId> occurrences,
+            RunId runId,
+            BiConsumer<List<OccurrenceId>, Map<OccurrenceId, RelevanceScore>> page) {
         List<OccurrenceId> all = List.copyOf(occurrences);
         for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
             List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+            Map<OccurrenceId, RelevanceScore> scores = new HashMap<>();
             List<Object> arguments = new ArrayList<>();
             arguments.add(runId.value());
             batch.forEach(occurrence -> arguments.add(occurrence.value()));
@@ -149,8 +155,8 @@ class RelevanceScoreCache {
                                         new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id"))));
                     },
                     arguments.toArray());
+            page.accept(batch, scores);
         }
-        return scores;
     }
 
     /** The score {@code runId} recorded for {@code occurrenceId}, if any — a test's own way to read one back. */
