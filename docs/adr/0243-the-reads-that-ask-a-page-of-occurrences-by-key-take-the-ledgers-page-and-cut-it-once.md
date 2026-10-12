@@ -18,7 +18,7 @@ ADR-240 gave three reads a page of occurrences asked by key: `Occurrences.pathsO
 ADR-216 §1: *"Everything this record removes from `src/main` lands now only if the run ids it moves are already moving."* A copy goes with a change that re-mints its module for its own reasons, and is never the only reason for the re-mint.
 
 - **What this change moves.** It touches `extraction` and `embedding`, so stages 2 to 6b are minted again (ADR-058, ADR-048).
-- **What already moves them.** ADR-237 to ADR-242, on `main` since #503, touch `similarity`, `embedding`, `extraction` and `synthesis`, and move stages 2 to 6b. A working directory first sees those new ids at the next `vespera run` on a build that carries them.
+- **What already moves them.** ADR-237 to ADR-242, on `main` since #503, touch `similarity`, `embedding`, `extraction` and `synthesis`, and move stages 2 to 6b; ADR-244, on `main` since [#506](https://github.com/algernon28/vespera/pull/506), moves them too. A working directory first sees those new ids at the next `vespera run` on a build that carries them.
 - **The operator's answer.** No `vespera run` has been made with a build carrying #503, so the next run mints stages 2 to 6b once, for #503 and this change together. This change adds no pass, as ADR-216 §8 found for its own removals beside #456 and #461. **It holds only if this change is on `main` before that run**: a run made on `c244916` first and on this change after pays stages 2 to 6b twice.
 
 ### 2. One page size

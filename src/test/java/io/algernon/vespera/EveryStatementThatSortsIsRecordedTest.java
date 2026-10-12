@@ -78,7 +78,7 @@ import org.springframework.util.StreamUtils;
  * <p><b>What this does not hold.</b>
  *
  * <ul>
- *  *   <li>No size: the bytes a row ADR-218 states were measured by a probe outside the repository, over
+ *   <li>No size: the bytes a row ADR-218 states were measured by a probe outside the repository, over
  *       millions of rows, and a test of this suite cannot watch the temporary files of the process
  *       (ADR-211 section 12).
  *   <li>No plan over rows: the tables are empty and carry no statistics. A working directory's carry no

@@ -99,8 +99,7 @@ class RelevanceFloorTasklet implements Tasklet {
         // embedding-scoring has actually run, may answer differently under this very run id.
         Optional<String> currentIdentity =
                 TimedStatement.of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact()));
-        FloorReach reach = relevanceFloor.reachFor(
-                currentIdentity, STAGE, stageRuns.relevanceScoreFloor(), scoring);
+        FloorReach reach = relevanceFloor.reachFor(currentIdentity, STAGE, stageRuns.relevanceScoreFloor());
 
         // Every removal this run has standing goes before the reach is acted on, whichever way it
         // turns out, and whether or not the vectors carry one identity (ADR-118, ADR-227). The answers

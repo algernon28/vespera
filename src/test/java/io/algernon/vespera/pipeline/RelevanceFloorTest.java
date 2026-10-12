@@ -69,6 +69,8 @@ class RelevanceFloorTest {
             "model=qwen3-embedding:0.6b;digest=d34db33f;dtype=F16;dimension=8;instruction=none";
     private static final String ANOTHER_MODELS_IDENTITY =
             "model=nomic-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
+    private static final String A_THIRD_MODELS_IDENTITY =
+            "model=mxbai-embed-large;digest=7e117e11;dtype=F16;dimension=1024;instruction=none";
 
     /**
      * The step the floor is asked by, whose name opens the lines around the one read the floor makes
@@ -76,8 +78,6 @@ class RelevanceFloorTest {
      */
     private static final String THE_STEP_THAT_ASKS = "Stage 5e (relevance floor)";
 
-    /** The run the floor is asked for, which no answer here is recorded from. */
-    private static final RunId A_SCORING_RUN_NO_ANSWER_WAS_RECORDED_FROM = new RunId("a-scoring-run-with-no-answers");
 
     @TempDir
     static Path workingDirectory;
@@ -196,8 +196,36 @@ class RelevanceFloorTest {
 
     @Test
     @Story("A floor answered for under another model removes nothing, and the reason is stated")
-    @DisplayName("Labels spanning two models record no single scale, so the floor removes nothing")
-    void labelsSpanningTwoModelsRemoveNothing() {
+    @DisplayName("Labels spanning two models, neither of them this run's, record no single scale, so the floor removes nothing")
+    void labelsSpanningTwoOtherModelsRemoveNothing() {
+        profileWithFloor("0.42");
+        aLabelGivenUnder(ANOTHER_MODELS_IDENTITY);
+        aLabelGivenUnder(A_THIRD_MODELS_IDENTITY);
+
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
+
+        claim(
+                "answers spanning two models, neither the one this run scored with, are a half-repeated"
+                        + " labelling, and the honest reading is that they record no single scale rather than"
+                        + " whichever one was met first -- so nothing is removed, which is the direction that"
+                        + " loses no part of the corpus",
+                () -> assertThat(reach.removesBelow()).isEmpty());
+        claim(
+                "and both are named, so the report can say what the answers were given under",
+                () -> assertThat(reach.answeredUnder())
+                        .containsExactlyInAnyOrder(ANOTHER_MODELS_IDENTITY, A_THIRD_MODELS_IDENTITY));
+    }
+
+    /**
+     * A floor joins the scoring run's identity, so the number is never read off the run it names: answers given
+     * under the run's own scale, from whichever run's label file, are the ones that say which scale the number
+     * is on, whatever was answered under another (ADR-244, applying ADR-228 section 5).
+     */
+    @Test
+    @Story("A floor on this run's own scale is the only one that removes")
+    @DisplayName("Labels given under this run's model decide, whatever was answered under another model before")
+    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
+    void labelsUnderThisRunsModelDecideWhateverWasAnsweredUnderAnother() {
         profileWithFloor("0.42");
         aLabelGivenUnder(THIS_RUNS_IDENTITY);
         aLabelGivenUnder(ANOTHER_MODELS_IDENTITY);
@@ -205,10 +233,12 @@ class RelevanceFloorTest {
         FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
 
         claim(
-                "answers spanning two models are a half-repeated labelling, and the honest reading is that"
-                        + " they record no single scale rather than whichever one was met first -- so"
-                        + " nothing is removed, which is the direction that loses no part of the corpus",
-                () -> assertThat(reach.removesBelow()).isEmpty());
+                "the floor applies: an answer was given on the scale this run's scores are on, and the answer"
+                        + " given under another model before is not read beside it",
+                () -> {
+                    assertThat(reach.removesBelow()).hasValue(0.42);
+                    assertThat(reach.answeredUnder()).containsExactly(THIS_RUNS_IDENTITY);
+                });
     }
 
     @Test
@@ -232,16 +262,13 @@ class RelevanceFloorTest {
 
     /**
      * What the floor lets the step do, asked as the floor's step asks: with the number read from the profile
-     * as the scoring run is minted with it ({@link RelevanceScoreFloorValue}), and for a scoring run no answer
-     * was recorded from, so that every answer recorded for the seed set is read (ADR-228 section 5).
+     * as the scoring run is minted with it ({@link RelevanceScoreFloorValue}), for a run whose vectors carry
+     * {@code identity}.
      */
     private FloorReach reachFor(Optional<String> identity) {
         Double value = RelevanceScoreFloorValue.readFrom(profileStore).value();
         return floor.reachFor(
-                identity,
-                THE_STEP_THAT_ASKS,
-                value == null ? OptionalDouble.empty() : OptionalDouble.of(value),
-                A_SCORING_RUN_NO_ANSWER_WAS_RECORDED_FROM);
+                identity, THE_STEP_THAT_ASKS, value == null ? OptionalDouble.empty() : OptionalDouble.of(value));
     }
 
     private void profileWithFloor(String value) {

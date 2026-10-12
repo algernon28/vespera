@@ -241,8 +241,7 @@ class RelevanceReportTasklet implements Tasklet {
         if (currentIdentity.isEmpty()) {
             return Optional.empty();
         }
-        FloorReach reach = relevanceFloor.reachFor(
-                currentIdentity, STAGE, stageRuns.relevanceScoreFloor(), stageRuns.embeddingScoring());
+        FloorReach reach = relevanceFloor.reachFor(currentIdentity, STAGE, stageRuns.relevanceScoreFloor());
         if (reach.floor().isPresent() && reach.removesBelow().isEmpty()) {
             return Optional.of(new RelevanceLabellingReport.IgnoredFloor(
                     reach.floor().getAsDouble(), String.join(", ", reach.answeredUnder()), currentIdentity.get()));

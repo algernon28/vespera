@@ -29,6 +29,8 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.sql.DataSource;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Component;
@@ -436,7 +438,11 @@ public class RedundancyResolution {
                 // Asked of the database, a page at a time, what phase 1 removed (ADR-220 section 4).
                 Set<Long> removedInThePage = removedAmong(stage4RunId, page);
                 for (long a : page) {
-                    if (removedInThePage.contains(a)) {
+                    // A document a row of this run already names as the one kept in another's place, a
+                    // near-duplicate's survivor or a container, is not removed in its turn, so that no pointer
+                    // names a removed document (ADR-234); nothing written while its candidates were gone through
+                    // could change that, so it is asked first and they are not gone through (ADR-244).
+                    if (removedInThePage.contains(a) || namedAsKept(stage4RunId, a)) {
                         progress.checkedForContainment();
                         continue;
                     }
@@ -494,10 +500,7 @@ public class RedundancyResolution {
                         }
                     });
 
-                    // A document a row of this run already names as the one kept in another's place, a
-                    // near-duplicate's survivor or a container, is not removed in its turn, so that no pointer
-                    // names a removed document (ADR-234).
-                    if (bestContainer[0] >= 0 && !namedAsKept(stage4RunId, a)) {
+                    if (bestContainer[0] >= 0) {
                         writeVerdict(
                                 stage4RunId,
                                 a,
@@ -567,7 +570,8 @@ public class RedundancyResolution {
     /**
      * Whether a row of {@code stage4RunId} already names {@code occurrence} as the document kept in another's
      * place, a near-duplicate's survivor or a container (ADR-234): one descent of the index on that column,
-     * asked only of a document a container was found for. Sorts nothing.
+     * asked of each document phase 2 has not removed before its candidates are gone through (ADR-244). Sorts
+     * nothing.
      */
     private boolean namedAsKept(RunId stage4RunId, long occurrence) {
         return !jdbcTemplate
@@ -694,7 +698,7 @@ public class RedundancyResolution {
                     return read(once, hash, after);
                 }
             } catch (SQLException e) {
-                throw jdbcTemplate.getExceptionTranslator().translate("reading one hash's occurrences", statement, e);
+                throw translated("reading one hash's occurrences", e);
             } finally {
                 DataSourceUtils.releaseConnection(connection, dataSource);
             }
@@ -718,8 +722,18 @@ public class RedundancyResolution {
             try {
                 closeKept();
             } catch (SQLException e) {
-                throw jdbcTemplate.getExceptionTranslator().translate("closing the read of one hash's occurrences", statement, e);
+                throw translated("closing the read of one hash's occurrences", e);
             }
+        }
+
+        /**
+         * {@code e} as the template turns a failed statement into Spring's exception: translated where the
+         * translator knows it, and uncategorized where it does not, as it does not know SQLite's, which carry no
+         * SQL state.
+         */
+        private DataAccessException translated(String task, SQLException e) {
+            DataAccessException translated = jdbcTemplate.getExceptionTranslator().translate(task, statement, e);
+            return translated != null ? translated : new UncategorizedSQLException(task, statement, e);
         }
 
         private void closeKept() throws SQLException {

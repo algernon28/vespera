@@ -1,7 +1,9 @@
 package io.algernon.vespera.extraction;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Component;
 
@@ -68,6 +70,14 @@ public class HybridChunker {
     /** How many chunks {@code contentHash} has stored under this chunker and {@code rule}. */
     public int chunkCount(String contentHash, ChunkingRule rule) {
         return cache.count(contentHash, CHUNKER_IDENTITY, rule.identity().value());
+    }
+
+    /**
+     * How many chunks each of {@code contentHashes}, a page of them at most, has stored under this chunker and
+     * {@code rule}, asked in one statement (ADR-244); a hash with none stored is absent.
+     */
+    public Map<String, Integer> chunkCounts(Collection<String> contentHashes, ChunkingRule rule) {
+        return cache.counts(contentHashes, CHUNKER_IDENTITY, rule.identity().value());
     }
 
     /**

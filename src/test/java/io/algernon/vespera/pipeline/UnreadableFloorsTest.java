@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.embedding.RelevanceLabel;
 import io.algernon.vespera.embedding.RelevanceLabels;
-import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -56,9 +55,6 @@ class UnreadableFloorsTest {
 
     /** The scale this run's vectors are on. Any name will do: no answer is recorded against it. */
     private static final String AN_EMBEDDER = "an-embedder;deadbeef;F16";
-
-    /** The run the step is asked for; no answer is recorded for any run here. */
-    private static final RunId A_SCORING_RUN = new RunId("a-scoring-run");
 
     /**
      * A label reader that answers nothing.
@@ -141,8 +137,7 @@ class UnreadableFloorsTest {
                 () -> assertThat(step.reachFor(
                                         Optional.of(AN_EMBEDDER),
                                         "Stage 5e (relevance floor)",
-                                        asMinted(RelevanceScoreFloorValue.readFrom(profileStore).value()),
-                                        A_SCORING_RUN)
+                                        asMinted(RelevanceScoreFloorValue.readFrom(profileStore).value()))
                                 .removesBelow())
                         .isEmpty());
         claim(

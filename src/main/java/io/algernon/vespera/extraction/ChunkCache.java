@@ -1,6 +1,12 @@
 package io.algernon.vespera.extraction;
 
+import io.algernon.vespera.ledger.KeysetPages;
+import io.algernon.vespera.ledger.Placeholders;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -63,5 +69,35 @@ class ChunkCache {
                 chunkerIdentity,
                 chunkingRuleIdentity);
         return stored == null ? 0 : stored;
+    }
+
+    /**
+     * How many chunks are stored for each of {@code contentHashes}, at most {@value KeysetPages#ROWS_IN_A_PAGE}
+     * of them, under one chunker/rule identity, in one statement by the table's primary key (ADR-244); a hash
+     * with none stored is absent.
+     *
+     * @throws IllegalArgumentException where more hashes than a page are asked about at once
+     */
+    Map<String, Integer> counts(Collection<String> contentHashes, String chunkerIdentity, String chunkingRuleIdentity) {
+        if (contentHashes.size() > KeysetPages.ROWS_IN_A_PAGE) {
+            throw new IllegalArgumentException("at most " + KeysetPages.ROWS_IN_A_PAGE
+                    + " content hashes are counted at once, not " + contentHashes.size());
+        }
+        Map<String, Integer> counted = new HashMap<>();
+        if (contentHashes.isEmpty()) {
+            return counted;
+        }
+        List<Object> arguments = new ArrayList<>(contentHashes);
+        arguments.add(chunkerIdentity);
+        arguments.add(chunkingRuleIdentity);
+        jdbcTemplate.query(
+                "SELECT content_hash, COUNT(*) FROM chunk_cache WHERE content_hash IN ("
+                        + Placeholders.of(contentHashes.size()) + ") AND chunker_identity = ? AND chunking_rule_identity = ?"
+                        + " GROUP BY content_hash",
+                resultSet -> {
+                    counted.put(resultSet.getString(1), resultSet.getInt(2));
+                },
+                arguments.toArray());
+        return counted;
     }
 }

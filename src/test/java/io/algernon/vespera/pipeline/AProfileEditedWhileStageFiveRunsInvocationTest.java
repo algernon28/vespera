@@ -149,6 +149,66 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
                 }));
     }
 
+    /**
+     * The embedding step's gates read the profile, the model they read is checked with the serving runtime, and
+     * only then is the scoring run minted (ADR-202 section 2): an edit saved while the runtime is asked lands
+     * between the two. The run is minted under the model the gates read and the runtime was asked about, and
+     * every chunk is sent under it (ADR-244, applying ADR-228 section 2).
+     */
+    @Test
+    @Story("A run's later steps read the embedding model the run was started under")
+    @DisplayName("The embedding model renamed in the profile while the runtime is asked whether it runs on this machine does not split the documents embedded from the scoring that reads them")
+    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
+    void anEmbeddingModelRenamedBeforeTheRunIsMintedIsNotReadByTheRun(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, MODEL_NAME, null);
+        EmbeddingScriptedBeans.whenFirstAskedWhereAModelRuns(() -> profile(seeds, ANOTHER_SERVED_MODEL, null));
+
+        cli.run("run", root.toString());
+
+        List<String> theRuns = scoringRunIdsFor(root);
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "it scored under one run, which names the model the step's gates read and the runtime was asked"
+                        + " about, not the one saved while it was asked",
+                () -> assertThat(theRuns).singleElement().satisfies(run -> assertThat(settingsOf(run))
+                        .contains("\"embeddingModel\":\"" + MODEL_NAME + "\"")));
+        claim(
+                "all " + CORPUS_DOCUMENTS + " documents are scored and grouped under it: they were embedded under"
+                        + " the model the run names",
+                () -> assertThat(theRuns).singleElement().satisfies(run -> {
+                    assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
+                    assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
+                }));
+    }
+
+    @Test
+    @Story("A run's later steps read the embedding model the run was started under")
+    @DisplayName("The embedding model cleared from the profile while the runtime is asked whether it runs on this machine does not stop the run its gates opened")
+    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
+    void anEmbeddingModelClearedBeforeTheRunIsMintedDoesNotStopTheRun(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, MODEL_NAME, null);
+        EmbeddingScriptedBeans.whenFirstAskedWhereAModelRuns(() -> profile(seeds, null, null));
+
+        cli.run("run", root.toString());
+
+        List<String> theRuns = scoringRunIdsFor(root);
+        claim(
+                "the invocation reports success: the run is minted under the model the step's gates read, and"
+                        + " nothing fails for the profile naming none a moment later",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "it scored and grouped all " + CORPUS_DOCUMENTS + " documents under one run, which names that model",
+                () -> assertThat(theRuns).singleElement().satisfies(run -> {
+                    assertThat(settingsOf(run)).contains("\"embeddingModel\":\"" + MODEL_NAME + "\"");
+                    assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
+                    assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
+                }));
+    }
+
     @Test
     @Story("A run removes by the threshold it was started under")
     @DisplayName("The threshold cleared from the profile while documents are being embedded still removes, under the run started with it, every document below it")
