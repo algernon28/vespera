@@ -73,9 +73,6 @@ public class SeedCorpusComparison {
     private static final String PROVENANCE_COMPARISON = "provenance";
     private static final String SPREAD_COMPARISON = "spread";
 
-    /** The most survivors one read of rows names: the ledger's own page. */
-    private static final int PAGE = 1_000;
-
     private final JdbcTemplate jdbcTemplate;
     private final Ledger ledger;
 
@@ -483,10 +480,10 @@ public class SeedCorpusComparison {
     }
 
     /**
-     * One read of the metric rows of the measurement run's survivors, a page of at most 1,000 at a time: the
-     * survivors from the ledger, then that page's rows from {@code forms}. Started with the span of stage 2's
-     * rows once the first page has a survivor, told the rows read so far after each page, and ended. Returns
-     * whether there was a survivor; with none nothing is started and no call is made.
+     * One read of the metric rows of the measurement run's survivors, a page of at most 1,000 at a time: each
+     * page of survivors as the ledger reads it (ADR-245), then that page's rows from {@code forms}. Started with
+     * the span of stage 2's rows once the first page has a survivor, told the rows read so far after each page,
+     * and ended. Returns whether there was a survivor; with none nothing is started and no call is made.
      */
     private boolean readCorpusSurvivors(
             MeasuredForms forms,
@@ -510,17 +507,7 @@ public class SeedCorpusComparison {
             forms.eachOf(extractionRunId, names, counted);
             progress.rowsRead(statement, rowsRead[0]);
         };
-        List<OccurrenceId> page = new ArrayList<>(PAGE);
-        for (OccurrenceId survivor : ledger.verdicts().survivors(measurementRunId)) {
-            page.add(survivor);
-            if (page.size() == PAGE) {
-                readPage.accept(page);
-                page.clear();
-            }
-        }
-        if (!page.isEmpty()) {
-            readPage.accept(page);
-        }
+        ledger.verdicts().eachPageOfSurvivors(measurementRunId, readPage);
         if (started[0]) {
             progress.statementEnded(statement);
         }

@@ -190,7 +190,7 @@ public class RedundancyResolution {
         new KeysetPages<SignedRow>(
                         jdbcTemplate,
                         "SELECT rowid, occurrence_id FROM minhash_signature WHERE run_id = ? AND rowid > ?"
-                                + " ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
+                                + " ORDER BY rowid",
                         List.of(stage4RunId.value()),
                         List.of(Long.MIN_VALUE),
                         row -> List.of(row.rowid()),
@@ -372,7 +372,7 @@ public class RedundancyResolution {
                         jdbcTemplate,
                         "SELECT rowid, occurrence_id FROM signature_band"
                                 + " WHERE run_id = ? AND band_ordinal = ? AND band_hash = ? AND occurrence_id > ?"
-                                + " AND rowid > ? ORDER BY rowid LIMIT " + OCCURRENCES_IN_A_PAGE,
+                                + " AND rowid > ? ORDER BY rowid",
                         List.of(stage4RunId.value(), bucket.ordinal(), bucket.hash(), least),
                         List.of(Long.MIN_VALUE),
                         signed -> List.of(signed.rowid()),
@@ -437,12 +437,14 @@ public class RedundancyResolution {
             eachPageOfSigned(stage4RunId, page -> {
                 // Asked of the database, a page at a time, what phase 1 removed (ADR-220 section 4).
                 Set<Long> removedInThePage = removedAmong(stage4RunId, page);
+                // A document a row of this run already names as the one kept in another's place, a
+                // near-duplicate's survivor or a container, is not removed in its turn, so that no pointer names
+                // a removed document (ADR-234); nothing written while its candidates are gone through could change
+                // that, so it is asked first and they are not gone through (ADR-244). Asked of the page at once,
+                // and the containers this page writes are added as they are written (ADR-245).
+                Set<Long> keptInThePage = keptAmong(stage4RunId, page);
                 for (long a : page) {
-                    // A document a row of this run already names as the one kept in another's place, a
-                    // near-duplicate's survivor or a container, is not removed in its turn, so that no pointer
-                    // names a removed document (ADR-234); nothing written while its candidates were gone through
-                    // could change that, so it is asked first and they are not gone through (ADR-244).
-                    if (removedInThePage.contains(a) || namedAsKept(stage4RunId, a)) {
+                    if (removedInThePage.contains(a) || keptInThePage.contains(a)) {
                         progress.checkedForContainment();
                         continue;
                     }
@@ -512,6 +514,7 @@ public class RedundancyResolution {
                                         "contained in occurrence %d at containment %.4f",
                                         bestContainer[0],
                                         bestScore[0]));
+                        keptInThePage.add(bestContainer[0]);
                     }
                     progress.checkedForContainment();
                 }
@@ -568,20 +571,27 @@ public class RedundancyResolution {
     }
 
     /**
-     * Whether a row of {@code stage4RunId} already names {@code occurrence} as the document kept in another's
-     * place, a near-duplicate's survivor or a container (ADR-234): one descent of the index on that column,
-     * asked of each document phase 2 has not removed before its candidates are gone through (ADR-244). Sorts
-     * nothing.
+     * Which of {@code occurrences} a row of {@code stage4RunId} already names as the document kept in another's
+     * place, a near-duplicate's survivor or a container (ADR-234), asked of the index on that column a page at a
+     * time (ADR-245). Sorts nothing. A set the caller may add to.
      */
-    private boolean namedAsKept(RunId stage4RunId, long occurrence) {
-        return !jdbcTemplate
-                .queryForList(
-                        "SELECT occurrence_id FROM redundant_with WHERE redundant_with_occurrence_id = ? AND run_id = ?"
-                                + " LIMIT 1",
-                        Long.class,
-                        occurrence,
-                        stage4RunId.value())
-                .isEmpty();
+    private Set<Long> keptAmong(RunId stage4RunId, Collection<Long> occurrences) {
+        Set<Long> kept = new HashSet<>();
+        List<Long> all = List.copyOf(occurrences);
+        for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_PAGE) {
+            List<Long> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_PAGE));
+            List<Object> arguments = new ArrayList<>(batch);
+            arguments.add(stage4RunId.value());
+            jdbcTemplate.query(
+                    "SELECT redundant_with_occurrence_id FROM redundant_with"
+                            + " WHERE redundant_with_occurrence_id IN (" + Placeholders.of(batch.size()) + ")"
+                            + " AND run_id = ?",
+                    resultSet -> {
+                        kept.add(resultSet.getLong(1));
+                    },
+                    arguments.toArray());
+        }
+        return kept;
     }
 
     /** {@code select} narrowed to a list of occurrences, in statements of at most one page of them. */

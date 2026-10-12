@@ -9,11 +9,9 @@ import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ChunkingRule;
 import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.HybridChunker;
-import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -161,19 +159,17 @@ class RelevanceScoringTasklet implements Tasklet {
                             residentSeedVectors.size());
                     StageProgress scored =
                             StageProgress.over("Stage 5d (relevance scoring, corpus survivors)", survivorCount);
-                    // Scored a page of survivors at a time, each page's keys and chunk counts asked together
-                    // (ADR-244).
-                    List<OccurrenceId> page = new ArrayList<>(KeysetPages.ROWS_IN_A_PAGE);
-                    for (OccurrenceId occurrenceId : ledger.verdicts().survivors(measurementRun)) {
-                        page.add(occurrenceId);
-                        if (page.size() == KeysetPages.ROWS_IN_A_PAGE) {
-                            scorePage(page, scoring, extractionRun, identity.get(), residentSeedVectors, scored);
-                            page.clear();
-                        }
-                    }
-                    if (!page.isEmpty()) {
-                        scorePage(page, scoring, extractionRun, identity.get(), residentSeedVectors, scored);
-                    }
+                    // Scored a page of survivors at a time, the ledger's own pages, each page's keys and chunk
+                    // counts asked together (ADR-244, ADR-245).
+                    ledger.verdicts().eachPageOfSurvivors(measurementRun, page -> scorePage(
+                            page,
+                            scoring,
+                            extractionRun,
+                            chunkerIdentity,
+                            chunkingRuleIdentity,
+                            identity.get(),
+                            residentSeedVectors,
+                            scored));
                     LOG.info("Stage 5d (relevance scoring) finished under scoring run {}", scoring.value());
                     return true;
                 });
@@ -182,12 +178,15 @@ class RelevanceScoringTasklet implements Tasklet {
     /**
      * Scores and records each survivor of {@code page} against the resident seeds, in the page's order: the keys
      * stage 2 recorded for the page (ADR-206) and how many chunks each was cut into are asked of the page at once,
-     * and not one survivor at a time (ADR-244).
+     * and not one survivor at a time (ADR-244), and its vectors are read under the chunker and rule the seeds'
+     * were read under (ADR-245).
      */
     private void scorePage(
             List<OccurrenceId> page,
             RunId scoring,
             RunId extractionRun,
+            String chunkerIdentity,
+            String chunkingRuleIdentity,
             String embedderIdentity,
             Map<OccurrenceId, List<float[]>> residentSeedVectors,
             StageProgress scored) {
@@ -201,8 +200,8 @@ class RelevanceScoringTasklet implements Tasklet {
                     scoring,
                     contentHash,
                     chunkCounts.getOrDefault(contentHash, 0),
-                    hybridChunker.identity(),
-                    ChunkingRule.DEFAULT.identity().value(),
+                    chunkerIdentity,
+                    chunkingRuleIdentity,
                     embedderIdentity,
                     residentSeedVectors);
             scored.itemDone();
@@ -230,14 +229,16 @@ class RelevanceScoringTasklet implements Tasklet {
                 .collect(Collectors.toSet());
         allSeeds.removeAll(unusable);
 
-        Map<OccurrenceId, SeedChunks> contentHashes = new LinkedHashMap<>();
+        // Asked a page of seeds to a statement, the keys and then their chunk counts (ADR-245).
         StageProgress read =
                 StageProgress.over("Stage 5d (relevance scoring, seed cache keys read)", allSeeds.size());
+        Map<OccurrenceId, String> keys = cacheKeys.requireForOccurrences(allSeeds, measurementRun);
+        Map<String, Integer> chunkCounts =
+                hybridChunker.chunkCounts(new HashSet<>(keys.values()), ChunkingRule.DEFAULT);
+        Map<OccurrenceId, SeedChunks> contentHashes = new LinkedHashMap<>();
         for (OccurrenceId seedOccurrenceId : allSeeds) {
-            String contentHash = cacheKeys.requireForOccurrence(seedOccurrenceId, measurementRun);
-            contentHashes.put(
-                    seedOccurrenceId,
-                    new SeedChunks(contentHash, hybridChunker.chunkCount(contentHash, ChunkingRule.DEFAULT)));
+            String contentHash = keys.get(seedOccurrenceId);
+            contentHashes.put(seedOccurrenceId, new SeedChunks(contentHash, chunkCounts.getOrDefault(contentHash, 0)));
             read.itemDone();
         }
         return contentHashes;

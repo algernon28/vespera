@@ -4,12 +4,15 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.ledger.KeysetPages;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -155,7 +158,7 @@ class HybridChunkerTest {
         claim(
                 "and exactly one chunk row per produced chunk is stored under this content and"
                         + " rule, not one row per call",
-                () -> assertThat(chunker.chunkCount(CONTENT_HASH, ChunkingRule.DEFAULT))
+                () -> assertThat(chunkCount(chunker, ChunkingRule.DEFAULT))
                         .isEqualTo(first.size()));
     }
 
@@ -171,10 +174,56 @@ class HybridChunkerTest {
         claim(
                 "the first rule's chunks are still there — the second rule's run did not overwrite"
                         + " them",
-                () -> assertThat(chunker.chunkCount(CONTENT_HASH, ChunkingRule.DEFAULT)).isPositive());
+                () -> assertThat(chunkCount(chunker, ChunkingRule.DEFAULT)).isPositive());
         claim(
                 "and the second rule's own chunks are stored separately, under its own identity",
-                () -> assertThat(chunker.chunkCount(CONTENT_HASH, NARROWER_RULE)).isPositive());
+                () -> assertThat(chunkCount(chunker, NARROWER_RULE)).isPositive());
+    }
+
+    /**
+     * The pieces of more documents than a page are counted in pages of the ledger's size, as every other read
+     * that asks a list of documents by key, and not refused (ADR-245).
+     */
+    @Test
+    @Story("The same content is chunked once per chunking rule")
+    @DisplayName("The pieces of more documents than a page holds are counted all the same, a page of documents to a statement")
+    @Link(name = "ADR-245", url = Adr.A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS, type = "adr")
+    void countsThePiecesOfMoreDocumentsThanAPage() {
+        HybridChunker chunker = chunker();
+        List<String> contentHashes = new ArrayList<>();
+        for (int document = 0; document <= KeysetPages.ROWS_IN_A_PAGE; document++) {
+            contentHashes.add(String.format("%064d", document));
+        }
+        List<Object[]> rows = new ArrayList<>();
+        for (int document = 0; document < contentHashes.size(); document++) {
+            for (int piece = 0; piece <= document % 2; piece++) {
+                rows.add(new Object[] {
+                    contentHashes.get(document), chunker.identity(), ChunkingRule.DEFAULT.identity().value(), piece, "a piece", 2
+                });
+            }
+        }
+        jdbcTemplate.batchUpdate(
+                "INSERT INTO chunk_cache"
+                        + " (content_hash, chunker_identity, chunking_rule_identity, ordinal, chunk_text, word_count)"
+                        + " VALUES (?, ?, ?, ?, ?, ?)",
+                rows);
+
+        Map<String, Integer> counted = chunker.chunkCounts(contentHashes, ChunkingRule.DEFAULT);
+
+        claim(
+                "every one of the " + contentHashes.size() + " documents has its pieces counted, one or two of them"
+                        + " as were stored",
+                () -> {
+                    assertThat(counted).hasSize(contentHashes.size());
+                    assertThat(counted.get(contentHashes.getFirst())).isOne();
+                    assertThat(counted.get(contentHashes.get(1))).isEqualTo(2);
+                    assertThat(counted.get(contentHashes.getLast())).isOne();
+                });
+    }
+
+    /** How many chunks {@link #CONTENT_HASH} has stored under {@code rule}, none where it has none. */
+    private static int chunkCount(HybridChunker chunker, ChunkingRule rule) {
+        return chunker.chunkCounts(List.of(CONTENT_HASH), rule).getOrDefault(CONTENT_HASH, 0);
     }
 
     private HybridChunker chunker() {

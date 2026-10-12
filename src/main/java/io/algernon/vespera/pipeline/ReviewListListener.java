@@ -60,7 +60,8 @@ class ReviewListListener implements StepExecutionListener {
      * written (#319): there is no run to list, and asking for one would call the sidecar again.
      *
      * <p>The page is written beside its place and moved there once whole, as {@code arrangement.html} is
-     * (ADR-223 section 3), by the move that is attempted again where it is refused as access denied (ADR-242),
+     * (ADR-223 section 3), by the move that is attempted again where it is refused as access denied or, on
+     * Windows, as another program's (ADR-242, ADR-244, ADR-245),
      * so a write that fails partway, in the file or in the read of its rows, leaves the
      * review list before it, or none. A failure of the file, of the read of its rows or of their count is said
      * in one error line, and none is thrown (ADR-175 section 7).

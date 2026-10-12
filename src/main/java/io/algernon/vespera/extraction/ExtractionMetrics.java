@@ -1,5 +1,6 @@
 package io.algernon.vespera.extraction;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
@@ -41,9 +42,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class ExtractionMetrics {
 
-    /** The most occurrences one statement names: the ledger's own page. */
-    private static final int OCCURRENCES_IN_A_STATEMENT = 1_000;
-
     private final JdbcTemplate jdbcTemplate;
     private final LanguageDetection languageDetection;
     private final ExtractionCacheKeys cacheKeys;
@@ -83,7 +81,7 @@ public class ExtractionMetrics {
      * section 2): what a stopped stage 2's committed chunks recorded, which a resumed step does not read
      * again, asked by key for a page of survivors at a time and never read whole.
      *
-     * <p>One statement for each {@value #OCCURRENCES_IN_A_STATEMENT} occurrences it is given, planned as a
+     * <p>One statement for each {@value KeysetPages#ROWS_IN_A_PAGE} occurrences it is given, planned as a
      * lookup by the table's primary key; none for an empty collection.
      */
     public Set<OccurrenceId> recordedAmong(RunId runId, Collection<OccurrenceId> occurrences) {
@@ -139,7 +137,7 @@ public class ExtractionMetrics {
     /**
      * The alphanumeric character count recorded under {@code runId} for each of {@code occurrences},
      * holding only those that have a row (ADR-209 section 3.2): what redundancy resolution ranks the
-     * members of a component by. Asked of the database {@value #OCCURRENCES_IN_A_STATEMENT} occurrences at
+     * members of a component by. Asked of the database {@value KeysetPages#ROWS_IN_A_PAGE} occurrences at
      * most to a statement (ADR-220 section 4); asking about no occurrence makes no statement.
      */
     public Map<OccurrenceId, Long> alphanumericCharCounts(RunId runId, Collection<OccurrenceId> occurrences) {
@@ -159,7 +157,7 @@ public class ExtractionMetrics {
 
     /**
      * The one batched lookup by key both reads above make: {@code occurrences} asked about {@value
-     * #OCCURRENCES_IN_A_STATEMENT} at most to a statement, {@code statementFor} given how many a statement
+     * KeysetPages#ROWS_IN_A_PAGE} at most to a statement, {@code statementFor} given how many a statement
      * names, its first placeholder bound to {@code runId} and the rest to the occurrences; none for an empty
      * collection.
      */
@@ -169,8 +167,8 @@ public class ExtractionMetrics {
             IntFunction<String> statementFor,
             RowCallbackHandler row) {
         List<OccurrenceId> all = occurrences instanceof List<OccurrenceId> list ? list : new ArrayList<>(occurrences);
-        for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_STATEMENT) {
-            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_STATEMENT));
+        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
+            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
             List<Object> arguments = new ArrayList<>();
             arguments.add(runId.value());
             batch.forEach(id -> arguments.add(id.value()));

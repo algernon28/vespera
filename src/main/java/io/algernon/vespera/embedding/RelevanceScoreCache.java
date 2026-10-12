@@ -104,7 +104,7 @@ class RelevanceScoreCache {
         new KeysetPages<ScoreRow>(
                         jdbcTemplate,
                         "SELECT rowid, occurrence_id FROM relevance_score WHERE run_id = ? AND score < ?"
-                                + " AND rowid > ? ORDER BY rowid LIMIT " + KeysetPages.ROWS_IN_A_PAGE,
+                                + " AND rowid > ? ORDER BY rowid",
                         List.of(runId.value(), floor),
                         List.of(Long.MIN_VALUE),
                         row -> List.of(row.rowid()),

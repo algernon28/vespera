@@ -51,6 +51,9 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
     /** How many times the stand-in refuses the move before it lets it through, fewer than the attempts made. */
     private static final int REFUSED_TWICE = 2;
 
+    /** Whether the move stands in for one made on Windows, where a sharing violation has no type of its own. */
+    private static final boolean ON_WINDOWS = true;
+
     /** How many attempts the move makes in all, the first and four more. */
     private static final int FIVE_ATTEMPTS = 5;
 
@@ -97,7 +100,7 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
      */
     @Test
     @Story("A page is put in its place whole")
-    @DisplayName("A page whose move is refused twice because another program is using the file is moved on the third attempt, after two short waits")
+    @DisplayName("On Windows, a page whose move is refused twice because another program is using the file is moved on the third attempt, after two short waits")
     @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
     void aMoveRefusedTwiceAsASharingViolationIsMadeOnTheThirdAttempt(@TempDir Path directory) throws IOException {
         Path part = page(directory.resolve("index.md.part"), THE_NEW_PAGE);
@@ -113,7 +116,8 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
                             }
                             Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
                         },
-                        waited::add)
+                        waited::add,
+                        ON_WINDOWS)
                 .intoPlace(part, target));
 
         claim("the move went through, and nothing was thrown", () -> assertThat(thrown).isNull());
@@ -128,6 +132,47 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
                 () -> {
                     assertThat(attempts[0]).isEqualTo(REFUSED_TWICE + 1);
                     assertThat(waited).hasSize(REFUSED_TWICE);
+                });
+    }
+
+    /**
+     * Away from Windows no program holding a file makes its move fail with an error Java has no more specific
+     * type for: such a failure is a disk that is read-only or full, a directory in the page's place or a fault of
+     * the device, which no wait lifts (ADR-245, amending ADR-244).
+     */
+    @Test
+    @Story("A page is put in its place whole")
+    @DisplayName("Away from Windows, a move that fails with an error of no more specific type is not attempted again")
+    @Link(name = "ADR-245", url = Adr.A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS, type = "adr")
+    void awayFromWindowsAnUntypedFailureIsNotTriedAgain(@TempDir Path directory) throws IOException {
+        Path part = page(directory.resolve("index.md.part"), THE_NEW_PAGE);
+        Path target = page(directory.resolve("index.md"), THE_OLD_PAGE);
+        List<Long> waited = new ArrayList<>();
+        int[] attempts = {0};
+        FileSystemException readOnly =
+                new FileSystemException(part.toString(), target.toString(), "Read-only file system");
+
+        Throwable thrown = catchThrowable(() -> new ReplacingMove(
+                        (from, to) -> {
+                            attempts[0]++;
+                            throw readOnly;
+                        },
+                        waited::add,
+                        !ON_WINDOWS)
+                .intoPlace(part, target));
+
+        claim(
+                "the failure is thrown at once, after one attempt and no wait",
+                () -> {
+                    assertThat(thrown).isSameAs(readOnly);
+                    assertThat(attempts[0]).isOne();
+                    assertThat(waited).isEmpty();
+                });
+        claim(
+                "the page in its place is the old one, and the new one is still beside it",
+                () -> {
+                    assertThat(Files.readString(target, StandardCharsets.UTF_8)).isEqualTo(THE_OLD_PAGE);
+                    assertThat(Files.readString(part, StandardCharsets.UTF_8)).isEqualTo(THE_NEW_PAGE);
                 });
     }
 

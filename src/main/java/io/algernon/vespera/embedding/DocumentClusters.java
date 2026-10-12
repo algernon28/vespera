@@ -97,8 +97,7 @@ public class DocumentClusters {
         new KeysetPages<DocumentCluster>(
                         jdbcTemplate,
                         "SELECT occurrence_id, winning_seed_occurrence_id, cluster_ordinal FROM document_cluster"
-                                + " WHERE occurrence_id > ? AND +run_id = ? ORDER BY occurrence_id LIMIT "
-                                + KeysetPages.ROWS_IN_A_PAGE,
+                                + " WHERE occurrence_id > ? AND +run_id = ? ORDER BY occurrence_id",
                         List.of(Long.MIN_VALUE, runId.value()),
                         last -> List.of(last.occurrenceId().value(), runId.value()),
                         (resultSet, rowNumber) -> new DocumentCluster(

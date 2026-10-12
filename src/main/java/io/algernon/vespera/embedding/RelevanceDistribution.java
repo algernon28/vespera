@@ -216,8 +216,7 @@ public class RelevanceDistribution {
         return new KeysetPages<ScoredRow>(
                         jdbcTemplate,
                         "SELECT rowid, occurrence_id, score, winning_seed_occurrence_id FROM relevance_score"
-                                + " WHERE run_id = ? AND rowid > ? ORDER BY rowid LIMIT "
-                                + KeysetPages.ROWS_IN_A_PAGE,
+                                + " WHERE run_id = ? AND rowid > ? ORDER BY rowid",
                         List.of(scoringRunId.value()),
                         List.of(Long.MIN_VALUE),
                         row -> List.of(row.rowid()),
