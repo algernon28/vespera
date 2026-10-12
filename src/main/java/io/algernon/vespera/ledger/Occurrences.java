@@ -61,7 +61,7 @@ public class Occurrences {
         return new KeysetPages<PagedOccurrence>(
                         jdbcTemplate,
                         "SELECT id, path, size_bytes, last_modified, creation_time FROM file_occurrence"
-                                + " WHERE +walk_id = ? AND id > ? ORDER BY id LIMIT " + KeysetPages.ROWS_IN_A_PAGE,
+                                + " WHERE +walk_id = ? AND id > ? ORDER BY id",
                         List.of(walkId.value()),
                         List.of(Long.MIN_VALUE),
                         row -> List.of(row.id()),
@@ -160,8 +160,7 @@ public class Occurrences {
     public Iterable<OccurrenceId> occurrencesOf(WalkId walkId) {
         return new KeysetPages<>(
                 jdbcTemplate,
-                "SELECT id FROM file_occurrence WHERE +walk_id = ? AND id > ? ORDER BY id LIMIT "
-                        + KeysetPages.ROWS_IN_A_PAGE,
+                "SELECT id FROM file_occurrence WHERE +walk_id = ? AND id > ? ORDER BY id",
                 List.of(walkId.value()),
                 List.of(Long.MIN_VALUE),
                 (OccurrenceId last) -> List.of(last.value()),

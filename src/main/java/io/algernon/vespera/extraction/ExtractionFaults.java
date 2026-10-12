@@ -98,7 +98,7 @@ public class ExtractionFaults {
         new KeysetPages<FaultRow>(
                         jdbcTemplate,
                         "SELECT rowid, occurrence_id, category, detail FROM extraction_fault"
-                                + " WHERE run_id = ? AND rowid > ? ORDER BY rowid LIMIT " + ROWS_IN_A_PAGE,
+                                + " WHERE run_id = ? AND rowid > ? ORDER BY rowid",
                         List.of(runId.value()),
                         List.of(Long.MIN_VALUE),
                         row -> List.of(row.rowid()),

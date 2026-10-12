@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -20,9 +19,10 @@ import org.springframework.jdbc.core.RowMapper;
  * carry is one constructor call and not a loop of its own (ADR-040: every module may name {@code ledger}).
  * Each page is one statement on the {@link JdbcTemplate} it is given, of at most {@link #ROWS_IN_A_PAGE}
  * rows, asked for only when the page in hand has been handed out, and starting after the last row of the
- * one before. A page that comes back short ends the read, so a statement whose text does not end in {@code
- * LIMIT} and that number is refused when the read is made (ADR-244). Nothing is held between pages, so there
- * is nothing to close, and every {@link #iterator()} and {@link #eachPage} starts again at the first page.
+ * one before. A page that comes back short ends the read, so the pager writes each page's bound, {@code LIMIT}
+ * and that number, after the statement it is given, which names none (ADR-245, amending ADR-244). Nothing is
+ * held between pages, so there is nothing to close, and every {@link #iterator()} and {@link #eachPage} starts
+ * again at the first page.
  *
  * <p>A key that is not a column the caller hands on, such as a rowid, is read into a carrier row the row
  * mapper makes, and {@link #map} hands out what the caller wants of each. A statement that binds its key
@@ -33,8 +33,8 @@ public final class KeysetPages<T> implements Iterable<T> {
     /** The most rows one statement of a read brings back. */
     public static final int ROWS_IN_A_PAGE = 1_000;
 
-    /** How every page's statement ends: its bound, the page, and nothing after it. */
-    private static final Pattern ENDS_IN_A_PAGE = Pattern.compile("(?i)\\sLIMIT\\s+" + ROWS_IN_A_PAGE + "\\s*$");
+    /** How every page's statement ends: its bound, the page, written by the pager. */
+    private static final String A_PAGES_BOUND = " LIMIT " + ROWS_IN_A_PAGE;
 
     private final JdbcTemplate jdbcTemplate;
     private final String sql;
@@ -45,11 +45,10 @@ public final class KeysetPages<T> implements Iterable<T> {
     /**
      * A read whose statement binds its key after every other argument.
      *
-     * @param sql a page's statement, carrying its bound as {@code LIMIT} in the text
+     * @param sql a page's statement, ordered by its key and with no bound, which the pager writes after it
      * @param fixedArguments the arguments before the key, the same on every page
      * @param keyBeforeTheFirstRow the arguments after them on the first page
      * @param keyAfter the arguments after them on the page that follows the page ending in a given row
-     * @throws IllegalArgumentException where {@code sql} does not end in {@code LIMIT} {@value #ROWS_IN_A_PAGE}
      */
     public KeysetPages(
             JdbcTemplate jdbcTemplate,
@@ -70,10 +69,9 @@ public final class KeysetPages<T> implements Iterable<T> {
      * A read whose statement binds its key where its text puts it, before another argument as well as after
      * one: the caller gives every argument of a page, in the order the text binds them.
      *
-     * @param sql a page's statement, carrying its bound as {@code LIMIT} in the text
+     * @param sql a page's statement, ordered by its key and with no bound, which the pager writes after it
      * @param argumentsOfTheFirstPage every argument of the first page's statement
      * @param argumentsAfter every argument of the page that follows the page ending in a given row
-     * @throws IllegalArgumentException where {@code sql} does not end in {@code LIMIT} {@value #ROWS_IN_A_PAGE}
      */
     public KeysetPages(
             JdbcTemplate jdbcTemplate,
@@ -81,12 +79,8 @@ public final class KeysetPages<T> implements Iterable<T> {
             List<Object> argumentsOfTheFirstPage,
             Function<T, List<Object>> argumentsAfter,
             RowMapper<T> rowMapper) {
-        if (!ENDS_IN_A_PAGE.matcher(sql).find()) {
-            throw new IllegalArgumentException("a keyset read's statement must end in LIMIT " + ROWS_IN_A_PAGE
-                    + ", the page by which a short page ends the read: " + sql);
-        }
         this.jdbcTemplate = jdbcTemplate;
-        this.sql = sql;
+        this.sql = sql + A_PAGES_BOUND;
         this.argumentsOfTheFirstPage = List.copyOf(argumentsOfTheFirstPage);
         this.argumentsAfter = argumentsAfter;
         this.rowMapper = rowMapper;

@@ -67,14 +67,9 @@ public class HybridChunker {
         return chunks;
     }
 
-    /** How many chunks {@code contentHash} has stored under this chunker and {@code rule}. */
-    public int chunkCount(String contentHash, ChunkingRule rule) {
-        return cache.count(contentHash, CHUNKER_IDENTITY, rule.identity().value());
-    }
-
     /**
-     * How many chunks each of {@code contentHashes}, a page of them at most, has stored under this chunker and
-     * {@code rule}, asked in one statement (ADR-244); a hash with none stored is absent.
+     * How many chunks each of {@code contentHashes} has stored under this chunker and {@code rule}, asked a page
+     * of hashes to a statement (ADR-244, ADR-245); a hash with none stored is absent.
      */
     public Map<String, Integer> chunkCounts(Collection<String> contentHashes, ChunkingRule rule) {
         return cache.counts(contentHashes, CHUNKER_IDENTITY, rule.identity().value());

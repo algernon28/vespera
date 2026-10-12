@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
  * chunker change (or a chunk-cache read under a stale identity) mints new rows rather than
  * overwriting the previous ones.
  *
- * <p>No {@code chunk_count} column exists anywhere (ADR-073): {@link #count} is a query over this
+ * <p>No {@code chunk_count} column exists anywhere (ADR-073): {@link #counts} is a query over this
  * table, comparable only within one chunker/rule identity, exactly as many times as there are
  * honest answers.
  */
@@ -60,44 +60,28 @@ class ChunkCache {
         }
     }
 
-    /** How many chunks are stored for {@code contentHash} under one chunker/rule identity. */
-    int count(String contentHash, String chunkerIdentity, String chunkingRuleIdentity) {
-        Integer stored = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM chunk_cache WHERE content_hash = ? AND chunker_identity = ? AND chunking_rule_identity = ?",
-                Integer.class,
-                contentHash,
-                chunkerIdentity,
-                chunkingRuleIdentity);
-        return stored == null ? 0 : stored;
-    }
-
     /**
-     * How many chunks are stored for each of {@code contentHashes}, at most {@value KeysetPages#ROWS_IN_A_PAGE}
-     * of them, under one chunker/rule identity, in one statement by the table's primary key (ADR-244); a hash
-     * with none stored is absent.
-     *
-     * @throws IllegalArgumentException where more hashes than a page are asked about at once
+     * How many chunks are stored for each of {@code contentHashes} under one chunker/rule identity, asked by the
+     * table's primary key a page of the ledger's, {@value KeysetPages#ROWS_IN_A_PAGE} hashes, at most to a
+     * statement (ADR-244, ADR-245); a hash with none stored is absent.
      */
     Map<String, Integer> counts(Collection<String> contentHashes, String chunkerIdentity, String chunkingRuleIdentity) {
-        if (contentHashes.size() > KeysetPages.ROWS_IN_A_PAGE) {
-            throw new IllegalArgumentException("at most " + KeysetPages.ROWS_IN_A_PAGE
-                    + " content hashes are counted at once, not " + contentHashes.size());
-        }
         Map<String, Integer> counted = new HashMap<>();
-        if (contentHashes.isEmpty()) {
-            return counted;
+        List<String> all = List.copyOf(contentHashes);
+        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
+            List<String> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+            List<Object> arguments = new ArrayList<>(batch);
+            arguments.add(chunkerIdentity);
+            arguments.add(chunkingRuleIdentity);
+            jdbcTemplate.query(
+                    "SELECT content_hash, COUNT(*) FROM chunk_cache WHERE content_hash IN ("
+                            + Placeholders.of(batch.size()) + ") AND chunker_identity = ? AND chunking_rule_identity = ?"
+                            + " GROUP BY content_hash",
+                    resultSet -> {
+                        counted.put(resultSet.getString(1), resultSet.getInt(2));
+                    },
+                    arguments.toArray());
         }
-        List<Object> arguments = new ArrayList<>(contentHashes);
-        arguments.add(chunkerIdentity);
-        arguments.add(chunkingRuleIdentity);
-        jdbcTemplate.query(
-                "SELECT content_hash, COUNT(*) FROM chunk_cache WHERE content_hash IN ("
-                        + Placeholders.of(contentHashes.size()) + ") AND chunker_identity = ? AND chunking_rule_identity = ?"
-                        + " GROUP BY content_hash",
-                resultSet -> {
-                    counted.put(resultSet.getString(1), resultSet.getInt(2));
-                },
-                arguments.toArray());
         return counted;
     }
 }

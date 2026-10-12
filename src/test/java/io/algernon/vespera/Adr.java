@@ -1652,6 +1652,16 @@ public final class Adr {
     public static final String THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN = FILE
             + "0244-the-floors-answers-are-those-under-the-runs-embedder-identity-a-move-refused-as-a-sharing-violation-is-attempted-again-and-a-document-kept-for-another-is-checked-for-no-container.md";
 
+    /**
+     * ADR-245 -- stage 4b asks a page of its documents at once whether a row already keeps them, a move refused by
+     * an error Java has no more specific type for is attempted again only on Windows, where a sharing violation
+     * comes that way, the keyset pager writes its statement's bound itself, the counts of chunks and the seeds'
+     * keys are asked a page at a time, and 5d scores the ledger's own pages of survivors. Rides the re-mint of
+     * stages 2 to 6b that ADR-237 to ADR-244 already make (applies ADR-216 section 1; amends ADR-244).
+     */
+    public static final String A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS = FILE
+            + "0245-stage-4b-asks-a-page-whether-its-documents-are-kept-a-move-is-attempted-again-for-a-sharing-violation-only-on-windows-and-the-pager-writes-its-own-bound.md";
+
     private Adr() {
     }
 }

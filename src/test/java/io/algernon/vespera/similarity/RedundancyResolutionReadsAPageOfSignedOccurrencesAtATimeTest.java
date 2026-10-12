@@ -247,6 +247,49 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
                         .allSatisfy(sql -> assertThat(occurrencesNamedBy(sql)).isBetween(1, A_PAGE)));
     }
 
+    /**
+     * Whether a row already keeps a document in another's place is asked before its candidates are gone through
+     * (ADR-244), of a page of signed documents at once and not of each document by itself (ADR-245): phase 2
+     * goes through every document phase 1 left standing, here 2,500 of them.
+     */
+    @Test
+    @Story("Redundancy resolution holds no list of the corpus")
+    @DisplayName("Redundancy resolution asks whether a row already keeps a document of a page of signed documents at once, and not of each document")
+    @Link(name = "ADR-245", url = Adr.A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS, type = "adr")
+    void asksWhetherAPageOfDocumentsIsKeptAtOnce() {
+        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
+
+        new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
+                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()));
+
+        List<String> said = log.said();
+        claim(
+                "the same documents are removed: one of each near-identical pair, and each contained document",
+                () -> assertThat(List.of(removedAs("near-duplicate"), removedAs("contained-in")))
+                        .containsExactly(NEAR_DUPLICATE_PAIRS, CONTAINED));
+        claim(
+                "whether a row already keeps a document is asked in no more statements than there are pages of the "
+                        + SIGNED + " signed documents, each naming at most " + A_PAGE + " of them",
+                () -> assertThat(said.stream()
+                                .filter(sql -> sql.stripLeading().startsWith("SELECT"))
+                                .filter(sql -> sql.contains("redundant_with_occurrence_id"))
+                                .toList())
+                        .isNotEmpty()
+                        .hasSizeLessThanOrEqualTo(PAGES_OF_SIGNED)
+                        .allSatisfy(sql -> assertThat(keptNamedBy(sql)).isBetween(1, A_PAGE)));
+    }
+
+    /** How many documents {@code sql} asks about by the column that names the kept document. */
+    private static int keptNamedBy(String sql) {
+        Matcher list = KEPT_LIST.matcher(sql);
+        if (!list.find()) {
+            return sql.contains("redundant_with_occurrence_id = ?") ? 1 : 0;
+        }
+        return (int) list.group(1).chars().filter(character -> character == '?').count();
+    }
+
+    private static final Pattern KEPT_LIST = Pattern.compile("redundant_with_occurrence_id IN \\(([^)]*)\\)");
+
     private int removedAs(String relation) {
         Integer count = pool.jdbcTemplate().queryForObject(
                 "SELECT COUNT(*) FROM redundant_with WHERE run_id = ? AND relation = ?",

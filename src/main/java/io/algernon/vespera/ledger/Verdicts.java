@@ -30,7 +30,7 @@ public class Verdicts {
             + " WHERE verdict.occurrence_id = file_occurrence.id"
             + " AND verdict.kind IN (%s)"
             + " AND verdict.run_id IN (%s))"
-            + " AND id > ? ORDER BY id LIMIT " + KeysetPages.ROWS_IN_A_PAGE;
+            + " AND id > ? ORDER BY id";
 
     /**
      * One statement of {@link #survivingAmong}: which of the named occurrences survive. The walk is
@@ -57,7 +57,7 @@ public class Verdicts {
             + " AND verdict.kind IN (%s)"
             + " AND verdict.run_id IN (%s))"
             + " AND size_bytes >= ? AND (size_bytes, id) > (?, ?)"
-            + " ORDER BY size_bytes, id LIMIT " + KeysetPages.ROWS_IN_A_PAGE;
+            + " ORDER BY size_bytes, id";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -217,6 +217,19 @@ public class Verdicts {
      * <p>An {@code Iterable} that needs no closing; each of its iterators starts again at the first page.
      */
     public Iterable<OccurrenceId> survivors(RunId runId) {
+        return survivorPages(runId);
+    }
+
+    /**
+     * The same survivors as {@link #survivors}, each page handed to {@code page} once its statement has finished:
+     * the form for a caller that goes through a page of survivors at a time, which is handed the read's own pages
+     * and does not put them together again (ADR-245).
+     */
+    public void eachPageOfSurvivors(RunId runId, Consumer<List<OccurrenceId>> page) {
+        survivorPages(runId).eachPage(page);
+    }
+
+    private KeysetPages<OccurrenceId> survivorPages(RunId runId) {
         List<String> runsInScope = runsInScope(runId);
         String placeholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
         List<Object> fixedArguments = new ArrayList<>();

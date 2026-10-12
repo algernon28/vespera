@@ -39,9 +39,9 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Stage 5's scoring step asks how many chunks each survivor was cut into a page of survivors at a time, and
- * not with a statement of its own for each survivor (ADR-244). Scoring refuses a survivor with fewer vectors
- * than chunks (ADR-231 section 2), so the count is asked of every survivor scored; the seeds' counts are asked
- * as the seeds are read, before any survivor is scored, and are not this test's.
+ * not with a statement of its own for each survivor (ADR-244), and the seeds' counts a page of seeds at a time
+ * as the seeds are read, before any survivor is scored (ADR-245). Scoring refuses a document with fewer vectors
+ * than chunks (ADR-231 section 2), so the count is asked of every seed and every survivor scored.
  *
  * <p>Every statement the pool's connections prepare is kept, whichever class issues it, as {@code
  * TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest} keeps them.
@@ -51,6 +51,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Relevance")
 @Feature("Relevance scoring")
 @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
+@Link(name = "ADR-245", url = Adr.A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS, type = "adr")
 @Link(name = "ADR-231", url = Adr.A_PULL_WHILE_THE_EMBEDDING_STEP_RUNS_STOPS_IT_AND_SCORING_REFUSES_A_SEED_WHOSE_CHUNKS_HAVE_NO_VECTOR, type = "adr")
 class ScoringCountsAPageOfSurvivorsChunksTogetherInvocationTest {
 
@@ -60,7 +61,7 @@ class ScoringCountsAPageOfSurvivorsChunksTogetherInvocationTest {
     /** Documents of the corpus, every one a survivor scoring scores. */
     private static final int SURVIVORS = 12;
 
-    /** The seed folder holds one document, whose chunks are counted by themselves as the seeds are read. */
+    /** The seed folder holds one document, whose chunks are counted as the seeds are read. */
     private static final int SEEDS = 1;
 
     /** One content hash's chunks counted by themselves. */
@@ -144,7 +145,7 @@ class ScoringCountsAPageOfSurvivorsChunksTogetherInvocationTest {
 
     @Test
     @Story("Survivors are scored a page at a time")
-    @DisplayName("While the documents are scored against the seeds, how many pieces each was cut into is asked a page of documents at a time")
+    @DisplayName("While the documents are scored against the seeds, how many pieces each document and each seed was cut into is asked a page at a time")
     void theChunksOfAPageOfSurvivorsAreCountedTogether(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
 
@@ -158,12 +159,12 @@ class ScoringCountsAPageOfSurvivorsChunksTogetherInvocationTest {
                     assertThat(scoresRecordedFor(root)).isEqualTo(SURVIVORS);
                 });
         claim(
-                "one document's pieces were counted by themselves only for the " + SEEDS + " seed, and for none of"
-                        + " the " + SURVIVORS + " documents scored",
-                () -> assertThat(count(prepared, ONE_HASHS_CHUNKS_COUNTED)).isEqualTo(SEEDS));
+                "no document's pieces were counted by themselves, neither the " + SEEDS + " seed's nor any of the "
+                        + SURVIVORS + " documents scored",
+                () -> assertThat(count(prepared, ONE_HASHS_CHUNKS_COUNTED)).isZero());
         claim(
-                "the documents' pieces were counted in one statement for their page",
-                () -> assertThat(count(prepared, A_LIST_OF_HASHES_CHUNKS_COUNTED)).isOne());
+                "the pieces were counted in one statement for the seeds and one for the documents' page",
+                () -> assertThat(count(prepared, A_LIST_OF_HASHES_CHUNKS_COUNTED)).isEqualTo(2));
     }
 
     private static long count(List<String> prepared, String statement) {
