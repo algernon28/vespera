@@ -1709,8 +1709,8 @@ public final class Adr {
      * ADR-251 -- the one statement of the ledger whose rows can be as many as a walk's is the read of stage 2's
      * failures by path, the two reads that ask by key being as long as what they are given; whether the survivor
      * list gains a further column is undecided, not refused; and the scope of the two listeners that write a page
-     * at the end of stage 2 is stated in the code, a record giving the reason only (amends three sentences of the
-     * record before it).
+     * at the end of stage 2 is stated in the code, the record cited for it stating none and its case being held
+     * by a guard in each listener (amends three sentences of the record before it).
      */
     public static final String ONE_STATEMENT_OF_THE_LEDGER_IS_AS_LONG_AS_A_WALK = FILE
             + "0251-one-statement-of-the-ledger-is-as-long-as-a-walk-the-survivor-lists-further-columns-are-undecided-and-its-listeners-scope-is-stated-in-the-code.md";

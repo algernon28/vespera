@@ -2,7 +2,7 @@
 
 - **Date**: 2026-10-13
 - **Status**: accepted on 2026-10-13.
-- **Amends**: [ADR-250](0250-stage-2-writes-the-survivor-list-of-the-files-it-converted-and-did-not-remove.md), in three sentences and nothing else:
+- **Amends**: [ADR-250](0250-stage-2-writes-the-survivor-list-of-the-files-it-converted-and-did-not-remove.md), in three sentences and nothing else. It carries a note at its head. The three:
   - §3, *"it is the pager of the reads `ledger` pages, and `Verdicts.eachExtractionFailure`, one sorted statement, is the read it does not page"* (§1 here);
   - *Alternatives refused*, *"A status and a confidence grade beside the three columns. Refused for now under §6"* (§2 here);
   - §4, *"step-scoped as `ReviewListListener` is and for the same reason (ADR-175 §7)"* (§3 here).
@@ -27,7 +27,7 @@ The two reads of the second kind are as long as what they are given, and `pipeli
 
 **The two further columns.** ADR-250 lists a column for the converter's status and one for the confidence grade twice: under *Alternatives refused*, as refused for now, and under *What this does not decide*, among the columns an existing read does not hand over. A thing is refused or it is left undecided, and the record says both.
 
-**The listener's scope.** ADR-250 §4 cites ADR-175 §7 for `SurvivorListListener` being step-scoped. ADR-175 §7 names no scope. No record names the scope of either listener that writes a page at the end of stage 2.
+**The listener's scope.** ADR-250 §4 cites ADR-175 §7 for `SurvivorListListener` being step-scoped. ADR-175 §7 states no scope, and no record before ADR-250 states the scope of either listener that writes a page at the end of stage 2.
 
 ## Decision
 
@@ -47,14 +47,14 @@ ADR-218's row 7 gives the statement a line of `Verdicts.java`. The row means the
 
 ADR-250 §2 stands: the page has three columns. ADR-250 §6 stands as what either column costs: a read added to `ExtractionMetrics` moves stage 2 and every stage after it.
 
-### 3. The scope of the two listeners is stated in `ExtractionJobConfiguration`, and ADR-175 §7 gives the reason only
+### 3. The scope of the two listeners is stated in `ExtractionJobConfiguration`, and ADR-175 §7 states none
 
-**`SurvivorListListener` is step-scoped by its bean method in `ExtractionJobConfiguration`, and no record states that scope.** The javadocs of the bean methods state it by reference: `survivorListListener` is step-scoped as `reviewListListener` is, and `reviewListListener` as `extractionFaultRecorder` is, *"and for the same reason: it is built only when the step first calls it, and asks for the run only then"*.
+**`SurvivorListListener` is step-scoped by its bean method in `ExtractionJobConfiguration`. No record before ADR-250 states the scope of either listener that writes a page at the end of stage 2, and ADR-175 §7, which ADR-250 §4 cites for it, states none.** The javadocs of the bean methods state the scope and its reason by reference: `survivorListListener` is step-scoped as `reviewListListener` is *"and for the same reason"*, and `reviewListListener` as `extractionFaultRecorder` is, *"and for the same reason: it is built only when the step first calls it, and asks for the run only then"*. That is the reason ADR-250 §4 gives after its citation, *"built only when the step first calls it"*.
 
-- **ADR-175 §7 states no scope.** It gives the reason the scope serves: a step that failed having read nothing writes no page, because asking for the run at the end of the step would call the sidecar again and mint a run behind the failed check.
+- **ADR-175 §7 states no scope, and its case is held by a guard in each listener, not by the scope.** Its case is the step that failed having read nothing, which writes no page and asks for no run. `ReviewListListener.afterStep` and `SurvivorListListener.afterStep` each return, where the step did not complete and its read count is 0, before the one line that asks `StageRuns` for the run. Neither constructor asks for it, and `StageRuns` is job-scoped.
 - **ADR-139 §2 states the scope of the recorder alone**, *"one step-scoped listener"*, and no reason for it.
 
-ADR-250 §4's *"(ADR-175 §7)"* is read as naming that reason, not a scope.
+ADR-250 §4's *"(ADR-175 §7)"* is read so: it names the case the guard holds, and no scope and no reason for one.
 
 ## Consequences
 
@@ -65,7 +65,7 @@ ADR-250 §4's *"(ADR-175 §7)"* is read as naming that reason, not a scope.
 
 | Class | What it holds |
 | --- | --- |
-| `pipeline.TheListenersAtTheEndOfStageTwoAreStepScopedTest` | §3: the bean methods `extractionFaultRecorder`, `reviewListListener` and `survivorListListener` of `ExtractionJobConfiguration` each carry `@StepScope` |
+| `pipeline.SurvivorListListenerTest`, unchanged | §3: a step that ended in failure having read nothing writes no page and asks for no run |
 | `ledger.ReadsOfTheLedgerHoldOnePageTest`, `ledger.SurvivorsByPathTest`, `ledger.SameOccurrencesTest`, unchanged | §1: the reads handed out by keyset bring back a page at most to a statement |
 | `ledger.SurvivingAmongTest`, unchanged | §1: `survivingAmong` names at most a thousand occurrences in a statement, each a lookup by key |
 | `EveryStatementThatSortsIsRecordedTest`, unchanged | §1: `ledger.Verdicts` holds one statement that sorts |
@@ -77,3 +77,4 @@ No test holds §1's first sentence as a whole, that no other statement of `ledge
 - Whether the survivor list gains either column of §2, or any other column an existing read does not hand over.
 - Whether `Verdicts.eachExtractionFailure` is bounded. ADR-224 §3 keeps it excepted.
 - Whether `pipeline` hands `pathsOf` and `survivingAmong` a page and not a seed partition.
+- The scope of either listener, or what a stage 2 without it does. §3 says where the scope and its reason are stated; no test holds the scope, and none was made of a step without it.
