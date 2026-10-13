@@ -44,8 +44,31 @@ public enum DetectedFormat {
      */
     SPREADSHEET,
 
-    /** A zip container that is neither of those — a presentation, an ODF package, a plain archive. */
+    /**
+     * A zip container that is none of those — a presentation, an ODF package, a plain archive. A zip
+     * holding a manifest and neither {@code [Content_Types].xml} nor {@code mimetype} is a Java or
+     * Android archive and is {@link #COMPILED_CODE} instead (ADR-252).
+     */
     ZIP_CONTAINER,
+
+    /**
+     * Compiled code: a Windows program or library, an ELF or Mach-O file, a Java class, a static
+     * library, or a Java or Android archive. A format of its own for the reason {@link #BMP} is one: the
+     * bytes alone decide it. Recognised so that stage 1 can leave it out of scope (ADR-252).
+     */
+    COMPILED_CODE,
+
+    /** A TrueType, OpenType, collection or web font, recognised so that stage 1 can leave it out of scope (ADR-252). */
+    FONT,
+
+    /**
+     * A binary X.509 certificate, or CMS signed data that carries no content. Recognised so that stage 1
+     * can leave it out of scope (ADR-252).
+     */
+    CERTIFICATE,
+
+    /** An Access or SQLite database, recognised so that stage 1 can leave it out of scope (ADR-252). */
+    DATABASE,
 
     /**
      * An OLE compound file ([MS-CFB] §2.2). One signature carrying legacy Word, Excel and

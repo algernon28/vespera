@@ -181,6 +181,80 @@ public final class BrokenCheck {
 
     private static final byte[] ZIP_LOCAL_FILE_HEADER = {'P', 'K', 0x03, 0x04};
 
+    /** The entries that make a zip container a Java or Android archive, and the two that make it a document instead (ADR-252). */
+    private static final List<String> CODE_ARCHIVE_PARTS = List.of("META-INF/MANIFEST.MF", "AndroidManifest.xml");
+
+    private static final List<String> PACKAGE_DOCUMENT_PARTS = List.of("[Content_Types].xml", "mimetype");
+
+    private static final byte[] MZ_SIGNATURE = {'M', 'Z'};
+
+    /** Where an MZ header keeps, little-endian, the offset of the PE header (ADR-252). */
+    private static final int PE_HEADER_OFFSET_FIELD = 60;
+
+    private static final byte[] PE_SIGNATURE = {'P', 'E', 0x00, 0x00};
+    private static final byte[] ELF_SIGNATURE = {0x7F, 'E', 'L', 'F'};
+
+    /** The four Mach-O magic numbers, in both widths and both byte orders (ADR-252). */
+    private static final byte[][] MACH_O_MAGICS = {
+        {(byte) 0xFE, (byte) 0xED, (byte) 0xFA, (byte) 0xCE},
+        {(byte) 0xFE, (byte) 0xED, (byte) 0xFA, (byte) 0xCF},
+        {(byte) 0xCE, (byte) 0xFA, (byte) 0xED, (byte) 0xFE},
+        {(byte) 0xCF, (byte) 0xFA, (byte) 0xED, (byte) 0xFE}
+    };
+
+    /** A Java class file and a Mach-O universal binary share these four bytes and are not told apart (ADR-252). */
+    private static final byte[] CLASS_OR_UNIVERSAL_BINARY_MAGIC = {(byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE};
+
+    /** A static library's eight bytes: {@code !<arch>} and a line feed. */
+    private static final byte[] STATIC_LIBRARY_SIGNATURE = "!<arch>\n".getBytes(StandardCharsets.US_ASCII);
+
+    /** What an sfnt font with TrueType outlines opens with, and so does a Jet database (ADR-252). */
+    private static final byte[] TRUETYPE_VERSION = {0x00, 0x01, 0x00, 0x00};
+
+    private static final byte[] OPENTYPE_TAG = "OTTO".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] FONT_COLLECTION_TAG = "ttcf".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] FONT_COLLECTION_VERSION_2 = {0x00, 0x02, 0x00, 0x00};
+    private static final byte[] WOFF_SIGNATURE = "wOFF".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] WOFF2_SIGNATURE = "wOF2".getBytes(StandardCharsets.US_ASCII);
+
+    /** Where an sfnt header keeps its table count, and after it the three numbers derived from the count. */
+    private static final int SFNT_TABLE_COUNT_OFFSET = 4;
+
+    private static final int SFNT_HEADER_LENGTH = 12;
+
+    /** Where a font collection or a web font names the font it wraps. */
+    private static final int WRAPPED_FONT_OFFSET = 4;
+
+    private static final byte[] X509_SEQUENCE = {0x30, (byte) 0x82};
+    private static final byte[] X509_VERSION_TAG = {(byte) 0xA0, 0x03, 0x02, 0x01};
+
+    /** Where a certificate's inner sequence and its version tag sit. */
+    private static final int X509_INNER_SEQUENCE_OFFSET = 4;
+
+    private static final int X509_VERSION_TAG_OFFSET = 8;
+
+    /** CMS signed data's object identifier, whole: tag, length and value (ADR-252). */
+    private static final byte[] SIGNED_DATA_TYPE = {
+        0x06, 0x09, 0x2A, (byte) 0x86, 0x48, (byte) 0x86, (byte) 0xF7, 0x0D, 0x01, 0x07, 0x02
+    };
+
+    /** CMS data's object identifier, the type of content a signature is over. */
+    private static final byte[] DATA_TYPE = {
+        0x06, 0x09, 0x2A, (byte) 0x86, 0x48, (byte) 0x86, (byte) 0xF7, 0x0D, 0x01, 0x07, 0x01
+    };
+
+    /** An encapsulated content of type data with nothing in it, with its length stated and left open. */
+    private static final byte[] EMPTY_CONTENT_DEFINITE = concatBytes(new byte[] {0x30, 0x0B}, DATA_TYPE);
+
+    private static final byte[] EMPTY_CONTENT_INDEFINITE =
+            concatBytes(concatBytes(new byte[] {0x30, (byte) 0x80}, DATA_TYPE), new byte[] {0x00, 0x00});
+
+    /** An Access database: the text after the four bytes at offset 4, with the zero byte that ends it (ADR-252). */
+    private static final byte[] JET_DATABASE_ID = "Standard Jet DB\0".getBytes(StandardCharsets.US_ASCII);
+
+    private static final byte[] ACE_DATABASE_ID = "Standard ACE DB\0".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SQLITE_SIGNATURE = "SQLite format 3\0".getBytes(StandardCharsets.US_ASCII);
+
     /** The part ECMA-376 fixes for a WordprocessingML package, and the only thing separating one from any other zip. */
     private static final String WORDPROCESSING_MAIN_PART = "word/document.xml";
 
@@ -290,6 +364,20 @@ public final class BrokenCheck {
         if (decodesAsText(prefix)) {
             return narrowedPlainText(file, prefix);
         }
+        // Every signature below opens with letters or a few bytes, so each is tested only once the prefix has
+        // failed to decode as text (ADR-252).
+        if (isCompiledCode(prefix)) {
+            return Result.ok(DetectedFormat.COMPILED_CODE);
+        }
+        if (isFont(prefix)) {
+            return Result.ok(DetectedFormat.FONT);
+        }
+        if (isCertificate(prefix)) {
+            return Result.ok(DetectedFormat.CERTIFICATE);
+        }
+        if (isDatabase(prefix)) {
+            return Result.ok(DetectedFormat.DATABASE);
+        }
         if (isQuickTimeAtomWithoutFileTypeBox(prefix) || isTransportStreamVideo(prefix)) {
             return Result.ok(DetectedFormat.VIDEO);
         }
@@ -339,7 +427,9 @@ public final class BrokenCheck {
      * leaves the file as text with no subtype, which removes nothing and claims nothing.
      * {@code .json} and {@code .xml} are deliberately absent: Docling's JSON is its own
      * serialisation and its XML is schema-specific, so either subtype would assert a structure
-     * stage 2 cannot act on.
+     * stage 2 cannot act on. {@code .eml} narrows to an internet message, which {@link OutOfScope} leaves
+     * out (ADR-252): no anchored pattern separates one from a note that begins <em>"From:"</em>, so the
+     * name says, and only after the HTML test, as for the rest.
      */
     private static Result narrowedPlainText(Path file, byte[] prefix) {
         if (looksLikeHtml(prefix)) {
@@ -357,6 +447,9 @@ public final class BrokenCheck {
         }
         if (name.endsWith(".adoc") || name.endsWith(".asciidoc")) {
             return Result.ok(DetectedFormat.PLAIN_TEXT, DetectedSubtype.ASCIIDOC);
+        }
+        if (name.endsWith(".eml")) {
+            return Result.ok(DetectedFormat.PLAIN_TEXT, DetectedSubtype.RFC822_MESSAGE);
         }
         return Result.ok(DetectedFormat.PLAIN_TEXT);
     }
@@ -414,9 +507,17 @@ public final class BrokenCheck {
      * <p>A name identifying no member of the class leaves the file in the class unlabelled, which is
      * the honest answer and the one {@code Thumbs.db} earns. An OLE compound file carries no
      * structural check beyond the floor, so it is never {@code broken}.
+     *
+     * <p>{@code .msg} narrows to an Outlook message, which {@link OutOfScope} leaves out (ADR-252).
+     * ADR-094 minted no subtype for it because nothing acted on one; now something does. Telling it
+     * by bytes would still mean walking the directory, so the name says, within the container the
+     * bytes fixed.
      */
     private static Result narrowedOleCompound(Path file) {
         String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (name.endsWith(".msg")) {
+            return Result.ok(DetectedFormat.OLE_COMPOUND, DetectedSubtype.OUTLOOK_MESSAGE);
+        }
         if (name.endsWith(".doc")) {
             return Result.ok(DetectedFormat.OLE_COMPOUND, DetectedSubtype.LEGACY_WORD);
         }
@@ -440,6 +541,11 @@ public final class BrokenCheck {
      * inflating an entry and parsing XML, the exact parse work ADR-068 refused when it turned down
      * Apache POI. The filename plays no part on this branch — every distinction it could offer is
      * already available from the directory at the same cost (ADR-094).
+     *
+     * <p>A Java or Android archive is told last, by lookups in the same directory (ADR-252): a manifest
+     * and neither {@code [Content_Types].xml}, which every other Office package lists its content types
+     * in, nor {@code mimetype}, which an OpenDocument file and an EPUB book open with. A plain zip holds
+     * none of the four names and stays a {@code ZIP_CONTAINER}.
      */
     private static Result checkZipContainer(Path file) {
         try (ZipFile zip = new ZipFile(file.toFile())) {
@@ -448,6 +554,10 @@ public final class BrokenCheck {
             }
             if (SPREADSHEET_MAIN_PARTS.stream().anyMatch(part -> zip.getEntry(part) != null)) {
                 return Result.ok(DetectedFormat.SPREADSHEET);
+            }
+            if (CODE_ARCHIVE_PARTS.stream().anyMatch(part -> zip.getEntry(part) != null)
+                    && PACKAGE_DOCUMENT_PARTS.stream().allMatch(part -> zip.getEntry(part) == null)) {
+                return Result.ok(DetectedFormat.COMPILED_CODE);
             }
             return Result.ok(DetectedFormat.ZIP_CONTAINER);
         } catch (ZipException e) {
@@ -634,6 +744,110 @@ public final class BrokenCheck {
                 && prefix.length > REALMEDIA_SIZE_FIELD_TOP_OFFSET + 1
                 && prefix[REALMEDIA_SIZE_FIELD_TOP_OFFSET] == 0
                 && prefix[REALMEDIA_SIZE_FIELD_TOP_OFFSET + 1] == 0;
+    }
+
+    /**
+     * Compiled code (ADR-252), by one of: a PE header the MZ header names and that lies wholly in the
+     * prefix; an ELF header with a class, a byte order and a version no other file carries; a Mach-O
+     * magic number; a Java class or universal binary; a static library. {@code MZ} alone is not enough.
+     */
+    private static boolean isCompiledCode(byte[] prefix) {
+        return isPortableExecutable(prefix)
+                || isElf(prefix)
+                || java.util.Arrays.stream(MACH_O_MAGICS).anyMatch(magic -> startsWith(prefix, magic))
+                || startsWith(prefix, CLASS_OR_UNIVERSAL_BINARY_MAGIC)
+                || startsWith(prefix, STATIC_LIBRARY_SIGNATURE);
+    }
+
+    private static boolean isPortableExecutable(byte[] prefix) {
+        if (!startsWith(prefix, MZ_SIGNATURE) || prefix.length < PE_HEADER_OFFSET_FIELD + 4) {
+            return false;
+        }
+        long peHeader = Integer.toUnsignedLong(ByteBuffer.wrap(prefix, PE_HEADER_OFFSET_FIELD, 4)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .getInt());
+        return peHeader + PE_SIGNATURE.length <= prefix.length && matchesAt(prefix, (int) peHeader, PE_SIGNATURE);
+    }
+
+    /** {@code 7F ELF}, then a class of 1 or 2, a byte order of 1 or 2 and a version of 1. */
+    private static boolean isElf(byte[] prefix) {
+        return startsWith(prefix, ELF_SIGNATURE)
+                && prefix.length > 6
+                && (prefix[4] == 1 || prefix[4] == 2)
+                && (prefix[5] == 1 || prefix[5] == 2)
+                && prefix[6] == 1;
+    }
+
+    /**
+     * A font (ADR-252): an sfnt whose three numbers after the table count are the ones the header
+     * derives from it, a collection, or a web font wrapping either kind.
+     */
+    private static boolean isFont(byte[] prefix) {
+        if (startsWith(prefix, FONT_COLLECTION_TAG)) {
+            return matchesAt(prefix, WRAPPED_FONT_OFFSET, TRUETYPE_VERSION)
+                    || matchesAt(prefix, WRAPPED_FONT_OFFSET, FONT_COLLECTION_VERSION_2);
+        }
+        if (startsWith(prefix, WOFF_SIGNATURE) || startsWith(prefix, WOFF2_SIGNATURE)) {
+            return matchesAt(prefix, WRAPPED_FONT_OFFSET, TRUETYPE_VERSION)
+                    || matchesAt(prefix, WRAPPED_FONT_OFFSET, OPENTYPE_TAG);
+        }
+        return (startsWith(prefix, TRUETYPE_VERSION) || startsWith(prefix, OPENTYPE_TAG))
+                && sfntHeaderAgreesWithItself(prefix);
+    }
+
+    /**
+     * For a count {@code n} of tables and the largest {@code e} with 2^e at most {@code n}, the header
+     * carries 16*2^e, {@code e} and 16*n - 16*2^e. A Jet database opens with the same four bytes and
+     * its next bytes do not agree.
+     */
+    private static boolean sfntHeaderAgreesWithItself(byte[] prefix) {
+        if (prefix.length < SFNT_HEADER_LENGTH) {
+            return false;
+        }
+        ByteBuffer header = ByteBuffer.wrap(prefix).order(ByteOrder.BIG_ENDIAN);
+        int tables = Short.toUnsignedInt(header.getShort(SFNT_TABLE_COUNT_OFFSET));
+        if (tables < 1) {
+            return false;
+        }
+        int entrySelector = 31 - Integer.numberOfLeadingZeros(tables);
+        int searchRange = 16 << entrySelector;
+        return Short.toUnsignedInt(header.getShort(SFNT_TABLE_COUNT_OFFSET + 2)) == searchRange
+                && Short.toUnsignedInt(header.getShort(SFNT_TABLE_COUNT_OFFSET + 4)) == entrySelector
+                && Short.toUnsignedInt(header.getShort(SFNT_TABLE_COUNT_OFFSET + 6)) == 16 * tables - searchRange;
+    }
+
+    /**
+     * A binary X.509 certificate, or CMS signed data with no content (ADR-252). A signed envelope
+     * carries its document in the encapsulated content, which is then not empty, so it is not taken.
+     */
+    private static boolean isCertificate(byte[] prefix) {
+        return (startsWith(prefix, X509_SEQUENCE)
+                        && matchesAt(prefix, X509_INNER_SEQUENCE_OFFSET, X509_SEQUENCE)
+                        && matchesAt(prefix, X509_VERSION_TAG_OFFSET, X509_VERSION_TAG))
+                || isSignedDataWithNoContent(prefix);
+    }
+
+    private static boolean isSignedDataWithNoContent(byte[] prefix) {
+        if (prefix.length < 2 || prefix[0] != 0x30) {
+            return false;
+        }
+        int typeAt = switch (prefix[1] & 0xFF) {
+            case 0x82 -> 4;
+            case 0x83 -> 5;
+            case 0x80 -> 2;
+            default -> -1;
+        };
+        return typeAt > 0
+                && matchesAt(prefix, typeAt, SIGNED_DATA_TYPE)
+                && (contains(prefix, EMPTY_CONTENT_DEFINITE) || contains(prefix, EMPTY_CONTENT_INDEFINITE));
+    }
+
+    /** An Access database of either engine, or an SQLite database (ADR-252). */
+    private static boolean isDatabase(byte[] prefix) {
+        return (startsWith(prefix, TRUETYPE_VERSION)
+                        && (matchesAt(prefix, WRAPPED_FONT_OFFSET, JET_DATABASE_ID)
+                                || matchesAt(prefix, WRAPPED_FONT_OFFSET, ACE_DATABASE_ID)))
+                || startsWith(prefix, SQLITE_SIGNATURE);
     }
 
     private static byte[] concatBytes(byte[] first, byte[] second) {

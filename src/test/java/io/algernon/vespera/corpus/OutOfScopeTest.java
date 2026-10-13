@@ -51,6 +51,7 @@ class OutOfScopeTest {
     private static final String SPREADSHEET_REASON = "a spreadsheet, and spreadsheets are out of scope";
     private static final String BMP_REASON = "a BMP image, and BMP images are out of scope";
     private static final String VIDEO_REASON = "a video, and videos are out of scope";
+    private static final String EMAIL_REASON = "an email, and emails are out of scope";
 
     /** The structured-text reason, with the kind, the size and the ceiling to fill in. */
     private static final String STRUCTURED_REASON = "%s of %s bytes, and HTML, CSV and AsciiDoc files over %s bytes"
@@ -114,6 +115,65 @@ class OutOfScopeTest {
                 "a CSV file is kept for its kind: it is text, not a spreadsheet",
                 () -> assertThat(OutOfScope.reasonFor(DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.CSV)))
                         .isEmpty());
+    }
+
+    /**
+     * ADR-252's kinds, each named by its string so that this compiles before the value exists: four detected
+     * formats the bytes decide, and an email, which a name narrows to within an older Office container or text.
+     */
+    @Test
+    @Story("Which kinds of file are left out whatever they hold")
+    @DisplayName("Compiled code, fonts, certificates and detached signatures, databases and emails are left out, each with a reason naming its kind")
+    @Link(name = "ADR-252", url = Adr.COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE, type = "adr")
+    void leavesOutCompiledCodeFontsCertificatesDatabasesAndEmails() {
+        claim(
+                "compiled code is left out with a reason of its own",
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.valueOf("COMPILED_CODE"), Optional.empty()))
+                        .contains("compiled code, and compiled code is out of scope"));
+        claim(
+                "a font is left out with a reason of its own",
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.valueOf("FONT"), Optional.empty()))
+                        .contains("a font, and fonts are out of scope"));
+        claim(
+                "a certificate or a detached signature is left out with a reason that names both, because the one"
+                        + " value holds both",
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.valueOf("CERTIFICATE"), Optional.empty()))
+                        .contains("a certificate or a detached signature, and certificates and detached signatures"
+                                + " are out of scope"));
+        claim(
+                "a database is left out with a reason of its own",
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.valueOf("DATABASE"), Optional.empty()))
+                        .contains("a database, and databases are out of scope"));
+        claim(
+                "an older compound file named as an Outlook message and text named as an internet message are"
+                        + " both emails, and are left out with the one reason",
+                () -> {
+                    assertThat(OutOfScope.reasonFor(
+                                    DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.valueOf("OUTLOOK_MESSAGE"))))
+                            .contains(EMAIL_REASON);
+                    assertThat(OutOfScope.reasonFor(
+                                    DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.valueOf("RFC822_MESSAGE"))))
+                            .contains(EMAIL_REASON);
+                });
+    }
+
+    @Test
+    @Story("Which kinds of file are left out whatever they hold")
+    @DisplayName("An older Office container with no finer label, an archive of another kind and a file of no known kind are not left out")
+    @Link(name = "ADR-252", url = Adr.COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-095", url = Adr.DETECTED_FORMAT_IS_A_STAGE_1_OUTPUT, type = "adr")
+    void keepsWhatCarriesNoSignatureOfAKindLeftOut() {
+        claim(
+                "an older compound file its name says nothing about, a project plan or a thumbnail cache, is kept:"
+                        + " the container is not what is out of scope",
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.OLE_COMPOUND, Optional.empty())).isEmpty());
+        claim(
+                "a zip container that is neither a Word file, a spreadsheet nor a Java archive is kept: it may be a"
+                        + " presentation, or hold documents",
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.ZIP_CONTAINER, Optional.empty())).isEmpty());
+        claim(
+                "and a file of no known kind is kept: having no signature is not a signature",
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.UNRECOGNISED, Optional.empty())).isEmpty());
     }
 
     @Test

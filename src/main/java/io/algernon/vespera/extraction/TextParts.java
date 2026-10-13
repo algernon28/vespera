@@ -134,7 +134,9 @@ public final class TextParts {
     }
 
     private static boolean isCutKind(DetectedFormat format, DetectedSubtype subtype) {
-        return format == DetectedFormat.PLAIN_TEXT && (subtype == null || subtype == DetectedSubtype.MARKDOWN);
+        return format == DetectedFormat.PLAIN_TEXT && (subtype == null
+                || subtype == DetectedSubtype.MARKDOWN
+                || subtype == DetectedSubtype.RFC822_MESSAGE);
     }
 
     /** {@code FE FF}, {@code FF FE} (which opens UTF-32 little-endian too) or {@code 00 00 FE FF}. */
