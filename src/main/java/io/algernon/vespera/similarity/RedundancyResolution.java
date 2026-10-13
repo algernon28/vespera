@@ -558,7 +558,8 @@ public class RedundancyResolution {
 
     /** Which of {@code occurrences} a signature exists for under {@code stage4RunId}, asked by key. */
     private Set<Long> signedAmong(RunId stage4RunId, Collection<Long> occurrences) {
-        return among("SELECT occurrence_id FROM minhash_signature WHERE run_id = ?", stage4RunId, occurrences);
+        return among(
+                "SELECT occurrence_id FROM minhash_signature WHERE run_id = ?", "occurrence_id", stage4RunId, occurrences);
     }
 
     /**
@@ -567,35 +568,28 @@ public class RedundancyResolution {
      * a container, so no pointer names a removed document (ADR-234).
      */
     private Set<Long> removedAmong(RunId stage4RunId, Collection<Long> occurrences) {
-        return among("SELECT occurrence_id FROM redundant_with WHERE run_id = ?", stage4RunId, occurrences);
+        return among(
+                "SELECT occurrence_id FROM redundant_with WHERE run_id = ?", "occurrence_id", stage4RunId, occurrences);
     }
 
     /**
      * Which of {@code occurrences} a row of {@code stage4RunId} already names as the document kept in another's
      * place, a near-duplicate's survivor or a container (ADR-234), asked of the index on that column a page at a
-     * time (ADR-245). Sorts nothing. A set the caller may add to.
+     * time (ADR-245), by the one read by key the others are (ADR-246). Sorts nothing. A set the caller may add to.
      */
     private Set<Long> keptAmong(RunId stage4RunId, Collection<Long> occurrences) {
-        Set<Long> kept = new HashSet<>();
-        List<Long> all = List.copyOf(occurrences);
-        for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_PAGE) {
-            List<Long> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_PAGE));
-            List<Object> arguments = new ArrayList<>(batch);
-            arguments.add(stage4RunId.value());
-            jdbcTemplate.query(
-                    "SELECT redundant_with_occurrence_id FROM redundant_with"
-                            + " WHERE redundant_with_occurrence_id IN (" + Placeholders.of(batch.size()) + ")"
-                            + " AND run_id = ?",
-                    resultSet -> {
-                        kept.add(resultSet.getLong(1));
-                    },
-                    arguments.toArray());
-        }
-        return kept;
+        return among(
+                "SELECT redundant_with_occurrence_id FROM redundant_with WHERE run_id = ?",
+                "redundant_with_occurrence_id",
+                stage4RunId,
+                occurrences);
     }
 
-    /** {@code select} narrowed to a list of occurrences, in statements of at most one page of them. */
-    private Set<Long> among(String select, RunId stage4RunId, Collection<Long> occurrences) {
+    /**
+     * {@code select}, which binds {@code stage4RunId} and reads one occurrence, narrowed to those of {@code
+     * occurrences} its {@code column} names, in statements of at most one page of them.
+     */
+    private Set<Long> among(String select, String column, RunId stage4RunId, Collection<Long> occurrences) {
         Set<Long> found = new HashSet<>();
         List<Long> all = List.copyOf(occurrences);
         for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_PAGE) {
@@ -604,9 +598,9 @@ public class RedundancyResolution {
             arguments.add(stage4RunId.value());
             arguments.addAll(batch);
             jdbcTemplate.query(
-                    select + " AND occurrence_id IN (" + Placeholders.of(batch.size()) + ")",
+                    select + " AND " + column + " IN (" + Placeholders.of(batch.size()) + ")",
                     resultSet -> {
-                        found.add(resultSet.getLong("occurrence_id"));
+                        found.add(resultSet.getLong(1));
                     },
                     arguments.toArray());
         }

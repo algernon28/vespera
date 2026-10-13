@@ -1,5 +1,7 @@
 # ADR-245 — Stage 4b asks a page whether its documents are kept, a move is attempted again for a sharing violation only on Windows, and the pager writes its own bound
 
+> **Partly amended — see [ADR-246](0246-a-move-on-a-drive-windows-serves-is-attempted-again-and-the-survivors-pages-are-the-ledgers.md).** Of §2: a `FileSystemException` of no subclass is attempted again away from Windows too where the page's place is on a drive Windows serves, under WSL or over a share, told by the type of its file store.
+
 - **Date**: 2026-10-12
 - **Status**: accepted on 2026-10-12, on the call of the session that worked the review of the changes on `main` from `c244916` to `85b2d38` (*"fix them, test first, then open a PR"*). No question was put to the operator. Each change below that changes what the code does had a test written first that failed on the code at `85b2d38`, and passes after it.
 - **Amends**: [ADR-244](0244-the-floors-answers-are-those-under-the-runs-embedder-identity-a-move-refused-as-a-sharing-violation-is-attempted-again-and-a-document-kept-for-another-is-checked-for-no-container.md) §3, that a `FileSystemException` of no subclass is attempted again on every platform (§2 here); §4, that whether a document is kept is asked of each document by itself (§1); §6, *"The pager does not write the bound itself"* (§3); and §7's last sentence, *"The seeds' counts are asked as they were"* (§4). It carries a note at its head.

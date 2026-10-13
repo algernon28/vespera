@@ -49,8 +49,8 @@ import java.util.Optional;
  * comes from its own {@code partitionOrder}, and a cluster's from its own {@code clusterOrder}.
  *
  * <p><b>The index and the manifest are written beside their targets and moved into place</b> (ADR-223
- * section 6), each move attempted again where it is refused as access denied or, on Windows, as another
- * program's (ADR-242, ADR-244, ADR-245): each is whole where
+ * section 6), each move attempted again where it is refused as access denied or, on Windows or a drive Windows
+ * serves, as another program's (ADR-242, ADR-244, ADR-245, ADR-246): each is whole where
  * it appears, so a write that fails before the first move leaves the pair the write before left, or none; one
  * whose manifest fails to move after the index has moved leaves the new index beside the manifest before it. A
  * finished tree holds no {@value #PART_SUFFIX} file.

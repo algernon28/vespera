@@ -50,9 +50,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class ConfidenceDistribution {
 
-    /** The most occurrences one read of rows names: the ledger's own page of survivors. */
-    private static final int PAGE = 1_000;
-
     private final JdbcTemplate jdbcTemplate;
     private final Ledger ledger;
 
@@ -88,20 +85,12 @@ public class ConfidenceDistribution {
         progress.statementStarting(
                 ExtractionStatement.EXTRACTION_METRICS,
                 ExtractionMetrics.metricRowsUpTo(jdbcTemplate, extractionRunId));
-        long rowsRead = 0;
-        List<OccurrenceId> page = new ArrayList<>(PAGE);
-        for (OccurrenceId survivor : ledger.verdicts().survivors(extractionRunId)) {
-            page.add(survivor);
-            if (page.size() == PAGE) {
-                rowsRead += countScoresOf(extractionRunId, page, countsByGrade);
-                progress.rowsRead(ExtractionStatement.EXTRACTION_METRICS, rowsRead);
-                page.clear();
-            }
-        }
-        if (!page.isEmpty()) {
-            rowsRead += countScoresOf(extractionRunId, page, countsByGrade);
-            progress.rowsRead(ExtractionStatement.EXTRACTION_METRICS, rowsRead);
-        }
+        // The ledger's own pages of survivors, each read and told as it is handed over (ADR-246).
+        long[] rowsRead = {0};
+        ledger.verdicts().eachPageOfSurvivors(extractionRunId, page -> {
+            rowsRead[0] += countScoresOf(extractionRunId, page, countsByGrade);
+            progress.rowsRead(ExtractionStatement.EXTRACTION_METRICS, rowsRead[0]);
+        });
         progress.statementEnded(ExtractionStatement.EXTRACTION_METRICS);
 
         long refusedConversionCount = new ExtractionFaults(jdbcTemplate).countForRun(extractionRunId);

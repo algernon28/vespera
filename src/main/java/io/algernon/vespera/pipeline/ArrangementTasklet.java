@@ -199,8 +199,8 @@ class ArrangementTasklet implements Tasklet {
     /**
      * Writes the page an approval names, a partition at a time, to a file beside {@code arrangement.html} and
      * moves it over that file once it is whole, so that a step that fails partway leaves the page before it
-     * or none (ADR-223 section 3), the move attempted again where it is refused as access denied or, on Windows,
-     * as another program's (ADR-242, ADR-244, ADR-245).
+     * or none (ADR-223 section 3), the move attempted again where it is refused as access denied or, on Windows or
+     * a drive Windows serves, as another program's (ADR-242, ADR-244, ADR-245, ADR-246).
      * Where {@code recording}, each partition is arranged, labelled and recorded first; either way its rows are
      * read back before its part of the page is written, so what a reviewer is shown, and an approval then names,
      * is the same whether this invocation just wrote those rows or is only rendering a page for a run an earlier

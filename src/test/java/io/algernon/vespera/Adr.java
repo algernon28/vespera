@@ -1662,6 +1662,16 @@ public final class Adr {
     public static final String A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS = FILE
             + "0245-stage-4b-asks-a-page-whether-its-documents-are-kept-a-move-is-attempted-again-for-a-sharing-violation-only-on-windows-and-the-pager-writes-its-own-bound.md";
 
+    /**
+     * ADR-246 -- a move refused by an error Java has no more specific type for is attempted again where the page's
+     * place is on a drive Windows serves, read from Linux under WSL or over a share, as on Windows; the confidence
+     * distribution goes through the ledger's own pages of survivors; stage 4b asks which documents are kept by its
+     * one read by key; and the seeds' read counter moves a page at a time. Rides the re-mint of stages 2 to 6b that
+     * ADR-237 to ADR-245 already make (applies ADR-216 section 1; amends ADR-245).
+     */
+    public static final String A_MOVE_ON_A_DRIVE_WINDOWS_SERVES_IS_TRIED_AGAIN_AND_THE_SURVIVORS_PAGES_ARE_THE_LEDGERS = FILE
+            + "0246-a-move-on-a-drive-windows-serves-is-attempted-again-and-the-survivors-pages-are-the-ledgers.md";
+
     private Adr() {
     }
 }
