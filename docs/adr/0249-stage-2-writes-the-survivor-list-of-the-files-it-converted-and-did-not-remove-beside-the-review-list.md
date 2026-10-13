@@ -148,7 +148,7 @@ Built in the change this record lands with, as listed.
 - `ReportPage`'s javadoc counts the reports written beside the database; it was one short and is now eight: `ArrangementReport`, `ClusterSizeReport`, `ConfidenceDistributionReport`, `FormatMixReport`, `RelevanceLabellingReport`, `ReviewListReport`, `SeedCorpusComparisonReport` and `SurvivorListReport`.
 - No file under `extraction`, `similarity`, `corpus`, `embedding`, `synthesis` or `profile`, or §6 is false.
 
-**This record's number is not the next one.** ADR-246, ADR-247 and ADR-248 are numbers taken by records that had not landed when this one did, so the index and `AGENTS.md` go from ADR-245 to ADR-249 and say so, and each of the three closes the gap as it lands.
+**This record's number follows ADR-248.** ADR-246, ADR-247 and ADR-248 landed on `main` while this one was in review, so the index and `AGENTS.md` run from ADR-001 to ADR-249 with no gap. Those three ride a re-mint of stages 2 to 6b; that re-mint is theirs, and §6 speaks of this change only.
 
 ## Put to the operator, and what was answered
 

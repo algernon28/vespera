@@ -44,14 +44,11 @@ import org.springframework.stereotype.Component;
  * same value as the HTML file, so the two outputs can never silently disagree (ADR-075).
  *
  * <p>Reads {@code extraction_metric} rows under stage 2's own run id, restricted to stage 2's
- * survivors, which it asks of {@code Verdicts#survivors(RunId)} a page at a time and never holds as a set
- * (ADR-211 section 2).
+ * survivors, which {@code Verdicts#eachPageOfSurvivors} hands it a page at a time and which it never holds as a
+ * set (ADR-211 section 2, ADR-246).
  */
 @Component
 public class ConfidenceDistribution {
-
-    /** The most occurrences one read of rows names: the ledger's own page of survivors. */
-    private static final int PAGE = 1_000;
 
     private final JdbcTemplate jdbcTemplate;
     private final Ledger ledger;
@@ -88,20 +85,12 @@ public class ConfidenceDistribution {
         progress.statementStarting(
                 ExtractionStatement.EXTRACTION_METRICS,
                 ExtractionMetrics.metricRowsUpTo(jdbcTemplate, extractionRunId));
-        long rowsRead = 0;
-        List<OccurrenceId> page = new ArrayList<>(PAGE);
-        for (OccurrenceId survivor : ledger.verdicts().survivors(extractionRunId)) {
-            page.add(survivor);
-            if (page.size() == PAGE) {
-                rowsRead += countScoresOf(extractionRunId, page, countsByGrade);
-                progress.rowsRead(ExtractionStatement.EXTRACTION_METRICS, rowsRead);
-                page.clear();
-            }
-        }
-        if (!page.isEmpty()) {
-            rowsRead += countScoresOf(extractionRunId, page, countsByGrade);
-            progress.rowsRead(ExtractionStatement.EXTRACTION_METRICS, rowsRead);
-        }
+        // The ledger's own pages of survivors, each read and told as it is handed over (ADR-246).
+        long[] rowsRead = {0};
+        ledger.verdicts().eachPageOfSurvivors(extractionRunId, page -> {
+            rowsRead[0] += countScoresOf(extractionRunId, page, countsByGrade);
+            progress.rowsRead(ExtractionStatement.EXTRACTION_METRICS, rowsRead[0]);
+        });
         progress.statementEnded(ExtractionStatement.EXTRACTION_METRICS);
 
         long refusedConversionCount = new ExtractionFaults(jdbcTemplate).countForRun(extractionRunId);

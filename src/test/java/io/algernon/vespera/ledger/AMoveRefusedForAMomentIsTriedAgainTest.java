@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -53,6 +54,12 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
 
     /** Whether the move stands in for one made on Windows, where a sharing violation has no type of its own. */
     private static final boolean ON_WINDOWS = true;
+
+    /** The type Linux gives a disk of its own, which no Windows program holds a file on. */
+    private static final String A_LINUX_DISK = "ext4";
+
+    /** The type WSL 2 gives a Windows drive mounted under {@code /mnt}, served by Windows over 9P. */
+    private static final String A_WINDOWS_DRIVE_UNDER_WSL = "9p";
 
     /** How many attempts the move makes in all, the first and four more. */
     private static final int FIVE_ATTEMPTS = 5;
@@ -117,7 +124,8 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
                             Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
                         },
                         waited::add,
-                        ON_WINDOWS)
+                        ON_WINDOWS,
+                        disk -> A_LINUX_DISK)
                 .intoPlace(part, target));
 
         claim("the move went through, and nothing was thrown", () -> assertThat(thrown).isNull());
@@ -137,12 +145,12 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
 
     /**
      * Away from Windows no program holding a file makes its move fail with an error Java has no more specific
-     * type for: such a failure is a disk that is read-only or full, a directory in the page's place or a fault of
-     * the device, which no wait lifts (ADR-245, amending ADR-244).
+     * type for, on a disk of its own: such a failure is a disk that is read-only or full, a directory in the page's
+     * place or a fault of the device, which no wait lifts (ADR-245, amending ADR-244).
      */
     @Test
     @Story("A page is put in its place whole")
-    @DisplayName("Away from Windows, a move that fails with an error of no more specific type is not attempted again")
+    @DisplayName("Away from Windows, a move on a disk of its own that fails with an error of no more specific type is not attempted again")
     @Link(name = "ADR-245", url = Adr.A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS, type = "adr")
     void awayFromWindowsAnUntypedFailureIsNotTriedAgain(@TempDir Path directory) throws IOException {
         Path part = page(directory.resolve("index.md.part"), THE_NEW_PAGE);
@@ -158,7 +166,8 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
                             throw readOnly;
                         },
                         waited::add,
-                        !ON_WINDOWS)
+                        !ON_WINDOWS,
+                        disk -> A_LINUX_DISK)
                 .intoPlace(part, target));
 
         claim(
@@ -174,6 +183,117 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
                     assertThat(Files.readString(target, StandardCharsets.UTF_8)).isEqualTo(THE_OLD_PAGE);
                     assertThat(Files.readString(part, StandardCharsets.UTF_8)).isEqualTo(THE_NEW_PAGE);
                 });
+    }
+
+    /**
+     * A page in a Windows drive written from Linux, under WSL or on a share Windows serves, is held by the Windows
+     * programs that hold it there, and a move it refuses comes to Java on Linux as an error of no more specific
+     * type: it is attempted again as on Windows (ADR-246, amending ADR-245).
+     */
+    @Test
+    @Story("A page is put in its place whole")
+    @DisplayName("Away from Windows, a page on a drive Windows serves whose move is refused twice with an error of no more specific type is moved on the third attempt")
+    @Link(name = "ADR-246", url = Adr.A_MOVE_ON_A_DRIVE_WINDOWS_SERVES_IS_TRIED_AGAIN_AND_THE_SURVIVORS_PAGES_ARE_THE_LEDGERS, type = "adr")
+    void awayFromWindowsAnUntypedFailureOnADriveWindowsServesIsTriedAgain(@TempDir Path directory) throws IOException {
+        Path part = page(directory.resolve("index.md.part"), THE_NEW_PAGE);
+        Path target = page(directory.resolve("index.md"), THE_OLD_PAGE);
+        List<Long> waited = new ArrayList<>();
+        int[] attempts = {0};
+        List<Path> disksAsked = new ArrayList<>();
+
+        Throwable thrown = catchThrowable(() -> new ReplacingMove(
+                        (from, to) -> {
+                            attempts[0]++;
+                            if (attempts[0] <= REFUSED_TWICE) {
+                                throw new FileSystemException(from.toString(), to.toString(), "Device or resource busy");
+                            }
+                            Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                        },
+                        waited::add,
+                        !ON_WINDOWS,
+                        disk -> {
+                            disksAsked.add(disk);
+                            return A_WINDOWS_DRIVE_UNDER_WSL;
+                        })
+                .intoPlace(part, target));
+
+        claim("the move went through, and nothing was thrown", () -> assertThat(thrown).isNull());
+        claim(
+                "it was attempted three times, the first two refused, with a wait after each refusal, the drive's"
+                        + " type asked of the page's place once for the move, and not again for each refusal",
+                () -> {
+                    assertThat(attempts[0]).isEqualTo(REFUSED_TWICE + 1);
+                    assertThat(waited).hasSize(REFUSED_TWICE);
+                    assertThat(disksAsked).containsExactly(target);
+                });
+        claim(
+                "the page in its place is the new one, and the page beside it is gone",
+                () -> {
+                    assertThat(Files.readString(target, StandardCharsets.UTF_8)).isEqualTo(THE_NEW_PAGE);
+                    assertThat(part).doesNotExist();
+                });
+    }
+
+    @Test
+    @Story("A page is put in its place whole")
+    @DisplayName("The drives Windows serves to Linux are told by their type: WSL's and a Windows share's, and no disk Linux mounts itself")
+    @Link(name = "ADR-246", url = Adr.A_MOVE_ON_A_DRIVE_WINDOWS_SERVES_IS_TRIED_AGAIN_AND_THE_SURVIVORS_PAGES_ARE_THE_LEDGERS, type = "adr")
+    @Link(name = "ADR-247", url = Adr.STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX, type = "adr")
+    void theDrivesWindowsServesAreToldByTheirType() {
+        claim(
+                "WSL's drives, 9p, drvfs or virtiofs, and a Windows share, cifs, smb3 or smbfs, are drives Windows"
+                        + " serves",
+                () -> assertThat(List.of("9p", "drvfs", "virtiofs", "cifs", "smb3", "smbfs"))
+                        .allMatch(ReplacingMove::isServedByWindows));
+        claim(
+                "a disk Linux or macOS mounts itself, an NTFS or exFAT one among them, and a type that could not be"
+                        + " read, are not: no Windows program holds a file on it while Linux runs",
+                () -> assertThat(List.of(
+                                "ext4", "xfs", "btrfs", "tmpfs", "apfs", "overlay", "ntfs", "ntfs3", "fuseblk", "exfat", ""))
+                        .noneMatch(ReplacingMove::isServedByWindows));
+    }
+
+    /**
+     * The drive's type is asked only to decide whether to wait; a lookup that fails, or answers nothing, is no
+     * drive Windows serves, and the move's own failure is what is thrown (ADR-247).
+     */
+    @Test
+    @Story("A page is put in its place whole")
+    @DisplayName("Away from Windows, a move whose drive cannot be told is not attempted again, and its own failure is thrown")
+    @Link(name = "ADR-247", url = Adr.STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX, type = "adr")
+    void aDriveThatCannotBeToldLeavesTheMovesOwnFailure(@TempDir Path directory) throws IOException {
+        Path part = page(directory.resolve("index.md.part"), THE_NEW_PAGE);
+        Path target = page(directory.resolve("index.md"), THE_OLD_PAGE);
+        FileSystemException refused =
+                new FileSystemException(part.toString(), target.toString(), "Device or resource busy");
+        List<Function<Path, String>> lookups = List.of(
+                disk -> {
+                    throw new IllegalStateException("the mounts could not be read");
+                },
+                disk -> null);
+
+        for (Function<Path, String> lookup : lookups) {
+            List<Long> waited = new ArrayList<>();
+            int[] attempts = {0};
+            Throwable thrown = catchThrowable(() -> new ReplacingMove(
+                            (from, to) -> {
+                                attempts[0]++;
+                                throw refused;
+                            },
+                            waited::add,
+                            !ON_WINDOWS,
+                            lookup)
+                    .intoPlace(part, target));
+
+            claim(
+                    "the move's own failure is thrown, after one attempt and no wait, whether the lookup failed or"
+                            + " answered nothing",
+                    () -> {
+                        assertThat(thrown).isSameAs(refused);
+                        assertThat(attempts[0]).isOne();
+                        assertThat(waited).isEmpty();
+                    });
+        }
     }
 
     @Test

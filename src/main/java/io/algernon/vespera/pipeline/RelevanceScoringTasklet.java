@@ -9,6 +9,7 @@ import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ChunkingRule;
 import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.HybridChunker;
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
@@ -229,17 +230,23 @@ class RelevanceScoringTasklet implements Tasklet {
                 .collect(Collectors.toSet());
         allSeeds.removeAll(unusable);
 
-        // Asked a page of seeds to a statement, the keys and then their chunk counts (ADR-245).
+        // Asked a page of seeds to a statement, the keys and then their chunk counts (ADR-245), and counted as
+        // each page is read, so that the counter moves while the reads are made (ADR-246).
         StageProgress read =
                 StageProgress.over("Stage 5d (relevance scoring, seed cache keys read)", allSeeds.size());
-        Map<OccurrenceId, String> keys = cacheKeys.requireForOccurrences(allSeeds, measurementRun);
-        Map<String, Integer> chunkCounts =
-                hybridChunker.chunkCounts(new HashSet<>(keys.values()), ChunkingRule.DEFAULT);
         Map<OccurrenceId, SeedChunks> contentHashes = new LinkedHashMap<>();
-        for (OccurrenceId seedOccurrenceId : allSeeds) {
-            String contentHash = keys.get(seedOccurrenceId);
-            contentHashes.put(seedOccurrenceId, new SeedChunks(contentHash, chunkCounts.getOrDefault(contentHash, 0)));
-            read.itemDone();
+        List<OccurrenceId> seeds = List.copyOf(allSeeds);
+        for (int from = 0; from < seeds.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
+            List<OccurrenceId> page = seeds.subList(from, Math.min(seeds.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+            Map<OccurrenceId, String> keys = cacheKeys.requireForOccurrences(page, measurementRun);
+            Map<String, Integer> chunkCounts =
+                    hybridChunker.chunkCounts(new HashSet<>(keys.values()), ChunkingRule.DEFAULT);
+            for (OccurrenceId seedOccurrenceId : page) {
+                String contentHash = keys.get(seedOccurrenceId);
+                contentHashes.put(
+                        seedOccurrenceId, new SeedChunks(contentHash, chunkCounts.getOrDefault(contentHash, 0)));
+                read.itemDone();
+            }
         }
         return contentHashes;
     }

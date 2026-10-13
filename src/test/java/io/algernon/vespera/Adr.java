@@ -1663,6 +1663,33 @@ public final class Adr {
             + "0245-stage-4b-asks-a-page-whether-its-documents-are-kept-a-move-is-attempted-again-for-a-sharing-violation-only-on-windows-and-the-pager-writes-its-own-bound.md";
 
     /**
+     * ADR-246 -- a move refused by an error Java has no more specific type for is attempted again where the page's
+     * place is on a drive Windows serves, read from Linux under WSL or over a share, as on Windows; the confidence
+     * distribution goes through the ledger's own pages of survivors; stage 4b asks which documents are kept by its
+     * one read by key; and the seeds' read counter moves a page at a time. Rides the re-mint of stages 2 to 6b that
+     * ADR-237 to ADR-245 already make (applies ADR-216 section 1; amends ADR-245).
+     */
+    public static final String A_MOVE_ON_A_DRIVE_WINDOWS_SERVES_IS_TRIED_AGAIN_AND_THE_SURVIVORS_PAGES_ARE_THE_LEDGERS = FILE
+            + "0246-a-move-on-a-drive-windows-serves-is-attempted-again-and-the-survivors-pages-are-the-ledgers.md";
+
+    /**
+     * ADR-247 -- stage 4b asks whether a page of documents is kept of the index on the kept document, the run
+     * compared as a value so that the planner does not read the whole run's rows for each page; a drive Windows
+     * serves is told by fewer names, virtiofs among them and no disk Linux mounts itself, and asked once a move,
+     * and a lookup that fails leaves the move's own failure standing (amends ADR-245 and ADR-246).
+     */
+    public static final String STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX = FILE
+            + "0247-stage-4b-asks-whether-a-page-is-kept-of-its-own-index-and-a-drive-windows-serves-is-told-once.md";
+
+    /**
+     * ADR-248 -- stage 4b's reads of which documents are signed and which removed compare the run as a column, so
+     * that the primary key, which holds the occurrence and the run, finds each row of the run by both; only the
+     * question whether a page is kept compares it as a value (amends ADR-247 section 1).
+     */
+    public static final String ONLY_THE_KEPT_QUESTION_COMPARES_THE_RUN_AS_A_VALUE = FILE
+            + "0248-only-stage-4bs-question-whether-a-page-is-kept-compares-the-run-as-a-value.md";
+
+    /**
      * ADR-249 -- stage 2 writes a second page at its end, the survivor list: every survivor of its run that
      * carries a metrics row under it, by path, with its page and word counts, read a page at a time through a
      * read of the ledger that sorts nothing, and touching no module a stage's version names (extends ADR-175
