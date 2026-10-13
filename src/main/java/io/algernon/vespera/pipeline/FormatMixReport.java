@@ -153,7 +153,7 @@ final class FormatMixReport {
         }
 
         body.append(ReportPage.heading(2, "How much of each text file begins with a timestamp"))
-                .append(ReportPage.paragraph("Each text file was read from its start and its end, and the"
+                .append(ReportPage.paragraph("Each text file not left out for its kind was read from its start and its end, and the"
                         + " lines that begin with a date or a time were counted against the lines read that"
                         + " are not blank. The share is that count in whole percent, rounded down."))
                 .append(ReportPage.paragraph(mix.logFloor() == null

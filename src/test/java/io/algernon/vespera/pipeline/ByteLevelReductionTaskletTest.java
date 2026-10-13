@@ -504,6 +504,11 @@ class ByteLevelReductionTaskletTest {
                         + " is as short: a file left out for its kind is not read for timestamps",
                 () -> assertThat(countIn(html, "<td>fewer than ten lines</td>")).isEqualTo(1));
         claim(
+                "and says so above that table: the text files read for timestamps are those not left out for their"
+                        + " kind",
+                () -> assertThat(html)
+                        .contains("Each text file not left out for its kind was read from its start and its end"));
+        claim(
                 "gives each kind the bytes decide a row of its own",
                 () -> assertThat(List.of(
                                 countIn(html, "<td>Compiled code</td>"),
