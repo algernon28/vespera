@@ -1681,6 +1681,14 @@ public final class Adr {
     public static final String STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX = FILE
             + "0247-stage-4b-asks-whether-a-page-is-kept-of-its-own-index-and-a-drive-windows-serves-is-told-once.md";
 
+    /**
+     * ADR-248 -- stage 4b's reads of which documents are signed and which removed compare the run as a column, so
+     * that the primary key, which holds the occurrence and the run, finds each row of the run by both; only the
+     * question whether a page is kept compares it as a value (amends ADR-247 section 1).
+     */
+    public static final String ONLY_THE_KEPT_QUESTION_COMPARES_THE_RUN_AS_A_VALUE = FILE
+            + "0248-only-stage-4bs-question-whether-a-page-is-kept-compares-the-run-as-a-value.md";
+
     private Adr() {
     }
 }

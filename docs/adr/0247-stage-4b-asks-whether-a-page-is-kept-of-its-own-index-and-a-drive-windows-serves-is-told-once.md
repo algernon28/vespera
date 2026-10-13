@@ -1,5 +1,7 @@
 # ADR-247 — Stage 4b asks whether a page is kept of its own index, and a drive Windows serves is told once
 
+> **Partly amended — see [ADR-248](0248-only-stage-4bs-question-whether-a-page-is-kept-compares-the-run-as-a-value.md).** Of §1: only `keptAmong` compares the run as a value; `signedAmong` and `removedAmong` compare it as a column, and their table's primary key finds each row by the occurrence and the run.
+
 - **Date**: 2026-10-13
 - **Status**: accepted on 2026-10-13, on the call of the session that worked the review of the change on `main` from `c60dc68` to `8815146` (*"fix them, test first, then open a PR"*). No question was put to the operator. Each change below that changes what the code does had a test written first that failed on the code at `8815146`, and passes after it.
 - **Amends**: [ADR-245](0245-stage-4b-asks-a-page-whether-its-documents-are-kept-a-move-is-attempted-again-for-a-sharing-violation-only-on-windows-and-the-pager-writes-its-own-bound.md) §1, *"by the index on that column, sorting nothing"*: the planner chose the run's index, and does not now (§1 here). [ADR-246](0246-a-move-on-a-drive-windows-serves-is-attempted-again-and-the-survivors-pages-are-the-ledgers.md) §1, the types of a drive Windows serves and when the drive is asked (§2, §3), and §3, *"planned by the index on that column"* (§1). Each carries a note at its head.
