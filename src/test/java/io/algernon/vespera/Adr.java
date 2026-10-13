@@ -1672,6 +1672,15 @@ public final class Adr {
     public static final String A_MOVE_ON_A_DRIVE_WINDOWS_SERVES_IS_TRIED_AGAIN_AND_THE_SURVIVORS_PAGES_ARE_THE_LEDGERS = FILE
             + "0246-a-move-on-a-drive-windows-serves-is-attempted-again-and-the-survivors-pages-are-the-ledgers.md";
 
+    /**
+     * ADR-247 -- stage 4b asks whether a page of documents is kept of the index on the kept document, the run
+     * compared as a value so that the planner does not read the whole run's rows for each page; a drive Windows
+     * serves is told by fewer names, virtiofs among them and no disk Linux mounts itself, and asked once a move,
+     * and a lookup that fails leaves the move's own failure standing (amends ADR-245 and ADR-246).
+     */
+    public static final String STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX = FILE
+            + "0247-stage-4b-asks-whether-a-page-is-kept-of-its-own-index-and-a-drive-windows-serves-is-told-once.md";
+
     private Adr() {
     }
 }

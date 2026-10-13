@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -219,11 +220,11 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
         claim("the move went through, and nothing was thrown", () -> assertThat(thrown).isNull());
         claim(
                 "it was attempted three times, the first two refused, with a wait after each refusal, the drive's"
-                        + " type asked of the page's place",
+                        + " type asked of the page's place once for the move, and not again for each refusal",
                 () -> {
                     assertThat(attempts[0]).isEqualTo(REFUSED_TWICE + 1);
                     assertThat(waited).hasSize(REFUSED_TWICE);
-                    assertThat(disksAsked).isNotEmpty().containsOnly(target);
+                    assertThat(disksAsked).containsExactly(target);
                 });
         claim(
                 "the page in its place is the new one, and the page beside it is gone",
@@ -235,18 +236,64 @@ class AMoveRefusedForAMomentIsTriedAgainTest {
 
     @Test
     @Story("A page is put in its place whole")
-    @DisplayName("The drives Windows serves to Linux are told by their type: WSL's, a Windows share's and an NTFS disk's, and no disk of Linux's own")
+    @DisplayName("The drives Windows serves to Linux are told by their type: WSL's and a Windows share's, and no disk Linux mounts itself")
     @Link(name = "ADR-246", url = Adr.A_MOVE_ON_A_DRIVE_WINDOWS_SERVES_IS_TRIED_AGAIN_AND_THE_SURVIVORS_PAGES_ARE_THE_LEDGERS, type = "adr")
+    @Link(name = "ADR-247", url = Adr.STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX, type = "adr")
     void theDrivesWindowsServesAreToldByTheirType() {
         claim(
-                "WSL's drives, 9p and drvfs, a Windows share, cifs, smb3 or smbfs, and an NTFS disk, ntfs, ntfs3 or"
-                        + " fuseblk, are drives Windows serves",
-                () -> assertThat(List.of("9p", "drvfs", "cifs", "smb3", "smbfs", "ntfs", "ntfs3", "fuseblk"))
+                "WSL's drives, 9p, drvfs or virtiofs, and a Windows share, cifs, smb3 or smbfs, are drives Windows"
+                        + " serves",
+                () -> assertThat(List.of("9p", "drvfs", "virtiofs", "cifs", "smb3", "smbfs"))
                         .allMatch(ReplacingMove::isServedByWindows));
         claim(
-                "a disk of Linux's or macOS's own, and a type that could not be read, are not",
-                () -> assertThat(List.of("ext4", "xfs", "btrfs", "tmpfs", "apfs", "overlay", ""))
+                "a disk Linux or macOS mounts itself, an NTFS or exFAT one among them, and a type that could not be"
+                        + " read, are not: no Windows program holds a file on it while Linux runs",
+                () -> assertThat(List.of(
+                                "ext4", "xfs", "btrfs", "tmpfs", "apfs", "overlay", "ntfs", "ntfs3", "fuseblk", "exfat", ""))
                         .noneMatch(ReplacingMove::isServedByWindows));
+    }
+
+    /**
+     * The drive's type is asked only to decide whether to wait; a lookup that fails, or answers nothing, is no
+     * drive Windows serves, and the move's own failure is what is thrown (ADR-247).
+     */
+    @Test
+    @Story("A page is put in its place whole")
+    @DisplayName("Away from Windows, a move whose drive cannot be told is not attempted again, and its own failure is thrown")
+    @Link(name = "ADR-247", url = Adr.STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX, type = "adr")
+    void aDriveThatCannotBeToldLeavesTheMovesOwnFailure(@TempDir Path directory) throws IOException {
+        Path part = page(directory.resolve("index.md.part"), THE_NEW_PAGE);
+        Path target = page(directory.resolve("index.md"), THE_OLD_PAGE);
+        FileSystemException refused =
+                new FileSystemException(part.toString(), target.toString(), "Device or resource busy");
+        List<Function<Path, String>> lookups = List.of(
+                disk -> {
+                    throw new IllegalStateException("the mounts could not be read");
+                },
+                disk -> null);
+
+        for (Function<Path, String> lookup : lookups) {
+            List<Long> waited = new ArrayList<>();
+            int[] attempts = {0};
+            Throwable thrown = catchThrowable(() -> new ReplacingMove(
+                            (from, to) -> {
+                                attempts[0]++;
+                                throw refused;
+                            },
+                            waited::add,
+                            !ON_WINDOWS,
+                            lookup)
+                    .intoPlace(part, target));
+
+            claim(
+                    "the move's own failure is thrown, after one attempt and no wait, whether the lookup failed or"
+                            + " answered nothing",
+                    () -> {
+                        assertThat(thrown).isSameAs(refused);
+                        assertThat(attempts[0]).isOne();
+                        assertThat(waited).isEmpty();
+                    });
+        }
     }
 
     @Test

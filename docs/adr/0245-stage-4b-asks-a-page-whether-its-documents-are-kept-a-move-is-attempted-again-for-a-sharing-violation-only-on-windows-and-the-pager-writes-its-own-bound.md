@@ -1,5 +1,7 @@
 # ADR-245 — Stage 4b asks a page whether its documents are kept, a move is attempted again for a sharing violation only on Windows, and the pager writes its own bound
 
+> **Partly amended — see [ADR-247](0247-stage-4b-asks-whether-a-page-is-kept-of-its-own-index-and-a-drive-windows-serves-is-told-once.md).** Of §1: the question whether a page is kept was planned by the index on the run, reading every row of the run for each page; the run is now compared as a value, `+run_id`, and the question is planned by the index on the kept document.
+
 > **Partly amended — see [ADR-246](0246-a-move-on-a-drive-windows-serves-is-attempted-again-and-the-survivors-pages-are-the-ledgers.md).** Of §2: a `FileSystemException` of no subclass is attempted again away from Windows too where the page's place is on a drive Windows serves, under WSL or over a share, told by the type of its file store.
 
 - **Date**: 2026-10-12

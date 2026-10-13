@@ -559,7 +559,7 @@ public class RedundancyResolution {
     /** Which of {@code occurrences} a signature exists for under {@code stage4RunId}, asked by key. */
     private Set<Long> signedAmong(RunId stage4RunId, Collection<Long> occurrences) {
         return among(
-                "SELECT occurrence_id FROM minhash_signature WHERE run_id = ?", "occurrence_id", stage4RunId, occurrences);
+                "SELECT occurrence_id FROM minhash_signature WHERE +run_id = ?", "occurrence_id", stage4RunId, occurrences);
     }
 
     /**
@@ -569,25 +569,30 @@ public class RedundancyResolution {
      */
     private Set<Long> removedAmong(RunId stage4RunId, Collection<Long> occurrences) {
         return among(
-                "SELECT occurrence_id FROM redundant_with WHERE run_id = ?", "occurrence_id", stage4RunId, occurrences);
+                "SELECT occurrence_id FROM redundant_with WHERE +run_id = ?", "occurrence_id", stage4RunId, occurrences);
     }
 
     /**
      * Which of {@code occurrences} a row of {@code stage4RunId} already names as the document kept in another's
      * place, a near-duplicate's survivor or a container (ADR-234), asked of the index on that column a page at a
-     * time (ADR-245), by the one read by key the others are (ADR-246). Sorts nothing. A set the caller may add to.
+     * time (ADR-245), by the one read by key the others are (ADR-246), planned by that index and not the run's
+     * (ADR-247). Sorts nothing. A set the caller may add to.
      */
     private Set<Long> keptAmong(RunId stage4RunId, Collection<Long> occurrences) {
         return among(
-                "SELECT redundant_with_occurrence_id FROM redundant_with WHERE run_id = ?",
+                "SELECT redundant_with_occurrence_id FROM redundant_with WHERE +run_id = ?",
                 "redundant_with_occurrence_id",
                 stage4RunId,
                 occurrences);
     }
 
     /**
-     * {@code select}, which binds {@code stage4RunId} and reads one occurrence, narrowed to those of {@code
-     * occurrences} its {@code column} names, in statements of at most one page of them.
+     * {@code select}, which reads {@code column} and binds {@code stage4RunId}, narrowed to those of {@code
+     * occurrences} that {@code column} names, in statements of at most one page of them. What is read is read by
+     * the column's name, so a select that reads another column fails and answers nothing wrong. Each caller
+     * compares the run as a value ({@code +run_id}), so that SQLite looks the page up by the column's index and does
+     * not read every row of the run from the index on the run, which it chooses for a list of more than one
+     * occurrence where no index holds both (ADR-247).
      */
     private Set<Long> among(String select, String column, RunId stage4RunId, Collection<Long> occurrences) {
         Set<Long> found = new HashSet<>();
@@ -600,7 +605,7 @@ public class RedundancyResolution {
             jdbcTemplate.query(
                     select + " AND " + column + " IN (" + Placeholders.of(batch.size()) + ")",
                     resultSet -> {
-                        found.add(resultSet.getLong(1));
+                        found.add(resultSet.getLong(column));
                     },
                     arguments.toArray());
         }

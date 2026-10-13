@@ -74,9 +74,11 @@ public final class ReplacingMove {
 
     private final Wait wait;
 
-    /** The types Linux gives a drive Windows serves: WSL's, a Windows share's, and an NTFS disk's (ADR-246). */
-    private static final Set<String> SERVED_BY_WINDOWS =
-            Set.of("9p", "drvfs", "cifs", "smb3", "smbfs", "ntfs", "ntfs3", "fuseblk");
+    /**
+     * The types Linux gives a drive Windows serves: WSL's and a Windows share's (ADR-246). A disk Linux mounts
+     * itself, NTFS or exFAT among them, is not one: no Windows program holds its files while Linux runs (ADR-247).
+     */
+    private static final Set<String> SERVED_BY_WINDOWS = Set.of("9p", "drvfs", "virtiofs", "cifs", "smb3", "smbfs");
 
     private final boolean onWindows;
 
@@ -118,12 +120,20 @@ public final class ReplacingMove {
      */
     public void intoPlace(Path part, Path target) throws IOException {
         long waitMillis = FIRST_WAIT_MILLIS;
+        Boolean servedByWindows = null;
         for (int attempt = 1; ; attempt++) {
             try {
                 move.move(part, target);
                 return;
             } catch (FileSystemException refused) {
-                if (!isLiftedByTheHolder(refused, target) || attempt == ATTEMPTS) {
+                boolean untyped = refused.getClass() == FileSystemException.class;
+                if (untyped && !onWindows && servedByWindows == null) {
+                    // Asked once a move: the drive a page's place is on does not change between attempts (ADR-247).
+                    servedByWindows = isServedByWindows(typeOf(target));
+                }
+                boolean lifted = refused instanceof AccessDeniedException
+                        || (untyped && (onWindows || Boolean.TRUE.equals(servedByWindows)));
+                if (!lifted || attempt == ATTEMPTS) {
                     throw refused;
                 }
                 try {
@@ -141,17 +151,17 @@ public final class ReplacingMove {
     }
 
     /**
-     * Whether {@code refused} is how Java gives a refusal that a program holding the file lifts once it lets go:
-     * access denied, or on Windows or a drive Windows serves a sharing or lock violation, which Java gives there as
-     * a {@link FileSystemException} itself and no subclass (ADR-244, ADR-245, ADR-246). The drive is asked only
-     * when such a failure comes.
+     * The type of the file store {@code target}'s place is on, as the lookup this move was given answers it, and
+     * empty where it answers nothing or fails: the type only decides whether to wait, and a lookup that fails
+     * leaves the move's own failure to be thrown (ADR-247).
      */
-    private boolean isLiftedByTheHolder(FileSystemException refused, Path target) {
-        if (refused instanceof AccessDeniedException) {
-            return true;
+    private String typeOf(Path target) {
+        try {
+            String type = fileStoreTypeOf.apply(target);
+            return type == null ? "" : type;
+        } catch (RuntimeException unreadable) {
+            return "";
         }
-        return refused.getClass() == FileSystemException.class
-                && (onWindows || isServedByWindows(fileStoreTypeOf.apply(target)));
     }
 
     /**

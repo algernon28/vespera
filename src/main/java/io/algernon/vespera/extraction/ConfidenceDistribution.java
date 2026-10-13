@@ -44,8 +44,8 @@ import org.springframework.stereotype.Component;
  * same value as the HTML file, so the two outputs can never silently disagree (ADR-075).
  *
  * <p>Reads {@code extraction_metric} rows under stage 2's own run id, restricted to stage 2's
- * survivors, which it asks of {@code Verdicts#survivors(RunId)} a page at a time and never holds as a set
- * (ADR-211 section 2).
+ * survivors, which {@code Verdicts#eachPageOfSurvivors} hands it a page at a time and which it never holds as a
+ * set (ADR-211 section 2, ADR-246).
  */
 @Component
 public class ConfidenceDistribution {

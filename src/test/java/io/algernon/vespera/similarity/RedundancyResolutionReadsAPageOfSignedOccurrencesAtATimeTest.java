@@ -256,6 +256,7 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
     @Story("Redundancy resolution holds no list of the corpus")
     @DisplayName("Redundancy resolution asks whether a row already keeps a document of a page of signed documents at once, and not of each document")
     @Link(name = "ADR-245", url = Adr.A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS, type = "adr")
+    @Link(name = "ADR-247", url = Adr.STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX, type = "adr")
     void asksWhetherAPageOfDocumentsIsKeptAtOnce() {
         StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
 
@@ -277,6 +278,17 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
                         .isNotEmpty()
                         .hasSizeLessThanOrEqualTo(PAGES_OF_SIGNED)
                         .allSatisfy(sql -> assertThat(keptNamedBy(sql)).isBetween(1, A_PAGE)));
+        claim(
+                "each is planned by the index on the kept document, and not by the index on the run, which would"
+                        + " read every row of the run for each page",
+                () -> assertThat(said.stream()
+                                .filter(sql -> sql.stripLeading().startsWith("SELECT"))
+                                .filter(sql -> sql.contains("redundant_with_occurrence_id IN ("))
+                                .toList())
+                        .isNotEmpty()
+                        .allSatisfy(sql -> assertThat(planOf(sql))
+                                .anyMatch(detail -> detail.contains("redundant_with_by_redundant_with_occurrence_id"))
+                                .noneMatch(detail -> detail.contains("redundant_with_by_run_id"))));
     }
 
     /** How many documents {@code sql} asks about by the column that names the kept document. */
