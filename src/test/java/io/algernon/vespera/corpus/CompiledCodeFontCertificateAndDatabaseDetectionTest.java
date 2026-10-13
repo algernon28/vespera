@@ -1,6 +1,15 @@
 package io.algernon.vespera.corpus;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.corpus.DetectedFormat.CERTIFICATE;
+import static io.algernon.vespera.corpus.DetectedFormat.COMPILED_CODE;
+import static io.algernon.vespera.corpus.DetectedFormat.DATABASE;
+import static io.algernon.vespera.corpus.DetectedFormat.FONT;
+import static io.algernon.vespera.corpus.DetectedFormat.PLAIN_TEXT;
+import static io.algernon.vespera.corpus.DetectedFormat.UNRECOGNISED;
+import static io.algernon.vespera.corpus.DetectedFormat.ZIP_CONTAINER;
+import static io.algernon.vespera.corpus.DetectedSubtype.OUTLOOK_MESSAGE;
+import static io.algernon.vespera.corpus.DetectedSubtype.RFC822_MESSAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
@@ -35,8 +44,8 @@ import org.junit.jupiter.api.io.TempDir;
  * spreadsheet is (ADR-146). The last test pins what the record leaves alone: a project plan, a drawing, a
  * binary file with no signature, and text in an older single-byte encoding are not left out by it.
  *
- * <p>Every file here is a few bytes built in this class. The new values are named by their strings, so this
- * compiles before they exist. No database and no Spring context, matching {@code VideoDetectionTest}.
+ * <p>Every file here is a few bytes built in this class. No database and no Spring context, matching
+ * {@code VideoDetectionTest}.
  */
 @Epic("Byte-level reduction")
 @Feature("Format detection")
@@ -44,24 +53,8 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-094", url = Adr.FORMAT_IS_DECIDED_FROM_THE_BYTES, type = "adr")
 class CompiledCodeFontCertificateAndDatabaseDetectionTest {
 
-    /** The names of the four detected formats ADR-252 adds, written as text until they exist. */
-    private static final String COMPILED_CODE = "COMPILED_CODE";
-
-    private static final String FONT = "FONT";
-    private static final String CERTIFICATE = "CERTIFICATE";
-    private static final String DATABASE = "DATABASE";
-
-    /** The names of the two finer labels ADR-252 adds for an email, written as text until they exist. */
-    private static final String OUTLOOK_MESSAGE = "OUTLOOK_MESSAGE";
-
-    private static final String RFC822_MESSAGE = "RFC822_MESSAGE";
-
     /** The reason an email's out-of-scope verdict carries, word for word, whichever of the two it is. */
     private static final String EMAIL_REASON = "an email, and emails are out of scope";
-
-    private static final String PLAIN_TEXT = "PLAIN_TEXT";
-    private static final String UNRECOGNISED = "UNRECOGNISED";
-    private static final String ZIP_CONTAINER = "ZIP_CONTAINER";
 
     /** Where an MZ header keeps the offset of the PE header, little-endian. */
     private static final int PE_HEADER_OFFSET_FIELD = 60;
@@ -122,6 +115,24 @@ class CompiledCodeFontCertificateAndDatabaseDetectionTest {
                 "and so does one whose PE header lies past the " + DETECTION_PREFIX + " bytes read: the rule"
                         + " reads no second time",
                 () -> assertThat(formatOf(headerOutOfReach)).isEqualTo(UNRECOGNISED));
+        byte[] offsetOfAllOnes = portableExecutable(0);
+        java.util.Arrays.fill(offsetOfAllOnes, PE_HEADER_OFFSET_FIELD, PE_HEADER_OFFSET_FIELD + 4, (byte) 0xFF);
+        Path headerNowhere = Files.write(dir.resolve("odd.exe"), offsetOfAllOnes);
+        Path headerAcrossTheEnd = Files.write(dir.resolve("edge.dll"), portableExecutable(DETECTION_PREFIX - 3));
+        Path tooShortToNameAHeader =
+                Files.write(dir.resolve("stub.com"), java.util.Arrays.copyOf(portableExecutable(0), PE_HEADER_OFFSET_FIELD - 20));
+        claim(
+                "a header offset of FF FF FF FF names no place in the file: of no known kind, and nothing is read"
+                        + " at it",
+                () -> assertThat(formatOf(headerNowhere)).isEqualTo(UNRECOGNISED));
+        claim(
+                "a PE header that begins at byte " + (DETECTION_PREFIX - 3) + " has three of its four bytes in the"
+                        + " bytes read and one past them: it does not lie wholly inside, so of no known kind",
+                () -> assertThat(formatOf(headerAcrossTheEnd)).isEqualTo(UNRECOGNISED));
+        claim(
+                "and a binary file opening with MZ that ends before byte " + PE_HEADER_OFFSET_FIELD + " has no"
+                        + " field to name a header: of no known kind",
+                () -> assertThat(formatOf(tooShortToNameAHeader)).isEqualTo(UNRECOGNISED));
         claim(
                 "a text file opening with the letters MZ is text",
                 () -> assertThat(formatOf(prose)).isEqualTo(PLAIN_TEXT));
@@ -225,6 +236,15 @@ class CompiledCodeFontCertificateAndDatabaseDetectionTest {
         claim(
                 "and a plain zip archive stays an archive of another kind: what it holds may be documents",
                 () -> assertThat(formatOf(plainArchive)).isEqualTo(ZIP_CONTAINER));
+        Path documentsZippedWithJar =
+                zip(dir.resolve("consegna-doc.zip"), "META-INF/MANIFEST.MF", "docs/specifica.pdf", "docs/verbale.docx");
+        Path androidProjectFolder = zip(dir.resolve("progetto.zip"), "AndroidManifest.xml", "docs/manuale.pdf");
+        claim(
+                "an archive of documents that holds a manifest, because it was made with the jar tool or is rooted"
+                        + " at an Android project, is taken as compiled code: the manifest is all the directory says,"
+                        + " and the record accepts it",
+                () -> assertThat(List.of(formatOf(documentsZippedWithJar), formatOf(androidProjectFolder)))
+                        .containsOnly(COMPILED_CODE));
     }
 
     @Test
@@ -275,6 +295,14 @@ class CompiledCodeFontCertificateAndDatabaseDetectionTest {
         claim(
                 "and a binary file opening with wOFF that wraps neither kind of font is of no known kind",
                 () -> assertThat(formatOf(wrapperOfSomethingElse)).isEqualTo(UNRECOGNISED));
+        Path octoberInAnOlderEncoding = Files.write(
+                dir.resolve("verbale-ottobre.txt"),
+                "OTTOBRE 2020: la società ha deciso che il collaudo è rinviato.".getBytes(StandardCharsets.ISO_8859_1));
+        claim(
+                "minutes dated OTTOBRE in an older single-byte encoding do not decode as text, and are still not a"
+                        + " font: the letters after OTTO are no table count its header agrees with, so of no known"
+                        + " kind, as today",
+                () -> assertThat(formatOf(octoberInAnOlderEncoding)).isEqualTo(UNRECOGNISED));
     }
 
     @Test
@@ -381,6 +409,36 @@ class CompiledCodeFontCertificateAndDatabaseDetectionTest {
                 "a signed envelope carries the document it signs, here a PDF, so it is not a detached signature"
                         + " and stays of no known kind",
                 () -> assertThat(formatOf(envelope)).isEqualTo(UNRECOGNISED));
+        Path envelopeOfUnstatedLength = Files.write(
+                dir.resolve("verbale.pdf.p7m"),
+                concat(
+                        new byte[] {0x30, (byte) 0x80},
+                        SIGNED_DATA_TYPE,
+                        new byte[] {(byte) 0xA0, (byte) 0x80, 0x30, (byte) 0x80},
+                        VERSION_AND_DIGEST_ALGORITHMS,
+                        new byte[] {0x30, (byte) 0x80},
+                        DATA_TYPE,
+                        new byte[] {(byte) 0xA0, (byte) 0x80, 0x24, (byte) 0x80, 0x04, (byte) 0x82, 0x01, 0x00},
+                        ascii("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"),
+                        binary(260)));
+        Path dataTypeInASet = Files.write(
+                dir.resolve("ricevuta.p7s"),
+                concat(
+                        new byte[] {0x30, (byte) 0x82, 0x01, 0x2C},
+                        SIGNED_DATA_TYPE,
+                        new byte[] {(byte) 0xA0, (byte) 0x82, 0x01, 0x1D, 0x30, (byte) 0x82, 0x01, 0x19},
+                        VERSION_AND_DIGEST_ALGORITHMS,
+                        new byte[] {0x31, 0x0B},
+                        DATA_TYPE,
+                        binary(248)));
+        claim(
+                "and so does an envelope the lengths of whose parts are left open: its content of type data is"
+                        + " followed by what it carries, not by the two zero bytes that end an empty one",
+                () -> assertThat(formatOf(envelopeOfUnstatedLength)).isEqualTo(UNRECOGNISED));
+        claim(
+                "signed data that names the type data inside a set, and not as a sequence with nothing after it,"
+                        + " shows no empty content: of no known kind",
+                () -> assertThat(formatOf(dataTypeInASet)).isEqualTo(UNRECOGNISED));
         claim(
                 "a private key shares a certificate's first two bytes and is not one: of no known kind",
                 () -> assertThat(formatOf(privateKey)).isEqualTo(UNRECOGNISED));
@@ -492,8 +550,8 @@ class CompiledCodeFontCertificateAndDatabaseDetectionTest {
                         .isEmpty());
     }
 
-    private static String formatOf(Path file) {
-        return BrokenCheck.check(file).format().name();
+    private static DetectedFormat formatOf(Path file) {
+        return BrokenCheck.check(file).format();
     }
 
     /** The detected format and the finer label the name added, as {@code FORMAT/SUBTYPE}, the label empty where none. */

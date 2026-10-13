@@ -408,7 +408,8 @@ class ByteLevelReductionTaskletTest {
      * stage 1's first pass, with a reason naming the kind, and counted on the page under a row of their own.
      * The two byte-identical object files are each removed on their own account and never hashed. An older Office
      * container its name says nothing about, a note and a file of no known kind carry no verdict. The detected
-     * formats and finer labels are read as the text the ledger stores, so this compiles before the values exist.
+     * formats are read as the text the ledger stores. The internet message is text, and is counted neither as
+     * text left out for its size nor in the timestamp table.
      */
     @Test
     @Story("What stage 1 does over census's survivors")
@@ -492,6 +493,16 @@ class ByteLevelReductionTaskletTest {
         claim(
                 "the page stage 1 writes counts the seven files it left out",
                 () -> assertThat(countIn(html, "left out as out of scope")).isEqualTo(7));
+        claim(
+                "counts none of them as a log, and none as a text file left out for its size: the internet message"
+                        + " is text, and it is left out for being an email",
+                () -> assertThat(List.of(
+                                countIn(html, "Of those, logs"), countIn(html, "text files left out for their size")))
+                        .containsExactly(0, 0));
+        claim(
+                "counts the note among the text files of fewer than ten lines, and not the internet message, which"
+                        + " is as short: a file left out for its kind is not read for timestamps",
+                () -> assertThat(countIn(html, "<td>fewer than ten lines</td>")).isEqualTo(1));
         claim(
                 "gives each kind the bytes decide a row of its own",
                 () -> assertThat(List.of(

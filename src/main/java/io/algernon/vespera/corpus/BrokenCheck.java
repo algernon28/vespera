@@ -544,8 +544,9 @@ public final class BrokenCheck {
      *
      * <p>A Java or Android archive is told last, by lookups in the same directory (ADR-252): a manifest
      * and neither {@code [Content_Types].xml}, which every other Office package lists its content types
-     * in, nor {@code mimetype}, which an OpenDocument file and an EPUB book open with. A plain zip holds
-     * none of the four names and stays a {@code ZIP_CONTAINER}.
+     * in, nor {@code mimetype}, which an OpenDocument file and an EPUB book open with. A zip holding
+     * none of the four names stays a {@code ZIP_CONTAINER}; one made with {@code jar}, or rooted at an Android
+     * project, holds a manifest and is taken as compiled code whatever else it holds (ADR-252).
      */
     private static Result checkZipContainer(Path file) {
         try (ZipFile zip = new ZipFile(file.toFile())) {

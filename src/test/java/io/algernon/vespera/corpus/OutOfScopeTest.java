@@ -118,8 +118,8 @@ class OutOfScopeTest {
     }
 
     /**
-     * ADR-252's kinds, each named by its string so that this compiles before the value exists: four detected
-     * formats the bytes decide, and an email, which a name narrows to within an older Office container or text.
+     * ADR-252's kinds: four detected formats the bytes decide, and an email, which a name narrows to within an
+     * older Office container or text.
      */
     @Test
     @Story("Which kinds of file are left out whatever they hold")
@@ -128,31 +128,31 @@ class OutOfScopeTest {
     void leavesOutCompiledCodeFontsCertificatesDatabasesAndEmails() {
         claim(
                 "compiled code is left out with a reason of its own",
-                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.valueOf("COMPILED_CODE"), Optional.empty()))
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.COMPILED_CODE, Optional.empty()))
                         .contains("compiled code, and compiled code is out of scope"));
         claim(
                 "a font is left out with a reason of its own",
-                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.valueOf("FONT"), Optional.empty()))
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.FONT, Optional.empty()))
                         .contains("a font, and fonts are out of scope"));
         claim(
                 "a certificate or a detached signature is left out with a reason that names both, because the one"
                         + " value holds both",
-                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.valueOf("CERTIFICATE"), Optional.empty()))
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.CERTIFICATE, Optional.empty()))
                         .contains("a certificate or a detached signature, and certificates and detached signatures"
                                 + " are out of scope"));
         claim(
                 "a database is left out with a reason of its own",
-                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.valueOf("DATABASE"), Optional.empty()))
+                () -> assertThat(OutOfScope.reasonFor(DetectedFormat.DATABASE, Optional.empty()))
                         .contains("a database, and databases are out of scope"));
         claim(
                 "an older compound file named as an Outlook message and text named as an internet message are"
                         + " both emails, and are left out with the one reason",
                 () -> {
                     assertThat(OutOfScope.reasonFor(
-                                    DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.valueOf("OUTLOOK_MESSAGE"))))
+                                    DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.OUTLOOK_MESSAGE)))
                             .contains(EMAIL_REASON);
                     assertThat(OutOfScope.reasonFor(
-                                    DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.valueOf("RFC822_MESSAGE"))))
+                                    DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.RFC822_MESSAGE)))
                             .contains(EMAIL_REASON);
                 });
     }

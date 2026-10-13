@@ -623,14 +623,14 @@ class DoclingClientTest {
     /**
      * ADR-252 gives six kinds of file a value of their own so that stage 1 can leave the corpus's out of scope.
      * A seed of one still arrives here, and is posted as it was before stage 1 told it apart, so the naming
-     * scheme keeps its version. The values are named by their strings, so this compiles before they exist.
+     * scheme keeps its version.
      */
     @Test
     @Story("The name sent is the format's, not the path's")
     @DisplayName("Compiled code, a font, a certificate, a database and an email are each posted and cut as they were before stage 1 told them apart")
     @Link(name = "ADR-252", url = Adr.COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE, type = "adr")
     @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    void postsTheKindsAdr251TellsApartUnderTheNamesTheyHadBefore(@TempDir Path dir) throws IOException {
+    void postsTheKindsAdr252TellsApartUnderTheNamesTheyHadBefore(@TempDir Path dir) throws IOException {
         Path onDisk = Files.writeString(dir.resolve("seed.bin"), "bytes that the name lies about");
 
         claim(
@@ -638,23 +638,23 @@ class DoclingClientTest {
                         + " name each was posted under while stage 1 called it of no known kind or an archive of"
                         + " another kind",
                 () -> assertThat(List.of(
-                                postedName(onDisk, DetectedFormat.valueOf("COMPILED_CODE"), Optional.empty()),
-                                postedName(onDisk, DetectedFormat.valueOf("FONT"), Optional.empty()),
-                                postedName(onDisk, DetectedFormat.valueOf("CERTIFICATE"), Optional.empty()),
-                                postedName(onDisk, DetectedFormat.valueOf("DATABASE"), Optional.empty())))
+                                postedName(onDisk, DetectedFormat.COMPILED_CODE, Optional.empty()),
+                                postedName(onDisk, DetectedFormat.FONT, Optional.empty()),
+                                postedName(onDisk, DetectedFormat.CERTIFICATE, Optional.empty()),
+                                postedName(onDisk, DetectedFormat.DATABASE, Optional.empty())))
                         .containsOnly(NEUTRAL_PART_NAME));
         claim(
                 "an Outlook message is posted as " + NEUTRAL_PART_NAME + ", as an older Office container with no"
                         + " finer label is and as it was before it had a label",
                 () -> assertThat(postedName(
-                                onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.valueOf("OUTLOOK_MESSAGE"))))
+                                onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.OUTLOOK_MESSAGE)))
                         .isEqualTo(postedName(onDisk, DetectedFormat.OLE_COMPOUND, Optional.empty()))
                         .isEqualTo(NEUTRAL_PART_NAME));
         claim(
                 "an internet message is posted as " + MARKDOWN_PART_NAME + ", as text with no finer label is and"
                         + " as it was before it had a label",
                 () -> assertThat(postedName(
-                                onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.valueOf("RFC822_MESSAGE"))))
+                                onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.RFC822_MESSAGE)))
                         .isEqualTo(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.empty()))
                         .isEqualTo(MARKDOWN_PART_NAME));
         claim(
@@ -663,7 +663,7 @@ class DoclingClientTest {
                 () -> assertThat(TextParts.convertedInParts(
                                 onDisk,
                                 DetectedFormat.PLAIN_TEXT,
-                                DetectedSubtype.valueOf("RFC822_MESSAGE"),
+                                DetectedSubtype.RFC822_MESSAGE,
                                 DoclingClient.TEXT_SIZE_CEILING_BYTES + 1))
                         .isEqualTo(TextParts.convertedInParts(
                                 onDisk, DetectedFormat.PLAIN_TEXT, null, DoclingClient.TEXT_SIZE_CEILING_BYTES + 1))
