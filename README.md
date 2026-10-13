@@ -90,6 +90,7 @@ vespera.db                       the ledger: every file seen, every verdict, eve
 vespera.lock                     held by the command running now, so a second one is refused
 format-mix.html                  what kinds of file the archive holds
 extraction-failures.html         the files that could not be read, and why
+extraction-survivors.html        the files that were read and kept
 confidence-distribution.html     how well the text came out
 seed-corpus-comparison.html      how far your exemplars resemble the archive
 relevance-labelling.html         the report you read to choose the threshold

@@ -1662,6 +1662,15 @@ public final class Adr {
     public static final String A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS = FILE
             + "0245-stage-4b-asks-a-page-whether-its-documents-are-kept-a-move-is-attempted-again-for-a-sharing-violation-only-on-windows-and-the-pager-writes-its-own-bound.md";
 
+    /**
+     * ADR-249 -- stage 2 writes a second page at its end, the survivor list: every survivor of its run that
+     * carries a metrics row under it, by path, with its page and word counts, read a page at a time through a
+     * read of the ledger that sorts nothing, and touching no module a stage's version names (extends ADR-175
+     * section 7).
+     */
+    public static final String STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST = FILE
+            + "0249-stage-2-writes-the-survivor-list-of-the-files-it-converted-and-did-not-remove-beside-the-review-list.md";
+
     private Adr() {
     }
 }

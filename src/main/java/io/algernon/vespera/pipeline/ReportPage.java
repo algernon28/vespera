@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * The one module that assembles a report page's HTML (ADR-130): the document skeleton, the
- * stylesheet, escaping and the table/row scaffolding all live here, so the six reports written
+ * stylesheet, escaping and the table/row scaffolding all live here, so the eight reports written
  * beside the database supply only their title, their prose and their rows.
  *
  * <p><b>It is still hand-assembled HTML.</b> There is no templating library and no new dependency
@@ -18,7 +18,7 @@ import java.util.List;
  * {@link #codeCell}). Behind it sits every rule that used to be copied six times: the doctype, the
  * character set, the tag the page is titled with, the stylesheet, the escape table, and which cells
  * are right-aligned. That is depth — a whole page per unit of interface learned — and it buys
- * leverage at six call sites and locality for the next change to any of those rules.
+ * leverage at eight call sites and locality for the next change to any of those rules.
  *
  * <p><b>Escaping happens inside the cell constructors, not at the call site.</b> A caller cannot
  * pass unescaped text to {@link #textCell}, {@link #linkCell} or {@link #codeCell}; it has to reach

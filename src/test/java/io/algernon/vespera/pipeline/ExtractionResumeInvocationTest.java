@@ -126,10 +126,14 @@ class ExtractionResumeInvocationTest {
 
     private static final String OCCURRENCES_ALREADY_MEASURED = "the occurrences the stopped run measured";
 
-    /** The two statements every stage 2 that reads an occurrence times: its count, and its read for the review list. */
-    private static final List<String> THE_COUNT_AND_THE_REVIEW_LIST_READ = StatementLines.inOrder(
+    /**
+     * The three statements every stage 2 that reads an occurrence times: its count, its read for the review
+     * list, and after it its read for the survivor list (ADR-249 section 4).
+     */
+    private static final List<String> THE_COUNT_AND_THE_TWO_LIST_READS = StatementLines.inOrder(
             StatementLines.timedCount(STAGE_TWO, "the survivors still to read"),
-            StatementLines.timedRead(STAGE_TWO, "the occurrences it could not read"));
+            StatementLines.timedRead(STAGE_TWO, "the occurrences it could not read"),
+            StatementLines.timedRead(STAGE_TWO, "the survivors it converted"));
 
     /** No row at all. */
     private static final long NONE = 0;
@@ -341,7 +345,7 @@ class ExtractionResumeInvocationTest {
                         + " earlier one left: only that it counted what it had to read, and at its end that it"
                         + " read what it could not read",
                 () -> assertThat(StatementLines.of(first, STAGE_TWO))
-                        .containsExactlyElementsOf(THE_COUNT_AND_THE_REVIEW_LIST_READ));
+                        .containsExactlyElementsOf(THE_COUNT_AND_THE_TWO_LIST_READS));
         claim(
                 "the second says first that it is reading what the first had already measured, over up to the "
                         + measured + " rows from the run's first to its last, and how long that took; then its"
@@ -349,7 +353,7 @@ class ExtractionResumeInvocationTest {
                 () -> assertThat(StatementLines.of(second, STAGE_TWO))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.countedRead(STAGE_TWO, OCCURRENCES_ALREADY_MEASURED, measured),
-                                THE_COUNT_AND_THE_REVIEW_LIST_READ)));
+                                THE_COUNT_AND_THE_TWO_LIST_READS)));
         claim(
                 "that read ends before the line that says the stage resumes, and so few rows take far fewer steps"
                         + " than the database reports progress at, so no progress line is written for it",
@@ -510,7 +514,7 @@ class ExtractionResumeInvocationTest {
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.countedRead(STAGE_TWO, FAULTS_ALREADY_RECORDED, faultRows),
                                 StatementLines.countedRead(STAGE_TWO, OCCURRENCES_ALREADY_MEASURED, measured),
-                                THE_COUNT_AND_THE_REVIEW_LIST_READ)));
+                                THE_COUNT_AND_THE_TWO_LIST_READS)));
         claim(
                 "with only the record that the stage finished lost, the next invocation reads again the "
                         + CONVERTER_FAULT_AT.size() + " document the converter failed on and none of the "

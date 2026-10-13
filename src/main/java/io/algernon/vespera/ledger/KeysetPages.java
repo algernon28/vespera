@@ -14,7 +14,7 @@ import org.springframework.jdbc.core.RowMapper;
 /**
  * A long read of the ledger, handed out a page at a time by keyset (ADR-209 section 2).
  *
- * <p>The one pager of {@code ledger}, shared by the three reads that can be as long as a walk, and public
+ * <p>The one pager of {@code ledger}, shared by every read of {@code ledger} that can be as long as a walk, and public
  * since the review of 2026-10-10 so that a capability module's read of a page at a time by a key its rows
  * carry is one constructor call and not a loop of its own (ADR-040: every module may name {@code ledger}).
  * Each page is one statement on the {@link JdbcTemplate} it is given, of at most {@link #ROWS_IN_A_PAGE}

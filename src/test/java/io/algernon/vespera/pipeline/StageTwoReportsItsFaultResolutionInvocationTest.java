@@ -74,7 +74,9 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
                 () -> assertThat(StatementLines.of(lines, STAGE_TWO))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedCount(STAGE_TWO, "the survivors still to read"),
-                                StatementLines.timedRead(STAGE_TWO, "the occurrences it could not read"))));
+                                StatementLines.timedRead(STAGE_TWO, "the occurrences it could not read"),
+                                // ADR-249 section 4: the survivor list is read and written after the review list.
+                                StatementLines.timedRead(STAGE_TWO, "the survivors it converted"))));
         claim(
                 "the count ends before the first file is counted as read, and the read for the list ends before"
                         + " the line that says where the list is",
