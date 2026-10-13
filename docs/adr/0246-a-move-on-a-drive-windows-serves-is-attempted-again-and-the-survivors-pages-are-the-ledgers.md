@@ -1,5 +1,7 @@
 # ADR-246 — A move on a drive Windows serves is attempted again, and the survivors' pages are the ledger's
 
+> **Partly amended — see [ADR-247](0247-stage-4b-asks-whether-a-page-is-kept-of-its-own-index-and-a-drive-windows-serves-is-told-once.md).** Of §1: a drive Windows serves is one of `9p`, `drvfs`, `virtiofs`, `cifs`, `smb3` and `smbfs`, and no longer `ntfs`, `ntfs3` or `fuseblk`; the drive is asked once a move, and a lookup that fails is no such drive. Of §3: the run is compared as a value, `+run_id`, since the planner otherwise chose the run's index.
+
 - **Date**: 2026-10-13
 - **Status**: accepted on 2026-10-13, on the call of the session that worked the review of the change on `main` from `85b2d38` to `c60dc68` (*"fix them, test first, then open a PR"*). No question was put to the operator; whether the operator's working directory is on a drive Windows serves was asked and not answered, and §1 holds either way. Each change below that changes what the code does had a test written first that failed on the code at `c60dc68`, and passes after it.
 - **Amends**: [ADR-245](0245-stage-4b-asks-a-page-whether-its-documents-are-kept-a-move-is-attempted-again-for-a-sharing-violation-only-on-windows-and-the-pager-writes-its-own-bound.md) §2, *"Elsewhere it is thrown at once"*: elsewhere it is thrown at once unless the page's place is on a drive Windows serves (§1 here). It carries a note at its head.
