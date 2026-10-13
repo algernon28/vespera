@@ -1,5 +1,7 @@
 # ADR-250 — Stage 2 writes the survivor list of the files it converted and did not remove, beside the review list
 
+> **Partly amended — see [ADR-251](0251-one-statement-of-the-ledger-is-as-long-as-a-walk-the-survivor-lists-further-columns-are-undecided-and-its-listeners-scope-is-stated-in-the-code.md).** Of §3: the one statement of `ledger` whose rows can be as many as a walk's is the `ORDER BY o.path` of `Verdicts.eachExtractionFailure`; `Occurrences.pathsOf` and `Verdicts.survivingAmong` are not handed out by keyset either, ask by key, and are as long as what they are given. Of *Alternatives refused*: a column for the converter's status or the confidence grade is not refused; it is not decided. Of §4: ADR-175 §7 states no scope, and its case, no page for a step that failed having read nothing, is held by a guard in each listener; the scope and its reason are stated in `ExtractionJobConfiguration`.
+
 - **Date**: 2026-10-13
 - **Status**: accepted on 2026-10-13.
 - **Extends**: [ADR-175](0175-a-file-that-fails-is-marked-and-skipped-and-only-a-sidecar-that-stays-gone-stops-stage-2.md) §7, which gave stage 2 one page at its end, the review list. Stage 2 now writes two. Nothing §7 says of the review list changes.
