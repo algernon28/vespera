@@ -1689,6 +1689,13 @@ public final class Adr {
     public static final String ONLY_THE_KEPT_QUESTION_COMPARES_THE_RUN_AS_A_VALUE = FILE
             + "0248-only-stage-4bs-question-whether-a-page-is-kept-compares-the-run-as-a-value.md";
 
+    /**
+     * ADR-249 -- a decision record holds its decision, the context it answers and its reasons; whether a run has
+     * been made, and the history of the record's making, stay out of it.
+     */
+    public static final String A_RECORD_HOLDS_ITS_DECISION_AND_NO_HISTORY = FILE
+            + "0249-a-decision-record-holds-its-decision-and-no-history.md";
+
     private Adr() {
     }
 }
