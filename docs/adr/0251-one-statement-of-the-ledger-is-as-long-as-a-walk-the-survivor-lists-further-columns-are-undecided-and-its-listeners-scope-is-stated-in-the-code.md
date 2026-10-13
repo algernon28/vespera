@@ -49,9 +49,10 @@ ADR-250 §2 stands: the page has three columns. ADR-250 §6 stands as what eithe
 
 ### 3. The scope of the two listeners is stated in `ExtractionJobConfiguration`, and ADR-175 §7 states none
 
-**`SurvivorListListener` is step-scoped by its bean method in `ExtractionJobConfiguration`. No record before ADR-250 states the scope of either listener that writes a page at the end of stage 2, and ADR-175 §7, which ADR-250 §4 cites for it, states none.** The javadocs of the bean methods state the scope and its reason by reference: `survivorListListener` is step-scoped as `reviewListListener` is *"and for the same reason"*, and `reviewListListener` as `extractionFaultRecorder` is, *"and for the same reason: it is built only when the step first calls it, and asks for the run only then"*. That is the reason ADR-250 §4 gives after its citation, *"built only when the step first calls it"*.
+**`SurvivorListListener` is step-scoped by its bean method in `ExtractionJobConfiguration`. No record before ADR-250 states the scope of either listener that writes a page at the end of stage 2, and ADR-175 §7, which ADR-250 §4 cites for it, states none.** The javadocs of the bean methods state the scope and its reason by reference: `survivorListListener` is step-scoped as `reviewListListener` is *"and for the same reason"*, and `reviewListListener` as `extractionFaultRecorder` is, *"and for the same reason: it is built only when the step first calls it, and asks for the run only then"*. The first clause of that reason is the one ADR-250 §4 gives after its citation, *"built only when the step first calls it"*.
 
-- **ADR-175 §7 states no scope, and its case is held by a guard in each listener, not by the scope.** Its case is the step that failed having read nothing, which writes no page and asks for no run. `ReviewListListener.afterStep` and `SurvivorListListener.afterStep` each return, where the step did not complete and its read count is 0, before the one line that asks `StageRuns` for the run. Neither constructor asks for it, and `StageRuns` is job-scoped.
+- **ADR-175 §7 states no scope, and its case is held by a guard in each listener, not by the scope.** Its case is the step that failed having read nothing, which writes no page and asks for no run. `ReviewListListener.afterStep` and `SurvivorListListener.afterStep` each return, where the step did not complete and its read count is 0, before the one line that asks `StageRuns` for the run. No constructor of either asks for it, and `StageRuns` is job-scoped.
+- **The javadoc's second clause, *"and asks for the run only then"*, is not what either listener does.** Each asks `StageRuns` for the run in `afterStep`, after that guard, and in no constructor.
 - **ADR-139 §2 states the scope of the recorder alone**, *"one step-scoped listener"*, and no reason for it.
 
 ADR-250 §4's *"(ADR-175 §7)"* is read so: it names the case the guard holds, and no scope and no reason for one.
@@ -77,4 +78,4 @@ No test holds §1's first sentence as a whole, that no other statement of `ledge
 - Whether the survivor list gains either column of §2, or any other column an existing read does not hand over.
 - Whether `Verdicts.eachExtractionFailure` is bounded. ADR-224 §3 keeps it excepted.
 - Whether `pipeline` hands `pathsOf` and `survivingAmong` a page and not a seed partition.
-- The scope of either listener, or what a stage 2 without it does. §3 says where the scope and its reason are stated; no test holds the scope, and none was made of a step without it.
+- The scope of either listener, or what a stage 2 without it does. §3 says where the scope and its reason are stated; no test holds the scope.
