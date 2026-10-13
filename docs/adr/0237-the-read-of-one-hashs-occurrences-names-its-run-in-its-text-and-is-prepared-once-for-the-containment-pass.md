@@ -1,15 +1,14 @@
 # ADR-237 — The read of one hash's occurrences names its run in its text, and is prepared once for the containment pass
 
 - **Date**: 2026-10-11
-- **Status**: accepted on 2026-10-11, on the operator's word (*"do R20 with its ADR-225 amendment"*). How the statement is kept for the pass (§2) is the session's call.
+- **Status**: accepted on 2026-10-11.
 - **Amends**: [ADR-225](0225-stage-4b-reads-its-candidate-pairs-and-containment-candidates-a-thousand-at-a-time-and-shingle-by-hash-ends-in-the-occurrence.md) §2, in *"The run is a bound value, as ADR-221 §2 decides"* and in the statement it shows, whose `run_id = ?` is now the run written into the text: the read, its order, its pages of 1,000 and the merge are unchanged. [ADR-221](0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md) §2, *"Containment retrieval keeps the run as a bound value"*: it no longer does, and the remedy that section names for a SQLite that stopped matching bound values, *"the run written into the statement's text"*, is taken for the cost measured below. Each carries a note at its head.
 - **Keeps**: ADR-221 §4, that the run id is the only value joined into a statement's text and only once it is known to be of the minted form; that check is now one method, `ShingleHashIndex.writtenInto`, read by the index's build and by this read alike.
-- **Settles**: review register finding R20.
-- **Rests on**: `similarity.RedundancyResolutionBoundsItsCandidatesTest.theReadOfOneHashsOccurrencesIsPreparedOnceForThePass`, which found the statement prepared 416 times, with the run bound, in one resolution at `1e89afe`; a throwaway probe outside the repository (Measured). No archive, working directory, database, log, report or deliverable of the operator's was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
+- **Rests on**: `similarity.RedundancyResolutionBoundsItsCandidatesTest.theReadOfOneHashsOccurrencesIsPreparedOnceForThePass`; a throwaway probe outside the repository (Measured).
 
 ## Context
 
-Containment retrieval makes one read for each of an occurrence's rarest hashes, about 32, and more where a hash has more than 1,000 occurrences (ADR-225 §2). Each read was a `JdbcTemplate` query, so a statement was prepared for each, with `run_id = ?`. SQLite matches a bound value to a partial index's `WHERE` only by planning the statement with the value bound (ADR-221 §2), so a statement whose bound value a partial index depends on is prepared again when it is bound. Over a corpus that is two compilations for each read, for every signed occurrence.
+Containment retrieval makes one read for each of an occurrence's rarest hashes, about 32, and more where a hash has more than 1,000 occurrences (ADR-225 §2). Each read was a `JdbcTemplate` query, so a statement was prepared for each, with `run_id = ?`. SQLite matches a bound value to a partial index's `WHERE` only by planning the statement with the value bound (ADR-221 §2), so a statement whose bound value a partial index depends on is prepared again when it is bound. Over a corpus that is two compilations for each read, for every signed occurrence. In one resolution of that test's ledger, the statement was prepared 416 times, with the run bound.
 
 ## Measured
 
@@ -38,7 +37,7 @@ Keeping one statement with the run bound saves little, since binding the run has
 
 - In stage 4b's step, the read of one hash's occurrences is compiled once a containment pass, where it was compiled twice a read.
 - `EveryStatementThatSortsIsRecordedTest` reads a run written into a statement's text as the index's run in its second state and as a run no index is built for in its first, and counts as before: the read sorts without the index and not with it.
-- **Which run ids move**: the change touches `similarity`, so extraction, content census and content redundancy are minted again for it, and seed measurement, embedding scoring, arrangement and generation through their upstream runs: stages 2 to 6b move (ADR-058, ADR-048), as ADR-225 §8 reads a change to `similarity`. It comes after [#502](https://github.com/algernon28/vespera/pull/502), which moved them too, so a working directory a build of #502 has run over runs stage 2 onward again once more. The candidates read, and so every verdict, are unchanged; what is paid is the time.
+- **Which run ids move**: the change touches `similarity`, so extraction, content census and content redundancy are minted again for it, and seed measurement, embedding scoring, arrangement and generation through their upstream runs: stages 2 to 6b move (ADR-058, ADR-048), as ADR-225 §8 reads a change to `similarity`. The candidates read, and so every verdict, are unchanged; what is paid is the time.
 
 ## Tests
 

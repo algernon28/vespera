@@ -43,7 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>Two claims came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3, #411): on a first
  * invocation stage 2 times its count of the survivors still to read and, at its end, its read of the
  * occurrences it could not read for the review list, and says nothing of the two reads a resume makes, which
- * are ADR-199's. <b>ADR-249 section 4 added a third timed line</b>: after the read for the review list, its
+ * are ADR-199's. <b>A third timed line is ADR-250 section 4's</b>: after the read for the review list, its
  * read of the survivors it converted for the survivor list.
  */
 @CascadeSliceTest
@@ -60,7 +60,7 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
     private static final String STAGE_TWO = "Stage 2 (extraction)";
 
     /**
-     * That stage 2 timed its count, its read for the review list and its read for the survivor list (ADR-249
+     * That stage 2 timed its count, its read for the review list and its read for the survivor list (ADR-250
      * section 4), once each, in the order it issues them, around the work between: the count before the first
      * file is counted as read, the read for the review list before the line that says where that list is.
      */
@@ -77,7 +77,7 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedCount(STAGE_TWO, "the survivors still to read"),
                                 StatementLines.timedRead(STAGE_TWO, "the occurrences it could not read"),
-                                // ADR-249 section 4: the survivor list is read and written after the review list.
+                                // ADR-250 section 4: the survivor list is read and written after the review list.
                                 StatementLines.timedRead(STAGE_TWO, "the survivors it converted"))));
         claim(
                 "the count ends before the first file is counted as read, and the read for the review list ends"

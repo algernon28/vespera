@@ -52,7 +52,7 @@ import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 /**
- * What {@link SurvivorListListener} does at the end of stage 2's step (ADR-249 sections 1, 3 and 4): it
+ * What {@link SurvivorListListener} does at the end of stage 2's step (ADR-250 sections 1, 3 and 4): it
  * writes the survivor list beside the database, holding the survivors of the run that carry a metrics row
  * under it, in the order of their paths; says where it is in one line; writes nothing for a step that failed
  * having read nothing; and says a failure in one error line, throwing none, with the page before left whole.
@@ -64,7 +64,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
  */
 @Epic("Extraction")
 @Feature("Stage 2 step")
-@Link(name = "ADR-249", url = Adr.STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST, type = "adr")
+@Link(name = "ADR-250", url = Adr.STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST, type = "adr")
 @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
 @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")

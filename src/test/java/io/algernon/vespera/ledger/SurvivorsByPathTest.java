@@ -25,7 +25,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * {@link Verdicts#eachPageOfSurvivorsByPath}: what stage 2's survivor list is read from (ADR-249 section 3).
+ * {@link Verdicts#eachPageOfSurvivorsByPath}: what stage 2's survivor list is read from (ADR-250 section 3).
  * It hands over a run's survivors, the ones {@link Verdicts#survivors} hands out and no others, each with its
  * path, in path order, a page of at most {@value KeysetPages#ROWS_IN_A_PAGE} at a time, and no page sorts:
  * each is a range of the index {@code UNIQUE (walk_id, path)} makes, begun after the last path read.
@@ -39,7 +39,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Epic("Ledger")
 @Feature("Survivors")
-@Link(name = "ADR-249", url = Adr.STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST, type = "adr")
+@Link(name = "ADR-250", url = Adr.STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST, type = "adr")
 @Link(name = "ADR-209", url = Adr.THE_LEDGER_IS_FOUR_RECORDS_AND_A_TABLES_SQL_IS_ITS_OWNERS, type = "adr")
 @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
 class SurvivorsByPathTest {
@@ -53,7 +53,7 @@ class SurvivorsByPathTest {
     /** Removed under the run asked. */
     private static final String REMOVED_UNDER_THE_RUN = "reports/b-removed-under-the-run.pdf";
 
-    /** Given the verdict degenerate output under the run asked, and so removed under it (ADR-249 section 1). */
+    /** Given the verdict degenerate output under the run asked, and so removed under it (ADR-250 section 1). */
     private static final String REMOVED_AS_DEGENERATE_OUTPUT = "reports/f-removed-as-degenerate-output.pdf";
 
     /** Removed under the run upstream of the run asked. */

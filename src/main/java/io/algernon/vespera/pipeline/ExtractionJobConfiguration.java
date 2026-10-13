@@ -180,7 +180,7 @@ public class ExtractionJobConfiguration {
                 .skipLimit(SKIP_LIMIT)
                 .listener(extractionCircuitBreaker)
                 // Immediately before the review list, so it is written after it and after the fault recorder
-                // (ADR-249 section 4).
+                // (ADR-250 section 4).
                 .listener(survivorListListener)
                 // Before the health check listener, so that its afterStep runs after the fault recorder's
                 // below: afterStep runs in the reverse of this order (ADR-175 section 7).

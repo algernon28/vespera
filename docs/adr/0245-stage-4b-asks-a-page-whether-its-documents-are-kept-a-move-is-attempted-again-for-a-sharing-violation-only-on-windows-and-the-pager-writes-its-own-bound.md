@@ -5,15 +5,15 @@
 > **Partly amended — see [ADR-246](0246-a-move-on-a-drive-windows-serves-is-attempted-again-and-the-survivors-pages-are-the-ledgers.md).** Of §2: a `FileSystemException` of no subclass is attempted again away from Windows too where the page's place is on a drive Windows serves, under WSL or over a share, told by the type of its file store.
 
 - **Date**: 2026-10-12
-- **Status**: accepted on 2026-10-12, on the call of the session that worked the review of the changes on `main` from `c244916` to `85b2d38` (*"fix them, test first, then open a PR"*). No question was put to the operator. Each change below that changes what the code does had a test written first that failed on the code at `85b2d38`, and passes after it.
+- **Status**: accepted on 2026-10-12.
 - **Amends**: [ADR-244](0244-the-floors-answers-are-those-under-the-runs-embedder-identity-a-move-refused-as-a-sharing-violation-is-attempted-again-and-a-document-kept-for-another-is-checked-for-no-container.md) §3, that a `FileSystemException` of no subclass is attempted again on every platform (§2 here); §4, that whether a document is kept is asked of each document by itself (§1); §6, *"The pager does not write the bound itself"* (§3); and §7's last sentence, *"The seeds' counts are asked as they were"* (§4). It carries a note at its head.
 - **Applies, and does not amend**: [ADR-216](0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md) §1, the ride-along rule, to the copies of §5 (§6 here); [ADR-243](0243-the-reads-that-ask-a-page-of-occurrences-by-key-take-the-ledgers-page-and-cut-it-once.md) §2, one page size, to two reads it did not name (§4).
 - **Keeps**: [ADR-234](0234-no-redundancy-pointer-names-a-removed-document-a-cut-is-read-from-the-band-and-a-verdict-reason-is-written-in-one-locale.md) §1's rule, that no document a row names as kept is removed in its turn, and ADR-244 §4's order, that this is asked before a document's candidates are gone through; [ADR-242](0242-a-page-moved-over-its-place-is-moved-again-a-few-times-where-the-move-is-refused-as-access-denied.md) §2's attempts and waits, and the retry of `AccessDeniedException` on every platform.
-- **Rests on**: the code at `85b2d38`; the tests below. Nothing was run on Windows. No archive, working directory, database, log, report or deliverable of the operator's was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
+- **Rests on**: the tests below.
 
 ## Context
 
-A review of `c244916..85b2d38`, the changes of [#506](https://github.com/algernon28/vespera/pull/506) (ADR-244) and [#505](https://github.com/algernon28/vespera/pull/505) (ADR-243), reported ten findings. Two are what ADR-244 brought in:
+The code after ADR-243 and ADR-244 had ten defects. Two are what ADR-244 brought in:
 
 - **Stage 4b asked one statement for each document phase 2 goes through.** ADR-244 §4 moved the question whether a row names a document as kept to before its candidates, so it is asked of every signed document phase 1 left standing, where it was asked only of those a container was found for. On 2,550 signed documents, 50 of them removed in phase 1, that was 2,500 statements.
 - **A move that failed for good was attempted five times.** ADR-244 §3 attempts again a `FileSystemException` of no subclass on every platform. Away from Windows no program holding a file stops its move, and Java gives a read-only or full disk, a folder in the page's place, a loop of links or a fault of the device as that type, none of which a wait lifts: each was said 1.5 seconds late.
@@ -51,7 +51,7 @@ The seeds' content keys are asked by `ExtractionCacheKeys.requireForOccurrences`
 
 ### 6. The ADR-216 check
 
-The change touches `similarity` (`RedundancyResolution`), `extraction` (`ChunkCache`, `HybridChunker`, `ExtractionMetrics`, `ExtractionFaults`) and `embedding` (`SeedCorpusComparison`, `RelevanceDistribution`, `DocumentClusters`, `RelevanceScoreCache`), `synthesis` in a javadoc (`Deliverable`), and `ledger` and `pipeline`, which no stage names. **Stages 2 to 6b move: extraction, content census, content redundancy, seed measurement, embedding scoring, arrangement and generation**, as ADR-237 to ADR-244 already move them. ADR-243 §1 records the operator's answer that no `vespera run` has been made with a build carrying [#503](https://github.com/algernon28/vespera/pull/503); so the next run mints stages 2 to 6b once, for this change and those before it, **provided this change is on `main` before that run**. The copies §4 and §5 take out ride that re-mint, as ADR-216 §1 lets them. Byte-level reduction keeps its run id. No DDL, no schema version, no cache key, no recorded setting, no verdict kind and no line of the log changes; every verdict is what it was.
+The change touches `similarity` (`RedundancyResolution`), `extraction` (`ChunkCache`, `HybridChunker`, `ExtractionMetrics`, `ExtractionFaults`) and `embedding` (`SeedCorpusComparison`, `RelevanceDistribution`, `DocumentClusters`, `RelevanceScoreCache`), `synthesis` in a javadoc (`Deliverable`), and `ledger` and `pipeline`, which no stage names. **Stages 2 to 6b move: extraction, content census, content redundancy, seed measurement, embedding scoring, arrangement and generation**, as ADR-237 to ADR-244 already move them. The copies §4 and §5 take out ride that move, as ADR-216 §1 lets them. Byte-level reduction keeps its run id. No DDL, no schema version, no cache key, no recorded setting, no verdict kind and no line of the log changes; every verdict is what it was.
 
 ### 7. What is left as it is
 
@@ -70,15 +70,15 @@ The change touches `similarity` (`RedundancyResolution`), `extraction` (`ChunkCa
 
 | Class | What it holds |
 | --- | --- |
-| `similarity.RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest.asksWhetherAPageOfDocumentsIsKeptAtOnce`, new | of 2,550 signed documents, whether a row keeps a document is asked in at most 3 statements, one a page, each naming at most 1,000; the same 50 near-duplicates and 25 contained documents are removed. Failed first: 2,500 statements. Without the containers a page writes added to its set, `RedundancyResolutionTest.aChainOfContainmentsLeavesNoPointerAtARemovedDocument` fails |
-| `ledger.AMoveRefusedForAMomentIsTriedAgainTest.awayFromWindowsAnUntypedFailureIsNotTriedAgain`, new | away from Windows, a move failing with a `FileSystemException` of no subclass is thrown at once, after one attempt and no wait. `aMoveRefusedTwiceAsASharingViolationIsMadeOnTheThirdAttempt` stands in for Windows. Failed first: it did not compile, the platform having no seam |
-| `extraction.HybridChunkerTest.countsThePiecesOfMoreDocumentsThanAPage`, new | the chunks of 1,001 documents are counted. Failed first: `IllegalArgumentException` |
-| `TheReadsByKeyTakeTheLedgersPageTest` | names `ExtractionMetrics` and `ChunkCache` beside ADR-243's four. Failed first, naming `ExtractionMetrics.OCCURRENCES_IN_A_STATEMENT` |
-| `ledger.KeysetPagesTest.thePagerBoundsEachPageItself`, new | a statement given with no bound is read as two pages of 1,000 and a short third, each statement ending ` LIMIT 1000`. Failed first: refused. `aStatementBoundByAnotherNumberThanAPageIsRefused` is taken out with the refusal it held |
-| `pipeline.ScoringCountsAPageOfSurvivorsChunksTogetherInvocationTest` | no document's chunks, the seed's included, are counted by themselves: one statement counts the seeds' and one the page of survivors'. Failed first: the seed's was counted by itself |
+| `similarity.RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest.asksWhetherAPageOfDocumentsIsKeptAtOnce`, new | of 2,550 signed documents, whether a row keeps a document is asked in at most 3 statements, one a page, each naming at most 1,000; the same 50 near-duplicates and 25 contained documents are removed. `RedundancyResolutionTest.aChainOfContainmentsLeavesNoPointerAtARemovedDocument` holds that the containers a page writes are added to its set |
+| `ledger.AMoveRefusedForAMomentIsTriedAgainTest.awayFromWindowsAnUntypedFailureIsNotTriedAgain`, new | away from Windows, a move failing with a `FileSystemException` of no subclass is thrown at once, after one attempt and no wait. `aMoveRefusedTwiceAsASharingViolationIsMadeOnTheThirdAttempt` stands in for Windows. |
+| `extraction.HybridChunkerTest.countsThePiecesOfMoreDocumentsThanAPage`, new | the chunks of 1,001 documents are counted |
+| `TheReadsByKeyTakeTheLedgersPageTest` | names `ExtractionMetrics` and `ChunkCache` beside ADR-243's four |
+| `ledger.KeysetPagesTest.thePagerBoundsEachPageItself`, new | a statement given with no bound is read as two pages of 1,000 and a short third, each statement ending ` LIMIT 1000`. `aStatementBoundByAnotherNumberThanAPageIsRefused` is taken out with the refusal it held |
+| `pipeline.ScoringCountsAPageOfSurvivorsChunksTogetherInvocationTest` | no document's chunks, the seed's included, are counted by themselves: one statement counts the seeds' and one the page of survivors' |
 | `pipeline.TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest`, `embedding.ScoringProgressTest`, the `SeedCorpusComparison` tests, unchanged | 5d's and stage 5's pages, statements and progress are as they were |
 
 ## What this does not decide
 
 - Telling a sharing violation on Windows from the other errors Java gives as a `FileSystemException` of no subclass there, as ADR-244 left it.
-- A shared form for a read that asks a list of keys with `IN (…)`, as ADR-243 left it; the copies stand in `ExtractionCacheKeys`, `RelevanceScoreCache`, `Occurrences`, `Verdicts`, `Clusters`, `ChunkCache`, `ExtractionMetrics` and `RedundancyResolution` (review register S11).
+- A shared form for a read that asks a list of keys with `IN (…)`, as ADR-243 left it; the copies stand in `ExtractionCacheKeys`, `RelevanceScoreCache`, `Occurrences`, `Verdicts`, `Clusters`, `ChunkCache`, `ExtractionMetrics` and `RedundancyResolution`.

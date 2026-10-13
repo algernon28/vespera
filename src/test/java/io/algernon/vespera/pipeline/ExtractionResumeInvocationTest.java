@@ -128,7 +128,7 @@ class ExtractionResumeInvocationTest {
 
     /**
      * The three statements every stage 2 that reads an occurrence times: its count, its read for the review
-     * list, and after it its read for the survivor list (ADR-249 section 4).
+     * list, and after it its read for the survivor list (ADR-250 section 4).
      */
     private static final List<String> THE_COUNT_AND_THE_TWO_LIST_READS = StatementLines.inOrder(
             StatementLines.timedCount(STAGE_TWO, "the survivors still to read"),

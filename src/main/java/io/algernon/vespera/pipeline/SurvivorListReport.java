@@ -7,7 +7,7 @@ import java.util.function.Consumer;
 
 /**
  * Renders the survivor list (CONTEXT.md) of files stage 2 converted and did not remove as one self-contained
- * HTML file (ADR-249 section 2), through the shared {@link ReportPage} module (ADR-130).
+ * HTML file (ADR-250 section 2), through the shared {@link ReportPage} module (ADR-130).
  *
  * <p>Its opening paragraph names the review list and says that a file converted and then removed as degenerate
  * output is on neither page, so that the two counts are not read as all that entered the stage.

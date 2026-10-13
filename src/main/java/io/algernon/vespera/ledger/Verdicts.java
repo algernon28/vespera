@@ -62,7 +62,7 @@ public class Verdicts {
     /**
      * One page of {@link #eachPageOfSurvivorsByPath}: the walk's survivors after the last path read. The walk
      * is compared as a column, so the page is a range of {@code UNIQUE (walk_id, path)} in path order and
-     * nothing sorts (ADR-249 section 3).
+     * nothing sorts (ADR-250 section 3).
      */
     private static final String SURVIVORS_BY_PATH_PAGE_SQL = "SELECT id, path FROM file_occurrence"
             + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
@@ -244,7 +244,7 @@ public class Verdicts {
 
     /**
      * The same survivors as {@link #survivors}, each page of at most 1,000 handed to {@code page} in path order
-     * (ADR-249 section 3): keyed by path, which no empty string is, so the first page starts after "".
+     * (ADR-250 section 3): keyed by path, which no empty string is, so the first page starts after "".
      */
     public void eachPageOfSurvivorsByPath(RunId runId, Consumer<List<OccurrenceAtPath>> page) {
         List<String> runsInScope = runsInScope(runId);

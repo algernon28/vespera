@@ -1,16 +1,16 @@
 # ADR-248 — Only stage 4b's question whether a page is kept compares the run as a value
 
 - **Date**: 2026-10-13
-- **Status**: accepted on 2026-10-13, on the call of the session that worked the review of the change on `main` from `8815146` to `0930f64` (*"fix them, test first, then open a PR"*). No question was put to the operator. The change had a test written first that failed on the code at `0930f64`, and passes after it.
+- **Status**: accepted on 2026-10-13.
 - **Amends**: [ADR-247](0247-stage-4b-asks-whether-a-page-is-kept-of-its-own-index-and-a-drive-windows-serves-is-told-once.md) §1, *"`signedAmong`, `removedAmong` and `keptAmong` compare the run as `+run_id = ?`"* and *"the other two by the table's primary key"*. It carries a note at its head.
 - **Keeps**: ADR-247 §1 for `keptAmong`; ADR-247 §2 to §4 and §6.
-- **Rests on**: the code at `0930f64`; the plans SQLite gives through `sqlite-jdbc` 3.53; the test below. No archive, working directory, database, log, report or deliverable of the operator's was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
+- **Rests on**: the plans SQLite gives through `sqlite-jdbc` 3.53; the tests below.
 
 ## Context
 
-A review of `8815146..0930f64`, the change of [#509](https://github.com/algernon28/vespera/pull/509) (ADR-247), found that its `+run_id` cost the two reads it did not need it for. `minhash_signature` and `redundant_with` are keyed `(occurrence_id, run_id)`, so `signedAmong` and `removedAmong` were planned by the primary key on both columns, `(occurrence_id=? AND run_id=?)`. With the run compared as a value they are planned on `(occurrence_id=?)` alone and read the row of every stage-4 run that names the document, then pass over those of other runs. They are asked for every batch of containment candidates, the busiest reads of stage 4b. ADR-247 §1 said the primary key was used, which it was, by one column; no test held the plan.
+ADR-247's `+run_id` cost the two reads that did not need it. `minhash_signature` and `redundant_with` are keyed `(occurrence_id, run_id)`, so `signedAmong` and `removedAmong` were planned by the primary key on both columns, `(occurrence_id=? AND run_id=?)`. With the run compared as a value they are planned on `(occurrence_id=?)` alone and read the row of every stage-4 run that names the document, then pass over those of other runs. They are asked for every batch of containment candidates, the busiest reads of stage 4b. ADR-247 §1 said the primary key was used, which it was, by one column; no test held the plan.
 
-The review's other findings are left: why is in §3.
+What else is left as it is, and why, is in §3.
 
 ## Decision
 
@@ -20,7 +20,7 @@ The review's other findings are left: why is in §3.
 
 ### 2. The ADR-216 check
 
-The change touches `similarity` (`RedundancyResolution`). **Stages 2 to 6b move**, as ADR-237 to ADR-247 already move them; the next run mints them once **provided this change is on `main` before that run** (ADR-243 §1). No statement but the two reads changes, by one character each; no verdict, no DDL and no line of the log changes.
+The change touches `similarity` (`RedundancyResolution`). **Stages 2 to 6b move**, as ADR-237 to ADR-247 already move them. No statement but the two reads changes, by one character each; no verdict, no DDL and no line of the log changes.
 
 ### 3. What is left as it is
 
@@ -37,4 +37,5 @@ The change touches `similarity` (`RedundancyResolution`). **Stages 2 to 6b move*
 
 | Class | What it holds |
 | --- | --- |
-| `similarity.RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest.asksWhetherAPageOfDocumentsIsKeptAtOnce`, one claim added | each read of which documents are signed or removed is planned by its table's primary key on `occurrence_id=? AND run_id=?`. Failed first: each was planned on `occurrence_id=?` alone. The claim that the kept question is planned by `redundant_with_by_redundant_with_occurrence_id` stands |
+| `similarity.RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest.asksWhichCandidatesAreSignedAndRemovedByTheirKey` | for each of `minhash_signature` and `redundant_with`, at least one read of which documents have a row is made, and each is planned by a `SEARCH` of the table on `(occurrence_id=? AND run_id=?)`, which only its primary key holds. Its class resolves the documents once for its three tests |
+| `similarity.RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest.asksWhetherAPageOfDocumentsIsKeptAtOnce`, unchanged | the kept question is planned by `redundant_with_by_redundant_with_occurrence_id`, and not by the run's index: §1's `+run_id` on `keptAmong` |

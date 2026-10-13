@@ -26,10 +26,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.JdbcTransactionManager;
@@ -51,12 +52,15 @@ import org.springframework.transaction.support.TransactionTemplate;
  * So stage 4b removes one of each pair and each contained document, and nothing else.
  *
  * <p>It names nothing ADR-220 adds, and so compiles before it; it fails until stage 4b reads as ADR-220 says.
+ *
+ * <p>Stage 4b resolves the documents once for the class, and each test reads what it said.
  */
 @Epic("Redundancy")
 @Feature("Resolution")
 @Issue("458")
 @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 @Link(name = "ADR-079", url = Adr.REDUNDANT_WITH_COVERS_NEAR_DUPLICATION_AND_CONTAINMENT, type = "adr")
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
 
     /** Documents that resemble nothing, each of its own 20 shingles. */
@@ -91,16 +95,17 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
     /** Each document's alphanumeric characters, the survivor rule's measure; the same for all, so ties fall to age, then path. */
     private static final long TEXT = 10_000L;
 
-    @TempDir
-    Path folder;
-
     private PoolOfTwo pool;
     private RunId stage2;
     private RunId stage3;
     private RunId stage4;
 
-    @BeforeEach
-    void aSignedRunOfNearDuplicatesAndContainedOccurrences() throws SQLException, IOException {
+    /** Every statement the one resolution said. */
+    private List<String> said;
+
+    @BeforeAll
+    void resolveASignedRunOfNearDuplicatesAndContainedOccurrences(@TempDir Path folder)
+            throws SQLException, IOException {
         pool = new PoolOfTwo(folder);
         JdbcTemplate jdbcTemplate = pool.jdbcTemplate();
         Ledger ledger = new Ledger(jdbcTemplate);
@@ -183,9 +188,14 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
         });
         // The statement ADR-221 section 1 builds it with, for the run stage 4b reads.
         jdbcTemplate.execute(TheRunsHashIndex.statementFor(stage2.value()));
+
+        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
+        new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
+                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()));
+        said = log.said();
     }
 
-    @AfterEach
+    @AfterAll
     void closeThePool() {
         pool.close();
     }
@@ -194,12 +204,6 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
     @Story("Redundancy resolution holds no list of the corpus")
     @DisplayName("Redundancy resolution removes the same documents while reading a page of signed documents at a time and asking about each by key")
     void removesTheSameOccurrencesAskingAPageAtATime() {
-        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
-
-        new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
-                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()));
-
-        List<String> said = log.said();
         claim(
                 "one of each of the " + NEAR_DUPLICATE_PAIRS + " near-identical pairs is removed as a near-duplicate,"
                         + " and each of the " + CONTAINED + " contained documents as contained, and nothing else",
@@ -259,12 +263,6 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
     @Link(name = "ADR-247", url = Adr.STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX, type = "adr")
     @Link(name = "ADR-248", url = Adr.ONLY_THE_KEPT_QUESTION_COMPARES_THE_RUN_AS_A_VALUE, type = "adr")
     void asksWhetherAPageOfDocumentsIsKeptAtOnce() {
-        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
-
-        new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
-                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()));
-
-        List<String> said = log.said();
         claim(
                 "the same documents are removed: one of each near-identical pair, and each contained document",
                 () -> assertThat(List.of(removedAs("near-duplicate"), removedAs("contained-in")))
@@ -290,18 +288,35 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
                         .allSatisfy(sql -> assertThat(planOf(sql))
                                 .anyMatch(detail -> detail.contains("redundant_with_by_redundant_with_occurrence_id"))
                                 .noneMatch(detail -> detail.contains("redundant_with_by_run_id"))));
-        claim(
-                "which documents are signed, and which removed, is asked of each table's primary key by both the"
-                        + " document and the run, so that a document's rows under other runs are not read",
-                () -> assertThat(said.stream()
-                                .filter(sql -> sql.stripLeading().startsWith("SELECT occurrence_id FROM"))
-                                .filter(sql -> sql.contains("FROM minhash_signature") || sql.contains("FROM redundant_with"))
-                                .filter(sql -> sql.contains("occurrence_id IN ("))
-                                .toList())
-                        .isNotEmpty()
-                        .allSatisfy(sql -> assertThat(planOf(sql))
-                                .anyMatch(detail -> detail.contains("occurrence_id=? AND run_id=?"))));
     }
+
+    /**
+     * Which candidates are signed, and which removed, is asked of each table's primary key, which holds the
+     * document and the run, by both; the run compared as a value would leave the key only the document, and every
+     * stage-4 run's row of it would be read (ADR-248).
+     */
+    @Test
+    @Story("Redundancy resolution holds no list of the corpus")
+    @DisplayName("Redundancy resolution asks which candidates are signed, and which removed, of each table's key by the document and the run")
+    @Link(name = "ADR-248", url = Adr.ONLY_THE_KEPT_QUESTION_COMPARES_THE_RUN_AS_A_VALUE, type = "adr")
+    void asksWhichCandidatesAreSignedAndRemovedByTheirKey() {
+        for (String table : List.of("minhash_signature", "redundant_with")) {
+            claim(
+                    "which documents have a row of " + table + " is asked, and each time of an index by the"
+                            + " document and the run, as the table's primary key holds them",
+                    () -> assertThat(said.stream()
+                                    .filter(sql -> sql.stripLeading().startsWith("SELECT occurrence_id FROM " + table + " "))
+                                    .filter(sql -> CANDIDATE_LIST.matcher(sql).find())
+                                    .toList())
+                            .isNotEmpty()
+                            .allSatisfy(sql -> assertThat(planOf(sql))
+                                    .anyMatch(detail -> detail.startsWith("SEARCH " + table + " ")
+                                            && detail.endsWith(" (occurrence_id=? AND run_id=?)"))));
+        }
+    }
+
+    /** A list of documents asked by the column {@code occurrence_id} itself, and not by one ending in it. */
+    private static final Pattern CANDIDATE_LIST = Pattern.compile("\\boccurrence_id IN \\(");
 
     /** How many documents {@code sql} asks about by the column that names the kept document. */
     private static int keptNamedBy(String sql) {

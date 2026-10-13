@@ -171,7 +171,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "StatementProgress",
             "StepFailure",
             "StepNames",
-            // ADR-249: the survivor list reads who survived and what was measured, and decides neither.
+            // ADR-250: the survivor list reads who survived and what was measured, and decides neither.
             "SurvivorListListener",
             "SurvivorListReport",
             "TaskletSteps",

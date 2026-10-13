@@ -23,7 +23,7 @@ import org.springframework.batch.core.step.StepExecution;
 import org.springframework.dao.DataAccessException;
 
 /**
- * Writes the survivor list (CONTEXT.md) when the step ends (ADR-249): the survivors of stage 2's run that carry
+ * Writes the survivor list (CONTEXT.md) when the step ends (ADR-250): the survivors of stage 2's run that carry
  * a metrics row under it, by path, read a page at a time from the ledger and from extraction's metrics and
  * joined here, because no statement may name both tables (ADR-209).
  *

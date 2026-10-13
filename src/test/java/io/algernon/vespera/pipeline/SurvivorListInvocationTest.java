@@ -31,7 +31,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * The survivor list over whole invocations (ADR-249): of three files, one of which the converter answers
+ * The survivor list over whole invocations (ADR-250): of three files, one of which the converter answers
  * with an error status, stage 2 lists the other two by path on {@code extraction-survivors.html} and the one
  * on the review list, says how many came through and where their list is, and an invocation that finds the
  * stage finished writes the page again, converting nothing.
@@ -43,7 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Import(ExtractionBeans.class)
 @Epic("Extraction")
 @Feature("Stage 2 step")
-@Link(name = "ADR-249", url = Adr.STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST, type = "adr")
+@Link(name = "ADR-250", url = Adr.STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST, type = "adr")
 @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
 class SurvivorListInvocationTest {
 

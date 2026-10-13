@@ -17,14 +17,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The survivor list as a page (ADR-249 section 2): its title, the paragraph that says how many came through
+ * The survivor list as a page (ADR-250 section 2): its title, the paragraph that says how many came through
  * and which files are on neither list, and one row for each survivor in the order handed over, with its
  * path, its page count or a dash, and its word count. Written as its rows come (ADR-220 section 6), and the
  * page {@link ReportPage} makes of the same parts, character for character.
  */
 @Epic("Extraction")
 @Feature("Stage 2 step")
-@Link(name = "ADR-249", url = Adr.STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST, type = "adr")
+@Link(name = "ADR-250", url = Adr.STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST, type = "adr")
 @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class SurvivorListReportTest {
 
