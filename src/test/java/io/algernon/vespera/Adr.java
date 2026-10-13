@@ -1696,6 +1696,15 @@ public final class Adr {
     public static final String A_RECORD_HOLDS_ITS_DECISION_AND_NO_HISTORY = FILE
             + "0249-a-decision-record-holds-its-decision-and-no-history.md";
 
+    /**
+     * ADR-250 -- stage 2 writes a second page at its end, the survivor list: every survivor of its run that
+     * carries a metrics row under it, by path, with its page and word counts, read a page at a time through a
+     * read of the ledger that sorts nothing, and touching no module a stage's version names (extends ADR-175
+     * section 7).
+     */
+    public static final String STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST = FILE
+            + "0250-stage-2-writes-the-survivor-list-of-the-files-it-converted-and-did-not-remove.md";
+
     private Adr() {
     }
 }

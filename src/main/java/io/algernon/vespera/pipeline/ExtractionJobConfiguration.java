@@ -167,6 +167,7 @@ public class ExtractionJobConfiguration {
             ExtractionHealthCheckListener extractionHealthCheckListener,
             ExtractionFaultRecorder extractionFaultRecorder,
             ReviewListListener reviewListListener,
+            SurvivorListListener survivorListListener,
             Ledger ledger) {
         return new StepBuilder(StepNames.EXTRACTION, jobRepository)
                 .<OccurrenceId, ExtractionOutcome>chunk(CHUNK_SIZE)
@@ -178,6 +179,9 @@ public class ExtractionJobConfiguration {
                 .skip(ServiceScopeFailureException.class)
                 .skipLimit(SKIP_LIMIT)
                 .listener(extractionCircuitBreaker)
+                // Immediately before the review list, so it is written after it and after the fault recorder
+                // (ADR-250 section 4).
+                .listener(survivorListListener)
                 // Before the health check listener, so that its afterStep runs after the fault recorder's
                 // below: afterStep runs in the reverse of this order (ADR-175 section 7).
                 .listener(reviewListListener)
@@ -311,6 +315,17 @@ public class ExtractionJobConfiguration {
     ReviewListListener reviewListListener(
             Ledger ledger, StageRuns stageRuns, @Value("${vespera.working-dir}") Path workingDirectory) {
         return new ReviewListListener(ledger, stageRuns, workingDirectory);
+    }
+
+    /** {@link SurvivorListListener}, step-scoped as {@link #reviewListListener} is and for the same reason. */
+    @Bean
+    @StepScope
+    SurvivorListListener survivorListListener(
+            Ledger ledger,
+            ExtractionMetrics extractionMetrics,
+            StageRuns stageRuns,
+            @Value("${vespera.working-dir}") Path workingDirectory) {
+        return new SurvivorListListener(ledger, extractionMetrics, stageRuns, workingDirectory);
     }
 
     /**

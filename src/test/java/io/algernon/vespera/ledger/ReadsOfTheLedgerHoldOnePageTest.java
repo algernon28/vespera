@@ -29,7 +29,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * The three reads of the ledger that can be as long as a walk, each held a page at a time (ADR-209
+ * Three reads of the ledger that can be as long as a walk, each held a page at a time (ADR-209
  * section 2): a run's survivors by id, the same by size, and a walk's occurrences.
  *
  * <p>Each is an {@code Iterable}, where it was a Spring Batch reader, and what ADR-060 asked of the reader
@@ -137,7 +137,7 @@ class ReadsOfTheLedgerHoldOnePageTest {
         }
     }
 
-    /** A walk of 2,500 occurrences with a run over it, and the three reads of it through {@code template}. */
+    /** A walk of 2,500 occurrences with a run over it, and three reads of it through {@code template}. */
     private Map<String, Supplier<Iterable<?>>> readsOver(JdbcTemplate template) {
         Ledger ledger = new Ledger(template);
         WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-" + System.nanoTime()));

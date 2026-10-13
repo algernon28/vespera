@@ -59,6 +59,19 @@ public class Verdicts {
             + " AND size_bytes >= ? AND (size_bytes, id) > (?, ?)"
             + " ORDER BY size_bytes, id";
 
+    /**
+     * One page of {@link #eachPageOfSurvivorsByPath}: the walk's survivors after the last path read. The walk
+     * is compared as a column, so the page is a range of {@code UNIQUE (walk_id, path)} in path order and
+     * nothing sorts (ADR-250 section 3).
+     */
+    private static final String SURVIVORS_BY_PATH_PAGE_SQL = "SELECT id, path FROM file_occurrence"
+            + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+            + " AND NOT EXISTS (SELECT 1 FROM verdict"
+            + " WHERE verdict.occurrence_id = file_occurrence.id"
+            + " AND verdict.kind IN (%s)"
+            + " AND verdict.run_id IN (%s))"
+            + " AND path > ? ORDER BY path";
+
     private final JdbcTemplate jdbcTemplate;
 
     public Verdicts(JdbcTemplate jdbcTemplate) {
@@ -227,6 +240,28 @@ public class Verdicts {
      */
     public void eachPageOfSurvivors(RunId runId, Consumer<List<OccurrenceId>> page) {
         survivorPages(runId).eachPage(page);
+    }
+
+    /**
+     * The same survivors as {@link #survivors}, each page of at most 1,000 handed to {@code page} in path order
+     * (ADR-250 section 3): keyed by path, which no empty string is, so the first page starts after "".
+     */
+    public void eachPageOfSurvivorsByPath(RunId runId, Consumer<List<OccurrenceAtPath>> page) {
+        List<String> runsInScope = runsInScope(runId);
+        String placeholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
+        List<Object> fixedArguments = new ArrayList<>();
+        fixedArguments.add(runId.value());
+        fixedArguments.addAll(runsInScope);
+        new KeysetPages<OccurrenceAtPath>(
+                        jdbcTemplate,
+                        SURVIVORS_BY_PATH_PAGE_SQL.formatted(blockingKinds(), placeholders),
+                        fixedArguments,
+                        List.of(""),
+                        (OccurrenceAtPath last) -> List.of(last.path().value()),
+                        (resultSet, rowNumber) -> new OccurrenceAtPath(
+                                new OccurrenceId(resultSet.getLong("id")),
+                                new OccurrencePath(resultSet.getString("path"))))
+                .eachPage(page);
     }
 
     private KeysetPages<OccurrenceId> survivorPages(RunId runId) {
