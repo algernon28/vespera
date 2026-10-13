@@ -80,8 +80,8 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
                                 // ADR-249 section 4: the survivor list is read and written after the review list.
                                 StatementLines.timedRead(STAGE_TWO, "the survivors it converted"))));
         claim(
-                "the count ends before the first file is counted as read, and the read for the list ends before"
-                        + " the line that says where the list is",
+                "the count ends before the first file is counted as read, and the read for the review list ends"
+                        + " before the line that says where the review list is",
                 () -> assertThat(String.join("\n", lines))
                         .containsSubsequence(
                                 STAGE_TWO + " counted the survivors still to read in ",

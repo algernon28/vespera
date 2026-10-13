@@ -53,7 +53,7 @@ class SurvivorsByPathTest {
     /** Removed under the run asked. */
     private static final String REMOVED_UNDER_THE_RUN = "reports/b-removed-under-the-run.pdf";
 
-    /** Converted, and removed as degenerate output under the run asked (ADR-249 section 1). */
+    /** Given the verdict degenerate output under the run asked, and so removed under it (ADR-249 section 1). */
     private static final String REMOVED_AS_DEGENERATE_OUTPUT = "reports/f-removed-as-degenerate-output.pdf";
 
     /** Removed under the run upstream of the run asked. */
@@ -157,7 +157,7 @@ class SurvivorsByPathTest {
                         .extracting(survivor -> survivor.path().value())
                         .doesNotContain(REMOVED_UNDER_THE_RUN, REMOVED_UPSTREAM, OF_ANOTHER_WALK));
         claim(
-                "the document this work converted and then removed as degenerate output is not among them"
+                "the document this work removed as degenerate output is not among them"
                         + " either: it does not go on to the work after this one",
                 () -> assertThat(handedOver)
                         .extracting(survivor -> survivor.path().value())
