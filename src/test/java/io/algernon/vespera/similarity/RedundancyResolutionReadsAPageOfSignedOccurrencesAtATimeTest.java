@@ -257,7 +257,6 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
     @DisplayName("Redundancy resolution asks whether a row already keeps a document of a page of signed documents at once, and not of each document")
     @Link(name = "ADR-245", url = Adr.A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS, type = "adr")
     @Link(name = "ADR-247", url = Adr.STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX, type = "adr")
-    @Link(name = "ADR-248", url = Adr.ONLY_THE_KEPT_QUESTION_COMPARES_THE_RUN_AS_A_VALUE, type = "adr")
     void asksWhetherAPageOfDocumentsIsKeptAtOnce() {
         StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
 
@@ -290,17 +289,38 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
                         .allSatisfy(sql -> assertThat(planOf(sql))
                                 .anyMatch(detail -> detail.contains("redundant_with_by_redundant_with_occurrence_id"))
                                 .noneMatch(detail -> detail.contains("redundant_with_by_run_id"))));
-        claim(
-                "which documents are signed, and which removed, is asked of each table's primary key by both the"
-                        + " document and the run, so that a document's rows under other runs are not read",
-                () -> assertThat(said.stream()
-                                .filter(sql -> sql.stripLeading().startsWith("SELECT occurrence_id FROM"))
-                                .filter(sql -> sql.contains("FROM minhash_signature") || sql.contains("FROM redundant_with"))
-                                .filter(sql -> sql.contains("occurrence_id IN ("))
-                                .toList())
-                        .isNotEmpty()
-                        .allSatisfy(sql -> assertThat(planOf(sql))
-                                .anyMatch(detail -> detail.contains("occurrence_id=? AND run_id=?"))));
+    }
+
+    /**
+     * Which candidates are signed, and which removed, is asked of each table's primary key, which holds the
+     * document and the run, by both; the run compared as a value would leave the key only the document, and every
+     * stage-4 run's row of it would be read (ADR-248).
+     */
+    @Test
+    @Story("Redundancy resolution holds no list of the corpus")
+    @DisplayName("Redundancy resolution asks which candidates are signed, and which removed, of each table's key by the document and the run")
+    @Link(name = "ADR-248", url = Adr.ONLY_THE_KEPT_QUESTION_COMPARES_THE_RUN_AS_A_VALUE, type = "adr")
+    void asksWhichCandidatesAreSignedAndRemovedByTheirKey() {
+        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
+
+        new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
+                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()));
+
+        List<String> said = log.said();
+        for (String table : List.of("minhash_signature", "redundant_with")) {
+            claim(
+                    "which documents have a row of " + table + " is asked, and each time of its primary key by the"
+                            + " document and the run, and never of the index on the run",
+                    () -> assertThat(said.stream()
+                                    .filter(sql -> sql.stripLeading().startsWith("SELECT occurrence_id FROM " + table + " "))
+                                    .filter(sql -> sql.contains("occurrence_id IN ("))
+                                    .toList())
+                            .isNotEmpty()
+                            .allSatisfy(sql -> assertThat(planOf(sql))
+                                    .anyMatch(detail -> detail.contains(
+                                            "sqlite_autoindex_" + table + "_1 (occurrence_id=? AND run_id=?)"))
+                                    .noneMatch(detail -> detail.contains(table + "_by_run_id"))));
+        }
     }
 
     /** How many documents {@code sql} asks about by the column that names the kept document. */
