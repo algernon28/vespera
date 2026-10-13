@@ -308,7 +308,9 @@ public class ExtractionJobConfiguration {
 
     /**
      * {@link ReviewListListener}, step-scoped as {@link #extractionFaultRecorder} is and for the
-     * same reason: it is built only when the step first calls it, and asks for the run only then.
+     * same reason: it is built only when the step first calls it. It holds {@link StageRuns} and asks it
+     * for the run in {@code afterStep}, after the guard that returns for a step that failed having read
+     * nothing; no constructor asks.
      */
     @Bean
     @StepScope
