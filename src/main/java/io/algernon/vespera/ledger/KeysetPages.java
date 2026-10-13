@@ -14,10 +14,10 @@ import org.springframework.jdbc.core.RowMapper;
 /**
  * A long read of the ledger, handed out a page at a time by keyset (ADR-209 section 2).
  *
- * <p>The one pager of {@code ledger}, shared by every read of {@code ledger} that is cut into pages, and public
+ * <p>The one pager of {@code ledger}, shared by every read of {@code ledger} that is handed out a page at a time by keyset, and public
  * since the review of 2026-10-10 so that a capability module's read of a page at a time by a key its rows
  * carry is one constructor call and not a loop of its own (ADR-040: every module may name {@code ledger}).
- * A read that can be as long as a walk and is not cut into pages is the one statement {@code ORDER BY o.path}
+ * A read that can be as long as a walk and is not handed out by keyset is the one statement {@code ORDER BY o.path}
  * of {@link Verdicts#eachExtractionFailure}, an exception recorded in ADR-218.
  * Each page is one statement on the {@link JdbcTemplate} it is given, of at most {@link #ROWS_IN_A_PAGE}
  * rows, asked for only when the page in hand has been handed out, and starting after the last row of the
