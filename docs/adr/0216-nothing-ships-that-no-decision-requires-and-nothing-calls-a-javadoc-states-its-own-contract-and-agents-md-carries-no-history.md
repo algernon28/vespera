@@ -1,7 +1,9 @@
 # ADR-216 — Nothing ships that no decision requires and nothing calls, a javadoc states its own contract, and AGENTS.md carries no history
 
+> **Amended — see [ADR-249](0249-a-decision-record-holds-its-decision-and-no-history.md).** Whether the operator has used `vespera run` is no record's to say: §1's check reads it when a change is merged, from the operator, in the pull request.
+
 - **Date**: 2026-10-09
-- **Status**: accepted. The analyst first wrote the decisions down as twelve questions, each with a recommendation. On 2026-10-09 the operator answered that no `vespera run` had yet been made with a build carrying [#456](https://github.com/algernon28/vespera/issues/456) and [#461](https://github.com/algernon28/vespera/pull/461), and accepted every other recommendation as written (§12).
+- **Status**: accepted. The analyst first wrote the decisions down as twelve questions, each with a recommendation. The operator accepted every recommendation as written (§12).
 - **Amends**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md)'s list of removals. It gains the actuator starter and its test starter, the batch test starter, Lombok, and the compiler configuration that only named annotation processors (§2). It also records the removal of the OpenAI starter, which [ADR-195](0195-the-reference-model-and-every-bake-off-candidate-are-served-locally.md) §3 made without putting a block on ADR-046. *"The pom carries what a recorded decision requires"* stands, and this record applies it.
 - **Amends**: [ADR-029](0029-chunking-structure-first-with-a-measured-llm-fallback.md), in *"LLM fallback only for measured structureless (scanned) cases, currently off"*.
   - The seam that was off is removed, and so is the windowed fallback that ran in its place, which was only ever handed empty text. A structureless document yields no chunks.
@@ -64,7 +66,7 @@ Its line numbers were taken at `0b4e009`. Since then main has moved through ADR-
   - `debugger.md:57` and `tester.md:32` say `src/test/resources/application.yaml` shadows the main file.
   - The same lines say the one Docker test runs under `./mvnw test`, or that there are two unit-test classes.
 
-**What deleting costs.** ADR-058 versions a module by the last commit that touches its path, and a run's id carries its upstream runs' ids. So any edit under a module, a comment included, re-mints every stage that names that module and every stage downstream of it. #456 and #461 have already moved stages 3 to 6b, and the operator has made no run since. Anything whose re-mint falls inside stages 3 to 6b therefore rides a recomputation that is already owed. Anything in `corpus` or `extraction` would add stages 1 or 2, and re-reading the archive is the most expensive work there is.
+**What deleting costs.** ADR-058 versions a module by the last commit that touches its path, and a run's id carries its upstream runs' ids. So any edit under a module, a comment included, re-mints every stage that names that module and every stage downstream of it. #456 and #461 have already moved stages 3 to 6b. So long as no run is made in between, anything whose re-mint falls inside stages 3 to 6b rides a recomputation that is already owed. Anything in `corpus` or `extraction` would add stages 1 or 2, and re-reading the archive is the most expensive work there is.
 
 ## Decision
 
@@ -192,7 +194,7 @@ It becomes **"Walks a corpus and takes it as far as the next missing value."** T
 - No schema version moves.
 - The pom changes no remaining library's version.
 
-**The cost is paid once only if this lands before the operator's next `vespera run`.** The operator answered on 2026-10-09 that no run has been made with a build carrying #456 and #461 (§12). If one is made first, this record's implementation costs one more pass of stages 3 to 6b:
+**The cost is paid once only if no `vespera run` is made between #456 and #461 and this record's implementation, which move the same stages.** If one is made first, this record's implementation costs one more pass of stages 3 to 6b:
 - a new arrangement, and its approval;
 - every cluster's generation call again;
 - a second deliverable tree.
@@ -262,7 +264,7 @@ The implementation's pull request states `git diff --stat` beside these figures.
 
 ### 12. Put to the operator, and answered on 2026-10-09
 
-1. **Has a `vespera run` been made with a build carrying #456 and #461?** Answered: no. So everything inside stages 3 to 6b lands now (§1, §8).
+1. **Has a `vespera run` been made with a build carrying #456 and #461?** Whether one has is not this record's to say (ADR-249 §3). Everything inside stages 3 to 6b lands now, and costs no pass of its own if none has (§1, §8).
 2. **Which run ids this pays for.** Answered as recommended: only what stays inside stages 3 to 6b. The `extraction` and `corpus` items are decided here and carried later (§5).
 3. **The helpers.** Answered as recommended: a ride-along rule rather than separate work (§1). No single SHA-256 helper, and the `Pending*` records stay (§5). This record applies the rule to `embedding` (§4).
 4. **The structureless fallback.** Answered as recommended: both halves go, not only the LLM seam. A structureless document yields no chunks (§5, ADR-029 amended).

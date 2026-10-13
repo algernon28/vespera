@@ -1,14 +1,13 @@
 # ADR-238 — A bucket row already in the component of the page's lesser members in that bucket is passed over with one question
 
 - **Date**: 2026-10-11
-- **Status**: accepted on 2026-10-11, on the operator's word (*"do R23 with its ADR-225 check"*). What of the finding stands after that check, and the form of the change, are the session's calls.
+- **Status**: accepted on 2026-10-11.
 - **Amends**: [ADR-225](0225-stage-4b-reads-its-candidate-pairs-and-containment-candidates-a-thousand-at-a-time-and-shingle-by-hash-ends-in-the-occurrence.md) §1, in how a pair of one component is passed over: no longer one pair at a time where every lesser member of the page in a bucket is in the row's component (§2). What §1 decides stands, and ADR-225 carries a note at its head.
-- **Settles**: review register finding R23.
-- **Rests on**: `similarity.RedundancyResolutionTest.aFamilyOfCopiesIsResolvedInTimeThatDoesNotGrowWithTheSquareOfItsSize`, which failed on the code before this change; a throwaway probe (Measured). No archive, working directory, database, log, report or deliverable of the operator's was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
+- **Rests on**: `similarity.RedundancyResolutionTest.aFamilyOfCopiesIsResolvedInTimeThatDoesNotGrowWithTheSquareOfItsSize`; a throwaway probe (Measured).
 
 ## Context
 
-R23 named three costs of stage 4b's phase 1 for a large family of near-copies, and said parts are accepted by ADR-225. Read against ADR-225 §1:
+Stage 4b's phase 1 has three costs for a large family of near-copies. Read against ADR-225 §1:
 
 - **A pair is offered once for each band it shares, and a pair below the cut that shares several bands is scored once for each.** ADR-225 §1 says both in so many words: *"Every pair sharing a bucket is found in the page of its lesser member, as before, once for each bucket it shares"* and *"A pair below the cut that shares several buckets is scored once for each; scoring reads two sets the cache holds."* Accepted; not changed here.
 - **Each page reads its buckets whole again.** That is the price of ADR-225's bound, a page of 1,000 lesser members and 1,000 rows of one bucket held at a time, with no list that grows with the occurrences sharing a bucket (*What it holds*, and its Consequences). Holding a bucket's members to read it once would break that bound. Accepted; not changed here.
@@ -46,7 +45,7 @@ For each bucket of a page, `RedundancyResolution.OneComponent` keeps the compone
 
 - A family of near-copies resolves in time that grows with the bucket reads ADR-225 accepts, and not with the square of the family on top of them.
 - `UnionFind` answers whether it holds an occurrence without adding it, and how many unions it has made.
-- **Which run ids move**: `similarity`, which [#503](https://github.com/algernon28/vespera/pull/503), the change this rides with, already moves; with it, stages 2 to 6b are minted once. On its own it would move them. Every verdict is the same.
+- **Which run ids move**: the change touches `similarity`, so stages 2 to 6b move (ADR-058). Every verdict is the same.
 
 ## Tests
 
@@ -56,4 +55,4 @@ For each bucket of a page, `RedundancyResolution.OneComponent` keeps the compone
 ## What this does not decide
 
 - Reading a bucket once for the whole pass rather than once for each page, which needs a bound ADR-225 does not have.
-- Whether a wall-clock bound is the right guard for a cost no statement shows; it is the only one that fails on the code before.
+- Whether a wall-clock bound is the right guard for a cost no statement shows.
