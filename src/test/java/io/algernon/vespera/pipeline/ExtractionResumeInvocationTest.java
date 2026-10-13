@@ -343,13 +343,15 @@ class ExtractionResumeInvocationTest {
         claim(
                 "the first invocation, whose run held nothing when it began, says nothing about reading what an"
                         + " earlier one left: only that it counted what it had to read, and at its end that it"
-                        + " read what it could not read",
+                        + " read what it could not read, for the review list, and then the survivors it"
+                        + " converted, for the survivor list",
                 () -> assertThat(StatementLines.of(first, STAGE_TWO))
                         .containsExactlyElementsOf(THE_COUNT_AND_THE_TWO_LIST_READS));
         claim(
                 "the second says first that it is reading what the first had already measured, over up to the "
                         + measured + " rows from the run's first to its last, and how long that took; then its"
-                        + " count and its read at the end; and nothing about faults, the run holding none",
+                        + " count and its two reads at the end, for the review list and then for the survivor"
+                        + " list; and nothing about faults, the run holding none",
                 () -> assertThat(StatementLines.of(second, STAGE_TWO))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.countedRead(STAGE_TWO, OCCURRENCES_ALREADY_MEASURED, measured),
@@ -508,8 +510,8 @@ class ExtractionResumeInvocationTest {
         claim(
                 "the next invocation says first that it is reading the faults already recorded, over up to the "
                         + faultRows + " the run holds, and how long that took; then the same of the " + measured
-                        + " rows already measured; then its count and its read at the end: each line once, in"
-                        + " that order",
+                        + " rows already measured; then its count and its two reads at the end, for the review"
+                        + " list and then for the survivor list: each line once, in that order",
                 () -> assertThat(StatementLines.of(second, STAGE_TWO))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.countedRead(STAGE_TWO, FAULTS_ALREADY_RECORDED, faultRows),

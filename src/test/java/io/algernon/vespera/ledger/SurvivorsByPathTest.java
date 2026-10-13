@@ -53,6 +53,9 @@ class SurvivorsByPathTest {
     /** Removed under the run asked. */
     private static final String REMOVED_UNDER_THE_RUN = "reports/b-removed-under-the-run.pdf";
 
+    /** Converted, and removed as degenerate output under the run asked (ADR-249 section 1). */
+    private static final String REMOVED_AS_DEGENERATE_OUTPUT = "reports/f-removed-as-degenerate-output.pdf";
+
     /** Removed under the run upstream of the run asked. */
     private static final String REMOVED_UPSTREAM = "reports/d-removed-upstream.pdf";
 
@@ -122,8 +125,11 @@ class SurvivorsByPathTest {
         OccurrenceId inSmallLetters = record(ledger, walk, IN_SMALL_LETTERS);
         OccurrenceId theStartOfAnother = record(ledger, walk, THE_START_OF_ANOTHER);
         OccurrenceId inCapitals = record(ledger, walk, IN_CAPITALS);
+        OccurrenceId removedAsDegenerateOutput = record(ledger, walk, REMOVED_AS_DEGENERATE_OUTPUT);
         record(ledger, anotherWalk, OF_ANOTHER_WALK);
         ledger.verdicts().verdict(removedUnderTheRun, asked, VerdictKind.EXTRACTION_FAILED, "removed under the run");
+        ledger.verdicts()
+                .verdict(removedAsDegenerateOutput, asked, VerdictKind.DEGENERATE_OUTPUT, "removed as degenerate output");
         ledger.verdicts().verdict(removedUpstream, upstream, VerdictKind.BROKEN, "removed upstream");
         ledger.verdicts().verdict(removedUnderASibling, sibling, VerdictKind.DEGENERATE_OUTPUT, "removed by a sibling");
 
@@ -150,6 +156,13 @@ class SurvivorsByPathTest {
                 () -> assertThat(handedOver)
                         .extracting(survivor -> survivor.path().value())
                         .doesNotContain(REMOVED_UNDER_THE_RUN, REMOVED_UPSTREAM, OF_ANOTHER_WALK));
+        claim(
+                "the document this work converted and then removed as degenerate output is not among them"
+                        + " either: it does not go on to the work after this one",
+                () -> assertThat(handedOver)
+                        .extracting(survivor -> survivor.path().value())
+                        .as("the names handed over, which must leave out the one removed as degenerate output")
+                        .doesNotContain(REMOVED_AS_DEGENERATE_OUTPUT));
         List<OccurrenceId> inIdOrder = new ArrayList<>();
         ledger.verdicts().survivors(asked).forEach(inIdOrder::add);
         claim(

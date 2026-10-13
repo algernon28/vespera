@@ -43,7 +43,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>Two claims came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3, #411): on a first
  * invocation stage 2 times its count of the survivors still to read and, at its end, its read of the
  * occurrences it could not read for the review list, and says nothing of the two reads a resume makes, which
- * are ADR-199's.
+ * are ADR-199's. <b>ADR-249 section 4 added a third timed line</b>: after the read for the review list, its
+ * read of the survivors it converted for the survivor list.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -59,18 +60,19 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
     private static final String STAGE_TWO = "Stage 2 (extraction)";
 
     /**
-     * That stage 2 timed its count and its read for the review list, once each, in the order it issues them,
-     * around the work between: the count before the first file is counted as read, the read before the line
-     * that says where the list is.
+     * That stage 2 timed its count, its read for the review list and its read for the survivor list (ADR-249
+     * section 4), once each, in the order it issues them, around the work between: the count before the first
+     * file is counted as read, the read for the review list before the line that says where that list is.
      */
-    private void stageTwoTimedItsCountAndItsReviewListRead() {
+    private void stageTwoTimedItsCountAndItsReadsForTheReviewListAndTheSurvivorList() {
         List<String> lines =
                 logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
         claim(
                 "stage 2 says it is counting the files it still has to read, and how long that took, and at its"
-                        + " end that it is reading the ones it could not read, and how long that took: each line"
-                        + " once, in that order, and nothing about what an earlier invocation left, there being"
-                        + " none",
+                        + " end that it is reading the ones it could not read, for the review list, and how long"
+                        + " that took, and then the survivors it converted, for the survivor list, and how long"
+                        + " that took: each line once, in that order, and nothing about what an earlier"
+                        + " invocation left, there being none",
                 () -> assertThat(StatementLines.of(lines, STAGE_TWO))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedCount(STAGE_TWO, "the survivors still to read"),
@@ -146,7 +148,7 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
         cli.run("run", root.toString());
 
         claim("the invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
-        stageTwoTimedItsCountAndItsReviewListRead();
+        stageTwoTimedItsCountAndItsReadsForTheReviewListAndTheSurvivorList();
         claim(
                 "the step recorded one fault and resolved it at its end, and the counter reads one of one",
                 () -> assertThat(ProgressLines.of(logged.list, FAULTS_RESOLVED))
@@ -169,7 +171,7 @@ class StageTwoReportsItsFaultResolutionInvocationTest {
         cli.run("run", root.toString());
 
         claim("the invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
-        stageTwoTimedItsCountAndItsReviewListRead();
+        stageTwoTimedItsCountAndItsReadsForTheReviewListAndTheSurvivorList();
         claim(
                 "no fault was recorded, so the resolution is never reached and no counter line is written: that"
                         + " passes on main and has to go on passing",
