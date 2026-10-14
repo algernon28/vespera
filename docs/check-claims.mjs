@@ -651,6 +651,25 @@ function markerPattern(source, whole = false) {
   else pass(NAME, `${AGENTS} names the 3 habits: absolute paths, scripts written then run, transcripts read with the file tools`);
 }
 
+/* ---------- how the review register is updated ---------- */
+
+// The register is a published page whose read echoes the whole page, which a pass over it paid for every time. Its
+// findings and meta lines are a data file beside the page, edited by docs/review-register.mjs; the procedure is
+// docs/review-register.md. What is held is that the procedure names every command the script has and the data file.
+{
+  const NAME = "the review register's update procedure";
+  const DOC = "docs/review-register.md";
+  const SCRIPT = "docs/review-register.mjs";
+  if (!existsSync(DOC)) fail(NAME, `${DOC} is missing: it says how ${SCRIPT} updates the register's data file`);
+  else {
+    const doc = readFileSync(DOC, "utf8");
+    const commands = [...readFileSync(SCRIPT, "utf8").matchAll(/case "(\w+)":/g)].map((m) => m[1]);
+    const lacking = [...commands.map((c) => `review-register.mjs ${c}`), "register-data.js"].filter((w) => !doc.includes(w));
+    if (lacking.length) fail(NAME, `${DOC} does not name ${lacking.join(", ")}`);
+    else pass(NAME, `${DOC} names the data file and the ${commands.length} commands of ${SCRIPT}`);
+  }
+}
+
 /* ---------- what this does not check ---------- */
 
 // Printed on every run, including a clean one. The point of the list is that the
