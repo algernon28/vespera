@@ -11,6 +11,7 @@ import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.HybridChunker;
 import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.ListedPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import java.util.HashSet;
@@ -235,9 +236,7 @@ class RelevanceScoringTasklet implements Tasklet {
         StageProgress read =
                 StageProgress.over("Stage 5d (relevance scoring, seed cache keys read)", allSeeds.size());
         Map<OccurrenceId, SeedChunks> contentHashes = new LinkedHashMap<>();
-        List<OccurrenceId> seeds = List.copyOf(allSeeds);
-        for (int from = 0; from < seeds.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
-            List<OccurrenceId> page = seeds.subList(from, Math.min(seeds.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+        ListedPages.each(allSeeds, page -> {
             Map<OccurrenceId, String> keys = cacheKeys.requireForOccurrences(page, measurementRun);
             Map<String, Integer> chunkCounts =
                     hybridChunker.chunkCounts(new HashSet<>(keys.values()), ChunkingRule.DEFAULT);
@@ -247,7 +246,7 @@ class RelevanceScoringTasklet implements Tasklet {
                         seedOccurrenceId, new SeedChunks(contentHash, chunkCounts.getOrDefault(contentHash, 0)));
                 read.itemDone();
             }
-        }
+        });
         return contentHashes;
     }
 

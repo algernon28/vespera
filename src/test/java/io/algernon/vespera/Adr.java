@@ -1757,6 +1757,14 @@ public final class Adr {
     public static final String NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE = FILE
             + "0256-a-file-whose-name-ends-with-an-ending-the-profile-lists-is-out-of-scope-where-its-bytes-matched-no-signature.md";
 
+    /**
+     * ADR-257 -- every read that asks a list of keys with {@code IN} has the list cut into pages by one place,
+     * {@code ledger}'s {@code ListedPages}, and not by a loop of its own; the walk anomalies' comparison pages by
+     * {@code KeysetPages} like the other reads (applies ADR-243 to ADR-246, ADR-216 section 1).
+     */
+    public static final String ONE_CUT_OF_A_LIST_OF_KEYS_INTO_PAGES = FILE
+            + "0257-one-cut-of-a-list-of-keys-into-pages-and-the-walk-anomalies-are-paged-like-the-other-reads.md";
+
     private Adr() {
     }
 }

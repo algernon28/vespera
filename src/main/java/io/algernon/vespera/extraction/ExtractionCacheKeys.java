@@ -1,6 +1,7 @@
 package io.algernon.vespera.extraction;
 
 import io.algernon.vespera.ledger.KeysetPages;
+import io.algernon.vespera.ledger.ListedPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
@@ -77,9 +78,7 @@ public class ExtractionCacheKeys {
      */
     public Map<OccurrenceId, String> requireForOccurrences(Collection<OccurrenceId> occurrences, RunId runId) {
         Map<OccurrenceId, String> keys = new HashMap<>();
-        List<OccurrenceId> all = List.copyOf(occurrences);
-        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
-            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+        ListedPages.each(occurrences, batch -> {
             List<Object> arguments = new ArrayList<>();
             arguments.add(runId.value());
             batch.forEach(occurrence -> arguments.add(occurrence.value()));
@@ -90,8 +89,8 @@ public class ExtractionCacheKeys {
                         keys.put(new OccurrenceId(resultSet.getLong(2)), resultSet.getString(1));
                     },
                     arguments.toArray());
-        }
-        for (OccurrenceId occurrence : all) {
+        });
+        for (OccurrenceId occurrence : occurrences) {
             if (!keys.containsKey(occurrence)) {
                 throw new IllegalStateException("occurrence " + occurrence.value()
                         + " has no extraction cache key on record under run " + runId.value()

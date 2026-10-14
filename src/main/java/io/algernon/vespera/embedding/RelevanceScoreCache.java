@@ -1,6 +1,7 @@
 package io.algernon.vespera.embedding;
 
 import io.algernon.vespera.ledger.KeysetPages;
+import io.algernon.vespera.ledger.ListedPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
@@ -137,9 +138,7 @@ class RelevanceScoreCache {
             Collection<OccurrenceId> occurrences,
             RunId runId,
             BiConsumer<List<OccurrenceId>, Map<OccurrenceId, RelevanceScore>> page) {
-        List<OccurrenceId> all = List.copyOf(occurrences);
-        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
-            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+        ListedPages.each(occurrences, batch -> {
             Map<OccurrenceId, RelevanceScore> scores = new HashMap<>();
             List<Object> arguments = new ArrayList<>();
             arguments.add(runId.value());
@@ -156,7 +155,7 @@ class RelevanceScoreCache {
                     },
                     arguments.toArray());
             page.accept(batch, scores);
-        }
+        });
     }
 
     /** The score {@code runId} recorded for {@code occurrenceId}, if any — a test's own way to read one back. */

@@ -1,6 +1,8 @@
 # ADR-247 — Stage 4b asks whether a page is kept of its own index, and a drive Windows serves is told once
 
 > **Partly amended — see [ADR-248](0248-only-stage-4bs-question-whether-a-page-is-kept-compares-the-run-as-a-value.md).** Of §1: only `keptAmong` compares the run as a value; `signedAmong` and `removedAmong` compare it as a column, and their table's primary key finds each row by the occurrence and the run.
+>
+> **Partly settled — see [ADR-257](0257-one-cut-of-a-list-of-keys-into-pages-and-the-walk-anomalies-are-paged-like-the-other-reads.md).** Of *What this does not decide*: the shared form for a read that asks a list of keys with `IN` is `ledger.ListedPages`, and the reads named here go through it.
 
 - **Date**: 2026-10-13
 - **Status**: accepted on 2026-10-13.

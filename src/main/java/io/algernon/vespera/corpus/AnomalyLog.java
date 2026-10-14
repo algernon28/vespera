@@ -1,6 +1,8 @@
 package io.algernon.vespera.corpus;
 
+import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.WalkId;
+import java.util.Iterator;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -12,9 +14,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class AnomalyLog {
-
-    /** The most rows one statement of a comparison brings back. */
-    private static final int ROWS_IN_A_PAGE = 1_000;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -57,44 +56,45 @@ public class AnomalyLog {
     /**
      * Whether the two walks noted the same walk anomalies, in the order they were noted (ADR-220 section 3).
      *
-     * <p>Asked a page of up to {@value #ROWS_IN_A_PAGE} of each walk at a time, in id order, by
-     * {@code walk_anomaly_by_walk_id}, and compared on the path rendering, the kind and the detail; the ids
-     * are not compared. Two pages are held, and the comparison stops at the first page that differs.
+     * <p>Asked a page of up to {@value KeysetPages#ROWS_IN_A_PAGE} of each walk at a time, in id order, by
+     * {@code walk_anomaly_by_walk_id}, through {@link KeysetPages} (ADR-257), and compared on the path
+     * rendering, the kind and the detail; the ids are not compared. A page of each is held at a time, the two
+     * asked in turn, and the comparison stops at the first row that differs.
      */
     boolean sameAnomalies(WalkId earlier, WalkId later) {
-        long afterEarlier = Long.MIN_VALUE;
-        long afterLater = Long.MIN_VALUE;
+        Iterator<RecordedAnomaly> ofEarlier = anomaliesOf(earlier).iterator();
+        Iterator<RecordedAnomaly> ofLater = anomaliesOf(later).iterator();
         while (true) {
-            List<PagedAnomaly> pageOfEarlier = pageOf(earlier, afterEarlier);
-            List<PagedAnomaly> pageOfLater = pageOf(later, afterLater);
-            if (pageOfEarlier.size() != pageOfLater.size()) {
+            boolean moreOfEarlier = ofEarlier.hasNext();
+            boolean moreOfLater = ofLater.hasNext();
+            if (moreOfEarlier != moreOfLater) {
                 return false;
             }
-            for (int row = 0; row < pageOfEarlier.size(); row++) {
-                if (!pageOfEarlier.get(row).anomaly().equals(pageOfLater.get(row).anomaly())) {
-                    return false;
-                }
-            }
-            if (pageOfEarlier.size() < ROWS_IN_A_PAGE) {
+            if (!moreOfEarlier) {
                 return true;
             }
-            afterEarlier = pageOfEarlier.get(pageOfEarlier.size() - 1).id();
-            afterLater = pageOfLater.get(pageOfLater.size() - 1).id();
+            if (!ofEarlier.next().equals(ofLater.next())) {
+                return false;
+            }
         }
     }
 
-    private List<PagedAnomaly> pageOf(WalkId walkId, long afterId) {
-        return jdbcTemplate.query(
-                "SELECT id, path_rendering, kind, detail FROM walk_anomaly WHERE walk_id = ? AND id > ?"
-                        + " ORDER BY id LIMIT " + ROWS_IN_A_PAGE,
-                (resultSet, rowNumber) -> new PagedAnomaly(
-                        resultSet.getLong("id"),
-                        new RecordedAnomaly(
-                                resultSet.getString("path_rendering"),
-                                WalkAnomalyKind.valueOf(resultSet.getString("kind")),
-                                resultSet.getString("detail"))),
-                walkId.value(),
-                afterId);
+    /** What {@code walkId} noted, in id order, a page asked for when the one in hand has been gone through. */
+    private Iterable<RecordedAnomaly> anomaliesOf(WalkId walkId) {
+        return new KeysetPages<PagedAnomaly>(
+                        jdbcTemplate,
+                        "SELECT id, path_rendering, kind, detail FROM walk_anomaly WHERE walk_id = ? AND id > ?"
+                                + " ORDER BY id",
+                        List.of(walkId.value()),
+                        List.of(Long.MIN_VALUE),
+                        last -> List.of(last.id()),
+                        (resultSet, rowNumber) -> new PagedAnomaly(
+                                resultSet.getLong("id"),
+                                new RecordedAnomaly(
+                                        resultSet.getString("path_rendering"),
+                                        WalkAnomalyKind.valueOf(resultSet.getString("kind")),
+                                        resultSet.getString("detail"))))
+                .map(PagedAnomaly::anomaly);
     }
 
     /** One row of a page of a walk's anomalies: its number, which the comparison pages by, and what was noted. */
