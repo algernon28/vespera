@@ -60,11 +60,17 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
 | `outOfScopeNameEndings` | which files, of no known kind or text, you know are not documents by the ending of their name | `format-mix.html` |
 
-No report shows `boilerplateDocumentFrequencyFloor`'s measurement. Stage 3 stores it in `vespera.db`: for each passage of five words found in two documents or more, `shingle_document_frequency` holds how many documents it is in, and `shingle_corpus_size` holds how many documents were measured. The floor is a share between 0 and 1 of the second: a passage found in at least that share of the documents is boilerplate, and is left out when documents are compared. A passage is stored as a number, not as its words. This prints, for the last content census, how many passages are found in each share of the documents, to the nearest hundredth, without writing to it:
+No report shows `boilerplateDocumentFrequencyFloor`'s measurement. Stage 3 stores it in `vespera.db`: for each passage of five words found in two documents or more, `shingle_document_frequency` holds how many documents it is in, and `shingle_corpus_size` holds how many documents were measured. The floor is a share between 0 and 1 of the second: a passage found in at least that share of the documents is boilerplate, and is left out when documents are compared. A passage is stored as a number, not as its words.
+
+This prints how many passages are found in each share of the documents. Run it from the directory you run `vespera` from, with Python on your machine, while no `vespera` command is running and no `vespera.db-wal` lies beside `vespera.db`; it reads the database without writing to it and leaves no file beside it:
 
 ```
-python -c "import sqlite3;[print(r) for r in sqlite3.connect('file:.vespera/vespera.db?mode=ro',uri=True).execute('select round(1.0*f.document_count/c.shingled_document_count,2) as share,count(*) from shingle_document_frequency f join shingle_corpus_size c on c.run_id=f.run_id and c.shingle_parameter_identity=f.shingle_parameter_identity where f.run_id=(select id from run where stage=? order by rowid desc limit 1) group by share order by share',['content-census'])]"
+python -c "import sqlite3,sys;db=sqlite3.connect('file:.vespera/vespera.db?immutable=1',uri=True);run=sys.argv[1] if sys.argv[1:] else db.execute('select r.id from run r join finished_step s on s.run_id=r.id and s.step=r.stage where r.stage=? order by r.rowid desc limit 1',['content-census']).fetchone()[0];print('run',run);[print(r) for r in db.execute('select 100*f.document_count/c.shingled_document_count/100.0 as share,count(*),min(f.document_count),c.shingled_document_count from shingle_document_frequency f join shingle_corpus_size c on c.run_id=f.run_id and c.shingle_parameter_identity=f.shingle_parameter_identity where f.run_id=? group by share order by share',[run])]"
 ```
+
+If you moved the working directory, put its `vespera.db` in place of `.vespera/vespera.db`.
+
+The first line names the content census it read: of the content censuses that finished, the one whose run was created last. That need not be the one you mean, because putting a value back to an earlier one, or running a second archive in the same working directory, goes back to a run created earlier. Stage 3's line in the output of `vespera run` names the run it used, as `Stage 3 (content census) finished under run <id>` or `Stage 3 (content census) was already recorded under run <id>`. If that id is not the one printed, run the command again with the id at the end, after a space. Each line after the first is a share of the documents, rounded down to the hundredth, then how many passages are found in that share, the fewest documents any of them is found in, and how many documents were measured; the third divided by the fourth is the exact share. If the command stops with an error instead, no content census has finished in that database.
 
 Six of these are **optional** and none of them is one of the five stops; all six are here so that you know they exist.
 
@@ -194,10 +200,10 @@ To check that the converter is using the card, run this. It prints `True` when i
 docker compose -p vespera exec docling-serve python -c "import torch;print(torch.cuda.is_available())"
 ```
 
-To check that Vespera recorded the card's image, run this from the directory you run `vespera` from, once a run has converted something, with Python on your machine. It prints what the newest conversion run in the ledger was keyed on, and the image is the part after `image=`. After your first run on the card, that is `vespera/docling-serve-cu128-libreoffice`:
+To check that Vespera recorded the card's image, run this from the directory you run `vespera` from, once a run has converted something, with Python on your machine, while no `vespera` command is running and no `vespera.db-wal` lies beside `vespera.db`. It prints what the newest conversion run in the ledger was keyed on, and the image is the part after `image=`. After your first run on the card, that is `vespera/docling-serve-cu128-libreoffice`:
 
 ```
-python -c "import sqlite3;print(sqlite3.connect('file:.vespera/vespera.db?mode=ro',uri=True).execute('select config_consumed from run where stage=? order by rowid desc limit 1',['extraction']).fetchone())"
+python -c "import sqlite3;print(sqlite3.connect('file:.vespera/vespera.db?immutable=1',uri=True).execute('select config_consumed from run where stage=? order by rowid desc limit 1',['extraction']).fetchone())"
 ```
 
 If you moved the working directory, put its `vespera.db` in place of `.vespera/vespera.db`.

@@ -3,12 +3,14 @@ package io.algernon.vespera.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.ConverterStopsPartwayBeans;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -29,11 +31,6 @@ import org.springframework.test.context.DynamicPropertySource;
  * A stage 2 whose every conversion comes from the extraction cache (ADR-183) still writes the shingles of
  * each, under its own run, and stage 3 over that run measures them (ADR-038, ADR-074).
  *
- * <p>Asked on 2026-10-14, when an operator's invocation accounts showed no line of stage 3's grouping of
- * shingle rows after a stage 2 that re-minted its run and read every answer from the cache. This pins that
- * the rows are there: the cache keeps the whole response, and stage 2 shingles a conversion whatever
- * answered it. (The grouping's lines are not progress-counter lines, so an account never carries them.)
- *
  * <p>Two folders hold the same corpus: two walks, so two stage-2 runs, and the second asks the converter
  * about nothing. The texts share one sentence and differ elsewhere, so the shared sentence's shingles have
  * a document frequency of every document, and no text is a copy of another.
@@ -42,6 +39,8 @@ import org.springframework.test.context.DynamicPropertySource;
 @Import(ConverterStopsPartwayBeans.class)
 @Epic("Pipeline")
 @Feature("Content census")
+@Link(name = "ADR-074", url = Adr.STAGE_3_MEASURES_SHINGLE_DOCUMENT_FREQUENCY, type = "adr")
+@Link(name = "ADR-183", url = Adr.THE_EXTRACTION_CACHE_KEEPS_ONLY_ANSWERS_ABOUT_THE_DOCUMENT, type = "adr")
 class StageTwoShinglesWhatTheCacheAnsweredInvocationTest {
 
     private static final int CORPUS_SIZE = 3;
@@ -70,7 +69,6 @@ class StageTwoShinglesWhatTheCacheAnsweredInvocationTest {
     @BeforeEach
     void startClean() {
         ConverterStopsPartwayBeans.script(List.of(), List.of(), List.of());
-        ConverterStopsPartwayBeans.keepAnswering();
         profileStore.save(ProfileFixture.profile().build());
     }
 
@@ -100,10 +98,10 @@ class StageTwoShinglesWhatTheCacheAnsweredInvocationTest {
                 "the second folder is extracted under a run of its own",
                 () -> assertThat(secondExtraction).isNotEqualTo(firstExtraction));
         claim(
-                "and the converter is asked about none of its files, so every answer came from the cache",
+                "and the converter is asked about none of its occurrences, so every answer came from the cache",
                 () -> assertThat(conversionsAsked).isZero());
         claim(
-                "every one of the " + CORPUS_SIZE + " files has shingle rows under the second extraction's run",
+                "every one of the " + CORPUS_SIZE + " occurrences has shingle rows under the second extraction's run",
                 () -> assertThat(shingledOccurrences(secondExtraction)).isEqualTo(CORPUS_SIZE));
         claim(
                 "the content census over that run counts " + CORPUS_SIZE + " shingled documents",
