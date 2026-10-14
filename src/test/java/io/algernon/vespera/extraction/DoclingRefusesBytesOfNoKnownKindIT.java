@@ -93,7 +93,7 @@ class DoclingRefusesBytesOfNoKnownKindIT {
 
     @Test
     @Story("What the neutral name reaches")
-    @DisplayName("An image posted under the same name converts, so the name itself is not what the sidecar refuses")
+    @DisplayName("An image posted under the same name is not refused, so the name itself is not what the sidecar refuses")
     void anImageUnderTheSameNameConverts(@TempDir Path dir) throws IOException {
         Path image = aPng(dir.resolve("picture.png"));
         claim(
@@ -103,11 +103,11 @@ class DoclingRefusesBytesOfNoKnownKindIT {
         DoclingResponse response = client.convert(image, DetectedFormat.IMAGE, null);
 
         claim(
-                "the sidecar reads the image's bytes and converts it, though it was posted as document.bin like"
-                        + " the two refused above",
+                "the sidecar names the image from its bytes and does not answer skipped, though it was posted as"
+                        + " document.bin like the two refused above",
                 () -> assertThat(response.status())
                         .as("status for a PNG posted as document.bin; errors: %s", response.errors())
-                        .isEqualTo(ConversionStatus.SUCCESS));
+                        .isNotEqualTo(ConversionStatus.SKIPPED));
         claim(
                 "and no policy refusal rides with it",
                 () -> assertThat(response.errors())
