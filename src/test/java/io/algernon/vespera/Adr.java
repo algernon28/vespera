@@ -1740,6 +1740,15 @@ public final class Adr {
     public static final String A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS = FILE
             + "0254-a-signature-of-short-length-and-an-apple-font-are-out-of-scope-and-a-failure-at-the-end-of-stage-2-is-said-whatever-it-was.md";
 
+    /**
+     * ADR-256 -- a file whose bytes matched no signature, detected as of no known kind or as text, and whose
+     * name ends with one of the endings the profile's outOfScopeNameEndings lists, is out of scope; the list is
+     * folded, de-duplicated and sorted, and stage 1's configuration consumed records it (extends ADR-252 §5
+     * and ADR-146, keeps ADR-094 and ADR-095).
+     */
+    public static final String NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE = FILE
+            + "0256-a-file-whose-name-ends-with-an-ending-the-profile-lists-is-out-of-scope-where-its-bytes-matched-no-signature.md";
+
     private Adr() {
     }
 }

@@ -47,6 +47,8 @@ public final class ProfileFixture {
 
     private NumericValue extractionAttempt = NumericValue.unset();
 
+    private NameEndingsValue outOfScopeNameEndings = NameEndingsValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -68,6 +70,7 @@ public final class ProfileFixture {
         fixture.generationContextWindow = existing.generationContextWindow();
         fixture.logTimestampShareFloor = existing.logTimestampShareFloor();
         fixture.extractionAttempt = existing.extractionAttempt();
+        fixture.outOfScopeNameEndings = existing.outOfScopeNameEndings();
         return fixture;
     }
 
@@ -180,6 +183,12 @@ public final class ProfileFixture {
         return this;
     }
 
+    /** Stage 1's list of name endings left out (ADR-256), written as one line. */
+    public ProfileFixture outOfScopeNameEndings(String value, String provenance) {
+        this.outOfScopeNameEndings = new NameEndingsValue(value, provenance, null);
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -192,6 +201,7 @@ public final class ProfileFixture {
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor,
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
     }
 }

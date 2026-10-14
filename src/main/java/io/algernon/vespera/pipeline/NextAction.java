@@ -4,6 +4,7 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.profile.NameEndingsValue;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
@@ -383,7 +384,26 @@ class NextAction {
             return confidenceFloor;
         }
         Optional<String> logFloor = theLogFloorUnreadable(profile);
-        return logFloor.isPresent() ? logFloor : theExtractionAttemptIgnored(profile);
+        if (logFloor.isPresent()) {
+            return logFloor;
+        }
+        Optional<String> nameEndings = theNameEndingsUnreadable(profile);
+        return nameEndings.isPresent() ? nameEndings : theExtractionAttemptIgnored(profile);
+    }
+
+    /**
+     * The line for {@code outOfScopeNameEndings} (ADR-256 §5), where it holds a piece that is not an ending
+     * -- empty otherwise. Unset is not reported: it ships unset, and unset leaves nothing out by its name.
+     */
+    private static Optional<String> theNameEndingsUnreadable(Profile profile) {
+        if (profile.outOfScopeNameEndings().reading() instanceof NameEndingsValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but outOfScopeNameEndings reads "
+                    + quoted(unreadable.text()) + ", which is not a list of name endings each beginning with a"
+                    + " dot, so this run ignored it and left nothing out for the ending of its name. Next: write"
+                    + " the endings into outOfScopeNameEndings in " + PROFILE + ", each beginning with a dot,"
+                    + " with no wildcard, and separated by spaces, and run again.");
+        }
+        return Optional.empty();
     }
 
     /**

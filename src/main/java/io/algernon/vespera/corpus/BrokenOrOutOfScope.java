@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -52,9 +53,14 @@ public final class BrokenOrOutOfScope {
     /**
      * Checks every survivor of {@code runId}, in the order {@code Verdicts.survivors} gives them, one at a
      * time as the pages are read and never the set at once (ADR-200), and returns the tally.
-     * {@code logFloor} is {@code null} where no log rule applies (ADR-171 section 3).
+     * {@code logFloor} is {@code null} where no log rule applies (ADR-171 section 3). {@code nameEndings} are
+     * the profile's {@code outOfScopeNameEndings} (ADR-256): lower case, each once, empty where the key is unset or unreadable. A file whose
+     * bytes matched no signature and whose name ends with one is left out after the kinds {@link OutOfScope}
+     * names and before the log and size rules, so it is not read for timestamps and is counted neither as a
+     * log nor as too large.
      */
-    public FormatMix verdictSurvivors(RunId runId, Path canonicalRoot, Double logFloor, CheckingProgress progress)
+    public FormatMix verdictSurvivors(
+            RunId runId, Path canonicalRoot, Double logFloor, List<String> nameEndings, CheckingProgress progress)
             throws Exception {
         Map<DetectedFormat, Integer> byFormat = new LinkedHashMap<>();
         Map<DetectedFormat, Map<DetectedSubtype, Integer>> bySubtype = new LinkedHashMap<>();
@@ -64,6 +70,7 @@ public final class BrokenOrOutOfScope {
         int outOfScope = 0;
         int logs = 0;
         int tooLarge = 0;
+        int leftOutByName = 0;
         for (OccurrenceId occurrenceId : ledger.verdicts().survivors(runId)) {
             OccurrenceFacts facts = factsFor(occurrenceId);
             BrokenCheck.Result result = BrokenCheck.check(canonicalRoot.resolve(facts.path().value()));
@@ -76,8 +83,15 @@ public final class BrokenOrOutOfScope {
             boolean isLog = false;
             // Not every text file left out is left out for its size: an email is left out for its kind (ADR-252).
             boolean forItsSize = false;
+            // Nor is it a log or too large when the profile's list of name endings leaves it out (ADR-256).
+            boolean forItsName = false;
             if (!result.broken()) {
                 leftOut = OutOfScope.reasonFor(result.format(), result.subtype());
+                if (leftOut.isEmpty()) {
+                    leftOut = OutOfScope.nameReason(
+                            canonicalRoot.resolve(facts.path().value()), result.format(), nameEndings);
+                    forItsName = leftOut.isPresent();
+                }
                 if (leftOut.isEmpty() && result.format() == DetectedFormat.PLAIN_TEXT) {
                     Optional<TimestampedLines.Count> count =
                             countTimestamps(canonicalRoot.resolve(facts.path().value()), occurrenceId, progress);
@@ -107,6 +121,8 @@ public final class BrokenOrOutOfScope {
                 outOfScope++;
                 if (isLog) {
                     logs++;
+                } else if (forItsName) {
+                    leftOutByName++;
                 } else if (forItsSize) {
                     tooLarge++;
                 }
@@ -124,6 +140,7 @@ public final class BrokenOrOutOfScope {
                 outOfScope,
                 logs,
                 tooLarge,
+                leftOutByName,
                 byTimestampBand,
                 fewerThanTenLines);
     }

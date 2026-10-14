@@ -186,6 +186,9 @@ class ProfileStoreTest {
             extractionAttempt:
               value: "3"
               provenance: "the converter was busy twice"
+            outOfScopeNameEndings:
+              value: ".P3A .DGN"
+              provenance: "read off the format mix"
             """;
 
     @Test
@@ -214,8 +217,11 @@ class ProfileStoreTest {
                         + " values along by a position",
                 () -> assertThat(loaded.relevanceScoreFloor().value()).isEqualTo("0.53"));
         claim(
-                "including the last key, which is the one a shorter way in could not have filled",
+                "the key before the last carries its own answer, the attempt",
                 () -> assertThat(loaded.extractionAttempt().value()).isEqualTo("3"));
+        claim(
+                "including the last key, which is the one a shorter way in could not have filled",
+                () -> assertThat(loaded.outOfScopeNameEndings().value()).isEqualTo(".P3A .DGN"));
     }
 
     @Test

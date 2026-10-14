@@ -6,6 +6,7 @@ import io.algernon.vespera.corpus.FormatMix;
 import io.algernon.vespera.extraction.DoclingClient;
 import io.algernon.vespera.extraction.TextParts;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -29,7 +30,9 @@ final class FormatMixReport {
      * out as out of scope (ADR-146), of which {@code logs} were logs and {@code tooLarge} were text
      * files left out for their size, by any of ADR-178's three rules (ADR-171). {@code byTimestampBand} counts the text files of ten or
      * more non-blank lines by their timestamped share, ten percent to a band, the last band being 90% to 100%;
-     * {@code fewerThanTenLines} counts the rest. {@code logFloor} is {@code null} where none is set.
+     * {@code fewerThanTenLines} counts the rest. {@code leftOutByName} counts the files left out for the ending
+     * of their name (ADR-256), and {@code nameEndings} are the canonical endings the profile lists, empty
+     * where it lists none. {@code logFloor} is {@code null} where none is set.
      */
     record Mix(
             Map<DetectedFormat, Integer> byFormat,
@@ -38,9 +41,11 @@ final class FormatMixReport {
             int outOfScope,
             int logs,
             int tooLarge,
+            int leftOutByName,
             int[] byTimestampBand,
             int fewerThanTenLines,
-            Double logFloor) {}
+            Double logFloor,
+            List<String> nameEndings) {}
 
     /** How many bands of a tenth the timestamped share is counted in. */
     static final int BANDS = FormatMix.TIMESTAMP_BANDS;
@@ -106,9 +111,20 @@ final class FormatMixReport {
                         + mix.outOfScope()
                         + ". Of those, logs: "
                         + mix.logs()
-                        + ", and text files left out for their size: "
+                        + ", text files left out for their size: "
                         + mix.tooLarge()
-                        + ". They are still counted in the table below, with everything else."));
+                        + ", and files left out for the ending of their name: "
+                        + mix.leftOutByName()
+                        + ". They are still counted in the table below, with everything else."))
+                .append(ReportPage.paragraph(mix.nameEndings().isEmpty()
+                        ? "No name endings are listed, so no file was left out for the ending of its name."
+                                + " Listing them in outOfScopeNameEndings in profile.yaml leaves out every file of no"
+                                + " known kind, and every text file, whose name ends with one."
+                        : "outOfScopeNameEndings in profile.yaml lists these name endings: "
+                                + ReportPage.escape(String.join(", ", mix.nameEndings()))
+                                + ". A file of no known kind, or a text file, whose name ends with one of them, in"
+                                + " any case, is out of scope whatever it holds. A file whose content says what it"
+                                + " is, a PDF for one, is kept whatever its name."));
 
         StringBuilder formatRows = new StringBuilder();
         for (Map.Entry<DetectedFormat, String> label : LABELS.entrySet()) {
@@ -153,7 +169,7 @@ final class FormatMixReport {
         }
 
         body.append(ReportPage.heading(2, "How much of each text file begins with a timestamp"))
-                .append(ReportPage.paragraph("Each text file not left out for its kind was read from its start and its end, and the"
+                .append(ReportPage.paragraph("Each text file not left out for its kind or for the ending of its name was read from its start and its end, and the"
                         + " lines that begin with a date or a time were counted against the lines read that"
                         + " are not blank. The share is that count in whole percent, rounded down."))
                 .append(ReportPage.paragraph(mix.logFloor() == null
