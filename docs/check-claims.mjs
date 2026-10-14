@@ -83,14 +83,18 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
 
 /* ---------- how many decisions ---------- */
 
+// The count and the highest number used to be written by hand in AGENTS.md and the index, and every record added
+// edited the same two lines, so two records added at once conflicted on both (ADR-259). Neither is written now: the
+// directory holds the records and the last file is the highest. What is checked is that no sentence brings one back.
 {
-  const NAME = "the ADR count";
-  const m = claim(/\bholds (\d+) decisions\b/, NAME);
-  if (m) {
-    const claimed = Number(m[1]);
-    if (claimed === adrFiles.length) pass(NAME, `${claimed} decisions`);
-    else fail(NAME, `${AGENTS} says ${claimed}; ${ADR_DIR} holds ${adrFiles.length}`);
-  }
+  const NAME = "no hand-kept count of the decision records";
+  const kept = [
+    [AGENTS, text, /\bholds \d+ decisions\b/, "a count of the records"],
+    [AGENTS, text, /decisions, ADR-001 to ADR-\d{3}\b/, "the highest record"],
+    [ADR_INDEX, adrIndex, /ADR-001 through ADR-\d{3}\b/, "the highest record"],
+  ].filter(([, doc, re]) => re.test(doc));
+  if (kept.length) fail(NAME, kept.map(([where, , , what]) => `${where} states ${what}`).join("; ") + `: the directory holds both`);
+  else pass(NAME, `neither ${AGENTS} nor ${ADR_INDEX} states how many records there are or the highest`);
 }
 
 /* ---------- where the reconstituted records stop ---------- */
@@ -117,23 +121,10 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
 /* ---------- what docs/adr/README.md claims about the decision record ---------- */
 
 // A third document making state claims, and outside every guard until ADR-129. Its
-// range line had drifted behind the files and its boundary sentence named ADR-065
-// where AGENTS.md and the tree both say ADR-050. The two claims rot at different
-// rates and are checked for different things. The range changes on every ADR, so it
-// is checked for currency against the highest id on disk -- the same failure mode as
-// the count line above. The boundary changes never, so it is checked for agreement
+// boundary sentence named ADR-065 where AGENTS.md and the tree both say ADR-050. The
+// boundary changes never, so it is checked for agreement
 // with AGENTS.md's own sentence: the one check here that reads two documents against
 // each other rather than one against the tree.
-{
-  const NAME = "the ADR index range";
-  const m = claim(/One file per architecture decision, ADR-001 through ADR-(\d{3})\./, NAME, adrIndex);
-  if (m) {
-    const highest = Math.max(...adrById.keys());
-    if (Number(m[1]) === highest) pass(NAME, `ADR-001 through ADR-${m[1]}`);
-    else fail(NAME, `${ADR_INDEX} says through ADR-${m[1]}; the highest record is ADR-${String(highest).padStart(3, "0")}`);
-  }
-}
-
 {
   const NAME = "the ADR index boundary";
   const index = claim(/New decisions continue from ADR-(\d{3}) and carry their own full text/, NAME, adrIndex);
@@ -646,6 +637,18 @@ function markerPattern(source, whole = false) {
   }
   if (broken.length) fail(NAME, `${broken.length} of ${linked} open nothing: ${broken.slice(0, 4).join("; ")}${broken.length > 4 ? "; …" : ""}`);
   else pass(NAME, `${linked} links to a record by its file name, every one a record`);
+}
+
+/* ---------- how an agent works under the guard ---------- */
+
+// The guard refuses a command by what its text names, and an agent that did not know how found out by being refused,
+// over and over (ADR-259). AGENTS.md says the three habits that avoid it; this holds that it still does.
+{
+  const NAME = "how a command is written under the guard";
+  const habits = [/names a file by its absolute path and never by `\.\.`/, /written with the Write tool and run by its path/, /transcript is read with Read or Grep/];
+  const lacking = habits.filter((re) => !re.test(text));
+  if (lacking.length) fail(NAME, `${AGENTS} lacks ${lacking.length} of the 3 habits that spare a refusal: ${lacking.map(String).join(", ")}`);
+  else pass(NAME, `${AGENTS} names the 3 habits: absolute paths, scripts written then run, transcripts read with the file tools`);
 }
 
 /* ---------- what this does not check ---------- */
