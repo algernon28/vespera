@@ -10,7 +10,7 @@ import java.util.Map;
 import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
- * Writes the profile's {@code outOfScopeNameEndings} key (ADR-254) into {@code profile.yaml} by editing the
+ * Writes the profile's {@code outOfScopeNameEndings} key (ADR-256) into {@code profile.yaml} by editing the
  * file's YAML tree, as {@link ExtractionAttemptInProfile} does for its key and for the same reason: the tests
  * that use it compile whether or not the record has the key, and fail where {@code ProfileStore} refuses a
  * key it does not know. The rest of the file is kept as it stands, and a file not yet written is begun.

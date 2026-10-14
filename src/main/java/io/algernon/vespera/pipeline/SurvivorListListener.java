@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.step.StepExecution;
-import org.springframework.dao.DataAccessException;
 
 /**
  * Writes the survivor list (CONTEXT.md) when the step ends (ADR-250): the survivors of stage 2's run that carry
@@ -72,7 +71,7 @@ class SurvivorListListener implements StepExecutionListener {
      * Writes the page for a step that completed, or failed after reading an occurrence; nothing, and no
      * request for the run, for one that failed having read nothing (#319). Written beside its place and moved
      * there once whole (ADR-223 section 3, ADR-242), so a failure leaves the page before it, or none. A failure
-     * is said in one error line and none is thrown (ADR-175 section 7).
+     * is said in one error line, whatever failed, and none is thrown (ADR-175 section 7, ADR-254).
      */
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
@@ -81,17 +80,27 @@ class SurvivorListListener implements StepExecutionListener {
         if (!completed && stepExecution.getReadCount() == 0) {
             return stepExecution.getExitStatus();
         }
-        RunId run = stageRuns.extraction();
+        Path page = workingDirectory.resolve(FILE_NAME);
+        Path part = workingDirectory.resolve(FILE_NAME + ".part");
+        RunId run;
+        try {
+            run = stageRuns.extraction();
+        } catch (RuntimeException e) {
+            log.error(
+                    "Stage 2 (extraction): the run of the files that came through could not be found, and their"
+                            + " list could not be written to {}: {}",
+                    page.toAbsolutePath(),
+                    e.toString());
+            return stepExecution.getExitStatus();
+        }
         // The timed span covers the count and the writing of the page (ADR-220 section 6).
         TimedStatement.Started timed =
                 TimedStatement.begin("Stage 2 (extraction)", "reading", "read", "the survivors it converted");
-        Path page = workingDirectory.resolve(FILE_NAME);
-        Path part = workingDirectory.resolve(FILE_NAME + ".part");
         AtomicLong cameThrough = new AtomicLong();
         try {
             ledger.verdicts().eachPageOfSurvivors(run, survivors ->
                     cameThrough.addAndGet(extractionMetrics.recordedAmong(run, survivors).size()));
-        } catch (DataAccessException e) {
+        } catch (RuntimeException e) {
             log.error(
                     "Stage 2 (extraction): the files that came through could not be counted, and their list could"
                             + " not be written to {}: {}",
@@ -106,7 +115,7 @@ class SurvivorListListener implements StepExecutionListener {
             }
             moves.intoPlace(part, page);
             timed.end();
-        } catch (IOException | DataAccessException e) {
+        } catch (IOException | RuntimeException e) {
             log.error(
                     "Stage 2 (extraction): {} file(s) came through, and their list could not be written to {}: {}",
                     cameThrough.get(),

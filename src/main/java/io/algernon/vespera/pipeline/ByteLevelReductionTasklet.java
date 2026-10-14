@@ -67,7 +67,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * over it in parts, both of which live in {@code extraction}, and the log floor, which is the
      * profile's. Stage 1's implementation version is {@code corpus}'s alone (ADR-058), so a change to any
      * of them has to be visible here to mint a new run. The floor is {@code null} where the key is unset
-     * or unreadable. The name endings the profile's {@code outOfScopeNameEndings} lists (ADR-254 §6) are
+     * or unreadable. The name endings the profile's {@code outOfScopeNameEndings} lists (ADR-256 §6) are
      * recorded in their canonical form, lower case, each once, sorted, and written as {@code []} where the
      * key is unset or unreadable, as the floor's {@code null} is: stage 1 acts on them, and its version
      * does not name {@code profile}, so only this record can move its run id when they change.
@@ -224,7 +224,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 logFloor,
                 nameEndings));
         // The floor's measurement is this page (ADR-171 §3), pointed at the way stage 3 points its own, and
-        // so is the name endings' (ADR-254 §7).
+        // so is the name endings' (ADR-256 §7).
         Measurement thePage =
                 new Measurement(workingDirectory.resolve(FORMAT_MIX_FILE_NAME).toString(), Clock.systemUTC().instant());
         profileStore.save(profileStore
@@ -313,7 +313,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 : null;
     }
 
-    /** The answered endings, canonical; none where the key is unset or unreadable (ADR-254 §5). */
+    /** The answered endings, canonical; none where the key is unset or unreadable (ADR-256 §5). */
     private static List<String> nameEndingsOf(Profile profile) {
         return profile.outOfScopeNameEndings().reading() instanceof NameEndingsValue.Answered answered
                 ? answered.endings()

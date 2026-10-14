@@ -105,6 +105,9 @@ class SurvivorListListenerTest {
 
     private static final String WHAT_THE_COUNT_SAID = "the database stopped answering before the count was done";
 
+    /** What an error that is no statement's says. */
+    private static final String WHAT_THE_ERROR_SAID = "a row came back that the page does not know how to show";
+
     /** How many times the move is refused before it goes through. */
     private static final int REFUSED_TWICE = 2;
 
@@ -398,6 +401,95 @@ class SurvivorListListenerTest {
                                     + " their list could not be written to " + page.toAbsolutePath() + ": ");
                 }));
         theReadingBeganAndNoLineSaysHowLongItTook();
+    }
+
+    @Test
+    @Story("The list of files extraction read and kept")
+    @DisplayName("When the read of the files extraction kept fails with an error that is not the database's, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
+    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
+    void aReadThatFailsForAnyReasonLeavesThePageBeforeAndIsNotThrown(
+            @TempDir Path root, @TempDir Path workingDirectory) throws IOException {
+        listener(theVerdicts(), theMetrics(), root, workingDirectory).afterStep(step(ExitStatus.COMPLETED, 0));
+        Path page = workingDirectory.resolve(THE_SURVIVOR_LIST);
+        String thePageBefore = Files.readString(page, StandardCharsets.UTF_8);
+        saidByTheListener.clear();
+        happened.clear();
+
+        Throwable thrown = catchThrowable(() -> listener(failingWithAnError(), theMetrics(), root, workingDirectory)
+                .afterStep(step(ExitStatus.COMPLETED, 0)));
+
+        claim(
+                "nothing was thrown from the end of extraction: Spring Batch would log a stack trace and skip the"
+                        + " listeners after this one",
+                () -> assertThat(thrown).isNull());
+        claim(
+                "the list in its place is the first invocation's, character for character",
+                () -> assertThat(Files.readString(page, StandardCharsets.UTF_8)).isEqualTo(thePageBefore));
+        claim(
+                "one line, written as an error, says that the files that came through could not be counted and"
+                        + " that their list could not be written to the page's place, with what the error said",
+                () -> assertThat(saidByTheListener).singleElement().satisfies(line -> {
+                    assertThat(line.getLevel()).isEqualTo(Level.ERROR);
+                    assertThat(line.getFormattedMessage())
+                            .startsWith("Stage 2 (extraction): the files that came through could not be counted,"
+                                    + " and their list could not be written to " + page.toAbsolutePath() + ": ")
+                            .contains(WHAT_THE_ERROR_SAID);
+                }));
+    }
+
+    @Test
+    @Story("The list of files extraction read and kept")
+    @DisplayName("When the run of extraction cannot be found at the end of the step, one line says so and nothing is thrown from the end of extraction")
+    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
+    void aRunThatCannotBeFoundIsSaidAndNotThrown(@TempDir Path root, @TempDir Path workingDirectory) {
+        Ledger ledger = new Ledger(null) {
+            @Override
+            public Verdicts verdicts() {
+                return theVerdicts();
+            }
+        };
+        SurvivorListListener listener = new SurvivorListListener(
+                ledger,
+                theMetrics(),
+                stageRuns(ledger, root, () -> {
+                    throw new IllegalStateException(WHAT_THE_ERROR_SAID);
+                }),
+                workingDirectory,
+                ReplacingMove.ATOMIC);
+
+        Throwable thrown = catchThrowable(() -> listener.afterStep(step(ExitStatus.COMPLETED, 0)));
+
+        claim(
+                "nothing was thrown from the end of extraction, and no page was written",
+                () -> {
+                    assertThat(thrown).isNull();
+                    assertThat(workingDirectory.resolve(THE_SURVIVOR_LIST)).doesNotExist();
+                });
+        claim(
+                "one line, written as an error, says that the list could not be written and why",
+                () -> assertThat(saidByTheListener).singleElement().satisfies(line -> {
+                    assertThat(line.getLevel()).isEqualTo(Level.ERROR);
+                    assertThat(line.getFormattedMessage())
+                            .startsWith("Stage 2 (extraction): the run of the files that came through could not be"
+                                    + " found, and their list could not be written to "
+                                    + workingDirectory.resolve(THE_SURVIVOR_LIST).toAbsolutePath() + ": ")
+                            .contains(WHAT_THE_ERROR_SAID);
+                }));
+    }
+
+    /** Verdicts that hand over a page for the count and then fail with an error no statement raised. */
+    private static Verdicts failingWithAnError() {
+        return new Verdicts(null) {
+            @Override
+            public void eachPageOfSurvivors(RunId runId, Consumer<List<OccurrenceId>> page) {
+                throw new IllegalStateException(WHAT_THE_ERROR_SAID);
+            }
+
+            @Override
+            public void eachPageOfSurvivorsByPath(RunId runId, Consumer<List<OccurrenceAtPath>> page) {
+                throw new AssertionError("the rows were asked for after their count failed");
+            }
+        };
     }
 
     /** That a page not put in its place leaves the line before its reading and no line after it. */

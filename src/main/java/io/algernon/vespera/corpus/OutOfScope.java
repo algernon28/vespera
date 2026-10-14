@@ -16,7 +16,7 @@ import java.util.Optional;
  *
  * <p>A code default, and the one place it is written. Making it the operator's to change is a later
  * decision (#278), and a profile key would read this same question; nothing else in the tree names a
- * kind of file as out of scope. The profile's {@code outOfScopeNameEndings} (ADR-254) leaves out more
+ * kind of file as out of scope. The profile's {@code outOfScopeNameEndings} (ADR-256) leaves out more
  * files by name, but names no kind, and adds to these.
  *
  * <p>A comma-separated file is not a spreadsheet here. It is text, it is cheap, and on the corpus
@@ -65,7 +65,7 @@ final class OutOfScope {
 
     /**
      * Why a file whose bytes matched no signature is left out for the ending of its name, or empty where
-     * it is not (ADR-254). Only {@code UNRECOGNISED} and {@code PLAIN_TEXT} are read (section 3): a name
+     * it is not (ADR-256). Only {@code UNRECOGNISED} and {@code PLAIN_TEXT} are read (section 3): a name
      * never overrides bytes that named a kind (ADR-094). {@code endings} are the profile's
      * {@code outOfScopeNameEndings}, lower case;
      * the longer ending wins, and the reason spells it as the file's name does.

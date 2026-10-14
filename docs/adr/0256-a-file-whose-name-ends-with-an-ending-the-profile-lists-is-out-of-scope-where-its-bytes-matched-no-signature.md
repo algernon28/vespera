@@ -1,4 +1,4 @@
-# ADR-254 — A file whose name ends with an ending the profile lists is out of scope, where its bytes matched no signature
+# ADR-256 — A file whose name ends with an ending the profile lists is out of scope, where its bytes matched no signature
 
 - **Date**: 2026-10-14
 - **Status**: accepted on 2026-10-14.

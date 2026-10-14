@@ -249,6 +249,69 @@ class CompiledCodeFontCertificateAndDatabaseDetectionTest {
 
     @Test
     @Story("Fonts are out of scope")
+    @DisplayName("A font that opens with Apple's true or typ1, and a web font wrapping one, is a font all the same")
+    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
+    void anAppleFontIsAFont(@TempDir Path dir) throws IOException {
+        Path trueTag = Files.write(dir.resolve("Chicago.dfont"), sfnt(ascii("true"), 9, true));
+        Path type1Tag = Files.write(dir.resolve("Symbol.bin"), sfnt(ascii("typ1"), 6, true));
+        Path webFontOfTrueTag = Files.write(
+                dir.resolve("site.woff"), concat(ascii("wOFF"), ascii("true"), new byte[] {0, 0, 4, 0}, binary(100)));
+        Path trueTagHeaderDisagrees = Files.write(dir.resolve("table.dat"), sfnt(ascii("true"), 9, false));
+        Path aboutTheTag = Files.writeString(dir.resolve("note.txt"), "true or false: the answer is on the next page.");
+        Path aWordThatOpensWithIt = Files.write(dir.resolve("odd.bin"), concat(ascii("typewriter"), binary(100)));
+
+        claim(
+                "an sfnt that opens with true or with typ1, whose header agrees with itself, is a font, whatever it"
+                        + " is named, and so is a web font that wraps the first",
+                () -> assertThat(List.of(formatOf(trueTag), formatOf(type1Tag), formatOf(webFontOfTrueTag)))
+                        .containsOnly(FONT));
+        claim(
+                "a header that disagrees with itself, text that opens with the word, and bytes that open with the"
+                        + " letters of a word are no font",
+                () -> assertThat(List.of(
+                                formatOf(trueTagHeaderDisagrees), formatOf(aboutTheTag), formatOf(aWordThatOpensWithIt)))
+                        .doesNotContain(FONT));
+    }
+
+    @Test
+    @Story("Certificates and detached signatures are out of scope")
+    @DisplayName("Signed data with no content is recognised whichever way the length of its outer sequence is written, the one-byte form among them")
+    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
+    void aSignatureWhoseLengthIsOneByteIsRecognised(@TempDir Path dir) throws IOException {
+        Path oneByteLength = Files.write(
+                dir.resolve("firma.p7s"),
+                concat(
+                        new byte[] {0x30, (byte) 0x81, (byte) 0xC8},
+                        SIGNED_DATA_TYPE,
+                        new byte[] {(byte) 0xA0, (byte) 0x81, (byte) 0xBB, 0x30, (byte) 0x81, (byte) 0xB8},
+                        VERSION_AND_DIGEST_ALGORITHMS,
+                        new byte[] {0x30, 0x0B},
+                        DATA_TYPE,
+                        binary(150)));
+        Path envelopeOfOneByteLength = Files.write(
+                dir.resolve("nota.txt.p7m"),
+                concat(
+                        new byte[] {0x30, (byte) 0x81, (byte) 0xF0},
+                        SIGNED_DATA_TYPE,
+                        new byte[] {(byte) 0xA0, (byte) 0x81, (byte) 0xE3, 0x30, (byte) 0x81, (byte) 0xE0},
+                        VERSION_AND_DIGEST_ALGORITHMS,
+                        new byte[] {0x30, (byte) 0x81, (byte) 0x90},
+                        DATA_TYPE,
+                        new byte[] {(byte) 0xA0, (byte) 0x81, (byte) 0x81, 0x04, (byte) 0x81, (byte) 0x7E},
+                        ascii("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"),
+                        binary(60)));
+
+        claim(
+                "signed data with no content whose outer length is one byte after 81 is recognised, as it is where"
+                        + " the length takes two or three",
+                () -> assertThat(formatOf(oneByteLength)).isEqualTo(CERTIFICATE));
+        claim(
+                "an envelope of the same form that carries its document is not taken for a signature",
+                () -> assertThat(formatOf(envelopeOfOneByteLength)).isEqualTo(UNRECOGNISED));
+    }
+
+    @Test
+    @Story("Fonts are out of scope")
     @DisplayName("A TrueType, OpenType, collection or WOFF font is a font, and text or bytes that only open like one are not")
     void aFontIsAFontOnlyWhereItsHeaderAgreesWithItself(@TempDir Path dir) throws IOException {
         Path trueType = Files.write(dir.resolve("Roboto.pdf"), sfnt(TRUETYPE_VERSION, 4, true));

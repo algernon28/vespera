@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The profile's {@code outOfScopeNameEndings} key (ADR-254 §2): one line of text under {@code value}, as every
+ * The profile's {@code outOfScopeNameEndings} key (ADR-256 §2): one line of text under {@code value}, as every
  * key holds, census writes it unset into a fresh profile and writes an answer back exactly as it was written,
  * and a YAML list under {@code value} is not in the shape a key takes.
  *
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 @Epic("Census")
 @Feature("Profile")
-@Link(name = "ADR-254", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
+@Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
 class OutOfScopeNameEndingsInTheProfileTest {
 
     /** The key, as the profile names it. */

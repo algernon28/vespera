@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * A profile key whose answer is a list of file-name endings, written as one line (ADR-254): {@code
+ * A profile key whose answer is a list of file-name endings, written as one line (ADR-256): {@code
  * outOfScopeNameEndings}. The line stays one string under {@code value}, as every key's does (ADR-061),
  * so {@code keysAsWritten} and census read it as they read any other.
  *

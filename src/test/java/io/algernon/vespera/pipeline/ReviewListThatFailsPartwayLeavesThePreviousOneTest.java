@@ -82,6 +82,9 @@ class ReviewListThatFailsPartwayLeavesThePreviousOneTest {
 
     private static final String WHAT_THE_COUNT_SAID = "the database stopped answering before the count was done";
 
+    /** What an error that is no statement's says. */
+    private static final String WHAT_THE_ERROR_SAID = "a row came back that the page does not know how to show";
+
     private final ListAppender<ILoggingEvent> logged = new ListAppender<>();
 
     private Logger listenerLogger;
@@ -185,6 +188,52 @@ class ReviewListThatFailsPartwayLeavesThePreviousOneTest {
                 1L, "extraction", new JobExecution(1L, new JobInstance(1L, "vespera"), new JobParameters()));
         completed.setExitStatus(ExitStatus.COMPLETED);
         return completed;
+    }
+
+    @Test
+    @Story("The list of files extraction could not read")
+    @DisplayName("When the read of the files extraction could not read fails with an error that is not the database's, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
+    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
+    void anErrorOfAnyKindLeavesTheReviewListBeforeAndIsNotThrown(
+            @TempDir Path root, @TempDir Path workingDirectory) throws IOException {
+        listener(listingEvery(TWO_FAILURES), root, workingDirectory).afterStep(completed());
+        Path page = workingDirectory.resolve(THE_REVIEW_LIST);
+        String thePageBefore = Files.readString(page, StandardCharsets.UTF_8);
+        logged.list.clear();
+
+        StepExecution completed = completed();
+        Throwable thrown = catchThrowable(
+                () -> listener(failingWithAnError(), root, workingDirectory).afterStep(completed));
+
+        claim(
+                "nothing was thrown from the end of extraction: the error was said, not thrown",
+                () -> assertThat(thrown).isNull());
+        claim(
+                "the list in its place is the first invocation's, character for character",
+                () -> assertThat(Files.readString(page, StandardCharsets.UTF_8)).isEqualTo(thePageBefore));
+        claim(
+                "one line, written as an error, says that the list could not be written, with what the error said",
+                () -> assertThat(logged.list)
+                        .filteredOn(event -> event.getLevel() == Level.ERROR)
+                        .singleElement()
+                        .satisfies(event -> assertThat(event.getFormattedMessage())
+                                .contains("could not be written to " + page.toAbsolutePath())
+                                .contains(WHAT_THE_ERROR_SAID)));
+    }
+
+    /** Verdicts that count {@link #THREE_FAILURES} and then fail with an error no statement raised. */
+    private static Verdicts failingWithAnError() {
+        return new Verdicts(null) {
+            @Override
+            public long extractionFailureCount(RunId runId) {
+                return THREE_FAILURES;
+            }
+
+            @Override
+            public void eachExtractionFailure(RunId runId, Consumer<RemovedOccurrence> failure) {
+                throw new IllegalStateException(WHAT_THE_ERROR_SAID);
+            }
+        };
     }
 
     private static ReviewListListener listener(Verdicts verdicts, Path root, Path workingDirectory) {

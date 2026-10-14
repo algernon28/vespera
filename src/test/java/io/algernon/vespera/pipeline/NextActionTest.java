@@ -402,7 +402,7 @@ class NextActionTest {
     }
 
     /**
-     * ADR-254 §5: a list of name endings holding a piece that is not an ending -- one with no dot before it,
+     * ADR-256 §5: a list of name endings holding a piece that is not an ending -- one with no dot before it,
      * nothing but dots, a wildcard, a path separator, or no ending at all -- is unreadable as a whole, ignored,
      * and named in the closing line with its text quoted back. Written as YAML through {@link
      * OutOfScopeNameEndingsInProfile}, so this compiles before the key exists and fails at the load until it does.
@@ -411,7 +411,7 @@ class NextActionTest {
     @ValueSource(strings = {".", "...", "P3A", ".P3A P3L", ".P3*", ".P3?", "terminali/.P3A", "terminali\\.P3A", ", ,"})
     @Story("A list of name endings nothing can be read from changes nothing, and the line says so")
     @DisplayName("A list of name endings that is not one is reported, with what was written")
-    @Link(name = "ADR-254", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
     void anUnreadableListOfNameEndingsIsReported(String written, @TempDir Path workingDirectory) {
         ProfileStore profileStore = new ProfileStore(workingDirectory);
         profileStore.save(theRunValuesSet());
@@ -432,12 +432,12 @@ class NextActionTest {
                 () -> assertThat(line.lines()).hasSize(1));
     }
 
-    /** ADR-254 §2: endings in any case, separated by spaces, commas or both, and with more than one dot, are read. */
+    /** ADR-256 §2: endings in any case, separated by spaces, commas or both, and with more than one dot, are read. */
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {".P3A", ".p3a .DGN", ".P3A,.DGN", ".P3A, .DGN", ", .P3A", ".tar.gz", "  .P3A  "})
     @Story("A list of name endings nothing can be read from changes nothing, and the line says so")
     @DisplayName("A list of name endings that can be read is not reported")
-    @Link(name = "ADR-254", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
     void aReadableListOfNameEndingsIsNotReported(String written, @TempDir Path workingDirectory) {
         ProfileStore profileStore = new ProfileStore(workingDirectory);
         profileStore.save(theRunValuesSet());

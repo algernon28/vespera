@@ -11,7 +11,7 @@ package io.algernon.vespera.profile;
  *
  * <p><b>Each component is typed by the kind of answer its key takes</b> (ADR-120): {@link TextValue}
  * for a folder, a model's name or an approval, {@link NumericValue} for a floor, a threshold or a
- * proportion, and {@link NameEndingsValue} for a list of name endings (ADR-254). That is ADR-061's "the record is the schema" carried down one level from the key set to
+ * proportion, and {@link NameEndingsValue} for a list of name endings (ADR-256). That is ADR-061's "the record is the schema" carried down one level from the key set to
  * the value — which keys hold a number is now a fact this declaration holds, rather than one each
  * reader re-derived by reaching for a parse.
  *
@@ -96,7 +96,7 @@ package io.algernon.vespera.profile;
  *     ignores an unreadable number. Ships unset and is not a gate: an unset attempt never ends an
  *     invocation. No {@link Measurement} pointer and no {@code with...Measurement} method: no page's
  *     measurement informs it, and a pointer would make stage 2 write {@code profile.yaml}.
- * @param outOfScopeNameEndings stage 1's list of file-name endings (ADR-254): one line of endings, each
+ * @param outOfScopeNameEndings stage 1's list of file-name endings (ADR-256): one line of endings, each
  *     beginning with a dot, matched at the end of a file's name in any case, and read only for a file
  *     detected as of no known kind or as text. Ships unset; unset or unreadable, it leaves nothing out.
  *     Its {@link Measurement} points at the format-mix page.
@@ -253,7 +253,7 @@ public record Profile(
                 outOfScopeNameEndings);
     }
 
-    /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-254). */
+    /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-256). */
     public Profile withOutOfScopeNameEndingsMeasurement(Measurement measurement) {
         return new Profile(
                 seedFolder,

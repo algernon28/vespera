@@ -183,7 +183,7 @@ public final class ProfileFixture {
         return this;
     }
 
-    /** Stage 1's list of name endings left out (ADR-254), written as one line. */
+    /** Stage 1's list of name endings left out (ADR-256), written as one line. */
     public ProfileFixture outOfScopeNameEndings(String value, String provenance) {
         this.outOfScopeNameEndings = new NameEndingsValue(value, provenance, null);
         return this;

@@ -44,7 +44,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Stage 1 leaves out a file whose bytes matched no signature and whose name ends with one of the endings the
- * profile's {@code outOfScopeNameEndings} lists (ADR-254): within the two classes no signature named, of no
+ * profile's {@code outOfScopeNameEndings} lists (ADR-256): within the two classes no signature named, of no
  * known kind and text, and within no other, with a reason that names the ending, a count of its own on the
  * format-mix page, and the list in stage 1's configuration consumed in one canonical form.
  *
@@ -61,7 +61,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Epic("Byte-level reduction")
 @Feature("Files left out for the ending of their name")
-@Link(name = "ADR-254", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
+@Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
 class OutOfScopeNameEndingsTaskletTest {
 
     /** Why each profile here was written, as the operator would say it in {@code provenance}. */

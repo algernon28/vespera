@@ -136,7 +136,7 @@ class RunIdentityGoldenTest {
      * Stage 1 read no settings until ADR-171, and recorded {@code {}}. It now records the text size
      * ceiling, a constant in {@code extraction} that its {@code corpus}-only implementation version cannot
      * see (ADR-058), the log floor this profile leaves unset, and the name endings the profile lists as out
-     * of scope, none here (ADR-254 §6).
+     * of scope, none here (ADR-256 §6).
      */
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
@@ -145,7 +145,7 @@ class RunIdentityGoldenTest {
     @Issue("371")
     @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
     @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
-    @Link(name = "ADR-254", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
     void byteLevelReduction() {
         Map<String, Object> run = theRunOf("byte-level-reduction");
 

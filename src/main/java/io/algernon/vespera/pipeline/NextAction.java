@@ -392,7 +392,7 @@ class NextAction {
     }
 
     /**
-     * The line for {@code outOfScopeNameEndings} (ADR-254 §5), where it holds a piece that is not an ending
+     * The line for {@code outOfScopeNameEndings} (ADR-256 §5), where it holds a piece that is not an ending
      * -- empty otherwise. Unset is not reported: it ships unset, and unset leaves nothing out by its name.
      */
     private static Optional<String> theNameEndingsUnreadable(Profile profile) {

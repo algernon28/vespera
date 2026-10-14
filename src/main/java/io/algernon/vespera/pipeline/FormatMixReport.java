@@ -31,7 +31,7 @@ final class FormatMixReport {
      * files left out for their size, by any of ADR-178's three rules (ADR-171). {@code byTimestampBand} counts the text files of ten or
      * more non-blank lines by their timestamped share, ten percent to a band, the last band being 90% to 100%;
      * {@code fewerThanTenLines} counts the rest. {@code leftOutByName} counts the files left out for the ending
-     * of their name (ADR-254), and {@code nameEndings} are the canonical endings the profile lists, empty
+     * of their name (ADR-256), and {@code nameEndings} are the canonical endings the profile lists, empty
      * where it lists none. {@code logFloor} is {@code null} where none is set.
      */
     record Mix(

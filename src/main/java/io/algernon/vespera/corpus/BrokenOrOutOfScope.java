@@ -54,7 +54,7 @@ public final class BrokenOrOutOfScope {
      * Checks every survivor of {@code runId}, in the order {@code Verdicts.survivors} gives them, one at a
      * time as the pages are read and never the set at once (ADR-200), and returns the tally.
      * {@code logFloor} is {@code null} where no log rule applies (ADR-171 section 3). {@code nameEndings} are
-     * the profile's {@code outOfScopeNameEndings} (ADR-254): lower case, each once, empty where the key is unset or unreadable. A file whose
+     * the profile's {@code outOfScopeNameEndings} (ADR-256): lower case, each once, empty where the key is unset or unreadable. A file whose
      * bytes matched no signature and whose name ends with one is left out after the kinds {@link OutOfScope}
      * names and before the log and size rules, so it is not read for timestamps and is counted neither as a
      * log nor as too large.
@@ -83,7 +83,7 @@ public final class BrokenOrOutOfScope {
             boolean isLog = false;
             // Not every text file left out is left out for its size: an email is left out for its kind (ADR-252).
             boolean forItsSize = false;
-            // Nor is it a log or too large when the profile's list of name endings leaves it out (ADR-254).
+            // Nor is it a log or too large when the profile's list of name endings leaves it out (ADR-256).
             boolean forItsName = false;
             if (!result.broken()) {
                 leftOut = OutOfScope.reasonFor(result.format(), result.subtype());
