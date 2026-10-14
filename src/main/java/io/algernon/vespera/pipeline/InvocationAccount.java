@@ -17,7 +17,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -267,11 +269,16 @@ final class InvocationAccount implements JobExecutionListener {
     }
 
     private static String instantOf(LocalDateTime time) {
-        return time == null ? "none" : time.toInstant(ZoneOffset.UTC).toString();
+        return time == null ? "none" : instant(time).toString();
+    }
+
+    /** Spring Batch records its times as {@code LocalDateTime.now()}: the wall clock of this machine's zone. */
+    private static Instant instant(LocalDateTime time) {
+        return time.atZone(ZoneId.systemDefault()).toInstant();
     }
 
     private static Duration durationBetweenOrZero(LocalDateTime start, LocalDateTime end) {
-        return start == null || end == null ? Duration.ZERO : Duration.between(start, end);
+        return start == null || end == null ? Duration.ZERO : Duration.between(instant(start), instant(end));
     }
 
     private static String durationBetween(LocalDateTime start, LocalDateTime end) {
