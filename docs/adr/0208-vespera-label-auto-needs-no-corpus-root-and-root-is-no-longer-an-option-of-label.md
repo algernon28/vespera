@@ -3,18 +3,18 @@
 - **Date**: 2026-10-07
 - **Status**: accepted
 - **Amends**: [ADR-197](0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md) §6, in its heading's `[--root <path>]` and in its first bullet (§7 below). Everything else in §6 stands: `--auto` with a file refuses, the labeller's model is its own setting, the refusals that come first, and the lines the operator sees.
-- **Amends**: [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md), in the fourth bullet of its §4, in one line of its header and in one bullet of its §7 (§7 below). It answers the question that bullet left to the operator.
+- **Amends**: [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md), in the fourth bullet of its §4, in one line of its header and in one bullet of its §7 (§7 below). It settles what that bullet left open.
 - **Keeps**: [ADR-066](0066-the-command-line-names-the-root-configuration-is-the-fallback.md) (`vespera run` takes its root from the argument, then from `vespera.corpus-root`, and refuses with neither), [ADR-141](0141-the-cli-exits-with-the-commands-exit-code-and-the-scheduler-no-feature-uses-is-removed-at-its-source.md) (exit codes), [ADR-054](0054-a-corpus-is-its-root-path-the-database-lives-in-a-configured-working-directory.md) (the `--db-dir` drift check, on both commands), [ADR-047](0047-the-pipeline-never-blocks.md) (`label` is the deliberate act), [ADR-177](0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md) (the working-directory lock and its holder's line) and [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md) (`vespera label` writes no invocation account).
-- **Rests on**: a reading of the `label` path at commit `251ee64`, with the sites named in §Context; [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and `StageModules` for the run ids (§8); and ADR-206 §4 and §5, which are why the command has nothing to read under a root. No archive and no working directory was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
-- **Settles** [#451](https://github.com/algernon28/vespera/issues/451), by the operator's choice of 2026-10-07 among the three it was put: (a) drop the requirement and go on accepting `--root`, saying it is not used; (b) drop the requirement and remove the option; (c) leave it. The operator chose (b).
+- **Rests on**: a reading of the `label` path as it was before this record, with the sites named in §Context; [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and `StageModules` for the run ids (§8); and ADR-206 §4 and §5, which are why the command has nothing to read under a root.
+- **Settles** [#451](https://github.com/algernon28/vespera/issues/451) by (b) of three shapes: (a) drop the requirement and go on accepting `--root`, saying it is not used; (b) drop the requirement and remove the option; (c) leave it.
 
 ## Context
 
-ADR-197 §6 made `vespera label --auto` refuse unless it was given `--root` or `vespera.corpus-root` was set, *"because the openings are read from the corpus and a root is never guessed"*. ADR-206 §4 withdrew the reason, because the command finds each opening under the key stage 2 recorded and opens no archive file. It kept the requirement, in its own words *"because what a command line demands is the operator's to change and not a side effect of this wave"*, and put the question to the operator. #451 is that question.
+ADR-197 §6 made `vespera label --auto` refuse unless it was given `--root` or `vespera.corpus-root` was set, *"because the openings are read from the corpus and a root is never guessed"*. ADR-206 §4 withdrew the reason, because the command finds each opening under the key stage 2 recorded and opens no archive file. It kept the requirement, in its own words *"because what a command line demands is the operator's to change and not a side effect of this wave"*, and left open whether it goes. #451 carries that point.
 
 So an operator had to name a corpus root to a command that never opens it, and a wrong or unreachable root was neither used nor noticed.
 
-### What the code does, read at `251ee64`
+### What the code does, read before this record
 
 **(a) Nothing on the `label --auto` path reads the root.**
 
@@ -35,7 +35,7 @@ What the command reads instead: the label file in the working directory (line 10
 - `AutoLabelling.run`, line 136, resolves the profile's seed folder with `Walk.canonicalRoot` (`toRealPath` and `isDirectory`), to compare it with the seed set the label file names. That is the seed folder's directory entry. This record leaves it.
 - `WorkingDirectoryLock`, lines 89 and 110 to 114, writes the command line as it was typed into `vespera.lock`, as the holder's line (ADR-177). Whatever is typed is written there as text, a refused command line included. Nothing opens it.
 
-`vespera label` starts no job, so it writes no invocation account (ADR-198 §1, and point 6 of its list). The private-paths rules are about what an agent opens (ADR-196) and bind no command.
+`vespera label` starts no job, so it writes no invocation account (ADR-198 §1, and point 6 of its list). The private-paths rules are about what an agent opens ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)) and bind no command.
 
 **(b) Plain `vespera label` had no root requirement and never had one.** `Label.call`, lines 312 to 321, goes to `LabelIngestion.ingest(file)` and to `NextAction.line()` and reads neither the `--root` field nor `vespera.corpus-root`. `LabelIngestion` holds the working directory and no root. ADR-197 §6 names `--root` only with `--auto`, and no earlier record (ADR-088, ADR-169) names a root for `label`. **But the option is declared on the `label` command, not on `--auto`**, so picocli accepts `vespera label --root <path>` with no `--auto`; the value is ignored, and nothing says so.
 
@@ -110,7 +110,7 @@ Earlier records are not edited in their text. Each correction is made here, and 
 **ADR-206.**
 
 - Header, the line that amends ADR-197: *"The requirement itself stands."* It stood until this record.
-- §4, fourth bullet: *"`vespera label --auto` still requires a corpus root, and no longer reads one."* **Read instead**: it requires none, takes none and reads none. *"This record leaves the requirement and the option as they are"* is true of ADR-206 and is history. *"Whether the requirement goes is open, and is put to the operator"*: answered here.
+- §4, fourth bullet: *"`vespera label --auto` still requires a corpus root, and no longer reads one."* **Read instead**: it requires none, takes none and reads none. *"This record leaves the requirement and the option as they are"* is true of ADR-206 and is history. *"Whether the requirement goes is open, and is put to the operator"*: settled here.
 - §7, under Reworded: *"the refusal of `vespera label --auto` with no root, which loses its closing clause … A root is still never guessed (ADR-066)."* **Gone for this command.** No sentence takes its place: the command no longer refuses for want of a root, so there is nothing to word. *"A root is never guessed"* remains true of `vespera run`, the only command that takes one.
 
 **Not amended.** ADR-206 §4's other bullets and its §5, which describe what `label --auto` reads; ADR-066, which this record keeps; ADR-204 §6, whose row for `AutoLabelling` names its statements and no root.
@@ -121,19 +121,19 @@ Earlier records are not edited in their text. Each correction is made here, and 
 
 **This record's own commits move no run id.** They touch `docs/`, `AGENTS.md` and `src/test`, and nothing under `src/main/java`.
 
-**The implementation moved the run ids of six stages.** `VesperaCommand` and `AutoLabelling` are both in `pipeline`, and `StageModules` names `pipeline` for content census (3), content redundancy (4), seed measurement and embedding scoring (both runs of 5), arrangement (6a) and generation (6b). At the first `vespera run` of a build that carries it, over an existing working directory, each of those is minted anew. Byte-level reduction (1) names `corpus` alone and extraction (2) names `extraction` and `similarity`, so neither moves, and the census records a walk, which has no implementation version. What follows for the operator is what ADR-197's Consequences list: stages 3 to 6b run again over the conversions already cached, the arrangement's name changes so `arrangementApproved` is written again, and the labels survive.
+**The implementation moves the run ids of six stages.** `VesperaCommand` and `AutoLabelling` are both in `pipeline`, and `StageModules` names `pipeline` for content census (3), content redundancy (4), seed measurement and embedding scoring (both runs of 5), arrangement (6a) and generation (6b). At the first `vespera run` of a build that carries it, over an existing working directory, each of those is minted anew. Byte-level reduction (1) names `corpus` alone and extraction (2) names `extraction` and `similarity`, so neither moves, and the census records a walk, which has no implementation version. What follows for the operator is what ADR-197's Consequences list: stages 3 to 6b run again over the conversions already cached, the arrangement's name changes so `arrangementApproved` is written again, and the labels survive.
 
-**No shape of the change avoided it.** The requirement was enforced and the option declared in `VesperaCommand.java`, which is in `pipeline`; neither could go without a commit under that path. Leaving `AutoLabelling.run(Path root)` with its unread parameter and changing `VesperaCommand` alone would have moved exactly the same six ids, since both files are under one path, and would have left a method that takes an argument it ignores. So the parameter went (§1). Only leaving everything as it was would have moved nothing.
+**No shape of the change avoids it.** The requirement was enforced and the option declared in `VesperaCommand.java`, which is in `pipeline`; neither could go without a commit under that path. Leaving `AutoLabelling.run(Path root)` with its unread parameter and changing `VesperaCommand` alone would have moved exactly the same six ids, since both files are under one path, and would have left a method that takes an argument it ignores. So the parameter goes (§1). Only leaving everything as it was would have moved nothing.
 
-**The operator wants run ids minted once.** The implementation was therefore committed directly on top of another change that already moves those stages: [#449](https://github.com/algernon28/vespera/issues/449)'s, at `6eb88a2`, which touches `corpus` and `extraction` and so moves every stage from 1 to 6b. A working directory whose next `vespera run` is made by a build carrying both meets the two moves as one.
+**The run ids of these stages are to be minted once for both changes.** The implementation is therefore committed directly on top of another change that already moves those stages: [#449](https://github.com/algernon28/vespera/issues/449)'s, which touches `corpus` and `extraction` and so moves every stage from 1 to 6b. A working directory whose next `vespera run` is made by a build carrying both meets the two moves as one.
 
 ## Why this shape, and what the others cost
 
-**(a) Drop the requirement and go on accepting `--root`, with one line saying it is not used.** It was the shape two analyses recommended and the one this record was first drafted on.
+**(a) Drop the requirement and go on accepting `--root`, with one line saying it is not used.**
 
 - What it would have bought: every command line written while the root was required keeps working, and plain `vespera label --root <path>` goes on recording answers.
 - What it carried: an option that does nothing, a description saying so, a line at INFO to say it again on each use, and three small rules about that line (only for the option and never for the property, only with `--auto`, and a value never parsed even as a path).
-- **It was not taken because the operator chose (b): a command that accepts only what it uses.** That is the operator's choice and this record gives no further reason for it.
+- **It is not taken, because (b) gives a command that accepts only what it uses.**
 - Run ids: the same six as (b).
 
 **(c) Leave it.** No code changes and no run id moves. The operator would go on naming an archive the command does not open, and a wrong root would go on being accepted in silence, which is what #451 describes. The option's description would stay false unless corrected, and correcting it is a commit under `pipeline`.
@@ -149,26 +149,26 @@ Earlier records are not edited in their text. Each correction is made here, and 
 - **An operator labels with `vespera label --auto` and nothing else**, with the archive's disk unplugged if they like.
 - **A command line that still passes `--root` to `label` fails**, with or without `--auto`, exit 2, having done nothing. Scripts and notes written since ADR-197 need the two words removed.
 - **`vespera.corpus-root` is read by `vespera run` alone.**
-- **Six stages' run ids moved with the code** (§8).
+- **Six stages' run ids move with the code** (§8).
 - **`README.md` is not edited.** It documents neither `--auto` nor `--root`, and what `docs/check-claims.mjs` holds it to (its subcommands, the commands it gives `--db-dir`, its profile keys and the files written beside the database) does not change.
 - **`CONTEXT.md` is not edited.** Its *Corpus root* entry names `vespera run` and `vespera.corpus-root` only.
-- **Three existing test classes passed `--root` in fourteen invocations**, and one test pinned the refusal. They changed with the code and not before it: each was kept as an edited copy outside `src/test` until the code landed, and replaced its original then (below; note corrected with [#451](https://github.com/algernon28/vespera/issues/451), when the code landed).
+- **Three existing test classes passed `--root` in fourteen invocations**, and one test pinned the refusal. They change with the code and not before it (below).
 
-**What the implementation did** (this list was written as what it owed, and is corrected with [#451](https://github.com/algernon28/vespera/issues/451) to what was done):
+**What the implementation does:**
 
 - `AutoLabelling.run()` has no parameter, and the comment at its lines 160 to 163 is kept, since it is true;
 - `VesperaCommand.Label` has no `--root` option, no field for it and no line for it in `forgetPreviousInvocation`; its constructor takes no `configuredRoot` and the field is gone; `callAuto` has no refusal for want of a root and calls `labelling.run()`; its javadoc cites this record in place of *"the root is named by the option or by configuration and never guessed"*;
-- the four test files that were kept under `docs/adr/0208/tests/` are in `src/test/java/io/algernon/vespera/pipeline/`, three of them in place of the file of the same name;
-- nothing else: no test was edited or deleted by hand, and `VesperaCommand.Run`, `README.md` and `CONTEXT.md` were not touched.
+- the four test files below are in `src/test/java/io/algernon/vespera/pipeline/`, three of them in place of the file of the same name;
+- nothing else: no test is edited or deleted by hand, and `VesperaCommand.Run`, `README.md` and `CONTEXT.md` are not touched.
 
-**What pins it.** Every test named here is in `src/test/java/io/algernon/vespera/pipeline/` and passes.
+**What pins it.** Every test named here is in `src/test/java/io/algernon/vespera/pipeline/`.
 
-Written with this record, before the code, because each held before the change and holds after it:
+Each of these holds both before the change and after it:
 
 - `LabelAutoUnderAConfiguredRootInvocationTest`: with `vespera.corpus-root` naming a directory nobody created and no `--root`, the labelling succeeds, the directory still does not exist, and nothing is said about a root (§5).
-- `UnconfiguredRootTest.saysWhatToSupplyAndThatARootIsNeverGuessed`: `vespera run` with no root exits 2 with its sentence (§6). Until this record only its exit code was held.
+- `UnconfiguredRootTest.saysWhatToSupplyAndThatARootIsNeverGuessed`: `vespera run` with no root exits 2 with its sentence (§6). It holds the sentence as well as the exit code.
 
-Moved into `src/test` with the code. Each failed against the code as it was, so until the code landed it was kept as a complete file under `docs/adr/0208/tests/`, followed by the path it takes in the repository, as ADR-193's Tests describe. **All four landed at `ff763d5` byte for byte as the parked copies, and nothing remains under `docs/adr/0208/tests/`.** Afterwards only the javadoc of `LabelAutoNeedsNoRootInvocationTest` was put in the past tense (`b0b2d1a`); no claim, assertion or invocation of any of the four changed (note corrected with [#451](https://github.com/algernon28/vespera/issues/451), when the code landed, and again after its gate). That includes the two tests of the refused option, which could not be run before it: picocli's unknown-option error reaches standard error and names `--root`.
+These go into `src/test` with the code, as ADR-193's Tests describe.
 
 - `LabelAutoNeedsNoRootInvocationTest`, new:
   - `runsWithNoRootNamedAndNoneConfigured`: §1.

@@ -8,7 +8,7 @@
 
 ADR-088 states the strongest claim in the system about a table: `relevance_label` is **the one table whose rows a re-run never rewrites**, because "a second copy of a human's answer is not a second observation; it is a duplicate". Its headline consequence follows from that — a re-score under a new embedder identity re-reads the existing labels and recomputes the bands **without new labels being supplied**, because the two hours that produced those rows cannot be produced again by a machine.
 
-Building [#112](https://github.com/algernon28/vespera/issues/112) showed that consequence does not hold across invocations, and cannot.
+That consequence does not hold across invocations, and cannot.
 
 **Occurrence ids are per-walk, deliberately.** [ADR-055](0055-a-walk-is-resumed-under-its-own-id-until-it-finishes.md)'s minting rule reuses only an *unfinished* walk: "a deliberate re-walk after a code change gets a new id automatically, because by the time an operator re-invokes for that reason, the prior walk has already finished." So every ordinary `vespera run` over a corpus mints a new walk and a new `file_occurrence` row per file. A label keyed by `occurrence_id` points at the walk that asked the question, and joins to nothing the next run scores. The answers survive in the table and stop being findable — which is worse than losing them, because nothing reports their absence.
 
@@ -34,7 +34,7 @@ Path is not a perfect identity. A document that is moved or renamed between runs
 
 ### No migration, because nothing has been labelled
 
-`embedding` schema **6 → 7**, and no migration path. As of this decision no corpus has been labelled outside tests — the labelling loop landed in [#111](https://github.com/algernon28/vespera/issues/111) and the floor in #112, both on the same day as this record — so there is no answer anywhere to carry across. This is written down rather than left implicit, so that a later reader can tell it was checked rather than skipped.
+`embedding` schema **6 → 7**, and no migration path. As of this decision no corpus has been labelled outside tests, so there is no answer anywhere to carry across.
 
 ### Occurrence continuity across walks was weighed, and is not decided here
 
@@ -42,7 +42,7 @@ The general fix is a resolution from an occurrence in one walk to the same docum
 
 ## Consequences
 
-**ADR-088's headline consequence becomes executable.** A re-score under a new embedder identity re-reads the answers already given and re-bands them against the new scores, across invocations, with nobody asked anything twice. #112 could only pin that at the unit level; the ticket that implements this can pin it at the invocation level, which is where the claim was always about.
+**ADR-088's headline consequence becomes executable.** A re-score under a new embedder identity re-reads the answers already given and re-bands them against the new scores, across invocations, with nobody asked anything twice. Under the occurrence key it can be pinned only at the unit level; under the path key it can be pinned at the invocation level, which is where the claim was always about.
 
 **Both halves of the key are now paths.** `seed_set` is already the canonical seed-folder path, so a label row becomes "this document, judged against this seed set" in two spellings of the same kind of identity — which is easier to reason about than a surrogate key paired with a path.
 

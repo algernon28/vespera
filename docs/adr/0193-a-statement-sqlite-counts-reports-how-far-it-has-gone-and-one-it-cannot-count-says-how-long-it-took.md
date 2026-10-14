@@ -16,14 +16,14 @@
 
 - **Date**: 2026-10-05
 - **Status**: accepted
-- **Amends**: [ADR-187](0187-a-database-statement-that-can-take-minutes-says-so-before-it-starts-and-when-it-ends.md) §1, **one sentence and nothing else.** *"Nothing is written between the two lines"* now holds only for a statement SQLite gives no callback for, of which stage 2's drop is the one ADR-187 names. A build of an index writes the lines of §4 here between its two. ADR-187's refusal of a line on a timer stands: no line here is written on a clock (the operator's decision 2). Its "What this does not decide", *"Progress during a build"*, is settled here, and so is the bullet of its "Why this shape, and what the others cost" that reads *"Real progress for the builds, from SQLite's progress callback … Not taken here"*, which this record supersedes.
+- **Amends**: [ADR-187](0187-a-database-statement-that-can-take-minutes-says-so-before-it-starts-and-when-it-ends.md) §1, **one sentence and nothing else.** *"Nothing is written between the two lines"* now holds only for a statement SQLite gives no callback for, of which stage 2's drop is the one ADR-187 names. A build of an index writes the lines of §4 here between its two. ADR-187's refusal of a line on a timer stands: no line here is written on a clock (*Points settled*, point 2). Its "What this does not decide", *"Progress during a build"*, is settled here, and so is the bullet of its "Why this shape, and what the others cost" that reads *"Real progress for the builds, from SQLite's progress callback … Not taken here"*, which this record supersedes.
 - **Amends**: [ADR-182](0182-stage-2-writes-shingles-without-the-by-hash-index-and-stage-4b-builds-it-before-containment-retrieval-reads-it.md) §2.4, **the wording of stage 4b's line before the build and nothing it decided** (§4.2).
 - **Amends**: [ADR-191](0191-stage-3-says-how-many-shingle-rows-it-is-about-to-read-and-how-long-measuring-them-took.md) §1 and §3, **two sentences.** §1's *"Nothing is written between the two lines"* no longer holds: stage 3's read writes §4's progress lines between them. §3's *"`ContentCensusTasklet` asks for the bound, writes the first line where a value comes back"* now reads: `DocumentFrequency.measure` asks for the bound itself and hands it to `pipeline` through §7's callback, immediately before the read, and `pipeline` writes the first line then. The line's words, its bound and when it is not written are unchanged. Its "What this does not decide", *"Progress during the read"*, is settled here.
 - **Extends**: [ADR-093](0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md), as [ADR-192](0192-every-loop-in-every-stage-reports-its-progress-and-no-counter-floods-the-log.md) §8 capped it, to one SQL statement: a line `<label>: about X% of N rows`, at INFO, on §8's cadence.
 - **Settles** what [ADR-192](0192-every-loop-in-every-stage-reports-its-progress-and-no-counter-floods-the-log.md) §7 left to #411: every statement, drain and row callback named there.
 - **Rests on**: [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-041](0041-ledger-owns-identity-and-verdicts-capabilities-own-their-own-tables.md) (the module that owns a table issues its statements, and a capability module writes no line), [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) (which run ids move), [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md) (a capability module hands back through a callback it owns), [ADR-173](0173-every-column-that-references-a-file-occurrence-a-walk-or-a-run-carries-an-index.md) (the indexes on `run_id` that make a total cheap), [ADR-177](0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md) §2.1 (SQLite driver plumbing every module shares lives in `ledger`, and every statement goes through the application's `JdbcTemplate`), ADR-187, ADR-191 and ADR-192.
 - **Keeps**: [ADR-059](0059-schema-version-is-one-row-per-module-checked-and-refused-independently.md). No table, column or index changes.
-- **Settles** [#411](https://github.com/algernon28/vespera/issues/411), under the operator's decisions recorded there on 2026-10-04 and 2026-10-05.
+- **Settles** [#411](https://github.com/algernon28/vespera/issues/411).
 
 **Three words here are SQLite's.** A *step* is one instruction of SQLite's virtual machine, the unit its progress callback counts. A *plan* is what `EXPLAIN QUERY PLAN` answers for a statement. A *temp B-tree* is the structure a plan names when it sorts or removes repeats in a structure of its own, after it has gone through the rows. An *index* is always a SQLite index, never the ledger.
 
@@ -33,29 +33,29 @@
 
 ### What happened
 
-On 2026-10-04, on the whole-archive working directory on `H:` (a partition of a USB portable spinning disk), stage 4b wrote at 19:03:48 that it was building `shingle_by_hash` over up to 42,833,917 shingle rows, *"on a large database this takes minutes"*, and at 19:42:48 that it had built it in 2,340.0 s. Thirty-nine minutes passed with nothing in the log. Two ten-second samples of the process, at 19:18 and 19:22, showed about 0.5 MB read and 0.5 MB written a second in 4 KB operations and about 1% of one core: it was waiting on the disk, and nothing in the log could tell that from a hang. The resolution after it was silent for a further 26 minutes 40 seconds in the same way, and stage 5b, which has no loop of its own (ADR-192 §7), took 1 minute 47 seconds with nothing saying where.
+On the measured whole-archive run (working directory on `H:`, a partition of a USB portable spinning disk), stage 4b wrote that it was building `shingle_by_hash` over up to 42,833,917 shingle rows, *"on a large database this takes minutes"*, and then that it had built it in 2,340.0 s. Thirty-nine minutes passed with nothing in the log. Two ten-second samples of the process during the build showed about 0.5 MB read and 0.5 MB written a second in 4 KB operations and about 1% of one core: it was waiting on the disk, and nothing in the log could tell that from a hang. The resolution after it was silent for a further 26 minutes 40 seconds in the same way, and stage 5b, which has no loop of its own (ADR-192 §7), took 1 minute 47 seconds with nothing saying where.
 
 ADR-187 had left progress during a build undecided, and ADR-191 had left progress during stage 3's read undecided, each for a ticket of its own if two lines proved too little. They proved too little.
 
-### What the operator decided
+### Points settled
 
-On 2026-10-04: every stage gets a tracker, whatever its duration, with no threshold; loops are #412's (ADR-192), and what is truly one statement is #411's; the scope then widened to stage 5b, the single-statement reads of 4b's resolution, and `scoredBelow`, `partitions`, `forRun` and `measure`.
+Every stage gets a tracker, whatever its duration, with no threshold; loops are #412's (ADR-192), and what is truly one statement is #411's; the scope takes in stage 5b, the single-statement reads of 4b's resolution, and `scoredBelow`, `partitions`, `forRun` and `measure`.
 
-On 2026-10-05, after a probe of SQLite's progress callback (below):
+Resting on the two-disk probe of SQLite's progress callback (Measurements):
 
 1. **Progress, not a heartbeat.** A statement with callbacks and a known row total writes `about X% of N rows`. X comes from the callback count, through the measured steps-per-row ratio, which a test pins against the bundled SQLite.
 2. **No callback, no line.** A statement SQLite gives no callback for, such as `DROP INDEX`, keeps ADR-187's line before and line after, and nothing between. No timer line.
 3. **Scope is every statement named on #411 and #412**: stage 4b's build, stage 3's read, 4b's single-statement reads, 5b's reads, `scoredBelow`, `partitions`, `forRun`, `measure`, and the start-up builds of ADR-187. A statement with no cheap row total gets ADR-187's two lines plus its duration.
-4. The measurement on `H:` was made (below).
+4. The callback is measured on `H:` as well as on a solid-state disk (Measurements).
 5. Shortening the build on a spinning disk is a ticket of its own.
-6. The archive's next run waits for this record, so that run ids are minted once.
+6. The archive is not run again until this record has landed, so that run ids are minted once.
 7. **The silent final phase of an index build is announced.** When the counter reaches its total, one line says the rows are gone through and that writing the index reports nothing until it ends. Nothing is written after that until the after-line.
 
 ## Measurements
 
-### The operator's probe, 2026-10-05
+### The two-disk probe
 
-Synthetic rows only, in a throwaway file deleted afterwards: 20,000,000 rows of fixed text and random numbers, about 2.2 GB, with a callback every 100,000 steps, through `org.sqlite.ProgressHandler` of sqlite-jdbc 3.53.2.1.
+Synthetic rows only, in a throwaway file: 20,000,000 rows of fixed text and random numbers, about 2.2 GB, with a callback every 100,000 steps, through `org.sqlite.ProgressHandler` of sqlite-jdbc 3.53.2.1.
 
 | Statement | Solid-state disk (`D:`) | USB spinning disk (`H:`) |
 |---|---|---|
@@ -63,7 +63,7 @@ Synthetic rows only, in a throwaway file deleted afterwards: 20,000,000 rows of 
 | `SELECT` over every row | 1.8 s, 1,400 callbacks (70 per million rows), no gap | 1.8 s, no gap |
 | `DROP INDEX` | 0 callbacks | 0 callbacks |
 
-The callback runs on the statement's own thread and only while SQLite's virtual machine runs. A build is silent at its end, and the share of the silence grew on the slower disk. **The probe's file was new and written in order, which the archive's is not**: 42,833,917 rows took 39 minutes on 2026-10-04 against 15 s here. So this record quotes the shape and never a duration.
+The callback runs on the statement's own thread and only while SQLite's virtual machine runs. A build is silent at its end, and the share of the silence grew on the slower disk. **The probe's file was new and written in order, which the archive's is not**: 42,833,917 rows took 39 minutes on the measured run against 15 s here. So this record quotes the shape and never a duration.
 
 ### This record's probe
 
@@ -99,7 +99,7 @@ A throwaway Java program outside the repository, on the bundled SQLite of sqlite
 **A statement is counted where SQLite calls back during it and its total is cheap; every other statement in scope is timed.**
 
 - **Its total is cheap** where SQLite answers it before the statement without going through the rows: the table's `MAX(rowid)` for a build of an index over the whole table (ADR-182 §2.4, ADR-187 §3), or the span of one run's rowids, asked as two statements (ADR-191 §2), for a read that goes through every row the run holds in one table, **through an index on `run_id` alone, with no temp B-tree in its plan**. The first condition is what makes the span two descents (Measurements); the second is what makes the steps a row the same for every row, so that a count of steps is a count of rows.
-- **A statement SQLite never calls back during is not counted**, whatever its total. Stage 2's drop is the one in scope: ADR-187's two lines, and nothing between (the operator's decision 2).
+- **A statement SQLite never calls back during is not counted**, whatever its total. Stage 2's drop is the one in scope: ADR-187's two lines, and nothing between (*Points settled*, point 2).
 - **Every other statement in scope is timed**: one line before, one after with its duration. That includes a read whose plan sorts in a temp B-tree, whose steps come in two loops with a sort between that gives no callback, and a read through an index with columns after `run_id`, whose span costs as much as the read. Neither has a cheap total by this rule.
 - **A statement whose cost does not grow with a table is not in scope**: a lookup of one row by its key, the two statements of a bound, an `exists` check. ADR-187 §1's own test, *"a statement whose cost grows with a table"*.
 - **A capability call that is one or more statements and nothing else** — no loop of its own, no file, no call to a model — is timed as one by `pipeline`, which makes the call, and gets no overload. `SynthesisDocs.forRun` (two reads), `RelevanceDistribution.spreadOf` (two reads and arithmetic) and `BoilerplateShingles.resolve` (a one-row lookup and the frequency read) are the three such calls of more than one statement.
@@ -114,7 +114,7 @@ A throwaway Java program outside the repository, on the bundled SQLite of sqlite
 - **One helper for it, in `ledger`**: `ledger.StatementSteps`, a final class of static members, with `STEPS_PER_CALLBACK = 100_000` and one method, `<T> T counted(JdbcTemplate, LongConsumer stepsTaken, ConnectionCallback<T> statement)`, whose consumer is told the steps taken so far at each callback, a whole number of 100,000. It holds no total, no ratio, no label and no line. It is plumbing of the SQLite driver that every module issuing a counted statement needs, of the kind ADR-177 put in `ledger` as `LockedDatabaseFileTranslator`. **It is not the shared progress type ADR-192 §5 refused**: that was the shape a capability module reports a loop's total and items through, and each module still owns its own (§7). `ledger` is in no stage's implementation version (`StageModules`), so this class moves no run id. Four copies, one in each module that issues a counted statement, were the other way; they would have to be kept alike by four tests.
 - **`progress()` always returns 0, so the handler never ends a statement** (§8). An exception thrown by what it calls is caught inside it and dropped, so a line that cannot be written never stops a statement: a failure in the database is the step's to report, and a failure to log is not.
 - **Nothing called from the handler touches the database.** SQLite forbids using a connection from inside its own progress callback; writing a log line does not.
-- **Every 100,000 steps** is the interval the operator's probe measured, and a whole number of rows of no statement here: 9,090 rows of the 4b build at 11 steps a row. A statement of fewer steps gets no callback, and so its two lines and nothing between. Over 42,833,917 rows the build calls back about 4,700 times, each a call from SQLite into Java; §5 writes at most 100 lines of them.
+- **Every 100,000 steps** is the interval the two-disk probe measured, and a whole number of rows of no statement here: 9,090 rows of the 4b build at 11 steps a row. A statement of fewer steps gets no callback, and so its two lines and nothing between. Over 42,833,917 rows the build calls back about 4,700 times, each a call from SQLite into Java; §5 writes at most 100 lines of them.
 
 ### 3. Steps per row, and how a test pins them
 
@@ -122,7 +122,7 @@ A throwaway Java program outside the repository, on the bundled SQLite of sqlite
 
 | Counted statement | r | Where r is declared |
 |---|---:|---|
-| any `CREATE INDEX` over a whole table, of c columns | 8 + c | `pipeline.StartUpIndexAnnouncement` for start-up's, whose `INDEX_STATEMENT` pattern captures nothing after the table's name today and must also capture the parenthesised column list, as `StatementStepsPerRowTest.INDEX_STATEMENT` does, so that c is the count of its columns; `similarity.SimilarityStatement.SHINGLE_HASH_INDEX_BUILD` for 4b's, 11 |
+| any `CREATE INDEX` over a whole table, of c columns | 8 + c | `pipeline.StartUpIndexAnnouncement` for start-up's, whose `INDEX_STATEMENT` pattern must capture the parenthesised column list after the table's name, as `StatementStepsPerRowTest.INDEX_STATEMENT` does, so that c is the count of its columns; `similarity.SimilarityStatement.SHINGLE_HASH_INDEX_BUILD` for 4b's, 11 |
 | stage 3's shingle rows | 7 | `SimilarityStatement.SHINGLE_ROWS` |
 | 4b's signed occurrences | 5 | `SimilarityStatement.SIGNED_OCCURRENCES` |
 | `ConfidenceDistribution`'s extraction metrics | 7 | `extraction.ExtractionStatement.EXTRACTION_METRICS` |
@@ -167,9 +167,9 @@ A throwaway Java program outside the repository, on the bundled SQLite of sqlite
 Stage 4b (redundancy resolution) is building shingle_by_hash over up to <N> shingle rows before it reads it; that took 39 minutes for 42833917 rows on a USB spinning disk, and stopping before it ends undoes it
 ```
 
-*"On a large database this takes minutes"* understated the build of 2026-10-04 by a factor the operator could not have guessed, which is the treatment ADR-191 gave stage 3's line. `<N>` stays ungrouped, as in every line of ADR-187's family. The after-line, `... built shingle_by_hash in <S> s`, is unchanged.
+*"On a large database this takes minutes"* understated the measured run's build by a factor the operator could not have guessed, which is the treatment ADR-191 gave stage 3's line. `<N>` stays ungrouped, as in every line of ADR-187's family. The after-line, `... built shingle_by_hash in <S> s`, is unchanged.
 
-**When a build's rows are all gone through, one line says so, and nothing more is written until the after-line** (the operator's decision 7):
+**When a build's rows are all gone through, one line says so, and nothing more is written until the after-line** (*Points settled*, point 7):
 
 ```
 <label>: all <N> rows gone through; writing the index says nothing more until it ends
@@ -177,7 +177,7 @@ Stage 4b (redundancy resolution) is building shingle_by_hash over up to <N> shin
 
 - **When.** At the first callback where the rows reach `N − ⌈100,000 ÷ r⌉`: within the rows one callback covers. The steps after a build's last callback never make one more callback, so a count that waited for N exactly would almost never arrive (9,090 rows short of it at most, for 4b's build). The line takes the place of the progress line that callback would have written.
 - **Once**, and after it no progress line. A build whose rows never come within one callback of N — a table rows were deleted from, so that `MAX(rowid)` overstates it — never writes it, and its after-line follows its last progress line.
-- **Builds only.** A read has no silent end: its last callback is followed by its last rows and the after-line. The operator's decision was made for builds, and nothing here extends it.
+- **Builds only.** A read has no silent end: its last callback is followed by its last rows and the after-line. Point 7 of *Points settled* is for builds, and nothing here extends it.
 
 #### 4.3 A timed statement
 
@@ -198,7 +198,7 @@ Stage 4b (redundancy resolution) is building shingle_by_hash over up to <N> shin
 
 ### 6. The statements
 
-Every statement ADR-192 §7 left to #411, and the start-up builds of ADR-187, read off the code at `7b25d04`. "Span" is ADR-191 §2's two statements on the table and run named.
+Every statement ADR-192 §7 left to #411, and the start-up builds of ADR-187, read off the code. "Span" is ADR-191 §2's two statements on the table and run named.
 
 | Stage | Statement, where it is issued | Form | Total, and its source | r | `<what>` |
 |---|---|---|---|---:|---|
@@ -247,7 +247,7 @@ Every statement ADR-192 §7 left to #411, and the start-up builds of ADR-187, re
 - **6a and 6b's `<stage>`** is new wording, `Stage 6a (arrangement)` and `Stage 6b (generation)`, as ADR-192 §4's labels are.
 - **`<P> of <M>`** is ADR-192 §5's numbering of 5f's partitions.
 - **Outside the job's steps nothing is announced**: `NextAction`'s two `forRun` calls, in the line an invocation ends on, and `LabelIngestion`'s statements, under `vespera label`, which is not a stage. As in ADR-192 §7.
-- **A statement in no row here and in no list of ADR-192 is not covered by this record**, and the survey that made this table was of ADR-192 §7's list and #411's, not of every statement in `src/main`. `Ledger.survivorCount`, where it sizes a counter (`ByteLevelReductionTasklet`, `RedundancySignatureItemWriter`, and `UnrecordedOccurrences` when nothing is recorded yet, the last inside stage 2's timed count above), and `ExtractionFaults.occurrencesForRun`, in stage 2's reader before its first chunk (`ExtractionJobConfiguration`), are the ones found while making it. They are left to [#429](https://github.com/algernon28/vespera/issues/429) (What this does not decide).
+- **A statement in no row here and in no list of ADR-192 is not covered by this record**, and this table is of ADR-192 §7's list and #411's, not of every statement in `src/main`. `Ledger.survivorCount`, where it sizes a counter (`ByteLevelReductionTasklet`, `RedundancySignatureItemWriter`, and `UnrecordedOccurrences` when nothing is recorded yet, the last inside stage 2's timed count above), and `ExtractionFaults.occurrencesForRun`, in stage 2's reader before its first chunk (`ExtractionJobConfiguration`), are two such statements. They are left to [#429](https://github.com/algernon28/vespera/issues/429) (What this does not decide).
 
 ### 7. Who writes the line, and how it gets there
 
@@ -264,59 +264,59 @@ Every statement ADR-192 §7 left to #411, and the start-up builds of ADR-187, re
 
 ### 8. What a stop during a statement costs
 
-**The handler never stops a statement.** `progress()` returns 0 on every call, so SQLite never ends one early on its account, and this record gives the operator no way to stop a statement cleanly; that was never asked.
+**The handler never stops a statement.** `progress()` returns 0 on every call, so SQLite never ends one early on its account, and this record gives the operator no way to stop a statement cleanly.
 
 A stop is what it was before this record: the process ends. **A build's transaction is undone**, the index is not there, and the next invocation builds it again from its first row, with every line again (ADR-187 §1). **A read loses only the time spent**: nothing was written before it ended (ADR-191 §1). The handler holds nothing that outlives the process, and the database holds nothing of it. A statement that fails clears the handler in the `finally` before the step fails as it did.
 
 ### 9. Two parts, each landed on its own
 
-Each part compiles, passes and is gated alone, and leaves a green tree. Both land before the archive's next run (the operator's decision 6).
+Each part compiles, passes and is gated alone, and leaves a green tree. The archive is not run again until both have landed (*Points settled*, point 6).
 
 | Part | Statements | Modules | Run ids moved | Effort |
 |---|---|---|---|---|
 | (a) | the mechanism, `StatementProgress`, start-up's builds, 4b's build, stage 3's read, and stage 4's read of the boilerplate shingles | `ledger`, `similarity`, `pipeline` | stages 2 to 6b | medium: the mechanism and four statements, with the line formats as their spec |
 | (b) | every other statement of §6 | `corpus`, `extraction`, `similarity`, `embedding`, `synthesis`, `pipeline` | stages 1 to 6b | large in count, small each: most are two timed lines where `pipeline` already makes the call |
 
-**Part (b) owes one thing the table above does not show.** At `ExtractionItemProcessor.java` lines 157 and 158, the timed span for `the survivors still to read` covers the whole `UnrecordedOccurrences.countOver(…, extractionMetrics.occurrencesForRun(extractionRun))` expression, the read inside the argument included (§6). The boilerplate read, timed in `RedundancyBoilerplate`'s constructor under `Stage 4 (content redundancy)` with no change to `similarity`, landed with part (a) (§6).
+**Part (b) holds one thing the table above does not show.** At `ExtractionItemProcessor.java` lines 157 and 158, the timed span for `the survivors still to read` covers the whole `UnrecordedOccurrences.countOver(…, extractionMetrics.occurrencesForRun(extractionRun))` expression, the read inside the argument included (§6). The boilerplate read, timed in `RedundancyBoilerplate`'s constructor under `Stage 4 (content redundancy)` with no change to `similarity`, is part (a)'s (§6).
 
-**Which run ids move**, read off `StageModules`: `corpus` is stage 1's, and every later stage names its upstream run (ADR-048), so part (b) moves every run id from stage 1 on. `ledger` is in no stage's. **This adds no replay to the archive's next run**, which waits for this record and already re-mints stages 1 to 6b under ADR-192.
+**Which run ids move**, read off `StageModules`: `corpus` is stage 1's, and every later stage names its upstream run (ADR-048), so part (b) moves every run id from stage 1 on. `ledger` is in no stage's. **This adds no replay beyond ADR-192's**, which already re-mints stages 1 to 6b.
 
 ## Why this shape, and what the others cost
 
-- **A heartbeat on a timer.** Refused by the operator (decision 2), and by ADR-187 §1 before: it reports the clock, and it would go on if SQLite hung.
-- **The growth of the database file or its write-ahead log as the measure.** The ticket's third candidate. Not taken: the callback measures the statement itself, and file growth was never shown to track a build.
-- **Counting rows in Java, in a read's row callback.** Exact for a read, and ADR-191 named it. Not taken: the operator decided that X comes from the callback count through a pinned ratio (decision 1), and one mechanism for builds and reads is one thing to test. It would give a build nothing, since a build returns no row.
+- **A heartbeat on a timer.** Refused (*Points settled*, point 2), and by ADR-187 §1 before: it reports the clock, and it would go on if SQLite hung.
+- **The growth of the database file or its write-ahead log as the measure.** Not taken: the callback measures the statement itself, and file growth was never shown to track a build.
+- **Counting rows in Java, in a read's row callback.** Exact for a read, and ADR-191 named it. Not taken: X comes from the callback count through a pinned ratio (*Points settled*, point 1), and one mechanism for builds and reads is one thing to test. It would give a build nothing, since a build returns no row.
 - **The handler set by `pipeline` on the transaction's connection, around a capability call**, so that no capability module names SQLite. Not taken: it counts every statement of the call, not the one announced, and the build runs outside any transaction (ADR-182 §2.3), so it would need one opened for it. And it depends on the call's statements finding the transaction's connection, which the test profile's pool of one cannot tell from a second connection.
 - **`StatementSteps` copied into each module.** Four copies of one finally block, each with a test, against one class in the module ADR-177 already gave the driver's plumbing to.
 - **A cheap total from an index with columns after `run_id`.** It is not cheap (Measurements). An index on `run_id` alone on `signature_band`, `shingle_document_frequency` or `call_exemplar` would make it cheap; that is a schema change this record does not make (What this does not decide).
-- **Counting sorted reads through both of their loops.** Their steps fall in two loops with SQLite's sort between, which gives no callback; the operator's decision 7 announces that kind of silence for a build, and extending it to reads would be this record's own decision. Each sorted read here goes through one run's rows of a table of one row an occurrence, a cluster or a seed, and takes fewer than 100,000 steps on the figures of 2026-10-04 (4,275 survivors at 15 steps a row is 64,125), so it would write no progress line on the archive in any case.
-- **Aborting a statement from the handler on a stop.** Not asked, and it would leave a build to undo and a read to repeat, which a stop already does.
+- **Counting sorted reads through both of their loops.** Their steps fall in two loops with SQLite's sort between, which gives no callback; point 7 of *Points settled* announces that kind of silence for a build, and extending it to reads would be this record's own decision. Each sorted read here goes through one run's rows of a table of one row an occurrence, a cluster or a seed, and takes fewer than 100,000 steps on the measured run's figures (4,275 survivors at 15 steps a row is 64,125), so it would write no progress line on the archive in any case.
+- **Aborting a statement from the handler on a stop.** Not taken: it would leave a build to undo and a read to repeat, which a stop already does.
 
 ## Consequences
 
 - **Production code changes in six modules** (§9); `profile` is not touched. **No schema version moves** (ADR-059).
 - **Lines change by addition, with three exceptions**: stage 4b's line before its build is reworded (§4.2); stage 3's reading line is written from the callback, after the drain of stage 2's survivors rather than before it; and timed statements add two lines each where a step issues one, so 5f writes four more lines for each partition. Every counted statement writes at most 100 progress lines (§5).
-- **A counted statement costs SQLite one call into Java every 100,000 steps**, about 4,700 for the build of 2026-10-04, and two bound statements of about 20 steps each before a counted read.
+- **A counted statement costs SQLite one call into Java every 100,000 steps**, about 4,700 for the measured run's build, and two bound statements of about 20 steps each before a counted read.
 - **A counted read whose condition removes rows lags**: its X falls behind the rows gone through (§3). `loadSignedOccurrenceIds` and the 5b reads have no such condition; stage 3's survivor filter and `ConfidenceDistribution`'s are in Java, after the row is returned, so they do not lag.
-- **The archive's next run waits for both parts** (the operator's decision 6).
+- **The archive is not run again until both parts have landed** (*Points settled*, point 6).
 - **`AGENTS.md`, `CONTEXT.md` and `README.md` need no new term or claim.** #411 is not a defect, so `AGENTS.md`'s paragraph of closed defects does not change.
 
 ## Tests
 
-**Where the tests are, and why**, as in ADR-192: a test that names a type or method this record adds would stop the whole test tree compiling until its part lands, so it is kept as a complete file at `docs/adr/0193/tests/<part>/` followed by the path it takes in the repository (`src/test/java/…`), and `spec-implementer` moves it into `src/test` with its part. `docs/` is not compiled, and `docs/check-claims.mjs` reads only the top level of `docs/adr`. **Both parts have landed**, and every test that was parked is in `src/test`; nothing remains under `docs/adr/0193/tests/` (note corrected with [#411](https://github.com/algernon28/vespera/issues/411), when part (b) landed).
+**Where the tests are, and why**, as in ADR-192: a test that names a type or method this record adds would stop the whole test tree compiling until its part lands, so it is kept as a complete file at `docs/adr/0193/tests/<part>/` followed by the path it takes in the repository (`src/test/java/…`), and `spec-implementer` moves it into `src/test` with its part. `docs/` is not compiled, and `docs/check-claims.mjs` reads only the top level of `docs/adr`.
 
-| Part | Test | Where | State on this branch | Pins |
-|---|---|---|---|---|
-| — | `pipeline.StatementStepsPerRowTest` | `src/test` | green | r for every `CREATE INDEX` in `schema.sql` (8 + c), and since ADR-221, in a test of its own, 12 for a row of the run `shingle_by_hash` is built for and 3 for a row of another run, where it held 8 + c for that index too (corrected for [#468](https://github.com/algernon28/vespera/issues/468)); r for each counted read of §3; each counted read's plan, through an index on `run_id` alone and no temp B-tree; each sorting read of §6 through a temp B-tree; the bound costing the same at two sizes on the four tables §1 counts and growing with the run on the three it does not; the drop's steps the same at two sizes and fewer than one callback |
-| — | `ledger.ProgressHandlerOnAPooledConnectionTest` | `src/test` | green | HikariCP's connection refused by `setHandler` and `clearHandler`, accepted unwrapped; a handler not cleared called for the next borrower; cleared, not called; whether one is set read back |
-| (a) | `pipeline.StatementProgressInvocationTest` | `src/test` | green since part (a) | a whole job over a corpus of about 60,000 shingle rows: 4b's reworded line; progress lines over `MAX(rowid)`, rising, under 100% and at most 100; the line that the rows are gone through, once, after the last progress line and before the built line; stage 3's progress lines between ADR-191's two; the pool's connection carrying no handler after the invocation, though one was set; a stage 2 under a new run writing nothing between the drop's two lines |
-| (a) | `pipeline.StatementProgressInvocationTest`, the same whole job with stage 4's gate open | `src/test` | green since part (a) | `Stage 4 (content redundancy) is reading the boilerplate shingles` once, then `Stage 4 (content redundancy) read the boilerplate shingles in <S> s` once after it, both before `Stage 4b (redundancy resolution) finished` |
-| (a) | `pipeline.StartUpSaysWhichIndexItBuildsTest`, its new fourth test, over 50,000 shingle rows written before the start | `src/test` | green since part (a) | start-up's progress lines for `shingle_by_run_id`, labelled `Start-up (building index shingle_by_run_id)`, between ADR-187's two lines, rising, under 100% and at most 100; the line that the rows are gone through, once, after the last progress line and before the built line; no handler left on the connection. Its first three tests are unchanged and stay green over the larger table |
-| (a) | `ledger.StatementStepsTest` | `src/test` | green since part (a) | the handler cleared after the statement and after one that throws, on a pool of two outside a transaction; steps reported in multiples of 100,000; the statement run on the connection the handler is on; a consumer that throws not stopping the statement |
-| (a) | `pipeline.StatementProgressTest` | `src/test` | green since part (a) | the line `about X% of N rows`; the cadence over a small and a very large N, and 42,833,917 rows at 11 a row writing at most 100 lines; a build's gone-through line once, at `N − ⌈100,000 ÷ r⌉`, and nothing after it; a read capped at 100% and with no such line; nothing over N of zero |
-| (b) | `pipeline.StatementStepsPerRowAreTheDeclaredOnesTest` | `src/test` | green since part (b) | each declared r equal to the one `StatementStepsPerRowTest` measures, and each timed statement declaring none; since ADR-221 the r held for stage 4b's build is the 12 of a row of its run, the most a row takes (corrected for [#468](https://github.com/algernon28/vespera/issues/468)) |
+| Part | Test | Where | Pins |
+|---|---|---|---|
+| — | `pipeline.StatementStepsPerRowTest` | `src/test` | r for every `CREATE INDEX` in `schema.sql` (8 + c), and since ADR-221, in a test of its own, 12 for a row of the run `shingle_by_hash` is built for and 3 for a row of another run, where it held 8 + c for that index too ([#468](https://github.com/algernon28/vespera/issues/468)); r for each counted read of §3; each counted read's plan, through an index on `run_id` alone and no temp B-tree; each sorting read of §6 through a temp B-tree; the bound costing the same at two sizes on the four tables §1 counts and growing with the run on the three it does not; the drop's steps the same at two sizes and fewer than one callback |
+| — | `ledger.ProgressHandlerOnAPooledConnectionTest` | `src/test` | HikariCP's connection refused by `setHandler` and `clearHandler`, accepted unwrapped; a handler not cleared called for the next borrower; cleared, not called; whether one is set read back |
+| (a) | `pipeline.StatementProgressInvocationTest` | `src/test` | a whole job over a corpus of about 60,000 shingle rows: 4b's reworded line; progress lines over `MAX(rowid)`, rising, under 100% and at most 100; the line that the rows are gone through, once, after the last progress line and before the built line; stage 3's progress lines between ADR-191's two; the pool's connection carrying no handler after the invocation, though one was set; a stage 2 under a new run writing nothing between the drop's two lines |
+| (a) | `pipeline.StatementProgressInvocationTest`, the same whole job with stage 4's gate open | `src/test` | `Stage 4 (content redundancy) is reading the boilerplate shingles` once, then `Stage 4 (content redundancy) read the boilerplate shingles in <S> s` once after it, both before `Stage 4b (redundancy resolution) finished` |
+| (a) | `pipeline.StartUpSaysWhichIndexItBuildsTest`, its new fourth test, over 50,000 shingle rows written before the start | `src/test` | start-up's progress lines for `shingle_by_run_id`, labelled `Start-up (building index shingle_by_run_id)`, between ADR-187's two lines, rising, under 100% and at most 100; the line that the rows are gone through, once, after the last progress line and before the built line; no handler left on the connection. Its first three tests are unchanged and hold over the larger table |
+| (a) | `ledger.StatementStepsTest` | `src/test` | the handler cleared after the statement and after one that throws, on a pool of two outside a transaction; steps reported in multiples of 100,000; the statement run on the connection the handler is on; a consumer that throws not stopping the statement |
+| (a) | `pipeline.StatementProgressTest` | `src/test` | the line `about X% of N rows`; the cadence over a small and a very large N, and 42,833,917 rows at 11 a row writing at most 100 lines; a build's gone-through line once, at `N − ⌈100,000 ÷ r⌉`, and nothing after it; a read capped at 100% and with no such line; nothing over N of zero |
+| (b) | `pipeline.StatementStepsPerRowAreTheDeclaredOnesTest` | `src/test` | each declared r equal to the one `StatementStepsPerRowTest` measures, and each timed statement declaring none; since ADR-221 the r held for stage 4b's build is the 12 of a row of its run, the most a row takes ([#468](https://github.com/algernon28/vespera/issues/468)) |
 
-**Owed with part (b), not written here, and written since** (note corrected with [#411](https://github.com/algernon28/vespera/issues/411); [ADR-204](0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md)'s Tests say where each went, and ADR-200 withdrew stage 1's and `corpus`'s): a claim in each existing whole-job test of the stage concerned that its timed and counted statements write §4's two lines, once each, in the order the step issues them — `StageOneReportsItsLoopsInvocationTest`, `RedundancyResolutionReportsItsProgressInvocationTest`, `StageFiveReportsItsProgressInvocationTest`, `GenerationReportsItsProgressInvocationTest`, and the 5b and review-list tests — and a contract test in each of the five modules that its callbacks come in §7's order on every path. Those depend on the shape `spec-implementer` gives each method, and §6's table is their spec.
+**Part (b)'s tests, not written here** ([ADR-204](0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md)'s Tests say where each is, and ADR-200 withdrew stage 1's and `corpus`'s): a claim in each existing whole-job test of the stage concerned that its timed and counted statements write §4's two lines, once each, in the order the step issues them — `StageOneReportsItsLoopsInvocationTest`, `RedundancyResolutionReportsItsProgressInvocationTest`, `StageFiveReportsItsProgressInvocationTest`, `GenerationReportsItsProgressInvocationTest`, and the 5b and review-list tests — and a contract test in each of the five modules that its callbacks come in §7's order on every path. Those depend on the shape `spec-implementer` gives each method, and §6's table is their spec.
 
 **Not pinned, and why:**
 
@@ -327,13 +327,13 @@ Each part compiles, passes and is gated alone, and leaves a green tree. Both lan
 ## Not known
 
 - **How long the silent end of the archive's build will be.** The probe's file was new and in order; the archive's is neither. 43% of the build was the share on `H:` in the probe.
-- **How the 26 minutes 40 seconds of 4b's resolution divide** between its statements, its loops and its writes. The next run's lines will say.
-- **Whether the steps a row hold for a database much larger than the probe's**: the operator's probe found the same 90 a million at 5,000,000 and 20,000,000 rows for one build; nothing else was measured above 90,000 rows.
+- **How the 26 minutes 40 seconds of 4b's resolution divide** between its statements, its loops and its writes. A run's lines will say.
+- **Whether the steps a row hold for a database much larger than the probe's**: the two-disk probe found the same 90 a million at 5,000,000 and 20,000,000 rows for one build; nothing else was measured above 90,000 rows.
 - **How long a callback costs on `H:`**: about 4,700 calls from SQLite into Java over the archive's build, each a few microseconds on the probe's machine; not measured there.
 
 ## What this does not decide
 
-- **Shortening a build or a read on a spinning disk.** The operator split it into a ticket of its own (decision 5).
+- **Shortening a build or a read on a spinning disk.** It is a ticket of its own (*Points settled*, point 5).
 - **An index on `run_id` alone for `signature_band`, `shingle_document_frequency` and `call_exemplar`**, which would give their reads a cheap total and make them counted. A schema change, with its own build at start-up.
-- **Statements no list named**: `Ledger.survivorCount` and `ExtractionFaults.occurrencesForRun`, left to [#429](https://github.com/algernon28/vespera/issues/429), and any other statement in `src/main` this survey did not reach (§6).
+- **Statements no list named**: `Ledger.survivorCount` and `ExtractionFaults.occurrencesForRun`, left to [#429](https://github.com/algernon28/vespera/issues/429), and any other statement in `src/main` §6's table does not name.
 - **A clean stop during a statement** (§8).

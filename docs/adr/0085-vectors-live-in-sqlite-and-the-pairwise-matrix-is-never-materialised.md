@@ -8,7 +8,7 @@
 
 ## Context
 
-The stage-4 retrospective ([#65](https://github.com/algernon28/vespera/issues/65)) recorded the reason this decision is taken in advance rather than reviewed afterwards: **fixture-scale tests cannot see a scale defect**. Stage 4's first implementation passed every test while holding the entire shingle corpus in a `HashMap`, and only reading the code caught it. Stage 5 embeds every survivor and computes N²/2 distances per partition, so the same mistake here is larger and less visible.
+The stage-4 retrospective ([#65](https://github.com/algernon28/vespera/issues/65)) recorded the reason this decision is taken in advance rather than reviewed afterwards: **fixture-scale tests cannot see a scale defect**. Stage 4's first implementation passed every test while holding the entire shingle corpus in a `HashMap`. Stage 5 embeds every survivor and computes N²/2 distances per partition, so the same mistake here is larger and less visible.
 
 [ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md) settled what a vector *is*. This settles where it lives and what is held while it is used.
 
@@ -92,7 +92,7 @@ Resident cost for clustering is then the partition's vectors alone: *document co
 
 ADR-045 names the "seed owns 60%" alarm. Because the matrix is never materialised, there is nothing to refuse at: a dominant partition costs resident vectors that scale linearly and a pair count that parallelises across cores, so the outcome is minutes and a number in a report rather than a wall.
 
-Refusing would make stage 5 halt over a *measurement*, which is the argument ADR-083 lost and then won, and it would suppress exactly the fact the operator needs: `CONTEXT.md` says a partition's size "is also a statement about the seed that owns it".
+Refusing would make stage 5 halt over a *measurement*, which is the argument ADR-083 settles, and it would suppress exactly the fact the operator needs: `CONTEXT.md` says a partition's size "is also a statement about the seed that owns it".
 
 ## Consequences
 

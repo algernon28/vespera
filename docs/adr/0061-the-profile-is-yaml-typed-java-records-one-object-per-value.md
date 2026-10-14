@@ -5,9 +5,9 @@
 
 ## Context
 
-ADR-043 makes the profile a file — authored by a person, mutable, per-corpus, drafted by census with thresholds unset, snapshotted into the ledger per run with provenance — but never says what kind of file. ADR-054 (ticket #11) already named it `profile.yaml`, committing to YAML and settling its location; this decision fills in what ADR-054 left open: the per-value structure and how safely it can be authored and read.
+ADR-043 makes the profile a file — authored by a person, mutable, per-corpus, drafted by census with thresholds unset, snapshotted into the ledger per run with provenance — but never says what kind of file. ADR-054 already named it `profile.yaml`, committing to YAML and settling its location; this decision fills in what ADR-054 left open: the per-value structure and how safely it can be authored and read.
 
-Requirements, from `CONTEXT.md` and ADR-006 ("observe before enforce"): each value carries the value itself, its provenance (human-calibrated / carried-over / auto-derived), and a pointer to the measurement that should inform it. A null threshold must be distinguishable from one deliberately set to zero, and — the ticket's own risk — a null must not be typo-able into a string that silently reads as "set."
+Requirements, from `CONTEXT.md` and ADR-006 ("observe before enforce"): each value carries the value itself, its provenance (human-calibrated / carried-over / auto-derived), and a pointer to the measurement that should inform it. A null threshold must be distinguishable from one deliberately set to zero, and a null must not be typo-able into a string that silently reads as "set."
 
 ## Decision
 

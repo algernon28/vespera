@@ -17,23 +17,23 @@
 
 ### What happened
 
-On 2026-09-28, two invocations ran against the same working directory, `H:\Working docs corpora\Vespera_working_dir`:
+Two invocations ran against the same working directory:
 
-| Time | Invocation | What it did |
+| Order | Invocation | What it did |
 |---|---|---|
-| 22:31:51 | `java -jar vespera-00287c4.jar run …` (PID 45916) | Walked, then entered stage 2 and began `Shingler.discardForRun` (about 3 minutes of deletes) |
-| 22:38:44 | IntelliJ "Local SpringApp" (PID 14236) | Started, walked the same root, and began stage 0 on the same `vespera.db` |
-| 22:39:36 | PID 45916 | Stage 2 failed, and the invocation ended |
+| 1 | The packaged jar, `run …` | Walked, then entered stage 2 and began `Shingler.discardForRun` (about 3 minutes of deletes) |
+| 2 | An IntelliJ run configuration | Started, walked the same root, and began stage 0 on the same `vespera.db` |
+| 3 | The packaged jar | Stage 2 failed, and the invocation ended |
 
 The first invocation's closing line named an `INSERT INTO extraction_metric` statement and `[SQLITE_BUSY] The database file is locked (database is locked)`, then said "Fix what that names -- if docling-serve stopped answering, bring it back -- and run the same command again." Nothing in it said that a second Vespera invocation was the cause, nothing said which database file, and the advice pointed at the sidecar. Nothing stopped the second invocation from starting.
 
-Earlier the same day, an IntelliJ run that had not loaded `.env` opened the old `<repo>/.vespera/vespera.db` instead of the archive's, and stopped with "module extraction expects schema version 5, but the database records version 4". The line named no file, so it read as a fault in the archive's database.
+An IntelliJ run that had not loaded `.env` opened the old `<repo>/.vespera/vespera.db` instead of the archive's, and stopped with "module extraction expects schema version 5, but the database records version 4". The line named no file, so it read as a fault in the archive's database.
 
-That run was under the rollback journal. ADR-180 has since moved the shipped datasource to SQLite's write-ahead log, which changes what a collision looks like but not whether it happens (§3).
+The collision above was under the rollback journal. The shipped datasource uses SQLite's write-ahead log (ADR-180), which changes what a collision looks like but not whether it happens (§3).
 
 ### What was measured
 
-All on 2026-10-03, on Windows 11 Pro 26200, JDK 26.0.2.1, an NTFS volume on the solid-state `C:`, with throwaway probes outside the repository. A holder process took a lock with `FileChannel.tryLock(position, 1, false)` on a file named `vespera.lock`, wrote one line, and slept. A second JVM probed it.
+All on Windows 11 Pro 26200, JDK 26.0.2.1, an NTFS volume on the solid-state `C:`, with throwaway probes outside the repository. A holder process took a lock with `FileChannel.tryLock(position, 1, false)` on a file named `vespera.lock`, wrote one line, and slept. A second JVM probed it.
 
 **The operating-system lock, between processes:**
 
@@ -85,7 +85,7 @@ It is printed by a `SpringBootExceptionReporter`, `WorkingDirectoryInUseRefusal`
 
 **One directory, named two ways, is still one lock.** The lock belongs to the file the operating system opened, not to the path that named it. A second spelling of the same directory was refused (measured above). The same holds for `--db-dir=<path>` and `vespera.working-dir` naming one directory differently.
 
-**Who it covers.** Everything that starts through `VesperaApplication.main`: the packaged jar, and the IDE's run configuration, which was the second invocation on 2026-09-28. A test context built by Spring's test support does not go through `main` and takes no lock, so tests that share a working directory are unaffected.
+**Who it covers.** Everything that starts through `VesperaApplication.main`: the packaged jar, and the IDE's run configuration, which was the second invocation in Context. A test context built by Spring's test support does not go through `main` and takes no lock, so tests that share a working directory are unaffected.
 
 ### 2. A locked database file says which file, and that another process holds it
 
@@ -122,7 +122,7 @@ An in-memory database reports no file, and is named `an in-memory database` in p
 
 ### 3. The busy timeout and the write-ahead log stay as ADR-127 and ADR-180 set them
 
-Under the shipped URL, a second invocation on the same database file no longer fails the way it did on 2026-09-28. It does one of two things, depending on the moment:
+Under the shipped URL, a second invocation on the same database file does not fail the way the collision in Context did. It does one of two things, depending on the moment:
 
 - **It waits, then writes between the other's commits.** A writer that finds the write lock taken waits out the busy timeout (cases A and E). Each stage commits per chunk, so the five-minute wait almost always ends at the other invocation's next commit. Then both invocations write the same database file, interleaved, with no error at all. The ledger would hold two invocations' walks and runs at once, and `SchemaVersionGuard`'s read-then-insert would race. Nothing would say so.
 - **It fails at once.** A transaction that has read, and then writes after the other invocation committed, gets `SQLITE_BUSY_SNAPSHOT` immediately (case B), and the busy timeout is never consulted. Stage 2's chunk reads the extraction cache before it writes, which is this shape.

@@ -3,23 +3,23 @@
 - **Date**: 2026-10-09
 - **Status**: accepted
 - **Keeps**: [ADR-134](0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md) as written, its reopen trigger included (§2); [ADR-137](0137-a-destinations-ampersand-is-percent-encoded-and-the-destination-is-a-fifth-surrounding.md) §4 (five surroundings, and what a surrounding answers to decides the form of its rule); [ADR-138](0138-a-bracket-is-escaped-in-every-surrounding-a-value-is-read-in-and-the-link-text-stops-being-a-rule-of-its-own.md) §5 and its table, whose Rule column names the methods as they stood when it was written (§2); [ADR-133](0133-the-exemplars-one-call-sent-are-recorded-and-a-cluster-file-numbers-its-membership-from-that-record.md) (membership numbering); [ADR-149](0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md) §3 and §5 (a picture's file is named from its own bytes; alt text is folded, then escaped by the membership entry's rule); [ADR-174](0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md) (`ClusterSlot` as the key a caller outside `synthesis` names a cluster by); [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md) (`synthesis` reads neither `profile` nor `pipeline`).
-- **Rests on**: [ADR-130](0130-one-report-page-module-owns-the-skeleton-styling-escaping-and-tables.md) (a second *copy* of a rule is the defect, a second *rule* is not); [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) (which run ids a change to a module moves); the code at `4b99a03`, read and measured for this record; and the tests that ship with it, written before anything in `src/main` changed.
+- **Rests on**: [ADR-130](0130-one-report-page-module-owns-the-skeleton-styling-escaping-and-tables.md) (a second *copy* of a rule is the defect, a second *rule* is not); [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) (which run ids a change to a module moves); the code before this change, read and measured; and the tests that ship with it.
 - **Settles** [#351](https://github.com/algernon28/vespera/issues/351), Wave 5 of the architecture simplification.
 
 ## Context
 
-**Measured at `4b99a03`.** `synthesis/Deliverable.java` is 1,271 lines, 525 of them comment, and the largest class in the tree. It carries nine seams: the orchestration, the index page, the cluster page, membership numbering (ADR-133), citation links (ADR-109), pictures (ADR-149, ADR-150), link destinations (ADR-135, ADR-137), the CSV manifest (ADR-104), and the Markdown surroundings (ADR-134, ADR-136, ADR-138, ADR-148). Every rendering defect since #236 landed in this one file, and each seam's rule can be tested only through the whole tree.
+**Measured before this change.** `synthesis/Deliverable.java` is 1,271 lines, 525 of them comment, and the largest class in the tree. It carries nine seams: the orchestration, the index page, the cluster page, membership numbering (ADR-133), citation links (ADR-109), pictures (ADR-149, ADR-150), link destinations (ADR-135, ADR-137), the CSV manifest (ADR-104), and the Markdown surroundings (ADR-134, ADR-136, ADR-138, ADR-148). Every rendering defect since #236 landed in this one file, and each seam's rule can be tested only through the whole tree.
 
 Four things are written more than once in `synthesis`:
 
-| What | Where, at `4b99a03` |
+| What | Where, before this change |
 | --- | --- |
 | The citation pattern `\[(\d+)\]` | `ClusterSynthesis.java:158` (the range check) and `Deliverable.java:110` (the link rewrite) |
 | A path's filename stem | `ClusterLabel.filenameStemOf` (`:62`, the label's second tier) and `Deliverable.stemOf` (`:1128`, the partition directory and the picture directory) |
 | A record of exactly (winning seed, cluster ordinal) | the public `ClusterSlot`, and two private `ClusterKey` records, in `Deliverable` (`:1265`) and in `SynthesisDocs` (`:133`). A third, in `pipeline`'s `GenerationTasklet` (`:768`), is outside `synthesis` |
 | A picture's SHA-256 | taken in the first pass (`Deliverable.java:294`), then again in the second for the furniture check (`:882`) and again for the file name (`:854`): three digests for a picture that is shown, two for one left out or past the budget |
 
-The issue's note that ADR-151 made 6b hash each survivor's file once, in `GenerationTasklet.hashOf`, does not bear on the last row. That hash was of a survivor's file, never of a picture, and `hashOf` no longer exists: ADR-206 replaced it with the key stage 2 records.
+ADR-151 made 6b hash each survivor's file once, in `GenerationTasklet.hashOf`, and that does not bear on the last row. That hash was of a survivor's file, never of a picture, and `hashOf` no longer exists: ADR-206 replaced it with the key stage 2 records.
 
 No test held ADR-134's reopen trigger. It was a sentence, checked by whoever read it.
 
@@ -54,7 +54,7 @@ The two other rows of that table are `ArchiveLink` (the destination) and `Manife
 
 **`ATX_HEADING` and `MEMBERSHIP_ENTRY` stay two constants**, although they escape the same characters. ADR-138 §5 records that convergence as a result, not a merger, and they still differ: one folds and the other does not.
 
-**A picture's alt text is not a fourth constant.** ADR-149 §5 says it is the membership entry's surrounding, folded first, so `EntryPictures` writes `MEMBERSHIP_ENTRY.escape(MarkdownSurroundings.onOneLine(caption))`. That is byte for byte what `Deliverable` writes today.
+**A picture's alt text is not a fourth constant.** ADR-149 §5 says it is the membership entry's surrounding, folded first, so `EntryPictures` writes `MEMBERSHIP_ENTRY.escape(MarkdownSurroundings.onOneLine(caption))`. That is byte for byte what `Deliverable` wrote before this change.
 
 **The index's link text is `TABLE_CELL`**, as ADR-138 left it when it stopped being a rule of its own.
 
@@ -90,18 +90,18 @@ No test holds this. Nothing the tree contains shows how many digests were taken.
 
 ### 6. What does not move
 
-- **The deliverable is byte-identical**: every page, the index, the manifest, and every picture's path and bytes. `DeliverableTest`, `ClusterFileTest` and `DeliverablePicturesTest` pass unedited. The new unit tests take their expected values from what `Deliverable` wrote at `4b99a03`.
+- **The deliverable is byte-identical**: every page, the index, the manifest, and every picture's path and bytes. `DeliverableTest`, `ClusterFileTest` and `DeliverablePicturesTest` pass unedited. The new unit tests take their expected values from what `Deliverable` wrote before this change.
 - **No cache key, schema, or persisted name moves.**
 - **Run ids move for 6a and 6b only**, because the change is confined to `synthesis`. Stage 6a's moves because `ClusterLabel` calls `FilenameStem`, and both stages name `synthesis` in their identity anyway.
 - **`synthesis` still reads neither `profile` nor `pipeline`** (ADR-110).
 
-**One order did move, where the writer stops.** `Deliverable.writeTo` composes `IndexPage.contents` before it announces a total or writes a partition directory or a page, so a partition whose seed no survivor names stops it with the tree's own directory made, the first picture pass done and nothing else written or announced, where at `4b99a03` the same `IllegalArgumentException`, with the same message, was thrown inside the loop over partitions, after the three totals had been announced and every earlier partition's directory and pages had been written.
+**One order did move, where the writer stops.** `Deliverable.writeTo` composes `IndexPage.contents` before it announces a total or writes a partition directory or a page, so a partition whose seed no survivor names stops it with the tree's own directory made, the first picture pass done and nothing else written or announced, where before this change the same `IllegalArgumentException`, with the same message, was thrown inside the loop over partitions, after the three totals had been announced and every earlier partition's directory and pages had been written.
 
 ### 7. The measured size
 
-Before, at `4b99a03`: `Deliverable.java` 1,271 lines, and `synthesis` 42 main files.
+Before this change: `Deliverable.java` 1,271 lines, and `synthesis` 42 main files.
 
-After, measured with `wc -l` over `src/main/java/io/algernon/vespera/synthesis` once the build was green: `Deliverable.java` 271 lines (from 1,271), and `synthesis` 50 main files. The collaborators:
+After, measured with `wc -l` over `src/main/java/io/algernon/vespera/synthesis`: `Deliverable.java` 271 lines (from 1,271), and `synthesis` 50 main files. The collaborators:
 
 | File | Lines |
 | --- | --- |
@@ -132,9 +132,9 @@ After, measured with `wc -l` over `src/main/java/io/algernon/vespera/synthesis` 
 | `synthesis.ClusterSlotTest` | the four `of` overloads agree for one cluster and tell two apart |
 | `DeliverableRulesHaveOneHomeTest` | ADR-134's trigger, in the five forms §2 lists; the destination's and the CSV's escapes in their one class each; one citation pattern; one filename stem; one record of the cluster key's shape |
 
-## What the commit that builds `src/main` owes
+## What the implementation owes
 
-The package-private signatures these tests compile against, all in `io.algernon.vespera.synthesis`:
+The implementation has the package-private signatures these tests compile against, all in `io.algernon.vespera.synthesis`:
 
 ```java
 enum MarkdownSurroundings {
@@ -187,7 +187,7 @@ public record ClusterSlot(OccurrenceId winningSeed, int clusterOrdinal) {
 }
 ```
 
-It also owes §7's figures, and the removal of `Deliverable.ClusterKey` and `SynthesisDocs.ClusterKey`. No `pipeline` source moves.
+The implementation removes `Deliverable.ClusterKey` and `SynthesisDocs.ClusterKey`. No `pipeline` source moves.
 
 ## What this does not decide
 

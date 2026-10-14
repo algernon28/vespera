@@ -6,7 +6,7 @@
 
 ## Context
 
-Found while writing the stage-5 hand-off spec ([#94](https://github.com/algernon28/vespera/issues/94) §13.1), which flagged it rather than assuming a fix, and raised as [#95](https://github.com/algernon28/vespera/issues/95). Nothing is broken today, because stage 5 has no code. This is a record defect being fixed before it becomes a data defect.
+The problem is [#95](https://github.com/algernon28/vespera/issues/95), set out in the stage-5 hand-off spec ([#94](https://github.com/algernon28/vespera/issues/94) §13.1). Nothing is broken, because stage 5 has no code. This is a record defect fixed before it becomes a data defect.
 
 ### What ADR-086 said, and why it does not hold
 
@@ -79,4 +79,4 @@ Carving the measurement run out so it could run ahead of stage 4 was considered 
 
 **Five gated invocations is a real onboarding story that nothing has written down end-to-end.** Step 2 above is the first place it becomes visible, and this ADR is not the place to fix it. Worth its own ticket: whether the sequence should be documented, reported at each stop, or reduced.
 
-**Nothing here changes any code that exists.** Stages 1 through 4 already satisfy the rule; ADR-086's run has never been minted. The amendment is to the record, ahead of the implementation that would otherwise have copied it.
+**Nothing here changes any code that exists.** Stages 1 through 4 already satisfy the rule, and stage 5, which mints ADR-086's run, has no code. The amendment is to the record, ahead of the implementation that would otherwise have copied it.

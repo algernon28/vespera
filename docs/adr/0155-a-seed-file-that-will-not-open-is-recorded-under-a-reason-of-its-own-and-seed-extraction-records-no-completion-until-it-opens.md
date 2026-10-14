@@ -2,9 +2,9 @@
 
 - **Date**: 2026-09-25
 - **Status**: accepted
-- **Extends**: [ADR-083](0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md) (the unusable seed) and [ADR-152](0152-a-survivor-whose-file-will-not-open-is-still-asked-about-without-its-opening-and-a-step-that-records-completion-stops-instead.md) §4, which left this case out of its scope and filed it separately. ADR-152 drew its line at whether a step records completion. This record applies that line to the one step before 5c that reads the archive.
+- **Extends**: [ADR-083](0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md) (the unusable seed) and [ADR-152](0152-a-survivor-whose-file-will-not-open-is-still-asked-about-without-its-opening-and-a-step-that-records-completion-stops-instead.md) §4, which left this case out of its scope. ADR-152 drew its line at whether a step records completion. This record applies that line to the one step before 5c that reads the archive.
 - **Keeps**: [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md) and ADR-083's gate (no usable seed means no run), [ADR-092](0092-the-seed-side-of-the-mismatch-comparison-is-measured-by-seed-extraction-under-the-measurement-run.md) (seed extraction writes the seed side's measurements under the measurement run), [ADR-115](0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md) and [ADR-116](0116-a-runs-completion-is-recorded-per-step-because-several-steps-share-one-run.md) (a finished step does no work, and an unfinished one discards its own rows and is continued under its own id), [ADR-132](0132-stage-5s-gate-preamble-is-one-seam-that-answers-open-or-shut-with-the-one-sentence.md) (one gate preamble, one sentence per gate), and [ADR-050](0050-the-pipeline-has-exclusive-access-to-the-corpus.md) (this is tolerance, not a promise of consistency against a live archive).
-- **Rests on**: a reading of `SeedExtractionItemProcessor`, `SeedExtractionItemWriter`, `SeedMeasurementRun`, `UsableSeedGate`, `StageFiveGates`, `SeedCorpusComparison` and `SeedCorpusComparisonReport` at commit `25eab18`. No real seed folder was run for this record. The invocation tests that ship with it are the execution.
+- **Rests on**: a reading of `SeedExtractionItemProcessor`, `SeedExtractionItemWriter`, `SeedMeasurementRun`, `UsableSeedGate`, `StageFiveGates`, `SeedCorpusComparison` and `SeedCorpusComparisonReport`, not a run over a real seed folder. The invocation tests that ship with it are the execution.
 - **Settles** [#291](https://github.com/algernon28/vespera/issues/291).
 
 ## Context
@@ -85,7 +85,7 @@ In the unfinished branch, the writer logs one warning after writing. It gives ho
 
 **Accepted edge.** If every seed that produced text on an earlier invocation cannot be opened on this one, ADR-083's gate shuts stage 5 for this invocation, even though seed extraction's rows under the run stand. Nothing is lost, and the next invocation in which a usable seed opens carries on. Telling this case apart would mean minting or looking up the run while no seed is known to be usable, which ADR-080 refuses.
 
-**What the implementation owes** (`spec-implementer`):
+**What the implementation owes**:
 
 - `SeedExtractionItemProcessor.doProcess` catches the `UncheckedIOException` from `extractor.contentHashFor(file)` and nothing else. It logs §4's per-seed warning and returns an outcome carrying §1's reason, with no measurement and without calling `SeedConversions.convert`.
 - `SeedExtractionOutcome` gains a way to carry that outcome: a factory for a seed whose file would not open, with the measurement absent, and a way to ask for it. The reason is held as one constant, like `UsableText.NO_ALPHANUMERIC_CONTENT`. Such an outcome is not `usable()`.

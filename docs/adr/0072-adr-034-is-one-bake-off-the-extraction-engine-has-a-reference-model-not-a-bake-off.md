@@ -17,7 +17,7 @@ ADR-034's own title is "Embedding model chosen by bake-off, not argument," and i
 
 Stage 2 needs to cite something for its engine selection, so the ambiguity had to be resolved before the stage-2 hand-off spec could be written (issue #41, on the stage-2 map, issue #38).
 
-**What the repo actually contains**, checked before deciding:
+**What the repo actually contains**:
 
 - **ADR-013 already chose the extraction engine, and explicitly not by bake-off**: "Chosen on friction; changeable without a new ADR." ADR-012 makes the serving runtime configuration rather than code, requires the extraction cache key to carry full extractor identity, and adds that "calibration must not cross engines."
 - **The `Extraction engine (bake-off reference)` row is the only assertion of an extraction-engine bake-off anywhere in the repository.** `docs/decision-ledger.md` — the provenance witness for every reconstituted ADR — has no such row; no ADR describes one; no other section of `architecture.md` mentions one.

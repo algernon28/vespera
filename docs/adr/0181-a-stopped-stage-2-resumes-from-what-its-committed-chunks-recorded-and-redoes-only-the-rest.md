@@ -17,13 +17,13 @@
 
 ### What happened
 
-On the whole-archive run of 2026-10-02/03, stage 2 had reached 7,280 of 10,406 survivors (70%) when the invocation had to be restarted at 22:57. The next invocation, at 09:09, began stage 2 from the first survivor again. No file went back to Docling, because the conversions are in the extraction cache, keyed outside the run (ADR-070). Everything stage 2 had written per occurrence was deleted and rebuilt: shingles, extraction metrics, verdicts and faults. Reaching 70% again took about 80 minutes, most of it spent inside SQLite, in each chunk's transaction. [ADR-180](0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md) measured where that time goes: on the scattered index pages `shingle_by_hash` makes each chunk change, not on the journal or the commit (its §6, carried by [#381](https://github.com/algernon28/vespera/issues/381)).
+On a whole-archive run, stage 2 had reached 7,280 of 10,406 survivors (70%) when the invocation had to be restarted. The next invocation began stage 2 from the first survivor again. No file went back to Docling, because the conversions are in the extraction cache, keyed outside the run (ADR-070). Everything stage 2 had written per occurrence was deleted and rebuilt: shingles, extraction metrics, verdicts and faults. Reaching 70% again took about 80 minutes, most of it spent inside SQLite, in each chunk's transaction. [ADR-180](0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md) measured where that time goes: on the scattered index pages `shingle_by_hash` makes each chunk change, not on the journal or the commit (its §6, carried by [#381](https://github.com/algernon28/vespera/issues/381)).
 
 That is ADR-115/ADR-116 working as written. A step whose completion is not recorded discards its own rows under its run and redoes the step, so that a resume can never mix two versions of a stage. On this run the run id, the code and the settings were all the same between the two invocations. Stage 2 paid for the whole replay and gained nothing from it.
 
 ### What stage 2 writes, and in which transaction
 
-Read off the code at `80d5277`, against `spring-batch-core` 6.0.5's `ChunkOrientedStep`.
+Read off the code, against `spring-batch-core` 6.0.5's `ChunkOrientedStep`.
 
 **One chunk is one transaction.** `doExecute` wraps each chunk in `transactionTemplate.executeWithoutResult`. Inside it, `processChunkSequentially` reads the chunk (`CHUNK_SIZE` = 16 calls to `ConversionDispatch.read`), processes every item, and writes the processed chunk. The transaction commits only after the writer returns. A skippable exception from the processor does not roll the chunk back: `processItem` catches it, `doSkipInProcess` drops the item, and the chunk goes on. Any other exception reaches `processChunkSequentially`'s `catch`, which marks the transaction rollback-only and fails the step. That includes a non-skippable one and the `ExtractorStoppedAnsweringException` ADR-071's breaker throws from its skip listener. So the chunk the step fails in leaves nothing behind, including the occurrences of that chunk that were processed cleanly before the failure.
 
@@ -32,7 +32,7 @@ Read off the code at `80d5277`, against `spring-batch-core` 6.0.5's `ChunkOrient
 | Table | Written by | When |
 |---|---|---|
 | `extraction_metric` | `ExtractionItemProcessor`, through `ExtractionMetrics.write` / `writeAndJudge` | every converted occurrence, every document-scope failure, every Docling-reported timeout below the streak |
-| `shingle` | `ExtractionItemProcessor`, through `Shingler.write` (JDBC batches since #367, on the same connection) | every converted occurrence, after its metric row |
+| `shingle` | `ExtractionItemProcessor`, through `Shingler.write` (JDBC batches, on the same connection) | every converted occurrence, after its metric row |
 | `verdict` (`EXTRACTION_FAILED`, `DEGENERATE_OUTPUT`) | `ExtractionItemWriter` | a document-scope failure, a timeout below the streak, an occurrence with no detected format (ADR-100), a converted occurrence the degeneracy floor removes |
 | `extraction_cache` | `PendingConversions.take` → `DoclingExtractor.remember` | every answered call that was not a cache hit. Keyed by content hash and extractor identity, not by the run |
 
@@ -128,7 +128,7 @@ This record decides stage 2 only. Each other step needs its own ticket, which re
 
 The two are complementary: ADR-180 makes the small commits of every other stage cheaper, and this record means fewer of stage 2's commits are done twice.
 
-**[#369](https://github.com/algernon28/vespera/issues/369) is compatible with this, and its premise becomes a decision rather than an observation.** Its plan says *"a stage-2 run that did not finish is discarded and redone as a whole … reading ahead of what was committed therefore changes no restart behaviour"*. The first half stops being true with this record, and the conclusion still holds for a stronger reason: the restart asks the ledger, so occurrences that were read ahead and never committed are simply unrecorded and are read again. Whoever implements #369 should cite this record in place of ADR-115's discard for that point. Its instruction to grep `ExecutionContext` under `src/main` remains a good check: at `80d5277` nothing restarts a step from one.
+**[#369](https://github.com/algernon28/vespera/issues/369) is compatible with this, and its premise becomes a decision rather than an observation.** Its plan says *"a stage-2 run that did not finish is discarded and redone as a whole … reading ahead of what was committed therefore changes no restart behaviour"*. The first half stops being true with this record, and the conclusion still holds for a stronger reason: the restart asks the ledger, so occurrences that were read ahead and never committed are simply unrecorded and are read again. Whoever implements #369 should cite this record in place of ADR-115's discard for that point. Its instruction to grep `ExecutionContext` under `src/main` remains a good check: nothing restarts a step from one.
 
 ## Consequences
 

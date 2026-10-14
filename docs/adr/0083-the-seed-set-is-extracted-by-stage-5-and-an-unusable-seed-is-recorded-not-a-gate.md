@@ -8,7 +8,7 @@
 
 ## Context
 
-[ADR-020](0020-relevance-scoring-function.md) scores a corpus document as the maximum, over **seed documents**, of the mean of its top-3 chunk similarities against that seed. Half of that comparison does not exist: [ADR-064](0064-the-walk-instrument-generalizes-a-seed-folder-is-walked-too.md) settled that census walks the seed folder and records its occurrences, but `ExtractionRun` resolves its walk with `finishedWalkFor(canonicalRoot)` — the corpus root — so **no seed document has ever been extracted, chunked or embedded**. [ADR-073](0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md) recorded the precondition this has to satisfy: the comparison needs the seed set extracted with the same instrument as the corpus.
+[ADR-020](0020-relevance-scoring-function.md) scores a corpus document as the maximum, over **seed documents**, of the mean of its top-3 chunk similarities against that seed. Half of that comparison does not exist: [ADR-064](0064-the-walk-instrument-generalizes-a-seed-folder-is-walked-too.md) settled that census walks the seed folder and records its occurrences, but `ExtractionRun` resolves its walk with `finishedWalkFor(canonicalRoot)` — the corpus root — so **no seed document is extracted, chunked or embedded**. [ADR-073](0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md) recorded the precondition this has to satisfy: the comparison needs the seed set extracted with the same instrument as the corpus.
 
 **A seed is not a corpus document, and the difference is what this decision turns on.** Every verdict in the closed vocabulary ([ADR-042](0042-ledger-owns-the-verdict-vocabulary-not-the-cascade.md)) exists to remove a document from publication. A seed is never published — it is the operator's statement of what relevance *means*, the sole carrier of domain knowledge in the system (`CONTEXT.md`). Removing one would silently redefine relevance for the whole archive.
 
@@ -33,7 +33,7 @@ The verdict vocabulary is closed and every kind in it is a reason to remove a do
 
 **An unreadable seed does not stop the run.** It is recorded, reported, and scoring goes ahead against the seeds that survive extraction.
 
-This was argued the other way first, and the argument was wrong. `CONTEXT.md` defines a gate as "a value the pipeline requires and does not have"; an unreadable seed is not a missing value — the seed folder is set, the walk finished, the occurrences exist. It is a measurement about the seed set, and measuring rather than refusing is this pipeline's posture everywhere else (ADR-006). Stopping here would make stage 5 the only stage that halts over the *quality* of content rather than the *absence* of an input.
+`CONTEXT.md` defines a gate as "a value the pipeline requires and does not have"; an unreadable seed is not a missing value — the seed folder is set, the walk finished, the occurrences exist. It is a measurement about the seed set, and measuring rather than refusing is this pipeline's posture everywhere else (ADR-006). Stopping here would make stage 5 the only stage that halts over the *quality* of content rather than the *absence* of an input.
 
 Two things make proceeding safe, and both already exist:
 

@@ -8,11 +8,9 @@
 - **Status**: accepted
 - **Extends**: [ADR-149](0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md) §9, and the rule `GenerationTasklet.openingChunkOf` states in its javadoc. A file the archive will not open is a fact about that document. It is not a fault in the run. This record applies that rule to stage 5's labelling page, and records where the rule stops.
 - **Keeps**: [ADR-050](0050-the-pipeline-has-exclusive-access-to-the-corpus.md) (the walk carries no concurrency defences), [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md) as amended by ADR-149 §10 (6b checks no original and records no verdict for a missing one), [ADR-133](0133-the-exemplars-one-call-sent-are-recorded-and-a-cluster-file-numbers-its-membership-from-that-record.md) (an exemplar 6b cannot reach is left out of the call, and the call's exemplars are recorded), [ADR-115](0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md) and [ADR-116](0116-a-runs-completion-is-recorded-per-step-because-several-steps-share-one-run.md) (a finished step does no work, and an unfinished one is continued under its own id), [ADR-118](0118-the-answers-a-person-gave-never-join-a-runs-identity-so-the-two-steps-that-read-them-record-no-completion.md) (the labelling step records no completion), and [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) (the stratified sample, drawn from the run id).
-- **Defers to**: [#287](https://github.com/algernon28/vespera/issues/287), being settled as ADR-151. Whether a survivor's extraction hash is recorded, so that nothing after stage 2 has to read the file to find it, is that ticket's question and not this one's.
-- **Rests on**: a reading of every step between stage 2 and 6b at commit `6f16ccc`, with the call sites named in §4. No real corpus was run for this record. The invocation tests that ship with it are the execution.
+- **Defers to**: [#287](https://github.com/algernon28/vespera/issues/287), which ADR-151 settles. Whether a survivor's extraction hash is recorded, so that nothing after stage 2 has to read the file to find it, is that ticket's question and not this one's.
+- **Rests on**: a reading of every step between stage 2 and 6b, with the call sites named in §4, not a run over a real corpus. The invocation tests under Consequences are its execution.
 - **Settles** [#289](https://github.com/algernon28/vespera/issues/289).
-
-ADR-150 and ADR-151 are not skipped by mistake. ADR-149 §9 reserves them for [#286](https://github.com/algernon28/vespera/issues/286) and #287, and neither had landed when this was written.
 
 ## Context
 
@@ -62,7 +60,7 @@ Stage 2 is the stage that converts a corpus survivor. A page for a person to rea
 
 ### 4. The steps that re-read the archive after stage 2, and what each does
 
-Every step that runs after stage 2 and before the end of 6b was read for archive access at `6f16ccc`.
+Every step that runs after stage 2 and before the end of 6b was read for archive access.
 
 | Step | Where it reads the archive | What for | Records completion | Decision |
 | --- | --- | --- | --- | --- |
@@ -96,7 +94,7 @@ Every step that runs after stage 2 and before the end of 6b was read for archive
 
 ### 5. The recorded extraction hash is #287's question
 
-A survivor's extraction hash recorded at stage 2 would let this step read the cache without opening the file at all, and would make §1's fallback unreachable for any survivor with a recorded hash. No table records it today: `extraction_metric` carries no hash, and `extraction_cache` is keyed by one. Adding storage for it is exactly what #287 is deciding. This record does not pre-empt that ticket. If ADR-151 records the hash, the labelling step should read it instead of hashing the file, and §1 and §3 remain as the fallback for a survivor with no recorded hash.
+A survivor's extraction hash recorded at stage 2 would let this step read the cache without opening the file at all, and would make §1's fallback unreachable for any survivor with a recorded hash. No table records it today: `extraction_metric` carries no hash, and `extraction_cache` is keyed by one. Whether to add storage for it is #287's question, and this record does not pre-empt that ticket. If ADR-151 records the hash, the labelling step should read it instead of hashing the file, and §1 and §3 remain as the fallback for a survivor with no recorded hash.
 
 ## Consequences
 
@@ -108,7 +106,7 @@ A survivor's extraction hash recorded at stage 2 would let this step read the ca
 
 **The page can differ from one invocation to the next for one reason only**: whether each sampled survivor's file opened when that invocation wrote it. The sample, the questions and the label file's entries do not change.
 
-**What the implementation owes** (`spec-implementer`):
+**The implementation**:
 
 - `RelevanceReportTasklet.textOpeningOf` catches the `UncheckedIOException` from `extractor.contentHashFor(file)`, logs a warning naming the occurrence and the file, and returns §1's fallback, held as a constant beside `TEXT_OPENING_CHARACTERS`.
 - It reads the cached conversion with `extractor.cached(contentHash, extractorIdentity)` and chunks that response. It no longer calls `SeedConversions.convert` (whose other read, `BrokenCheck.check`, goes with it). On an empty result it logs a warning naming the file and returns §3's fallback.

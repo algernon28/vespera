@@ -1,6 +1,6 @@
 # ADR-001 — Tech stack is a fixed constraint
 
-> **Partly amended — see [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** By the operator's answer of 2026-10-09, *"a vector database"* leaves the fixed stack: it is Java, Spring Boot and Spring AI, and every vector lives in SQLite. A vector database comes back only through a record of its own. The summary is transcribed verbatim and is not edited.
+> **Partly amended — see [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** *"A vector database"* leaves the fixed stack: it is Java, Spring Boot and Spring AI, and every vector lives in SQLite. A vector database comes back only through a record of its own. The summary is transcribed verbatim and is not edited.
 
 > **Reconstituted record — the original text of this ADR is lost.**
 > Rebuilt on 2026-08-22 from the decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md), the only surviving record of these decisions. The summary below is transcribed **verbatim** from that digest.

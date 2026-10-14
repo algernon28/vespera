@@ -54,7 +54,7 @@ Reachable only from `status` of `success` or `partial_success`.
 
 ### Confidence scores are persisted, as ADR-019 columns
 
-**Stage 2 writes the `ConfidenceScores` snapshot as derived-metric columns while the document is open** — ADR-019's mechanism exactly ("not a second traversal"). This is an obligation, not an option: tier 2 cannot be calibrated later from data that was never stored, and re-converting hundreds of gigabytes to recover a number the first pass already had in hand is not a recovery plan. **The exact column list is left to this map's derived-metrics ticket** ("What extraction must produce for stage 2/3's deferred mismatch-detection question", #38), which is deciding that set as a whole; this ADR fixes only that the confidence snapshot is in it.
+**Stage 2 writes the `ConfidenceScores` snapshot as derived-metric columns while the document is open** — ADR-019's mechanism exactly ("not a second traversal"). This is an obligation, not an option: tier 2 cannot be calibrated later from data that was never stored, and re-converting hundreds of gigabytes to recover a number the first pass already had in hand is not a recovery plan. **The exact column list is left to this map's derived-metrics ticket** ("What extraction must produce for stage 2/3's deferred mismatch-detection question", #38), which decides that set as a whole; this ADR fixes only that the confidence snapshot is in it.
 
 ### The two verdicts are mutually exclusive by construction
 

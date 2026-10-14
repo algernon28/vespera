@@ -7,7 +7,7 @@
 
 ADR-043 says the profile file is input, that history never overrides it, and that an anti-regeneration rule protects human edits — but not the mechanism. Census both drafts the profile on a corpus's first run and re-runs on every subsequent invocation (ADR-047's "campaign"), so the mechanism has to answer what a second census does when `profile.yaml` already exists, without ever silently reverting a calibrated value to null — the one failure `CONTEXT.md`'s framing exists to prevent.
 
-ADR-061 (ticket #12) already fixed the profile's shape: closed, code-defined Java records deserialized strictly, one object per value carrying `value`, `provenance`, and `measurement` together. That fact does most of the work here: a key a human deletes from the YAML and a key that is merely `null` are behaviourally identical (Jackson deserializes a missing field as null, and `CONTEXT.md`'s Gate treats "unset" as "the run ends there" regardless of why), so no mechanism is needed to distinguish "genuinely new key" from "a human deleted this one."
+ADR-061 already fixed the profile's shape: closed, code-defined Java records deserialized strictly, one object per value carrying `value`, `provenance`, and `measurement` together. That fact does most of the work here: a key a human deletes from the YAML and a key that is merely `null` are behaviourally identical (Jackson deserializes a missing field as null, and `CONTEXT.md`'s Gate treats "unset" as "the run ends there" regardless of why), so no mechanism is needed to distinguish "genuinely new key" from "a human deleted this one."
 
 ## Decision
 

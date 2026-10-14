@@ -25,7 +25,7 @@ Read off `docling` on `main` (`docling/datamodel/base_models.py`, `docling/datam
 
 Page count is free only because chunking already needs the `DoclingDocument` export — it is read off the document's own `pages`, not off a response field, and a `.txt`/`.docx` has none.
 
-### Two structural problems the ticket did not name
+### Two structural problems
 
 **Chunk count is not a property of an occurrence.** ADR-044 keys the chunk cache on content hash + chunker + tokenizer identity precisely because the bake-off re-chunks per candidate model, and the tokenizer derives from an embedding model `docs/architecture.md` marks "not yet chosen" — which is why the stage-2 map excludes it. A single `chunk_count` column would assert one number for a value that has one per candidate.
 
@@ -140,18 +140,18 @@ Every column is measurement. Stage 2's only profile key remains ADR-070's tier-2
 
 ## Consequences
 
-**ADR-064's three named signals resolve to three different places, and that is the substantive answer.** Chunk count is a query against the chunk cache, comparable only within one tokenizer identity. Language is one column plus one new dependency, with "mix" left as a derivable aggregation. OCR-error rate does not exist as a Docling signal at all, so what is stored is `ocr_score` plus dictionary-free counters, and the rate itself stays undefined until data defines it. **None of them is "exactly the columns ADR-019 already assigns"** — the honest answer to the ticket's framing is that one of the three is not a column, one needs a dependency, and one needs a definition nobody can write yet.
+**ADR-064's three named signals resolve to three different places, and that is the substantive answer.** Chunk count is a query against the chunk cache, comparable only within one tokenizer identity. Language is one column plus one new dependency, with "mix" left as a derivable aggregation. OCR-error rate does not exist as a Docling signal at all, so what is stored is `ocr_score` plus dictionary-free counters, and the rate itself stays undefined until data defines it. **None of them is "exactly the columns ADR-019 already assigns"**: one of the three is not a column, one needs a dependency, and one needs a definition nobody can write yet.
 
 **The map's parked "shingle granularity" item now has a path back.** It was blocked on stage-3 OCR-error-rate data, and until now nothing in the design produced any. The counters above are that data — or rather, they are what a definition of it can be computed from, once a real run has produced them.
 
 **`extraction` and `similarity` both gain a `schema.sql` and a `schema_version` row** (ADR-059), checked and refused independently. `similarity`'s arrives in stage 2's slice rather than stage 4's, which is earlier than the cascade order suggests and follows directly from ADR-038's timing.
 
-**Shingle storage is the largest table in the database by a wide margin** — one row per distinct shingle per surviving occurrence per run. That is ADR-038's own consequence rather than a new one, but it is the first time anything has written it down, and it is a real number someone will meet on a first full run. It is also the reason the parameter identity is in the key: a granularity change that had to rewrite that table instead of adding to it would be close to unaffordable.
+**Shingle storage is the largest table in the database by a wide margin** — one row per distinct shingle per surviving occurrence per run. That is ADR-038's own consequence rather than a new one, and it is a real number someone will meet on a first full run. It is also the reason the parameter identity is in the key: a granularity change that had to rewrite that table instead of adding to it would be close to unaffordable.
 
 **A metric row exists where no verdict does.** `partial_success` and every `passed` occurrence get a row, and `status` is the only place an incomplete-but-usable conversion is recorded. Anyone asking "what did stage 2 actually see" reads this table, not the verdict table — the verdict table answers "what did stage 2 block."
 
-**Two edits are owed to `docs/architecture.md`** as part of closing this ticket: §1.2's stage-3 row, to say that per-document metrics are written under stage 2's run and stage 3 is the corpus-wide pass, and §1.3's module table note, to record that `pipeline` composes the shingling call the same way it supplies tokenizer identity.
+**`docs/architecture.md` takes two edits with this decision**: §1.2's stage-3 row, to say that per-document metrics are written under stage 2's run and stage 3 is the corpus-wide pass, and §1.3's module table note, to record that `pipeline` composes the shingling call the same way it supplies tokenizer identity.
 
-**One dependency is owed to the pom** (ADR-046), with its version pin and its language-subset/accuracy-mode configuration the hand-off spec's to write.
+**The pom takes one dependency** (ADR-046), with its version pin and its language-subset/accuracy-mode configuration the hand-off spec's to write.
 
 **Nothing here specifies types, SQL text, or call sites.** The exact `CREATE TABLE` statements, the record types, the whitespace-normalisation implementation, the vowel set, and where in stage 2's step each write happens are the stage-2 hand-off spec's — the same deferral ADR-068, ADR-069, ADR-070 and ADR-071 each made to a spec.

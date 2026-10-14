@@ -16,7 +16,7 @@
 
 ## Context
 
-The operator's archives can hold documents that must not leave the machine. On 2026-09-26 the operator asked a Claude session to compile the relevance labels. On 2026-09-27 that session did so for the GesPOS run by reading `relevance-labelling.html`, which carries each sampled document's path and its first 400 characters. Those openings went to a hosted model. Three steps in this pipeline are done by a person reading documents:
+The operator's archives can hold documents that must not leave the machine. A Claude session that compiles the relevance labels by reading `relevance-labelling.html`, which carries each sampled document's path and its first 400 characters, sends those openings to a hosted model. Three steps in this pipeline are done by a person reading documents:
 
 - **the relevance labels**, which ADR-088 asks of a person for a stratified sample of sixty;
 - **the choice of `relevanceScoreFloor`**, which the operator reads off those labels and the candidate-cut table;
@@ -46,7 +46,7 @@ The six questions, in the issue's order.
 
 **The first implementation is `OllamaRelevanceLabeller`: `qwen3:8b` through the `OllamaChatModel` `ClusterSynthesis` already uses**, asked for one word, thinking off, a handful of tokens of reply. It is first because it is already served, not because it beat anything: ADR-013 chose Ollama on friction, and this is the same kind of choice. A reply that is not exactly one of the two words is **no answer**, and the entry stays blank for the operator. Nothing is guessed from a longer reply.
 
-**The second implementation, later, is a Laya typed-decision head.** The correction on the issue says what it needs: the ModernBERT backbone from `fr0stbit3/laya-typed-decisions-gguf` is served by LM Studio or Ollama as an embedding model (`modern-bert`, pooling none), and the decision head runs outside llama.cpp. The head is either a small local Python sidecar or a port into Java, and the port is possible only if the head is a small classifier over the backbone's vectors, which is to be checked against its weights. That check is not made here. The interface above is the whole of what this record asks of that work: one method that answers a question from the same three inputs, a name, and the refusal of §6.
+**The second implementation, later, is a Laya typed-decision head.** What it needs: the ModernBERT backbone from `fr0stbit3/laya-typed-decisions-gguf` is served by LM Studio or Ollama as an embedding model (`modern-bert`, pooling none), and the decision head runs outside llama.cpp. The head is either a small local Python sidecar or a port into Java, and the port is possible only if the head is a small classifier over the backbone's vectors, which is to be checked against its weights. That check is not made here. The interface above is the whole of what this record asks of that work: one method that answers a question from the same three inputs, a name, and the refusal of §6.
 
 **The protocol that decides between them is the operator's, on a sample.**
 
@@ -83,7 +83,7 @@ Alternatives weighed:
 
 ### 3. How a label says a model set it: a provenance row beside the answer, and a person's answer always wins
 
-**Provenance is its own table: `relevance_label_provenance(path, seed_set, labelled_by, run_id)`**, one row per label that a model set, keyed as the label is. `labelled_by` is the labeller's identity, which carries the model's name and **its weights' digest**, as ADR-114 records for generation: `ollama:qwen3:8b;digest=<digest>` for the first. Two models that share a name and differ in weights do not share an identity. **A label with no provenance row was set by a person**, which is every row that exists today.
+**Provenance is its own table: `relevance_label_provenance(path, seed_set, labelled_by, run_id)`**, one row per label that a model set, keyed as the label is. `labelled_by` is the labeller's identity, which carries the model's name and **its weights' digest**, as ADR-114 records for generation: `ollama:qwen3:8b;digest=<digest>` for the first. Two models that share a name and differ in weights do not share an identity. **A label with no provenance row was set by a person**, as was every row written before this record.
 
 A column on `relevance_label` was the alternative. It was rejected because the table already exists on every working directory, `CREATE TABLE IF NOT EXISTS` does not add a column to it, and ADR-049 says there is no migration tool. A new table is added by the same statement that adds every table.
 
@@ -105,7 +105,7 @@ Three rules keep it honest:
 
 **The floor is the lowest score among the labels that say relevant**, taken over the labels given under the embedder identity this run scores with, whoever set them. Every document scoring below it is `below-threshold`, as today: the floor decides on `score < floor`, so the lowest relevant document itself stays.
 
-On GesPOS the operator chose 0.579, which loses no documentation, over 0.636, which makes the fewest mistakes. This rule is that choice stated as a rule, and it fits ADR-042's asymmetry: an over-block loses an archive without a trace, where an under-block leaves a document for a later, better-informed run to remove. The rule's own risk is the one ADR-088 already states: the floor is read off sixty documents, and a relevant document scoring below the lowest relevant one sampled is lost. The labelling page's table says what each candidate cut costs, and stays beside the rule.
+On GesPOS the cut is 0.579, which loses no documentation, and not 0.636, which makes the fewest mistakes. This rule is that cut stated as a rule, and it fits ADR-042's asymmetry: an over-block loses an archive without a trace, where an under-block leaves a document for a later, better-informed run to remove. The rule's own risk is the one ADR-088 already states: the floor is read off sixty documents, and a relevant document scoring below the lowest relevant one sampled is lost. The labelling page's table says what each candidate cut costs, and stays beside the rule.
 
 **The model is not in the floor.** It only answered some of the questions the rule reads.
 
@@ -113,7 +113,7 @@ On GesPOS the operator chose 0.579, which loses no documentation, over 0.636, wh
 
 Alternatives weighed:
 
-- **The fewest-mistakes cut.** Rejected as the rule, kept on the page: it loses documentation, which the operator said they would not do.
+- **The fewest-mistakes cut.** Rejected as the rule, kept on the page: it loses documentation.
 - **A margin below the lowest relevant score.** Rejected: any margin is an unmeasured number, and observe before enforce refuses it.
 - **A model choosing the number.** Rejected: nothing about a number on a scale is a language question, and a number nobody can re-derive from the labels is one the provenance cannot defend.
 
@@ -131,7 +131,7 @@ The operator approves the arrangement by hand, as ADR-107 has it: they read `arr
 
 **The refusal comes first and nothing is read before it.** `--auto` asks the labeller whether it may be used before it opens the label file, let alone a document. The labeller refuses, and `--auto` exits 1 naming the reason, asking no question and leaving the label file byte for byte as it was, in each of these cases:
 
-1. **The endpoint is not this machine.** The endpoint tested is the one Spring AI will actually call, its `OllamaConnectionDetails` base URL, and not a property that may differ from it. Only `localhost`, `127.0.0.1` and `::1` count. An Ollama on another machine of the operator's own would be refused too, which the operator accepted.
+1. **The endpoint is not this machine.** The endpoint tested is the one Spring AI will actually call, its `OllamaConnectionDetails` base URL, and not a property that may differ from it. Only `localhost`, `127.0.0.1` and `::1` count. An Ollama on another machine of the operator's own is refused too.
 2. **The model's tag ends in `cloud`.** Such a model is forwarded to a hosted service whatever the endpoint is.
 3. **Ollama reports the model as remote.** `/api/show` names a forwarded model by `remote_host` and `remote_model`; the check reads both through `OllamaClient`. A model whose answer cannot be read is refused too, and is never assumed local. So is a model whose weights' digest cannot be read afterwards (§3), because an identity with no digest cannot be recorded. The field names are those of `ShowResponse` in Ollama's `api/types.go` at `v0.33.2`, read, not run against the image; the test pins them against a stub.
 
@@ -157,21 +157,19 @@ or, where nothing relevant was labelled and the key is unset:
 
 > relevanceScoreFloor left unset: no label says relevant
 
-## For the operator to confirm
+## Points settled
 
-The operator decided each of these on 2026-10-05, on [#423](https://github.com/algernon28/vespera/issues/423). None is open.
-
-1. **The model.** `qwen3:8b` is the first labeller because it is already served. The measurement protocol in §1 decides between it and a Laya head. *Decided: accepted.*
-2. **The rule given to the model.** The operator's exact rule: documentation only; specifications, manuals, architecture, flow layouts and process descriptions are relevant; operational records, `.url` shortcuts, logs and screenshots are not, even on the seeds' subject. The model sees the winning seed's path only. *Decided.*
-3. **A model that is not sure is blank.** *Decided: accepted.*
-4. **Identity.** It includes the weights' digest, as ADR-114 records for generation. *Decided: changed from the draft, which recorded the name only.*
-5. **Loopback only.** *Decided: accepted.* A model is also refused if its tag ends in `cloud` or Ollama reports it as remote (§6).
-6. **The floor rule.** The lowest score among labels that say relevant, with no margin, whoever set the label. *Decided: accepted.*
-7. **A floor the operator wrote is never overwritten.** *Decided: accepted.*
-8. **Approval.** The operator approves by hand. *Decided: `--auto-approve` is left out and goes under "What this does not decide".*
-9. **The surface.** `vespera label --auto`. *Decided: accepted.*
-10. **Confirming a model's answer.** An answer left unchanged in the file stays marked as the model's. *Decided: accepted.*
-11. **Unrecorded answers.** `--auto` refuses while the label file holds answers not yet recorded, and never overwrites an answer a person typed (§6). *Decided.*
+1. **The model.** `qwen3:8b` is the first labeller because it is already served. The measurement protocol in §1 decides between it and a Laya head.
+2. **The rule given to the model.** The operator's exact rule: documentation only; specifications, manuals, architecture, flow layouts and process descriptions are relevant; operational records, `.url` shortcuts, logs and screenshots are not, even on the seeds' subject. The model sees the winning seed's path only.
+3. **A model that is not sure is blank.**
+4. **Identity.** It includes the weights' digest, as ADR-114 records for generation.
+5. **Loopback only.** A model is also refused if its tag ends in `cloud` or Ollama reports it as remote (§6).
+6. **The floor rule.** The lowest score among labels that say relevant, with no margin, whoever set the label.
+7. **A floor the operator wrote is never overwritten.**
+8. **Approval.** The operator approves by hand. `--auto-approve` is left out and is under "What this does not decide".
+9. **The surface.** `vespera label --auto`.
+10. **Confirming a model's answer.** An answer left unchanged in the file stays marked as the model's.
+11. **Unrecorded answers.** `--auto` refuses while the label file holds answers not yet recorded, and never overwrites an answer a person typed (§6).
 
 ## Consequences
 

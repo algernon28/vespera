@@ -16,7 +16,7 @@ Two things in that sentence do not survive contact with the rest of the record, 
 
 **"At the candidate cut" is circular.** The cut is what is being calibrated. A sample concentrated at a guessed cut can answer only *"is this cut right?"* — and when the guess is wrong by a lot, the operator spends the whole sitting and learns nothing about where the right cut is.
 
-**A mechanical go/no-go on distribution shape would be an unmeasured threshold.** A cosine-similarity distribution over one archive is very often unimodal and tight even when the seed set is sound, and any separation statistic needs a cutoff nobody has measured — the guess **observe before enforce** exists to refuse, and the same argument [ADR-086](0086-seed-corpus-mismatch-is-measured-before-the-model-gate-and-reported-never-enforced.md) made two tickets ago against gating on language mix.
+**A mechanical go/no-go on distribution shape would be an unmeasured threshold.** A cosine-similarity distribution over one archive is very often unimodal and tight even when the seed set is sound, and any separation statistic needs a cutoff nobody has measured — the guess **observe before enforce** exists to refuse, and the same argument [ADR-086](0086-seed-corpus-mismatch-is-measured-before-the-model-gate-and-reported-never-enforced.md) made against gating on language mix.
 
 ## Decision
 
@@ -56,7 +56,7 @@ The run id, the score the labeller was shown, and the **`embedder_identity`** ([
 
 ### An unset floor does not stop the run
 
-[#83](https://github.com/algernon28/vespera/issues/83) proposed this as a third gate. It is not one, and the difference is the whole shape of the stage.
+An unset relevance threshold is not a third gate ([#83](https://github.com/algernon28/vespera/issues/83)), and the difference is the whole shape of the stage.
 
 [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md)'s gate stops stage 4 because a boilerplate floor is an **input** stage 4 cannot work without. The relevance threshold is the opposite: **the run is what produces the data the threshold is calibrated from.** Gating on it would mean never producing the report that lets anyone set it.
 

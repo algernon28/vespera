@@ -10,11 +10,11 @@ Six throwable types existed in `src/main` before this decision, and not one of t
 
 That is the real cost of an unrecorded convention: it is indistinguishable from drift, so every new class reopens the argument.
 
-**The trigger was a message, not the names.** `ServiceScopeCircuitBreakerTripped` surfaced from a stage-2 run reading:
+`ServiceScopeCircuitBreakerTripped` carried this message:
 
 > `docling-serve read as dead: 5 consecutive service-scope failures, of any mix of categories`
 
-Three separate faults in one line. *"read as dead"* is ADR-071's reasoning voice — an explanation of why the run stops, not a statement of what happened. *"of any mix of categories"* describes the **policy**, and was actively false about the event that produced it: all five failures in that run were `capacity`. And *`docling-serve`* is hardcoded into a `pipeline` type, while ADR-012 holds the serving runtime to be config.
+Three separate faults in one line. *"read as dead"* is ADR-071's reasoning voice — an explanation of why the run stops, not a statement of what happened. *"of any mix of categories"* describes the **policy**, and is false about any event it reports where no mix occurred, such as a streak whose five failures are all `capacity`. And *`docling-serve`* is hardcoded into a `pipeline` type, while ADR-012 holds the serving runtime to be config.
 
 The class name had the same shape of problem. `ServiceScopeCircuitBreakerTripped` names **the mechanism that noticed** — a circuit breaker, an implementation metaphor — rather than **what is wrong with the archive**: the extractor has stopped answering. `DoclingCallTimedOut`, by contrast, already named a fact. So the six were not uniformly weak; the weakness was concentrated where a name reached for machinery.
 
@@ -30,7 +30,7 @@ The suffix is a noun-phrase suffix, so the stem is a noun phrase too. A past par
 
 `ExtractorStoppedAnsweringException` over `ServiceScopeCircuitBreakerTripped`. A circuit breaker is how this repo detects the condition today and could be replaced tomorrow by a health poll or a skip policy without the archive's problem changing at all. Naming the detector welds a diagnosis to one implementation, and forces the reader to know the mechanism before they can read the failure.
 
-Where the repo's own words for the condition already exist, they win. `ExtractionCircuitBreakerTest` described this one as *"a converter that has stopped answering"* before the type was renamed to match it.
+Where the repo's own words for the condition already exist, they win. `ExtractionCircuitBreakerTest` describes this one as *"a converter that has stopped answering"*, and the type is named to match it.
 
 ### The message states the event; the reasoning lives in the javadoc; the specifics live on the cause
 
@@ -60,6 +60,6 @@ Only the first changes what the name means; the other five are the suffix alone.
 
 **The rule is checked rather than remembered.** `ExceptionNamingTest` scans the compiled application packages for `Throwable` subtypes and fails on any whose name does not end in `Exception`. A convention that lives only in a document is one an agent has to read the document to follow; this one fails the build instead. The half of this decision about *what* the name says cannot be tested and stays a matter for review — but the half that can be mechanised is.
 
-**Renaming cost, paid once.** Six files moved and about thirty referencing files touched, across `corpus`, `extraction`, `ledger` and `pipeline` and their tests. Nothing behavioural changed and the suite stayed green, which is the argument for doing it now rather than at the fiftieth exception type.
+**Renaming cost, paid once.** The rename moves six files and touches about thirty referencing files, across `corpus`, `extraction`, `ledger` and `pipeline` and their tests. Nothing behavioural changes, which is the argument for doing it now rather than at the fiftieth exception type.
 
 **One class of operator-facing text is now decided, and the rest are not.** ADR-052 governs report-visible text; this governs exception messages. Log statements, CLI output and the profile's own prose remain unrecorded, and a future decision may want to say the same thing about them in one place rather than three.

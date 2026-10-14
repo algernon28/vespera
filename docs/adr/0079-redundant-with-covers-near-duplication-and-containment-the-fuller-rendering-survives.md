@@ -42,7 +42,7 @@ Under near-duplication alone, the second and third pairs both survive whole: the
 
 This is the only lossless direction. Removing the chapter to keep the volume publishes every word of both; removing the volume to keep the chapter discards the other 388 pages. The cost is real and worth stating: the standalone chapter stops being its own unit, so stage 6a can only arrange the volume that holds it. That is accepted as the smaller loss — arrangement at a coarser granularity, against the same passage entering the taxonomy twice.
 
-**Near-total containment, not partial overlap.** A document sharing a third of its text with another is not contained in it; it is a document that quotes. Where the cut sits is [#68](https://github.com/algernon28/vespera/issues/68)'s to fix, along with the estimator that can see containment at all — Jaccard banding cannot, which is why that ticket is blocked on this one.
+**Near-total containment, not partial overlap.** A document sharing a third of its text with another is not contained in it; it is a document that quotes. Where the cut sits is [#68](https://github.com/algernon28/vespera/issues/68)'s to fix, along with the estimator that can see containment at all — Jaccard banding cannot.
 
 **Containment resolves against survivors only.** A document is never removed as contained in a document that is itself removed. Near-duplicate resolution runs first, containment second, against what survives it — so every `redundant-with` pointer, of either relation, names an occurrence a reader can actually go and read.
 
@@ -54,7 +54,7 @@ This is the only lossless direction. Removing the chapter to keep the volume pub
 
 **Two survivor rules now exist in the pipeline, and they disagree deliberately.** Stage 1 publishes the earliest copy; stage 4 publishes the fullest rendering. A reader finding both should find this paragraph rather than assume one is a mistake: they resolve different situations, and stage 4 falls back to stage 1's rule exactly when its own runs out of signal.
 
-**[#68](https://github.com/algernon28/vespera/issues/68) is unblocked, and its scope is now larger than banding.** Admitting containment means plain MinHash-over-Jaccard banding is not sufficient on its own — a containment ≈ 1.0 pair with Jaccard ≈ 0.03 sits at the flat end of every S-curve. That ticket has to choose an estimator that sees containment, and weigh whatever it costs, including a dependency under ADR-046.
+**[#68](https://github.com/algernon28/vespera/issues/68)'s scope is larger than banding.** Admitting containment means plain MinHash-over-Jaccard banding is not sufficient on its own — a containment ≈ 1.0 pair with Jaccard ≈ 0.03 sits at the flat end of every S-curve. That ticket has to choose an estimator that sees containment, and weigh whatever it costs, including a dependency under ADR-046.
 
 **[#69](https://github.com/algernon28/vespera/issues/69) inherits a second threshold.** Near-duplication and containment cut at different numbers on different measures, so "the stage-4 threshold" is now two values, and whatever calibration artifact that ticket decides on has two distributions to show.
 

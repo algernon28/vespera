@@ -11,7 +11,7 @@ The list cannot stay open. The anomaly kinds are half of the denominator that ma
 
 ADR-051 already handed over three findings: an unencodable filename becomes an anomaly rather than an occurrence, soft links are skipped and recorded, and a path collision under `UNIQUE(walk_id, path)` would be a new kind. ADR-050 removed two candidates from the design's centre — a file vanishing mid-walk and a file locked by another process — by giving the pipeline exclusive access to the corpus.
 
-Three facts were measured on this machine (Windows 11, NTFS, OpenJDK 26) rather than argued:
+Three facts were measured on Windows 11, NTFS, OpenJDK 26, rather than argued:
 
 | Case | Observed |
 | --- | --- |

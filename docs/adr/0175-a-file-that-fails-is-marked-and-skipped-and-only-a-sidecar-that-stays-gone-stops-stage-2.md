@@ -10,21 +10,19 @@
 
 ## Context
 
-### The operator's rule
+### The rule
 
-> A file that fails should not stop the entire run. Skip it with a mark, and report it for review at the end.
+A problem with one file fails that file, never the run: the file is skipped with a mark, and reported for review at the end. Only a sidecar that is really gone stops the run.
 
-A problem with one file fails that file, never the run. Only a sidecar that is really gone stops the run.
+### What happened on the whole archive
 
-### What happened on the whole archive on 2026-09-28
-
-- **09:56.** docling-serve was OOM-killed on one 29 KB BMP that declares a resolution of 1 pixel per metre, so that its 95 pixels become a page about 3,740 inches wide. `docker events` showed `oom`, then `die exit=137`. The call in flight got `HTTP/1.1 header parser received no bytes`, and stage 2 failed on that first dropped call (read=1328, written=631, filtered=683). The restart policy had the container back in 6 to 9 seconds. Sent alone to a freshly restarted sidecar, the same file ran for 64.7 s and killed it again: running the command again would have stopped at the same file every time. ADR-167 took BMP images out of scope. That unblocked the archive and fixes nothing: a PNG declaring the same resolution killed the sidecar the same way.
-- **12:03.** Stage 2 failed on `404 Not Found: {"detail":"Task result not found. Please wait for a completion status."}`. Docling had tried to transcribe two MP4s, and each job failed inside docling-serve (`whisper is not installed`). The synchronous `/v1/convert/file` endpoint answers a job that failed in its worker with HTTP 404, not with `status: failure`. `DoclingClient.convert` let the `HttpClientErrorException` escape. It is not a `ServiceScopeFailureException`, so the skip policy rejected it and the step failed. ADR-168 took videos out of scope.
-- **16:57.** Stage 2 failed on HTTP 504, `Conversion is taking too long`, docling-serve's own synchronous wait running out on a 161-page PDF. ADR-172 raised that wait past Vespera's call timeout in `compose.yaml`.
+- docling-serve was OOM-killed on one 29 KB BMP that declares a resolution of 1 pixel per metre, so that its 95 pixels become a page about 3,740 inches wide. `docker events` showed `oom`, then `die exit=137`. The call in flight got `HTTP/1.1 header parser received no bytes`, and stage 2 failed on that first dropped call (read=1328, written=631, filtered=683). The restart policy had the container back in 6 to 9 seconds. Sent alone to a freshly restarted sidecar, the same file ran for 64.7 s and killed it again: running the command again would have stopped at the same file every time. ADR-167 took BMP images out of scope. That unblocked the archive and fixes nothing: a PNG declaring the same resolution killed the sidecar the same way.
+- Stage 2 failed on `404 Not Found: {"detail":"Task result not found. Please wait for a completion status."}`. Docling had tried to transcribe two MP4s, and each job failed inside docling-serve (`whisper is not installed`). The synchronous `/v1/convert/file` endpoint answers a job that failed in its worker with HTTP 404, not with `status: failure`. `DoclingClient.convert` let the `HttpClientErrorException` escape. It is not a `ServiceScopeFailureException`, so the skip policy rejected it and the step failed. ADR-168 took videos out of scope.
+- Stage 2 failed on HTTP 504, `Conversion is taking too long`, docling-serve's own synchronous wait running out on a 161-page PDF. ADR-172 raised that wait past Vespera's call timeout in `compose.yaml`.
 
 ### What a dropped connection did before this record, measured
 
-A test ran stage 2 over 40 files, a chunk of 16 and 8 calls in flight, with the production `DoclingClient`, extractor and cache against a loopback HTTP server that answered the first 20 conversions and then read each request and closed the socket. It is kept on the branch `wip/dropped-connection-draft`.
+A test ran stage 2 over 40 files, a chunk of 16 and 8 calls in flight, with the production `DoclingClient`, extractor and cache against a loopback HTTP server that answered the first 20 conversions and then read each request and closed the socket.
 
 - 32 calls were sent: 20 answered, 12 dropped. Twelve is more than the breaker's five in a row. The breaker did not trip.
 - The step failed on the first dropped item it processed. The skip count was 0, and no `extraction_fault` row was written.
@@ -85,7 +83,7 @@ On the fifth, `ExtractionItemProcessor` throws `DoclingKeepsDroppingConnectionsE
 
 `docling-serve dropped the connection twice on each of 5 files in a row while still answering its health check`
 
-**Five is ADR-071's breaker's count**, so a sidecar that converts nothing stops the step as soon whichever way it fails. It is a code default for the reason §2 gives. The operator decided on 2026-10-03 to bound it here and not to record it as an accepted consequence.
+**Five is ADR-071's breaker's count**, so a sidecar that converts nothing stops the step as soon whichever way it fails. It is a code default for the reason §2 gives. A sidecar that answers its health check and drops every conversion is bounded here, not recorded as an accepted consequence.
 
 **What it leaves, accepted:**
 
@@ -120,12 +118,12 @@ When stage 2 ends, `ReviewListListener` writes `extraction-failures.html` beside
 
 ## Consequences
 
-- **One file can no longer stop stage 2.** The three failures of 2026-09-28 would have cost four files between them: the BMP would be `crashed the converter`, each of the two MP4s `rejected`, and the slow PDF a `timeout`.
+- **One file can no longer stop stage 2.** The three failures in Context would have cost four files between them: the BMP would be `crashed the converter`, each of the two MP4s `rejected`, and the slow PDF a `timeout`.
 - **A sidecar restart inside a step costs the wait and one repeated call per file in flight**, not the invocation and the operator's attention.
 - **A file that kills the sidecar costs two crashes and two restarts**, about 150 s on the measured BMP (64.7 s to the kill, twice, and two restarts), and is then removed. A new stage-2 run pays that again, because nothing is cached for it. ADR-167 and ADR-168 keep the two known kinds from reaching the converter at all.
 - **The step thread waits while the sidecar is down**, and nothing else is drained meanwhile. Calls already dispatched go on, on their workers.
 - **`extraction-failures.html` joins the files written beside the database**, and the README lists it.
-- **`extraction`'s implementation version moves** (ADR-058), because `DoclingClient` changes and two exception types are added there. Every stage-2 run id moves with it, so the first invocation of the build that ships this replays stage 2 over cached conversions, and every stage after it. ADR-183 §3 records the operator's decision to ship #382, #384 and #387 in one release so that they cost one replay. Shipped in that release, this record adds none. Shipped in a later build, it costs a second.
+- **`extraction`'s implementation version moves** (ADR-058), because `DoclingClient` changes and two exception types are added there. Every stage-2 run id moves with it, so the first invocation of the build that ships this replays stage 2 over cached conversions, and every stage after it. ADR-183 §3 decides that the implementations of ADR-181, ADR-182 and ADR-183 ship in one release so that they cost one replay. Shipped in that release, this record adds none. Shipped in a later build, it costs a second.
 - **`CONTEXT.md` gains *Review list*.**
 
 ## Tests
@@ -139,10 +137,10 @@ When stage 2 ends, `ReviewListListener` writes `extraction-failures.html` beside
   4. A document whose every call drops: it is posted twice and no more, removed with a reason starting `crashed the converter:`, and the step completes.
   5. A drop after which the health check never answers: the step fails, the closing line says the converter did not answer its health check again within the bound, and no document is removed.
   6. Every call dropped while the health check answers, over six documents in one chunk: the step fails on the fifth, the closing line says so, a line names the five by path and not the sixth, and no document is removed. Four documents that drop twice, one that converts, and four more, in the order the stage reads them, which the test learns first because it is the file system's and not the names': the step completes. The same with the one between them answered `taking too long`: the step stops, because a timeout does not end the run.
-  7. The review list: it lists a rejected document with its reason and the log counts 1; after a clean stage it says no file failed and the log counts 0; a document set aside as an extraction fault and resolved at the end of the step is on it, which fails when the listener is registered after the fault recorder, checked by registering it there; a document removed at the end of the step is listed before one removed on its own turn, because the page is in path order; and a second invocation that finds the stage finished writes the page again with both.
+  7. The review list: it lists a rejected document with its reason and the log counts 1; after a clean stage it says no file failed and the log counts 0; a document set aside as an extraction fault and resolved at the end of the step is on it, which fails when the listener is registered after the fault recorder; a document removed at the end of the step is listed before one removed on its own turn, because the page is in path order; and a second invocation that finds the stage finished writes the page again with both.
 - **`SeedExtractionWhenTheSidecarDropsItsConnectionTest`**: a seed whose call drops once is posted twice and seed extraction completes; a seed answered 404 fails the step, and the operator's line names the seed and the status.
 - **`PendingConversionsTest`**: a dispatched call that was rejected, or lost its connection, reaches the step as that same exception, and nothing is handed on to be stored.
-- **ADR-071's breaker tests are untouched and pass.**
+- **ADR-071's breaker tests are untouched.**
 
 - **`ReviewListThatCannotBeWrittenTest`**: with the page's name taken by a folder, one ERROR line says how many files could not be read and where the page should have gone, nothing is thrown from the end of the step, and the step completes ([#392](https://github.com/algernon28/vespera/issues/392)).
 - **`ExtractionFailuresOfARunTest`**: `Ledger.extractionFailures` at the ledger's own seam returns a run's failed conversions in path order, and none of another kind or another run (#392).

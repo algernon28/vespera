@@ -15,7 +15,7 @@ Stage 4b's phase 1 has three costs for a large family of near-copies. Read again
 
 ## Measured
 
-**Method.** A throwaway test against the shipped schema on the test profile's SQLite, on 2026-10-11: G documents with one and the same 100 shingles, so every signature is the same and every pair shares all sixteen bands; stage 3's frequency, every signature, and `shingle_by_hash` built for the run, then `resolve` timed; phase 1 timed alone by a print added for the probe and not kept. Linux container, Java 26.
+**Method.** A throwaway test against the shipped schema on the test profile's SQLite: G documents with one and the same 100 shingles, so every signature is the same and every pair shares all sixteen bands; stage 3's frequency, every signature, and `shingle_by_hash` built for the run, then `resolve` timed; phase 1 timed alone by a print added for the probe and not kept. Linux container, Java 26.
 
 | G | Phase 1 before | Phase 1 after | Removed |
 | ---: | ---: | ---: | ---: |

@@ -12,7 +12,7 @@ The corpus in view is hundreds of gigabytes across an unknown number of files (`
 Two facts settle whether resuming is even soundly possible:
 
 - **ADR-016**: the corpus is treated as static. A re-walk happens because code changed, not because content changed — so the tree an interrupted walk left behind is the same tree its resume will see.
-- **Measured on this machine** (Windows 11, NTFS, OpenJDK 26): `Files.walkFileTree` over an unchanged 1,055-entry tree (files interleaved with nested directories) produced byte-identical pre-order traversal order across three calls in one process and across two separate JVM processes. Zero divergence. Pre-order DFS traversal of an unchanged NTFS directory is deterministic and reproducible, not merely conventionally so.
+- **Measured** on Windows 11, NTFS, OpenJDK 26: `Files.walkFileTree` over an unchanged 1,055-entry tree (files interleaved with nested directories) produced byte-identical pre-order traversal order across three calls in one process and across two separate JVM processes. Zero divergence. Pre-order DFS traversal of an unchanged NTFS directory is deterministic and reproducible, not merely conventionally so.
 
 Those two facts together mean a resumed walk can trust that "the same tree, walked the same way, visits things in the same order" — which is exactly what resuming needs and what an unordered filesystem traversal would otherwise rule out.
 

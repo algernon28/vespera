@@ -9,7 +9,7 @@
 
 ## Context
 
-The operator decided on 2026-10-05 that the archives' documents are read only by local models (ADR-195, ADR-196). A loopback address does not guarantee that. Ollama serves **cloud models**, with tags such as `gpt-oss:120b-cloud`, and any model created from one. The local daemon serves them and forwards every request to ollama.com, so a request to `http://localhost:11434` can carry document text off the machine.
+The archives' documents are read only by local models (ADR-195, ADR-196). A loopback address does not guarantee that. Ollama serves **cloud models**, with tags such as `gpt-oss:120b-cloud`, and any model created from one. The local daemon serves them and forwards every request to ollama.com, so a request to `http://localhost:11434` can carry document text off the machine.
 
 ADR-197 §6 closed this for the relevance labeller. Two other paths send text to Ollama and are still open:
 
@@ -19,7 +19,7 @@ ADR-197 §6 closed this for the relevance labeller. Two other paths send text to
 ### What the code does today
 
 - `OllamaRelevanceLabeller` (`embedding`) refuses, before anything is sent: a model whose name ends in `cloud`; an endpoint that is not this machine (`LocalEndpoint`); a model `OllamaClient.isRemote` reports as remote; and a model about which `/api/show` or `/api/tags` cannot be read. It decides once and keeps the answer.
-- `OllamaClient.isRemote` (`embedding`) posts `{"model": <name>}` to `/api/show` and reads `remote_host` and `remote_model`. Those are the field names of `ShowResponse` in Ollama's `api/types.go` at `v0.33.2`, the version `compose.yaml` pins: both strings, both `omitempty`, both absent for a model whose weights are local. They were checked again for this record against the source at that tag. `/api/tags` (`ListModelResponse`) carries the same two fields, and nothing reads them there.
+- `OllamaClient.isRemote` (`embedding`) posts `{"model": <name>}` to `/api/show` and reads `remote_host` and `remote_model`. Those are the field names of `ShowResponse` in Ollama's `api/types.go` at `v0.33.2`, the version `compose.yaml` pins: both strings, both `omitempty`, both absent for a model whose weights are local. `/api/tags` (`ListModelResponse`) carries the same two fields, and nothing reads them there.
 - `EmbeddingScoringTasklet` (`pipeline`) reads the embedding model's name once, through stage 5's gate preamble, resolves its run and then passes that one name to `ChunkEmbedder.embed` for every chunk. `ChunkEmbedder` calls the embedding model for every chunk, a cached one included, because the vector's length is part of the identity.
 - `GenerationTasklet` (`pipeline`) mints its run through `StageRuns.generation()`, which reads the generation model's name and its digest from `/api/tags`. Inside the step it reads the name a second time and hands it to `ClusterGeneration` in `synthesis`, which calls `ClusterSynthesis` with it. `synthesis` may depend on `ledger` alone and never names `OllamaClient` (ADR-110).
 - Nothing else in `src/main` calls a chat model or an embedding model.
@@ -82,7 +82,7 @@ ADR-197 is extended, not amended. Every sentence it says about the labeller stay
 
 ### 5. The endpoint stays the labeller's own check
 
-The issue asks for two refusals: the tag, and what `/api/show` reports. It does not ask that generation and embedding refuse an endpoint that is not loopback, and this record does not add that refusal. ADR-197 made loopback-only the labeller's rule with the operator's consent, and accepted that it refuses an Ollama on another machine of the operator's own. Extending that to the two stages is a new restriction on where an operator may serve them, and it is left under "What this does not decide".
+The issue asks for two refusals: the tag, and what `/api/show` reports. It does not ask that generation and embedding refuse an endpoint that is not loopback, and this record does not add that refusal. ADR-197 made loopback-only the labeller's rule, and accepted that it refuses an Ollama on another machine of the operator's own. Extending that to the two stages is a new restriction on where an operator may serve them, and it is left under "What this does not decide".
 
 ## Consequences
 
@@ -98,12 +98,12 @@ The issue asks for two refusals: the tag, and what `/api/show` reports. It does 
 - **The test fixture's Ollama client answers `/api/show`.** `EmbeddingScriptedBeans` reports every name as served on this machine unless a test scripts it otherwise, records the names it was asked about, and counts embedding calls. A name scripted as never pulled is answered with 404 on `/api/show` as the real daemon answers it, so `GenerationIdentityInvocationTest`'s two never-pulled tests run the path production runs; their claims, a non-zero exit and no record of the work, hold on it. Every invocation test that reaches stage 5 passes through the check, so without this the shared fixture would refuse every one of them.
 - **`CONTEXT.md` gains no term.** "Model" still never travels alone: the check speaks of an Ollama model, and its callers of the generation model and the embedding model.
 
-## What the operator decided and what this record decided
+## The rule and what this record decides
 
-The operator decided the rule on 2026-10-05: the archives' documents are read only by local models, and a cloud tag and a model Ollama reports as remote are refused on every path ([#431](https://github.com/algernon28/vespera/issues/431)). The operator asked for this record under `/implement` and left these four to it, each with its reason above: where the check lives (§1), when it runs (§2), that it fails closed (§3), and that the labeller's checks become the shared one (§4). Any of them can be reopened by a later record that references this one.
+The rule is that the archives' documents are read only by local models, and that a cloud tag and a model Ollama reports as remote are refused on every path ([#431](https://github.com/algernon28/vespera/issues/431)). This record decides four things, each with its reason above: where the check lives (§1), when it runs (§2), that it fails closed (§3), and that the labeller's checks become the shared one (§4). Any of them can be reopened by a later record that references this one.
 
 ## What this does not decide
 
-- **Loopback-only for generation and embedding** (§5). Whether the two stages should also refuse an Ollama endpoint that is not this machine, as the labeller does, is the operator's to decide. If they should, the shared check is where it goes.
+- **Loopback-only for generation and embedding** (§5). Whether the two stages should also refuse an Ollama endpoint that is not this machine, as the labeller does, is left open. If they should, the shared check is where it goes.
 - **Which daemon `/api/show` is asked.** `OllamaClient` is built from `spring.ai.ollama.base-url`, while Spring AI's chat and embedding models call the base URL their connection details name. ADR-197 §6 tested the endpoint against the connection details for that reason. Where the two differ, the check and the digest are both read from a daemon other than the one that serves the calls. This is the condition the digest has had since ADR-114, and this record does not change it.
 - **A guard against a fourth call site.** Nothing stops a later class from injecting a chat model or an embedding model and calling it unchecked. An architecture test that names the classes allowed to do so would hold it, and is not written here.

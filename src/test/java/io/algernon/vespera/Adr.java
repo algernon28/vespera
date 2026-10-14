@@ -1705,6 +1705,13 @@ public final class Adr {
     public static final String STAGE_2_WRITES_THE_SURVIVOR_LIST_BESIDE_THE_REVIEW_LIST = FILE
             + "0250-stage-2-writes-the-survivor-list-of-the-files-it-converted-and-did-not-remove.md";
 
+    /**
+     * ADR-253 -- every decision record, from ADR-001 on, holds its decision and no history of its making; a
+     * reconstituted record keeps its verbatim summary (extends ADR-249 section 4).
+     */
+    public static final String EVERY_RECORD_HOLDS_ITS_DECISION_AND_NO_HISTORY = FILE
+            + "0253-every-decision-record-holds-its-decision-and-no-history.md";
+
     private Adr() {
     }
 }

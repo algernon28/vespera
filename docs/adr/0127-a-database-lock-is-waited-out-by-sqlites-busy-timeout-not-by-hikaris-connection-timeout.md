@@ -37,7 +37,7 @@ The Hikari comment now says the lock wait lives in the URL and that `connection-
 
 ### The behaviour is pinned by the shipped configuration and by the driver
 
-`ShippedConfigurationTest` gains two claims: the shipped URL names `busy_timeout=300000` and keeps `foreign_keys=on`, and a connection built from that URL reports `PRAGMA busy_timeout = 300000`. The first fails on the old text. The second is the one that matters: it establishes that the URL parameter is the driver's own knob rather than a string only Hikari reads, and it is the claim that would catch a value quietly reverted while the text still named the parameter.
+`ShippedConfigurationTest` gains two claims: the shipped URL names `busy_timeout=300000` and keeps `foreign_keys=on`, and a connection built from that URL reports `PRAGMA busy_timeout = 300000`. The second is the one that matters: it establishes that the URL parameter is the driver's own knob rather than a string only Hikari reads, and it is the claim that would catch a value quietly reverted while the text still named the parameter.
 
 ## Consequences
 

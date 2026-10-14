@@ -42,7 +42,7 @@ A dense `1..k` space, with `k` typically tens, is one where **fabrication is ari
 
 An in-range ordinal resolves to a surviving occurrence **by construction**, not by lookup: Vespera built the mapping in the same call, from rows it had just read out of the ledger. So ADR-026's "every cited id must exist and survive" is not a query here — it is an invariant, and this is the strongest and the cheapest form the check can take.
 
-**"Cited a survivor that is not in this cluster" is retired rather than answered.** It was the open question the ticket asked, and the numbering removes it: the ordinal space covers only what this call sent, and what it sent is a subset of one cluster's members. There is no ordinal that names a document in another cluster.
+**"Cited a survivor that is not in this cluster" is retired rather than answered.** The numbering removes the question: the ordinal space covers only what this call sent, and what it sent is a subset of one cluster's members. There is no ordinal that names a document in another cluster.
 
 ### Uncited prose fails the cluster
 
@@ -55,7 +55,7 @@ An in-range ordinal resolves to a surviving occurrence **by construction**, not 
 It joins ADR-108's three verification failures on the same terms: **a recorded fault, not a stopped run**. The deliverable keeps a hole, and the hole carries the cluster's 6a label as its heading ([ADR-106](0106-a-cluster-gets-a-derived-label-from-6a-and-a-generated-title-from-6b.md)).
 
 - **Not regenerated.** A second call made *because* the first one's output failed a check is a model checking model output at one remove, which ADR-026 refuses; it also turns a bounded one-call-per-cluster cost into an unbounded one.
-- **Not stripped.** Deleting the offending marker leaves prose that reads as sourced, having quietly removed the source. Of the four options the ticket listed, this is the only one that makes the artifact *less* honest than failing.
+- **Not stripped.** Deleting the offending marker leaves prose that reads as sourced, having quietly removed the source. Of the four options weighed, this is the only one that makes the artifact *less* honest than failing.
 
 ### Human review is after the run, and outside the tool
 

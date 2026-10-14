@@ -12,7 +12,7 @@ The implementation does not overwrite the table. It writes a fresh row set keyed
 
 So the code and the record disagreed, and a comment in `schema.sql` repeated the record's version while sitting directly above a bare `INSERT`. That comment is the reason this needs deciding rather than quietly leaving: a false comment is what a future reader trusts instead of reading the code.
 
-**The sibling table had already settled the question, unnoticed.** `shingle_document_frequency` (ADR-074, landed in #58 the same week) uses the identical shape — `PRIMARY KEY (run_id, …)`, one row set per stage-3 run, nothing deleted — and its own schema comment explains why that is safe: `RunId.of` already folds the upstream stage-2 run id into stage 3's identity (ADR-048), so two different stage-2 runs never collide under one stage-3 run id. ADR-075 was written before that table existed and reached for "overwritten" as the plain-language opposite of "written once and left stale". It did not mean to overrule a sibling it had not seen.
+**The sibling table had already settled the question.** `shingle_document_frequency` (ADR-074) uses the identical shape — `PRIMARY KEY (run_id, …)`, one row set per stage-3 run, nothing deleted — and its own schema comment explains why that is safe: `RunId.of` already folds the upstream stage-2 run id into stage 3's identity (ADR-048), so two different stage-2 runs never collide under one stage-3 run id. ADR-075 was written before that table existed and reached for "overwritten" as the plain-language opposite of "written once and left stale". It did not mean to overrule a sibling it had not seen.
 
 ## Decision
 

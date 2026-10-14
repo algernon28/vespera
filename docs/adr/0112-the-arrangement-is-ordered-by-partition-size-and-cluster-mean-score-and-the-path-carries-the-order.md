@@ -29,7 +29,7 @@ So a single rule applied at both levels would be tidiness bought by ignoring tha
 
 ### Seed partitions sort by document count, descending
 
-`CONTEXT.md` answered this before the question was asked. Its **seed partition** entry: *"All file occurrences sharing a winning seed. The unit within which grouping happens, and the top level of the arrangement — so its size is also a statement about the seed that owns it."* Size is the one candidate that is a judgement the system actually made about the corpus, and the one free of the chunk-count bias above.
+`CONTEXT.md` already answers this. Its **seed partition** entry: *"All file occurrences sharing a winning seed. The unit within which grouping happens, and the top level of the arrangement — so its size is also a statement about the seed that owns it."* Size is the one candidate that is a judgement the system actually made about the corpus, and the one free of the chunk-count bias above.
 
 **Ties break on the seed's path relative to the seed folder**, never on the occurrence id — the path survives a re-walk, and it is the one handle the operator has on this order at all: an operator who wants a particular seed first can rename its file.
 

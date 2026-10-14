@@ -2,11 +2,11 @@
 
 - **Date**: 2026-09-12
 - **Status**: accepted
-- **Rests on**: [`docs/research/ollama-generation-surface.md`](../research/ollama-generation-surface.md) — the facts this record acts on, pinned to Ollama 0.33.2 and Spring AI 2.0.0, cited line by line. It lands on `main` with this decision rather than staying on the branch it was written on, because the decision is unreadable without it.
+- **Rests on**: [`docs/research/ollama-generation-surface.md`](../research/ollama-generation-surface.md) — the facts this record acts on, pinned to Ollama 0.33.2 and Spring AI 2.0.0, cited line by line. It is kept in the repository with this decision, because the decision is unreadable without it.
 
 ## Context
 
-A synthesis doc makes a cluster's survivors coherent by connecting them, and is explicitly not a per-document summary ([ADR-021](0021-synthesis-exists-to-make-the-survivor-set-coherent.md)). A cluster may hold hundreds of documents. No context window holds them, so what is sent has to be chosen — and the research turned up that choosing badly fails **silently**.
+A synthesis doc makes a cluster's survivors coherent by connecting them, and is explicitly not a per-document summary ([ADR-021](0021-synthesis-exists-to-make-the-survivor-set-coherent.md)). A cluster may hold hundreds of documents. No context window holds them, so what is sent has to be chosen — and choosing badly fails **silently**.
 
 ### The failure this record is mostly about
 
