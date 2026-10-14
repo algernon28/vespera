@@ -8,7 +8,8 @@
 // name, dots and spaces that end each, and the Z cases are held to it. docs/adr/0233 reads what stands
 // beside the name .claude in a token's text, a leading ~ in a file tool's field, a place a link in the
 // guard's own .claude leads to, and on Windows a name of dots with a stream name, and the I cases are
-// held to it.
+// held to it. docs/adr/0257 admits a few files directly in a working directory by name, to Read and, for
+// profile.yaml, to Edit and Write, and K301, K302, K304 and the K4 and K5 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -36,7 +37,10 @@
 //   checkout/            ${REPO}: the guard's files, README.md, src/Example.java. Holds no working directory.
 //   temp/                ${TEMP}
 //     scratch/note.txt
-//     working-directory/ vespera.db, report.html, deliverable/run/index.md
+//     working-directory/ vespera.db, report.html, deliverable/run/index.md, and the files docs/adr/0257
+//                        names: profile.yaml, relevance-labels.yaml and six pages; a page's .part file,
+//                        and deliverable/profile.yaml, a file of an admitted name in a folder of it
+//     hard-linked/       vespera.db, and extraction-failures.html, a second name of scratch/linked-elsewhere.txt
 //     locked/            vespera.lock, vespera.log
 //     deep/note.txt      and deep/a/b/vespera.lock, a working directory two folders further down
 //     links/out          a junction (Windows) or symlink to outside/
@@ -75,6 +79,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -168,6 +173,21 @@ put(`${T}/scratch/note.txt`, "scratch\n");
 put(`${WD}/vespera.db`);
 put(`${WD}/report.html`, "<p>fixture</p>\n");
 put(`${WD}/deliverable/run/index.md`, "# fixture\n");
+// docs/adr/0257: the files directly in a working directory that a file tool may open by name, a page
+// while it is being written, and a file of an admitted name in a folder of the working directory.
+const ADMITTED_PAGES = [
+  "format-mix.html",
+  "extraction-failures.html",
+  "extraction-survivors.html",
+  "confidence-distribution.html",
+  "seed-corpus-comparison.html",
+  "cluster-sizes.html",
+];
+put(`${WD}/profile.yaml`, "seedFolder: null\n");
+put(`${WD}/relevance-labels.yaml`, "documents: []\n");
+for (const page of ADMITTED_PAGES) put(`${WD}/${page}`, "<p>fixture</p>\n");
+put(`${WD}/extraction-failures.html.part`, "<p>fixture</p>\n");
+put(`${WD}/deliverable/profile.yaml`, "seedFolder: null\n");
 put(`${LOCKED}/vespera.lock`);
 put(`${LOCKED}/vespera.log`, "fixture\n");
 put(`${DEEP}/note.txt`, "beside a working directory, not in one\n");
@@ -241,6 +261,20 @@ try {
 // not started, so none of them holds or fails for a reason that is not the guard's.
 if (!existsSync(`${LINKS}/out/doc.txt`) || !existsSync(`${LINKS}/to-working-directory/vespera.db`)) linkable = false;
 const NO_LINK = "this platform would not create a junction or a symlink that leads where it should";
+
+// docs/adr/0257: a working directory whose review list is a second name of a file outside it. A hard link
+// has no target to follow, so only the count of a file's names tells it apart.
+const HARD_LINKED = `${T}/hard-linked`;
+put(`${HARD_LINKED}/vespera.db`);
+put(`${T}/scratch/linked-elsewhere.txt`, "beside a working directory, not in one\n");
+let hardLinked = true;
+try {
+  linkSync(native(`${T}/scratch/linked-elsewhere.txt`), native(`${HARD_LINKED}/extraction-failures.html`));
+  if (lstatSync(native(`${HARD_LINKED}/extraction-failures.html`)).nlink !== 2) hardLinked = false;
+} catch {
+  hardLinked = false;
+}
+const NO_HARD_LINK = "this platform would not give a file a second name that reports two";
 
 // The links of the L cases, kept apart from the two above so that R503 to R505 are started wherever they
 // were before. Two of them lead nowhere on purpose: one to a name that is not there, one to itself.
@@ -804,16 +838,58 @@ const cases = [
      check, and a closed .claude folder does not pass it, the folder the script is in among them. */
   ["K231", "the counting command run with the folder the script is in as the current directory", "Bash", { command: `node working-directory-counts.mjs ${WD}` }, REFUSED, { cwd: `${C}/${HOOKS}` }],
 
-  /* K3. What docs/adr/0212 still refuses, named in one place: every file a working directory holds. */
-  ["K301", "Read of profile.yaml in a working directory", "Read", { file_path: `${WD}/profile.yaml` }, REFUSED],
-  ["K302", "Read of relevance-labels.yaml in a working directory", "Read", { file_path: `${WD}/relevance-labels.yaml` }, REFUSED],
+  /* K3. What docs/adr/0212 refused, named in one place: every file a working directory holds. docs/adr/0257
+     admits three of them to Read, profile.yaml, the label file and the review list, which carry no text of
+     a document, and K301, K302 and K304 claim that. The labelling page carries document openings, the
+     arrangement page the titles of documents, and the rest stay refused with them. */
+  ["K301", "Read of profile.yaml in a working directory", "Read", { file_path: `${WD}/profile.yaml` }, ALLOWED],
+  ["K302", "Read of relevance-labels.yaml in a working directory", "Read", { file_path: `${WD}/relevance-labels.yaml` }, ALLOWED],
   ["K303", "Read of the labelling page, which carries document openings", "Read", { file_path: `${WD}/relevance-labelling.html` }, REFUSED],
-  ["K304", "Read of the review list", "Read", { file_path: `${WD}/extraction-failures.html` }, REFUSED],
-  ["K305", "Read of the arrangement page", "Read", { file_path: `${WD}/arrangement.html` }, REFUSED],
+  ["K304", "Read of the review list", "Read", { file_path: `${WD}/extraction-failures.html` }, ALLOWED],
+  ["K305", "Read of the arrangement page, which carries the titles of documents", "Read", { file_path: `${WD}/arrangement.html` }, REFUSED],
   ["K306", "Read of vespera.log", "Read", { file_path: `${WD}/vespera.log` }, REFUSED],
   ["K307", "Read of a log vespera.log has rolled into", "Read", { file_path: `${WD}/vespera.2026-10-08.0.log` }, REFUSED],
   ["K308", "Read of the deliverable's CSV", "Read", { file_path: `${WD}/deliverable/run/documents.csv` }, REFUSED],
   ["K309", "Grep of vespera.db", "Grep", { pattern: "COUNT", path: `${WD}/vespera.db` }, REFUSED],
+
+  /* K4. docs/adr/0257: Read of profile.yaml, the label file and the six pages of paths, counts and reasons,
+     and Edit and Write of profile.yaml, directly in a working directory, are let through. */
+  ["K401", "Edit of profile.yaml in a working directory", "Edit", { file_path: `${WD}/profile.yaml`, old_string: "null", new_string: "x" }, ALLOWED],
+  ["K402", "Write of profile.yaml in a working directory", "Write", { file_path: `${WD}/profile.yaml`, content: "seedFolder: x\n" }, ALLOWED],
+  ["K403", "Write of profile.yaml in a working directory whose name holds a space and that holds none yet", "Write", { file_path: `${T}/my runs/profile.yaml`, content: "x" }, ALLOWED],
+  ["K404", "Write of profile.yaml in a folder holding only vespera.lock", "Write", { file_path: `${LOCKED}/profile.yaml`, content: "x" }, ALLOWED],
+  ["K405", "Read of the survivor list", "Read", { file_path: `${WD}/extraction-survivors.html` }, ALLOWED],
+  ["K406", "Read of the format-mix page", "Read", { file_path: `${WD}/format-mix.html` }, ALLOWED],
+  ["K407", "Read of the confidence-distribution page", "Read", { file_path: `${WD}/confidence-distribution.html` }, ALLOWED],
+  ["K408", "Read of the seed/corpus comparison page", "Read", { file_path: `${WD}/seed-corpus-comparison.html` }, ALLOWED],
+  ["K409", "Read of the cluster-sizes page", "Read", { file_path: `${WD}/cluster-sizes.html` }, ALLOWED],
+  ["K410", "Read of profile.yaml by a relative path, with the working directory as the current directory", "Read", { file_path: "profile.yaml" }, ALLOWED, { cwd: WD }],
+  ["K411", "Read of profile.yaml through a link to the working directory", "Read", { file_path: `${LINKS}/to-working-directory/profile.yaml` }, ALLOWED, { needsLink: true }],
+  // The name is compared folded to one case on Windows only, where the file system opens PROFILE.YAML as
+  // profile.yaml; elsewhere it is another name, and is refused.
+  ["K412", `Read of PROFILE.YAML in a working directory, ${windows ? "which Windows opens as profile.yaml" : "which is another name off Windows"}`, "Read", { file_path: `${WD}/PROFILE.YAML` }, windows ? ALLOWED : REFUSED],
+
+  /* K5. docs/adr/0257: everything else stays refused: a page or the label file to a tool that writes,
+     profile.yaml to any tool but Read, Edit and Write and to every shell command, an admitted name
+     anywhere but directly in a working directory or under any spelling but its own, a page while it is
+     being written, a second name of another file, and a working directory the allow list does not name. */
+  ["K501", "Write of the review list", "Write", { file_path: `${WD}/extraction-failures.html`, content: "x" }, REFUSED],
+  ["K502", "Edit of the survivor list", "Edit", { file_path: `${WD}/extraction-survivors.html`, old_string: "a", new_string: "b" }, REFUSED],
+  ["K503", "Write of relevance-labels.yaml, whose answers are the operator's or a local model's", "Write", { file_path: `${WD}/relevance-labels.yaml`, content: "x" }, REFUSED],
+  ["K504", "NotebookEdit of profile.yaml", "NotebookEdit", { notebook_path: `${WD}/profile.yaml`, new_source: "x" }, REFUSED],
+  ["K505", "Grep whose path is profile.yaml", "Grep", { pattern: "seedFolder", path: `${WD}/profile.yaml` }, REFUSED],
+  ["K506", "Glob of the working directory for profile.yaml", "Glob", { pattern: "profile.yaml", path: WD }, REFUSED],
+  ["K507", "cat of profile.yaml", "Bash", { command: "cat working-directory/profile.yaml" }, REFUSED, { cwd: T }],
+  ["K508", "sed -i on profile.yaml", "Bash", { command: "sed -i s/null/x/ working-directory/profile.yaml" }, REFUSED, { cwd: T }],
+  ["K509", "Get-Content of profile.yaml", "PowerShell", { command: String.raw`Get-Content working-directory\profile.yaml` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["K510", "Read of a file named profile.yaml in a folder of the working directory", "Read", { file_path: `${WD}/deliverable/profile.yaml` }, REFUSED],
+  ["K511", "Read of the review list while it is being written, as its .part file", "Read", { file_path: `${WD}/extraction-failures.html.part` }, REFUSED],
+  ["K512", "Read of profile.yaml with a stream name after it", "Read", { file_path: `${WD}/profile.yaml:x` }, REFUSED],
+  ["K513", "Read of profile.yaml with a dot after it", "Read", { file_path: `${WD}/profile.yaml.` }, REFUSED],
+  ["K514", "Read of profile.yaml with a space after it", "Read", { file_path: `${WD}/profile.yaml ` }, REFUSED],
+  ["K515", "Write of profile.yaml in a working directory under no allowed root", "Write", { file_path: `${O}/counted/profile.yaml`, content: "x" }, REFUSED],
+  ["K516", "Read of vespera.lock", "Read", { file_path: `${LOCKED}/vespera.lock` }, REFUSED],
+  ["K517", "Read of a review list that is a second name of a file outside the working directory", "Read", { file_path: `${HARD_LINKED}/extraction-failures.html` }, REFUSED, { needsHardLink: true }],
 ];
 
 /* ---------- the .claude folders, held to docs/adr/0215 ---------- */
@@ -1414,9 +1490,11 @@ for (const [id, what, tool, input, expected, options = {}] of cases) {
           (options.needsLinksToClaude && !linkedToClaude) ||
           (options.needsLinksFromClaude && !linkedFromClaude)
         ? `not started on this platform: ${NO_LINK}`
-        : options.needsShortName && !SHORT_NAME_OF_CLAUDE
-          ? `not started here: ${NO_SHORT_NAME}`
-          : false;
+        : options.needsHardLink && !hardLinked
+          ? `not started on this platform: ${NO_HARD_LINK}`
+          : options.needsShortName && !SHORT_NAME_OF_CLAUDE
+            ? `not started here: ${NO_SHORT_NAME}`
+            : false;
   test(`${id} ${expected === ALLOWED ? "allowed" : "refused"}: ${what}`, { skip }, () => {
     const cwd = options.noCwd ? undefined : (options.cwd ?? C);
     const result = startGuard({ stdin: hookInput(tool, input, cwd), env: options.env });
