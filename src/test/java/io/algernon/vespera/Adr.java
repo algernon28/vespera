@@ -1715,6 +1715,15 @@ public final class Adr {
     public static final String ONE_STATEMENT_OF_THE_LEDGER_IS_AS_LONG_AS_A_WALK = FILE
             + "0251-one-statement-of-the-ledger-is-as-long-as-a-walk-the-survivor-lists-further-columns-are-undecided-and-its-listeners-scope-is-stated-in-the-code.md";
 
+    /**
+     * ADR-252 -- compiled code, fonts, certificates and detached signatures, and databases are out of scope,
+     * each recognised by its signature as a detected format of its own once the bytes read are not text; an
+     * email is out of scope too, an OLE compound file named .msg or text named .eml, as a subtype of each
+     * (extends ADR-146, amends ADR-094's sentence on .msg). A file with no signature earns no verdict.
+     */
+    public static final String COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE = FILE
+            + "0252-compiled-code-fonts-certificates-databases-and-emails-are-out-of-scope.md";
+
     private Adr() {
     }
 }

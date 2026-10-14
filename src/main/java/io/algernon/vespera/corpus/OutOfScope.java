@@ -8,7 +8,9 @@ import java.util.Optional;
  * Which kinds of file this tool leaves out, whatever they hold: spreadsheets, both the workbook
  * archive stage 1 recognises from its bytes and the older compound file named as one (ADR-146), a
  * BMP image, recognised from its two headers (ADR-167), and a video, recognised from its
- * container's own signature (ADR-168).
+ * container's own signature (ADR-168); and compiled code, a font, a certificate or detached
+ * signature, and a database, each recognised from its bytes, and an email, an Outlook message or an
+ * internet message, recognised by its name within what the bytes fixed (ADR-252).
  *
  * <p>A code default, and the one place it is written. Making it the operator's to change is a later
  * decision (#278), and a profile key would read this same question; nothing else in the tree names a
@@ -37,6 +39,23 @@ final class OutOfScope {
         }
         if (format == DetectedFormat.VIDEO) {
             return Optional.of("a video, and videos are out of scope");
+        }
+        if (format == DetectedFormat.COMPILED_CODE) {
+            return Optional.of("compiled code, and compiled code is out of scope");
+        }
+        if (format == DetectedFormat.FONT) {
+            return Optional.of("a font, and fonts are out of scope");
+        }
+        if (format == DetectedFormat.CERTIFICATE) {
+            return Optional.of("a certificate or a detached signature, and certificates and detached signatures are out of scope");
+        }
+        if (format == DetectedFormat.DATABASE) {
+            return Optional.of("a database, and databases are out of scope");
+        }
+        boolean email = (format == DetectedFormat.OLE_COMPOUND && subtype.equals(Optional.of(DetectedSubtype.OUTLOOK_MESSAGE)))
+                || (format == DetectedFormat.PLAIN_TEXT && subtype.equals(Optional.of(DetectedSubtype.RFC822_MESSAGE)));
+        if (email) {
+            return Optional.of("an email, and emails are out of scope");
         }
         return Optional.empty();
     }
@@ -106,7 +125,8 @@ final class OutOfScope {
             case HTML -> Optional.of("an HTML file");
             case CSV -> Optional.of("a CSV file");
             case ASCIIDOC -> Optional.of("an AsciiDoc file");
-            case MARKDOWN, LEGACY_WORD, LEGACY_SPREADSHEET, LEGACY_PRESENTATION -> Optional.empty();
+            case MARKDOWN, LEGACY_WORD, LEGACY_SPREADSHEET, LEGACY_PRESENTATION, OUTLOOK_MESSAGE, RFC822_MESSAGE ->
+                Optional.empty();
         };
     }
 

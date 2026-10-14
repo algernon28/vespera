@@ -74,6 +74,8 @@ public final class BrokenOrOutOfScope {
             countInTheMix(byFormat, bySubtype, unrecognisedLeadingBytes, result, canonicalRoot.resolve(facts.path().value()));
             Optional<String> leftOut = Optional.empty();
             boolean isLog = false;
+            // Not every text file left out is left out for its size: an email is left out for its kind (ADR-252).
+            boolean forItsSize = false;
             if (!result.broken()) {
                 leftOut = OutOfScope.reasonFor(result.format(), result.subtype());
                 if (leftOut.isEmpty() && result.format() == DetectedFormat.PLAIN_TEXT) {
@@ -91,6 +93,7 @@ public final class BrokenOrOutOfScope {
                     if (leftOut.isEmpty()) {
                         leftOut = OutOfScope.sizeReason(
                                 canonicalRoot.resolve(facts.path().value()), facts.sizeBytes(), result.subtype(), limits);
+                        forItsSize = leftOut.isPresent();
                     }
                 }
             }
@@ -104,7 +107,7 @@ public final class BrokenOrOutOfScope {
                 outOfScope++;
                 if (isLog) {
                     logs++;
-                } else if (result.format() == DetectedFormat.PLAIN_TEXT) {
+                } else if (forItsSize) {
                     tooLarge++;
                 }
             }
