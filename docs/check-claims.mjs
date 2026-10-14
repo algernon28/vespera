@@ -670,6 +670,26 @@ function markerPattern(source, whole = false) {
   }
 }
 
+/* ---------- the standard a test is reviewed against ---------- */
+
+// A test written by a pass of fixes was, for nine passes, the thing the next pass found fault with: a claim that
+// could not fail, a name that said what it did not run, a plan matched by a loose substring. REVIEW.md
+// is what a reviewer reads before the diff, and AGENTS.md points an author to it. What is held is that both stand
+// and that REVIEW.md keeps its seven standards.
+{
+  const NAME = "the standard a test is reviewed against";
+  const DOC = "REVIEW.md";
+  const standards = ["Can fail", "Says what it runs", "Matches the whole thing", "One claim, one place", "Holds its decision", "Order and identity", "Shares its setup"];
+  if (!existsSync(DOC)) fail(NAME, `${DOC} is missing: it holds the standard a test is reviewed against`);
+  else {
+    const doc = readFileSync(DOC, "utf8");
+    const lacking = standards.filter((s) => !new RegExp(`^### ${s}\\b`, "m").test(doc));
+    if (lacking.length) fail(NAME, `${DOC} lacks ${lacking.join(", ")}`);
+    else if (!text.includes(DOC)) fail(NAME, `${AGENTS} does not point to ${DOC}`);
+    else pass(NAME, `${DOC} keeps its ${standards.length} standards and ${AGENTS} points to it`);
+  }
+}
+
 /* ---------- what this does not check ---------- */
 
 // Printed on every run, including a clean one. The point of the list is that the
