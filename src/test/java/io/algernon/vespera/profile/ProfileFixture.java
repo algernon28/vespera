@@ -183,13 +183,9 @@ public final class ProfileFixture {
         return this;
     }
 
-    public ProfileFixture outOfScopeNameEndings(String value, String provenance) {
-        return outOfScopeNameEndings(new NameEndingsValue(value, provenance, null));
-    }
-
     /** Stage 1's list of name endings left out (ADR-254), written as one line. */
-    public ProfileFixture outOfScopeNameEndings(NameEndingsValue value) {
-        this.outOfScopeNameEndings = value == null ? NameEndingsValue.unset() : value;
+    public ProfileFixture outOfScopeNameEndings(String value, String provenance) {
+        this.outOfScopeNameEndings = new NameEndingsValue(value, provenance, null);
         return this;
     }
 

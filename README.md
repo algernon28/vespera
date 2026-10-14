@@ -58,7 +58,7 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `generationModel` | whichever model you can serve locally, if you want a different one | — |
 | `generationContextWindow` | how much your own machine can read in one go | — |
 | `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
-| `outOfScopeNameEndings` | which files the tool could not recognise, and you know are not documents by the ending of their name | `format-mix.html` |
+| `outOfScopeNameEndings` | which files, of no known kind or text, you know are not documents by the ending of their name | `format-mix.html` |
 
 Six of these are **optional** and none of them is one of the five stops; all six are here so that you know they exist.
 

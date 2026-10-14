@@ -8,6 +8,7 @@
 - **Keeps**: [ADR-095](0095-the-detected-format-is-a-stage-1-output-and-unrecognised-content-earns-no-verdict-until-the-mix-is-measured.md). The detected format is recorded as before, and a file left out by its name is counted under what its bytes were.
 - **Rests on**: [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md) and [ADR-120](0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md). The profile gains a key, `outOfScopeNameEndings`, that ships unset, typed by a value type of its own with ADR-120's three states.
 - **Rests on**: [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and ADR-171 §4. Stage 1's configuration consumed records the list (§6).
+- **Replaces**: two sentences of the format-mix page as ADR-178 and ADR-252 §6 quote them, the counts of what was left out and the sentence above the timestamp table (§7). Those records are left as written.
 
 ## Context
 
@@ -20,8 +21,8 @@ The format-mix page groups the files stage 1 could not recognise by their first 
 | `39 39 39 30` | `9990` | 4,753 |
 | `39 39 39 32` | `9992` | 2,089 |
 | `30 31 30 31` | `0101` | 2,004 |
-| `38 35 34 31` | `8541` | among the large groups, not counted out |
-| `38 32 32 37` | `8227` | among the large groups, not counted out |
+| `38 35 34 31` | `8541` | among the large groups, not counted here |
+| `38 32 32 37` | `8227` | among the large groups, not counted here |
 | `31 2E 31 3D` | `1.1=` | 219 |
 
 They read as fixed-width records in a single-byte encoding: digits and letters, with a byte above ASCII in the first 512 bytes that does not decode as UTF-8. `BrokenCheck` therefore finds them `UNRECOGNISED`, stage 2 sends them under the neutral name, and the converter refuses them. The page counts bytes and not names, so it cannot say which group is which family. Nothing at a fixed place in them is a signature a reader of the format must read, and ADR-252 refused to read *"binary, and of no known kind"* as a kind.
@@ -45,7 +46,7 @@ Two facts about the code shape the rule.
 
 `outOfScopeNameEndings` holds one line of text under `value`, as every key of the profile does, with `provenance` beside it.
 
-- **The endings are separated by spaces, commas, or both.** The value, trimmed, is split at every run of spaces and commas, and a piece the split leaves empty, as before a leading comma, is dropped: `, .P3A` holds one ending, and `, ,` holds none (§5). The value stays one string, so the file keeps the shape ADR-061 gave every key; `keysAsWritten` and the deliverable's index state it as written (ADR-186), and census writes it back untouched (ADR-062). A YAML list under `value` does not load: `ProfileStore` refuses it with the line it gives any key that is not in the shape a key takes.
+- **The endings are separated by spaces, commas, or both.** The value, trimmed, is split at every run of commas and of characters Unicode counts as white space, a no-break space among them, and a piece the split leaves empty, as before a leading comma, is dropped: `, .P3A` holds one ending, and `, ,` holds none (§5). The value stays one string, so the file keeps the shape ADR-061 gave every key; `keysAsWritten` and the deliverable's index state it as written (ADR-186), and census writes it back untouched (ADR-062). A YAML list under `value` does not load: `ProfileStore` refuses it with the line it gives any key that is not in the shape a key takes.
 - **Each ending begins with a dot**, holds at least one character that is not a dot, and holds no `/`, `\`, `*` or `?`.
 - **An ending matches the end of the file's name**, the last element of its path, in any case: `.P3A` matches `TERM01.P3A` and `term01.p3a`, and `.tar.gz` matches `dump.tar.gz` and not `dump.gz`. Case is folded with `Locale.ROOT`, on the ending and on the name alike.
 - **There is no wildcard.** An ending holding `*` or `?` is unreadable (§5), so that an operator who writes `.P3*` is told rather than matching nothing. Seven endings are seven entries.
@@ -89,7 +90,7 @@ ADR-120's three states, with the parse in the key's own value type, `NameEndings
 
 ### 7. What the operator sees
 
-- **The verdict reason**: *"a file whose name ends with .P3A, an ending outOfScopeNameEndings in profile.yaml lists as out of scope"*. The ending is spelt as the file's name spells it; where two listed endings match, the longer is named.
+- **The verdict reason**: *"a file whose name ends with .P3A, an ending outOfScopeNameEndings in profile.yaml lists as out of scope"*. The ending is spelt as the file's name spells it; where two listed endings match, the longer is named. Where the name's last characters do not fold to the ending, as when a character such as `İ` (U+0130) folds to two, or the name is shorter than the folded ending, the reason names the ending as the canonical list holds it.
 - **Stage 1's log line**: *"out of scope: "* and the reason, as for every out-of-scope file.
 - **The format-mix page.**
   - Its count of files left out as out of scope includes these, and the sentence after it counts them apart: *"Of those, logs: L, text files left out for their size: S, and files left out for the ending of their name: N."*
@@ -150,6 +151,8 @@ Every file is a few bytes built in the test, and every profile is YAML written b
 | `…withNoEndingsListedNothingIsLeftOutByName` | with no profile, a file of no known kind named `.P3A` carries no verdict, the configuration consumed records `[]`, and the page says no ending is listed and counts none |
 | `…anUnreadableListLeavesNothingOutAndIsRecordedAsNone` | with `.P3*`, nothing is left out and the configuration consumed records `[]` |
 | `…theRunIsNamedByTheEndingsAndNotByHowTheyAreWritten` | the same endings in another order, case and separation name one run, and an ending added names a second |
+| `…theNameIsTheLastElementOfThePathAndTheLongestEndingIsNamed` | a folder named with a listed ending leaves out none of the files in it, a listed file inside it is left out; with `.gz` and `.tar.gz` listed the reason names `.tar.gz`; a listed `.eml` is left out as an email; a file named exactly `.DGN` is left out; a name ending with `İ` whose folded form matches, and a name shorter than the folded ending, are left out with the ending as listed, and the run ends |
+| `…aNoBreakSpaceSeparatesEndingsAsASpaceDoes` | two endings separated by a no-break space are read as two, and a file named with either is left out |
 | `pipeline.RunIdentityGoldenTest.byteLevelReduction` | §6's configuration consumed, word for word |
 | `pipeline.ByteLevelReductionTaskletTest.removesCompiledCodeFontsCertificatesDatabasesAndEmailsAsOutOfScope` | the page's sentence above the timestamp table is §7's |
 

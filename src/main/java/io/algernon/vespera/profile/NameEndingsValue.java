@@ -34,7 +34,7 @@ public record NameEndingsValue(String value, String provenance, Measurement meas
             return new Unset();
         }
         String text = value().trim();
-        List<String> pieces = List.of(text.split("[\\s,]+")).stream()
+        List<String> pieces = List.of(text.split("(?U)[\\s,]+")).stream()
                 .filter(piece -> !piece.isEmpty())
                 .toList();
         if (pieces.isEmpty() || !pieces.stream().allMatch(NameEndingsValue::isAnEnding)) {

@@ -23,9 +23,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * <p>An unset key is a present key with nulls, never an absent one: absent and null are the same
  * gated state, so a key nobody has answered yet reads the same either way (ADR-062).
  *
- * <p><b>Sealed over two records, and that is ADR-120.</b> Both implementations carry those same
- * three components in the same order, so the file on disk is byte-for-byte what it was; what the
- * split buys is that <em>which keys hold a number</em> is a fact the compiler holds rather than a
+ * <p><b>Sealed over three records: ADR-120's two, and {@link NameEndingsValue}, ADR-254's list of name
+ * endings.</b> Each carries those same three components in the same order, so the file on disk is
+ * byte-for-byte what it was; what the split buys is that <em>which keys hold a number, or a list</em> is a
+ * fact the compiler holds rather than a
  * convention each reader re-derives. Before it, three numeric keys were parsed at five call sites
  * that disagreed three ways about a value no number could be read from — one ignored it, one ended
  * the invocation, one stopped the context from starting.

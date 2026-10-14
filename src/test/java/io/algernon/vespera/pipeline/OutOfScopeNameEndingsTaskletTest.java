@@ -223,6 +223,10 @@ class OutOfScopeNameEndingsTaskletTest {
                         + " than ten lines",
                 () -> assertThat(countIn(html, "<td>fewer than ten lines</td>")).isZero());
         claim(
+                "and the file whose every line begins with a timestamp is not counted in the band from 90% to 100%,"
+                        + " nor among the logs",
+                () -> assertThat(countIn(html, "<td>90% to 100%</td>")).isZero());
+        claim(
                 "and the page says so above the timestamp table",
                 () -> assertThat(html).contains("Each text file not left out for its kind or for the ending of its"
                         + " name was read from its start and its end"));
@@ -307,6 +311,100 @@ class OutOfScopeNameEndingsTaskletTest {
                 "and a list with one ending more names a second piece of work",
                 () -> assertThat(stageOneRuns()).isEqualTo(2));
     }
+
+    /**
+     * §2, §4 and §7 at their edges: the name matched is the last element of the path; of two listed endings
+     * that match, the longer is named; an email is left out for its kind before the list is read; a name that is
+     * the ending alone matches it; and where folding makes the name's last characters differ from the ending,
+     * as {@code İ} (U+0130) folds to two characters, the file is still left out, the reason names the ending as
+     * the canonical list holds it, and the run is not ended by a name shorter than the folded ending.
+     */
+    @Test
+    @Story("A file of no known kind is left out for the ending of its name")
+    @DisplayName("Only a file's own name is matched, the longer of two matching endings is named, an email stays an email, and a name that folds longer is still left out")
+    void theNameIsTheLastElementOfThePathAndTheLongestEndingIsNamed(@TempDir Path root, @TempDir Path workingDirectory)
+            throws Exception {
+        new ProfileStore(workingDirectory).save(ProfileFixture.profile()
+                .outOfScopeNameEndings(".P3A .gz .TAR.GZ .eml .DGN " + DOTTED_CAPITAL_I_ENDING, SET_BY_THIS_TEST)
+                .build());
+        Path folder = Files.createDirectory(root.resolve("ARCHIVIO.P3A"));
+        Files.write(folder.resolve("nota.bin"), terminalRecord(40));
+        Files.write(folder.resolve("TERM0009.P3A"), terminalRecord(41));
+        Files.write(root.resolve("dump.tar.gz"), terminalRecord(42));
+        Files.writeString(root.resolve("collaudo.eml"), "From: a@example.org\nSubject: collaudo\n\nRinviato.\n");
+        Files.write(root.resolve(".DGN"), terminalRecord(43));
+        Files.write(root.resolve("A" + DOTTED_CAPITAL_I_ENDING), terminalRecord(44));
+        Files.write(root.resolve(DOTTED_CAPITAL_I_ENDING), terminalRecord(45));
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+        String foldedEnding = DOTTED_CAPITAL_I_ENDING.toLowerCase(Locale.ROOT);
+
+        stageOne(ledger, root, workingDirectory);
+
+        claim(
+                "a folder named with a listed ending leaves out nothing for its own name: a file in it whose name"
+                        + " ends otherwise is kept, and one whose name ends with a listed ending is left out",
+                () -> {
+                    assertThat(verdictKindsFor(ledger, walkId, "ARCHIVIO.P3A/nota.bin")).isEmpty();
+                    assertThat(verdictReasonsFor(ledger, walkId, "ARCHIVIO.P3A/TERM0009.P3A"))
+                            .containsExactly(REASON.formatted(".P3A"));
+                });
+        claim(
+                "with both .gz and .tar.gz listed, the reason names the longer ending",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, "dump.tar.gz")).containsExactly(REASON.formatted(".tar.gz")));
+        claim(
+                "a listed .eml is left out as an email, its kind, and not for the ending of its name",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, "collaudo.eml"))
+                        .containsExactly("an email, and emails are out of scope"));
+        claim(
+                "a file whose whole name is a listed ending is left out",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, ".DGN")).containsExactly(REASON.formatted(".DGN")));
+        claim(
+                "a name whose capital dotted I folds to two characters, and a name shorter than the folded ending, are"
+                        + " both left out, the reason naming the ending as the list holds it once folded, and the run"
+                        + " goes to its end",
+                () -> {
+                    assertThat(verdictReasonsFor(ledger, walkId, "A" + DOTTED_CAPITAL_I_ENDING))
+                            .containsExactly(REASON.formatted(foldedEnding));
+                    assertThat(verdictReasonsFor(ledger, walkId, DOTTED_CAPITAL_I_ENDING))
+                            .containsExactly(REASON.formatted(foldedEnding));
+                    assertThat(Files.exists(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME)))
+                            .isTrue();
+                });
+    }
+
+    /**
+     * §2: endings are separated by any character Unicode counts as white space, so a no-break space pasted from
+     * a document separates two endings as a space does, rather than joining them into one that matches nothing.
+     */
+    @Test
+    @Story("A file of no known kind is left out for the ending of its name")
+    @DisplayName("Two endings separated by a no-break space are read as two")
+    void aNoBreakSpaceSeparatesEndingsAsASpaceDoes(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        new ProfileStore(workingDirectory).save(ProfileFixture.profile()
+                .outOfScopeNameEndings(".P3A .DGN", SET_BY_THIS_TEST)
+                .build());
+        Files.write(root.resolve("TERM0001.P3A"), terminalRecord(40));
+        Files.write(root.resolve("FIRMA.DGN"), terminalRecord(41));
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        stageOne(ledger, root, workingDirectory);
+
+        claim(
+                "the settings stage 1 records carry two endings, not one joined by the no-break space",
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT config_consumed FROM run", String.class))
+                        .contains("\"outOfScopeNameEndings\":[\".dgn\",\".p3a\"]"));
+        claim(
+                "and a file named with either is left out",
+                () -> {
+                    assertThat(verdictReasonsFor(ledger, walkId, "TERM0001.P3A")).containsExactly(REASON.formatted(".P3A"));
+                    assertThat(verdictReasonsFor(ledger, walkId, "FIRMA.DGN")).containsExactly(REASON.formatted(".DGN"));
+                });
+    }
+
+    /** An ending holding a capital I with a dot above, U+0130, which {@code Locale.ROOT} folds to two characters. */
+    private static final String DOTTED_CAPITAL_I_ENDING = ".İX";
 
     private void stageOne(Ledger ledger, Path root, Path workingDirectory) throws Exception {
         new ByteLevelReductionTasklet(
