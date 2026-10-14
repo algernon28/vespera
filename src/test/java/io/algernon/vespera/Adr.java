@@ -1725,6 +1725,13 @@ public final class Adr {
             + "0252-compiled-code-fonts-certificates-databases-and-emails-are-out-of-scope.md";
 
     /**
+     * ADR-253 -- every decision record, from ADR-001 on, holds its decision and no history of its making; a
+     * reconstituted record keeps its verbatim summary (extends ADR-249 section 4).
+     */
+    public static final String EVERY_RECORD_HOLDS_ITS_DECISION_AND_NO_HISTORY = FILE
+            + "0253-every-decision-record-holds-its-decision-and-no-history.md";
+
+    /**
      * ADR-254 -- a file whose bytes matched no signature, detected as of no known kind or as text, and whose
      * name ends with one of the endings the profile's outOfScopeNameEndings lists, is out of scope; the list is
      * folded, de-duplicated and sorted, and stage 1's configuration consumed records it (extends ADR-252 §5

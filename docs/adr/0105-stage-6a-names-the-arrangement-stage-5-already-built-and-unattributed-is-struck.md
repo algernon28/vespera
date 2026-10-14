@@ -6,7 +6,7 @@
 
 ## Context
 
-[ADR-022](0022-stage-6-splits-into-arrangement-6a-then-generation-6b.md) says 6a builds a page tree — a seed-named top level plus `unattributed`, clusters within — and gates 6b on a human reading it. It was written on 2026-08-20, before stage 5 existed, and both of its structural claims have since been overtaken by what stage 5 shipped.
+[ADR-022](0022-stage-6-splits-into-arrangement-6a-then-generation-6b.md) says 6a builds a page tree — a seed-named top level plus `unattributed`, clusters within — and gates 6b on a human reading it. It was written before stage 5 existed, and both of its structural claims have since been overtaken by what stage 5 shipped.
 
 ### The structure is already in the ledger
 

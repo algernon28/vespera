@@ -5,12 +5,12 @@
 - **Amends**: [ADR-159](0159-generation-asks-for-no-thinking-and-the-prompt-names-the-square-brackets-a-citation-is-written-in.md) §2, in one word and one place. The citation sentence moves after the documents, so the numbers it names appear "above", not "below". Its rule is unchanged: the instruction names square brackets, and no number it shows is greater than the number of documents the call sent.
 - **Extends**: [ADR-108](0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md). Its "sent: the cluster's label and its seed partition's name; then its documents" gains a third part after the documents: what to write, and how long.
 - **Keeps**: ADR-108's `REPLY_ALLOWANCE` of 1024 and its `done_reason: "length"` check; [ADR-109](0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md)'s refusal to regenerate within one call; [ADR-111](0111-a-cluster-fault-is-a-row-in-synthesis-and-a-re-run-under-the-same-id-repairs-rather-than-regenerates.md)'s repair pass, which is the only second asking there is; ADR-159 §1 (`think: false`).
-- **Rests on**: 95 calls to `qwen3:8b` on Ollama 0.33.2 (CPU-served, `num_ctx` 8192, `think: false`, `format` = `ANSWER_SCHEMA`) on 2026-09-26. Each call carried a request rebuilt from the database of the GesPOS end-to-end run at `D:\development\vespera-runs\2026-09-26-gespos-e2e`, read-only. The rebuilt exemplars matched the run's recorded `call_exemplar` rows exactly, for all 10 clusters the run wrote. The raw answers (`results.jsonl`, one line per call) and the scripts that made them (`groups.py`, `probe.py`, `plan.py`, `summary.py`) are kept beside that run, in `probes-adr-161-162\`, outside the repository.
+- **Rests on**: 95 calls to `qwen3:8b` on Ollama 0.33.2 (CPU-served, `num_ctx` 8192, `think: false`, `format` = `ANSWER_SCHEMA`). Each call carried a request rebuilt, read-only, from the database of the GesPOS end-to-end run. The rebuilt exemplars matched the run's recorded `call_exemplar` rows exactly, for all 10 clusters the run wrote. The raw answers (`results.jsonl`, one line per call) and the scripts that made them (`groups.py`, `probe.py`, `plan.py`, `summary.py`) are kept outside the repository.
 - **Settles** [#317](https://github.com/algernon28/vespera/issues/317).
 
 ## Context
 
-In invocation 7 of the first end-to-end run, 10 of 11 clusters were written. The 14-document cluster `CARD_SIMPLIGI_ESITI_TLG_20170426_105500`, under `Scontrini_1_19.docx`, was turned down as `ANSWER_RAN_OUT_OF_ROOM` after 1024 tokens. The same cluster had been turned down the same way under `5cba9ef`, when thinking was still on. #317 read this as a long answer outgrowing the allowance, and asked whether to raise the allowance, bound the length in the prompt, or both.
+In an invocation of the GesPOS end-to-end run, 10 of 11 clusters were written. The 14-document cluster `CARD_SIMPLIGI_ESITI_TLG_20170426_105500`, under `Scontrini_1_19.docx`, was turned down as `ANSWER_RAN_OUT_OF_ROOM` after 1024 tokens. The same cluster was turned down the same way before ADR-159, with thinking on. #317 reads this as a long answer outgrowing the allowance, and asks whether to raise the allowance, bound the length in the prompt, or both.
 
 **The answer was not too long. It was not an answer.** All 14 documents fit the call (1,857 words against room for 3,456), and every one is a row-per-record supply file (`AggSoftware 91252536 255505 VILLA SRL …`). The prompt put the whole instruction before the documents, so some 4,000 tokens of records sat between the instruction and the point where the model starts writing. Four of the five out-of-room answers measured below were the model copying records back into `prose` until the cap. Three copied them verbatim under the title "Extracted Data from Text", and one laid them out as an Italian bulleted list. The fifth, under the restatement wording, wrote connecting prose and then repeated ` }` until the cap, 297 times; ADR-162 records it. The finished answers mostly read like a chat reply ("Ecco una raccolta di dati… Se hai bisogno di un'analisi, fammelo sapere"), in Italian, with no citation at all.
 
@@ -28,7 +28,7 @@ Every row is the 14-document cluster unless it says otherwise. "Pass" means the 
 | **Instruction moved after the documents, naming at most 400 words** | **15** | **0** | **0** | **15** | **232–529** | **136–345** |
 | Instruction moved after the documents, naming no length | 8 | 0 | 2 | 6 | 219–400 | 165–274 |
 
-The table leaves out one call: the shipped prompt at 1024, sent once to the 13-document cluster `STB_SF_011_USIN_SPEC_M100_RISPO_E01_01_2010`. It passed at 716 tokens and 427 words. A planned sweep of the shipped prompt over every cluster was stopped by the host after that call and the 14-document one, so no rate over the other clusters is claimed for the shipped prompt.
+The table leaves out one call: the shipped prompt at 1024, sent once to the 13-document cluster `STB_SF_011_USIN_SPEC_M100_RISPO_E01_01_2010`. It passed at 716 tokens and 427 words. The shipped prompt was measured on that cluster and the 14-document one only, so no rate over the other clusters is claimed for it.
 
 With the instruction after the documents and a 400-word length, every call on the 14-document cluster cited within `[1]`–`[14]`. The number of distinct documents cited ranged from 2 to 14, and 14 appeared in 3 of 15. The mean wall clock was 44 s per call. The longest answer used 529 of 1,024 tokens.
 
@@ -67,7 +67,7 @@ ADR-109 refuses a second call made *because* an answer failed a check. ADR-111 n
 
 ### What this record does not decide
 
-**Whether a turned-down cluster's page says why nothing was written.** Today the page says only *nothing was written over this group*. The reason is recorded in `cluster_fault`, in the step's log line, and in the invocation's closing count. Putting it on the page would pass the fault rows into `Deliverable`. That is a change to the deliverable's contract, which is separate from why the largest cluster got no prose. The question is left undecided here, and the operator has been asked whether to file a ticket for it.
+**Whether a turned-down cluster's page says why nothing was written.** Today the page says only *nothing was written over this group*. The reason is recorded in `cluster_fault`, in the step's log line, and in the invocation's closing count. Putting it on the page would pass the fault rows into `Deliverable`. That is a change to the deliverable's contract, which is separate from why the largest cluster got no prose. The question is left undecided here.
 
 ## Alternatives rejected
 
@@ -90,9 +90,9 @@ ADR-109 refuses a second call made *because* an answer failed a check. ADR-111 n
 
 `LargestClusterRunsOutOfRoomTest` (unit, scripted `ChatModel`):
 
-- At 1, 2, 3 and 14 documents, the text after the last document's opening names square brackets and shows at least one bracketed number, none past *n*. **Fails today**: the shipped request ends with the last document.
-- After the last document's opening, the request names a length in words, and that length times `TOKENS_PER_WORD` is at most 1024. **Fails today**: no length is named.
-- The call's `num_predict` is still 1024. Holds before and after: it pins §3.
-- A scripted `done_reason: "length"` answer is turned down as `ANSWER_RAN_OUT_OF_ROOM` with the unchanged detail, and costs exactly one call. Holds before and after: it pins §4.
+- At 1, 2, 3 and 14 documents, the text after the last document's opening names square brackets and shows at least one bracketed number, none past *n*.
+- After the last document's opening, the request names a length in words, and that length times `TOKENS_PER_WORD` is at most 1024.
+- The call's `num_predict` is still 1024. It pins §3.
+- A scripted `done_reason: "length"` answer is turned down as `ANSWER_RAN_OUT_OF_ROOM` with the unchanged detail, and costs exactly one call. It pins §4.
 
 `ThinkingModelWritesNoCitationTest` needs no change: it reads the whole request with the documents taken out, so it holds wherever the sentence sits.

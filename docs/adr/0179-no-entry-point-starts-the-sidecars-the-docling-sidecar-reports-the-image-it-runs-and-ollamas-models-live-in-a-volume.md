@@ -1,6 +1,6 @@
 # ADR-179 — No entry point starts the sidecars, the Docling sidecar reports the image it runs, and Ollama's models live in a volume
 
-> **Read with [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** Chroma is removed, so §5's *"Chroma stays without a volume"* has no object, and the Context's account of three tests setting `spring.docker.compose.enabled=false`, `VectorStoreIsReachedOnFirstUseTest` among them, is what was measured then. The note on `anIdeRunStartsNoContainer`, which named Chroma's connection-details class, was corrected in place when that test dropped it, with ADR-214's implementation. This record's decision stands.
+> **Read with [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** Chroma is removed, so §5's *"Chroma stays without a volume"* has no object, and the Context's account of three tests setting `spring.docker.compose.enabled=false`, `VectorStoreIsReachedOnFirstUseTest` among them, describes the code before that record. This record's decision stands.
 
 - **Date**: 2026-10-03
 - **Status**: accepted
@@ -16,13 +16,13 @@
 
 ### What happened
 
-On 2026-09-30 the operator had started the sidecars the way the README says for a GPU machine:
+The operator had started the sidecars the way the README says for a GPU machine:
 
 ```
 docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build
 ```
 
-and `.env` set `VESPERA_DOCLING_IMAGE` to the GPU image. At 10:18 a whole-archive run was started from IntelliJ's `Local SpringApp` configuration. Spring Boot's Docker Compose support then ran its own `up`, from `compose.yaml` alone:
+and `.env` set `VESPERA_DOCLING_IMAGE` to the GPU image. A whole-archive run was then started from IntelliJ's `Local SpringApp` configuration. Spring Boot's Docker Compose support then ran its own `up`, from `compose.yaml` alone:
 
 ```
 DockerComposeLifecycleManager - Using Docker Compose file …\compose.yaml
@@ -37,7 +37,7 @@ There were four consequences:
 3. **Ollama was replaced too.** `compose.yaml` gives it no volume, so its models went with the old container, and `ollama list` was empty afterwards.
 4. **When the run ended, Spring's lifecycle stopped all three containers.**
 
-The operator has worked around it since by putting `SPRING_DOCKER_COMPOSE_ENABLED=false` in `.env`.
+Putting `SPRING_DOCKER_COMPOSE_ENABLED=false` in `.env` works around it.
 
 ### Why an IDE run starts containers and the jar does not
 
@@ -49,23 +49,21 @@ ADR-158 knew this support ran under the development entry points and kept it on 
 
 ADR-170 measured that the CPU image and the GPU image report identical `/version` maps. Their versions are the same; only the base differs. So the identity has to be told which image ran, and until now that was the configured value. Nothing compared the configured value with what was actually running.
 
-The JVM has no Docker access, and nothing in Vespera should need it, because ADR-158's jar runs anywhere it is copied to. So the running image has to be readable over the one channel Vespera already has, docling-serve's HTTP API. The ways to make it readable were read from docling-serve v1.32.0 inside the running container on 2026-10-02, and the second point was read again on 2026-10-03:
+The JVM has no Docker access, and nothing in Vespera should need it, because ADR-158's jar runs anywhere it is copied to. So the running image has to be readable over the one channel Vespera already has, docling-serve's HTTP API. The ways to make it readable were read from docling-serve v1.32.0 inside the running container:
 
 - **`/version` returns a module-level dict, `docling_serve.helper_functions.DOCLING_VERSIONS`.** It is built once at import, from `importlib.metadata`, and `app.py` imports it and returns it as it stands. No setting adds a key to it.
 - **The server is started by `docling-serve run`.** The base image's `ENTRYPOINT` is `container-entrypoint` and its `CMD` is `docling-serve run` (`docker image inspect`). The console script calls `docling_serve.__main__.main`. That runs `uvicorn.run("docling_serve.app:create_app", factory=True, reload=uvicorn_settings.reload, workers=uvicorn_settings.workers)`. Both settings come from docling-serve's uvicorn settings, `UVICORN_RELOAD` and `UVICORN_WORKERS`, and both are unset in the image. With both unset, uvicorn builds the app in the interpreter that launched it, in one process.
 - **No other channel exists.** `/static` is mounted only for offline docs assets, there is no free-form metadata endpoint, and `/health` returns a fixed body.
 
-**Measured on 2026-10-02.** A throwaway container ran `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0` with its command replaced by a five-line launcher. The launcher imports `DOCLING_VERSIONS`, sets `DOCLING_VERSIONS["vespera-image"]` from an environment variable, then calls `docling_serve.__main__.main()`. Run as `python launcher.py run --host 0.0.0.0 --port 5099`, its `/version` answered:
+**Measured.** A throwaway container ran `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0` with its command replaced by a five-line launcher. The launcher imports `DOCLING_VERSIONS`, sets `DOCLING_VERSIONS["vespera-image"]` from an environment variable, then calls `docling_serve.__main__.main()`. Run as `python launcher.py run --host 0.0.0.0 --port 5099`, its `/version` answered:
 
 ```json
 {"docling-serve":"1.32.0","docling-jobkit":"3.5.0","docling":"2.124.0","docling-core":"2.93.0","docling-ibm-models":"4.0.1","docling-parse":"7.17.0","python":"cpython-312 (3.12.13)","plaform":"Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.34","vespera-image":"probe/tag:x"}
 ```
 
-The container was removed afterwards, and the running `vespera` containers were not touched.
-
 ### Ollama's models
 
-`ollama/ollama:0.33.2` declares no `VOLUME` (`docker image inspect`, `.Config.Volumes` is `null`). It keeps its models, and the key pair it generates, under `/root/.ollama` in the container's own layer. On 2026-10-02 the running `vespera-ollama-1` had no mounts. So every replacement of the container loses the models: an `up` after `compose.yaml` changed, an `up` with a different set of files, or `down`. The README already says so. The cost is a re-pull of each model, gigabytes for the generation model.
+`ollama/ollama:0.33.2` declares no `VOLUME` (`docker image inspect`, `.Config.Volumes` is `null`). It keeps its models, and the key pair it generates, under `/root/.ollama` in the container's own layer. The running `vespera-ollama-1` had no mounts. So every replacement of the container loses the models: an `up` after `compose.yaml` changed, an `up` with a different set of files, or `down`. The README already says so. The cost is a re-pull of each model, gigabytes for the generation model.
 
 ## Decision
 
@@ -73,11 +71,11 @@ The container was removed afterwards, and the running `vespera` containers were 
 
 `spring-boot-docker-compose` and `spring-ai-spring-boot-docker-compose` are removed from `pom.xml`. With neither on any classpath, an IDE run of `VesperaApplication`, `./mvnw spring-boot:run` and `TestVesperaApplication` start no container and stop none, exactly as the jar does. The README's `up` line is the one way the sidecars are started, on every machine and from every entry point.
 
-**Why remove them, rather than set `spring.docker.compose.enabled: false` in `application.yaml`.** Both were weighed, and the ticket recommended either:
+**Why remove them, rather than set `spring.docker.compose.enabled: false` in `application.yaml`.**
 
-- **A property can be turned back on.** One environment variable, `-D` flag or profile file does it, and the operator's own workaround shows how easily that is set. Removing the artifacts leaves nothing to turn on.
+- **A property can be turned back on.** One environment variable, `-D` flag or profile file does it, and the `.env` workaround shows how easily that is set. Removing the artifacts leaves nothing to turn on.
 - **ADR-046: the pom carries what a recorded decision requires.** After this record no decision requires either artifact. Spring AI's one holds only connection-details factories, which read back containers Spring Boot's support started. Nothing starts them any more, so it would read nothing.
-- **Nothing else uses them.** Nothing under `src/main` names either. Tests reach their containers through Testcontainers' `@ServiceConnection`, which lives in `spring-boot-testcontainers` and `spring-ai-spring-boot-testcontainers`, and neither of those depends on a compose artifact (`dependency:tree`, 2026-10-03). Three tests set `spring.docker.compose.enabled=false`: `CliExitIT` and `ProfileThatDoesNotLoadIT` on the jar they launch, and `VectorStoreIsReachedOnFirstUseTest` in its context. That becomes a property nothing reads, which is harmless, and they keep it. `PackagedJarIT` asserts that the jar nests neither artifact, and it still holds.
+- **Nothing else uses them.** Nothing under `src/main` names either. Tests reach their containers through Testcontainers' `@ServiceConnection`, which lives in `spring-boot-testcontainers` and `spring-ai-spring-boot-testcontainers`, and neither of those depends on a compose artifact (`dependency:tree`). Three tests set `spring.docker.compose.enabled=false`: `CliExitIT` and `ProfileThatDoesNotLoadIT` on the jar they launch, and `VectorStoreIsReachedOnFirstUseTest` in its context. That becomes a property nothing reads, which is harmless, and they keep it. `PackagedJarIT` asserts that the jar nests neither artifact, and it still holds.
 
 **Why not keep the support and point it at the README's files** (`spring.docker.compose.file` takes a list) with `lifecycle-management: start-only`. That is a second copy of the operator's start command, in a second syntax, and it would drift from the README the first time one of them changed. It still cannot know which optional files a machine uses: `compose.gpu.yaml` exists in every checkout, and naming it would make the IDE refuse to start on a machine without an NVIDIA GPU (ADR-165 measured that `up` fails there). It would also put Docker in front of `vespera label` and `vespera --version` from the IDE, the cost ADR-158 rejected for the jar.
 
@@ -110,7 +108,7 @@ The extractor identity is composed in one place, the `@Lazy` bean method `Extrac
 
 **The check runs where the identity is first needed, which is before stage 2's run is minted and before any conversion is asked for.** `StageRuns.extraction` composes the identity to mint stage 2's run, and the step-scoped `extractionReader` calls it first thing, when the step opens its reader. So a mismatch fails stage 2 with no stage-2 run recorded and nothing converted, the same shape as a sidecar that refuses `/version` (#319, ADR-157). Stage 2's closing line (#311) names the failure through `StepFailure.named`. That line must carry both image names, whichever wrapper Spring's bean creation adds around the exception. `StepFailure.named` unwraps only Spring Batch's own wrappers. Spring's bean-creation exceptions repeat their cause's message in their own, so the names reach the line either way, behind Spring's prefix. Whether to unwrap further is the implementer's call. Every later step that takes the same identity, which is seed extraction, the embedding step, the relevance report and generation, stops the same way if the sidecar was swapped between invocations. This record does not change any of their closing lines.
 
-**Stopping, not adopting the running image.** Taking the identity from `vespera-image` alone would make `vespera.docling.image` redundant. It would also have turned 2026-09-30 into a silent CPU conversion of the whole archive under a CPU identity, with the operator believing they were on the GPU. That cache would be correct. The run it served would not be the one asked for, and nothing would say so. A mismatch means the sidecars are not the ones the operator started, and only the operator knows which of the two is the mistake. The check costs one comparison against a call the identity already makes.
+**Stopping, not adopting the running image.** Taking the identity from `vespera-image` alone would make `vespera.docling.image` redundant. It would also have turned the failure in Context into a silent CPU conversion of the whole archive under a CPU identity, with the operator believing they were on the GPU. That cache would be correct. The run it served would not be the one asked for, and nothing would say so. A mismatch means the sidecars are not the ones the operator started, and only the operator knows which of the two is the mistake. The check costs one comparison against a call the identity already makes.
 
 **What stays the operator's.** ADR-170 §3's step remains: on `compose.gpu.yaml`, `VESPERA_DOCLING_IMAGE` names the GPU tag. It is no longer load-bearing for correctness. Forgetting it now costs a stopped invocation and a line naming both images. Before, it cost a cache keyed under a lie.
 
@@ -156,8 +154,8 @@ The tags become:
 
 - **Every cached conversion is redone once, on both images.** Both tags change, so both identities change. On the GPU that is roughly 3 to 4 hours for the 10,469-file folder (ADR-170's measured rate). The change mints new stage-2 runs and everything downstream of them, with the knock-on effects ADR-170's consequences list: a fresh labelling sample, answers kept, and an arrangement to approve again.
 - **The first `up` after this record replaces Ollama's container, and its models are lost one last time.** The `ollama` service changed, so the container is recreated. The new volume starts empty, and the README's `ollama pull` lines fill it. After that the models survive.
-- **An IDE run now needs the sidecars already up.** `Local SpringApp` and `Local Vespera Label` start nothing. A run with nothing on port 5001 fails stage 2's health check with the line that names the converter, as the jar always has. The operator's `SPRING_DOCKER_COMPOSE_ENABLED=false` in `.env` becomes a line nothing reads, and can be deleted.
-- **A swapped sidecar stops the invocation and records nothing.** That is the 2026-09-30 case: the sidecar running the CPU image while `VESPERA_DOCLING_IMAGE` names the GPU one. The closing line names both images.
+- **An IDE run now needs the sidecars already up.** `Local SpringApp` and `Local Vespera Label` start nothing. A run with nothing on port 5001 fails stage 2's health check with the line that names the converter, as the jar always has. A `SPRING_DOCKER_COMPOSE_ENABLED=false` line in `.env` becomes a line nothing reads, and can be deleted.
+- **A swapped sidecar stops the invocation and records nothing.** That is the case in Context: the sidecar running the CPU image while `VESPERA_DOCLING_IMAGE` names the GPU one. The closing line names both images.
 - **The README changes in three places.** "Running it" says that no way of running Vespera, the IDE included, starts or stops a sidecar, and that a `.env` line setting `SPRING_DOCKER_COMPOSE_ENABLED` can go. The GPU section says an `up` without `compose.gpu.yaml` keeps Ollama's models, says a mismatch stops the invocation and names both images rather than saying nothing can catch it, and shows the `-r2` tag in its `VESPERA_DOCLING_IMAGE` lines. "Stopping" says `down` keeps the models and `down -v` removes them, and no longer says a changed `compose.yaml` costs the models.
 - **`docs/architecture.md`'s technology table and its list of artifacts removed from the pom change.** The sidecars row says no entry point starts or stops one, and cites this record. The two compose artifacts join the removed list.
 - **The comments that say the opposite of this record are corrected with the code.** `compose.yaml`'s header says the compose support resolves ports under `./mvnw spring-boot:run`. `compose.gpu.yaml`'s header, `application.yaml`'s `vespera.docling.image` comment and `ExtractionJobConfiguration.extractorIdentity`'s javadoc say the sidecar cannot report its image. `TestVesperaApplication`'s javadoc says the compose containers come up beside its own.
@@ -166,10 +164,10 @@ The tags become:
 
 ## Tests
 
-New, under `src/test`, red until the change lands:
+New, under `src/test`:
 
 - **`SidecarsAreStartedByTheOperatorTest`** (unit, no Docker, reads the classpath and `pom.xml`):
-  - `anIdeRunStartsNoContainer`: Spring Boot's compose lifecycle (`org.springframework.boot.docker.compose.lifecycle.DockerComposeLifecycleManager`) is not on the classpath the tests run on, which contains the runtime classpath an IDE launches `VesperaApplication` with, optional dependencies included. Spring AI's compose connection details (`org.springframework.ai.docker.compose.service.connection.ollama.OllamaDockerComposeConnectionDetailsFactory`) are not on it either. The test also named the Chroma sibling of that class until Chroma was removed (ADR-214, note corrected with [#352](https://github.com/algernon28/vespera/issues/352)).
+  - `anIdeRunStartsNoContainer`: Spring Boot's compose lifecycle (`org.springframework.boot.docker.compose.lifecycle.DockerComposeLifecycleManager`) is not on the classpath the tests run on, which contains the runtime classpath an IDE launches `VesperaApplication` with, optional dependencies included. Spring AI's compose connection details (`org.springframework.ai.docker.compose.service.connection.ollama.OllamaDockerComposeConnectionDetailsFactory`) are not on it either. The test also named the Chroma sibling of that class until Chroma was removed (ADR-214).
   - `thePomDeclaresNoComposeSupport`: `pom.xml` names neither `spring-boot-docker-compose` nor `spring-ai-spring-boot-docker-compose`.
 - **`OllamaKeepsItsModelsTest`** (unit, no Docker, reads the compose files with SnakeYAML, in `SidecarRestartPolicyTest`'s style):
   - `ollamaKeepsItsModelsInANamedVolume`: `compose.yaml`'s `ollama` mounts `ollama-models:/root/.ollama`, and the top-level `volumes` declares `ollama-models` as neither `external` nor a bind.
@@ -177,7 +175,7 @@ New, under `src/test`, red until the change lands:
 - **`DoclingImageCheckInvocationTest`** (invocation, `@CascadeSliceTest`, with a stub `DoclingClient` whose reported image each test sets, reset in `@BeforeEach`, and a fresh context per test because the identity is a lazily built singleton):
   - `aSidecarRunningAnotherImageStopsExtraction`: the sidecar reports the GPU tag while `vespera.docling.image` names the CPU one. The invocation exits non-zero, stage 2's closing line says it failed and names both images, no extraction is recorded over the corpus, and nothing is converted.
   - `aSidecarThatDoesNotReportItsImageStopsExtraction`: the same, with no `vespera-image` entry. The line names the configured image.
-  - `aSidecarRunningTheConfiguredImageIsExtractedFrom`: the matching case completes stage 2. It passes today and guards against a check that refuses everything.
+  - `aSidecarRunningTheConfiguredImageIsExtractedFrom`: the matching case completes stage 2. It guards against a check that refuses everything.
 - **`ExtractorIdentityCompositionTest`** gains `composesNoIdentityForASidecarRunningAnotherImage` and `composesNoIdentityForASidecarThatDoesNotSayWhichImage`, at unit level against the identity method itself, and `composesTheIdentityForASidecarRunningTheConfiguredImage`, which pins the equal case: the identity names the image as configured and as reported.
 
 Amended:

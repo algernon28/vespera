@@ -14,11 +14,11 @@ return new ExtractorIdentity("docling-serve;base-url=" + baseUrl);
 
 ADR-012 says the serving runtime is configuration rather than code, and that **"the cache key must carry full extractor identity; calibration must not cross engines."** `ExtractorIdentity`'s javadoc names what it expects — "engine name, model/pipeline options, the sidecar's own reported version" — and defers composing it. The base URL was the only engine-selection knob the slice had, and the reasoning was correct when it was written.
 
-Raised as [#89](https://github.com/algernon28/vespera/issues/89) while settling [#80](https://github.com/algernon28/vespera/issues/80): deciding that an embedding vector carries model name, weights digest, dimension and instruction ([ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md)) put the same question to the layer below, and the layer below answers differently.
+The question is [#89](https://github.com/algernon28/vespera/issues/89). Deciding, for [#80](https://github.com/algernon28/vespera/issues/80), that an embedding vector carries model name, weights digest, dimension and instruction ([ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md)) puts the same question to the layer below, and the layer below answers differently.
 
 ### What the sidecar actually exposes, established rather than assumed
 
-The ticket named two facts nobody had established. The pinned image (`quay.io/docling-project/docling-serve-cpu:v1.32.0`, the version `compose.yaml` and `TestcontainersConfiguration` both name) was run and probed directly.
+The facts below are read off the pinned image (`quay.io/docling-project/docling-serve-cpu:v1.32.0`, the version `compose.yaml` and `TestcontainersConfiguration` both name), run and probed directly.
 
 **`/version` exists, and returns a component map rather than one string:**
 
@@ -32,7 +32,7 @@ The ticket named two facts nobody had established. The pinned image (`quay.io/do
 
 **Pipeline selection is client-side and per-request.** `POST /v1/convert/file` accepts **52 form fields**, among them `pipeline` (`legacy|standard|vlm|asr`, default `standard`), `ocr_engine` and its successor `ocr_preset` (both default `auto`), `vlm_pipeline_model` (16 values, including `granite_docling`, `nanonets_ocr2` and `deepseekocr_ollama`), `table_mode`, `pdf_backend`, `force_ocr` and `do_ocr`. `DoclingClient` sends exactly two: `files` and `to_formats=json`.
 
-**This inverts the ticket's premise.** "Point the same docling-serve at a different OCR backend" is not principally a server-side configuration change the client cannot observe — **it is a request the client would send**. The gap is in what we transmit, not only in what the server reports.
+**This inverts #89's premise.** "Point the same docling-serve at a different OCR backend" is not principally a server-side configuration change the client cannot observe — **it is a request the client would send**. The gap is in what we transmit, not only in what the server reports.
 
 **And one thing genuinely is unobservable.** The OCR selection defaults to `auto`, and the container resolves it at startup — the probe's own log reads `Auto OCR model selected rapidocr with onnxruntime`. That choice depends on which models are cached and what hardware is present, it is pinned by no version number, and it appears in no response.
 
@@ -58,11 +58,11 @@ Keeping the URL in the key has it exactly backwards: **moving the sidecar's port
 
 **Stop sending nothing and letting `auto` resolve server-side. Name the engine explicitly.**
 
-The field is `ocr_preset`, not `ocr_engine`: docling-serve deprecated the latter in favour of the former ("DEPRECATED: Use ocr_preset instead"), a correction made after this decision was first written and recorded here rather than left to mislead. The value is `rapidocr` — what `auto` already resolves to in the pinned image, with its models shipped inside it, so naming it makes the identity honest without changing what any corpus extracts to and without a first-use download that could fail offline.
+The field is `ocr_preset`, not `ocr_engine`: docling-serve deprecated the latter in favour of the former ("DEPRECATED: Use ocr_preset instead"). The value is `rapidocr` — what `auto` already resolves to in the pinned image, with its models shipped inside it, so naming it makes the identity honest without changing what any corpus extracts to and without a first-use download that could fail offline.
 
 **A preset names a configuration rather than carrying it**, so an administrator redefining that preset is still invisible here. `ocr_custom_config` would carry the configuration itself and close the gap completely — and is refused unless the sidecar opts in (`allow_custom_ocr_config` is `false` by default), which would break the pipeline against any docling-serve this project does not own. So this narrows the gap rather than closing it, deliberately.
 
-This departs from ADR-084 deliberately, and #89 asked that it be argued rather than copied. ADR-084 recorded the absence of a pin because the embedder genuinely could not be pinned from the client — the identity's honest content was "this runtime pins nothing". **Here the client can pin it.** Recording "unpinned" would be accurate and useless: it would faithfully describe a value that changes what every downstream stage sees, while doing nothing to stop it changing.
+This departs from ADR-084 deliberately. ADR-084 recorded the absence of a pin because the embedder genuinely could not be pinned from the client — the identity's honest content was "this runtime pins nothing". **Here the client can pin it.** Recording "unpinned" would be accurate and useless: it would faithfully describe a value that changes what every downstream stage sees, while doing nothing to stop it changing.
 
 Extraction is upstream of everything. An OCR engine that silently resolves differently on another machine re-cuts every chunk, re-shingles every document, moves every confidence score that tier 2's floor is calibrated against, and re-scores every relevance comparison — with no error and no new row set. It is the one knob whose drift is both invisible and total.
 
@@ -80,7 +80,7 @@ This is [ADR-073](0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-s
 
 **ADR-012's second clause becomes true rather than aspirational.** "Calibration must not cross engines" was unenforceable while the identity moved only with the URL: tier 2's floor (ADR-070, [ADR-078](0078-tier-2-is-a-floor-on-the-mean-confidence-score-low-score-is-not-distributed.md)) is calibrated from `mean_score` values, and those describe a conversion the cache would happily keep serving after the pipeline changed underneath it.
 
-**Configuring a VLM OCR backend is now a visible act.** Sending `pipeline=vlm` with a `vlm_pipeline_model` puts both in the identity, so the corpus is re-extracted under a new key and the two engines' output can never be mixed in one cache. That was the concrete trigger for #89 — chandra-ocr-2 as an alternative to docling's default OCR — and it is worth noting that chandra is not in v1.32.0's `vlm_pipeline_model` enum, so it would arrive through `vlm_pipeline_model_api` or `_local`: client-supplied again, and therefore covered by the same rule.
+**Configuring a VLM OCR backend is now a visible act.** Sending `pipeline=vlm` with a `vlm_pipeline_model` puts both in the identity, so the corpus is re-extracted under a new key and the two engines' output can never be mixed in one cache. The concrete case #89 names is chandra-ocr-2 as an alternative to docling's default OCR, and chandra is not in v1.32.0's `vlm_pipeline_model` enum, so it would arrive through `vlm_pipeline_model_api` or `_local`: client-supplied again, and therefore covered by the same rule.
 
 **`ExtractorIdentity` gains a composer, and the record gains a reason to have one.** The type still only carries a composed value and refuses a blank one; what changes is that composing it now requires an HTTP call to `/version` before the first conversion. `DoclingClient` already makes exactly one such call at that moment — `checkHealth()`, ADR-071's lazy readiness check — so this is a second endpoint on an existing seam rather than a new one.
 

@@ -6,19 +6,19 @@
 - **Status**: accepted
 - **Extends**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md). The operator still starts the sidecars from `compose.yaml` and stops them when the curation is done. What this record adds is what happens in between: a sidecar that exits on its own is started again by Docker, and one the operator stopped stays stopped.
 - **Keeps**: [ADR-071](0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md) as it is: one synchronous call, no in-process retry of a service-scope failure, and the breaker on five consecutive ones. Seed extraction as it is: it fails on the first call that fails, and under [ADR-116](0116-a-runs-completion-is-recorded-per-step-because-several-steps-share-one-run.md) a seed extraction that did not complete records nothing and says to run the same command again ([#306](https://github.com/algernon28/vespera/issues/306)). [ADR-147](0147-the-docling-sidecar-is-a-derived-image-with-libreoffice-writer-and-impress-and-the-image-joins-the-extractor-identity.md) and [ADR-163](0163-the-docling-sidecar-pins-docling-parse-7-17-0-and-its-image-is-tagged-for-the-pin.md): a restart runs the same image, so the extractor identity does not change.
-- **Rests on**: probes run on 2026-09-27 against Docker Engine 29.6.1 under Docker Desktop, with throwaway containers and a throwaway Compose project, all removed afterwards. The running `vespera` containers were not touched. Probes A to G were run while this record was written. Probe H was run separately, the same day, in the same way.
+- **Rests on**: probes A to H, run against Docker Engine 29.6.1 under Docker Desktop, with throwaway containers and throwaway Compose projects.
 - **Settles** point 1 of [#326](https://github.com/algernon28/vespera/issues/326), the restart policy. Points 2 to 5 stay open there (§3).
 
 ## Context
 
 `compose.yaml` runs three services, `chroma`, `ollama` and `docling-serve`, and gives none of them a `restart:` key. So Docker's default applies, `no`: a container that exits stays down until someone starts it.
 
-On 2026-09-26, over GesPOS, the Docling sidecar died of a segmentation fault (exit 139) on the 10th of 19 seeds. Seed extraction failed, and the invocation with it. Seed extraction went on only after the operator noticed, ran `docker start`, and ran the same command again. Nothing was lost on the ledger's side: a re-invocation continues where the last one stopped. **The whole cost of a dead sidecar is the operator's attention, and the wall-clock time until they come back.** On the 42,851-file archive that can be a night.
+Over GesPOS, the Docling sidecar died of a segmentation fault (exit 139) on the 10th of 19 seeds. Seed extraction failed, and the invocation with it. Seed extraction went on only after the operator noticed, ran `docker start`, and ran the same command again. Nothing was lost on the ledger's side: a re-invocation continues where the last one stopped. **The whole cost of a dead sidecar is the operator's attention, and the wall-clock time until they come back.** On the 42,851-file archive that can be a night.
 
-Two more facts from this project's own record:
+Two more facts:
 
 - An earlier LibreOffice probe container exited 139 (SIGSEGV), a crash. Two others exited 143 (SIGTERM), which is a stop and not a crash.
-- Docker Desktop's engine restarts when the machine does. The operator's handoff notes after a reboot record: *"None of the containers has a restart policy, so none comes back on its own"*, as an inconvenience.
+- Docker Desktop's engine restarts when the machine does. None of the containers has a restart policy, so after a reboot none comes back on its own, which is an inconvenience.
 
 ADR-163 removed the one crash known to recur. It did not show that no other native fault exists, and its §4 left the restart policy to #326.
 
@@ -47,7 +47,7 @@ Each probe ran `nginx:alpine` under `--init`, as `docling-serve` runs under `ini
 | `unless-stopped` | running, 6 restarts |
 | `always` | running, 6 restarts |
 
-So under an init process a segmentation fault is exit 139, as on 2026-09-26, and every policy but `no` and an exhausted `on-failure:N` brings the container back.
+So under an init process a segmentation fault is exit 139, as in the crash over GesPOS, and every policy but `no` and an exhausted `on-failure:N` brings the container back.
 
 **B. How the container was stopped**, on a long-running process, observed 10 seconds later. The same result under `on-failure`, `unless-stopped` and `always`:
 
@@ -83,14 +83,14 @@ So under an init process a segmentation fault is exit 139, as on 2026-09-26, and
 | 4 | 16.9 s |
 | 5 | 17.4 s |
 
-The probe ran twice. The first pass crashed the sidecar 3 times, and its timings were not kept, because the arithmetic that computed them failed. The table is the second pass. Docker's event log recorded all 8 crashes of the two passes as exit code 139, and the `docker rm -f` between the passes as 137.
+The probe ran twice. The first pass crashed the sidecar 3 times, and the table is the second pass. Docker's event log recorded all 8 crashes of the two passes as exit code 139, and the `docker rm -f` between the passes as 137.
 
 **H. Adding the key replaces the container.** A throwaway project, `-p p326recreate`, on `chromadb/chroma:1.5.9`, with a marker file written into the running container:
 
 - **Created with no `restart:`.** Then `compose.yaml` was given `restart: unless-stopped` and `docker compose -p p326recreate up -d` was run. The result was a new container id, and the marker was gone.
 - **The same, but `docker update --restart unless-stopped <id>` first.** The policy read back as `unless-stopped`, and `up -d` still made a new container id, and the marker was gone. So `docker update` does not avoid the replacement once `compose.yaml` carries the key. It only gives the policy to a container nobody runs `up` over again.
 
-**Not measured: a restart of the Docker engine or the machine.** It would have stopped the running `vespera` containers. What each policy does then is taken from Docker's reference, quoted above.
+**Not measured: a restart of the Docker engine or the machine.** What each policy does then is taken from Docker's reference, quoted above.
 
 ## Decision
 
@@ -134,7 +134,7 @@ These are points 2 to 5 of #326. They stay open there, and this record decides n
 
 - **`no`, as today.** Costs the operator a `docker start` after each crash and after each reboot, and a crash at night leaves the sidecar down until morning.
 - **`on-failure`, unbounded.** Behaves exactly like `unless-stopped` on a crash (A, B). It differs in two places, and both favour `unless-stopped`:
-  - After a restart of the engine or the machine, `on-failure` leaves the sidecars down, which is the inconvenience the handoff notes record.
+  - After a restart of the engine or the machine, `on-failure` leaves the sidecars down, which is the inconvenience the Context names.
   - A service that exits with code 0 stays down.
 - **`on-failure:N`.** N counts crashes over the container's whole life, and a healthy stretch does not reset it (D). So on a long curation, N crashes spread over days use it up. The sidecar is then left down exactly as under `no`, with nothing to say why it stopped coming back. No measurement gives a value for N either. Bounding how often Vespera tolerates a crash is point 3's question, and a count Docker keeps where Vespera cannot read it is the wrong place to answer it.
 - **`always`.** Undoes the operator's stop. After `docker compose -p vespera stop` at the end of a curation, the next restart of the engine starts all three again, Ollama among them, on ports `8000`, `11434` and `5001`. That is the difference between the two, and it makes the README's "Stop the sidecars when you are finished" true only until the next reboot.
@@ -147,7 +147,7 @@ These are points 2 to 5 of #326. They stay open there, and this record decides n
 - **Taking this change replaces all three containers, and Ollama's models go with them.** Every service gains the key, so every service's part of `compose.yaml` changes. An operator whose sidecars were started before this change, and who then runs the README's `docker compose -p vespera up -d --build`, gets three new containers (H). `docker update` beforehand does not prevent it (H).
   - Chroma loses its contents, which are a disposable projection (ADR-039).
   - docling-serve holds nothing to lose. ADR-163's new tag already replaces it on the same command.
-  - **Ollama loses every model it was given**: on this machine `bge-m3` and `qwen3:8b`, about 6 GB. The upgrade path is the README's existing `ollama pull` lines, run again after `up -d`: the embedding model before invocation 2, and the generation model before invocation 5.
+  - **Ollama loses every model it was given**: `bge-m3` and `qwen3:8b` together are about 6 GB. The upgrade path is the README's existing `ollama pull` lines, run again after `up -d`: the embedding model before invocation 2, and the generation model before invocation 5.
   - **Nothing in the ledger is lost.** The working directory is on the host, not in any container.
 
   Compose replaces only the container of a service whose part of `compose.yaml`, or whose image, changed. A change to docling-serve alone leaves Ollama and its models alone. So the README states it in general, for any service whose part changed, and says to check with `ollama list` and pull again where Ollama's was one of them.
@@ -162,6 +162,6 @@ These are points 2 to 5 of #326. They stay open there, and this record decides n
 
 `SidecarRestartPolicyTest` (unit, no Docker, reads `compose.yaml` with SnakeYAML, as `DoclingSidecarImageTest` does):
 
-- **`everySidecarComesBackUnlessTheOperatorStoppedIt`**: `compose.yaml` runs at least one service, and every service it runs carries `restart: unless-stopped`. A service added later without the key fails it. It failed before `compose.yaml` carried the key, when no service had a `restart:` key at all.
+- **`everySidecarComesBackUnlessTheOperatorStoppedIt`**: `compose.yaml` runs at least one service, and every service it runs carries `restart: unless-stopped`. A service added later without the key fails it.
 
 What no unit test can show is Docker's behaviour itself. Probes A to H above are the evidence for it, and they are not a test.

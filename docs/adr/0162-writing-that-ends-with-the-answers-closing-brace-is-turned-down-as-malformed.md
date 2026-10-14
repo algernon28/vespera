@@ -4,12 +4,12 @@
 - **Status**: accepted
 - **Extends**: [ADR-108](0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md)'s schema check. An answer can read back into `ANSWER_SCHEMA` and still carry, inside its writing, the brace that closes the JSON object. That is a malformed answer, recorded as `SCHEMA_VIOLATION` with a detail of its own.
 - **Keeps**: [ADR-109](0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md) and [ADR-159](0159-generation-asks-for-no-thinking-and-the-prompt-names-the-square-brackets-a-citation-is-written-in.md) §3 (no rule repairs model output); [ADR-111](0111-a-cluster-fault-is-a-row-in-synthesis-and-a-re-run-under-the-same-id-repairs-rather-than-regenerates.md) (a turned-down answer is a `cluster_fault`, the repair pass asks again, five in a row stop the step); `ClusterFaultKind`'s closed set of four, which gains nothing; [ADR-124](0124-both-fields-of-a-parsed-answer-are-required-and-missing-writing-is-a-schema-violation-rather-than-an-uncited-one.md) and ADR-125 (details keep the ways an answer fails apart).
-- **Rests on**: the stored writing of both generation runs in the GesPOS end-to-end run's database, and the 95 probe calls [ADR-161](0161-the-instruction-follows-the-documents-and-names-a-length-the-reply-allowance-holds.md) records, all against `qwen3:8b` on Ollama 0.33.2 on 2026-09-26. The raw answers are kept in `D:\development\vespera-runs\2026-09-26-gespos-e2e\probes-adr-161-162\`, outside the repository.
+- **Rests on**: the stored writing of both generation runs in the GesPOS end-to-end run's database, and the 95 probe calls [ADR-161](0161-the-instruction-follows-the-documents-and-names-a-length-the-reply-allowance-holds.md) records, all against `qwen3:8b` on Ollama 0.33.2. The raw answers are kept outside the repository.
 - **Settles** [#318](https://github.com/algernon28/vespera/issues/318).
 
 ## Context
 
-One page of the first end-to-end run's deliverable ends its writing with `… card portfolio management process. }`. The `}` is the last character of the stored `prose`. `parseAnswer` took the field as it came, and no check looks at its content except for citations.
+One page of the GesPOS end-to-end run's deliverable ends its writing with `… card portfolio management process. }`. The `}` is the last character of the stored `prose`. `parseAnswer` took the field as it came, and no check looks at its content except for citations.
 
 ### How often it happens, measured
 
@@ -46,7 +46,7 @@ It is checked in `parseAnswer`, after the writing is established as present and 
 
 - **Strip a trailing `}`.** See the Context: a repair rule, and ADR-109 refused those.
 - **Leave it.** See the Context: the reader gets the machinery with nothing to say it is there.
-- **Forbid braces in `prose` through a `pattern` in `ANSWER_SCHEMA`.** A side probe, not part of the 95 calls, sent `qwen3:8b` the prompt "Write two sentences about configuration files. Put the placeholder {HOST} and the placeholder {PORT} in them exactly like that, with the curly braces, and end the second sentence with } ." three times under the answer schema with `prose` a plain string, and three times with `prose` carrying `"pattern": "^[^{}]*$"` (`num_ctx` 2048, `num_predict` 256, `think: false`). Under the plain schema, 3 of 3 finished with the braces in `prose`. Under the pattern, no answer had a brace in `prose`, so Ollama 0.33.2 does enforce it, but none of the three was usable. One finished with `prose` broken into repeated escaped newlines and string-concatenation fragments. One ran out of room repeating `\n\n`. One ran out of room after moving the braced sentence into `title`, which the pattern does not cover. The raw output (`pattern.out`) and the script (`pattern.py`) are kept outside the repository, beside the GesPOS end-to-end run in `D:\development\vespera-runs\2026-09-26-gespos-e2e\probes-adr-161-162\`, with the 95 calls' `results.jsonl`. A constraint that trades a stray character for a runaway answer is worse. It would also forbid braces a technical corpus legitimately holds.
+- **Forbid braces in `prose` through a `pattern` in `ANSWER_SCHEMA`.** A side probe, not part of the 95 calls, sent `qwen3:8b` the prompt "Write two sentences about configuration files. Put the placeholder {HOST} and the placeholder {PORT} in them exactly like that, with the curly braces, and end the second sentence with } ." three times under the answer schema with `prose` a plain string, and three times with `prose` carrying `"pattern": "^[^{}]*$"` (`num_ctx` 2048, `num_predict` 256, `think: false`). Under the plain schema, 3 of 3 finished with the braces in `prose`. Under the pattern, no answer had a brace in `prose`, so Ollama 0.33.2 does enforce it, but none of the three was usable. One finished with `prose` broken into repeated escaped newlines and string-concatenation fragments. One ran out of room repeating `\n\n`. One ran out of room after moving the braced sentence into `title`, which the pattern does not cover. The raw output (`pattern.out`) and the script (`pattern.py`) are kept outside the repository, with the 95 calls' `results.jsonl`. A constraint that trades a stray character for a runaway answer is worse. It would also forbid braces a technical corpus legitimately holds.
 - **A fifth `ClusterFaultKind`.** See above.
 
 ## Consequences
@@ -65,7 +65,7 @@ It is checked in `parseAnswer`, after the writing is established as present and 
 
 `JsonDebrisInWritingTest` (unit, scripted `ChatModel`):
 
-- Writing ending in ` }` after its last sentence, as the shipped page did, is turned down as `SCHEMA_VIOLATION` with this record's detail. **Fails today**: it is believed.
-- Writing ending in `}` followed by blank space, as the probe answers did, is turned down the same way. **Fails today**.
-- Writing ending in a balanced `{PORT}` is believed, and the writing is kept exactly as written. Holds before and after: it pins the narrowness.
-- A believed answer's writing is stored exactly as the model wrote it, with nothing trimmed or removed. Holds before and after: it pins the refusal to strip.
+- Writing ending in ` }` after its last sentence, as the shipped page did, is turned down as `SCHEMA_VIOLATION` with this record's detail.
+- Writing ending in `}` followed by blank space, as the probe answers did, is turned down the same way.
+- Writing ending in a balanced `{PORT}` is believed, and the writing is kept exactly as written. It pins the narrowness.
+- A believed answer's writing is stored exactly as the model wrote it, with nothing trimmed or removed. It pins the refusal to strip.

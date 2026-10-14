@@ -17,13 +17,13 @@ This software targets Windows only, with no cross-platform ambition — a fact t
 
 **"Excludes nothing" stays asserted only at small, hand-built scale.** The identity `entriesSeen == occurrences + anomalies + directoriesEntered - 1` (already tested in `accountsForEveryEntryItMet`) is a structural invariant of the counting logic, true by construction at any N — a fixture with a million entries would exercise the same arithmetic a four-file fixture already exercises, only slower. No large-N fixture is added for this.
 
-**No committed test of walk performance at realistic scale.** Nothing walks a synthetic million-file tree in the standard suite. This project's established alternative — a throwaway, uncommitted probe measuring a fact once, its finding recorded in a ticket resolution or ADR (ticket #14's SQLite/Spring Batch throughput; this map's own NTFS traversal-order-stability probe behind ADR-055) — is the mechanism for scale characterization, exercised only when a real question about scale exists (e.g. a profiler pointing at a bottleneck), not speculatively now.
+**No committed test of walk performance at realistic scale.** Nothing walks a synthetic million-file tree in the standard suite. This project's established alternative — a throwaway, uncommitted probe measuring a fact once, its finding recorded in a ticket resolution or ADR (ticket #14's SQLite/Spring Batch throughput; the NTFS traversal-order-stability probe behind ADR-055) — is the mechanism for scale characterization, exercised only when a real question about scale exists (e.g. a profiler pointing at a bottleneck), not speculatively now.
 
 **No Linux CI concern.** The software is Windows-only with no cross-platform plan; CI, whenever built, runs on Windows runners. The skip pattern above is retained for environment-capability reasons unrelated to OS portability, not to support running the suite anywhere else.
 
 ## Consequences
 
-**Two new fixture-building helpers are owed to `WalkTest`** (or a shared test-support class if a third stage's tests need the same fixtures later): one for a permission-denied directory, one for an over-long path, each following the create-with-real-mechanism-then-`assumeTrue` shape already established. For the hand-off spec.
+**The implementation adds two new fixture-building helpers to `WalkTest`** (or to a shared test-support class, if a third stage's tests need the same fixtures later): one for a permission-denied directory, one for an over-long path, each following the create-with-real-mechanism-then-`assumeTrue` shape already established.
 
 **A skip is not silently invisible.** Per `AGENTS.md`'s existing convention, `Skipped` is reported alongside `Tests run` — an environment that can't create the ACL-denial fixture doesn't get credit for having tested it.
 

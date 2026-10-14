@@ -5,7 +5,7 @@
 
 ## Context
 
-ADR-042 gives `ledger` a fixed, closed verdict vocabulary with blocking-ness per value, exposed through `survivors(runId)`, and rejects runtime or opaque verdict registries because their failure mode is asymmetric — drift toward over-publishing. The reconstituted ADR-017 names the values only as a byproduct of its stage table (`docs/architecture.md` §1.2): `broken`, `duplicate-of`, `superseded-by` (stage 1); `extraction-failed`, `degenerate-output` (stage 2); `redundant-with` (stage 4); `below-threshold` (stage 5). ADR-049 adds `passed`, written by every stage. None of this was ever assembled into one enumeration with blocking-ness and payload decided, and the ticket named a real tension: a closed vocabulary owned by `ledger` means adding a stage means editing `ledger`.
+ADR-042 gives `ledger` a fixed, closed verdict vocabulary with blocking-ness per value, exposed through `survivors(runId)`, and rejects runtime or opaque verdict registries because their failure mode is asymmetric — drift toward over-publishing. The reconstituted ADR-017 names the values only as a byproduct of its stage table (`docs/architecture.md` §1.2): `broken`, `duplicate-of`, `superseded-by` (stage 1); `extraction-failed`, `degenerate-output` (stage 2); `redundant-with` (stage 4); `below-threshold` (stage 5). ADR-049 adds `passed`, written by every stage. None of this was ever assembled into one enumeration with blocking-ness and payload decided, and there is a real tension: a closed vocabulary owned by `ledger` means adding a stage means editing `ledger`.
 
 ## Decision
 

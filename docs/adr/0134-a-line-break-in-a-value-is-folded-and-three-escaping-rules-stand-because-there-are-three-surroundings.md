@@ -4,7 +4,7 @@
 - **Status**: accepted
 - **Reconciles with [ADR-130](0130-one-report-page-module-owns-the-skeleton-styling-escaping-and-tables.md)**, which consolidated six copies of one escape method into `ReportPage` on the reasoning that *"six copies are six chances for one to drift"*. Nothing in that record moves. This one states the boundary ADR-130 did not have to state, because it never met a second grammar: ADR-130 forbids a **second copy of a rule**, not a **second rule**. The Decision says what distinguishes the two, and what would bring `Deliverable` inside ADR-130's remedy.
 - **Rests on**: [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md) (the tree resolves its own links with no database and no network, which is what makes reading the file as plain text a supported way to read it), [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md) (the manifest exists so a consumer can load it into a table without parsing anything first), [ADR-106](0106-a-cluster-gets-a-derived-label-from-6a-and-a-generated-title-from-6b.md) (a cluster's label is a document's own Docling title, falling back to its filename stem), [ADR-051](0051-a-file-occurrence-is-identified-by-its-path-relative-to-the-corpus-root.md) (a stored path is separator-normalised to `/`, which is what makes one of the three label sources provably backslash-free).
-- **Raised by the architect gate on [#248](https://github.com/algernon28/vespera/pull/248)** — the fix for [#246](https://github.com/algernon28/vespera/issues/246) — which judged neither question a blocker for that fix and filed them as [#249](https://github.com/algernon28/vespera/issues/249). Both decisions were taken in that pull request and recorded only in javadoc.
+- **Settles** [#249](https://github.com/algernon28/vespera/issues/249).
 
 ## Context
 
@@ -14,14 +14,14 @@
 - **A cluster's title** is what the generation model answered.
 - **A partition's heading, a membership entry and two manifest columns** are paths out of the archive.
 
-Issue #246 was what happens when such a value is written into a table cell with only the pipe escaped: a title that wrapped in the document it came from ended the table rather than the row, and `index.md` — the first file a reader opens — listed a fraction of what it holds while failing at nothing. #248 fixed it with `onOneLine`, `inACell` and `asLinkText`, and left two questions unanswered in the record and one answered only by an implementer.
+Issue [#246](https://github.com/algernon28/vespera/issues/246) was what happens when such a value is written into a table cell with only the pipe escaped: a title that wrapped in the document it came from ended the table rather than the row, and `index.md` — the first file a reader opens — listed a fraction of what it holds while failing at nothing. `onOneLine`, `inACell` and `asLinkText` guard against it.
 
 ### The four questions
 
-1. A line break in a value is **folded** to a space. GFM documents `<br>` as the way to put a break inside a cell, and `<br>` would *preserve* a title that genuinely wrapped rather than flattening it. Folding was chosen anyway, and the argument for it was not written down.
-2. **Three escaping rules stand** in one class — `inACell`/`asLinkText`, `escapeLinkText`, `quoted` — where ADR-130 had just finished collapsing six copies of an escape method into one. A reader arriving from ADR-130 reads three-rules-on-purpose as the defect ADR-130 was written against.
-3. `onOneLine` matches `\s+`, which in Java is ASCII-only: a non-breaking space passes through untouched. Nothing said whether that is a boundary that was chosen or one that was not noticed.
-4. #248 added `.replace("\\", "\\\\")` to `inACell`. That is cheap, but as filed it rested on a claim about what a Docling title may contain — a claim about the data, which is not an implementer's to make.
+1. A line break in a value is **folded** to a space. GFM documents `<br>` as the way to put a break inside a cell, and `<br>` would *preserve* a title that genuinely wrapped rather than flattening it.
+2. **Three escaping rules stand** in one class — `inACell`/`asLinkText`, `escapeLinkText`, `quoted` — where ADR-130 collapsed six copies of an escape method into one. A reader arriving from ADR-130 reads three-rules-on-purpose as the defect ADR-130 was written against.
+3. `onOneLine` matches `\s+`, which in Java is ASCII-only: a non-breaking space passes through untouched. The question is whether that boundary is chosen or unnoticed.
+4. `inACell` carries `.replace("\\", "\\\\")`. That is cheap, but argued from what a Docling title may contain, it rests on a claim about the data.
 
 ## Decision
 
@@ -74,7 +74,7 @@ A consolidated rule here would not be broader than the three — it would be *in
 
 ### 4. The backslash belongs in the cell rule, on a ground that is not about the data
 
-**It stays.** The ground it was filed on — that a Docling title might end in a backslash — is true but is the weaker half of the argument, and filing it that way invites a later reader to delete the rule on discovering that titles "never" carry one.
+**It stays.** The ground that a Docling title might end in a backslash is true but is the weaker half of the argument, and resting the rule on it invites a later reader to delete the rule on discovering that titles "never" carry one.
 
 **The load-bearing ground is composition.** `inACell` *inserts* backslashes, and `asLinkText` inserts more on top of them. A rule that introduces its own escape character without first escaping that character is not a function of its input in the way it claims to be: a literal backslash in the value merges with the escape added after it. Concretely, a label reading `Retrofits \| Phase 2` yields `Retrofits \\| Phase 2` without the rule — an escaped backslash followed by a **live pipe**, which is #246's defect reintroduced by the thing written to prevent it. This holds whatever the data turns out to be; it is a property of the rule, and it is why the backslash is escaped **first** in `inACell`.
 
@@ -104,6 +104,6 @@ So: one source is provably safe and two are arbitrary text. The rule is recorded
 
 ## What this record does not decide
 
-**`<` and `&` pass through unescaped. That is a defect against shipped code, and it is open as [#251](https://github.com/algernon28/vespera/issues/251).** None of the four rules escapes them, so a title reading `<b>Retrofits` is inline HTML to a CommonMark renderer. It is mild — GitHub sanitises, the values are names rather than script — and it is genuinely of #246's family: untrusted text changing the page it is listed on. It is not settled here because it is a fifth question that arrived while answering four, and because what it wants first is a measurement of which renderers the deliverable is actually read with rather than an argument. The ticket carries that measurement as its first criterion, and closing it restores `AGENTS.md`'s claim that no defect is known and open against what ships.
+**`<` and `&` pass through unescaped. That is a defect against shipped code, and it is open as [#251](https://github.com/algernon28/vespera/issues/251).** None of the four rules escapes them, so a title reading `<b>Retrofits` is inline HTML to a CommonMark renderer. It is mild — GitHub sanitises, the values are names rather than script — and it is genuinely of #246's family: untrusted text changing the page it is listed on. It is not settled here because what it wants first is a measurement of which renderers the deliverable is actually read with rather than an argument. The ticket carries that measurement as its first criterion, and closing it restores `AGENTS.md`'s claim that no defect is known and open against what ships.
 
 This means the argument in (1) is precisely *"Vespera does not author markup on behalf of untrusted text"* and deliberately not *"this file contains no HTML"* — the second is not true today, and an ADR that leaned on it would be resting a decision on a claim the tree contradicts.

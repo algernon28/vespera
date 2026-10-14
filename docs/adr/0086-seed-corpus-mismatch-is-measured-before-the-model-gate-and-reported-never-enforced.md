@@ -24,7 +24,7 @@ But [ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-it
 
 Nothing here removes a document or stops a run.
 
-A mismatch is not an absent value, and `CONTEXT.md` defines a gate as "a value the pipeline requires and does not have" — the seed folder is set, the walk finished, the documents are extracted. This is ADR-083's argument, which that decision records having lost before it won.
+A mismatch is not an absent value, and `CONTEXT.md` defines a gate as "a value the pipeline requires and does not have" — the seed folder is set, the walk finished, the documents are extracted. This is ADR-083's argument.
 
 The strongest counter-argument — that a seed set in a different language is not a judgement call — does not survive contact with the data it would act on. `primary_language` is a *detected* value carrying a confidence beside it and a documented guard below which `LanguageDetection` declines to guess at all; an Italian-and-English archive is the stated target domain; and OCR damage skews detection precisely on the documents most likely to be misread. Gating would refuse an expensive run on a heuristic's say-so, and refusing overrides the one person who knows the domain — which is what the seed set exists to express.
 
@@ -65,7 +65,7 @@ Stage 5 mints **two runs, not one**:
 
 An invocation against an unset model therefore walks, extracts the seeds, measures the mismatch, writes the report, and ends at the gate **having recorded what it learned** — while ADR-080's rule holds unbroken, because no run row exists for the scoring that did not happen.
 
-The two alternatives were weighed. Folding the comparison into stage 3 would require moving seed extraction earlier and reopening ADR-083, settled two tickets ago. Giving it a stage of its own contradicts `CONTEXT.md`, where a stage is "identified by the verdicts it writes" and this one writes none.
+The two alternatives were weighed. Folding the comparison into stage 3 would require moving seed extraction earlier and reopening ADR-083. Giving it a stage of its own contradicts `CONTEXT.md`, where a stage is "identified by the verdicts it writes" and this one writes none.
 
 ## Consequences
 

@@ -3,17 +3,17 @@
 - **Date**: 2026-09-28
 - **Status**: accepted
 - **Extends**: [ADR-146](0146-spreadsheets-are-out-of-scope-and-stage-1-removes-them-with-a-verdict-of-their-own.md), as [ADR-167](0167-bmp-images-are-out-of-scope-and-stage-1-recognises-one-by-its-file-header-and-the-header-after-it.md) did. A third kind of file joins `pipeline`'s `OutOfScope`, under the same `out-of-scope` verdict and in the same place in stage 1's first pass. The vocabulary stays at nine values.
-- **Builds on**: [ADR-094](0094-stage-1-decides-what-a-file-is-from-its-bytes-the-extension-may-only-narrow-within-that-class.md) and [ADR-095](0095-the-detected-format-is-a-stage-1-output-and-unrecognised-content-earns-no-verdict-until-the-mix-is-measured.md). A video is recognised from its bytes, as a new `DetectedFormat`, `VIDEO`, and the name plays no part. ADR-095's mix has now been measured for these files: they were the `00 00 00 18` rows among the unrecognised leading bytes.
+- **Builds on**: [ADR-094](0094-stage-1-decides-what-a-file-is-from-its-bytes-the-extension-may-only-narrow-within-that-class.md) and [ADR-095](0095-the-detected-format-is-a-stage-1-output-and-unrecognised-content-earns-no-verdict-until-the-mix-is-measured.md). A video is recognised from its bytes, as a new `DetectedFormat`, `VIDEO`, and the name plays no part. ADR-095's mix has been measured for these files: they were the `00 00 00 18` rows among the unrecognised leading bytes.
 - **Keeps**: [ADR-100](0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md). `VIDEO` gets the row `UNRECOGNISED` has in `extraction`'s table, the neutral name, which is the name every video was posted under until now. No posted name changes and the naming scheme stays at version 1.
-- **Not the lasting answer**: [#326](https://github.com/algernon28/vespera/issues/326). A file Docling fails on, for whatever reason, should become `extraction-failed` and the run should go on, with the files it failed on listed for review at the end. This record decides none of that. It is a quick unblock the operator asked for on 2026-09-28 (*"skip all the video formats, no matter which one"*) so that the whole-archive run can go past stage 2.
+- **Not the lasting answer**: [#326](https://github.com/algernon28/vespera/issues/326). A file Docling fails on, for whatever reason, should become `extraction-failed` and the run should go on, with the files it failed on listed for review at the end. This record decides none of that. It is a quick unblock so that the whole-archive run can go past stage 2.
 
 ## Context
 
-On 2026-09-28 the whole-archive run (43,101 files, corpus root `H:\Working docs corpora\QA - DIGITAL - Recupero KT PERIN`, working directory `H:\Working docs corpora\Vespera_working_dir`, jar built from main at 4050b25, which carries ADR-167) failed in stage 2 at 12:03:22 local time, after 37 minutes 45 seconds, with 4,512 read, 2,492 written and 2,004 filtered. The exception was `404 Not Found: {"detail":"Task result not found. Please wait for a completion status."}`, thrown from `DoclingClient.convert` as RestClient's `HttpClientErrorException$NotFound`. That is not a `ServiceScopeFailureException`, so the skip policy did not absorb it and stage 2 failed.
+On the whole archive (43,101 files), with ADR-167 in place, stage 2 fails. The exception is `404 Not Found: {"detail":"Task result not found. Please wait for a completion status."}`, thrown from `DoclingClient.convert` as RestClient's `HttpClientErrorException$NotFound`. That is not a `ServiceScopeFailureException`, so the skip policy does not absorb it and stage 2 fails.
 
 ### What Docling did with the file
 
-docling-serve's own log, at the same second:
+docling-serve's own log, at the same second as the failure:
 
 - Two uploads arrived with `content_type=video/mp4`, of 13,110,954 and 12,624,254 bytes.
 - Docling detected each as `InputFormat.VIDEO` and started its `VideoPipeline`, whose first step is the ASR transcriber.
@@ -30,13 +30,13 @@ Stage 1 knew no video signature, so an MP4 was `UNRECOGNISED`. `DoclingClient.ex
 
 ### What the archive holds
 
-A survey of the archive's leading bytes, for this record:
+A survey of the archive's leading bytes:
 
 - **8 videos, every one ISO base media** (`ftyp` at offset 4): 1 with major brand `isom` and 7 with `mp42`, between 5 and 33 MB. Among them `A&RD_SmartPOS_BaseDocumentale\...\Varie\video\Stacco_bianco_e_pressione_tasto_rosso.mp4` and `...\MobilePOS\TEST-18-agosto-versione_offuscata\Test#1\PAX_1.0.36_offuscata_iniz_carta_bicocca.mp4`. The format-mix page listed `00 00 00 18` seven times among the unrecognised leading bytes: a 24-byte `ftyp` box, the `mp42` files.
 - **No** Matroska or WebM, AVI, ASF, FLV, MPEG program stream or Ogg file.
 - **23 `RIFF` files that are not WEBP.** They are CorelDRAW drawings (`RIFF....CDRC`), not video, and they must stay `UNRECOGNISED`.
 
-So on this archive the rule could be `ftyp` alone. The operator asked for every video whatever its container, and a signature list is cheap, so the Decision covers the containers a video is commonly kept in.
+So on this archive the rule could be `ftyp` alone. Every video is out of scope whatever its container, and a signature list is cheap, so the Decision covers the containers a video is commonly kept in.
 
 ## Decision
 
@@ -57,7 +57,7 @@ All of them are read from the 512 bytes stage 1 already reads, so this costs no 
      - MIAF (ISO/IEC 23000-22): `miaf`;
      - Canon's raw format CR3, which is ISO base media too: `crx `.
 
-     Every HEIF file must carry one of its structural brands, `mif1`, `mif2` or `msf1`, among its compatible brands, and every AVIF file carries `mif1` and `miaf`. So reading the compatible brands catches a HEIF or AVIF file whatever its major brand, and the list above is belt and braces. The image-sequence brands (`msf1`, `hevc`, `avis` and the like) are on the list because a HEIF image sequence is an animated picture, not a recording, and because the operator asked about video.
+     Every HEIF file must carry one of its structural brands, `mif1`, `mif2` or `msf1`, among its compatible brands, and every AVIF file carries `mif1` and `miaf`. So reading the compatible brands catches a HEIF or AVIF file whatever its major brand, and the list above is belt and braces. The image-sequence brands (`msf1`, `hevc`, `avis` and the like) are on the list because a HEIF image sequence is an animated picture, not a recording, and because this rule is about video.
 2. **QuickTime without `ftyp`**, as older QuickTime writers produced: the four bytes at offset 4 are `moov`, `mdat`, `wide` or `pnot`, and the prefix does not decode as text. The text condition matters: *"The wide range…"* has `wide` at offset 4. `free` and `skip` are **not** on the list. They are padding any ISO base media writer may lead with, a HEIF file among them, and none of the eight videos starts with one. A QuickTime file that does stays `UNRECOGNISED`.
 3. **Matroska and WebM**: the EBML magic `1A 45 DF A3` at offset 0. Matroska and WebM are the only EBML document types in use, so the magic is not narrowed by the DocType it carries.
 4. **AVI**: `RIFF` at offset 0 and the form type `AVI ` at offset 8. No other `RIFF` form is video. CorelDRAW's `CDRC`, WAVE's `WAVE` and every other form stay what they are today, and WEBP stays `IMAGE`.
@@ -76,7 +76,7 @@ All of them are read from the 512 bytes stage 1 already reads, so this costs no 
 
 ### What is not decided here
 
-- **Audio is not out of scope.** Docling would fail on an audio file the same way, because it too goes through the ASR pipeline. The operator asked about video, and a WAV, an M4A or an Ogg Vorbis file stays `UNRECOGNISED` and is sent as before. That is a later decision, or #326's.
+- **Audio is not out of scope.** Docling would fail on an audio file the same way, because it too goes through the ASR pipeline. This rule is about video, and a WAV, an M4A or an Ogg Vorbis file stays `UNRECOGNISED` and is sent as before. That is a later decision, or #326's.
 - **Some audio is read as video all the same**, where the container cannot say which it holds without parsing its tracks: an ASF file holding only audio (a WMA), a Matroska file holding only audio (`.mka`, `.weba`), an FLV or RealMedia file with no video stream, and an ISO base media file holding only audio under a general brand such as `isom` or `mp42`. Each is removed with a reason that calls it a video. That is accepted: telling them apart would mean the track parsing ADR-068 keeps out of stage 1, and each would fail in Docling in the same way.
 
 ### The rest follows ADR-167
@@ -88,11 +88,11 @@ All of them are read from the 512 bytes stage 1 already reads, so this costs no 
 
 ## Alternatives rejected
 
-- **Only the brands known to be video**, instead of every `ftyp` file but the still-image and audio-only brands. It would miss a video under a brand nobody listed, and that file would stop the run exactly as the MP4s did. The operator asked for every video. The kinds of ISO base media that are not video are few and registered, so the exclusions are the shorter and safer list.
+- **Only the brands known to be video**, instead of every `ftyp` file but the still-image and audio-only brands. It would miss a video under a brand nobody listed, and that file would stop the run exactly as the MP4s did. Every video is out of scope. The kinds of ISO base media that are not video are few and registered, so the exclusions are the shorter and safer list.
 - **Recognising a video by its extension.** ADR-094 does not let a name decide a format.
 - **Treating the 404 as a failed conversion.** That is the lasting fix, and it is #326's: it covers any file Docling fails on, not only videos.
-- **Installing whisper in the Docling image, so videos convert.** The operator's decision was to leave videos out. A transcript of a screen recording is not the material this knowledge base is built from, and a new image changes every conversion's identity.
-- **Leaving audio out in the same change.** Not asked for. Recorded above as the next candidate.
+- **Installing whisper in the Docling image, so videos convert.** Videos are left out. A transcript of a screen recording is not the material this knowledge base is built from, and a new image changes every conversion's identity.
+- **Leaving audio out in the same change.** This rule is about video. Recorded above as the next candidate.
 - **Calling a video `broken`.** It is not damaged, and saying so would be false.
 
 ## Consequences
@@ -100,8 +100,8 @@ All of them are read from the 512 bytes stage 1 already reads, so this costs no 
 **What re-runs over an existing working directory:**
 
 - **Stage 1 mints a new run.** `DetectedFormat` and `BrokenCheck` both change, and stage 1's implementation version is `corpus`'s (ADR-058). The new run writes `out-of-scope` for the 8 videos. Nothing else on this archive changes its detected format: the CorelDRAW `RIFF` files stay `UNRECOGNISED`.
-- **Stage 2 mints a new run**, because `extraction`'s table gains a row and its upstream run is new. **What was already converted is not converted again.** The extraction cache is keyed on the content hash and the extractor identity, and neither changes, so the 2,492 occurrences stage 2 wrote on 2026-09-28 are read back from it rather than sent.
-- **Every later stage mints a new run**, as ADR-167 recorded. Content-keyed caches are reused; run-keyed results are recomputed. On this archive no stage after stage 2 has run yet.
+- **Stage 2 mints a new run**, because `extraction`'s table gains a row and its upstream run is new. **What was already converted is not converted again.** The extraction cache is keyed on the content hash and the extractor identity, and neither changes, so each cached conversion is read back from it rather than sent.
+- **Every later stage mints a new run**, as ADR-167 recorded. Content-keyed caches are reused; run-keyed results are recomputed.
 
 **The removal is visible.** The verdict, its reason and the format-mix page all say so. A video an operator wanted is removed with the rest. What brings one back is the configurable list ADR-146 deferred, or this record being reversed once #326 has landed.
 
@@ -110,8 +110,6 @@ All of them are read from the 512 bytes stage 1 already reads, so this costs no 
 **`CONTEXT.md`'s entry for *Out of scope* names videos beside spreadsheets and BMP images.**
 
 ## Tests
-
-Red until the change lands, except the two that pin what must not change and pass today (`aStillImageOrAnAudioFileInTheSameContainerIsNotAVideo`, `anFtypBoxTheBytesCannotHoldIsNotAVideo`). They name the new value by its string, so they compile before it exists.
 
 - `VideoDetectionTest` (in `corpus`), one method per rule:
   - `anIsoBaseMediaFileIsAVideoWhateverItIsCalled`: an `mp42` file with the 24-byte box of the archive's seven, an `isom` file, a QuickTime `qt  ` file and a `3gp4` file, each named as something else, are `VIDEO`, not broken, with no subtype. An `M4V ` file listing `M4A ` among its compatible brands is `VIDEO`, and so is an `mp42` file whose 24-byte box is followed by bytes spelling `jpeg`: the brands are read to the end of the box, and no further.

@@ -6,23 +6,23 @@
 - **Builds on**: [ADR-094](0094-stage-1-decides-what-a-file-is-from-its-bytes-the-extension-may-only-narrow-within-that-class.md) and [ADR-095](0095-the-detected-format-is-a-stage-1-output-and-unrecognised-content-earns-no-verdict-until-the-mix-is-measured.md). A BMP image is recognised from its bytes, as a new `DetectedFormat`, and the name plays no part.
 - **Keeps**: [ADR-100](0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md). `extraction` names `corpus`'s detection enumerations, so the new value needs a row in its table. It gets the row `IMAGE` already has, the neutral name, so no posted name changes and the naming scheme stays at version 1. ADR-100's *"The signature stays as it is"* is kept too: `IMAGE` is still recognised by `BM` alone.
 - **Engages**: ADR-094's *"`BM` is two bytes"* and ADR-095's third obligation, which handed the question of hardening `BM` to the stage-2 ticket, where ADR-100 declined it for good because the file-size field at offset 2 is unreliable. This record leaves `IMAGE`'s signature as it is. It reads a different field, the picture header's length at offset 14, and only to single out `BMP` from `IMAGE` (Decision).
-- **Not the lasting answer**: [#326](https://github.com/algernon28/vespera/issues/326), points 2 and 3. A file that crashes the converter every time it is sent should become `extraction-failed` with a reason of its own, whatever kind of file it is. This record decides none of that. It is a quick unblock the operator approved on 2026-09-28 so that the whole-archive run can go past stage 2.
+- **Not the lasting answer**: [#326](https://github.com/algernon28/vespera/issues/326), points 2 and 3. A file that crashes the converter every time it is sent should become `extraction-failed` with a reason of its own, whatever kind of file it is. This record decides none of that. It is a quick unblock so that the whole-archive run can go past stage 2.
 
 ## Context
 
-On 2026-09-28 the whole-archive run (43,101 files, walk 5) failed in stage 2 at 09:56. Docker recorded `oom` and then `die exit=137` for the Docling sidecar. The call in flight got `HTTP/1.1 header parser received no bytes`, and stage 2 failed with 1,328 read, 631 written and 683 filtered. The restart policy of ADR-164 had the sidecar back in about 6 seconds. Under ADR-164 §2 the step still fails, and the next invocation sends the same file again, so the run cannot get past it.
+On the whole archive (43,101 files, walk 5), stage 2 fails. Docker records `oom` and then `die exit=137` for the Docling sidecar. The call in flight gets `HTTP/1.1 header parser received no bytes`, and stage 2 fails. The restart policy of ADR-164 has the sidecar back in about 6 seconds. Under ADR-164 §2 the step still fails, and the next invocation sends the same file again, so the run cannot get past it.
 
-The main session reproduced it one file at a time, on a freshly restarted sidecar (`vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`, `POST /v1/convert/file`, `to_formats=json`, `image_export_mode=embedded`):
+Each file sent on its own to a freshly restarted sidecar (`vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`, `POST /v1/convert/file`, `to_formats=json`, `image_export_mode=embedded`) behaves as follows:
 
 - `…/HOST/LOGHIBPE/cir.bmp` (occurrence 4358) ran 64.7 s, and the sidecar died.
 - `…/HOST/LOGHIBPE/sodexo.bmp` (4364) did the same in 64.8 s.
-- Three `.M70`, `.M71` and `.MXX` files sent before them converted in 2 s each. JPEG screenshots had converted without trouble on the GesPOS run.
+- Three `.M70`, `.M71` and `.MXX` files sent before them converted in 2 s each. JPEG screenshots converted without trouble on the GesPOS run.
 
 Both files are ordinary Windows bitmaps: `BM`, a 40-byte `BITMAPINFOHEADER`, 95 × 103 pixels, 24 bits per pixel, uncompressed, 29,718 bytes.
 
 ### What kills the sidecar is the resolution the file declares, not BMP
 
-Measured for this record on 2026-09-28, against the same sidecar, with copies of `cir.bmp` in a scratch directory. The archive was only read.
+Measured against the same sidecar, with copies of `cir.bmp`.
 
 `cir.bmp` declares 1 pixel per metre on both axes, which is 0.0254 dots per inch. At that resolution its 95 pixels are about 3,740 inches wide.
 
@@ -48,10 +48,10 @@ Across walk 5, stage 1 found 12,001 occurrences to be images. Read with Pillow 1
 
 **On this archive every image that declares a crashing resolution is a BMP.** So leaving BMP images out gets the run past stage 2, and no PNG, JPEG, GIF or WEBP is touched. It does not prevent the same crash from any other image, on another archive.
 
-What it costs here: 34 BMP images survive stage 1 today.
+What it costs here: 34 BMP images in walk 5 survive stage 1 without this rule.
 
 - 5 declare 0.0254 dpi and would crash the sidecar.
-- 7 declare a resolution of 0. The one of them already sent, `logo_verifone.bmp` (occurrence 4024), came back `failure` (`backend_failure`) in 5 ms.
+- 7 declare a resolution of 0. One of them, `logo_verifone.bmp` (occurrence 4024), sent to the sidecar, came back `failure` (`backend_failure`) in 5 ms.
 - 22 declare an ordinary resolution, and would presumably convert, as `cir.bmp` did at 96 dpi.
 
 All 34 are logos for payment terminals, by their paths (`HOST/LOGHI*`, `…LOGO…`, `Ergonomia/Edenred.bmp` and similar). A logo's pixels were never going to be much of a document.
@@ -60,7 +60,7 @@ All 34 are logos for payment terminals, by their paths (`HOST/LOGHI*`, `…LOGO�
 
 Of the 634 `.bmp` paths in walk 5, 410 open with `BM` and a 40-byte header, and stage 1 records them as `IMAGE`. The other 224 do not open with `BM` at all. They open with `00 78 00 00 …` (148), `24 1A 80 C0 …` (62) or `00 78 E0 F0 …` (14), are 185 to 620 bytes long, and sit in payment-terminal build folders (`CB2_TELIUM2`, `bin.PAX`). They are headerless bitmaps in a terminal maker's own format, not Windows BMP. Stage 1 is right to call them unrecognised, and this record leaves them there.
 
-Four of them survive stage 1. One was sent to the sidecar for this record, `…/SMARTPOS/HOST/ELUNCH.BMP`: it came back `skipped` in 1 ms, with the error *"File format not allowed"* in category `policy`. Under ADR-139 that becomes `extraction-failed`. So they cost the run nothing.
+Four of them survive stage 1. One of them, `…/SMARTPOS/HOST/ELUNCH.BMP`, sent to the sidecar, came back `skipped` in 1 ms, with the error *"File format not allowed"* in category `policy`. Under ADR-139 that becomes `extraction-failed`. So they cost the run nothing.
 
 No file in walk 5 that is not named `.bmp` opens with `BM`.
 
@@ -99,8 +99,8 @@ Both are in the 512 bytes stage 1 already reads, so this costs no second read. `
 **What re-runs over an existing working directory:**
 
 - **Stage 1 mints a new run.** Its implementation version is `corpus`'s (ADR-058), and `DetectedFormat` and `BrokenCheck` both change. The new run writes `out-of-scope` for the 410 BMP images in walk 5. Its duplicate pass now sees none of them, and the 224 unrecognised `.bmp` files go through it as before.
-- **Stage 2 mints a new run**, because `extraction`'s table gains a row and because its upstream run is new. **What was already converted is not converted again.** The extraction cache is keyed on the content hash and the extractor identity, and the identity is the image, the sidecar's reported versions and the options sent, `naming=1` among them. None of those changes. On 2026-09-28 the working directory held 1,331 cached conversions, all under the current identity, and each of them is read back rather than sent.
-- **Every later stage mints a new run**, because its upstream run is new, and because `pipeline` and `extraction` change, which their implementation versions span. Conversions, chunks (`chunk_cache`) and vectors (`vector`) are keyed on content, so they are reused, and so are the operator's relevance labels, keyed on path and seed set (ADR-097). Everything else is keyed on the run and is recomputed: shingles, MinHash signatures and bands, redundancy, relevance scores, clusters, and 6b's generated pages and the model calls that write them. On walk 5 no stage after stage 2 has run yet, so there this costs nothing.
+- **Stage 2 mints a new run**, because `extraction`'s table gains a row and because its upstream run is new. **What was already converted is not converted again.** The extraction cache is keyed on the content hash and the extractor identity, and the identity is the image, the sidecar's reported versions and the options sent, `naming=1` among them. None of those changes, so each cached conversion is read back rather than sent.
+- **Every later stage mints a new run**, because its upstream run is new, and because `pipeline` and `extraction` change, which their implementation versions span. Conversions, chunks (`chunk_cache`) and vectors (`vector`) are keyed on content, so they are reused, and so are the operator's relevance labels, keyed on path and seed set (ADR-097). Everything else is keyed on the run and is recomputed: shingles, MinHash signatures and bands, redundancy, relevance scores, clusters, and 6b's generated pages and the model calls that write them.
 
 **The removal is visible.** The verdict, its reason and the format-mix page all say so. A BMP image an operator wanted is removed with the rest. What brings one back is the configurable list ADR-146 deferred, or this record being reversed once #326 has landed.
 
@@ -109,8 +109,6 @@ Both are in the 512 bytes stage 1 already reads, so this costs no second read. `
 **`CONTEXT.md`'s entry for *Out of scope* names BMP images beside spreadsheets.**
 
 ## Tests
-
-Red until the change lands. They name the new value by its string, so they compile before it exists:
 
 - `DetectedFormatTest.aBmpImageIsRecognisedByItsTwoHeaders`: a 70-byte, 2 × 2, 24-bit BMP named `.png`, and a BMP with a 124-byte header, are `BMP`, not broken, with no subtype. A PNG and a JPEG named `.bmp` are `IMAGE`. A file that opens with `BM` and has no header length after it is `IMAGE`.
 - `DetectedFormatTest.aBmpTooShortToCarryItsHeaderLengthIsAnOrdinaryImage`: a 10-byte file opening with `BM` is `IMAGE`, and reading it throws nothing. An 18-byte file with 40 at offset 14 is `BMP`.

@@ -6,22 +6,22 @@
 
 > **Partly amended — see [ADR-237](0237-the-read-of-one-hashs-occurrences-names-its-run-in-its-text-and-is-prepared-once-for-the-containment-pass.md).** §2's *"The run is a bound value, as ADR-221 §2 decides"*, and the `run_id = ?` of the statement it shows, no longer hold: the stage-2 run is written into the read's text, as the index's own text has it, and the statement is prepared once for the containment pass where the pass is one transaction. The read, its order, its pages and the merge stand.
 
-> **Partly amended — see [ADR-231](0231-the-embedding-step-stops-unrecorded-where-the-embedding-model-was-pulled-while-it-ran-and-scoring-refuses-a-seed-whose-chunks-have-no-vector.md).** Nothing this record decides is touched. One sentence of §8 is: it names #488 and #489 as joining the one build, and #496 joins it too, by the operator's word of 2026-10-10, and is its last ticket. No build is cut until #496's change is on `main`.
+> **Partly amended — see [ADR-231](0231-the-embedding-step-stops-unrecorded-where-the-embedding-model-was-pulled-while-it-ran-and-scoring-refuses-a-seed-whose-chunks-have-no-vector.md).** Nothing this record decides is touched. One sentence of §8 is: it names #488 and #489 as joining the one build, and #496 joins it too, and is its last ticket. No build is cut until #496's change is on `main`.
 
 - **Date**: 2026-10-10
-- **Status**: accepted on 2026-10-10. **Built** by the change that carries this record: *What is to be built* is in `src/main` as that section has it, and the sixteen tests that failed before it pass (Tests).
+- **Status**: accepted on 2026-10-10.
 - **Amends**: [ADR-221](0221-shingle-by-hash-is-an-index-on-the-rows-of-the-run-in-hand-and-an-earlier-runs-rows-stay.md) in the index's columns and in every figure that follows from them, and in nothing else. §1's statement, and its *"The columns are the granularity and the hash"* and *"The index does not hold `occurrence_id`, the column that read returns"*: the occurrence is the third column (§3 here). §2's *"`RedundancyResolution`'s statement is not changed"*: it is, and it keeps the run as a bound value, which is what §2 decides (§2 here). Its Steps and §5's *"12 steps for a row of the run"*, *"25% + 75% × R / T"*, *"8,334 rows"* and *"11,112"*: 13 steps, 3/13 + 10/13 × R / T, 7,693 rows and 10,000 (§3). §6's *"51 bytes for each shingle row of the run in hand"* and its worked table: 58 (§5). Its Measured's *"23.3 to 24.4 bytes of temporary files, 24.3 to 25.3 of write-ahead log, and 24.1 to 25.2 of index in the file"*, which are of the two-column index. Its Plans' fifth row, *"one occurrence's shingles, as stages 4a and 4b read them … through `shingle_by_occurrence`"*: left to choose, such a read is drawn to the index of this record, and it is no longer left to choose (§4). Its P1's text of the statement, and P2's 12. What ADR-221 decides of whose index it is, of how stage 4b tells, of the run id written into the statement, of the build's lines and of the rows of earlier runs stands.
-- **Amends**: [ADR-220](0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md) §4 in two of stage 4b's statements, the candidate pairs of a page and the containment candidates of an occurrence, and in its *"Each pair is scored as now"* (§1, §2); §9 in its two entries for stage 4b's candidate pairs of one page and containment candidates of one occurrence, which are no longer held; and §15 in (b), in the answers to its questions 7 and 8 and in what it owes under #476, which this record measures (Measured). Its entry (a), an occurrence's rarest shingles, stands and gains its measured size (§6).
+- **Amends**: [ADR-220](0220-no-class-holds-every-occurrence-of-a-run-stage-2s-resume-the-census-stage-4b-and-stage-5e-read-a-page-at-a-time-or-ask-by-key-and-what-is-still-held-says-why.md) §4 in two of stage 4b's statements, the candidate pairs of a page and the containment candidates of an occurrence, and in its *"Each pair is scored as now"* (§1, §2); §9 in its two entries for stage 4b's candidate pairs of one page and containment candidates of one occurrence, which are no longer held; and §15 in (b), in its points 7 and 8 and in what it owes under #476, which this record measures (Measured). Its entry (a), an occurrence's rarest shingles, stands and gains its measured size (§6).
 - **Amends**: [ADR-218](0218-every-statement-whose-temporary-files-grow-with-the-corpus-is-an-exception-to-adr-060-with-its-size.md) in what it lists: row 6 of its table of statements whose temporary files grow with the corpus no longer exists. And [ADR-224](0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md) §4, *"Row 6 stays excepted here"*: the statement is gone, so three of its four exceptions are left, rows 7, 10 and 11.
 - **Keeps**: [ADR-079](0079-redundant-with-covers-near-duplication-and-containment-the-fuller-rendering-survives.md), [ADR-081](0081-minhash-retrieves-shingle-sets-judge-128-permutations-in-16-bands-and-containment-gets-its-own-index.md) and [ADR-082](0082-stage-4-judges-on-its-first-run-its-thresholds-are-code-defaults-and-it-ships-no-report.md): what stage 4b removes, what it is redundant with and the score written are unchanged (§7). ADR-220 §9's components with their members' profiles and its shingle-set cache, which are not this record's. [ADR-192](0192-every-loop-in-every-stage-reports-its-progress-and-no-counter-floods-the-log.md) and ADR-220 §4's counters, each told as often as before (§7). [ADR-209](0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md) §3: every statement here names `similarity`'s own tables. [ADR-193](0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md) §2: each statement finishes before the next is issued.
-- **Rests on**: the operator's word of 2026-10-10, relayed to the session that wrote this record by the coordinating session, in the words *"yes, decide #476 yourself"*, and by the session that keeps the coordination board, *"tell the agents to make all decisions regarding their tickets"*. The four choices under *Who decided* are that session's, made on the measurements of this record under rules the coordinating session set. They are not the operator's own answers. The operator's decision of the same day, relayed the same way, that #476 ships in one build with the changes of #458, #353, #472, #477, #468, #479 and #486 (§8). [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-048](0048-walk-and-run-identity.md) (§8). Throwaway probes over synthetic ledgers built from the shipped `schema.sql` (Measured). No archive and no working directory was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
+- **Rests on**: [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-048](0048-walk-and-run-identity.md) (§8). Throwaway probes over synthetic ledgers built from the shipped `schema.sql` (Measured). No figure rests on an archive or a working directory ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
 - **Decides** [#476](https://github.com/algernon28/vespera/issues/476).
 
 **A *bucket* here is one band value**: the signed occurrences of a stage-4 run whose signatures hash alike in one band, the rows of `signature_band` sharing a `band_ordinal` and a `band_hash` (ADR-081). It is never a seed partition. An *index* is always a SQLite index on a table.
 
-## Who decided
+## The choices
 
-The session that wrote this record, on 2026-10-10, under the word quoted above. The coordinating session's rules for it: the verdicts are the same; no cap that could change a verdict; the form with no temporary file and a bounded heap is preferred; the third column is taken only if the form that needs it is measured clean and nothing on the two-column index is bounded without changing what a counter counts.
+The choices are held to four rules: the verdicts are the same; no cap that could change a verdict; the form with no temporary file and a bounded heap is preferred; the third column is taken only if the form that needs it is measured clean and nothing on the two-column index is bounded without changing what a counter counts.
 
 1. **The candidate pairs are read by bucket**, with no new index (§1). The plain form, in which a pair sharing several buckets is offered once for each, is taken over the one that offers each pair once, with a pair already in one component not scored again.
 2. **The containment candidates are merged from ordered reads**, one for each rarest hash (§2).
@@ -30,7 +30,7 @@ The session that wrote this record, on 2026-10-10, under the word quoted above. 
 
 ## Context
 
-ADR-220 put a read of one page of signed occurrences in the place of stage 4b's read of every band row of the run. Two things it left growing with the corpus, and the operator excepted both as they stood on 2026-10-09, unmeasured, until this ticket:
+ADR-220 put a read of one page of signed occurrences in the place of stage 4b's read of every band row of the run. Two things it left growing with the corpus, and its §15 excepted both as they stood, unmeasured, until this ticket:
 
 - **A page's candidate pairs.** One statement, `SELECT DISTINCT a.occurrence_id, b.occurrence_id FROM signature_band a CROSS JOIN signature_band b …`, for a page of 1,000 lesser members. The page bounds the lesser member and not the greater: at most 1,000 times the signed occurrences less one. SQLite sorts them for the `DISTINCT`, and `candidatePairsOf` answers them as a list.
 - **An occurrence's containment candidates.** One statement, `SELECT occurrence_id FROM shingle WHERE … shingle_hash IN (…) GROUP BY occurrence_id HAVING COUNT(DISTINCT shingle_hash) >= ?`, over the occurrence's 32 rarest hashes, answered as a set, from which `resolveContainment` makes a list and two more sets. On disk it is ADR-218's row 6.
@@ -39,7 +39,7 @@ ADR-224 kept row 6 excepted and gave its bounded form, one ordered read for each
 
 ## Measured
 
-**Method.** One throwaway probe outside the repository, on 2026-10-10, made as ADR-218's and ADR-221's were: Java 26.0.2.1 and the sqlite-jdbc the pom carries (3.53.2.1, SQLite 3.53.2), the shipped `schema.sql` at `066040d`, the shipped URL's parameters, and SQLite's directory for temporary files set once, on a connection to no database, before the database was opened. While each statement ran, the sizes of the files in that directory were summed every 5 ms and the greatest sum kept; for a build, the write-ahead log and the database file too. A time is the best of three rounds unless it says otherwise. A statement is prepared anew for each call, as `JdbcTemplate` sends it. One plain connection; `foreign_keys` turned off after the schema was run, the probe writing no walk and no run. A heap is the used heap after four collections with the collection alive, less the same before it was built.
+**Method.** One throwaway probe outside the repository, made as ADR-218's and ADR-221's were: Java 26.0.2.1 and the sqlite-jdbc the pom carries (3.53.2.1, SQLite 3.53.2), the shipped `schema.sql`, the shipped URL's parameters, and SQLite's directory for temporary files set once, on a connection to no database, before the database was opened. While each statement ran, the sizes of the files in that directory were summed every 5 ms and the greatest sum kept; for a build, the write-ahead log and the database file too. A time is the best of three rounds unless it says otherwise. A statement is prepared anew for each call, as `JdbcTemplate` sends it. One plain connection; `foreign_keys` turned off after the schema was run, the probe writing no walk and no run. A heap is the used heap after four collections with the collection alive, less the same before it was built.
 
 **Disk.** A solid-state NVMe disk, NTFS, Windows 11, the file cache warm. **Every figure in this record is from synthetic ledgers on that disk.** Sizes are in bytes.
 
@@ -63,7 +63,7 @@ G signed occurrences share one bucket, among 50,000 that share none; the first p
 | an index on `signature_band` ending in the occurrence, each lesser member's buckets read in order and merged | none | 0.55 s; 1.01 s | 5,001; 10,001 | a thirty-second index in `schema.sql`, its start-up build 89.7 to 90.6 bytes a row of temporary files where the shipped index's is 86.3 to 87.1 |
 
 - **The plans.** As shipped: `SEARCH a USING INDEX sqlite_autoindex_signature_band_1 (occurrence_id=? AND run_id=?)`, `SEARCH b USING INDEX signature_band_by_bucket (run_id=? AND band_ordinal=? AND band_hash=?)`, `USE TEMP B-TREE FOR DISTINCT`. By bucket, its first statement: the same search of `a`, then `SEARCH b EXISTS USING COVERING INDEX signature_band_by_bucket (run_id=? AND band_ordinal=? AND band_hash=?)`; its second: `SEARCH signature_band USING INDEX signature_band_by_bucket (run_id=? AND band_ordinal=? AND band_hash=? AND rowid>?)`. Neither has a temp B-tree.
-- **The by-bucket form was not timed alone where sixteen bands are shared**: that run was stopped. The whole pass below holds it on 300 near-copies that share most of their bands.
+- **The by-bucket form was not timed alone where sixteen bands are shared.** The whole pass below holds it on 300 near-copies that share most of their bands.
 
 ### The containment candidates of one occurrence
 
@@ -134,7 +134,7 @@ With (b) built for the run and the run bound, each shipped read of `shingle` was
 | 2 | as shipped, those reads naming it | (b) | 4.7 s | 15,632 | 5,504 | the same 100 |
 
 - **Every form wrote the same rows**: the occurrence, what it is redundant with, the relation and the score, compared row by row.
-- **A pass at 20,000 occurrences was started with (b) and the reads left to choose, and was stopped after thirty minutes**, which is how the draw was found. It was not run again at that size.
+- **A pass at 20,000 occurrences was started with (b) and the reads left to choose, and was stopped after thirty minutes.** It was not run again at that size.
 - **The probe's stage 4b is its own code**, written to ADR-220 §4 and to §1 and §2 here, with a cache of every set and no budget. It measures the statements and not `RedundancyResolution`.
 
 ### An occurrence's rarest shingles
@@ -146,7 +146,7 @@ One occurrence, each of its shingle rows with a frequency row, read by `rarestHa
 | 150,000 | 4,136,019 to 4,192,422 | 27.6 to 27.9 | 0.53 to 0.55 s |
 | 1,000,000 | 27,390,619 to 27,949,630 | 27.4 to 27.9 | 5.6 s |
 
-It does write a temporary file, which ADR-220 §15 left open. The two figures of each row are with no `shingle_by_hash` and with ADR-182's, the index on main when they were taken; the plan is the same in both, the two temp B-trees ADR-220 records.
+It does write a temporary file, which ADR-220 §15 left open. The two figures of each row are with no `shingle_by_hash` and with ADR-182's; the plan is the same in both, the two temp B-trees ADR-220 records.
 
 ## Decision
 
@@ -216,7 +216,7 @@ One space between words and after each comma, as written here: `sqlite_master` k
 
 **The build takes 13 steps for a row of the run and 3 for a row of any other** (Measured), so `SHINGLE_HASH_INDEX_BUILD` declares 13. ADR-221 §5's lines keep their words. Its share at the end becomes 3/13 + 10/13 × R / T, 100% for a run alone and 23% and upward otherwise; a callback is 7,693 rows at most; and the line that the rows are gone through is not written where the table keeps more than about 10,000 rows of other runs.
 
-**A database whose index was built under ADR-221 needs no migration.** Its statement is not this record's for any run, so it is the fourth row of ADR-221 §3's table: dropped, and this run's built. In the upgrade stage 4b does not meet it at all: the build that carries this record moves `similarity`, so stage 2 has a new run and drops the index before it writes (§8). Both are read from ADR-221 §3 and `ShingleHashIndex.buildFor`, and neither was run.
+**A database whose index was built under ADR-221 needs no migration.** Its statement is not this record's for any run, so it is the fourth row of ADR-221 §3's table: dropped, and this run's built. In the upgrade stage 4b does not meet it at all: the build that carries this record moves `similarity`, so stage 2 has a new run and drops the index before it writes (§8). Both are read from ADR-221 §3 and `ShingleHashIndex.buildFor`, and neither is measured.
 
 ### 4. Every read of one occurrence's shingles names the index on the occurrence
 
@@ -251,7 +251,7 @@ Nothing else of stage 4b's sorts where stage 4b runs it. `EveryStatementThatSort
 
 ### 8. Which run ids move, and when it ships
 
-A stage's implementation version is the last commit touching `src/main/java/io/algernon/vespera/<module>` for a module `StageModules` names for it (ADR-058). **The change that carries this record carries its build, and touches one module, `similarity`.** As `StageModules` stands at `066040d`, since [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md):
+A stage's implementation version is the last commit touching `src/main/java/io/algernon/vespera/<module>` for a module `StageModules` names for it (ADR-058). **The change that carries this record carries its build, and touches one module, `similarity`.** As `StageModules` stands since [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md):
 
 | Stage | Modules it names | Moves with this build |
 | --- | --- | --- |
@@ -264,7 +264,7 @@ A stage's implementation version is the last commit touching `src/main/java/io/a
 
 **So stages 2 to 6b move.** Stage 2 does its work again from the extraction cache and writes one more copy of the corpus's shingle rows (ADR-221 §8); the arrangement is a new one, and `arrangementApproved` must name it.
 
-**It ships in one build with the changes of #458, #353, #472, #477, #468, #479 and #486**, by the operator's decision of 2026-10-10, so that those stages are minted once by that build as a whole and not once for each. All seven are on main as this change is gated, #486 since `35a5a6b`, and so is #481's (ADR-229). It is not the last change of that build: by the operator's decision of the same day #488 and #489, for which ADR-228 and ADR-230 are held, join it, and no build is cut until theirs are on main too.
+**It ships in one build with the changes of #458, #353, #472, #477, #468, #479 and #486**, so that those stages are minted once by that build as a whole and not once for each. It is not the last change of that build: #488 and #489, for which ADR-228 and ADR-230 are held, join it, and no build is cut until theirs are on main too.
 
 No DDL in `schema.sql`, no schema version, no cache key. The comment of `schema.sql` that names the index's columns is corrected.
 
@@ -288,7 +288,7 @@ All of it in `similarity`, and one comment.
 
 **B8, `src/main/resources/schema.sql`, comment only**: the columns of `shingle_by_hash` in the comment that begins *"NOT CREATED HERE, on purpose (ADR-182)"*.
 
-**Edit no test.** One the build finds it has to edit is a finding for the analyst. **Verify with `./mvnw verify`.**
+**The implementation edits no test.**
 
 ## Alternatives refused
 
@@ -318,26 +318,26 @@ All of it in `similarity`, and one comment.
 | --- | --- |
 | `similarity.RedundancyResolutionBoundsItsCandidatesTest`, new, two tests over one resolution of a ledger written by hand, signatures and band rows included | **The verdicts**: of 1,050 signed occurrences in one bucket, three form a chain and the two with less text are removed, the first with its score against the survivor, 8 of 12; a pair sharing three buckets is removed once; a pair sharing two and a third of its shingles is not; an occurrence of which 1,107 others hold every shingle or all but one, 1,108 candidates with itself, is contained in the lower of the two signed ones that hold all of it and tie, which stand in different thousands of its candidates, and not in the unsigned one of lowest id, the one removed as a near-duplicate, or those that hold all but one of its shingles; five rows and five verdicts and no other. **The statements**: the read naming a page's occurrences is planned as one read of rows and one check that a row exists, and no join; 6,650 candidates are gone through, each once, one of them an occurrence whose every shingle row is written twice; none but the rarest shingles' is planned through a temp B-tree; every read of `signature_band` names at most 1,000 occurrences or one bucket with `LIMIT 1000` from the last row read; every read by one hash goes on from the last occurrence with `LIMIT 1000` and is planned `COVERING INDEX shingle_by_hash`; none groups by occurrence; every read of one occurrence's shingles is planned through `shingle_by_occurrence`; none names more than 1,000 occurrences |
 | `similarity.TheRunsHashIndex` | §3's statement, written there a second time on purpose, as ADR-221's was |
-| `similarity.ShingleIndexesInTheSchemaTest`, three tests turned | that the index is on three columns; that §2's read is answered through the run's index from the index alone with nothing sorted, and not without it nor through another run's; that a read of one occurrence's shingles goes through `shingle_by_occurrence` because it names it, and through the run's index where it does not |
+| `similarity.ShingleIndexesInTheSchemaTest`, three of its tests | that the index is on three columns; that §2's read is answered through the run's index from the index alone with nothing sorted, and not without it nor through another run's; that a read of one occurrence's shingles goes through `shingle_by_occurrence` because it names it, and through the run's index where it does not |
 | `pipeline.ShingleHashIndexInvocationTest` | the index's three columns after whole invocations, and §2's read planned through the index only for the run it was built for |
 | `pipeline.StatementStepsPerRowTest`, `pipeline.StatementStepsPerRowAreTheDeclaredOnesTest` | 13 steps a row of the run, measured and declared |
 | `pipeline.StatementProgressInvocationTest` | the bound on the other runs' rows below which the line that the rows are gone through can be written, 10,000 |
 | `similarity.RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest`, ADR-220's, one claim widened | a read of `signature_band` names at most 1,000 occurrences, or one bucket with `LIMIT 1000` |
 | `EveryStatementThatSortsIsRecordedTest` | two statements for `RedundancyResolution` where it held three, in both its states |
 
-**Run on 2026-10-10 against `src/main` before the build, under Java 26**: 1,668 tests, none skipped, 16 failing, and each on the claim this record changes. **Run again against the build**: 1,674 tests and the 23 of the ten integration classes, none skipped, none failing.
+**What holds each part of *What is to be built*.**
 
-| Test | Fails on | Turned by |
+| Test | What it holds | Part |
 | --- | --- | --- |
-| `TheHashIndexIsBuiltForOneRunTest`, four of five | the statement the database keeps is ADR-221's and not §3's | B1 |
-| `ShingleHashIndexInvocationTest`, six of eight | the same, and the index's two columns | B1 |
+| `TheHashIndexIsBuiltForOneRunTest`, four of five | the statement the database keeps is §3's and not ADR-221's | B1 |
+| `ShingleHashIndexInvocationTest`, six of eight | the same, and the index's three columns | B1 |
 | `AnEarlierRunsRowsStayInvocationTest`, one of two | the same | B1 |
-| `StatementStepsPerRowAreTheDeclaredOnesTest` | the build declares 12 steps a row | B2 |
-| `EveryStatementThatSortsIsRecordedTest`, two of four | `RedundancyResolution` holds three statements that sort | B3 and B5 |
-| `RedundancyResolutionBoundsItsCandidatesTest`, its second test | the pairs statement and the grouping are planned through a temp B-tree, and no others | B3, B5 and B6 |
-| `RedundancyResolutionTest`, #277's guard | the read of a shingle set is planned through `shingle_by_hash` | B6 |
+| `StatementStepsPerRowAreTheDeclaredOnesTest` | the build declares 13 steps a row | B2 |
+| `EveryStatementThatSortsIsRecordedTest`, two of four | `RedundancyResolution` holds two statements that sort, not three | B3 and B5 |
+| `RedundancyResolutionBoundsItsCandidatesTest`, its second test | no statement but the rarest shingles' is planned through a temp B-tree | B3, B5 and B6 |
+| `RedundancyResolutionTest`, #277's guard | the read of a shingle set is not planned through `shingle_by_hash` | B6 |
 
-`RedundancyResolutionBoundsItsCandidatesTest`'s first test, the verdicts, passed against `src/main` as it stood and passes against the build: that is the acceptance's *"stage 4b's verdicts are the same"*. Until B6 was built the tests that build the index for their run and then resolve read the whole run for each occurrence, over a few thousand rows.
+`RedundancyResolutionBoundsItsCandidatesTest`'s first test, the verdicts, holds as well for ADR-220's forms as for this record's: that is the acceptance's *"stage 4b's verdicts are the same"*.
 
 **What no test holds.**
 

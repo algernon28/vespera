@@ -16,7 +16,7 @@ The duplication is the visible cost and the smaller one. Two others matter more:
 - **The derivation had to be widened to be shared.** `ExtractionRun#configConsumed` and `RedundancyRun#configConsumed` are package-visible *only* so a later stage can call them, each with a javadoc explaining that an independently reimplemented copy of the JSON shape would drift. That is the design stating its own problem in prose, four times over.
 - **Drift is silent at the point of the mistake.** A `configConsumed` shape that no longer matches what the earlier stage actually hashed mints an id naming no row. The `run_upstream` foreign key catches it, loudly, which is the single thing making the present arrangement survivable.
 
-Raised by the two-axis review of [#104](https://github.com/algernon28/vespera/issues/104) and recorded as [#114](https://github.com/algernon28/vespera/issues/114). **Nothing minted today is wrong.** This is a maintenance cost being settled before it becomes a defect.
+The problem is [#114](https://github.com/algernon28/vespera/issues/114). **Nothing minted today is wrong.** This is a maintenance cost being settled before it becomes a defect.
 
 ### What forced the decision was not the duplication
 

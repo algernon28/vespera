@@ -64,4 +64,4 @@ The rival considered was a **mechanical** top-level statement instead of a gener
 
 **ADR-101's precedent extends one step.** That record left rendering and uploading to the operator; this leaves corpus-wide narration to them, on the same reasoning — the tool produces the material, and what is made of it is not the tool's.
 
-**No vocabulary changes, because `CONTEXT.md` already excluded this.** Its **publication-ready artifact** entry is a closed list — *"the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges"* — with no room for a corpus-wide document. The glossary was consistent with this answer before the question was asked.
+**No vocabulary changes, because `CONTEXT.md` already excluded this.** Its **publication-ready artifact** entry is a closed list — *"the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges"* — with no room for a corpus-wide document. The glossary is already consistent with this answer.

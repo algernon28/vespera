@@ -14,17 +14,17 @@
 
 ### What happened
 
-On 2026-09-29 the whole-archive run (GPU Docling under ADR-170) failed in stage 2 at 12:37 local time, 54% through, with 5,968 read and 2,819 written: *"the extractor set aside 5 occurrences in a row without converting any of them"*. The five were server logs under `WSAEL_log_Q8/…/OLD/`, of 65 MB to 521 MB, each posted to Docling as `document.md`.
+The whole-archive run (GPU Docling under ADR-170) failed in stage 2: *"the extractor set aside 5 occurrences in a row without converting any of them"*. The five were server logs under `WSAEL_log_Q8/…/OLD/`, of 65 MB to 521 MB, each posted to Docling as `document.md`.
 
-docling-serve's own log showed why. Two 61 MB text files arrived at 10:26 UTC. Vespera gave up on each after `CALL_TIMEOUT` (5 minutes), but **docling-serve does not abort a job whose caller has gone**, and its two workers finished them 1,192 s and 1,191 s later. Two 65–67 MB files arrived at 10:33, queued, and finished after 1,735 s and 1,751 s. docling-serve runs two workers, so from about 10:27 to 11:19 UTC both were held by jobs nobody was waiting for. Every other call queued behind them and timed out, and the breaker read that correctly as a sidecar not answering.
+docling-serve's own log showed why. Two 61 MB text files arrived within the same minute. Vespera gave up on each after `CALL_TIMEOUT` (5 minutes), but **docling-serve does not abort a job whose caller has gone**, and its two workers finished them 1,192 s and 1,191 s later. Two 65–67 MB files arrived seven minutes later, queued, and finished after 1,735 s and 1,751 s. docling-serve runs two workers, so for about 52 minutes both were held by jobs nobody was waiting for. Every other call queued behind them and timed out, and the breaker read that correctly as a sidecar not answering.
 
-Measured afterwards, Docling's own `document_timeout` request option does not stop a Markdown conversion: the whole 65 MB file with `document_timeout=30` got a 504 after 643 s, and the worker was still at 105% CPU eleven minutes later, freed only by restarting the container.
+Docling's own `document_timeout` request option does not stop a Markdown conversion. Measured: the whole 65 MB file with `document_timeout=30` got a 504 after 643 s, and the worker was still at 105% CPU eleven minutes later, freed only by restarting the container.
 
 ### Where conversion crosses the call timeout
 
-Measured for this record on 2026-09-29, with no Vespera process running (only the IDE's build process was a Java process). The input is the first *N* bytes of `q8_nodo2_transazioni_20230208.txt`, one of the five, posted exactly as `DoclingClient.convert` posts it: the file as `files` named `document.md`, `to_formats=json`, `ocr_preset=rapidocr`, `image_export_mode=embedded`. One call at a time, each bounded by curl at 300 s, the value of `CALL_TIMEOUT`. The sidecar had 2 workers and `DOCLING_SERVE_MAX_SYNC_WAIT=600`.
+Measured with no Vespera process running. The input is the first *N* bytes of `q8_nodo2_transazioni_20230208.txt`, one of the five, posted exactly as `DoclingClient.convert` posts it: the file as `files` named `document.md`, `to_formats=json`, `ocr_preset=rapidocr`, `image_export_mode=embedded`. One call at a time, each bounded by curl at 300 s, the value of `CALL_TIMEOUT`. The sidecar had 2 workers and `DOCLING_SERVE_MAX_SYNC_WAIT=600`.
 
-**GPU image** `vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0`, the running `vespera-docling-serve-1`:
+**GPU image** `vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0`, in `vespera-docling-serve-1`:
 
 | Bytes sent | Answer | Call time | Docling's `processing_time` | Answer size |
 |---|---|---|---|---|
@@ -36,9 +36,9 @@ Measured for this record on 2026-09-29, with no Vespera process running (only th
 | 40,000,000 | 200, `success` | 265.2 s | 244.8 s | 109.2 MB |
 | 48,000,000 | **none**: the client gave up at 300 s | — | — | — |
 
-The first two rows are #370's own. After the 48 MB call was abandoned, worker 0 was still at 107% CPU, and the container was restarted before anything else was sent.
+After the 48 MB call was abandoned, worker 0 was still at 107% CPU, and the container was restarted before anything else was sent.
 
-**CPU image** `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`, started beside it on port 5002 with the same settings, the running container untouched:
+**CPU image** `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`, started beside it on port 5002 with the same settings:
 
 | Bytes sent | Answer | Call time | `processing_time` |
 |---|---|---|---|
@@ -73,16 +73,16 @@ The archive has 26 files over 16,000,000 bytes: 14 text files (the WSAEL logs, 6
 
 ### Logs
 
-The operator decided on 2026-09-29 that stage 1 should also set aside **a log, at any size**, told from its content. The size ceiling then stays as a safety net for large text that is not a log, such as a CSV export or a dump.
+Stage 1 also sets aside **a log, at any size**, told from its content. The size ceiling then stays as a safety net for large text that is not a log, such as a CSV export or a dump.
 
-The reason is the operator's own rule for this knowledge base, stated on 2026-09-27 while labelling relevance for GesPOS: *"only documentation, keep the operational records out"*. Specifications, manuals, architecture, flow layouts and process descriptions are relevant. Operational records are not, **even when they are on the same subject as the seeds**: flow files full of merchant data, lookup-table exports, logs. A log is the purest case of an operational record. It records what a system did, line after line, each line stamped with when.
+The reason is this knowledge base's rule: only documentation, with the operational records kept out. Specifications, manuals, architecture, flow layouts and process descriptions are relevant. Operational records are not, **even when they are on the same subject as the seeds**: flow files full of merchant data, lookup-table exports, logs. A log is the purest case of an operational record. It records what a system did, line after line, each line stamped with when.
 
 Leaving logs to relevance (stage 5) would be wrong twice:
 
 - **It is late.** By stage 5, every log has been hashed, converted (the fourteen WSAEL logs alone are 4.6 GB, and this record opens with what they do to Docling), shingled, chunked and embedded.
 - **It is not reliable.** Relevance scores a document by its similarity to the seeds, and a log of the very system the seeds document is on topic. The GesPOS floor was set at 0.579 so as to lose no documentation, below the 0.636 that made the fewest mistakes. At that setting, on-topic records got through. A rule about the kind of file does not trade one against the other.
 
-**The survey.** Every file in the archive was read the way stage 1 reads it. `BrokenCheck.check` decided each file's format, and the 13,987 it found to be `PLAIN_TEXT`, with any subtype and any name, were measured by exactly the rule in §2 below. The probe ran against this branch's compiled classes and lives outside the repository. The share is the share of non-blank lines read that begin with a timestamp, in whole percent, rounded down:
+**The survey.** Every file in the archive was read the way stage 1 reads it. `BrokenCheck.check` decided each file's format, and the 13,987 it found to be `PLAIN_TEXT`, with any subtype and any name, were measured by exactly the rule in §2 below. The share is the share of non-blank lines read that begin with a timestamp, in whole percent, rounded down:
 
 | Non-blank lines read | Share of them beginning with a timestamp | Text files |
 |---|---|---|
@@ -108,11 +108,11 @@ Leaving logs to relevance (stage 5) would be wrong twice:
 
 None is documentation.
 
-**Just under the floor**, from 50% to 89%, are 50 files. They are more logs whose entries run over several lines (the same tunnel's and a POS layer's), and terminal software package catalogs, which stamp each component with its build date. None is documentation either, so a lower floor would also be defensible on this archive. The operator chose 90%.
+**Just under the floor**, from 50% to 89%, are 50 files. They are more logs whose entries run over several lines (the same tunnel's and a POS layer's), and terminal software package catalogs, which stamp each component with its build date. None is documentation either, so a lower floor would also be defensible on this archive. The floor for this archive is 90%.
 
 **Under ten lines**, 92 files have every line beginning with what the pattern reads as a timestamp: one-line terminal parameter records, card dumps and table rows, 15 to 800 bytes each. They are records, but one line is not a log, and the rule does not call a share of fewer than ten lines a share. On this archive no text file at 90% or more has between two and nine lines, so any minimum from 2 to 10 sets aside the same 70.
 
-**The name would have been the wrong signal.** Only 2 of the 70 are named `.log`, and 40 are `.txt`. Of the 27 text files named `.log`, 25 fall below the floor, because their entries run over several lines. A rule keyed on the name would have missed 68 of the 70. The operator ruled the name out on 2026-09-29, because file names are an inconsistent signal. ADR-094 already says a name may only narrow within a class the bytes fixed, and whether a file is a log is not a question a name can answer.
+**The name would have been the wrong signal.** Only 2 of the 70 are named `.log`, and 40 are `.txt`. Of the 27 text files named `.log`, 25 fall below the floor, because their entries run over several lines. A rule keyed on the name would have missed 68 of the 70. The name is ruled out, because file names are an inconsistent signal. ADR-094 already says a name may only narrow within a class the bytes fixed, and whether a file is a log is not a question a name can answer.
 
 ## Decision
 
@@ -141,7 +141,7 @@ Measured by a new capability in `corpus`, `TimestampedLines`, from the bytes alo
    - `\d{8}[ T_]?\d{6}`: compact, as in `20230208 120000`;
    - `[A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2}`: syslog, as in `Feb  8 12:00:00`.
 
-   The pattern is the one the operator's first survey used. It misses a few formats. The survey found three small `.log` files whose timestamps it does not read, and they stay in scope. That is accepted: the pattern is code in `corpus`, and extending it re-mints stage 1 by itself (ADR-058).
+   The pattern misses a few formats. Three small `.log` files on this archive carry timestamps it does not read, and they stay in scope. That is accepted: the pattern is code in `corpus`, and extending it re-mints stage 1 by itself (ADR-058).
 5. **The count** is two numbers, the non-blank lines read and those beginning with a timestamp. Counts, not a ratio, as ADR-073 asks of a derived metric.
 
 A file is **a log** when at least **ten** of the lines read are non-blank, and the timestamped ones divided by the non-blank ones is at least the floor. A file that cannot be read for this measurement is not a log. Its failure is logged as a warning and the pass goes on, because one file is not worth a failed step.
@@ -157,7 +157,7 @@ A file is **a log** when at least **ten** of the lines read are non-blank, and t
 - **Unreadable** (ADR-120) is treated as unset, and the closing line says so, in the words it already uses for `degenerateOutputConfidenceFloor`.
 - **A number outside 0 to 1 is not range-checked**, as none of the floors is: ADR-120 asks only whether a number can be read, and the one numeric key checked for its range, `generationContextWindow` (ADR-121), is not a floor. A floor above 1 removes nothing, and a floor of 0 or below removes every text file with ten or more non-blank lines.
 
-**Why the profile and not a constant.** The size ceiling (§4) is a property of the pinned Docling image and the call timeout: the same number on every corpus, so it is code. The log floor is a property of the corpus: of how its logs are written and how its documents are written. A threshold of that kind lives in the profile, with its provenance beside it, and ships unset. That is what the profile is for (ADR-061), and it is the operator's standing rule for every corpus threshold. A constant would be silently wrong on the next archive.
+**Why the profile and not a constant.** The size ceiling (§4) is a property of the pinned Docling image and the call timeout: the same number on every corpus, so it is code. The log floor is a property of the corpus: of how its logs are written and how its documents are written. A threshold of that kind lives in the profile, with its provenance beside it, and ships unset. That is what the profile is for (ADR-061), and it is the standing rule for every corpus threshold. A constant would be silently wrong on the next archive.
 
 The minimum of ten lines and the 64 KB windows are **not** profile keys. They define what is measured, as the timestamp pattern does, not where to cut, and they live in `corpus` beside the pattern.
 
@@ -210,10 +210,10 @@ This changes nothing in #326. It is evidence for it:
 - **Truncating a large text to its first 16 MB, or splitting it.** Either converts part of a file as if it were the whole, and the cache would hold a conversion of bytes that are not the file's. A log is out of scope anyway, and splitting is a design of its own.
 - **Raising `CALL_TIMEOUT`.** A 61 MB file took 1,190 s. A 520 MB one would take hours on this curve, and the worker is held whatever Vespera's timeout is.
 - **Relying on Docling's `document_timeout`.** Measured not to stop a Markdown conversion.
-- **Refusing to send in stage 2 instead** (`DoclingClient` declining an oversized text as `extraction-failed`). It would cover seeds as well. But stage 2 hashes every file stage 1 did not, before it can look in the cache, which for these fourteen is 4.6 GB read for nothing, and #370 settled on stage 1, where the other out-of-scope kinds already are.
-- **Recognising a log by its name** (`.log`, `.out`, `.trc`). It would have missed 68 of the 70, and the operator ruled it out.
+- **Refusing to send in stage 2 instead** (`DoclingClient` declining an oversized text as `extraction-failed`). It would cover seeds as well. But stage 2 hashes every file stage 1 did not, before it can look in the cache, which for these fourteen is 4.6 GB read for nothing, and stage 1 is where the other out-of-scope kinds already are.
+- **Recognising a log by its name** (`.log`, `.out`, `.trc`). It would have missed 68 of the 70, and file names are an inconsistent signal.
 - **A log as a `DetectedFormat` or `DetectedSubtype`.** A format is what the leading bytes alone say, and a subtype is what the name adds (ADR-095). Whether a file is a log depends on a share and on a floor the operator sets, so it is a verdict's reason, not a format.
-- **A log-level pattern** (`INFO`, `ERROR` and the like) in place of, or beside, the timestamp. The operator's first survey, which selected files by extension, measured it too. Of the 42 of the 70 that survey reached, 24 carry a level word on fewer than half their lines, and 4 carry none. A level is the weaker signal on this archive.
+- **A log-level pattern** (`INFO`, `ERROR` and the like) in place of, or beside, the timestamp. Measured over the 42 of the 70 that a selection by extension reaches, 24 carry a level word on fewer than half their lines, and 4 carry none. A level is the weaker signal on this archive.
 - **A constant for the log floor.** See §3.
 - **A profile key for the size ceiling.** See §4.
 - **Calling either kind `broken`.** Neither is damaged.
@@ -223,7 +223,7 @@ This changes nothing in #326. It is evidence for it:
 **What re-runs over an existing working directory:**
 
 - **Stage 1 mints a new run**, on two counts: `corpus` gains `TimestampedLines`, and stage 1's configuration consumed is no longer `{}`. It re-reads every file's leading bytes, and now up to 128 KB of every text file. With `logTimestampShareFloor` set to 0.9, it writes `out-of-scope` for the 70 logs on this archive, the 14 WSAEL logs among them. Every one of the 14 is a log, so on this archive the size rule adds nothing. With the key unset, it writes `out-of-scope` for the 14 WSAEL logs by their size alone.
-- **Stage 2 mints a new run**, because its upstream run is new and `extraction` has changed. **The 2,819 conversions already cached are reused, not sent again.** The extraction cache is keyed on the content hash and the extractor identity. The content hash is extraction's own hash of the file, and the extractor identity is the image name, the sidecar's `/version` map and `DoclingClient.sentOptions()`. None of those changes: no option is added and the naming scheme stays at version 1. The one condition is that the operator still names the same image in `vespera.docling.image` (ADR-170). None of the 14 WSAEL logs was ever converted, so nothing cached is lost. Any of the 56 smaller logs that was converted keeps its cache row, which nothing reads any more.
+- **Stage 2 mints a new run**, because its upstream run is new and `extraction` has changed. **The conversions already cached are reused, not sent again.** The extraction cache is keyed on the content hash and the extractor identity. The content hash is extraction's own hash of the file, and the extractor identity is the image name, the sidecar's `/version` map and `DoclingClient.sentOptions()`. None of those changes: no option is added and the naming scheme stays at version 1. The one condition is that the operator still names the same image in `vespera.docling.image` (ADR-170). None of the 14 WSAEL logs was ever converted, so nothing cached is lost. Any of the 56 smaller logs that was converted keeps its cache row, which nothing reads any more.
 - **Every later stage mints a new run**, as ADR-167 recorded. Content-keyed caches are reused, and run-keyed results are recomputed.
 
 **The ceiling moves with the converter.** Whoever changes the Docling image, `CALL_TIMEOUT`, the sidecar's sync wait or ADR-140's width re-measures with the procedure in *Context* and updates the constant and its Javadoc. `RunIdentityGoldenTest` pins stage 1's configuration as literal text, so a changed value is a visible edit there.
@@ -234,21 +234,20 @@ This changes nothing in #326. It is evidence for it:
 
 ## Tests
 
-Red until the change lands, except the claims that pin what must not change. The size tests go through the stage-1 step as it is constructed today, and the log tests go through the whole job with `profile.yaml` written as text, so all of them compile before the new types exist.
+The size tests go through the stage-1 step, and the log tests go through the whole job with `profile.yaml` written as text.
 
 - `ByteLevelReductionTaskletTest`:
   - `removesATextFileOverTheSizeCeilingAsOutOfScope`: two byte-identical text files of 16,000,001 bytes, and a CSV-named text of 16,000,002 bytes, are each removed as `OUT_OF_SCOPE`, the copies on their own account and never hashed. The reason is exactly the size reason above for 16,000,001. The page counts three left out, three *"text files left out for their size"* and none as logs, and says *"So is a text file over 16,000,000 bytes, because the converter cannot finish one in time"*.
-  - `keepsATextFileAtTheCeilingAndAPdfOverIt`: a text file of exactly 16,000,000 bytes and an intact PDF of 16,000,001 bytes carry no verdict. This passes today and must keep passing.
-  - `keepsALogWhileNoLogFloorIsSet`: with no profile, a twelve-line file whose every line begins with a timestamp carries no verdict. This passes today and pins that an unset floor means no log rule.
+  - `keepsATextFileAtTheCeilingAndAPdfOverIt`: a text file of exactly 16,000,000 bytes and an intact PDF of 16,000,001 bytes carry no verdict.
+  - `keepsALogWhileNoLogFloorIsSet`: with no profile, a twelve-line file whose every line begins with a timestamp carries no verdict. It pins that an unset floor means no log rule.
 - `LogsAreOutOfScopeInvocationTest` (new, the whole job, `logTimestampShareFloor` at 0.9 written into `profile.yaml` before start-up):
   - a file with no extension whose lines use each of the five timestamp forms is removed as a log, with the reason *"… 100% of the lines …"*. So are a CSV-named file of timestamped rows, a file whose 18 of 20 lines are timestamped (90%, at the floor), and a 200 KB file whose first and last 64 KB are timestamped lines and whose middle is prose, which is only reached by reading the two windows;
   - kept: a file named `notes.log` holding prose, a file with 17 of 20 timestamped lines (85%), a file of nine timestamped lines (fewer than ten), and prose whose lines begin with numbers that are not timestamps;
   - stage 1's run records `"logTimestampShareFloor":0.9`;
   - the page counts the four logs and shows 4 in the *"90% to 100%"* row;
   - `profile.yaml` points the key's measurement at `format-mix.html`.
-- Added at the gate, each passing against the change:
-  - `ByteLevelReductionTaskletTest.anUnreadableLogFloorRemovesNothingAndIsRecordedAsNone`: a floor of `0,9` is recorded as `null` and removes nothing.
-  - `ByteLevelReductionTaskletTest.aLargeLogIsReportedAsALog`: a timestamped text file of 16,000,001 bytes, under a floor of 0.9, gets the log reason and is counted among the logs, not for its size.
-  - `NextActionTest.aMistypedLogFloorIsReportedToo`: the closing line names the unreadable floor and quotes it back.
-  - `TimestampedLinesTest`: UTF-16 and UTF-32 files with their byte-order marks; a large UTF-16 file whose last window begins half-way through a character; ten lines make a log and nine do not.
+- `ByteLevelReductionTaskletTest.anUnreadableLogFloorRemovesNothingAndIsRecordedAsNone`: a floor of `0,9` is recorded as `null` and removes nothing.
+- `ByteLevelReductionTaskletTest.aLargeLogIsReportedAsALog`: a timestamped text file of 16,000,001 bytes, under a floor of 0.9, gets the log reason and is counted among the logs, not for its size.
+- `NextActionTest.aMistypedLogFloorIsReportedToo`: the closing line names the unreadable floor and quotes it back.
+- `TimestampedLinesTest`: UTF-16 and UTF-32 files with their byte-order marks; a large UTF-16 file whose last window begins half-way through a character; ten lines make a log and nine do not.
 - `RunIdentityGoldenTest.byteLevelReduction`: stage 1's configuration consumed is exactly `{"textSizeCeilingBytes":16000000,"logTimestampShareFloor":null}` under a profile that sets no floor.

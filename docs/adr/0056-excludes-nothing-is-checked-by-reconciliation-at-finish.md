@@ -7,7 +7,7 @@
 
 `CONTEXT.md` defines entry as "the denominator a walk is accountable for: every entry is either recorded as a file occurrence, recorded as a walk anomaly, or — a readable directory only — descended into, which is what makes 'excludes nothing' a claim anyone can check rather than assert." Nothing yet makes it checkable. `Walk.Outcome` already carries the identity the claim rests on — `entriesSeen == occurrences + anomalies + directoriesEntered - 1` — but `WalkRecorder.walk()` discards the `Outcome` entirely and returns only the `WalkId`; none of these counts are persisted, and nothing compares them against what actually landed in the ledger.
 
-ADR-055 (ticket #5) made a walk resumable across multiple invocations under one `WalkId`, each contributing a partial `Outcome`. Whatever accumulates the identity's terms has to span every session a walk took, not just its last one.
+ADR-055 made a walk resumable across multiple invocations under one `WalkId`, each contributing a partial `Outcome`. Whatever accumulates the identity's terms has to span every session a walk took, not just its last one.
 
 ## Decision
 

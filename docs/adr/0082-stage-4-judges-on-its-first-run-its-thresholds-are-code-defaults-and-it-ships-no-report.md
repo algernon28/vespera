@@ -6,7 +6,7 @@
 
 ## Context
 
-Stage 4 writes a blocking verdict, and no similarity distribution over this corpus has ever been measured. That is the shape of the situation ADR-070's tier-2 confidence floor was in, and stage 3 answered it with **observe before enforce**: ship the threshold unset, measure it, report it, let an operator calibrate ([ADR-075](0075-stage-3-writes-a-confidence-distribution-report-that-calibrates-tier-2.md)).
+Stage 4 writes a blocking verdict, without a measured similarity distribution over the corpus. That is the shape of the situation ADR-070's tier-2 confidence floor was in, and stage 3 answered it with **observe before enforce**: ship the threshold unset, measure it, report it, let an operator calibrate ([ADR-075](0075-stage-3-writes-a-confidence-distribution-report-that-calibrates-tier-2.md)).
 
 Three things make stage 4 a different case.
 
@@ -36,7 +36,7 @@ And the repo already sorts numbers into two bins. `ShingleParameters` is documen
 
 **No distribution artifact, in ADR-075's shape or any other.** ADR-075 declined to pre-compute summaries nothing consumes, and with the thresholds fixed in code there is no threshold an operator can move and therefore no reader for a distribution of pair similarities. A report whose only honest caption is "here is a curve; you may not act on it" is the thing that decision refused to build.
 
-**Validating the cuts against a real corpus is a probe, not a shipped feature.** If the first real run suggests 0.80 or 0.95 is wrong, that is measured outside the repository and recorded as an amendment to ADR-081 — the same "measure rather than argue, and put the measurement in the record" this slice has already used twice.
+**Validating the cuts against a real corpus is a probe, not a shipped feature.** If the first real run suggests 0.80 or 0.95 is wrong, that is measured outside the repository and recorded as an amendment to ADR-081: measure rather than argue, and put the measurement in the record.
 
 ### What replaces the report: the verdict says what it measured
 
@@ -54,6 +54,6 @@ This is what an operator auditing a removal actually needs — not a corpus-wide
 
 **The profile still has three keys.** Nothing here adds one, and `Profile` gains no new `withXMeasurement` method — there is no artifact for a `Measurement` to point at.
 
-**[#70](https://github.com/algernon28/vespera/issues/70) inherits a smaller surface than the map anticipated**: no report, no HTML file, no profile change, no `pipeline` composition for the reporting half that no longer exists. What remains for the spec is the signature and pointer tables, the run wiring, and the step.
+**[#70](https://github.com/algernon28/vespera/issues/70) inherits a smaller surface**: no report, no HTML file, no profile change, no `pipeline` composition for a reporting half. What remains for the spec is the signature and pointer tables, the run wiring, and the step.
 
 **If the cuts turn out to be wrong, the record moves, not a setting.** That is the intended cost: a corpus that needs 0.75 gets a new ADR explaining why, rather than a value someone changed in a profile and nobody can later account for.

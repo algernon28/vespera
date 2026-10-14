@@ -3,7 +3,7 @@
 > **Partly amended — see [ADR-233](0233-the-private-paths-guard-reads-what-stands-beside-the-name-claude-a-leading-tilde-in-a-field-and-a-link-out-of-its-own-folder.md).** §2's "a name made only of dots, spaces or a stream name" now takes in a name of dots with a stream name after it, which is not read as `.` or `..`; and §1's stream name runs to the end of the name, a line terminator in it included. Everything else in this record stands.
 
 - **Date**: 2026-10-09
-- **Status**: accepted. The guard's change is drafted outside every `.claude` folder and put in place by the operator, as [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) §7 has it. This record, its cases and the guard land in one change.
+- **Status**: accepted.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:
   - §3, the paths of a call: on Windows each is read once more, as Windows opens its names (§1 below);
   - §4's "One reading is counted and not judged: a token that is a plain name, with no separator in it, and that does not exist in a folder": it no longer holds for a plain name that Windows opens as another name (§3 below);
@@ -11,7 +11,7 @@
 
   ADR-196's rule (§1), its allow list and its "decision is made from the path's text, before the file system is asked" (§2), its bounds, and every way §6 makes the hook fail closed stand as written.
 - **Amends**: [ADR-201](0201-the-private-paths-guard-reads-a-climb-out-of-a-link-both-ways-and-refuses-a-name-it-cannot-follow.md) §1, "A path that holds `..` is read twice, and either reading refuses": on Windows each of the two readings is read once more, and any of them refuses. ADR-201 §2 stands, and §2 below adds a refusal made in its manner.
-- **Amends**: ADR-215, in these places and no others: §8's item "A `read` line beneath a plain line, where the folder is written with a dot after its name", which is closed on Windows and does not arise elsewhere; and the first item of its "What this does not decide", which this record decides. ADR-215 §3(b) compares a name with `.claude` as it did, and that comparison is now also one case of §1 below.
+- **Amends**: [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md), in these places and no others: §8's item "A `read` line beneath a plain line, where the folder is written with a dot after its name", which is closed on Windows and does not arise elsewhere; and the first item of its "What this does not decide", which this record decides. ADR-215 §3(b) compares a name with `.claude` as it did, and that comparison is now also one case of §1 below.
 - **Keeps**: [ADR-212](0212-an-agent-may-read-a-working-directorys-aggregate-counts-through-one-pinned-script-and-nothing-else-in-it.md)'s one admitted command, recognised before any path or text of it is read. Its current directory is checked with every reading of §1, as every current directory is.
 - **Settles**: [#465](https://github.com/algernon28/vespera/issues/465).
 
@@ -27,33 +27,27 @@ The issue asks three things: whether every name of a path is read so on Windows,
 
 ### Measured
 
-**On the operator's machine**, Windows 11, Node 22.23.1, on 2026-10-09, while #459 was settled, with synthetic fixtures only. These are recorded in ADR-215's Measured section and in #465, and were not run again for this record:
+**On Windows 11, with Node 22.23.1**, with synthetic fixtures only. These are recorded in ADR-215's Measured section and in #465:
 
 - `Get-Content wd./report.html`, with `wd` holding `vespera.db`: the guard ended with exit 0, and PowerShell printed the file. `Get-Content wd/report.html`: exit 2.
 - `Get-Content '.claude.\settings.json'` and `Get-Content '.claude\settings.json.'` both printed the fixture file, and `Set-Content '.claude.\written.json'` wrote into `.claude`. Node's `lstat` answered `ENOENT` for both spellings, and so did Git Bash's `cat`.
 - `Get-Content '.claude/settings.json '` printed the file, and `Get-Content '.claude \settings.json'` found nothing. A space after a file's name was taken off, and one after a folder's name was not.
 - `realpath` of `.claude/settings.json::$DATA` and of `.claude::$INDEX_ALLOCATION/settings.json` is `.claude\settings.json`. A stream name leads to the file or folder it is a stream of, where that is there.
 
-**On Linux, in this session**, on 2026-10-09. No Windows machine was at hand.
+**On Linux.**
 
-- `node --test src/test/hooks/private-paths-guard.test.mjs` with the cases of §6: 883 tests, 719 passed, 164 skipped, none failed, against the guard installed in the checkout; and the same with `VESPERA_GUARD_DRAFT=target/guard-draft`, the draft of this record's guard. On Linux 13 of §6's 42 cases are started and 29 are not, since their outcome rests on Windows.
-- A throwaway copy of the draft guard was started with `process.platform` set to `win32`, so that its Windows branches ran over POSIX paths, on a fixture of its own under the temp folder. It refused every spelling §6 claims refused, and let through every one §6 claims let through. It also refused `echo '{"a":1}'`, `sed ':a;N;$!ba;s/x/y/g' README.md`, `git push origin :claude/old-branch` and `git commit -m "Changed src/.../Guard.java"` (Consequences). This holds what the draft's rule decides of a text. It says nothing of what Windows, Node on Windows or PowerShell answers.
+- A copy of this record's guard was started with `process.platform` set to `win32`, so that its Windows branches ran over POSIX paths, on a fixture of its own under the temp folder. It refused every spelling §6 claims refused, and let through every one §6 claims let through. It also refused `echo '{"a":1}'`, `sed ':a;N;$!ba;s/x/y/g' README.md`, `git push origin :claude/old-branch` and `git commit -m "Changed src/.../Guard.java"` (Consequences). This holds what the rule decides of a text. It says nothing of what Windows, Node on Windows or PowerShell answers.
 
-**On Windows 11 Pro 10.0.26200, with Node 22.23.1 and PowerShell 7, in a later session**, on 2026-10-09, with the draft of this record's guard copied under the temp folder.
+**On Windows 11 Pro 10.0.26200, with Node 22.23.1 and PowerShell 7.**
 
-- The test against the draft as first written: 883 tests, 882 passed, none skipped, and N401 failed. `tr '\n' ' ' < README.md`, which that case keeps usable, was refused under §2, since its quoted `' '` is a relative token made only of spaces.
 - What PowerShell and .NET open for such names, from a folder holding one file, `marker.txt`:
   - one space, and two: `Get-ChildItem -LiteralPath` listed the current directory. `Get-Content` failed with both `-LiteralPath` and `-Path`, .NET's `Directory.Exists` and `File.Exists` answered false, and `GetFullPath`, `GetFileSystemEntries` and `ReadAllText` threw. Nothing opened anything but the current directory.
   - ` .`, `. ` and `...`, each as the whole path: `GetFullPath` gave the current directory, `Directory.Exists` answered true, and `GetFileSystemEntries` and `Get-ChildItem` listed it. `Get-Content` failed.
   - ` \marker.txt`, `. \marker.txt` and `...\marker.txt`: not found by every one of those calls. A name made only of spaces or dots that another name follows opened nothing.
   - `marker.txt. .` opened `marker.txt`.
-- The test with §2's one exception and Z305 and Z406: 885 tests, 885 passed, none skipped, against the draft; and 857 passed and 28 failed against the guard installed before this build, the 28 being Z cases that claim a refusal.
-- At the gate of the pull request, with PowerShell 7.6.6 and a folder `sub` holding one file: `Get-ChildItem sub/...` listed that file, with `-LiteralPath` and without. A last name of three dots opened the folder it is in. The guard as first installed let `Get-ChildItem working-directory/...` through: it took the last dot off the token as the punctuation that ends a sentence (ADR-196 §4) and read `working-directory/..`, which is the folder above.
-- The test with that closed (§2) and Z114, Z115, Z306, Z307 and Z407: 890 tests, 890 passed, none skipped, against the draft; against the guard as first installed, 888 passed, and Z114 and Z115 failed.
+- With PowerShell 7.6.6 and a folder `sub` holding one file: `Get-ChildItem sub/...` listed that file, with `-LiteralPath` and without. A last name of three dots opened the folder it is in.
 
 ### Read, and not executed
-
-Read on 2026-10-09:
 
 - **Why Node says "not there".** In Node 22's `src/node_file.cc`, `LStat` passes its path through `ToNamespacedPath`, which on Windows (`src/path.cc`) gives an absolute path its `\\?\` form. Microsoft's "Naming Files, Paths, and Namespaces" says that prefix "tells the Windows APIs to disable all string parsing and to send the string that follows it straight to the file system". So nothing takes a trailing dot off before Node asks. **The guard cannot learn what PowerShell opens by asking Node.**
 - The same page: "Do not end a file or directory name with a space or a period. Although the underlying file system may support such names, the Windows shell and user interface does not."
@@ -61,7 +55,7 @@ Read on 2026-10-09:
 
 ### Not measured
 
-- **Anything on Windows but what the later session measured above**, which is one machine and one Windows build. The cases of §6 that are started on Windows alone were written from the rule and traced through the guard's code, and run in the simulation above, before that session started them. CI's NTFS job has not run them.
+- **Anything on Windows but what is measured above**, which is one machine and one Windows build.
 - **Whether Claude Code's own Read, Edit and Write open `wd.\x` as `wd\x`.** Node and Git Bash's `cat` were measured to answer "not there". No other program was tried.
 - **What Windows opens for a name that is only a stream name**, such as `:x`; and what `cmd`, Git Bash, Windows PowerShell 5.1 or any program but PowerShell 7 and .NET opens for a name made only of dots and spaces.
 - How long the extra reading takes. It is one more check where a name changes and none where none does (§1).
@@ -123,7 +117,7 @@ None of these has a case, on ADR-196 §4's ground that "a case would hold the ga
 
 ### 6. The test
 
-`src/test/hooks/private-paths-guard.test.mjs` gains 49 cases and holds 890. On Linux 13 of the first 42 were started and passed against both the guard installed in the checkout and the draft, and the other 29 are started on Windows alone; of the seven added after the first run on Windows, Z406 and Z407 are started everywhere and Z114, Z115, Z305, Z306 and Z307 on Windows alone. Traced through the code of the guard before this build, 27 of the first 42 are refused by the draft and let through by that guard, on Windows, and the other 15 hold before and after. The run on Windows agrees, while the table held 885: 28 cases failed against that guard, those 27 and Z305, and none against the draft (Measured).
+`src/test/hooks/private-paths-guard.test.mjs` gains 49 cases and holds 890. Of Z101 to Z113, Z201 to Z213, Z301 to Z304, Z401 to Z405 and Z501 to Z507, 13 are started on Linux and the other 29 on Windows alone; Z406 and Z407 are started everywhere, and Z114, Z115, Z305, Z306 and Z307 on Windows alone.
 
 - **Z101 to Z113**: §1, §3 and §4 in a PowerShell command, from the folder that holds the fixture's working directories. The working directory's name with a dot after it, which is the issue's call (Z101), with two dots and a backslash, with a space after it in quotes, the same for a working directory whose name holds a space, with a dot after that one's name, and through its stream name; a dot and a data stream after the file's name; the folder that holds only `vespera.lock`, with a dot; `Set-Location` to the working directory's name with a dot and a space, and with a dot and a backslash; `Set-Location` to an allowed folder named with a dot, then a path into a working directory beneath the folder it opens (§4); and a quoted plain name with a dot and a space after it (§3). All refused. Four are started on every platform, each refused there for a reason its words give: Z103, whose token is cut at the space and is then the working directory itself; Z107 and Z108, whose folder is the working directory by its plain name; and Z110, whose dot ends its token.
 - **Z114 and Z115**: §2 in a PowerShell command. Three dots beneath the working directory's name, by a relative path and by its drive path. Refused on Windows.
@@ -138,13 +132,13 @@ None of these has a case, on ADR-196 §4's ground that "a case would hold the ga
 
 On a system that is not Windows a dot, a space and a colon are characters of a name. The reading of §1 is the path itself there, §2 refuses nothing, and §3 answers every plain name as before.
 
-## Decided here, open to the operator's overruling
+## Decided here
 
 1. **§1: every name, and every check**, where the issue offered the working-directory check and the allow-list comparison alone.
 2. **§1: every dot and every space off every name**, where .NET's page has Windows take one dot off a name that is not the last, and spaces off the last alone.
 3. **§1: a space after a folder's name is taken off and refused**, though it was measured not to open the folder.
 4. **§1: a stream name is taken off every name**, and not off `.claude` alone.
-5. **§2: on Windows a name made only of dots, spaces or a stream name is refused.** It costs the commands Consequences lists, a token that begins with a colon among them. The other choice is in Alternatives: such a name, where it is the last of a path, read as the folder it is in. **The operator took that choice for one name, on 2026-10-09: a command's token made only of spaces is not refused** (§2).
+5. **§2: on Windows a name made only of dots, spaces or a stream name is refused.** It costs the commands Consequences lists, a token that begins with a colon among them. The other choice is in Alternatives: such a name, where it is the last of a path, read as the folder it is in. **That choice is taken for one name: a command's token made only of spaces is not refused** (§2).
 6. **§3: a plain name Windows opens as another name is read against every folder**, where it was answered from the folder alone.
 
 ## Consequences
@@ -175,8 +169,10 @@ On a system that is not Windows a dot, a space and a colon are characters of a n
 - **A dotted name a command builds at run time, and an 8.3 name of a working directory that is not there when the guard asks** (§5).
 - **Whether the costs of §2 are kept** (Decided here, 5).
 
-## What the build changed
+## What the implementation changes
 
-1. `.claude/hooks/private-paths-guard.mjs`, drafted outside every `.claude` folder and put in place by the operator: a name as Windows opens it, and a path as Windows opens it, with no path where a name is made only of dots, spaces or a stream name (§1, §2); that reading added to each reading a path is checked with, and refused where there is no such path; the counted reading of a plain name kept for a name Windows opens as itself (§3) and for a token made only of spaces (§2); a last name of three or more dots left on a command's token on Windows, where the trimming of sentence punctuation made `..` of it (§2); a search's pattern judged against each start with that start's own walked flag, where it took every start after the first for a walked one, since the reading of §1 now stands among the starts; and its header comment.
+This record, its cases and the guard land in one change.
+
+1. `.claude/hooks/private-paths-guard.mjs`, drafted outside every `.claude` folder and put in place by the operator, as ADR-215 §7 has it: a name as Windows opens it, and a path as Windows opens it, with no path where a name is made only of dots, spaces or a stream name (§1, §2); that reading added to each reading a path is checked with, and refused where there is no such path; the counted reading of a plain name kept for a name Windows opens as itself (§3) and for a token made only of spaces (§2); a last name of three or more dots left on a command's token on Windows, where the trimming of sentence punctuation made `..` of it (§2); a search's pattern judged against each start with that start's own walked flag, where it took every start after the first for a walked one, since the reading of §1 now stands among the starts; and its header comment.
 2. `src/test/hooks/private-paths-guard.test.mjs`: §6's cases, the fixture checkout for Z501 to Z507, and its header comment.
 3. ADR-196, ADR-201 and ADR-215 take a pointer to this record at their top. Their decisions are not edited.

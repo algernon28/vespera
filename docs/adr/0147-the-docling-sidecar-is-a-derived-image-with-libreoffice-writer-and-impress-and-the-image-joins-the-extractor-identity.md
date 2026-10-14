@@ -6,18 +6,18 @@
 - **Amends**: [ADR-090](0090-the-extractor-identity-is-the-sidecars-version-map-and-the-options-the-client-sends-never-its-url.md). The extractor identity was the sidecar's `/version` map and the options the client sends. It gains the name of the image, because two images that report the same versions were measured to convert the same file differently.
 - **Keeps**: [ADR-011](0011-managed-containers-the-tool-owns-its-sidecars.md). The tool still owns its sidecars; one of them is now built rather than pulled.
 - **Builds on**: [ADR-146](0146-spreadsheets-are-out-of-scope-and-stage-1-removes-them-with-a-verdict-of-their-own.md). With spreadsheets out of scope, what LibreOffice would buy is the older Word and PowerPoint files, and nothing else.
-- **Rests on**: [`docs/research/docling-legacy-office.md`](../research/docling-legacy-office.md), written 2026-09-23 and committed with this record, and the measurements of 2026-09-24 below.
+- **Rests on**: [`docs/research/docling-legacy-office.md`](../research/docling-legacy-office.md), and the measurements below.
 
 ## Context
 
 `docling-serve` converts `.doc` and `.ppt` by calling LibreOffice to turn them into `.docx` and `.pptx` first. No `docling-serve` image ships LibreOffice, and no documented switch installs it (research note, §1–§2). So every older Word or PowerPoint file earns `extraction-failed`. Since ADR-143 it earns it at once, as a verdict against the file.
 
-What those files are worth was measured, not assumed. The 158 legacy files copied out of the KT PERIN corpus were run through a LibreOffice-enabled sidecar on 2026-09-24:
+What those files are worth was measured, not assumed. The 158 legacy files copied out of the KT PERIN corpus were run through a LibreOffice-enabled sidecar:
 
 - **The 132 `.xls` are out of scope (ADR-146).**
 - **All 26 `.doc` and `.ppt` converted.** Three `.ppt` are identical copies and stage 4 removed them, which leaves 23 documents.
 - **The 19 `.doc` score a median of 0.736, and 13 of them score at or above the GesPOS q3 of 0.651.** All 4 `.ppt` do too. That is higher than the GesPOS corpus's own documents score. The top of the list is specifications: `POS_NuoveLogichePagamento_21.doc` at 0.970, `Integrazione_eLunch_14.doc`, the two `Specifiche_BMEdenred` documents, and `TracciatoSLE4442`.
-- **The operator's seed folder holds a `.doc` of its own**, `Edenred - Protocollo FEP-POS - Ed_22.doc`. The stock image cannot convert it, so today it is an unusable seed.
+- **The operator's seed folder holds a `.doc` of its own**, `Edenred - Protocollo FEP-POS - Ed_22.doc`. The stock image cannot convert it, so on the stock image it is an unusable seed.
 
 ### Three findings shape how LibreOffice goes in
 
@@ -34,11 +34,11 @@ The extractor identity, as ADR-090 composes it, is **identical** for both images
 
 **2. The sidecar cannot be cut off from the internet with the pinned image and a published port.** On a Compose `internal` network, egress is blocked, but the published port no longer answers from the host (measured). The research note's *"no outbound network"* therefore needs a second container, a proxy, which is more than this change should carry.
 
-**3. One crash is unexplained.** On 2026-09-23 the LibreOffice sidecar, run with 8 server workers, died of a segmentation fault in `docling_parse`, Docling's native PDF parser, while converting one seed PDF. It did not recur:
+**3. One crash is unexplained.** The LibreOffice sidecar, run with 8 server workers, once died of a segmentation fault in `docling_parse`, Docling's native PDF parser, while converting one seed PDF. It did not recur:
 
 - in two full replays at 8 workers and at the default;
 - in 228 stress conversions across four configurations;
-- in either run of 2026-09-24.
+- in either run measured below.
 
 It is in the PDF parser, which the stock image ships as well, and not in LibreOffice.
 
@@ -69,7 +69,7 @@ USER 1001
 
 ## Consequences
 
-**Measured on 2026-09-24, from empty caches, through the image above with `--init`, `--cap-drop ALL` and `no-new-privileges`:**
+**Measured from empty caches, through the image above with `--init`, `--cap-drop ALL` and `no-new-privileges`:**
 
 | | legacy corpus | GesPOS |
 | --- | --- | --- |

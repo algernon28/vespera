@@ -5,7 +5,7 @@
 - **Date**: 2026-09-22
 - **Status**: accepted
 - **Amends**: [ADR-070](0070-extraction-failed-splits-on-doclings-status-degenerate-output-is-a-two-tier-floor.md) — one sentence of its Decision §"A service-scope failure fails the step and writes nothing" (*"leave the occurrence with no verdict row at all, so a later run examines it again"*), and the consequence resting on it (*"a sidecar outage costs throughput, not archive"*). Everything else in that record stands, the two-tier floor included: §5 below is a measurement of tier 1 doing exactly what it was written to do. Also amends [ADR-071](0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md), which is unchanged in what it counts but gains a second consequence: whether the streak tripped is now read, after the fact, as the answer to a question ADR-070 asked per occurrence.
-- **Rests on**: the live database this tool has been run against — `A&RD_GesPOS_BaseDocumentale` (129 occurrences) and `A&RD_ProdCard_BaseDocumentale` (106) — read on 2026-09-22 through a scratch JDBC client. The rows are in §Context; nothing was re-run for them, the run that produced them being the one under explanation.
+- **Rests on**: the ledger written over two archives — `A&RD_GesPOS_BaseDocumentale` (129 occurrences) and `A&RD_ProdCard_BaseDocumentale` (106). The rows are in §Context.
 - **Settles** [#265](https://github.com/algernon28/vespera/issues/265).
 
 ## Context
@@ -26,7 +26,7 @@ A survivor is an occurrence carrying no blocking verdict. These eight therefore 
 
 ### What the converter actually reported, and which rule routed it
 
-The message is the same on all eight, up to the extension ADR-100 sends. It is quoted as it was logged on 2026-09-22, which is before §3, and the same refusal does not log this line any more: the category appears twice there because the processor prefixed it into the detail and the exception's own format prefixed it again, and §3's normalisation leaves `(unknown): An unexpected error…`. Read the doubling as the evidence for that paragraph rather than as current output.
+The message is the same on all eight, up to the extension ADR-100 sends. It is quoted as the step logged it before §3, and the same refusal does not log this line any more: the category appears twice there because the processor prefixed it into the detail and the exception's own format prefixed it again, and §3's normalisation leaves `(unknown): An unexpected error…`. Read the doubling as the evidence for that paragraph rather than as current output.
 
 ```
 occurrence 54: service-scope failure (unknown): unknown: An unexpected error
@@ -47,7 +47,7 @@ That asymmetry is recorded nowhere, and it is what #265 reports.
 
 #265 names a second path to the same throw: 22 occurrences with `status='success'`, `character_count = 0` and `word_count = 0`, which have a metric row but no text, therefore no chunks, therefore no vectors. The counts are right. The inference drawn from them is not, and the column that settles it is the one tier 1 actually reads:
 
-| measured, 2026-09-22 | rows |
+| measured | rows |
 | --- | --- |
 | `extraction_metric` rows with `status='success'` and `character_count = 0` | 22 |
 | of those, with `alphanumeric_char_count = 0` | 22 |
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS extraction_fault (
 );
 ```
 
-One row per occurrence per run, carrying the category the response reported and the message it came with. It is **not** a verdict and removes nothing on its own: what it records is that stage 2 got no answer about this occurrence, which is exactly what ADR-070 means by service scope, made into a row rather than left as an absence. `ExtractionSchema.VERSION` moves to 5 in the same commit.
+One row per occurrence per run, carrying the category the response reported and the message it came with. It is **not** a verdict and removes nothing on its own: what it records is that stage 2 got no answer about this occurrence, which is exactly what ADR-070 means by service scope, made into a row rather than left as an absence. `ExtractionSchema.VERSION` moves to 5 in the same change.
 
 ### 2. The row is written at the end of the step, from memory, never inside the chunk transaction
 
@@ -115,7 +115,7 @@ ADR-071's consecutive-streak breaker counts service-scope skips, of any mix of c
 - `CompositeStepExecutionListener.beforeStep` walks `list.iterator()`, forwards.
 - `CompositeStepExecutionListener.afterStep` walks `list.reverse()`, backwards. Its javadoc says so in as many words — *"Call the registered listeners in reverse order"*.
 
-So in `afterStep` the listener registered **last** runs **first**, and the recorder has to be registered last of the two. The instruction this record first carried said the opposite, and the opposite is not a near miss: registering the recorder first makes `RunCompletion.afterStep` run first, so the step is recorded as holding all of its work *before* a single fault or verdict is written. A crash in that window leaves a `finished_step` row over a step with no faults and no verdicts under it — and `RunCompletion`'s own javadoc says what that is worth, that recording completion for a step that did not finish "would make a partial invocation indistinguishable from a complete one — and every later invocation would skip it forever." Those occurrences would be unexamined survivors that no re-run ever revisits, which is #265 exactly, reintroduced inside a crash window by the line written to close it.
+So in `afterStep` the listener registered **last** runs **first**, and the recorder has to be registered last of the two. The opposite is not a near miss: registering the recorder first makes `RunCompletion.afterStep` run first, so the step is recorded as holding all of its work *before* a single fault or verdict is written. A crash in that window leaves a `finished_step` row over a step with no faults and no verdicts under it — and `RunCompletion`'s own javadoc says what that is worth, that recording completion for a step that did not finish "would make a partial invocation indistinguishable from a complete one — and every later invocation would skip it forever." Those occurrences would be unexamined survivors that no re-run ever revisits, which is #265 exactly, reintroduced inside a crash window by the line written to close it.
 
 **`@Order` and `Ordered` are refused as the mechanism, on two measured properties of `OrderedComposite`** — the list behind that composite, and the reason a reader cannot check this by intuition. First, `add` places ordered items ahead of unordered ones in `list`, and `reverse()` therefore runs them **last** in `afterStep`; its own javadoc says "the `Ordered` items come last". An annotation that reads as "first" would do the opposite of what the reader of it expects, in the direction that costs archive. Second, both listeners are `@StepScope`, which is `proxyMode = TARGET_CLASS`, so what reaches the builder is a CGLIB subclass — and `OrderedComposite.add` detects a class-level `@Order` through `AnnotationUtils.isAnnotationDeclaredLocally`, which a generated subclass does not satisfy. The annotation would be silently ignored and the order would stay whatever registration made it, with a line of code in the tree claiming otherwise. Implementing `Ordered` does survive the proxy, but it buys a method on a class to say a thing the registration line already says, and it still reads backwards under `reverse()`.
 
@@ -123,7 +123,7 @@ So in `afterStep` the listener registered **last** runs **first**, and the recor
 
 ### 5. A survivor with no text is not a survivor, and ADR-070 has no bug here
 
-This is #265's substantive question, and the measurement above answers it: a document that yielded no text is **removed**, by `degenerate-output`, and it was removed in all 22 cases the ticket found. It is not a survivor scoring zero, and nothing here scores one. Tier 1 is the rule, it is enforced, and this record changes nothing about it.
+This is #265's substantive question, and the measurement above answers it: a document that yielded no text is **removed**, by `degenerate-output`, and it was removed in all 22 cases #265 names. It is not a survivor scoring zero, and nothing here scores one. Tier 1 is the rule, it is enforced, and this record changes nothing about it.
 
 What the eight occurrences show is not a hole in that rule but a hole beside it. **Survival means examined and not removed**; it never meant unexamined. Sections 1 to 3 close the one path by which an unexamined occurrence reached a later stage as a survivor, which is what makes that sentence true of the ledger rather than merely intended.
 
@@ -143,7 +143,7 @@ The occurrence earns a verdict whose reason carries the category and the convert
 
 ## Consequences
 
-**A document the converter cannot open is removed rather than left unexamined, and that removal outlives its run.** `survivors` is an anti-join over every blocking verdict regardless of run, so an `extraction-failed` row written here keeps that occurrence out under a later extraction run too — as every other `extraction-failed` row already does. ADR-070's "a later run examines it again" is what this trades away, and the trade is made knowing that a later run examined those eight again and got the same refusal every time. The retune path is unchanged and is the one the ledger model already has: delete that stage's rows for the run, and run it again.
+**A document the converter cannot open is removed rather than left unexamined, and that removal outlives its run.** `survivors` is an anti-join over every blocking verdict regardless of run, so an `extraction-failed` row written here keeps that occurrence out under a later extraction run too — as every other `extraction-failed` row already does. ADR-070's "a later run examines it again" is what this trades away, and the trade is made knowing that a later run examines those eight again and gets the same refusal every time. The retune path is unchanged and is the one the ledger model already has: delete that stage's rows for the run, and run it again.
 
 **A sidecar outage can now cost archive, where ADR-070 promised it could not.** The case is a run that completes with fewer than five consecutive service-scope failures in it, some of which were genuinely the sidecar's — a capacity blip between two good documents. Those occurrences are removed. What makes it acceptable rather than merely accepted: the cost is bounded by the breaker; the category is on the fault row and in the verdict's reason, so a `capacity` removal is distinguishable from an `unknown` one by a query rather than by re-converting — and those are the two sides of this very case, the sidecar blip and the eight containers of §Context. The pair a reader might reach for first is not available here and would be a false example: `backend_failure` is unconditional document scope under ADR-071's call shape, never throws service scope, and so can never leave a row in this table at all. The categories that can are exactly five: `capacity`, `target_unavailable` and `internal`, which ADR-070 reads as service scope; `unknown`, which it reads as no evidence at all; and `timeout`, once ADR-071's streak has flipped it out of document scope; and the alternative is what this ticket reports, a document neither removed nor examined, which cost an entire invocation.
 
@@ -151,4 +151,4 @@ The occurrence earns a verdict whose reason carries the category and the convert
 
 **Nothing here changes the seed side.** ADR-083's `unusable_seed` path already did what this record brings to the corpus side, and a seed still earns no verdict of any kind.
 
-**Nothing here addresses stage 2's serial latency** ([#264](https://github.com/algernon28/vespera/issues/264)) **or the backtick in `marked`** ([#261](https://github.com/algernon28/vespera/issues/261)). Both were open when this was written, and both are untouched by it.
+**Nothing here addresses stage 2's serial latency** ([#264](https://github.com/algernon28/vespera/issues/264)) **or the backtick in `marked`** ([#261](https://github.com/algernon28/vespera/issues/261)). Both are untouched by it.

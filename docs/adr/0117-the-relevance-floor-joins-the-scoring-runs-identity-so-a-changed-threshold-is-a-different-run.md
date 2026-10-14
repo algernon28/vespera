@@ -4,7 +4,6 @@
 - **Status**: accepted
 - **Amends**: none. It applies [ADR-048](0048-walk-and-run-identity.md) where the code does not apply it, and makes true a consequence [ADR-107](0107-the-arrangement-gate-approves-a-named-6a-run-and-the-path-becomes-five-invocations.md) already states as fact. [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) decided the threshold and deferred the wiring to a hand-off spec; this is the part of that wiring nobody wrote down.
 - **Rests on**: [ADR-087](0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md) (a below-threshold document is never clustered, which is why a changed floor changes more than a verdict), [ADR-085](0085-vectors-live-in-sqlite-and-the-pairwise-matrix-is-never-materialised.md) and [ADR-070](0070-extraction-failed-splits-on-doclings-status-degenerate-output-is-a-two-tier-floor.md) (the caches that make a re-scored run cheap), [ADR-115](0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md) (which turns this from untrue into harmful).
-- **This record is a defect that predates ADR-115**, and is filed as one. It has been in the tree since the relevance floor landed, it is reachable on `main` today, and #191 neither caused it nor needs it — but #191 is what makes it bite, so the two land together.
 
 ## Context
 
@@ -61,6 +60,10 @@ The scoring run's identity becomes the corpus root, the embedding model, the ups
 **Unreadable is unset, because that is what the step does with it.** `RelevanceFloor` already treats a value it cannot parse as unset, and `NextAction` already tells the operator their value reads as nonsense. The identity has to agree with the step: two profiles that both mean "no threshold applied" are one run, however differently they are misspelt.
 
 **Not the derived applicability.** A threshold is only applied when it was calibrated on this run's own scale, and `RelevanceFloor.CalibratedElsewhere` removes nothing. That state is derived from the embedder identity carried by vectors this run's own steps produce, so folding it into the run's identity would make the identity depend on the run's output. The floor goes in as the operator's number; whether it turns out to be applicable is a fact about the run, not an input to it.
+
+### It lands with ADR-115
+
+The defect predates ADR-115, and ADR-115 neither caused it nor needs it; ADR-115 is what makes it bite, so the two land together.
 
 ## Consequences
 

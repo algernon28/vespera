@@ -3,13 +3,13 @@
 - **Date**: 2026-09-19
 - **Status**: accepted
 - **Rests on**: [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md) (the generator identity carries the model's manifest digest, read in `pipeline` and handed down), [ADR-114](0114-the-generation-model-is-named-in-application-configuration-with-a-code-default-and-is-not-a-gate.md) (the two stops, and that both are checked where the name is resolved and before the 6b run is minted), [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md) (a run row for a stage that did nothing reads as a pass that found nothing), [ADR-115](0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md) and [ADR-116](0116-a-runs-completion-is-recorded-per-step-because-several-steps-share-one-run.md) (what made the open-gate path reachable at all), [ADR-052](0052-the-test-report-is-written-for-a-reader-outside-the-project.md) (the four test conventions this record's tests are written under).
-- **Charted as [#196](https://github.com/algernon28/vespera/issues/196)**, under the stage 6a/6b map [#175](https://github.com/algernon28/vespera/issues/175). Surfaced by the architect review of [#193](https://github.com/algernon28/vespera/issues/193).
+- **Charted as [#196](https://github.com/algernon28/vespera/issues/196)**, under the stage 6a/6b map [#175](https://github.com/algernon28/vespera/issues/175).
 
 ## Context
 
 ### What #179 proved, and what it did not
 
-ADR-110 put the model's manifest digest into the generator identity, for one stated reason: without it *"a mutable tag re-pulled after upstream republishes mints the same 6b run id over different weights"*. #179 built that and pinned it — but only at the level of the composition. `GenerationRunTest` calls the static `GenerationRun.configConsumed(...)` with a digest of its own choosing and claims that digest comes out the other side. That is a true claim about a string builder. It says nothing about the call site.
+ADR-110 put the model's manifest digest into the generator identity, for one stated reason: without it *"a mutable tag re-pulled after upstream republishes mints the same 6b run id over different weights"*. #179 pinned it — but only at the level of the composition. `GenerationRunTest` calls the static `GenerationRun.configConsumed(...)` with a digest of its own choosing and claims that digest comes out the other side. That is a true claim about a string builder. It says nothing about the call site.
 
 Replace `ollamaClient.artefactOf(modelName).digest()` with `modelName` in `GenerationRun`'s constructor and every test in the tree still passes. The identity would then carry the generation model's name twice and no digest at all — exactly the failure ADR-110 exists to refuse, shipped green.
 
@@ -37,9 +37,9 @@ It is also blind to the property ADR-080 cares about. "No run row exists" is a s
 Every one of #196's four criteria is pinned by a `@JdbcTest` driving the CLI over a scripted corpus, in a new class beside the ones already there, reading back what the invocation left in the database.
 
 - **What the identity carries** is claimed against the `config_consumed` column of the `run` row the invocation minted — not against the return value of `configConsumed(...)`. The static method is the composition and is already pinned; the row is what the wiring produced. Swapping the digest for the name at the call site changes the row and nothing else, so the row is where the claim has to live.
-- **That the model resolves before the run is minted** is claimed through the row's contents, not through a row left lying about. What the serving engine reported is an *input to the run's own id*, so a wiring that minted first cannot have put that report into what it minted. The digest claim above is therefore the claim that sees the ordering, and it was measured to be so: reordering `GenerationRun`'s constructor to mint under a placeholder and resolve afterwards turns exactly that claim red.
+- **That the model resolves before the run is minted** is claimed through the row's contents, not through a row left lying about. What the serving engine reported is an *input to the run's own id*, so a wiring that minted first cannot have put that report into what it minted. The digest claim above is therefore the claim that sees the ordering: reordering `GenerationRun`'s constructor to mint under a placeholder and resolve afterwards turns exactly that claim red.
 
-  **A row left behind is not the observable, and this was checked rather than assumed.** The obvious claim — "the refusal leaves no `run` row" — cannot fail. The insert happens inside the step's own transaction, so a step that ends in an exception takes the row back whichever order the two statements were in. A test resting on it would have been the very thing this ticket exists to refuse: green under the defect it names. It is kept, with its reason corrected to the one it actually defends (ADR-080's property, which holds only while the minting happens inside the piece of work the stop ends), and it earns its place by turning red when ADR-114's second stop is removed altogether.
+  **A row left behind is not the observable.** The obvious claim — "the refusal leaves no `run` row" — cannot fail. The insert happens inside the step's own transaction, so a step that ends in an exception takes the row back whichever order the two statements were in. A test resting on it would be the very thing this ticket exists to refuse: green under the defect it names. It is kept for the reason it actually defends (ADR-080's property, which holds only while the minting happens inside the piece of work the stop ends), and it earns its place by turning red when ADR-114's second stop is removed altogether.
 - **ADR-114's second stop** is reached by a serving engine that has never pulled the resolved name, which is the same test read for its other half: the invocation is refused.
 - **The serving URL's absence** is pinned twice over — `GenerationRunTest` keeps its claim over the composed string, and the row claim states it again over what was actually recorded.
 
@@ -59,7 +59,7 @@ The precedent is the one the ticket names: `EmbeddingScriptedBeans`' own javadoc
 
 The new tests go in `GenerationIdentityInvocationTest` rather than into `GenerationInvocationTest`.
 
-One `@TempDir` working directory serves a whole invocation test class, and `profile.yaml` and the written reports sit in it, so methods in one class share state by construction. A class that scripts a serving engine into refusing is scripting the fixture every other method in its class would inherit; keeping it separate keeps that script out of thirteen tests that are about something else. It is also the smallest thing that merges: `GenerationInvocationTest` is where the other open 6b tickets are adding cases.
+One `@TempDir` working directory serves a whole invocation test class, and `profile.yaml` and the written reports sit in it, so methods in one class share state by construction. A class that scripts a serving engine into refusing is scripting the fixture every other method in its class would inherit; keeping it separate keeps that script out of thirteen tests that are about something else. It is also the smallest thing that merges: `GenerationInvocationTest` is where other 6b tickets add cases.
 
 ### No production code changes
 
@@ -75,4 +75,4 @@ One `@TempDir` working directory serves a whole invocation test class, and `prof
 
 **The unit-level seam this ticket reached for is refused rather than deferred.** Nothing is owed here later: if `GenerationRun`'s constructor grows a property that the invocation cannot see, that is the moment to revisit it, and this record is where to start.
 
-**A stale premise cost nothing this time and is worth naming.** #196's reasoning rested on #191 being open, and #191 closed between the two. A ticket body is a statement about the tree on the day it was written; the acceptance criteria are what bind.
+**A stale premise is worth naming.** #196's reasoning rested on #191 being open. A ticket body is a statement about the tree on the day it was written; the acceptance criteria are what bind.

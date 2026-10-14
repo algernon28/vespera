@@ -14,7 +14,7 @@
 
 ### What the ticket found
 
-ADR-140 §5 said a `capacity` removal that the conversion width provoked is "answerable by a query rather than by re-converting the corpus", and that the retune is "discard stage 2's rows for the run and run it again". #386, found while gating #383, points out two gaps:
+ADR-140 §5 said a `capacity` removal that the conversion width provoked is "answerable by a query rather than by re-converting the corpus", and that the retune is "discard stage 2's rows for the run and run it again". #386 points out two gaps:
 
 1. **No procedure exists.** No command, README section or documented SQL says how to discard stage 2's rows for a run.
 2. **Later stages stay finished.** If the operator deletes stage 2's `finished_step` row, stage 2 runs again under the **same** run id. Stage 3's run id hashes stage 2's (`StageRuns.contentCensus` puts `extractionRunId` into its `ContentCensusConfigConsumed`), so it does not change either. Stage 3 and every stage after it keep their own `finished_step` rows and do no work. What stage 2 now writes differently never reaches them.
@@ -66,7 +66,7 @@ The profile gains one key, **`extractionAttempt`**, a number (`NumericValue`, AD
 
 **Why a profile key, not a command.** A run id is derived from what a stage consumed. The next `vespera run` has to arrive at the same run as the one that asked again, or it goes back to the old run, and the arrangement, the approval and the deliverable go back with it. So whatever asks again has to be persisted, and has to be an input to stage 2's id. The profile is the place an operator's persisted inputs already live, and every other stop already asks the operator to edit it. A command would only write the profile value for them. It would also add a third subcommand, for a step taken perhaps once per archive.
 
-**Why it is a judgement the engine cannot make for itself** (`CONTEXT.md`, Profile). Whether a run of `capacity` refusals was the sidecar's load or something about the files, and whether the answers are worth a replay of every later stage, is the operator's call. They make it after reading `extraction-failures.html`, and record why in `provenance`.
+**Why it is a judgement the engine cannot make for itself** (`CONTEXT.md`, Profile). Whether a run of `capacity` refusals was the sidecar's load or something about the files, and whether the answers are worth a replay of every later stage, is for the operator to decide. They decide it after reading `extraction-failures.html`, and record why in `provenance`.
 
 **It is not a gate.** Unset means the first attempt, and an unset value never ends an invocation. `generationModel` and `generationContextWindow` are the precedents for a key whose unset state means "a default applies".
 
@@ -83,7 +83,7 @@ A new stage-2 run has nothing recorded under it, so it reads every survivor of t
 
 ### 3. Nothing is discarded
 
-A raised attempt deletes no row. Here is what it does with each kind of row, since #386 asked:
+A raised attempt deletes no row. Here is what it does with each kind of row:
 
 | Rows | Under the old stage-2 run | Under the new one |
 |---|---|---|
@@ -118,7 +118,7 @@ Removing `extractionAttempt`, or writing `1`, gives stage 2 its first identity a
 
 ### 6. The way out of ADR-183's repeated-refusal wedge
 
-ADR-183's "What this does not decide" names one case it leaves: five or more refusals the sidecar repeats for the same files, read back to back on a resume, stop the step on every invocation of that run. It names three ways out, all of which change something else as well: a new floor, a new converter, or a new build. Raising `extractionAttempt` is a fourth. A new run reads every survivor in its place, as a first run does, so the refused occurrences sit among converted ones again. [#385](https://github.com/algernon28/vespera/issues/385) asks whether the wedge should be removed at its source. It is settled by ADR-184 (*"Five failures in a row stop stage 2 only when the converter then fails a control conversion"*), which is written on a branch not yet merged. Nothing here depends on that record: this way out holds with it or without it.
+ADR-183's "What this does not decide" names one case it leaves: five or more refusals the sidecar repeats for the same files, read back to back on a resume, stop the step on every invocation of that run. It names three ways out, all of which change something else as well: a new floor, a new converter, or a new build. Raising `extractionAttempt` is a fourth. A new run reads every survivor in its place, as a first run does, so the refused occurrences sit among converted ones again. [#385](https://github.com/algernon28/vespera/issues/385) asks whether the wedge should be removed at its source. It is settled by ADR-184 (*"Five failures in a row stop stage 2 only when the converter then fails a control conversion"*). Nothing here depends on that record: this way out holds with it or without it.
 
 ### 7. What the README tells the operator
 
@@ -141,7 +141,7 @@ ADR-183's "What this does not decide" names one case it leaves: five or more ref
 
 ## Tests
 
-**`ExtractionAttemptInvocationTest`** (`src/test/java/io/algernon/vespera/pipeline/`) drives whole invocations over `ConverterStopsPartwayBeans`, as `ServiceScopeRefusalInvocationTest` does, with nothing emptying `extraction_cache` between invocations. The profile names nothing else, so every invocation ends after stage 3. It writes `extractionAttempt` into `profile.yaml` through the YAML tree rather than through `ProfileFixture`, so that it compiles before the key exists.
+**`ExtractionAttemptInvocationTest`** (`src/test/java/io/algernon/vespera/pipeline/`) drives whole invocations over `ConverterStopsPartwayBeans`, as `ServiceScopeRefusalInvocationTest` does, with nothing emptying `extraction_cache` between invocations. The profile names nothing else, so every invocation ends after stage 3. It writes `extractionAttempt` into `profile.yaml` through the YAML tree rather than through `ProfileFixture`.
 
 1. **A raised attempt asks again only what got no answer, and discards nothing.** The first invocation completes, with one occurrence the converter blamed on itself and one it could not convert. With the converter now converting everything and `extractionAttempt` at `2`, the next invocation mints a second stage-2 run. Its recorded settings are the first run's with `"extractionAttempt":2` appended last. It asks the converter about the refused occurrence and nothing else, and measures it. It removes the unconvertible one again, from the cached answer. The first run's `finished_step`, metric, shingle, verdict and fault rows are exactly as they were. The extraction cache gains exactly one row. The key's `measurement` in `profile.yaml` is still empty after the stages have run (§1, no pointer).
 2. **Every later stage runs again under a run of its own.** After the same two invocations, content census has two runs. The newer one names the second stage-2 run upstream, is finished, and counts one more shingled document than the first. The first content census is still finished.
@@ -154,11 +154,9 @@ ADR-183's "What this does not decide" names one case it leaves: five or more ref
 
 **`RunIdentityGoldenTest.extraction`** is unchanged. It pins that an unset attempt leaves stage 2's recorded settings character for character as they are.
 
-Every test above but the last fails before this is built. `ProfileStore` refuses a profile with a key it does not know (ADR-061's record is the schema, and the mapper enables `FAIL_ON_UNKNOWN_PROPERTIES`), so each invocation after `extractionAttempt` is written ends without running a stage, and the `NextActionTest` case fails to load its profile.
-
 ## What this does not decide
 
 - **Asking again about one category only**, such as `capacity` alone. A raised attempt asks again about everything the cache does not keep. No record has wanted it narrower, and the narrower ask would need a second identity input.
 - **A raised attempt for a stage other than 2.** Stage 6b already asks again under the same id, in a repair pass (ADR-111). No other stage has been seen to need it.
-- **How a resume treats faulted occurrences read back to back** ([#385](https://github.com/algernon28/vespera/issues/385)). That is settled by ADR-184, on a branch not yet merged. §6 is a way out that does not depend on it.
+- **How a resume treats faulted occurrences read back to back** ([#385](https://github.com/algernon28/vespera/issues/385)). That is settled by ADR-184. §6 is a way out that does not depend on it.
 - **A count of what a raised attempt will ask again, shown before the operator decides.** `extraction-failures.html` lists the files with their reasons. Whether that page should mark which of them a raised attempt would ask again is a question for that page, not for this record.

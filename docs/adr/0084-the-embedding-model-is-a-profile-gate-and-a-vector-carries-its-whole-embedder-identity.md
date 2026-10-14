@@ -58,7 +58,7 @@ Recording the candidate above is the whole benefit a default would have offered 
 
 The embedder's parts are composed into one `embedder_identity` string, the discipline `ExtractorIdentity` and `TokenizerIdentity` already apply: a record that carries a composed value and refuses a blank one, composed by whoever mints the run.
 
-**Where a runtime reports nothing that pins the weights, the identity records that fact explicitly** rather than omitting it — so an unpinnable deployment is visible in the ledger instead of being indistinguishable from a pinned one. It is not a second gate: measuring rather than refusing is this pipeline's posture ([ADR-006](0006-census-measure-before-judging.md)), the same argument ADR-083 lost and then won.
+**Where a runtime reports nothing that pins the weights, the identity records that fact explicitly** rather than omitting it — so an unpinnable deployment is visible in the ledger instead of being indistinguishable from a pinned one. It is not a second gate: measuring rather than refusing is this pipeline's posture ([ADR-006](0006-census-measure-before-judging.md)), the same argument ADR-083 makes.
 
 **A vector row is per chunk, never per document.** ADR-020 scores over chunk similarities, so a per-document vector would have to be an aggregate nothing in the scoring function asks for.
 
@@ -84,7 +84,7 @@ The first model named invalidates every `word-count-v1` chunk for scoring purpos
 
 **Stage 5's `configConsumed` names the embedder identity**, so a corpus scored under a different model, quantization, dimension or instruction is a different run ([ADR-048](0048-walk-and-run-identity.md)) — the same property every prior stage's run identity carries, and the one that keeps two candidates' scores from ever being confused for each other.
 
-**`ExtractorIdentity` has the gap this decision was careful not to repeat.** It is composed as `"docling-serve;base-url=" + baseUrl` — the URL and nothing else — while ADR-012 requires the cache key to carry the *full* extractor identity. Point the same Docling at a different OCR backend and every cached extraction, shingle, confidence score and chunk silently keeps serving the old backend's text under an unchanged identity. It is latent today because there is one OCR path, and it goes live the moment anyone configures a VLM OCR engine. That is an extraction decision rather than a stage-5 one, and is raised separately rather than folded in.
+**`ExtractorIdentity` has the gap this decision was careful not to repeat.** It is composed as `"docling-serve;base-url=" + baseUrl` — the URL and nothing else — while ADR-012 requires the cache key to carry the *full* extractor identity. Point the same Docling at a different OCR backend and every cached extraction, shingle, confidence score and chunk silently keeps serving the old backend's text under an unchanged identity. It is latent today because there is one OCR path, and it goes live the moment anyone configures a VLM OCR engine. That is an extraction decision rather than a stage-5 one, and is left to a decision of its own rather than folded in.
 
 **`CONTEXT.md` gains nothing.** "Model", "quantization" and "dimension" are the vocabulary of the tools rather than of the domain, and the glossary is kept free of implementation detail. The domain words this decision leans on — **bake-off**, **reference model**, **gate**, **profile** — are already there and unchanged.
 
