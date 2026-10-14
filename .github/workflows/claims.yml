@@ -49,3 +49,6 @@ jobs:
         run: node docs/check-claims.mjs --with-network
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: The script that updates the review register
+        run: node --test src/test/docs/review-register.test.mjs
