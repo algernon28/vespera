@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.abort;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
@@ -21,6 +22,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -314,18 +316,17 @@ class OutOfScopeNameEndingsTaskletTest {
 
     /**
      * §2, §4 and §7 at their edges: the name matched is the last element of the path; of two listed endings
-     * that match, the longer is named; an email is left out for its kind before the list is read; a name that is
-     * the ending alone matches it; and where folding makes the name's last characters differ from the ending,
-     * as {@code İ} (U+0130) folds to two characters, the file is still left out, the reason names the ending as
-     * the canonical list holds it, and the run is not ended by a name shorter than the folded ending.
+     * that match, the longer is named; an email is left out for its kind before the list is read; and a name
+     * that is the ending alone matches it. Every name here is ASCII; the names that fold longer are {@link
+     * #aNameThatFoldsLongerIsStillLeftOut}'s.
      */
     @Test
     @Story("A file of no known kind is left out for the ending of its name")
-    @DisplayName("Only a file's own name is matched, the longer of two matching endings is named, an email stays an email, and a name that folds longer is still left out")
+    @DisplayName("Only a file's own name is matched, the longer of two matching endings is named, an email stays an email, and a name that is only the ending is left out")
     void theNameIsTheLastElementOfThePathAndTheLongestEndingIsNamed(@TempDir Path root, @TempDir Path workingDirectory)
             throws Exception {
         new ProfileStore(workingDirectory).save(ProfileFixture.profile()
-                .outOfScopeNameEndings(".P3A .gz .TAR.GZ .eml .DGN " + DOTTED_CAPITAL_I_ENDING, SET_BY_THIS_TEST)
+                .outOfScopeNameEndings(".P3A .gz .TAR.GZ .eml .DGN", SET_BY_THIS_TEST)
                 .build());
         Path folder = Files.createDirectory(root.resolve("ARCHIVIO.P3A"));
         Files.write(folder.resolve("nota.bin"), terminalRecord(40));
@@ -333,11 +334,8 @@ class OutOfScopeNameEndingsTaskletTest {
         Files.write(root.resolve("dump.tar.gz"), terminalRecord(42));
         Files.writeString(root.resolve("collaudo.eml"), "From: a@example.org\nSubject: collaudo\n\nRinviato.\n");
         Files.write(root.resolve(".DGN"), terminalRecord(43));
-        Files.write(root.resolve("A" + DOTTED_CAPITAL_I_ENDING), terminalRecord(44));
-        Files.write(root.resolve(DOTTED_CAPITAL_I_ENDING), terminalRecord(45));
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = walkRecorder(ledger).walk(root);
-        String foldedEnding = DOTTED_CAPITAL_I_ENDING.toLowerCase(Locale.ROOT);
 
         stageOne(ledger, root, workingDirectory);
 
@@ -359,18 +357,58 @@ class OutOfScopeNameEndingsTaskletTest {
         claim(
                 "a file whose whole name is a listed ending is left out",
                 () -> assertThat(verdictReasonsFor(ledger, walkId, ".DGN")).containsExactly(REASON.formatted(".DGN")));
+    }
+
+    /**
+     * §7 where folding changes a name's length: {@code İ} (U+0130) folds to two characters under {@code
+     * Locale.ROOT}. Where it falls inside the matched ending, the name's last characters are not the ending, so
+     * the reason names the ending as the canonical list holds it; a name shorter than the folded ending does
+     * not end stage 1; and where it falls earlier in the name, the ending is spelt as the name spells it.
+     *
+     * <p>Aborted, not failed, where Java cannot create such a name, as under a POSIX locale whose file-name
+     * encoding is ASCII, as {@code WalkRecorderTest} aborts on a name its file system refuses.
+     */
+    @Test
+    @Story("A file of no known kind is left out for the ending of its name")
+    @DisplayName("A name holding a letter that folds to two characters is still left out, and the reason names its ending sensibly")
+    void aNameThatFoldsLongerIsStillLeftOut(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        String endingInTheName = "A" + DOTTED_CAPITAL_I_ENDING;
+        String onlyTheEnding = DOTTED_CAPITAL_I_ENDING;
+        String earlierInTheName = "İSTANBUL.P3A";
+        try {
+            Files.write(root.resolve(endingInTheName), terminalRecord(40));
+            Files.write(root.resolve(onlyTheEnding), terminalRecord(41));
+            Files.write(root.resolve(earlierInTheName), terminalRecord(42));
+        } catch (InvalidPathException | IOException e) {
+            abort("this file system or locale will not create a name holding U+0130: " + e.getMessage());
+        }
+        new ProfileStore(workingDirectory).save(ProfileFixture.profile()
+                .outOfScopeNameEndings(".P3A " + DOTTED_CAPITAL_I_ENDING, SET_BY_THIS_TEST)
+                .build());
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+        String foldedEnding = DOTTED_CAPITAL_I_ENDING.toLowerCase(Locale.ROOT);
+
+        stageOne(ledger, root, workingDirectory);
+
         claim(
-                "a name whose capital dotted I folds to two characters, and a name shorter than the folded ending, are"
-                        + " both left out, the reason naming the ending as the list holds it once folded, and the run"
-                        + " goes to its end",
+                "a name whose last characters hold the capital dotted I, and a name that is the ending alone and"
+                        + " shorter than it once folded, are both left out, the reason naming the ending as the list"
+                        + " holds it once folded",
                 () -> {
-                    assertThat(verdictReasonsFor(ledger, walkId, "A" + DOTTED_CAPITAL_I_ENDING))
+                    assertThat(verdictReasonsFor(ledger, walkId, endingInTheName))
                             .containsExactly(REASON.formatted(foldedEnding));
-                    assertThat(verdictReasonsFor(ledger, walkId, DOTTED_CAPITAL_I_ENDING))
+                    assertThat(verdictReasonsFor(ledger, walkId, onlyTheEnding))
                             .containsExactly(REASON.formatted(foldedEnding));
-                    assertThat(Files.exists(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME)))
-                            .isTrue();
                 });
+        claim(
+                "a name holding the capital dotted I before a plain ending has the ending spelt as the name spells it",
+                () -> assertThat(verdictReasonsFor(ledger, walkId, earlierInTheName))
+                        .containsExactly(REASON.formatted(".P3A")));
+        claim(
+                "and stage 1 finishes: the page it writes at its end is there",
+                () -> assertThat(Files.exists(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME)))
+                        .isTrue());
     }
 
     /**
