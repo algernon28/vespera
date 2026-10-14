@@ -42,7 +42,7 @@ The recorded module list is **eight**, not nine: `ledger`, `corpus`, `extraction
 
 ### `vespera publish` is withdrawn
 
-The CLI surface is one command, `vespera run`, plus `vespera label` for the operator's own labelling pass. The `publish` subcommand stub — which today exists only to refuse — is removed along with the README section documenting its refusal. **That removal is code and is not done by this record**; it is a follow-up, and until it lands `vespera publish` refuses for a different reason than it used to.
+The CLI surface is one command, `vespera run`, plus `vespera label` for the operator's own labelling pass. The `publish` subcommand stub — which exists only to refuse — is removed along with the README section documenting its refusal. **That removal is code and is a change of its own**, separate from this record.
 
 ### What 6b writes becomes the first question of the 6a/6b slice, not a detail inside it
 

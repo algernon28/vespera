@@ -3,18 +3,17 @@
 > **Partly amended — see [ADR-244](0244-the-floors-answers-are-those-under-the-runs-embedder-identity-a-move-refused-as-a-sharing-violation-is-attempted-again-and-a-document-kept-for-another-is-checked-for-no-container.md).** Of §1, two clauses: an occurrence a row of the run names as kept no longer has its candidates gone through and counted, and whether it is so named is asked of every signed occurrence phase 2 has not removed, before its rarest hashes are read, not only of one a container was found for. What phase 2 writes is unchanged.
 
 - **Date**: 2026-10-11
-- **Status**: accepted on 2026-10-11, on the call of the session that worked the review register of 2026-10-10 ("work the To do items ... write a test that fails on the current code first, and drop the finding if the test passes"). No question was put to a person. Each finding below had a test written first that failed on the code before this change, and passes after it.
+- **Status**: accepted on 2026-10-11.
 - **Amends**: [ADR-079](0079-redundant-with-covers-near-duplication-and-containment-the-fuller-rendering-survives.md), in what phase 2 may remove (§1); [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md)'s candidate cuts, in which side of a cut a document on its edge is counted (§2).
-- **Settles**: register findings R16, C-E4 and C-S1.
-- **Rests on**: the code at `fa908c1`; `RedundancyResolutionTest`, `LabelledSpreadTest`. No archive, working directory, database, log, report or deliverable of the operator's was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
+- **Rests on**: `RedundancyResolutionTest`, `LabelledSpreadTest`.
 
 ## Context
 
-Three findings of the review register were measured by a test before anything was changed:
+Three defects in the code:
 
-- **R16.** Stage 4b's phase 2 skipped only the occurrences phase 1 removed. Of a chapter inside a part inside a volume, the chapter was written as contained in the part (the tie between part and volume going to the lower id), and the part then as contained in the volume: `aChainOfContainmentsLeavesNoPointerAtARemovedDocument` found the pointer `1 -> 2`, at a document the same run removed. And the survivor phase 1 kept of two near-identical documents, lying inside a third, was then contained away, leaving its partner's near-duplicate pointer at a removed document: `aNearDuplicateSurvivorInsideAnotherDocumentLeavesNoPointerAtARemovedDocument` found `1 -> 2`. ADR-079's survivor rule is there so that a pointer names the copy a reader gets; a pointer at a removed document names nothing a reader gets.
-- **C-E4.** The relevance report's candidate cut is the next band's lower bound, `lowest + ordinal × width`, compared with `>=`, while the band a score falls in is found with `RelevanceDistribution.bandOf`'s tolerance. Over 0.0 to 0.5, the third cut is `0.30000000000000004`: a document scoring 0.3 was counted in the fourth band and below the cut at that band's edge, which the page shows as 0.30. `aDocumentOnABandsLowerEdgeSurvivesTheCutAtThatEdge` failed on it.
-- **C-S1.** Both of stage 4b's verdict reasons, and stage 2's tier-2 reason, were formatted in the JVM's default locale: on a machine set to German the reason read `at Jaccard 0,9802`. `theReasonWritesItsScoreTheSameWayInEveryLocale` failed on it.
+- Stage 4b's phase 2 skipped only the occurrences phase 1 removed. Of a chapter inside a part inside a volume, the chapter was written as contained in the part (the tie between part and volume going to the lower id), and the part then as contained in the volume, leaving the pointer `1 -> 2` at a document the same run removed. And the survivor phase 1 kept of two near-identical documents, lying inside a third, was then contained away, leaving its partner's near-duplicate pointer, `1 -> 2`, at a removed document. ADR-079's survivor rule is there so that a pointer names the copy a reader gets; a pointer at a removed document names nothing a reader gets.
+- The relevance report's candidate cut is the next band's lower bound, `lowest + ordinal × width`, compared with `>=`, while the band a score falls in is found with `RelevanceDistribution.bandOf`'s tolerance. Over 0.0 to 0.5, the third cut is `0.30000000000000004`: a document scoring 0.3 was counted in the fourth band and below the cut at that band's edge, which the page shows as 0.30.
+- Both of stage 4b's verdict reasons, and stage 2's tier-2 reason, were formatted in the JVM's default locale: on a machine set to German the reason read `at Jaccard 0,9802`.
 
 ## Decision
 
@@ -43,7 +42,7 @@ A document survives a cut where `bandOf` puts it in the band the cut is the lowe
 - No pointer in `redundant_with` names an occurrence removed under the same run. A few more documents may survive stage 4 than before, each one kept for another.
 - The relevance report's cut counts and band counts agree for a document on a band's edge.
 - On a machine whose default locale writes a decimal comma, a verdict reason reads differently from what that machine wrote before.
-- **Which run ids move**: the change touches `similarity`, `embedding` and `extraction`, each already moved on the branch that carries it (`f64e30c` touches `extraction` and `embedding`), so stages 2 to 6b are minted once in that build, and this record adds no move to it. A `similarity` change on its own would move stages 2 to 6b too. No DDL, no table, no index, no verdict kind, no cache key.
+- **Which run ids move**: the change touches `similarity`, `embedding` and `extraction`, so stages 2 to 6b move; a `similarity` change on its own would move the same stages. No DDL, no table, no index, no verdict kind, no cache key.
 
 ## Tests
 
@@ -54,4 +53,4 @@ A document survives a cut where `bandOf` puts it in the band the cut is the lowe
 ## What this does not decide
 
 - Whether stage 4 should follow a chain of containments to its end (§1's first alternative). It would want a score the chain does not give.
-- The manifest's cells that begin with `=`, `+`, `-` or `@` (register finding R32), which change what a machine reads from `documents.csv` and are the operator's to decide.
+- The manifest's cells that begin with `=`, `+`, `-` or `@`, which change what a machine reads from `documents.csv` and are the operator's to decide.

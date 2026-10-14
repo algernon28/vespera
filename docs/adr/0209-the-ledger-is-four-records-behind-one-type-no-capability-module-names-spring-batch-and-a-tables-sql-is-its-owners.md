@@ -13,12 +13,12 @@
 - **Amends**: [ADR-193](0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md) §7, in one phrase and for three statements. *"r is its steps a row, pinned in the module that owns the statement, beside its SQL"* and *"It is the one place each r is declared, beside the module's SQL"* stand for every statement but `EmbeddingStatement.CORPUS_METRICS` and `SEED_METRICS`: their r stays declared in `embedding`, which still reports them, and their SQL is `extraction`'s (§3). `SimilarityStatement.NEAR_DUPLICATE_METRICS` is timed and declares no r; its SQL is `extraction`'s too. Every constant, every ratio, every line and the order they are reported in are unchanged.
 - **Amends**: [ADR-200](0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md) §1, in the type and the class and nothing else. *"`Ledger.survivorsBySize(RunId)` returns an `ItemStreamReader<SizedOccurrence>`"* now reads: `Verdicts.survivorsBySize(RunId)` returns an `Iterable<SizedOccurrence>`. Its statement is unchanged but for how its page is bounded: `SurvivorsBySize` passed the page size as an argument to `LIMIT ?`, and `Verdicts` writes `LIMIT 1000` into the text (§2). Its rows, its order, its paging by keyset and the plan `SurvivorsBySizeTest` pins are unchanged. The class `SurvivorsBySize` is gone: the paging it held is the one `ledger` now uses for all three long reads (§2).
 - **Keeps**: [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md) §3's exception to ADR-041, as that record bounded it (§3.3). [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-100](0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md): a capability module depends on `ledger` alone, and `extraction` also on `corpus`'s two enumerations. [ADR-127](0127-a-database-lock-is-waited-out-by-sqlites-busy-timeout-not-by-hikaris-connection-timeout.md) and [ADR-140](0140-stage-2-converts-eight-file-occurrences-at-a-time-and-consecutive-means-consecutive-on-the-drain.md): one writer, and nothing holds a walk's survivors where a reader did not. [ADR-156](0156-a-runs-survivors-are-read-through-its-upstream-runs-and-a-verdict-under-any-other-run-stays-recorded-and-removes-nothing.md): which runs a run's survivors answer to. [ADR-181](0181-a-stopped-stage-2-resumes-from-what-its-committed-chunks-recorded-and-redoes-only-the-rest.md) §2: a restart finds its place in the ledger, never in a reader's saved state.
-- **Rests on**: [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-048](0048-walk-and-run-identity.md) (which run ids move, §5), [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md) and [ADR-188](0188-stage-1s-verdict-rules-and-content-identity-live-in-corpus-which-still-knows-no-stage.md) (a capability module is handed what it may not ask for), [ADR-115](0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md) (a repeated walk is discarded), a reading of every caller of `Ledger` and every SQL statement in `src/main` at commit `6eb88a2`, and one throwaway probe that made the whole change in a copy of the tree and ran the suite over it (§7). No archive and no working directory was opened for this record (ADR-196).
+- **Rests on**: [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-048](0048-walk-and-run-identity.md) (which run ids move, §5), [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md) and [ADR-188](0188-stage-1s-verdict-rules-and-content-identity-live-in-corpus-which-still-knows-no-stage.md) (a capability module is handed what it may not ask for), [ADR-115](0115-a-re-walk-that-observed-nothing-new-is-discarded-and-a-run-is-continued-under-its-own-id.md) (a repeated walk is discarded), a reading of every caller of `Ledger` and every SQL statement in `src/main` before this change, and what §7 measured.
 - **Settles** [#350](https://github.com/algernon28/vespera/issues/350), Wave 4 of the architecture simplification.
 
 ## Context
 
-Three things were true of the tree at `6eb88a2`, and none of them was a bug an operator could see.
+Three things were true of the tree before this change, and none of them was a bug an operator could see.
 
 **`Ledger` did four jobs.** It was one class of 28 public methods: nine about a walk, six about the file occurrences a walk found, six about a run and its steps, and seven about verdicts and the survivors they leave. Thirty-nine shipped classes outside `ledger` named it, and each could reach all 28.
 
@@ -81,7 +81,7 @@ The four are not `final`, and `Ledger`'s four methods can be overridden. Three t
 
 **Each `iterator()` starts at the first page.** A page is one statement of at most 1,000 rows, asked for when the page in hand has been handed out, and it starts after the last row of the one before, by keyset: `id > ?` for the two reads in id order, and ADR-200's `(size_bytes, id) > (?, ?)` with `size_bytes >= ?` for the read by size. The read ends on a page that comes back short. So the most a read holds is 1,000 rows, whatever the walk. The page size is `ledger`'s, as it was. This is a pager of `ledger`'s own, one for the three reads; ADR-060's *"no bespoke streaming or paging mechanism"* no longer holds, and is amended above.
 
-**What is not the same statement.** `survivors` and `occurrencesOf` were built by Spring Batch's `SqlitePagingQueryProvider`, whose first page carried no `id >` condition and whose later pages carried one. Every page now carries it, the first asking for ids above the least a `long` holds. The rows and their order are the same. `survivorsBySize`'s statement is ADR-200's but for one clause: its page was bounded as `LIMIT ?`, the page size passed as an argument, and is now bounded as `LIMIT 1000` in the text, as all three reads are, so that a test can tell a page by its text (What the commit that builds `src/main` owes). Its rows, their order and the plan `SurvivorsBySizeTest` pins are unchanged.
+**What is not the same statement.** `survivors` and `occurrencesOf` were built by Spring Batch's `SqlitePagingQueryProvider`, whose first page carried no `id >` condition and whose later pages carried one. Every page now carries it, the first asking for ids above the least a `long` holds. The rows and their order are the same. `survivorsBySize`'s statement is ADR-200's but for one clause: its page was bounded as `LIMIT ?`, the page size passed as an argument, and is now bounded as `LIMIT 1000` in the text, as all three reads are, so that a test can tell a page by its text (What the implementation owes). Its rows, their order and the plan `SurvivorsBySizeTest` pins are unchanged.
 
 **A lock met during a long read is now named.** ADR-177 §2.1 left `survivors` and `occurrencesOf` outside `LockedDatabaseFileTranslator`, because `JdbcPagingItemReader` built a `JdbcTemplate` of its own over the datasource. Each page is now a statement on the template the record was built with, which in the application is the one Spring Boot builds and hands that translator. So a page that meets `SQLITE_BUSY` or `SQLITE_LOCKED` fails with `DatabaseFileLockedException`, naming the database file, as every other statement does; `survivorsBySize` already went through that template (ADR-200). Under the write-ahead log a writer does not block a reader (ADR-177 Consequences), so a read is not expected to meet a lock often. How often it does is not measured here.
 
@@ -100,7 +100,7 @@ And the pages are cut where they were, so a caller that did write ahead would se
 
 **The sets that are still held, and what they depart from.** The last row of that table is six places that put the id of every survivor of a run into a set, because each tests every row of another table against it: `extraction.ConfidenceDistribution`, `similarity.DocumentFrequency`, `embedding.SeedCorpusComparison`, and `pipeline`'s `ClusteringTasklet`, `EmbeddingScoringTasklet` and `RelevanceScoringTasklet`. **Each holds every survivor of the run it reads, at once, however large the walk.** That is what ADR-060 says a caller is never handed. ADR-200's Context counted stage 1's form of it, a `List` of every survivor, as breaking ADR-060, and #350 says nothing may hold the whole corpus once the drains are gone. This record does not end it. It is a departure that was there before, through a reader, and it is the same size now: each set is built where it is used, by going through the `Iterable`, from the same rows. Ending it is a decision about each of the six, and a follow-up is owed for it (What this does not decide). `corpus` holds no such set since ADR-200. Three of the six, `SeedCorpusComparison` and the embedding and scoring steps, also hold the ids of the seed walk's occurrences, which is the seed set and not the corpus.
 
-The helpers that only wrapped the reader's opening and closing are gone: `ConfidenceDistribution.drainSurvivors`, `DocumentFrequency.drainSurvivors`, `SeedCorpusComparison.drain` and `pipeline.ItemStreamReaders`. The ticket names five. The fifth, `ByteLevelReductionTasklet.drain`, had already moved into `corpus` as `SurvivorDrain` under ADR-188 and been deleted by ADR-200, so four were left at `6eb88a2`. With them goes the `IllegalStateException` each wrapped a failed read in; a read that fails now reaches its caller as the template throws it. The statements ADR-193 times around those reads are named and reported as they were.
+The helpers that only wrapped the reader's opening and closing are gone: `ConfidenceDistribution.drainSurvivors`, `DocumentFrequency.drainSurvivors`, `SeedCorpusComparison.drain` and `pipeline.ItemStreamReaders`. The ticket names five. The fifth, `ByteLevelReductionTasklet.drain`, had already moved into `corpus` as `SurvivorDrain` under ADR-188 and been deleted by ADR-200, so four were left. With them goes the `IllegalStateException` each wrapped a failed read in; a read that fails now reaches its caller as the template throws it. The statements ADR-193 times around those reads are named and reported as they were.
 
 **What a reader carried, and what became of it.**
 
@@ -130,7 +130,7 @@ The helpers that only wrapped the reader's opening and closing are gone: `Confid
 
 ADR-198 §3 made *"one exception, bounded three ways"*: the reads are counts and nothing else, each is grouped by a closed column or by none, and they are made in `InvocationAccount` and nowhere else. It refused to move them, because *"that would move run ids of stage 2 and cost a replay of stage 2"*.
 
-That cost is nil in the commit that carries this record, which moves every run id (§5). The exception is kept all the same. Ending it reverses a decision another record made on purpose, and that is not this record's to do in passing. What this record adds is that the exception is now held to its bounds by a test, where it was held by a sentence.
+That cost is nil here, since this change moves every run id (§5). The exception is kept all the same. Ending it reverses a decision another record made on purpose, and that is not this record's to do in passing. What this record adds is that the exception is now held to its bounds by a test, where it was held by a sentence.
 
 #### 3.4 The test that holds the rule
 
@@ -190,7 +190,7 @@ The three parts could each be a commit. They are one, because each alone touches
 
 ## Tests
 
-The proof of a move is the suite that was green before it. In the probe of §7 all 1,377 tests that existed passed over the moved code, none skipped.
+The proof of a move is the suite that was green before it.
 
 **Existing tests edited because a name they use moved, and for no other reason**: 67 files. In 55 the only edit is the receiver, `ledger.x(` to `ledger.<record>().x(`. Twelve carry more:
 
@@ -218,35 +218,27 @@ The proof of a move is the suite that was green before it. In the probe of §7 a
 
 ## 7. What was measured
 
-A throwaway probe, outside the repository, made the whole change in a copy of the tree at `6eb88a2`: the four records, the paged `Iterable`, the adapter, the five statements moved and the owner lines. Over it:
+Over the tree before this change:
 
-- the 1,377 existing tests passed, none skipped, with the 67 files edited as above;
-- the 14 new tests passed. Before the probe removed `ItemStreamReaders`, the one that says it is gone failed, as it should. The fifteenth, in `WalkRecorderTest`, and the claim in `MetricsReadForAnotherModuleTest` that an empty question makes no statement were written after the gate of this record, and the probe never ran them.
+- seven classes in five modules outside `pipeline` named a Spring Batch type, as `OnlyPipelineNamesSpringBatchTest` reads them: `corpus.BrokenOrOutOfScope` and `ContentIdentityResolution`, `embedding.SeedCorpusComparison`, `extraction.ConfidenceDistribution`, `ledger.Ledger` and `SurvivorsBySize`, and `similarity.DocumentFrequency`;
+- given the owner lines and nothing else, `EachTableIsNamedOnlyByItsOwnerTest` names exactly the three classes of the Context's table, and no column, header or sentence that shares a table's name.
 
-And over the tree at `6eb88a2` with nothing moved:
+No real walk was measured. How long a page of `survivors` takes on the archive's database is what it was before, since the statement is the provider's with one condition more on its first page, and that is an argument and not a measurement. Where the pages are cut is argued too (§2).
 
-- `OnlyPipelineNamesSpringBatchTest` named seven classes in five modules: `corpus.BrokenOrOutOfScope` and `ContentIdentityResolution`, `embedding.SeedCorpusComparison`, `extraction.ConfidenceDistribution`, `ledger.Ledger` and `SurvivorsBySize`, and `similarity.DocumentFrequency`;
-- `EachTableIsNamedOnlyByItsOwnerTest` failed on its first claim, the schema naming no owner. Given the owner lines and nothing else, it named exactly the three classes of the Context's table, and no column, header or sentence that shares a table's name.
+Under `src/main` the change adds 1,379 lines and removes 1,147, net +232, as `git diff --numstat` counts them.
 
-It did not measure a real walk. How long a page of `survivors` takes on the archive's database is what it was before, since the statement is the provider's with one condition more on its first page, and that is an argument and not a measurement. Where the pages are cut is argued too (§2).
+## What the implementation owes
 
-**The size of the change is recorded by the commit that lands it, and not estimated here.** The plan's *"about −300 lines"* was a guess and is not repeated. The commit that builds `src/main` writes three numbers into this section, in place of the line below: the lines it adds under `src/main`, the lines it removes there, and the net, as `git diff --numstat` counts them between the `main` commit it lands on and itself, restricted to `src/main`.
-
-- **`src/main`, measured**: 1,379 lines added, 1,147 removed, net +232, from `git diff --numstat d168a6e c4d010a -- src/main`; 095c032 builds it and c4d010a is the last commit to touch it.
-
-## What the commit that builds `src/main` owes
-
-Three things this record asks of the implementation that the tests above see only in part, written here so that it does not have to find them by a red build:
+Two things this record asks of the implementation that the tests above see only in part:
 
 - **Each page is one call of `JdbcTemplate.query(String, RowMapper, Object...)`, with the page's bound in the SQL as ` LIMIT ` and a space either side.** `ReadsOfTheLedgerHoldOnePageTest` and `SurvivorsBySizeTest` see a statement only through that overload, and the first counts a statement as a page only where its text carries ` LIMIT `. A page issued through another overload, or with its bound set any other way, is invisible to both and fails them. The statement that finds a run's upstream runs (ADR-156) carries no `LIMIT`, and is not counted as a page.
-- **`LockedDatabaseFileTranslator`'s javadoc is rewritten where it says the two `JdbcPagingItemReader` reads are not translated** (lines 19 and 20 at `6eb88a2`). After this change every read of the ledger goes through the template the translator is handed, the three long reads included (§2).
-- **The measured size of `src/main`, in §7**, as that section says.
+- **`LockedDatabaseFileTranslator`'s javadoc is rewritten where it says the two `JdbcPagingItemReader` reads are not translated.** After this change every read of the ledger goes through the template the translator is handed, the three long reads included (§2).
 
 That `WalkRecorder` deletes the anomalies first, inside the transaction it already opens for the discard, is §3.1's and is not repeated here.
 
 ## What this does not decide
 
-- **Whether ADR-198's exception should end.** It could, at no cost in runs, only in a commit that moves every run id for another reason, as this one does. It is the operator's to say (§3.3).
+- **Whether ADR-198's exception should end.** It could, at no cost in runs, only in a change that moves every run id for another reason, as this one does. It is the operator's to say (§3.3).
 - **The six sets of every survivor's id** (§2). A follow-up ticket is owed for them, and this record does not file it. What it should carry: the six classes, `extraction.ConfidenceDistribution`, `similarity.DocumentFrequency`, `embedding.SeedCorpusComparison`, and `pipeline`'s `ClusteringTasklet`, `EmbeddingScoringTasklet` and `RelevanceScoringTasklet`, each with the rows of which table it tests against its set; that each holds every survivor of a run at once, which ADR-200 counted as breaking ADR-060 when stage 1 did it, and which #350 says nothing may do; that the size of one such set on the whole-archive walk is where to start, a number the operator gives, since no agent opens a working directory (ADR-196); that what replaces each set is to be measured at that site rather than argued, two candidates being to ask `Verdicts` which ids of a page of the other table survive, and to read the other table in occurrence order beside the survivors, which come in id order, and merge the two; that neither may name a table another module owns (§3); and, for acceptance, that no class holds a collection as large as a run's survivors, or that a record says of each one left why it must.
 - **A file that cannot be read when stage 1 or 2 hashes it** ([#452](https://github.com/algernon28/vespera/issues/452)). `ContentIdentityResolution` and stage 2's reader change here in how they are fed and in nothing they decide.
 - **The repeated `discardForRun` methods**, and **moving the walk half of the ledger into `corpus`**: the ticket rules both out, and ADR-041 keeps occurrence identity in `ledger`.

@@ -14,7 +14,7 @@ The rule has exactly one declared exception, and ADR-100 set the bar for earning
 
 ### There is a fourth option, and it is already the house pattern
 
-The ticket that raised this offered three ways out: move the clusters into `ledger`, earn a second exception, or read the rows through something `ledger` already exposes. The fourth is what every other stage already does, and `ModuleBoundariesTest` states it as a claim in the report: values are "handed down as plain numbers and paths, never read inside the module that acts on them."
+Three ways out were weighed: move the clusters into `ledger`, earn a second exception, or read the rows through something `ledger` already exposes. The fourth is what every other stage already does, and `ModuleBoundariesTest` states it as a claim in the report: values are "handed down as plain numbers and paths, never read inside the module that acts on them."
 
 It is not a convention nobody enforces. `embedding` **cannot read `Profile`** — the seed folder, the embedding model and the relevance floor are read in `pipeline` and passed down. Stage 2 composes `extraction` and `similarity` with neither calling the other. Stage 5 composes `extraction` and `embedding` the same way. In each case `pipeline` is the composition root, which is what a composition root is for.
 

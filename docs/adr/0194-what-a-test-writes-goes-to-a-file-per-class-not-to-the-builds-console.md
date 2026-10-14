@@ -9,7 +9,7 @@
 
 ## Context
 
-A build in which every test passes printed errors and stack traces that read like failures. One `./mvnw -q -o verify` on main at `5881fd6` (2026-10-04, Windows, every test passing; Maven still exited 1, because the Allure report goal could not install Node.js offline in a fresh worktree) wrote a log of 54,992 lines: 125 `ERROR` lines, 282 `WARN` lines and 8,690 lines of stack frames (`at ...`). The operator read one of them, stage 2's health check failing against a loopback port nothing listens on, as a failing test. It came from `ExtractionWithTheSidecarDownTest`, which points the production client at that port on purpose and then checks what Vespera says about it. All 125 `ERROR` lines come from 17 test classes in `pipeline` that provoke a fault on purpose, `ControlConversionInvocationTest` alone writing 38.
+A build in which every test passes printed errors and stack traces that read like failures. A quiet (`-q`) `verify` on Windows in which every test passed wrote a log of 54,992 lines: 125 `ERROR` lines, 282 `WARN` lines and 8,690 lines of stack frames (`at ...`). One of them, stage 2's health check failing against a loopback port nothing listens on, reads as a failing test. It comes from `ExtractionWithTheSidecarDownTest`, which points the production client at that port on purpose and then checks what Vespera says about it. All 125 `ERROR` lines come from 17 test classes in `pipeline` that provoke a fault on purpose, `ControlConversionInvocationTest` alone writing 38.
 
 A reader of a green log cannot tell an error a test meant to cause from one it did not, and a real failure's output is buried among about 8,700 expected stack frames.
 
@@ -41,47 +41,41 @@ The redirect happens where Surefire's forked JVM hands `System.out` and `System.
 - **`ListAppender` tests:** an appender a test attaches receives what it always did. No logger, level or appender changes.
 - **`CapturedOutput` tests:** Spring Boot's `OutputCaptureExtension` lays its tee over the stream Surefire installed and forwards to it. The eight classes that read `CapturedOutput` see every line, as before.
 
-Shown on 2026-10-05: with the absence check in `ExtractionWithTheSidecarDownTest` changed on purpose to look for `sidecar health check failed`, a line it logs and the console no longer shows, two of its three tests failed, and the line was in the class's output file. The change was reverted.
-
 ### 4. No guard on the console
 
 There is no check that a green build's console carries no `ERROR` line. A test's output cannot reach the console while the property is `true`, and turning it off is a one-line change to `pom.xml` that names this record.
 
 ## Measurements
 
-Both runs are on the same Windows machine, JDK 26. The first is the one above, at `5881fd6`. The second is `./mvnw -B -o verify` with this change on `b99272b`, with Docker not running.
+Each column is an offline `verify` on Windows, JDK 26: before, without this change and quiet (`-q`); after, with it and in batch mode (`-B`), with no Docker daemon running.
 
 | | Before (`-q`) | After (`-B`) |
 |---|---:|---:|
 | `ERROR` log lines on the console | 125 | 0 |
 | `WARN` log lines on the console | 282 | 0 |
 | `INFO` log lines on the console | 44,404 | 0 |
-| Unit tests, Surefire (failures, errors, skipped) | 1,128 (0, 0, 0)¹ | 1,149 (0, 0, 0) |
 
-¹ A `-q` log carries no `Tests run` line, so this is the after count less the 21 test methods `b99272b` adds over `5881fd6`, none removed.
-
-What the after run's console still printed:
+What the console still prints with this change:
 
 - **Lines Maven writes about the build**, prefixed `[INFO]`.
 - **The JVM's own `WARNING:` lines**, about `sun.misc.Unsafe` and native access, plus one `OpenJDK 64-Bit Server VM warning` line. These are printed by each forked JVM at start-up, before any test runs.
-- **The integration tests' failures.** Sixteen of the 24 integration tests errored because no Docker daemon was running, and each failure's message and stack trace printed on the console. Their logged lines were in `target/failsafe-reports/<class>-output.txt`. That is the second half of this record working as intended: a failing test still shows that it failed and why.
+- **The integration tests' failures.** An integration test that errors, as one does when no Docker daemon is running, prints its failure's message and stack trace on the console, and its logged lines are in `target/failsafe-reports/<class>-output.txt`. That is the second half of this record working as intended: a failing test still shows that it failed and why.
 
 ## Alternatives weighed
 
 - **Lower the loggers' levels in `logback-test.xml`.** Rejected, above: it blinds the absence proofs.
-- **A JUnit extension, registered for every test class, that holds a test's console output and replays it only if the test fails.** Built, and it failed its architect gate.
-  - Registering it for every class turned on JUnit's extension autodetection, which also activates Allure's own extension and adds fixtures to the report.
-  - A test whose instance could not be created left its begin and end unpaired, crashing a build that was already red.
-  - It decided pass or fail before `@TempDir` deletion and `@AutoClose` could still fail the test, so those failures lost their output.
-  - No test pinned its decision.
+- **A JUnit extension, registered for every test class, that holds a test's console output and replays it only if the test fails.** Rejected:
+  - Registering it for every class turns on JUnit's extension autodetection, which also activates Allure's own extension and adds fixtures to the report.
+  - A test whose instance cannot be created leaves its begin and end unpaired, crashing a build that is already red.
+  - It decides pass or fail before `@TempDir` deletion and `@AutoClose` can still fail the test, so those failures lose their output.
 
   It would have shown a failing test's log on the console itself. That is the one thing this record gives up (Consequences).
-- **A JUnit launcher `TestExecutionListener` doing the same.** It sees each test's final result, so it avoids the last two defects. Not adopted: it needs `junit-platform-launcher` declared in the pom and its order checked against Surefire's own listener, to buy only the console replay.
+- **A JUnit launcher `TestExecutionListener` doing the same.** It sees each test's final result, so it avoids the decision made before `@TempDir` deletion and `@AutoClose`. Not adopted: it needs `junit-platform-launcher` declared in the pom and its order checked against Surefire's own listener, to buy only the console replay.
 - **An annotation each fault test declares, muting the console for it, or a console filter keyed on an MDC value or a marker.** Rejected:
   - Every future fault test has to remember the declaration.
   - An MDC value belongs to one thread, and the sidecar stubs and the batch executors log from others.
   - Anything that mutes or filters the console appender empties what `CapturedOutput` reads.
-- **Holding only `ERROR`, `WARN` and stack traces.** Not possible with a redirect, which takes everything. Accepted as the price: nobody reads a green build's `INFO` lines, and the operator chose a quiet console over keeping them.
+- **Holding only `ERROR`, `WARN` and stack traces.** Not possible with a redirect, which takes everything. Accepted as the price: nobody reads a green build's `INFO` lines, and a quiet console is chosen over keeping them.
 
 ## Consequences
 

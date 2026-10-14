@@ -18,7 +18,7 @@
 
 The 12-page chapter inside the 400-page volume — ADR-079's own worked case — sits at J ≈ 0.03. A banding tuned to make that a candidate makes nearly every pair in the corpus a candidate. Containment therefore needs its own retrieval path, not a lower threshold on the same one.
 
-Both thresholds below were put to the operator as questions about what should be deleted, not derived from the mathematics: **0.80 for near-duplication, 0.95 for containment.** The mathematics then says what machinery reaches them.
+Both thresholds below are judgements about what should be deleted, not derived from the mathematics: **0.80 for near-duplication, 0.95 for containment.** The mathematics then says what machinery reaches them.
 
 ## Decision
 

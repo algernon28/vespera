@@ -23,30 +23,30 @@ Terms are ADR-193's: a statement is *counted* where SQLite calls back during it 
 
 ## Context
 
-ADR-193 gave every statement named on #411 and in ADR-192 §7 one of two forms and landed in two parts. Part (a) is on `main`. Part (b) is every other row of its §6. Since ADR-193 was accepted:
+ADR-193 gave every statement named on #411 and in ADR-192 §7 one of two forms and landed in two parts. Part (b) is every row of its §6 that is not part (a)'s. Since ADR-193 was accepted:
 
-1. **ADR-199 settled #429** and is built: the three survivor counts that size a counter, and the two reads stage 2's reader makes before a resume.
-2. **`main` moved under §6's table**, which was read off the code at `7b25d04`. ADR-200 struck its two stage 1 rows, and ADR-197 added statements to the relevance report and an option of the `label` command, `vespera label --auto`, with statements of its own.
-3. **Part (a)'s gate, on 2026-10-06, found one sentence the record says and no test held**: that the removal of `shingle_by_hash` takes the same steps at two sizes.
+1. **ADR-199 settled #429**: the three survivor counts that size a counter, and the two reads stage 2's reader makes before a resume.
+2. **The code moved under §6's table.** ADR-200 struck its two stage 1 rows, and ADR-197 added statements to the relevance report and an option of the `label` command, `vespera label --auto`, with statements of its own.
+3. **One sentence the record says is held by no test**: that the removal of `shingle_by_hash` takes the same steps at two sizes.
 
 ADR-193 §6 gives each statement its `<what>`. It gives a `<stage>` only to the ones it shows in full, so two readers of it could write `Stage 5d (relevance scoring) is reading …` and `Stage 5d is reading …` and both be following the record. This record writes every line out.
 
 ## Measurements
 
-Synthetic rows only, in memory, under `schema.sql` as shipped at `ffe7066`, on the SQLite of sqlite-jdbc 3.53.2.1, with a callback on every step, in `StatementStepsPerRowTest`.
+Synthetic rows only, in memory, under `schema.sql`, on the SQLite of sqlite-jdbc 3.53.2.1, with a callback on every step, in `StatementStepsPerRowTest`.
 
 | Statement | Steps |
 |---|---:|
 | `DROP INDEX shingle_by_hash` over 1,000 shingle rows | 309 in all |
 | the same over 21,000 | 309 in all |
 
-It took 300 when ADR-193 measured it. At either date it took the same number at both sizes, and neither figure is quoted anywhere but here.
+It took 300 in ADR-193's measurement. In either measurement it took the same number at both sizes, and neither figure is quoted anywhere but here.
 
 ## Decision
 
 ### 1. Which run ids part (b) moves
 
-Part (b) changes `extraction`, `similarity`, `embedding`, `synthesis` and `pipeline`, and nothing in `corpus` or `ledger`. Read off `StageModules`: `extraction` and `similarity` are in stage 2's implementation version, and `pipeline` is in that of stages 3 to 6b, so **part (b) moves the run ids of stages 2 to 6b, and stage 1's does not move**. Those are the stages ADR-199's change moved. The archive's next run waits for part (b) (the operator's sixth decision on #411), so it mints them once.
+Part (b) changes `extraction`, `similarity`, `embedding`, `synthesis` and `pipeline`, and nothing in `corpus` or `ledger`. Read off `StageModules`: `extraction` and `similarity` are in stage 2's implementation version, and `pipeline` is in that of stages 3 to 6b, so **part (b) moves the run ids of stages 2 to 6b, and stage 1's does not move**. Those are the stages ADR-199's change moved. The archive is not run again until part (b) has landed (ADR-193, *Points settled*, point 6), so it mints them once.
 
 ### 2. Two statements ADR-197 added
 
@@ -68,7 +68,7 @@ Part (b) changes `extraction`, `similarity`, `embedding`, `synthesis` and `pipel
 <stage> read <what> in <S> s
 ```
 
-In the order each step issues them. The rows marked ADR-199 are on `main` already and are here only to show where they fall:
+In the order each step issues them. The rows marked ADR-199 are that record's and are here only to show where they fall:
 
 | `<stage>` | Form | `<what>`, and for a counted statement its `<label>` |
 |---|---|---|
@@ -77,7 +77,7 @@ In the order each step issues them. The rows marked ADR-199 are on `main` alread
 | `Stage 2 (extraction)` | timed count | `the survivors still to read` |
 | `Stage 2 (extraction)` | timed | `the occurrences it could not read` |
 | `Stage 3 (content census)` | timed | `stage 2's survivors for the shingle frequencies` |
-| `Stage 3 (content census)` | counted, 7 | ADR-191's lines, on `main` since part (a) |
+| `Stage 3 (content census)` | counted, 7 | ADR-191's lines, from part (a) |
 | `Stage 3 (content census)` | timed | `stage 2's survivors for the confidence distribution` |
 | `Stage 3 (content census)` | counted, 7 | `the extraction metrics`; `Stage 3 (content census, reading extraction metrics)` |
 | `Stage 4a (redundancy signatures)` | timed count | ADR-199 §2 |
@@ -134,7 +134,7 @@ ADR-193 §7 stands, less `corpus` (ADR-200). The four enums, with r where a cons
 - **The total.** A timed statement is started with an empty total. A counted one is started with its span, and with an empty total where the run holds no row, for which `pipeline` writes neither line and counts nothing (ADR-199 §2, ADR-193 §7).
 - **The statements `pipeline` issues or calls itself need no callback**: stage 2's count and its review-list read, and every row of §3 from 5c on but 6b's two inside `ClusterGeneration.write`. `pipeline` writes them through ADR-199's `TimedStatement`.
 
-### 5. ADR-193 §6, read again against `main` at `ffe7066`
+### 5. ADR-193 §6, read again against the code
 
 Every row of §6 was checked against the code. **Each row not named below stands as written**, at the class and method it names. The record quotes two line numbers, in §9, `ExtractionItemProcessor.java` lines 157 and 158, and the expression is still there.
 
@@ -167,7 +167,7 @@ ADR-199 §3's list stands, less `RelevanceLabels.modelAnswers`, which §2 takes 
 
 ## Tests
 
-All in `src/test`. Those that name a type part (b) adds were parked under `docs/adr/0193/tests/b/` until it was built, as ADR-193's Tests say a test is.
+All in `src/test`.
 
 | Test | Pins |
 |---|---|
@@ -190,9 +190,9 @@ All in `src/test`. Those that name a type part (b) adds were parked under `docs/
 
 `pipeline.StatementLines` and `PoolOfTwo` are helpers: the first reads a stage's statement lines out of what an invocation logged, the second is a pool of two connections over a file of its own under `schema.sql`.
 
-**ADR-193's owed tests, and where each went.** Its *"5b and review-list tests"* are claims in `StageFiveReportsItsProgressInvocationTest` and `StageTwoReportsItsFaultResolutionInvocationTest`, which already capture the log of an invocation that runs 5b and writes the review list; `SeedCorpusComparisonInvocationTest` and `ReviewListThatCannotBeWrittenTest` are not changed. Its claim in `StageOneReportsItsLoopsInvocationTest` and its contract test in `corpus`, both withdrawn by ADR-200, stay withdrawn: stage 1's lines are ADR-199's, pinned by `UncoveredStatementsInvocationTest` and `ContentIdentityResolutionCountsItsSurvivorsFirstTest`. The callbacks of stage 2's two reads on a resume are ADR-199's `ExtractionStatementProgressOrderTest`.
+**ADR-193's tests of part (b), and where each is held.** Its *"5b and review-list tests"* are claims in `StageFiveReportsItsProgressInvocationTest` and `StageTwoReportsItsFaultResolutionInvocationTest`, which already capture the log of an invocation that runs 5b and writes the review list; `SeedCorpusComparisonInvocationTest` and `ReviewListThatCannotBeWrittenTest` are not changed. Its claim in `StageOneReportsItsLoopsInvocationTest` and its contract test in `corpus`, both withdrawn by ADR-200, stay withdrawn: stage 1's lines are ADR-199's, pinned by `UncoveredStatementsInvocationTest` and `ContentIdentityResolutionCountsItsSurvivorsFirstTest`. The callbacks of stage 2's two reads on a resume are ADR-199's `ExtractionStatementProgressOrderTest`.
 
-**Not pinned, and why** (this list and the rows above were brought up to date with [#411](https://github.com/algernon28/vespera/issues/411), when tests were added for a statement that throws in each module, for 5f over two partitions, for the report's read of the scores that fails, and for 4b's verdicts over synthetic signatures):
+**Not pinned, and why:**
 
 - **How many progress lines a counted read of part (b) writes, and at which shares.** Each label is pinned on one line, over rows just past one callback. The cadence over a small and a very large total is `StatementProgressTest`'s, which holds it under a label of its own and not under these: the label is an argument of `StatementProgress` and the cadence does not read it, and holding the cadence under each label in a whole job would take hundreds of thousands of synthetic rows for each read.
 - **Every statement of part (b) that throws.** One counted statement of each of `extraction`, `similarity` and `embedding` is made to throw, one timed statement of `similarity` and one of `embedding`, and both of `synthesis`'s, which are timed, that module having no counted one. No timed statement of `extraction` is. The others are not: `DocumentFrequency.measure`'s drain, the read of the near-duplicates' metrics and of the shingle document frequencies in `similarity`, the drain of the corpus survivors and the two reads of the metrics in `embedding`, and `ConfidenceDistribution.measure`'s drain. `StatementStepsTest` holds the helper every counted read runs through to clearing its handler after a throw.

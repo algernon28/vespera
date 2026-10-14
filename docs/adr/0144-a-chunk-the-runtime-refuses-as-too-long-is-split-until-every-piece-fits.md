@@ -9,7 +9,7 @@
 
 `ChunkEmbedder` calls `/api/embed` with `truncate: false`. When the runtime refuses an input, it halves the text by words, embeds each half the same way, and averages the two vectors. A single word could not be halved, so the refusal was rethrown and failed the whole invocation.
 
-#272 found that happening on real data. `Dati_tecnici_tetra_TID-257999.txt` is 4,183 characters in 40 words, and one of those "words" is 3,537 characters of semicolon-joined identifiers. Measured on 2026-09-24 against `bge-m3:latest` on `ollama/ollama:0.33.2`:
+It happens on real data (#272). `Dati_tecnici_tetra_TID-257999.txt` is 4,183 characters in 40 words, and one of those "words" is 3,537 characters of semicolon-joined identifiers. Measured against `bge-m3:latest` on `ollama/ollama:0.33.2`:
 
 - **The limit is Ollama's batch size, not the model's context.** `ollama show` reports a context length of 8,192. The longest prefix of that word that embeds is 3,323 characters, which is 2,048 tokens. Sending `num_ctx: 8192` alone changes nothing; only `num_ctx` and `num_batch` together let the whole word through.
 - **Prose never gets near that limit.** 3,500 characters of ordinary prose cost 724 tokens. Identifier soup costs about 0.6 tokens per character, so a 512-word chunk of it can exceed 2,048 tokens.
@@ -26,7 +26,7 @@ The javadoc said this path was "close to dead" because of "the candidate model's
 
 ## Consequences
 
-**A chunk of any shape now embeds.** The #272 folder, re-run on 2026-09-24 with this change, exits 0 and scores all six survivors, the two identifier dumps among them at 0.659 and 0.657. `ChunkEmbedderTest.splitsAWordTooLongForTheRuntimeByCharacters` pins the split: every piece the runtime is handed fits, and the pieces join back into the whole word.
+**A chunk of any shape now embeds.** The #272 folder, run with this change, exits 0 and scores all six survivors, the two identifier dumps among them at 0.659 and 0.657. `ChunkEmbedderTest.splitsAWordTooLongForTheRuntimeByCharacters` pins the split: every piece the runtime is handed fits, and the pieces join back into the whole word.
 
 **The vector of a chunk split this way is an average of pieces cut through the middle of a token.** For identifier dumps that costs little, since they are not prose to begin with, and the alternative was losing the whole invocation.
 

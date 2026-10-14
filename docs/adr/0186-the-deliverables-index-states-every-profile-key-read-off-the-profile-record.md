@@ -99,10 +99,10 @@ The test tree gains `io.algernon.vespera.profile.ProfileKeys`, which reads the s
 
 ## Tests
 
-- **`DeliverableInvocationTest.opensTheIndexWithWhatProducedTheTree`** gets every key from `ProfileKeys.everyKey()`. It claims that the index's key lines, the `- key:` lines in the provenance block other than `Run`, `Walk` and `Archive root`, are exactly those keys in record order. It claims that those lines, stripped, are exactly `- key:` followed by a space and the value `profile.yaml` holds for each key in `ProfileKeys.valuesOf`, or by nothing where the key is unset, so a value beside the wrong key fails too. It also claims that the unset `extractionAttempt` line has nothing after the colon. **Red until this is built**: the index lacks both keys.
-- **`DeliverableInvocationTest.statesAnIgnoredAttemptAsWritten`**: with `extractionAttempt` written as `1.5`, the invocation completes and the index line reads `- extractionAttempt: 1.5`. **Red until this is built.**
-- **`ProfileStoreTest.everyAnswerLandsOnTheKeyThatCarriedIt`**: the file answers all ten keys, and every key `ProfileKeys` reads off the record is answered. Green. It changes only the test file.
-- **`ClusteringInvocationTest`, `SeedCorpusComparisonInvocationTest`**: their key lists come from `ProfileKeys.everyKey()`. Green.
+- **`DeliverableInvocationTest.opensTheIndexWithWhatProducedTheTree`** gets every key from `ProfileKeys.everyKey()`. It claims that the index's key lines, the `- key:` lines in the provenance block other than `Run`, `Walk` and `Archive root`, are exactly those keys in record order. It claims that those lines, stripped, are exactly `- key:` followed by a space and the value `profile.yaml` holds for each key in `ProfileKeys.valuesOf`, or by nothing where the key is unset, so a value beside the wrong key fails too. It also claims that the unset `extractionAttempt` line has nothing after the colon.
+- **`DeliverableInvocationTest.statesAnIgnoredAttemptAsWritten`**: with `extractionAttempt` written as `1.5`, the invocation completes and the index line reads `- extractionAttempt: 1.5`.
+- **`ProfileStoreTest.everyAnswerLandsOnTheKeyThatCarriedIt`**: the file answers all ten keys, and every key `ProfileKeys` reads off the record is answered. It changes only the test file.
+- **`ClusteringInvocationTest`, `SeedCorpusComparisonInvocationTest`**: their key lists come from `ProfileKeys.everyKey()`.
 
 ## What this does not decide
 

@@ -11,7 +11,7 @@ ADR-061 requires every profile value to be typed in the record it deserializes i
 
 ### Measured: five hand-rolled parses, three different behaviours
 
-Counted in the tree at `d49e700`. Three of the seven keys are numeric; each is parsed at its point of use, and the points of use disagree:
+Counted in the tree. Three of the seven keys are numeric; each is parsed at its point of use, and the points of use disagree:
 
 | Reader | Key | A value no number can be read from |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ Counted in the tree at `d49e700`. Three of the seven keys are numeric; each is p
 | `RedundancyGate.floor` | `boilerplateDocumentFrequencyFloor` | **uncaught** — the exception ends the invocation mid-run |
 | `ExtractionJobConfiguration.degenerateOutputConfidenceFloor` | `degenerateOutputConfidenceFloor` | **uncaught, at bean creation** — the application context never starts |
 
-Issue #203 named the first two. The last two are the live defect: **the same typo in three numeric keys gives three different outcomes** — ignored with an explanation, killed mid-run, or never started. Two of the five also trim the text and three do not, so a value with a leading space is read by one key and fatal to another.
+Issue #203 names the first two. The last two are the live defect: **the same typo in three numeric keys gives three different outcomes** — ignored with an explanation, killed mid-run, or never started. Two of the five also trim the text and three do not, so a value with a leading space is read by one key and fatal to another.
 
 Nothing about which of these a key gets is recorded anywhere. It is a property of which reader was written first.
 
@@ -68,13 +68,13 @@ The parse lives in `NumericValue` and nowhere else. It is computed on demand rat
 
 ### Loading does not throw
 
-This is the departure from ADR-061, stated plainly so it is not discovered later as a contradiction. A mistyped numeric value does not end the invocation *for any key this record was written against*: it reads as unreadable, the stage that wanted it behaves as though the key were unset, and the operator is told. One key that arrived afterwards answers otherwise for itself, and says why — see "What this does not decide". ADR-061's null-vs-typo hazard is closed regardless — a quoted null can no longer be *acted on* as an answer, which was the failure it named. It is still `isSet()`, deliberately: somebody did write it. That is the whole reason the state is worth naming, and it is why neither of the two answers a boolean can give is the right one to show an operator.
+This is the departure from ADR-061, stated plainly so it is not discovered later as a contradiction. A mistyped numeric value does not end the invocation *for any key this record was written against*: it reads as unreadable, the stage that wanted it behaves as though the key were unset, and the operator is told. One later key answers otherwise for itself, and says why — see "What this does not decide". ADR-061's null-vs-typo hazard is closed regardless — a quoted null can no longer be *acted on* as an answer, which was the failure it named. It is still `isSet()`, deliberately: somebody did write it. That is the whole reason the state is worth naming, and it is why neither of the two answers a boolean can give is the right one to show an operator.
 
 ### An unreadable value is named in the closing line, for every numeric key
 
 `NextAction` tells the operator about an unreadable relevance floor today. It now does so for any numeric key, on the rule it already states: a value the engine ignored is worth more to the operator than a value that was never set. Without this, the two keys that crash today would become silently ignored, which would be a regression dressed as a fix.
 
-**An unreadable value is neither set nor unset to that line: it gets a clause of its own.** Both of the obvious answers are wrong, and this record is explicit about it because the first cut of this decision shipped one of them:
+**An unreadable value is neither set nor unset to that line: it gets a clause of its own.** Both of the obvious answers are wrong:
 
 - *Counted as set* credits the operator with a floor the run ignored, and the action half then tells them to write a value they believe they already wrote.
 - *Counted as unset* tells someone who wrote something that they wrote nothing, which is precisely what `CONTEXT.md`'s entry for this state rules out.
@@ -102,7 +102,7 @@ Both are strictly less destructive than what they replace, and both were unrecor
 
 **A new numeric key gets the three readings for free**, and a key of a kind that is neither text nor a number is a new record implementing the sealed interface — visible, and refused by the compiler until it is written.
 
-The context-window key ADR-108 implies arrived on `main` in #206 while this record was in review, and is the first under this rule. It is also the measurement this record's own premise wanted: written against the tree as it stood, it hand-rolled a **sixth** parse — `Integer.parseInt` in a try/catch — which is the growth rate this record's third rejected alternative predicted in as many words, and then observed. Merging the two converted it to one more reader of `reading()`, and the count of parses in `src/main` went from six to one.
+The context-window key ADR-108 implies is the first under this rule. It is also the measurement this record's own premise wanted: written without this rule, it hand-rolled a **sixth** parse — `Integer.parseInt` in a try/catch — which is the growth rate this record's third rejected alternative predicts in as many words. Under this rule it is one more reader of `reading()`, and the count of parses in `src/main` goes from six to one.
 
 **`RelevanceFloor` and `RelevanceScoreFloorValue` agree by construction**, which is what ADR-117 needs and currently gets from a comment in each asking the other to match.
 
@@ -114,7 +114,7 @@ The context-window key ADR-108 implies arrived on `main` in #206 while this reco
 
 ## What this does not decide
 
-**Whether an unreadable value should ever stop a run** — answered, for one key, while this record was in review. Every numeric key this record was written against is a threshold or a floor whose unset state is already legal, and a future key that could not tolerate one was left to answer for itself. `generationContextWindow` (ADR-108, #182) is that key and answers it by stopping: a floor nobody set removes nothing, but a window nobody chose is still used, and the archive is written under it. It takes its reading from `NumericValue` like every other key; what differs is only what it does with the unreadable one, which is the seam this record was for.
+**Whether an unreadable value should ever stop a run** — answered for one key only. Every numeric key this record was written against is a threshold or a floor whose unset state is already legal, and a future key that could not tolerate one is left to answer for itself. `generationContextWindow` (ADR-108, #182) is that key and answers it by stopping: a floor nobody set removes nothing, but a window nobody chose is still used, and the archive is written under it. It takes its reading from `NumericValue` like every other key; what differs is only what it does with the unreadable one, which is the seam this record was for.
 
 **Whether provenance and measurement should be typed.** Both are free text by ADR-061 and ADR-053's rule, and nothing here touches that.
 

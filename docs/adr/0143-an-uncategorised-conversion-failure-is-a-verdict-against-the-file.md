@@ -6,7 +6,7 @@
 - **Amends**: [ADR-071](0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md), whose list of categories skipped without retry loses `unknown`. The breaker, its count and what resets it are unchanged.
 - **Amends**: [ADR-139](0139-a-refused-conversion-leaves-a-fault-row-and-a-step-that-completed-resolves-it-into-a-verdict.md). The case its §Context was written about no longer reaches the fault row. Its Consequences name "exactly five" categories that can leave a fault row, and there are now four. Its mechanism is untouched.
 - **Amends**: [ADR-140](0140-stage-2-converts-eight-file-occurrences-at-a-time-and-consecutive-means-consecutive-on-the-drain.md) §5, which names `unknown` among the categories that can leave a fault row.
-- **Rests on**: two runs of the packaged jar from `main` at `88f5599` on 2026-09-24, against the stock `docling-serve-cpu:v1.32.0` image with no LibreOffice, and a read-only survey of walk order over the full corpus. All three are described under §Context.
+- **Rests on**: two runs of the packaged jar against the stock `docling-serve-cpu:v1.32.0` image with no LibreOffice, and a read-only survey of walk order over the full corpus. All three are described under §Context.
 
 ## Context
 
@@ -15,9 +15,9 @@ Docling answers a legacy `.xls`, `.doc` or `.ppt` it cannot open with `status` `
 The refusal is a property of the file. It comes back in an ordinary HTTP 200 response, identically on every call and every run, and when the sidecar is broken it does not look like this: a sidecar that is down returns no response (a transport failure, which fails the step outright), one that is stuck times out (ADR-071's own streak), and one that knows it is at fault says `capacity`, `target_unavailable` or `internal`. Routing the refusal to service scope therefore bought nothing, and it cost the run:
 
 - **Five in a row stop the invocation.** Stage 2 run over `A&RD_SmartPOS_BaseDocumentale\DossierONLINE\DossierONLINE\Test_InvioDatiTecniciOnline`, a folder holding five `.xls` files with no byte-identical copy anywhere in the corpus, ended with `circuit breaker tripped after 5 consecutive service-scope failures` and exit code 1. The same happened on the 158 legacy files copied out of the corpus. The breaker read five unopenable spreadsheets as a dead sidecar.
-- **The full corpus reaches that count.** Walked in the order the census walks it, the 43,101 files of `QA - DIGITAL - Recupero KT PERIN` hold exactly one run of legacy files five long, and that is the folder above. The baseline run of 2026-09-23 got through only because its legacy files never came more than three in a row.
+- **The full corpus reaches that count.** Walked in the order the census walks it, the 43,101 files of `QA - DIGITAL - Recupero KT PERIN` hold exactly one run of legacy files five long, and that is the folder above. The baseline run got through only because its legacy files never came more than three in a row.
 
-The operator's rule settles it: a file Docling fails to parse is a verdict, and it is not investigated further unless the failure is plainly a bug on our side.
+A file Docling fails to parse is a verdict, and it is not investigated further unless the failure is plainly a bug on our side.
 
 ## Decision
 

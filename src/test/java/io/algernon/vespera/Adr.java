@@ -1724,6 +1724,13 @@ public final class Adr {
     public static final String COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE = FILE
             + "0252-compiled-code-fonts-certificates-databases-and-emails-are-out-of-scope.md";
 
+    /**
+     * ADR-253 -- every decision record, from ADR-001 on, holds its decision and no history of its making; a
+     * reconstituted record keeps its verbatim summary (extends ADR-249 section 4).
+     */
+    public static final String EVERY_RECORD_HOLDS_ITS_DECISION_AND_NO_HISTORY = FILE
+            + "0253-every-decision-record-holds-its-decision-and-no-history.md";
+
     private Adr() {
     }
 }

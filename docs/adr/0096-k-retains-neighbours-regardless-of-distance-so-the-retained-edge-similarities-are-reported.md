@@ -10,7 +10,7 @@
 
 > **A partition where nothing is close to anything else clusters into all singletons**, and that is a real outcome rather than an error: it says the seed collected documents that resemble it individually and not each other. It is reported, not repaired.
 
-Implementing it (#109) showed that the first clause is not something the mechanism can do. **k retains a document's fifteen nearest neighbours however far away they are**, and the same decision sets **no edge similarity floor** — deliberately, because an unmeasured threshold is what *observe before enforce* refuses. A document therefore always has neighbours whenever the partition holds more than one document, and modularity always finds communities in the graph those neighbours make. A partition of twenty mutually orthogonal documents comes back grouped, by which of them are least unalike.
+The first clause is not something the mechanism can do. **k retains a document's fifteen nearest neighbours however far away they are**, and the same decision sets **no edge similarity floor** — deliberately, because an unmeasured threshold is what *observe before enforce* refuses. A document therefore always has neighbours whenever the partition holds more than one document, and modularity always finds communities in the graph those neighbours make. A partition of twenty mutually orthogonal documents comes back grouped, by which of them are least unalike.
 
 All singletons is reachable in exactly one place: where the neighbour lists are empty, which is a partition of one. `CommunitiesTest` covers it at the layer where it exists; nothing at the composed layer can produce it.
 

@@ -2,7 +2,7 @@
 
 - **Date**: 2026-09-03
 - **Status**: accepted
-- **Amends**: none (fills in the mechanism ADR-070 left for this ticket — the timeout budget, the consecutive-timeout count, and the retry/backoff/skip policy for service-scope failures)
+- **Amends**: none (fills in the mechanism ADR-070 left open — the timeout budget, the consecutive-timeout count, and the retry/backoff/skip policy for service-scope failures)
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-201](0201-the-private-paths-guard-reads-a-climb-out-of-a-link-both-ways-and-refuses-a-name-it-cannot-follow.md).** These passages below are no longer the whole of the decision, and that record says what replaces each: §3's "A link is followed before the check", which was false of a `..` after a link; §4's cut at `,`, `{` and `}`, its clause on a path headed by `@`, and its "Three things in it count more than a shell would"; §5's list, which gains three forms; §6's "A hook that runs out of time is not known to fail closed", which Claude Code's documentation now answers: it does not block the call; §6's "about 0.36 s" and "At a third of a second it costs nothing to keep", which hold only for tokens that do not exist, the worst case being about seven seconds; and Consequences. §7's count of cases is also behind: the table holds more, and that record names them. **And see [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md)**, which amends three more: §2's first bullet, "four folders under the home folder", of which the home folder's `.claude` is no longer one; §2's one judgement of a path whichever tool names it, since two kinds of place are now read and not written, and with it §4, which gains one reading of every token of a shell command's text; and §5's list, which gains that record's §8. **And see [ADR-217](0217-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md)**, which amends three more: §3's paths of a call, each of which is read once more on Windows as Windows opens its names; §4's "One reading is counted and not judged", which no longer holds for a plain name that Windows opens as another; and §5's list, which gains that record's §5. Everything else in this record stands.
 
-> **Partly amended — see [ADR-212](0212-an-agent-may-read-a-working-directorys-aggregate-counts-through-one-pinned-script-and-nothing-else-in-it.md), accepted on 2026-10-08 and in force since its counting script and the guard's admission landed with it.** These passages below are no longer the whole of the decision, and that record says what replaces each: §1's working-directory bullet and the sentence after the list, which no longer refuse the counts one pinned script prints; §2's second bullet, which gains one exact command the hook admits; §2's "A path outside the list is never touched", since the guard asks the file system about that command's working directory, which need not be on the list, once every other check has passed; and the alternative weighed "Reading a working directory's contents but not its documents". Every other path in a working directory is refused as before.
+> **Partly amended — see [ADR-212](0212-an-agent-may-read-a-working-directorys-aggregate-counts-through-one-pinned-script-and-nothing-else-in-it.md).** These passages below are no longer the whole of the decision, and that record says what replaces each: §1's working-directory bullet and the sentence after the list, which no longer refuse the counts one pinned script prints; §2's second bullet, which gains one exact command the hook admits; §2's "A path outside the list is never touched", since the guard asks the file system about that command's working directory, which need not be on the list, once every other check has passed; and the alternative weighed "Reading a working directory's contents but not its documents". Every other path in a working directory is refused as before.
 
 - **Date**: 2026-10-05
 - **Status**: accepted
@@ -15,9 +15,9 @@ An archive Vespera curates can hold sensitive documents. A document is meant to 
 
 Earlier sessions did open them. They labelled relevance by reading `relevance-labelling.html`, which carries the opening of sixty documents, and they read `vespera.log` and `vespera.db` to diagnose runs. Nothing said not to, and nothing stopped it.
 
-A written rule alone is not enough. A session that has been told the rule can still pass a path to a tool without noticing where it leads, and a subagent starts with less context than the session that launched it.
+A written rule alone is not enough. A session that has been told the rule can still pass a path to a tool without noticing where it leads, and a subagent starts with less context than the session it was launched from.
 
-The first version of the hook was registered and gated before it had a committed test. The gate found forms it let through: a drive path with a doubled separator, a relative path in a shell command, a search pattern, and others listed in §4. This record states what the hook must do, and `src/test/hooks/private-paths-guard.test.mjs` holds it to that.
+This record states what the hook must do, and `src/test/hooks/private-paths-guard.test.mjs` holds it to that.
 
 ## Decision
 
@@ -107,7 +107,7 @@ On Windows only, it also reads:
 - A relative token is read against every directory that a chain reaches without having used that token up.
 - The call is refused if any reading of any token is outside the allow list or inside a working directory.
 
-**Why a token is counted.** The first version of this rule read every token against every directory, the ones that token had itself yielded among them. `..` was read against the current directory, its parent was a folder and so was named, `..` was read against the parent, and so on to the root of the drive, which is outside the allow list. `ls ..` was refused from every directory at every depth, and so were `git -C .. status` and `cd ../.. && ./mvnw -q test`. A shell uses each token it is given once, so a chain that uses `..` more often than it is written is one no command runs. Counting what is written, and not each token once, is what keeps `cd .. && cd .. && cat wd/report.html` refused when `wd` is two folders up: counted once, the second climb would be left out and the path let through.
+**Why a token is counted.** Reading every token against every directory, the ones that token has itself yielded among them, refuses too much. `..` is read against the current directory, its parent is a folder and so is named, `..` is read against the parent, and so on to the root of the drive, which is outside the allow list. `ls ..` would be refused from every directory at every depth, and so would `git -C .. status` and `cd ../.. && ./mvnw -q test`. A shell uses each token it is given once, so a chain that uses `..` more often than it is written is one no command runs. Counting what is written, and not each token once, is what keeps `cd .. && cd .. && cat wd/report.html` refused when `wd` is two folders up: counted once, the second climb would be left out and the path let through.
 
 **The rule is bounded, and refuses at its bounds.** Relative paths are read against no more than 32 folders, the current directory among them, so a command that names 32 folders besides its current directory is refused. One reading is one relative token against one folder, and a command that needs more than 20,000 readings is refused. Each refusal says to split the command. Past either bound there are readings the hook did not make, so it cannot let the call through. Both bounds have a case.
 
@@ -123,7 +123,7 @@ The rule knows only the directories written in the command. A directory the comm
 
 The cost is refusals of harmless commands. Three kinds are known:
 
-- A relative path that climbs with `..` is refused when it leaves the allow list from the current directory, as `cd src/main && cat ../../README.md` does from the repository. That was so before this rule.
+- A relative path that climbs with `..` is refused when it leaves the allow list from the current directory, as `cd src/main && cat ../../README.md` does from the repository. That is so without this rule too.
 - A command that names an allowed folder and, separately, a relative name that happens to be a working directory under that folder.
 - A command with two climbing tokens that leave the allow list when one is read after the other, though the command reads each from the current directory: `cp ../README.md ..` from one folder inside the repository. The hook cannot tell it from `cd .. && cat ../README.md`.
 
@@ -131,7 +131,7 @@ The cost is refusals of harmless commands. Three kinds are known:
 
 ### 5. What the hook does not cover
 
-These are stated so nobody takes the hook for the whole of the protection. For each, §1's written rule is all there is. **It is the list of what is known, and it is not complete**: three gates each found forms that were not on it, and a hook that reads a command as text cannot list every way a shell can spell a path.
+These are stated so nobody takes the hook for the whole of the protection. For each, §1's written rule is all there is. **It is the list of what is known, and it is not complete**: a hook that reads a command as text cannot list every way a shell can spell a path.
 
 - **A brace list with text before or after it**, `../{a,b}/x`. The pieces are read, and so is the token as it is written, but the list is not expanded as the shell expands it.
 - **A variable written for `cmd`**, `%USERPROFILE%\Documents\x`. It is read as a relative path of that spelling.
@@ -142,7 +142,7 @@ These are stated so nobody takes the hook for the whole of the protection. For e
 - **A variable that is not at the head of a token**, as in `x/$NAME/y` or `${NAME}suffix`. It is read as the text it is written as.
 - **An option with its value attached and no `=`**, as in `-I../x`. The token starts with `-` and is not read. A drive path written straight after a letter, as in `-IQ:/x`, is not read either.
 - **Another user's home**, `~name/x`. Only `~` alone or before a separator is the home folder; `~name/x` is read as a relative path of that spelling.
-- **A path from the root of the current drive, written without its letter**, as PowerShell's `Get-Content \archive\x` or `/archive/x`. On Windows it is a real path on whatever drive the command runs on. It was left uncovered, with no rule and no case, on the operator's word of 2026-10-05: it has the same shape as `'\s'` in a pattern, which §4 lets through, and the hook cannot tell the two apart.
+- **A path from the root of the current drive, written without its letter**, as PowerShell's `Get-Content \archive\x` or `/archive/x`. On Windows it is a real path on whatever drive the command runs on. It is left uncovered, with no rule and no case: it has the same shape as `'\s'` in a pattern, which §4 lets through, and the hook cannot tell the two apart.
 - **A directory change that a loop repeats.** `for i in 1 2 3; do cd ..; done` writes `..` once and uses it three times. The hook counts what is written.
 - **A directory the command changes to without naming it.** `cd` with no argument goes to the home folder, and `cd -` to the one before. The relative paths after it are read against the directories §4 knows, and this is not one.
 - **A directory named in a form §4 does not read**, such as `cd /tmp`. Relative paths are not read against it.
@@ -163,12 +163,12 @@ Claude Code blocks a call only on exit 2. Any other non-zero exit is a hook that
 - **`node` not on `PATH`**, or the guard ending with any exit code but 0 and 2.
 - **The wrapper itself failing.** The command registered in `settings.json` starts the wrapper, and must turn any exit code of the wrapper but 0 into 2. A wrapper it cannot find refuses.
 
-**A hook that runs out of time is not known to fail closed.** `settings.json` sets no `timeout` for the hook, so Claude Code's default applies, and what Claude Code does with a call whose hook timed out has not been verified. The two slow things the hook does are the walk down and the reading of relative paths against named folders, and each has its bound. All figures are from the operator's machine.
+**A hook that runs out of time is not known to fail closed.** `settings.json` sets no `timeout` for the hook, so Claude Code's default applies, and what Claude Code does with a call whose hook timed out has not been verified. The two slow things the hook does are the walk down and the reading of relative paths against named folders, and each has its bound. All figures are measured on the operator's machine.
 
-- **The architect measured, at the third gate, on the code of that day:** a command naming 31 folders with 588 tokens that each hold a separator, 19,840 readings and so just under the bound, at 3.6 s; the same count of plain names at 0.39 s; the walk down at its bound of 10,000 folders at 0.4 s.
-- **The implementer measured, after the change that followed:** that same worst command, let through, at about 0.36 s, and an ordinary `ls` at 85 ms, of which about 82 ms is the hook starting.
+- **With every path checked on its own:** a command naming 31 folders with 588 tokens that each hold a separator, 19,840 readings and so just under the bound, at 3.6 s; the same count of plain names at 0.39 s; the walk down at its bound of 10,000 folders at 0.4 s.
+- **With a path that does not exist answered from its parent:** that same worst command, let through, at about 0.36 s, and an ordinary `ls` at 85 ms, of which about 82 ms is the hook starting.
 
-What changed between the two is that a path that does not exist is answered from its parent, once, and the answer kept. Such a path is not a link and holds nothing, so where its links lead and which working directory it is inside are its parent's answers with its name put back; that is what the check gave before, one path at a time. A path that exists is checked as before.
+What differs between the two is that a path that does not exist is answered from its parent, once, and the answer kept. Such a path is not a link and holds nothing, so where its links lead and which working directory it is inside are its parent's answers with its name put back; that is what checking it on its own gives. A path that exists is checked on its own.
 
 The bound on readings stays at 20,000. At a third of a second it costs nothing to keep, and a lower one would refuse a long commit message beside a few folders, which is an everyday command.
 

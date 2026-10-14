@@ -6,11 +6,11 @@
 
 ## Context
 
-[ADR-063](0063-census-fixtures-are-generated-in-test-scale-is-measured-not-tested.md) settled how census is tested: fixtures generated in-test via `@TempDir`, never checked in, with `Assumptions.assumeTrue`/`abort` where a given Windows environment cannot create one. It owed the suite two helpers — a permission-denied directory and an over-long path — and ruled Linux CI out of scope on the grounds that the software is Windows-only.
+[ADR-063](0063-census-fixtures-are-generated-in-test-scale-is-measured-not-tested.md) settled how census is tested: fixtures generated in-test via `@TempDir`, never checked in, with `Assumptions.assumeTrue`/`abort` where a given Windows environment cannot create one. It required two helpers of the suite — a permission-denied directory and an over-long path — and ruled Linux CI out of scope on the grounds that the software is Windows-only.
 
-Building the census slice (issue #20) turned three of those expectations into measurements.
+Measurement settles three of those expectations.
 
-**The over-long path cannot be built as a fixture at all.** ADR-063 assumed it could be, by "nesting directories past NTFS's ~32,000-character limit". An entry has to exist for a walk to meet it, and the entries this case is about are exactly the ones the filesystem refuses to create — a refused component leaves nothing behind to walk. The JDK also opts Windows paths into the long-path form, so the classic 260-character limit is not where a refusal lands either. The helper ADR-063 owed is not merely unwritten; it is not writable.
+**The over-long path cannot be built as a fixture at all.** ADR-063 assumed it could be, by "nesting directories past NTFS's ~32,000-character limit". An entry has to exist for a walk to meet it, and the entries this case is about are exactly the ones the filesystem refuses to create — a refused component leaves nothing behind to walk. The JDK also opts Windows paths into the long-path form, so the classic 260-character limit is not where a refusal lands either. The helper ADR-063 required is not writable.
 
 **The permission-denied fixture skips more than it tests.** Written against `AclFileAttributeView` as ADR-063 directed, it depends on the volume supporting ACLs, on the account being able to deny itself, and on the process not running as an administrator or as root — the last of which is the normal case in a container. Its `assumeTrue` guards are correct and load-bearing, and the result is a test that reports as skipped in exactly the environments most likely to run it unattended.
 
@@ -68,6 +68,6 @@ The last measurement is the important one. Case sensitivity, collation and looku
 
 ## Amends
 
-**ADR-063**, in two respects. It admits a second fixture mechanism alongside `@TempDir`, scoped as above; and it withdraws the over-long-path helper it owed the suite, on the finding that no such fixture can exist. Its ruling on committed scale tests is narrowed rather than reversed: a scale question is still answered by a throwaway probe, but the resume ordinals are now cheap enough to test directly rather than to characterise.
+**ADR-063**, in two respects. It admits a second fixture mechanism alongside `@TempDir`, scoped as above; and it withdraws the over-long-path helper it required of the suite, on the finding that no such fixture can exist. Its ruling on committed scale tests is narrowed rather than reversed: a scale question is still answered by a throwaway probe, but the resume ordinals are now cheap enough to test directly rather than to characterise.
 
 It amends neither ADR-051 nor ADR-053, and reaffirms where both are tested.

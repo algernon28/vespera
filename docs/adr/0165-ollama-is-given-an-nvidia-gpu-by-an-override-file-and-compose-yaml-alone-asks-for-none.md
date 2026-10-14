@@ -6,7 +6,7 @@
 - **Status**: accepted
 - **Extends**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md). The operator still starts the sidecars from `compose.yaml`, and the README's one `up` line still starts all three on any machine with a Docker daemon. What this record adds is a second file, `compose.gpu.yaml`, that an operator with an NVIDIA GPU names beside the first, so that Ollama runs its models on the GPU.
 - **Keeps**: [ADR-164](0164-every-sidecar-restarts-unless-the-operator-stopped-it.md) as it is. Its probe H is why this change costs the operator Ollama's models once (Consequences). [ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md) and [ADR-091](0091-there-is-no-tokenizer-the-runtime-counts-tokens-and-the-embedder-identity-is-what-ollama-reports.md): the embedder identity stays what Ollama reports plus what Vespera sends, and gains no part for the device (§3). [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md)'s generator identity is unchanged too. [ADR-147](0147-the-docling-sidecar-is-a-derived-image-with-libreoffice-writer-and-impress-and-the-image-joins-the-extractor-identity.md) and [ADR-163](0163-the-docling-sidecar-pins-docling-parse-7-17-0-and-its-image-is-tagged-for-the-pin.md): the Docling sidecar stays on its CPU image.
-- **Rests on**: measurements made on 2026-09-27 on one machine: Windows 11, Docker Desktop over WSL 2, Docker Engine 29.6.1, Docker Compose v5.3.0, an NVIDIA GeForce RTX 5060 Ti with 16 GB. The timings come from a throwaway `docker run --gpus all` container beside the running stack. The Compose probes ran in a throwaway project, `-p p165probe`, and the vector comparison in a throwaway container, `p165-gpu-embed`, on a spare port. All were removed afterwards. The running `vespera` containers were only read from.
+- **Rests on**: measurements on one machine: Windows 11, Docker Desktop over WSL 2, Docker Engine 29.6.1, Docker Compose v5.3.0, an NVIDIA GeForce RTX 5060 Ti with 16 GB. The timings come from a throwaway `docker run --gpus all` container beside the running stack. The Compose probes ran in a throwaway project, `-p p165probe`, and the vector comparison in a throwaway container, `p165-gpu-embed`, on a spare port.
 
 ## Context
 
@@ -29,7 +29,7 @@ The same work was sent to both:
 
 The embedding row sent 16 chunks per call. Vespera sends one per call (`ChunkEmbedder.callOnce`), so the speed-up at Vespera's own call shape was not measured.
 
-On the 2026-09-27 GesPOS run, on the processor, stage 5's embedding step took 3 min 43 s and 6b took 14.5 min. Both are almost all Ollama.
+On a GesPOS run on the processor, stage 5's embedding step took 3 min 43 s and 6b took 14.5 min. Both are almost all Ollama.
 
 Two more facts:
 
@@ -50,7 +50,7 @@ Each probe was a one-service project, `-p p165probe`, running `ollama/ollama:0.3
 
 `docker compose config` renders `count: all` as `-1`, the value `docker run --gpus all` sends.
 
-**B. A request the machine cannot satisfy stops `up`, and Ollama with it.** There is no machine without an NVIDIA GPU at hand, so the probe asked for what this one does not have:
+**B. A request the machine cannot satisfy stops `up`, and Ollama with it.** No machine without an NVIDIA GPU was measured, so the probe asked for what this one does not have:
 
 | Request | `docker compose up -d` | Container |
 | --- | --- | --- |
@@ -114,7 +114,7 @@ docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build
 
 **Opt-in, not the default, because the default has to start everywhere.** A GPU request that cannot be satisfied stops `up` with exit 1 and leaves Ollama created and never started (B). If `compose.yaml` carried the request, "Running it" would fail on every Mac, every machine with another maker's GPU, every Linux machine without NVIDIA's Container Toolkit, and every machine with no GPU at all. ADR-158's hand check, that "Running it" gets an invocation past stage 2 on a machine with only Java 26 and an empty Docker daemon, would stop holding. The operator this project knows has the GPU and wants it used. One more `-f` on the lines they run costs them less than a failing first command costs everyone else.
 
-**The `deploy` form, not `gpus:`.** Both reach the GPU on this Compose (A). The `deploy` form is the only one Docker's own page on GPU support in Compose documents (read on 2026-09-27), and it names the driver. `gpus: all` sends an empty driver and leaves the daemon to pick one by capability.
+**The `deploy` form, not `gpus:`.** Both reach the GPU on this Compose (A). The `deploy` form is the only one Docker's own page on GPU support in Compose documents, and it names the driver. `gpus: all` sends an empty driver and leaves the daemon to pick one by capability.
 
 **`count: all`, not `1`.** On this machine they are the same (A). On a machine with two GPUs, `all` lets Ollama spread a model that does not fit on one, and it is what `docker run --gpus all` and Testcontainers' `OllamaContainer` ask for.
 
@@ -122,7 +122,7 @@ docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build
 
 ### §2. Nothing else asks for a GPU
 
-- **docling-serve stays on its CPU image.** ADR-147 and ADR-163 built and pinned `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`, and the image is part of the extractor identity. A GPU image would be a different image, converting under a different identity, and nothing here measured whether it converts faster or the same. That is a decision of its own, and nobody has asked for it.
+- **docling-serve stays on its CPU image.** ADR-147 and ADR-163 built and pinned `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`, and the image is part of the extractor identity. A GPU image would be a different image, converting under a different identity, and nothing here measured whether it converts faster or the same. That is a decision of its own.
 - **Chroma** does no inference, and nothing reads it yet (ADR-142).
 
 ### §3. No identity changes, and a vector under one identity may have been made on either device
@@ -156,19 +156,19 @@ Putting the device into the embedder identity was the alternative: a GPU and a C
   - The `docling-serve` comment's parenthesis, *"(ADR-013's Ollama default is the only serving runtime this repo currently GPU-accelerates)"*, is false as deployed and comes out. The comment keeps its point: nothing asks the converter for GPU inference, and the CPU image is the one that runs anywhere the rest of the stack does. It says instead that Ollama is the one service that can be given a GPU, and only by `compose.gpu.yaml` (ADR-165).
   - The `ollama` service gains a comment: it runs on the processor from this file alone, and `compose.gpu.yaml` gives it the GPU (ADR-165).
   - Nothing else in `compose.yaml` changes, so an operator without the GPU file sees no container replaced by this change.
-- **Taking the GPU costs Ollama's models once, and dropping it costs them again.** Adding `compose.gpu.yaml` changes Ollama's part of the project, so `up` replaces the container, and the models go with it (C, and ADR-164's H). On this machine that is `bge-m3` (1.2 GB) and `qwen3:8b` (5.2 GB), and `qwen2.5vl:7b` (6.0 GB) besides, which nothing in Vespera asks for. They are pulled again with the README's existing `ollama pull` lines. An `up` given `compose.yaml` alone after that replaces Ollama again, on the processor, and the models go again (C). `stop`, `start` and `exec` given `compose.yaml` alone replace nothing (C).
+- **Taking the GPU costs Ollama's models once, and dropping it costs them again.** Adding `compose.gpu.yaml` changes Ollama's part of the project, so `up` replaces the container, and the models go with it (C, and ADR-164's H). The models Vespera asks for are `bge-m3` (1.2 GB) and `qwen3:8b` (5.2 GB). They are pulled again with the README's existing `ollama pull` lines. An `up` given `compose.yaml` alone after that replaces Ollama again, on the processor, and the models go again (C). `stop`, `start` and `exec` given `compose.yaml` alone replace nothing (C).
 - **Whether Ollama's models should outlive a new container stays open.** A named volume for Ollama's model directory would make both of the above free. ADR-164 left it open because it changes what the README's `down` means, and this record leaves it open for the same reason. This record makes it more pressing: an operator who forgets the second `-f` once loses the models and the GPU together.
 - **The README's "Running it" gains a paragraph** after the one on `-p vespera`. An operator whose machine has an NVIDIA GPU that Docker can use (Docker Desktop over WSL 2 on Windows, or NVIDIA's Container Toolkit on Linux) starts the sidecars with `docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build`, and names both files on every `up` after that, since an `up` without the second file replaces Ollama with one on the processor and its models go. `stop`, `exec` and `down` need only `-p vespera`. Without such a GPU, the second file is left out, and with it `up` stops before Ollama starts. Once a model has answered, `ollama ps` shows under `PROCESSOR` `100% GPU` when the model is wholly on the card, a split such as `30%/70% CPU/GPU` when only part of it fits (not measured), and `100% CPU` when Ollama is not using the card. ADR-164's paragraph on a changed `compose.yaml` gains the same care: the `up` it shows is given `-f compose.yaml -f compose.gpu.yaml` if the sidecars were started with both, and the container replaced is that of each service whose part of `compose.yaml` or `compose.gpu.yaml` changed, since the bare line, copied by an operator with the GPU, replaces Ollama on the processor and its models go. `docs/check-claims.mjs` already requires every `docker compose` command in the section to name `-p vespera`, which the new line does; it does not check that `compose.gpu.yaml` exists. `OllamaGpuOverrideTest` pins the files' half.
 - **Nothing under `src/main` changes**, and no `profile.yaml` key is added. This is how the sidecars are run, not a judgement about a corpus.
 - **`TestcontainersConfiguration` does not change.** Its `OllamaContainer` already asks for every GPU where the daemon has an NVIDIA runtime, and nowhere else.
 - **Neither identity changes** (§3), so no run is minted anew by a move to the GPU, and no cached vector or extraction is invalidated.
-- **What the GPU saves was measured on one machine**, on one call and one batch of chunks (Context). It is a fact about that machine. How the whole cascade runs on it is for the next run to show, and a smaller GPU, onto which Ollama puts only part of a model, was not measured.
+- **What the GPU saves was measured on one machine**, on one call and one batch of chunks (Context). It is a fact about that machine. How the whole cascade runs on it was not measured, nor was a smaller GPU, onto which Ollama puts only part of a model.
 
 ## Tests
 
 `OllamaGpuOverrideTest` (unit, no Docker, reads `compose.yaml` and `compose.gpu.yaml` with SnakeYAML, as `SidecarRestartPolicyTest` does):
 
-- **`composeYamlAloneAsksForNoDevice`**: no service in `compose.yaml` carries `gpus`, `runtime` or `devices`, or a `deploy.resources.reservations.devices` request, each of which is a way a Compose service can ask Docker for a GPU (`runtime: nvidia`, or a device name such as `nvidia.com/gpu=all` under `devices`, besides the two forms measured in A), so the file starts on any machine. Any other `deploy` key, a memory limit say, is left free. It passes today, and fails if the request is moved into `compose.yaml`.
-- **`theOverrideGivesOllamaEveryNvidiaGpu`**: `compose.gpu.yaml` exists; it names exactly one service, `ollama`, which `compose.yaml` runs; that service carries `deploy` and nothing else; and `deploy.resources.reservations.devices` is one request, for driver `nvidia`, count `all`, capability `gpu`. It fails until `compose.gpu.yaml` exists.
+- **`composeYamlAloneAsksForNoDevice`**: no service in `compose.yaml` carries `gpus`, `runtime` or `devices`, or a `deploy.resources.reservations.devices` request, each of which is a way a Compose service can ask Docker for a GPU (`runtime: nvidia`, or a device name such as `nvidia.com/gpu=all` under `devices`, besides the two forms measured in A), so the file starts on any machine. Any other `deploy` key, a memory limit say, is left free. It fails if the request is moved into `compose.yaml`.
+- **`theOverrideGivesOllamaEveryNvidiaGpu`**: `compose.gpu.yaml` exists; it names exactly one service, `ollama`, which `compose.yaml` runs; that service carries `deploy` and nothing else; and `deploy.resources.reservations.devices` is one request, for driver `nvidia`, count `all`, capability `gpu`.
 
 What no unit test can show is what Docker does with the request. Probes A to E above are the evidence for it, and they are not a test.

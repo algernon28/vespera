@@ -3,7 +3,7 @@
 > **Amended — see [ADR-249](0249-a-decision-record-holds-its-decision-and-no-history.md).** Whether the operator has used `vespera run` is no record's to say: §1's check reads it when a change is merged, from the operator, in the pull request.
 
 - **Date**: 2026-10-09
-- **Status**: accepted. The analyst first wrote the decisions down as twelve questions, each with a recommendation. The operator accepted every recommendation as written (§12).
+- **Status**: accepted.
 - **Amends**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md)'s list of removals. It gains the actuator starter and its test starter, the batch test starter, Lombok, and the compiler configuration that only named annotation processors (§2). It also records the removal of the OpenAI starter, which [ADR-195](0195-the-reference-model-and-every-bake-off-candidate-are-served-locally.md) §3 made without putting a block on ADR-046. *"The pom carries what a recorded decision requires"* stands, and this record applies it.
 - **Amends**: [ADR-029](0029-chunking-structure-first-with-a-measured-llm-fallback.md), in *"LLM fallback only for measured structureless (scanned) cases, currently off"*.
   - The seam that was off is removed, and so is the windowed fallback that ran in its place, which was only ever handed empty text. A structureless document yields no chunks.
@@ -19,8 +19,7 @@
   - [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and `StageModules`, for the run ids (§8).
   - [ADR-122](0122-the-vocabulary-binds-our-names-not-the-prose-rendered-for-an-outside-reader.md) and [ADR-052](0052-the-test-report-is-written-for-a-reader-outside-the-project.md), for the tests.
   - The plan in `handouts/architecture-simplification.md` §2 D6 and D7, §5 "Wave 6", §6, and §8 items 5 and 6.
-  - A reading of the tree at `3fc6f5d`. `mvn dependency:list` over the pom as it is, and over a copy of the tree with §2's removals and nothing else. The unit suite run over that copy.
-  - No archive and no working directory was opened for this record ([ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md)).
+  - A reading of the tree. `mvn dependency:list` over the pom as it is, and over a copy of the tree with §2's removals and nothing else.
 - **Settles**: the rest of [#352](https://github.com/algernon28/vespera/issues/352), Wave 6 of the architecture simplification, after [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md) took its Chroma point. Two of its items are decided here and carried out later (§5). #352's criterion *"None of the dead code above remains"* is met when those two land, not when this record's implementation does.
 
 ## Context
@@ -33,9 +32,7 @@
 - Move `AGENTS.md`'s history out.
 - Fix three agent definitions that name a test that does not exist.
 
-Its line numbers were taken at `0b4e009`. Since then main has moved through ADR-209 to ADR-214, and ADR-209 reshaped `Ledger`.
-
-**What the tree at `3fc6f5d` holds**, read for this record:
+**What the tree holds**:
 
 - **Dead code.**
   - `extraction/LlmStructurelessChunkingFallback` throws on use. Its property is set nowhere. Setting it would register a second `StructurelessChunkingFallback` bean and stop start-up.
@@ -82,7 +79,7 @@ What would move stage 1 or stage 2 is decided here, written down in §5, and car
 
 These leave `pom.xml`:
 
-| Entry | Lines at `3fc6f5d` | Why no decision requires it |
+| Entry | Lines | Why no decision requires it |
 | --- | --- | --- |
 | `org.springframework.boot:spring-boot-starter-actuator` | 86-89 | No class names an actuator, health, metrics or micrometer type, and no property under `management.*` is set. ADR-046's *"Modulith observability/actuator"* removal concerned `spring-modulith-actuator`. ADR-093:9 names this starter only as one way logging arrived. |
 | `org.projectlombok:lombok` | 133-137 | No Lombok annotation exists, and there is no `lombok.config`. |
@@ -93,7 +90,6 @@ These leave `pom.xml`:
 **Measured** (§11):
 - `mvn dependency:list` over a copy of the tree without these entries loses 17 artifacts: the four entries, the actuator's modules, the micrometer metrics modules and their test modules, `spring-batch-test` and Lombok.
 - No remaining artifact changes version. `spring-boot-starter-test`, Logback, `micrometer-observation` and `micrometer-core` stay, through `spring-boot-starter-batch`, `-jdbc`, `-jdbc-test` and Spring AI.
-- That copy compiled, and its unit suite ran 1512 tests with no failure and no error. 13 were skipped, which is what this environment's file-system assumptions skip.
 
 **Auto-configuration afterwards.**
 - No `ObservationRegistry` or `MeterRegistry` bean is built, so Spring AI's and Spring Batch's observations fall back to their no-op registry. Nothing in the tree reads either.
@@ -122,7 +118,7 @@ Three test-only methods stay, because each is a seam a test needs, not code left
 - Each loses its private `escapeLikePattern`.
 - Both statements keep their `ESCAPE '\'`.
 
-**What does not move.** `EmbedderIdentity.value()` is not changed by one byte, nor is any stored identity. The pattern each reader binds is the same string it bound before. The test `AModelNameMatchesOnlyItselfTest`, written with this record, passes before the change and after it.
+**What does not move.** `EmbedderIdentity.value()` is not changed by one byte, nor is any stored identity. The pattern each reader binds is the same string it bound before. The test `AModelNameMatchesOnlyItselfTest` holds what each reader matches, which the change keeps.
 
 ### 5. Decided now, carried out later
 
@@ -165,7 +161,7 @@ It becomes **"Walks a corpus and takes it as far as the next missing value."** T
 
 **The mismatches corrected now, all in `pipeline`:**
 
-| Where at `3fc6f5d` | What it says | What is so |
+| Where | What it says | What is so |
 | --- | --- | --- |
 | `ExtractionOutcome.java:6-16` | *"always `EXTRACTION_FAILED` in this ticket's slice, since neither `degenerate-output` nor `passed` is decided here"* | `ExtractionItemProcessor:373` writes `DEGENERATE_OUTPUT` through it. |
 | `RedundancyJobConfiguration.java:43-45` | *"stage 4 is the last step today … once stage 5 actually exists"* | The job runs fifteen steps, one after another (`VesperaJobConfiguration:68-82`). |
@@ -179,7 +175,7 @@ It becomes **"Walks a corpus and takes it as far as the next missing value."** T
 
 ### 8. The run ids
 
-**What moves now**, read from `StageModules` at `3fc6f5d`:
+**What moves now**, read from `StageModules`:
 
 | Change | Module | Runs it re-mints |
 | --- | --- | --- |
@@ -232,9 +228,9 @@ What that pass recomputes, once, for all three changes together:
 
 ### 10. The agent definitions
 
-`.claude/agents/` configures agents. ADR-214 §3 edited it only with the operator's approval, and [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) ([#459](https://github.com/algernon28/vespera/issues/459)) closes every `.claude` folder to agents' writes. The operator approved the replacement text below on 2026-10-09, and the operator installs it. Each replacement points at `AGENTS.md`'s own bullet rather than restating it, so that the two cannot drift apart again.
+`.claude/agents/` configures agents. ADR-214 §3 edited it only with the operator's approval, and [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) ([#459](https://github.com/algernon28/vespera/issues/459)) closes every `.claude` folder to agents' writes. The operator installs the replacement text below. Each replacement points at `AGENTS.md`'s own bullet rather than restating it, so that the two cannot drift apart again.
 
-| File and line at `3fc6f5d` | Replace | With |
+| File and line | Replace | With |
 | --- | --- | --- |
 | `architect.md:24` | the sentence *"`VesperaApplicationTests` needs a Docker daemon; if it did not run, say so and do not merge on the strength of the rest."* | `The integration tests (\`*IT\`) run only under \`./mvnw verify\`, and six of them need a Docker daemon (\`AGENTS.md\`, "Building and testing", names them); if they did not run, say so and do not merge on the strength of the rest.` |
 | `spec-implementer.md:48` | the whole bullet | `- The integration tests (\`*IT\`) run only under \`./mvnw verify\`, never under \`./mvnw test\`; six of them start their sidecar through Testcontainers, need a Docker daemon and take minutes on a cold run. \`AGENTS.md\`'s "Building and testing" names which. Every other test class needs neither.` |
@@ -244,7 +240,7 @@ What that pass recomputes, once, for all three changes together:
 
 ### 11. The measured size
 
-The plan estimated *"−500 plus comments"*. Measured as the line ranges each change removes at `3fc6f5d`:
+The plan estimated *"−500 plus comments"*. Measured as the line ranges each change removes:
 
 | Part | Lines |
 | --- | --- |
@@ -254,28 +250,28 @@ The plan estimated *"−500 plus comments"*. Measured as the line ranges each ch
 | Tests | Two test classes leave with D1 (−96). The test-side edits of step A change about 20 lines. The tests written with this record add about 450. |
 | `AGENTS.md` | About 30,000 characters move to `docs/closed-defects.md`, and about 3,500 of line 21's go. Together about 60% of the file. |
 
-**About −80 lines of code and build now (−59 in the pom, about −21 in `src/main`), and about −200 more when D1 and D2 land.** The rest of the plan's −500 had already been taken by the time this was read:
-- Chroma, by ADR-214 (its pull request was +759/−281);
+**About −80 lines of code and build now (−59 in the pom, about −21 in `src/main`), and about −200 more when D1 and D2 land.** The rest of the plan's −500 is taken elsewhere:
+- Chroma, by ADR-214;
 - the `STEP` alias, by Wave 1;
 - the test-only `ExtractionItemProcessor` constructor, by Wave 2;
 - the citation pattern, the filename stem and the cluster key, by ADR-213.
 
 The implementation's pull request states `git diff --stat` beside these figures.
 
-### 12. Put to the operator, and answered on 2026-10-09
+### 12. Points settled
 
-1. **Has a `vespera run` been made with a build carrying #456 and #461?** Whether one has is not this record's to say (ADR-249 §3). Everything inside stages 3 to 6b lands now, and costs no pass of its own if none has (§1, §8).
-2. **Which run ids this pays for.** Answered as recommended: only what stays inside stages 3 to 6b. The `extraction` and `corpus` items are decided here and carried later (§5).
-3. **The helpers.** Answered as recommended: a ride-along rule rather than separate work (§1). No single SHA-256 helper, and the `Pending*` records stay (§5). This record applies the rule to `embedding` (§4).
-4. **The structureless fallback.** Answered as recommended: both halves go, not only the LLM seam. A structureless document yields no chunks (§5, ADR-029 amended).
-5. **The OpenAI starter, ADR-034 and ADR-072.** Answered as recommended: settled by ADR-195 and recorded here (header).
-6. **The pom.** Answered as recommended: the four entries and the whole compiler block (§2).
-7. **The dead code #352 did not list.** Answered as recommended: `partitionsFor` goes. `chunkCount`, `withInstruction` and `deserialize` stay (§3).
-8. **How wide the javadoc work is.** Answered as recommended: the policy, and the confirmed mismatches in modules already moving. No sweep (§7).
-9. **The `run` command's description.** Answered as recommended: corrected, as a declared exception to the rule that operator-visible text does not change (§6).
-10. **Where the history goes.** Answered as recommended: `docs/closed-defects.md`, closed to edits, and the appending practice ends (§9).
-11. **The agent definitions.** Approved. Since ADR-215 no agent session writes there, so the operator installs the text of §10.
-12. **How ADR-029 and ADR-046 are amended.** Answered as recommended: a pointer block above each reconstituted header, as ADR-214 did for ADR-001, ADR-032 and ADR-039, with the summary untouched.
+1. **What lands now.** Everything inside stages 3 to 6b lands now, and costs no pass of its own if no `vespera run` is made between a build carrying #456 and #461 and this record's implementation (§1, §8). Whether one is made is not this record's to say (ADR-249 §3).
+2. **Which run ids this pays for.** Only what stays inside stages 3 to 6b. The `extraction` and `corpus` items are decided here and carried later (§5).
+3. **The helpers.** A ride-along rule rather than separate work (§1). No single SHA-256 helper, and the `Pending*` records stay (§5). This record applies the rule to `embedding` (§4).
+4. **The structureless fallback.** Both halves go, not only the LLM seam. A structureless document yields no chunks (§5, ADR-029 amended).
+5. **The OpenAI starter, ADR-034 and ADR-072.** Settled by ADR-195 and recorded here (header).
+6. **The pom.** The four entries and the whole compiler block go (§2).
+7. **The dead code #352 did not list.** `partitionsFor` goes. `chunkCount`, `withInstruction` and `deserialize` stay (§3).
+8. **How wide the javadoc work is.** The policy, and the confirmed mismatches in modules already moving. No sweep (§7).
+9. **The `run` command's description.** Corrected, as a declared exception to the rule that operator-visible text does not change (§6).
+10. **Where the history goes.** `docs/closed-defects.md`, closed to edits, and the appending practice ends (§9).
+11. **The agent definitions.** They take the text of §10. Since ADR-215 no agent session writes there, so the operator installs it.
+12. **How ADR-029 and ADR-046 are amended.** A pointer block above each reconstituted header, as ADR-214 did for ADR-001, ADR-032 and ADR-039, with the summary untouched.
 
 ### 13. The order of the work, and who does each part
 
@@ -323,7 +319,7 @@ B cannot come before A. Once `walkFinished` and `removesAnything` are gone, the 
 | File | What changes |
 | --- | --- |
 | `AGENTS.md` | Line 21 and line 23 as §9 says. Under "Conventions worth knowing", one bullet: *"A javadoc states its class's own contract and cites the ADR it implements; it does not restate that ADR (ADR-216)."* |
-| `docs/closed-defects.md` | New. A header saying what it is, that it is closed to edits, and where a closed defect is recorded instead (§9). Then line 23 of `AGENTS.md` at `3fc6f5d`, from *"Thirty-five were, and are closed."* to its end, verbatim. |
+| `docs/closed-defects.md` | New. A header saying what it is, that it is closed to edits, and where a closed defect is recorded instead (§9). Then line 23 of `AGENTS.md`, from *"Thirty-five were, and are closed."* to its end, verbatim. |
 | `docs/check-claims.mjs` | The `UNCHECKED` entry at line 578, *`'"The cascade is built end to end", and the per-stage sentences under it'`*, is reworded to name what line 21 now says. The check-claims run then prints no false description. |
 | `docs/architecture.md` and `docs/architecture.html` regenerated | §2's *"Explicitly removed from the pom"* gains `spring-ai-starter-model-openai` (ADR-195), and `spring-boot-starter-actuator`, `spring-boot-starter-actuator-test`, `spring-boot-starter-batch-test`, `lombok` and the compiler block's annotation-processor paths (ADR-216). The Chunking row stays until D1 lands. |
 | `.claude/agents/*.md` | Not edited by an agent. The text of §10 is handed to the operator. |
@@ -341,8 +337,6 @@ B cannot come before A. Once `walkFinished` and `removesAnything` are gone, the 
 - **D1, production:** as §5 says, and the `DoclingExtractor` correction of §7.
 - **D2, test side:** `ContentIdentityTest:80,83` and `ContentIdentityResolutionTest:98-100` read the representative back from `superseded_by` through a private SQL helper in each test, with the same claims.
 - **D2, production:** delete `representativeFor`.
-
-**Recounting the records.** This record was written while ADR-215 was open pull request [#464](https://github.com/algernon28/vespera/pull/464) ([#459](https://github.com/algernon28/vespera/issues/459)). [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) landed first, and the count was redone when main was merged into this record's branch. `docs/adr/` now holds ADR-001 to ADR-216, 216 files. The index lists ADR-215 before ADR-216, and `AGENTS.md` and `docs/adr/README.md` say so.
 
 ## Records this touches
 
@@ -362,16 +356,16 @@ Earlier records are not edited in their text. Where this record amends one, or m
 
 ## What pins it
 
-Each class is in `src/test/java/io/algernon/vespera/`, written with this record and run against `3fc6f5d`. None names a type or method that does not exist, so the test sources compile, and the red is at run time.
+Each class is in `src/test/java/io/algernon/vespera/`. None names a type or method that does not exist, so the test sources compile.
 
-- **`NoDependencyWithoutADecisionTest`**, three tests, all **red** at `3fc6f5d`:
-  - `thePomDeclaresNoneOfTheFourEntries`: the pom declares none of the four artifacts. *Red: it declares all four.*
-  - `thePomConfiguresNoAnnotationProcessor`: no `<annotationProcessorPaths>`, no `spring-boot-configuration-processor`, and no `maven-compiler-plugin` declaration. *Red: all three are there.*
-  - `noClassThoseEntriesBroughtIsOnTheClasspath`: six classes are absent from the test classpath, which contains the runtime one: the actuator's `Endpoint`, `EndpointAutoConfiguration`, `MetricsAutoConfiguration`, `TestObservationRegistry`, `JobOperatorTestUtils` and `lombok.Getter`. *Red: all six are present.*
-- **`MethodsNothingShippedCallsAreGoneTest`**, three tests, all **red** at `3fc6f5d`: `Walks` declares no `walkFinished`, `RelevanceFloor.State` no `removesAnything`, and `DocumentClusters` no `partitionsFor`. Read by reflection over each class's declared methods. *(Corrected for [#479](https://github.com/algernon28/vespera/issues/479): since ADR-226 the second reads `embedding.FloorReach`, which declares no `removesAnything`, and claims that `RelevanceFloor.State` is gone.)*
-- **`TheEmbedderIdentityFormatIsWrittenOnceTest`**, two tests, both **red** at `3fc6f5d`, read off the compiled classes' string texts:
-  - Only `EmbedderIdentity` holds a text beginning `model=` in `embedding`. *Red: `RelevanceDistribution` and `VectorCache` do too.*
-  - Only `EmbedderIdentity` holds the text `\%`. *Red: `RelevanceDistribution` and `VectorCache` hold it, and `EmbedderIdentity` does not.*
+- **`NoDependencyWithoutADecisionTest`**, three tests:
+  - `thePomDeclaresNoneOfTheFourEntries`: the pom declares none of the four artifacts.
+  - `thePomConfiguresNoAnnotationProcessor`: no `<annotationProcessorPaths>`, no `spring-boot-configuration-processor`, and no `maven-compiler-plugin` declaration.
+  - `noClassThoseEntriesBroughtIsOnTheClasspath`: six classes are absent from the test classpath, which contains the runtime one: the actuator's `Endpoint`, `EndpointAutoConfiguration`, `MetricsAutoConfiguration`, `TestObservationRegistry`, `JobOperatorTestUtils` and `lombok.Getter`.
+- **`MethodsNothingShippedCallsAreGoneTest`**, three tests: `Walks` declares no `walkFinished`, `RelevanceFloor.State` no `removesAnything`, and `DocumentClusters` no `partitionsFor`. Read by reflection over each class's declared methods. *(Corrected for [#479](https://github.com/algernon28/vespera/issues/479): since ADR-226 the second reads `embedding.FloorReach`, which declares no `removesAnything`, and claims that `RelevanceFloor.State` is gone.)*
+- **`TheEmbedderIdentityFormatIsWrittenOnceTest`**, two tests, read off the compiled classes' string texts:
+  - Only `EmbedderIdentity` holds a text beginning `model=` in `embedding`.
+  - Only `EmbedderIdentity` holds the text `\%`.
 - **`embedding/AModelNameMatchesOnlyItselfTest`**, five tests:
   - `VectorCache.vectorsFor` reads only the named model's vectors when a lookalike differs where the name has an underscore.
   - `RelevanceDistribution.embedderIdentityFor` finds the named model's identity in the same case.
@@ -379,12 +373,10 @@ Each class is in `src/test/java/io/algernon/vespera/`, written with this record 
   - A name with a backslash (`a\b`, beside a stored `ab`) is matched with the backslash, by both readers.
   - A name is matched whole: `nomic_embed` does not match a stored `nomic_embed-v2`, in either reader.
   
-  It holds what §4's move must keep. Nothing held it before.
-  
-  The first three were written with this record and are green at `3fc6f5d` and after. The last two were added at the architect's review, and are green against the shipped `likePatternFor`. In a scratch copy, dropping the backslash escape turned only the fourth red, and dropping the `;` that ends the name turned only the fifth red.
+  It holds what §4's move must keep. The fourth holds the backslash escape, and the fifth the `;` that ends the name.
 - **`pipeline/TheRunCommandSaysWhatItDoesTest`**, two tests:
-  - `theRunCommandDescribesWhatItDoes`: the `run` command's `@Command` description is the one sentence of §6. *Red: it names the old one.*
-  - `theReadmeSaysTheSame`: the README's command line for `run` carries the same words. **Green at `3fc6f5d` and after.**
+  - `theRunCommandDescribesWhatItDoes`: the `run` command's `@Command` description is the one sentence of §6.
+  - `theReadmeSaysTheSame`: the README's command line for `run` carries the same words.
 
 `AdrLinkTest` holds the new `Adr` constant to this file.
 

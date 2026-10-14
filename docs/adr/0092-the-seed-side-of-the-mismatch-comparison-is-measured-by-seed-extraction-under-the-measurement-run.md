@@ -14,7 +14,7 @@ ADR-086 settled the seed/corpus mismatch comparison on the strength of a premise
 
 So the comparison, written as ADR-086 describes it, would read a populated corpus side against an empty seed side, and report a seed set of no documents. The premise defect is what needs recording: not that the comparison is wrong, but that one of its two inputs was assumed into existence.
 
-**Why this was easy to miss.** ADR-083's own reasoning is what removes the row. Seed extraction is deliberately run-free so that ADR-083's "no usable seed at all" gate can be answered *after* every seed has been converted and *before* any run row exists — and an `extraction_metric` row cannot be written without a `run_id`, because the column is `NOT NULL` and a foreign key into `run`. The two decisions are individually right and were written three days apart; the seam between them is where the row went missing.
+**Why this was easy to miss.** ADR-083's own reasoning is what removes the row. Seed extraction is deliberately run-free so that ADR-083's "no usable seed at all" gate can be answered *after* every seed has been converted and *before* any run row exists — and an `extraction_metric` row cannot be written without a `run_id`, because the column is `NOT NULL` and a foreign key into `run`. The two decisions are individually right; the seam between them is where the row went missing.
 
 ## Decision
 
@@ -60,7 +60,7 @@ But it is not left silent, because a seed set that quietly shrank is the failure
 
 ## Consequences
 
-**ADR-086's premise sentence is corrected rather than left standing.** "Every one of them exists after ADR-083's seed extraction" is true only once seed extraction writes the row this decision gives it. ADR-086's text is not edited — it is a record of what was decided on 2026-09-06 — and this file is what a reader of that sentence is pointed at.
+**ADR-086's premise sentence is corrected rather than left standing.** "Every one of them exists after ADR-083's seed extraction" is true only once seed extraction writes the row this decision gives it. ADR-086's text is not edited — it records what was decided — and this file is what a reader of that sentence is pointed at.
 
 **#106's spec gains one obligation it did not name**: the seed pass writes metrics rows. Its acceptance criteria are otherwise unchanged, and the four comparisons, the medians-not-means rule, the no-summarising-figure rule and the report's placement are all exactly as ADR-086 left them.
 

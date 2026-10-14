@@ -64,7 +64,7 @@ The tasklets already hold the three gate adapters by constructor injection, and 
 
 **No gate changes semantics.** `SeedGate` still chains `RedundancyGate`; `ArrangementGate` is untouched; the model gate, the seed walk and the usable-seed flag are read exactly as before, in the same order, and a shut gate still ends its step with `RepeatStatus.FINISHED` having minted nothing (ADR-080). The relevance-floor step's combined check now names the first shut gate rather than listing all three causes, and the step that previously said *"has nothing to apply a threshold to"* now says *"is gated"* like its siblings — a wording change with no behavioural one.
 
-**Every existing test passes unmodified.** The pinned operator substrings — `relevance-report step is gated`, `seed-extraction step is gated`, `no seed folder is named`, and the presence of an `is gated:` line among an unconfigured run's output — are preserved because the shared reason clause is preserved and each step still says `is gated:`. No test lives under `src/test` for this record; the seven invocation tests are the regression net.
+**No existing test changes.** The pinned operator substrings — `relevance-report step is gated`, `seed-extraction step is gated`, `no seed folder is named`, and the presence of an `is gated:` line among an unconfigured run's output — are preserved because the shared reason clause is preserved and each step still says `is gated:`. No test lives under `src/test` for this record; the seven invocation tests are the regression net.
 
 **No new dependency, and ADR-046 is not invoked.** The module is plain Java over classes already in `pipeline`.
 

@@ -31,7 +31,7 @@ ADR-216 §1: *"Everything this record removes from `src/main` lands now only if 
 
 - The reads ADR-240 added ask a page of the one size `KeysetPages` holds.
 - **Which run ids move**: stages 2 to 6b, which ADR-237 to ADR-242 and ADR-244 also move (§1). Every listing is the same.
-- The other page sizes of 1,000 in `src/main` stand: `AnomalyLog`'s, which waits for a change that re-mints `corpus`, and the paged reads that are not asked by key, which this record did not read.
+- The other page sizes of 1,000 in `src/main` stand: `AnomalyLog`'s, which waits for a change that re-mints `corpus`, and the paged reads that are not asked by key, which this record does not take up.
 
 ## Tests
 

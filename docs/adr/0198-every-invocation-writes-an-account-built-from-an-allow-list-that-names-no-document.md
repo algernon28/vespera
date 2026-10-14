@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-203](0203-the-invocation-accounts-folder-is-judged-by-every-reading-of-its-name-and-a-name-that-cannot-be-followed-is-refused.md).** These passages below are no longer the whole of the decision, and that record says what replaces each: §1's sentence on when the account is written ("is not at or below the working directory this invocation uses, and has no folder at or above it that holds `vespera.db` or `vespera.lock`") and its two warnings, to which a third is added; §6's "with the file it tried to create"; and §7's "The only lines added are the warnings of §1 and §6". Everything else in this record stands.
 
-> **Partly amended — see [ADR-224](0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md).** Two sentences below no longer hold as written, as of that record's build. §2's "The counts are queries that select a count and a closed column": the three counts by a closed enumeration, the verdicts by kind, the extraction faults by category and the cluster faults by kind, select counts and no column, each statement naming every constant of its enumeration in its own text, and `other` is the total less the counts named. They still read no `detail`, `reason`, `label`, `title` or path. And §3's "the reads are `COUNT`s and nothing else": each of those three is a `COUNT(*)` and, for each constant, a `SUM` of a comparison that is 1 or 0 for a row, which counts rows, writes nothing and carries no row out. §3's "each is grouped by a closed column or by none" stands, the three being grouped by none. No line the account writes changes. Everything else in this record stands as the note above leaves it.
+> **Partly amended — see [ADR-224](0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md).** Two sentences below no longer hold as written. §2's "The counts are queries that select a count and a closed column": the three counts by a closed enumeration, the verdicts by kind, the extraction faults by category and the cluster faults by kind, select counts and no column, each statement naming every constant of its enumeration in its own text, and `other` is the total less the counts named. They still read no `detail`, `reason`, `label`, `title` or path. And §3's "the reads are `COUNT`s and nothing else": each of those three is a `COUNT(*)` and, for each constant, a `SUM` of a comparison that is 1 or 0 for a row, which counts rows, writes nothing and carries no row out. §3's "each is grouped by a closed column or by none" stands, the three being grouped by none. No line the account writes changes. Everything else in this record stands as the note above leaves it.
 
 - **Date**: 2026-10-05
 - **Status**: accepted
@@ -10,7 +10,7 @@
 - **Rests on**: [ADR-192](0192-every-loop-in-every-stage-reports-its-progress-and-no-counter-floods-the-log.md), whose progress lines the account carries (§4), and [ADR-076](0076-exception-types-are-named-for-the-fault-and-end-in-exception.md), which is what makes an exception's type alone say what failed (§5), and [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), whose hook refuses everything inside a working directory and is given no exception for a file name (§1).
 - **Makes a narrow exception to**: [ADR-041](0041-ledger-owns-identity-and-verdicts-capabilities-own-their-own-tables.md) (§3).
 - **Keeps**: every line an operator reads today, word for word. No existing log call is edited, and `OperatorTextTest` stays as it is (§7).
-- **Settles** [#424](https://github.com/algernon28/vespera/issues/424), with the operator's decisions of 2026-10-05 recorded on it.
+- **Settles** [#424](https://github.com/algernon28/vespera/issues/424).
 
 ## Context
 
@@ -106,7 +106,7 @@ The account is an extra output. No existing log call is edited, `logback-spring.
 
 ## Alternatives weighed, beyond the four questions
 
-- **The account in the working directory beside `vespera.log`**, which is what the issue first asked. Rejected by the operator: the hook refuses everything there, with no exception for a file name.
+- **The account in the working directory beside `vespera.log`.** Rejected: the hook refuses everything there, with no exception for a file name.
 - **A Logback marker.** Lines written `log.info(SAFE, ...)` go to the file. Rejected for the reason in §1: it is a filter on lines, and the marker is a promise each author makes by hand.
 - **Rewriting the existing lines to be safe**, so that one log serves both readers. Rejected: the operator needs the paths, and §7 keeps their lines.
 - **A summary built by reading `vespera.log` afterwards.** Rejected: it would read the log, which is what must not be read.
@@ -117,18 +117,16 @@ The account is an extra output. No existing log call is edited, `logback-spring.
 - **With the property unset there is no account.** The operator gets one warning in `vespera.log` and nothing else changes.
 - **A diagnosis that needs a message needs the operator.** A type says which fault; it does not say which file. That is the cost of §5, taken on purpose.
 - **A new count or line is a code change to `InvocationAccount`**, with a type that cannot hold text. Adding free text means adding a method that takes a `String`, which a review will see.
-- **Run ids move for stages 3 to 6b.** Their implementation versions span `pipeline` (`StageModules`), and this change edits `pipeline`. Stage 1, which spans `corpus` alone, and stage 2, which spans `extraction` and `similarity`, do not move. An archive's next invocation therefore replays stages 3 to 6b under new run ids, and it **waits for this change as well as for #411**, so the replay is paid once.
+- **Run ids move for stages 3 to 6b.** Their implementation versions span `pipeline` (`StageModules`), and this change edits `pipeline`. Stage 1, which spans `corpus` alone, and stage 2, which spans `extraction` and `similarity`, do not move. An archive's next invocation therefore replays stages 3 to 6b under new run ids, and it **waits for this change as well as for [#411](https://github.com/algernon28/vespera/issues/411)**, so the replay is paid once.
 - **Nothing in `ledger`, `corpus`, `extraction`, `similarity`, `embedding` or `synthesis` changes.**
 
 ## Tests
 
 - **`InvocationAccountInvocationTest`** runs whole invocations over a marked fixture and holds the marker's absence, the steps, the counts, the progress lines and a failure by type.
 - **`InvocationAccountTest`** holds the writer alone: a withheld progress line, a run line, an unknown stored value written as `other`, the `-2` suffix, a write that fails without failing the invocation, and an unset or enclosed folder writing nothing.
-- **`StageProgressLabelsAreConstantsTest`** reads `src/main` and holds that every progress label is literal text, with `stage` allowed only in `RedundancyResolutionTasklet` and `place` and `of` only in `ClusteringTasklet`. It passes on main and has to go on passing: it holds the premise §4 rests on.
+- **`StageProgressLabelsAreConstantsTest`** reads `src/main` and holds that every progress label is literal text, with `stage` allowed only in `RedundancyResolutionTasklet` and `place` and `of` only in `ClusteringTasklet`. It has to pass: it holds the premise §4 rests on.
 
-## For the operator to confirm
-
-Decided on #424 on 2026-10-05, and recorded here so that the record is the whole answer:
+## Points settled
 
 1. **Where**: a folder named by `vespera.account-dir`, outside every working directory (§1). The hook has to allow that folder.
 2. **No exception message at all**, only types (§5).

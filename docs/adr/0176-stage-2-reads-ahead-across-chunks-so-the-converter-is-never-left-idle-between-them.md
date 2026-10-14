@@ -13,7 +13,7 @@
 
 ### What was measured
 
-On the whole-archive run of 2026-09-29, with Docling on the GPU (ADR-170), stage 2 converted about **40 to 50 files a minute**: 46, 34 and 69 in three whole minutes, 10:38 to 10:40. Docling was mostly idle in that time.
+On a whole-archive run, with Docling on the GPU (ADR-170), stage 2 converted about **40 to 50 files a minute**: 46, 34 and 69 in three whole minutes. Docling was mostly idle in that time.
 
 - **Docling's CPU** was 0.2%, 0.8%, 4% and 0.7% in 4 of 6 samples taken 4 seconds apart, and 111% and 458% in the other two. **The GPU** was at 3 to 20% in 5 of the 6, and 56% in one.
 - **Docling's own log** showed jobs finishing in 0 to 12.5 seconds, in bursts, with gaps between them.
@@ -55,13 +55,13 @@ What is dispatched and not yet taken is at most one chunk, which Spring Batch ha
 
 ### 4. Reading ahead of what was committed changes no restart behaviour
 
-Nothing restarts the extraction step from a saved reader position. This was checked by reading every use of `ExecutionContext` under `src/main` at the commit this record ships with:
+Nothing restarts the extraction step from a saved reader position. Every use of `ExecutionContext` under `src/main` is one of these:
 
 - `InvocationRuns`, `StageRuns`, `RunCompletion`, `VesperaCommand`, `ByteLevelReductionTasklet` and `GenerationTasklet` use the **job** execution's context to carry the run ids one invocation minted from step to step. None stores a reader position.
 - `ConversionDispatch`, `OccurrenceReader` and `UnrecordedOccurrences` implement `open` and `update` only by passing them to the reader they wrap.
 - `SeedCorpusComparison`, `ConfidenceDistribution`, `DocumentFrequency`, `ItemStreamReaders`, `UnrecordedOccurrences` and `ByteLevelReductionTasklet` open a reader over `new ExecutionContext()`, an empty one, to read it from its start.
 
-The job repository is resourceless (ADR-036), so no context outlives the process. A stopped stage 2 finds its place in the ledger (ADR-181 §2): an occurrence that was read ahead and never committed carries no row under the run, so the next invocation reads it again. #369's ticket rested this point on ADR-115's discard; ADR-181 replaced that for stage 2, and the conclusion holds for the stronger reason ADR-181 gives.
+The job repository is resourceless (ADR-036), so no context outlives the process. A stopped stage 2 finds its place in the ledger (ADR-181 §2): an occurrence that was read ahead and never committed carries no row under the run, so the next invocation reads it again. The conclusion does not rest on ADR-115's discard, which ADR-181 replaced for stage 2; it holds for the stronger reason ADR-181 gives.
 
 `ConversionDispatch.update` still delegates. The position the delegate saves may be up to `LOOKAHEAD` occurrences past the last one processed, and by the above nothing reads it.
 
@@ -79,7 +79,7 @@ The job repository is resourceless (ADR-036), so no context outlives the process
 
 **A sidecar that stops answering fails a longer block.** Up to 32 calls can be dispatched when it stops, where it was 16. The processor still meets their failures consecutively, in read order, and ADR-071's breaker still stops the step at the fifth. A dropped connection is still retried by the processor itself, on the step thread (ADR-175).
 
-**The throughput after the change is not measured in this record.** #369 asks for Docling's CPU and GPU samples and the files-per-minute figure from a real stage-2 run after the change, beside the figures in Context. They belong in the pull request that ships this.
+**The throughput after the change is not measured in this record.** [#369](https://github.com/algernon28/vespera/issues/369) asks for Docling's CPU and GPU samples and the files-per-minute figure from a real stage-2 run after the change, beside the figures in Context.
 
 **`CONTEXT.md` needs no new term.** The window is an implementation detail of the reader, named only in code.
 

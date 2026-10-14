@@ -5,7 +5,7 @@
 
 ## Context
 
-ADR-015 fixes the *fields* of occurrence identity — a surrogate key, with path, size and mtime, and a nullable hash — but not their semantics. The corpus lives on NTFS, and on Windows every plausible reading of "the same file" behaves differently. Research against the JDK and Microsoft documentation, confirmed by execution on Windows 11 with OpenJDK 26 ([#2](https://github.com/algernon28/vespera/issues/2)), established three facts that constrain the choice:
+ADR-015 fixes the *fields* of occurrence identity — a surrogate key, with path, size and mtime, and a nullable hash — but not their semantics. The corpus lives on NTFS, and on Windows every plausible reading of "the same file" behaves differently. Three facts, from the JDK and Microsoft documentation and measured on Windows 11 with OpenJDK 26 ([#2](https://github.com/algernon28/vespera/issues/2)), constrain the choice:
 
 - **`Path` cannot be the key.** `Path.equals` folds case with `Character.toUpperCase`, and that table disagrees with NTFS: `ı`/`I`, `µ`/`μ` and `ſ`/`s` compare equal as `Path`s and are distinct files on disk. `Files.isSameFile` cannot arbitrate, because it returns early on `equals` — it returned `true` for two files with different contents.
 - **There is no inode.** `fileKey()` is `null` on Windows, so identity has to be path-based whether or not that is desirable, and one physical file reachable by two paths cannot be recognised as one thing at walk time.

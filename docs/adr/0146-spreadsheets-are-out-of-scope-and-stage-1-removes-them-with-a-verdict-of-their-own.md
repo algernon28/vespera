@@ -5,13 +5,13 @@
 - **Amends**: [ADR-057](0057-the-verdict-vocabulary-is-eight-values-a-closed-enum-edited-by-a-pr.md). The vocabulary gains a ninth value, `out-of-scope`, blocking, written by stage 1. ADR-057 anticipated exactly this route: a value is added in a pull request that carries an ADR.
 - **Builds on**: [ADR-145](0145-a-tables-cells-are-extracted-text-read-once-in-docling-reading-order.md), which made spreadsheets survive stage 2 and so made their cost visible. It still governs every table inside a document that is in scope.
 - **Builds on**: [ADR-094](0094-stage-1-decides-what-a-file-is-from-its-bytes-the-extension-may-only-narrow-within-that-class.md). Stage 1 recognises an OOXML workbook from the part inside it, the way it already recognised a Word document. An older `.xls` is still recognised by its name, within the compound-file class the bytes fixed.
-- **Settles** [#278](https://github.com/algernon28/vespera/issues/278), except its question of who may change the list, which the operator deferred.
+- **Settles** [#278](https://github.com/algernon28/vespera/issues/278), except its question of who may change the list, which is deferred.
 
 ## Context
 
 Since ADR-145, a spreadsheet's cells are text, so spreadsheets survive stage 2 and reach every later stage. That is what measured their cost. On the GesPOS corpus, 12 spreadsheets produced 738 of 2,216 chunks and most of stage 5c's 20 minutes, and none scored above the baseline's q3 (0.651). On the legacy corpus, 132 of its 158 files are `.xls`. Those are also most of what adding LibreOffice would buy.
 
-A spreadsheet is data more often than prose. The SLA reports are about 1.4 million characters each of timings; `Merchants.xlsx` is a list. Some spreadsheets do carry content an operator might want, such as `Mappatura - GesPos.xlsx`, a mapping. Leaving them out by kind loses those as well, and the operator accepted that trade-off. They proposed leaving spreadsheets out now and making the list configurable later.
+A spreadsheet is data more often than prose. The SLA reports are about 1.4 million characters each of timings; `Merchants.xlsx` is a list. Some spreadsheets do carry content an operator might want, such as `Mappatura - GesPos.xlsx`, a mapping. Leaving them out by kind loses those as well, and that trade-off is accepted. Spreadsheets are left out now; making the list configurable is a later step.
 
 The full KT PERIN corpus holds 132 `.xls`, 114 `.xlsx` and one `.xlsb`. Every `.xlsx` carries `xl/workbook.xml` and the `.xlsb` carries `xl/workbook.bin`, so stage 1 can recognise all of them from their bytes. The corpus holds no `.ods`. It also holds 73 `.csv`, 2.6 MB between them with a median of 3 KB.
 
@@ -36,7 +36,7 @@ A verdict that said any of those would be a false statement about the file. `out
 - An intact spreadsheet earns `out-of-scope`.
 - Both are removed before the duplicate pass, so a spreadsheet is never hashed. Two identical workbooks are each out of scope in their own right.
 
-**The list is a code default, in one place: `pipeline`'s `OutOfScope`.** A profile key for it is the later step the operator named. It would read the same question, so nothing here has to move when it comes.
+**The list is a code default, in one place: `pipeline`'s `OutOfScope`.** A profile key for it is the later step. It would read the same question, so nothing here has to move when it comes.
 
 **A comma-separated file stays in scope.** It is text, it is cheap, and the corpus's 73 of them are 2.6 MB in all. It is also the one tabular format stage 1 recognises only by name.
 
@@ -48,7 +48,7 @@ A verdict that said any of those would be a false statement about the file. `out
 
 ## Consequences
 
-Measured on 2026-09-24 against the conversions each corpus had already cached, from fresh ledgers:
+Measured against the conversions each corpus had already cached, from fresh ledgers:
 
 | | GesPOS, ADR-145 | GesPOS, this decision | legacy, this decision |
 | --- | --- | --- | --- |

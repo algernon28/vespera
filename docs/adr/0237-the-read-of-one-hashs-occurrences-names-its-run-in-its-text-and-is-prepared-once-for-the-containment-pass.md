@@ -12,7 +12,7 @@ Containment retrieval makes one read for each of an occurrence's rarest hashes, 
 
 ## Measured
 
-**Method.** One throwaway probe on 2026-10-11: Java 26 and the sqlite-jdbc the pom carries (3.53.2.1, SQLite 3.53.2), the shipped `schema.sql`, `shingle` holding 2,000,000 rows of two runs (20,000 occurrences each, 50 hashes an occurrence), `shingle_by_hash` built for one of them by the statement `ShingleHashIndex` ships. The read was made 50,000 times in each of four forms, two rounds each, on a Linux container's disk.
+**Method.** One throwaway probe: Java 26 and the sqlite-jdbc the pom carries (3.53.2.1, SQLite 3.53.2), the shipped `schema.sql`, `shingle` holding 2,000,000 rows of two runs (20,000 occurrences each, 50 hashes an occurrence), `shingle_by_hash` built for one of them by the statement `ShingleHashIndex` ships. The read was made 50,000 times in each of four forms, two rounds each, on a Linux container's disk.
 
 | Form | µs a read, round 1 | round 2 |
 | --- | ---: | ---: |

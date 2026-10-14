@@ -5,14 +5,14 @@
 - **Amends**: [ADR-200](0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md), in one sentence of its Context: *"Hashing already streams, so this is ids, not file contents"*. It was not true when written (Context below) and is true from this record. ADR-200's decision does not rest on it and stands.
 - **Amends**: [ADR-151](0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md), in one word of its Context: *"the same streamed SHA-256 over a file's whole content"*. Neither method streamed. The sentence's claim, that the two are one digest over the same bytes, was true and stays true (§1, §2).
 - **Keeps**: [ADR-067](0067-content-identity-is-a-sha-256-hash-in-corpus-computed-within-size-matched-groups.md) (SHA-256, in `corpus`, within a size shared by two or more), [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-100](0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md) (the module rule and its one exception), [ADR-155](0155-a-seed-file-that-will-not-open-is-recorded-under-a-reason-of-its-own-and-seed-extraction-records-no-completion-until-it-opens.md) (a seed file that will not open), [ADR-127](0127-a-database-lock-is-waited-out-by-sqlites-busy-timeout-not-by-hikaris-connection-timeout.md) and [ADR-140](0140-stage-2-converts-eight-file-occurrences-at-a-time-and-consecutive-means-consecutive-on-the-drain.md) (one writer, and the hash taken on the thread the step runs on), [ADR-059](0059-schema-version-is-one-row-per-module-checked-and-refused-independently.md) (no schema version moves), [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md) (which three steps hash a file, and its §7 on stage 2).
-- **Rests on**: [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-048](0048-walk-and-run-identity.md) for which run ids move; a reading of both methods and of every caller at commit `251ee64`; one throwaway probe over sparse synthetic files; and one throwaway invocation test, run once and deleted (Context). No archive and no working directory was opened for this record (ADR-196).
+- **Rests on**: [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-048](0048-walk-and-run-identity.md) for which run ids move; a reading of both methods and of every caller as they were before this record; one throwaway probe over sparse synthetic files; and one throwaway invocation test over synthetic files (Context).
 - **Settles** the first point of [#449](https://github.com/algernon28/vespera/issues/449)'s scope, the question its *Not known* section asks, and what ADR-206 §8 found and left. **It does not settle the second point**, what a file that cannot be read means in stage 1 and stage 2: §4 says what happens today, why this record leaves it, and what is still to be decided. That point is carried by [#452](https://github.com/algernon28/vespera/issues/452).
 
 ## Context
 
-**Both SHA-256 methods held the whole file in memory.** At `251ee64`, the commit this record was written against, `corpus.ContentHash.sha256`, which stage 1 uses, and `extraction.ContentHashing.sha256`, which stage 2 and seed extraction use for the extraction cache key, each wrapped the file in a `DigestInputStream` and called `readAllBytes()` on it. The digest was fed as the bytes passed, but `readAllBytes()` also gathers every byte into one array, which was thrown away. The javadoc of both said *"streamed rather than loaded whole"*; ADR-151 calls them *"the same streamed SHA-256"*, and ADR-200 says *"Hashing already streams"*. ADR-206 §8 found otherwise while measuring something else and left it.
+**Both SHA-256 methods held the whole file in memory.** Before this record, `corpus.ContentHash.sha256`, which stage 1 uses, and `extraction.ContentHashing.sha256`, which stage 2 and seed extraction use for the extraction cache key, each wrapped the file in a `DigestInputStream` and called `readAllBytes()` on it. The digest was fed as the bytes passed, but `readAllBytes()` also gathers every byte into one array, which was thrown away. The javadoc of both said *"streamed rather than loaded whole"*; ADR-151 calls them *"the same streamed SHA-256"*, and ADR-200 says *"Hashing already streams"*. ADR-206 §8 found otherwise and left it.
 
-**Where a file is hashed, at `251ee64`.**
+**Where a file is hashed.**
 
 | Step | Call | Which files |
 | --- | --- | --- |
@@ -25,7 +25,7 @@
 
 **One more method hashes, and no run reaches it.** `DoclingExtractor.convert(Path, ExtractorIdentity, DetectedFormat, DetectedSubtype)` calls `ContentHashing.sha256` itself. It has no caller in `src/main`: the two shipped callers of `convert`, `ExtractionItemProcessor.convertNow` and `SeedConversions.convert`, both pass the hash they already hold.
 
-**The limit, reproduced.** A throwaway probe outside the repository, JDK 26.0.2.1, sparse files on NTFS, with the body `ContentHashing.sha256` had at `251ee64` copied in beside a loop over one buffer. *Allocated* is what the JVM counted for the hashing thread.
+**The limit, reproduced.** A throwaway probe outside the repository, JDK 26.0.2.1, sparse files on NTFS, with the body `ContentHashing.sha256` had before this record copied in beside a loop over one buffer. *Allocated* is what the JVM counted for the hashing thread.
 
 | File | Heap | Gathering the file, as both methods did | Through one 64 KiB buffer |
 | --- | --- | --- | --- |
@@ -33,11 +33,11 @@
 | 512 MiB | 256 MiB | `OutOfMemoryError: Java heap space` | hashed in 0.26 s; 66,584 bytes allocated |
 | 2,100 MiB | 4 GiB | `OutOfMemoryError: Required array size too large` | hashed in 1.06 s; 66,800 bytes allocated |
 | 2 GiB and 1 MiB | 4 GiB | `OutOfMemoryError: Required array size too large` | hashed in 1.04 s; 66,584 bytes allocated |
-| 2 GiB and 1 MiB | 15.4 GiB, this machine's default | `OutOfMemoryError: Required array size too large` | hashed in 1.03 s; 66,800 bytes allocated |
+| 2 GiB and 1 MiB | 15.4 GiB, the default | `OutOfMemoryError: Required array size too large` | hashed in 1.03 s; 66,800 bytes allocated |
 
 So a file over 2 GiB could not be hashed at any heap, because no Java array is that long. Below that the limit is nearer half the heap than the heap, since gathering allocates twice the file; where exactly it falls was not measured. Wherever both methods produced a value, the values were equal.
 
-**What an invocation does when hashing throws, which #449 had not checked.** Measured at `251ee64` by one throwaway test over the whole job, with synthetic files, run once and deleted. Nothing this record changes alters any row: it changes how the bytes are read and not what a thrown exception or error does. The `Error` was a real `OutOfMemoryError` raised by hand where the file is hashed.
+**What an invocation does when hashing throws.** Measured before this record by one throwaway test over the whole job, with synthetic files. Nothing this record changes alters any row: it changes how the bytes are read and not what a thrown exception or error does. The `Error` was a real `OutOfMemoryError` raised by hand where the file is hashed.
 
 | Where | What was thrown | What happened |
 | --- | --- | --- |
@@ -102,7 +102,7 @@ After §1 one cause is left: the file system will not hand the file over. It is 
 
 **This record does not change stage 1 or stage 2**, and #449's second point stays open, as #452. The change #449 asks for, the occurrence fails and the step goes on, is not safe to make alone, and what makes it safe is the operator's to decide:
 
-- **Today's stop is the only thing that notices an archive that has gone.** The archive this tool exists for is on a USB disk. If it drops out during stage 2, the first file stage 1 left unhashed stops the step, and nothing is removed. With the occurrence marked and the step going on, every file after it would be marked too, the step would complete, and the invocation would exit 0 with the rest of the archive removed under that run. That is the outcome ADR-175 §3a bounded for a converter that converts nothing, on the operator's decision of 2026-10-03, and marking a file that cannot be read needs its own bound for the same reason. A bound has to say what stands in for the control conversion (ADR-184) when the thing that may be gone is the archive.
+- **Today's stop is the only thing that notices an archive that has gone.** The archive this tool exists for is on a USB disk. If it drops out during stage 2, the first file stage 1 left unhashed stops the step, and nothing is removed. With the occurrence marked and the step going on, every file after it would be marked too, the step would complete, and the invocation would exit 0 with the rest of the archive removed under that run. That is the outcome ADR-175 §3a bounded for a converter that converts nothing, and marking a file that cannot be read needs its own bound for the same reason. A bound has to say what stands in for the control conversion (ADR-184) when the thing that may be gone is the archive.
 - **The same gap is already open beside it, read from the code and not run.** `BrokenCheck.check` turns an `IOException` from a file's size or its first bytes into `broken` (*"the file could not be read: …"*, *"the file could not be opened: …"*), so an archive that goes away during stage 1's first pass would leave every remaining file `broken` and the stage finished. And stage 2 sends a file stage 1 did hash to the converter without reading it first; what a file gone by then earns was not run here. A bound decided for hashing alone would leave both.
 - **A lock is a fact about the archive at one moment, and a verdict under a finished run is for good.** ADR-152 and ADR-155 drew that line and refused to seal such a fact under a step that records completion. ADR-175 marks and moves on, and leaves asking again to [#386](https://github.com/algernon28/vespera/issues/386). Which of the two a file that would not open at stage 1 or stage 2 follows is a choice between two recorded rules.
 
@@ -116,7 +116,7 @@ Until then a locked or vanished file stops stage 1 or stage 2 as it did, with th
 
 ### 5. Which run ids move, and what is kept
 
-**The commit that carries this record also changes the two methods**, one in `corpus` and one in `extraction`, and a stage's implementation version is the last commit touching its module under `src/main` (ADR-058). So the ids below move at that commit, read against `StageModules`:
+**The change that carries this record also changes the two methods**, one in `corpus` and one in `extraction`, and a stage's implementation version is the last commit touching its module under `src/main` (ADR-058). So the ids below move with that change, read against `StageModules`:
 
 - **Stage 1 moves**: its only module is `corpus`, where `ContentHash` is.
 - **Stage 2 moves**, through `extraction`, where `ContentHashing` is, and through its upstream run (ADR-048).
@@ -160,25 +160,25 @@ Each of the two guarded reads checks the size and then reads, as two calls. A fi
 - **A file that cannot be read still stops stage 1 and stage 2**, which is not what the operator's rule asks, and is stated here as open (§4).
 - **`AGENTS.md`** counts this record and says what is closed and what is not.
 
-**What changed in `src/main`**, in the commit that carries this record, and nowhere else for it:
+**What changes in `src/main`**, in the change that carries this record, and nowhere else for it:
 
-- `corpus/ContentHash.java` and `extraction/ContentHashing.java`: the `DigestInputStream` and its `readAllBytes()` are replaced by one `byte[]` of 65,536 bytes, a loop of `InputStream.read(buffer)` until it returns -1, and `MessageDigest.update(buffer, 0, read)` for each read. Nothing else in either method changed: not the signature, the exception, the message `could not hash <path>`, or the hex text.
-- The buffer's length is a private constant in each, `BUFFER_BYTES = 65_536`, with this record cited. The javadoc of each method, which said *"streamed rather than loaded whole"*, now says the content is *"read through one buffer of {@link #BUFFER_BYTES} bytes and never gathered whole (ADR-207)"*.
-- `ContentHashing`'s class javadoc, in the same file, was corrected to what ADR-206 made of the hash. It said the hash *"is used only to key `extraction`'s own cache row"*; it now says the hash keys `extraction`'s cache rows, that the steps reading a file for the first time record it in `extraction_cache_key`, and that every later step reads it from there and none hashes the file again. Its sentence about `corpus`'s `content_hash` table is unchanged.
-- No catch was added anywhere for §3, and nothing in `pipeline` changed.
+- `corpus/ContentHash.java` and `extraction/ContentHashing.java`: the `DigestInputStream` and its `readAllBytes()` are replaced by one `byte[]` of 65,536 bytes, a loop of `InputStream.read(buffer)` until it returns -1, and `MessageDigest.update(buffer, 0, read)` for each read. Nothing else in either method changes: not the signature, the exception, the message `could not hash <path>`, or the hex text.
+- The buffer's length is a private constant in each, `BUFFER_BYTES = 65_536`, with this record cited. The javadoc of each method, which said *"streamed rather than loaded whole"*, says the content is *"read through one buffer of {@link #BUFFER_BYTES} bytes and never gathered whole (ADR-207)"*.
+- `ContentHashing`'s class javadoc, in the same file, is corrected to what ADR-206 made of the hash. It said the hash *"is used only to key `extraction`'s own cache row"*; it says the hash keys `extraction`'s cache rows, that the steps reading a file for the first time record it in `extraction_cache_key`, and that every later step reads it from there and none hashes the file again. Its sentence about `corpus`'s `content_hash` table is unchanged.
+- No catch is added anywhere for §3, and nothing in `pipeline` changes.
 
 **What pins it:**
 
 - `extraction.AFileOfAnySizeIsHashedTest`, four tests, each claim made of both methods:
-  - a sparse file of 2,148,532,224 bytes, 2 GiB and 1 MiB, is hashed with nothing thrown, to the value a `FileChannel` reader in the test gives. No array can be that long, so this is proof by construction that the file is not gathered, at whatever heap the suite runs with. **It was red before §1 was built**: it failed on `OutOfMemoryError: Required array size too large`, caught by the test and reported as one failure.
-  - hashing 16 MiB and then 256 MiB each allocates under 1 MiB on the hashing thread, read from the JVM's own per-thread count, after one unmeasured call that loads the classes. **It was red before §1 was built**: gathering allocated twice the file.
-  - files of 0, 1, 65,535, 65,536, 65,537, 131,072, 131,073 and 1,048,579 seeded bytes hash to the JDK's digest of the same bytes handed over in one piece. It was green before §1 was built and is green after: it is the claim that no value changes.
-  - the empty file and `abc` hash to their published digests by both methods. Green before and after likewise; `ContentHashingTest` already held it for `extraction`'s method alone.
-- `pipeline.AnErrorWhileHashingStopsTheStepInvocationTest`, two tests, green before §1 was built and after, holding §3: an `OutOfMemoryError` raised where stage 2 hashes a file fails the step, leaves stage 1 finished and no verdict against any file, and is named in the closing line; one raised where a seed is hashed fails seed extraction, leaves stage 2 finished and no run over the seed walk, and so no `unusable_seed` row.
-- `extraction.ContentHashingTest`, unchanged and green: the two methods agree, and the published digests.
+  - a sparse file of 2,148,532,224 bytes, 2 GiB and 1 MiB, is hashed with nothing thrown, to the value a `FileChannel` reader in the test gives. No array can be that long, so this is proof by construction that the file is not gathered, at whatever heap the suite runs with. An `OutOfMemoryError` is caught by the test and reported as one failure.
+  - hashing 16 MiB and then 256 MiB each allocates under 1 MiB on the hashing thread, read from the JVM's own per-thread count, after one unmeasured call that loads the classes.
+  - files of 0, 1, 65,535, 65,536, 65,537, 131,072, 131,073 and 1,048,579 seeded bytes hash to the JDK's digest of the same bytes handed over in one piece: it is the claim that no value changes.
+  - the empty file and `abc` hash to their published digests by both methods. `ContentHashingTest` holds it for `extraction`'s method alone.
+- `pipeline.AnErrorWhileHashingStopsTheStepInvocationTest`, two tests, holding §3: an `OutOfMemoryError` raised where stage 2 hashes a file fails the step, leaves stage 1 finished and no verdict against any file, and is named in the closing line; one raised where a seed is hashed fails seed extraction, leaves stage 2 finished and no run over the seed walk, and so no `unusable_seed` row.
+- `extraction.ContentHashingTest`, unchanged: the two methods agree, and the published digests.
 - `SeedExtractionInvocationTest` and `EmbeddingScoringInvocationTest`, unchanged: §4's row for seed extraction.
 
-**The fixtures are sparse files**, a few bytes written at the start, across the end of the first 64 KiB, across the 2 GiB mark and at the end, and the rest a hole. A test is aborted by assumption, with the reason, and reported as skipped in two cases: the temporary directory's file system is FAT or exFAT by name, or it refuses the file. On a file system with no sparse files that the list does not name, the fixture is written out in full, which is slow and still correct. The class, four tests, ran green in 3.673 s on the machine it was written on (NTFS): it reads the 2 GiB file three times, about one second each.
+**The fixtures are sparse files**, a few bytes written at the start, across the end of the first 64 KiB, across the 2 GiB mark and at the end, and the rest a hole. A test is aborted by assumption, with the reason, and reported as skipped in two cases: the temporary directory's file system is FAT or exFAT by name, or it refuses the file. On a file system with no sparse files that the list does not name, the fixture is written out in full, which is slow and still correct. The class reads the 2 GiB file three times, about one second each on NTFS.
 
 **Not pinned, and why:**
 

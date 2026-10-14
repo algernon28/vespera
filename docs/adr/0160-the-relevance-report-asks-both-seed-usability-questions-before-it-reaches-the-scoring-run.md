@@ -4,7 +4,7 @@
 - **Status**: accepted
 - **Amends**: [ADR-132](0132-stage-5s-gate-preamble-is-one-seam-that-answers-open-or-shut-with-the-one-sentence.md) — its second entry point, `modelAndSeedWalk`, for the labelling report, is withdrawn; and [ADR-155](0155-a-seed-file-that-will-not-open-is-recorded-under-a-reason-of-its-own-and-seed-extraction-records-no-completion-until-it-opens.md) §3, whose sentence *"The labelling page does not consult the usable-seed gate. With no scores under the run, it stays shut on its own reason"* stops being true, and was not true of what the step minted.
 - **Keeps**: [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md) (a shut gate ends its step having minted nothing), [ADR-083](0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md) (no usable seed, no run), [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) (the report's own gate on there being no scores to spread, which still applies once every preamble gate is open), and ADR-132's shared sentence vocabulary, which gains nothing.
-- **Rests on**: two invocation tests run against `main` at `5cba9ef` before the change, and again after it. They ship with this record.
+- **Rests on**: two invocation tests, which ship with this record.
 - **Settles** [#309](https://github.com/algernon28/vespera/issues/309).
 
 ## Context
@@ -19,7 +19,7 @@ Measured with the seed fixture the invocation tests share, a model named, stage 
 - Seed extraction warned *"No seed document produced any text, so stage 5 minted no run"*. In the same invocation stage 5 minted two.
 - The report then logged that it was gated because *"no survivor carries a relevance score under"* the scoring run it had just minted, naming a run the gate should have left unminted.
 
-The same route opened at ADR-155's gate, which #309 suspected and did not measure. With a model named, one seed that opens and one whose file is moved away when seed extraction reads it, seed extraction rightly minted the measurement run and recorded no completion. Every scoring-half step shut on *"a seed file could not be opened"*. The report went on and minted an `embedding-scoring` run over a seed set with a hole in it, which is the state ADR-155 exists to keep out of the record.
+The same route opened at ADR-155's gate. With a model named, one seed that opens and one whose file is moved away when seed extraction reads it, seed extraction rightly minted the measurement run and recorded no completion. Every scoring-half step shut on *"a seed file could not be opened"*. The report went on and minted an `embedding-scoring` run over a seed set with a hole in it, which is the state ADR-155 exists to keep out of the record.
 
 **Why no test saw it.** `SeedExtractionInvocationTest.mintsNoRunWhenNoSeedIsUsable` pins "no run" with no model named, so the report shut on the model gate before it could reach the scoring run. `EmbeddingScoringInvocationTest` names a model for ADR-155's case, but it checks that embedding scoring is not recorded *finished*, not that no scoring run exists.
 
@@ -39,9 +39,9 @@ The same route opened at ADR-155's gate, which #309 suspected and did not measur
 
 **No other stage 5 or stage 6 step has this shape.** Every other step that resolves a run does so after `modelSeedWalkUsable` (embedding scoring, relevance scoring, the relevance floor, clustering, the arrangement) or `seedWalkAndUsable` (the seed/corpus comparison). Generation never resolves the arrangement run: it asks only about the arrangement this invocation arrived at (ADR-154 §2). `ArrangementRun` resolves the scoring run, and is itself resolved only behind the arrangement step's own preamble.
 
-**Every existing test passes unmodified.** The pinned substring `relevance-report step is gated` is still logged in every state that logged it before.
+**No existing test changes.** The pinned substring `relevance-report step is gated` is still logged in every state that logged it before.
 
 **What pins it**, in `RelevanceReportMintsNothingBehindTheUsableSeedGateTest`. Both tests name a model, so the model gate cannot be what shuts the step:
 
-- A seed folder whose only seed produces no text. The invocation must succeed. The runs over the corpus walk must be exactly the four ahead of stage 5. No line may say the report was gated for want of scores under a scoring run, and the report must log the usable-seed sentence. Before this change the runs included `seed-measurement` and `embedding-scoring`.
-- A seed folder with one seed that opens and one moved away when seed extraction reads it. The invocation must succeed. The runs over the corpus walk must be the four ahead of stage 5 and `seed-measurement`, and the report must log ADR-155's sentence. Before this change the runs included `embedding-scoring`.
+- A seed folder whose only seed produces no text. The invocation must succeed. The runs over the corpus walk must be exactly the four ahead of stage 5. No line may say the report was gated for want of scores under a scoring run, and the report must log the usable-seed sentence.
+- A seed folder with one seed that opens and one moved away when seed extraction reads it. The invocation must succeed. The runs over the corpus walk must be the four ahead of stage 5 and `seed-measurement`, and the report must log ADR-155's sentence.

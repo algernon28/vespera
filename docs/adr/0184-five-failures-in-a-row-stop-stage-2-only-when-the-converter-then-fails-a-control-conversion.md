@@ -16,11 +16,11 @@
 - **ADR-071's breaker** counts service-scope failures in a row: `capacity`, `internal`, `target_unavailable`, and a timeout ADR-071's streak has flipped. At five it stops the step.
 - **ADR-175 §3a's count** covers a sidecar that answers its health check and drops every conversion. It counts file occurrences in a row whose call dropped the connection twice. At five it stops the step.
 
-Both read five failures in a row as a converter that converts nothing. That is right when it is true. Two tickets found where it is not.
+Both read five failures in a row as a converter that converts nothing. That is right when it is true. It is not true in the two cases below.
 
 ### #393: five files that each kill the converter
 
-Stage 2 reads in the order the walk recorded the files, so the files of one folder are usually adjacent. The archive has a folder with 410 BMPs, 90 of which declare the resolution that OOM-kills the sidecar (#326's evidence, 2026-09-28). ADR-167 keeps BMPs away from the converter. A PNG declaring the same resolution killed it the same way, and nothing keeps that away. Five such files side by side stop the step. A resume starts the count at zero, meets the same five, and stops again. Each of them should have been marked `crashed the converter` and skipped, which is the rule #326 exists for.
+Stage 2 reads in the order the walk recorded the files, so the files of one folder are usually adjacent. The archive has a folder with 410 BMPs, 90 of which declare the resolution that OOM-kills the sidecar (#326's evidence). ADR-167 keeps BMPs away from the converter. A PNG declaring the same resolution killed it the same way, and nothing keeps that away. Five such files side by side stop the step. A resume starts the count at zero, meets the same five, and stops again. Each of them should have been marked `crashed the converter` and skipped, which is the rule #326 exists for.
 
 ### #385: five repeat refusals read back to back on a resume
 
@@ -34,7 +34,7 @@ Five in a row is a fact about adjacency. Whether the converter still converts is
 
 - **Read the faulted occurrences in their place, or last** (#385's first option). There is no place to put them back into. The neighbours they had on the first pass are recorded and are not read again, so in any order they end up next to each other or next to arbitrary unread occurrences. Reading them last only moves the stop to the end of the stage.
 - **Do not count a fault read again** (#385's second option). A resume whose only work is re-read faults would then complete against a sidecar that refuses everything, and ADR-139 would resolve every one of them into `extraction-failed` with nothing to go on. The health check that passed when the step began is not that evidence. ADR-175 §3a's own case is a sidecar that answers `/health` and converts nothing.
-- **Leave it to the operator** (#385's third option, and #393's first). For #385 that means minting a new run id. For #393 it means moving files out of the corpus root, and the folder in Context has 90 candidates. The operator's rule from #326 is that a file that fails fails that file.
+- **Leave it to the operator** (#385's third option, and #393's first). For #385 that means minting a new run id. For #393 it means moving files out of the corpus root, and the folder in Context has 90 candidates. The rule #326 exists for is that a file that fails fails that file.
 - **A second, higher bound after a control conversion that converts** (#393's third question). Any bound recreates #393 for a folder holding more killing files than the bound.
 
 ## Decision
@@ -44,7 +44,7 @@ Five in a row is a fact about adjacency. Whether the converter still converts is
 Both counts are over occurrences **on the drain** (ADR-140 §2). That is the order `ExtractionItemProcessor` takes occurrences in, one at a time, on the step thread. It is the order `ConversionDispatch.read` returns them, which is the order the survivors reader yields them (occurrence id), which is the order the walk recorded them, which is the file system's listing order. **Two occurrences are in a row when the processor takes the second directly after the first in the same invocation.**
 
 - A chunk boundary does not break a row. An invocation boundary does, because both counts start at zero in each invocation (ADR-181 §4).
-- ADR-176, which has landed ([#369](https://github.com/algernon28/vespera/issues/369)), dispatches calls up to `LOOKAHEAD` = 16 ids ahead of the one being returned, across chunk boundaries. Its `read()` still returns ids in the delegate's order, and the processor still takes them one at a time on the step thread. So the order and what is counted do not change. What changes is how many calls are already out when the sidecar fails: up to 32 dispatched calls, a chunk plus `LOOKAHEAD` (ADR-176 §1 and Consequences), can fail together, so a row of failures can be longer than one chunk before the processor reaches its end.
+- ADR-176 ([#369](https://github.com/algernon28/vespera/issues/369)) dispatches calls up to `LOOKAHEAD` = 16 ids ahead of the one being returned, across chunk boundaries. Its `read()` still returns ids in the delegate's order, and the processor still takes them one at a time on the step thread. So the order and what is counted do not change. What changes is how many calls are already out when the sidecar fails: up to 32 dispatched calls, a chunk plus `LOOKAHEAD` (ADR-176 §1 and Consequences), can fail together, so a row of failures can be longer than one chunk before the processor reaches its end.
 - Nothing in this record depends on `CHUNK_SIZE`, or on how far ahead calls are dispatched.
 
 ### 2. On the fifth, a control conversion decides
@@ -128,7 +128,7 @@ This replaces ADR-181 §4's third bullet. **ADR-139 §3's inference** rests on t
 
 ### 6. What it costs, accepted
 
-- **A converter that converts the control PDF and fails every file of some kind is not stopped.** One example is OCR that is broken while the layout model works, met on a folder of scanned images. Each of those files fails on its own and is marked, with a control conversion every five. That is the operator's rule from #326. It is recoverable:
+- **A converter that converts the control PDF and fails every file of some kind is not stopped.** One example is OCR that is broken while the layout model works, met on a folder of scanned images. Each of those files fails on its own and is marked, with a control conversion every five. That is the rule #326 exists for. It is recoverable:
   - nothing is cached for a service-scope failure (ADR-183) or a crash (ADR-175 §2), so the next stage-2 run asks again;
   - the review list shows the files with their categories, and a run of identical categories is visible there.
 - **Stopping a dead converter takes longer.** It costs the wait in §2 step 1 plus one call.
@@ -139,7 +139,7 @@ This replaces ADR-181 §4's third bullet. **ADR-139 §3's inference** rests on t
 
 ### 7. What ADR-176's read-ahead keeps, and must go on keeping
 
-ADR-176 has landed ([#369](https://github.com/algernon28/vespera/issues/369)). This record rests on three facts of it:
+This record rests on three facts of ADR-176 ([#369](https://github.com/algernon28/vespera/issues/369)):
 
 - `ConversionDispatch.read()` returns ids in the delegate's order, and the processor takes them one at a time on the step thread.
 - ADR-176 left `ExtractionCircuitBreaker`, `ExtractionTimeoutStreak`, `ExtractionItemProcessor` and `PendingConversions.take` as they were; what they count is what §1 says.
@@ -170,20 +170,20 @@ It also holds three constraints, which ADR-176 meets and no later change to the 
 
 `ControlConversionInvocationTest` (`src/test/java/io/algernon/vespera/pipeline/`) drives whole invocations with the production `DoclingClient`, extractor and cache against `LoopbackSidecar`. `LoopbackSidecar` now recognises the control conversion by the sentence its bytes carry. By default it converts it, answering with text that carries the sentence. It drops it when it drops every call, and answers it like everything else when told to answer every call one way. Every test that needs files in a row learns the order the stage reads in first, because that order is the file system's and not the names'.
 
-1. **Ten files in a row that each drop the connection twice**, between two that convert. The step completes. The ten are removed as `crashed the converter`. The control conversion was posted twice, once per five, so the count started again after the first. *Red today: the step stops at the fifth.*
-2. **A converter that drops every call**, over six files. The step stops, the control conversion was posted once, the closing line says it did not convert the control document either, and nothing is removed. *Red today on the control conversion's count and the message.*
-3. **#385: five files the converter refuses for `capacity` on every call**, at every other position of ten. The first invocation completes with five extraction faults resolved. Then its completion record is deleted. The resume completes. It posts each of the five once and the control conversion once, and no other file. The five are removed with `capacity` as their reason. *Red today: the resume's breaker trips.*
-4. **A converter that refuses every call for `capacity`**, the control conversion included. The step stops with the breaker's message and the new suffix, and the control conversion was posted once. *Red today on the control conversion's count and the message.*
-5. **A cached answer does not end a row of dropped files.** Nine files, every call dropped. The fifth in read order was converted earlier, from a copy under another root, so it is answered from the cache. The step stops, nothing is removed, and the cached file is not posted. *Red today: four, a cache hit and four never make five, so the step completes having removed eight.*
-6. **A file that dropped the connection twice does not end a row of refusals.** Six files refused for `capacity`, every call and the control conversion included, except the third in read order, whose every call drops. The step stops with the breaker's message. *Red today: the dropped file reset the breaker, so the step completes.*
-7. **A control conversion answered with a conversion that lacks the sentence counts as not converting.** Five files in a row each drop twice, and the control conversion is answered with a generic conversion. The step stops. *Red today on the control conversion's count.*
-8. **The control PDF is shipped**: the classpath resource exists, opens with `%PDF-`, and carries `(Vespera control document)` uncompressed. *Red today: there is no such resource.*
-9. **The control conversion leaves no extraction cache row** (§3). Five files in a row drop every call, a sixth converts, and the control conversion converts. The step completes, and no `extraction_cache` row is keyed by the control PDF's content hash or carries its sentence. *Added at the gate; green against the implementation.*
-10. **A timeout the converter reported, below the flip, ends a row of dropped files** (§4). Nine files: the fifth in read order is answered with a reported `timeout`, every call for the others drops. No control conversion is posted, the step completes, the eight are removed as `crashed the converter` and the fifth as `timeout`. *Added at the gate; green against the implementation.*
+1. **Ten files in a row that each drop the connection twice**, between two that convert. The step completes. The ten are removed as `crashed the converter`. The control conversion was posted twice, once per five, so the count started again after the first.
+2. **A converter that drops every call**, over six files. The step stops, the control conversion was posted once, the closing line says it did not convert the control document either, and nothing is removed.
+3. **#385: five files the converter refuses for `capacity` on every call**, at every other position of ten. The first invocation completes with five extraction faults resolved. Then its completion record is deleted. The resume completes. It posts each of the five once and the control conversion once, and no other file. The five are removed with `capacity` as their reason.
+4. **A converter that refuses every call for `capacity`**, the control conversion included. The step stops with the breaker's message and the new suffix, and the control conversion was posted once.
+5. **A cached answer does not end a row of dropped files.** Nine files, every call dropped. The fifth in read order was converted earlier, from a copy under another root, so it is answered from the cache. The step stops, nothing is removed, and the cached file is not posted.
+6. **A file that dropped the connection twice does not end a row of refusals.** Six files refused for `capacity`, every call and the control conversion included, except the third in read order, whose every call drops. The step stops with the breaker's message.
+7. **A control conversion answered with a conversion that lacks the sentence counts as not converting.** Five files in a row each drop twice, and the control conversion is answered with a generic conversion. The step stops.
+8. **The control PDF is shipped**: the classpath resource exists, opens with `%PDF-`, and carries `(Vespera control document)` uncompressed.
+9. **The control conversion leaves no extraction cache row** (§3). Five files in a row drop every call, a sixth converts, and the control conversion converts. The step completes, and no `extraction_cache` row is keyed by the control PDF's content hash or carries its sentence.
+10. **A timeout the converter reported, below the flip, ends a row of dropped files** (§4). Nine files: the fifth in read order is answered with a reported `timeout`, every call for the others drops. No control conversion is posted, the step completes, the eight are removed as `crashed the converter` and the fifth as `timeout`.
 
 **`PendingConversionsTest`** pins §2 step 1: with a dispatched call still open, `awaitAllDispatched` does not return until it finishes; the answer is not taken, so `take` still returns it afterwards; and a cancelled or failed call does not throw from the wait, while its failure still reaches `take`.
 
-**`ExtractionWhenTheSidecarDropsItsConnectionTest.aTimeoutBetweenThemDoesNotEndTheRunOfDroppedDocuments`** now also drops the control conversion. Its subject is that a timeout does not end the row, and the stop it expects needs a converter that converts nothing. It is green before this change and after it. Every other test in that class is untouched.
+**`ExtractionWhenTheSidecarDropsItsConnectionTest.aTimeoutBetweenThemDoesNotEndTheRunOfDroppedDocuments`** now also drops the control conversion. Its subject is that a timeout does not end the row, and the stop it expects needs a converter that converts nothing. Every other test in that class is untouched.
 
 **`ExtractionCircuitBreakerTest` and `ExtractionConcurrencyTest`** pin the breaker as a counter. Where the implementation gives the breaker a collaborator, or changes what `afterProcess` is told, these tests may need their construction adapted. What they claim must not change: five in a row reach the count, and an answered file ends the row.
 

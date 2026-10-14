@@ -28,7 +28,7 @@ Linear in the number of invocations, with nothing reused. Set that against what 
 
 **That property holds for no stage in this system.** A run id hashes the walk it read (ADR-048); `WalkRecorder` resumes only an *unfinished* walk (ADR-055); so every invocation over a root whose last walk finished mints a new walk, and every run downstream of it a fresh id. Content-derived identity is doing no work anywhere.
 
-### How it surfaced: a gate nobody can open
+### A gate nobody can open
 
 ADR-107 has the operator read `arrangement.html`, copy the first twelve characters of the 6a run id into `arrangementApproved`, and invoke again. `ArrangementGate.approvedArrangement` resolves that prefix against arrangements *of this walk*. The approval was written under walk *N*; the invocation that reads it is looking at walk *N+1*, where that id does not exist. The gate reports itself shut — indistinguishable from a typo, and unopenable by any value the operator could type.
 
@@ -47,7 +47,7 @@ after invocation 2:
 
 ADR-107 saw the mechanism and priced it — *"a new embedding model, a changed relevance floor or a re-walk all mint a new 6a run id. That is the intended cost."* What it did not account for is that **every** invocation re-walks. The intended cost was "occasionally re-approve"; the actual cost is "the approval is void before it can be read", and the five-invocation path that record describes has no fifth invocation.
 
-### Two directions were eliminated before this record, and the reasoning is kept here
+### Two directions are eliminated
 
 **Take the walk out of the 6a run id.** Impossible as stated. `ArrangementRun`'s upstream is the scoring run and `RunId.of` hashes upstream ids, so the arrangement id still varies through an upstream that still carries the walk. It works only if the walk comes out of *every* run id, which abolishes ADR-048 rather than amending it.
 
@@ -98,7 +98,7 @@ The comparison is total, not a chosen subset:
 
 `entries_seen` is deliberately *not* compared as a fourth term. ADR-056 fixes the identity `entries_seen == occurrences + anomalies + directories_entered - 1` and checks it at finish on both walks, so once the two row sets and `directories_entered` agree, `entries_seen` follows. Comparing it as well would state one fact twice, which is how two statements of one thing drift apart.
 
-**Walk anomalies are in the comparison, and that was the open question.** An occurrence set can match while the observation differs: add a symlink, and the file occurrences are identical and a new `walk_anomaly` row is not. Discarding that traversal would throw away the only record of the new entry, and a walk anomaly is not incidental — ADR-053's kinds are observations rather than policy, which is what makes the first walk of an archive a measurement. The rule is therefore the one that needs no exception list: **a walk recorded it, so it counts.** Whatever a future kind of row adds to what a walk records joins the comparison by that rule, rather than by somebody remembering to add it.
+**Walk anomalies are in the comparison.** An occurrence set can match while the observation differs: add a symlink, and the file occurrences are identical and a new `walk_anomaly` row is not. Discarding that traversal would throw away the only record of the new entry, and a walk anomaly is not incidental — ADR-053's kinds are observations rather than policy, which is what makes the first walk of an archive a measurement. The rule is therefore the one that needs no exception list: **a walk recorded it, so it counts.** Whatever a future kind of row adds to what a walk records joins the comparison by that rule, rather than by somebody remembering to add it.
 
 **Only the immediately preceding finished walk is compared.** A corpus that changed and changed back across three invocations gets a third walk, not the first one back. Two reasons, and neither is cost: comparing against every prior walk reintroduces exactly the "which of two candidates did you mean" ambiguity ADR-099 stops the run over; and an operator who approved the arrangement of the *intermediate* state approved a different shape of the archive, so leaving that approval expired is the honest outcome rather than a loss. A corpus that changed and changed back without any invocation in between was never observed differently by anything, and is one observation on the same terms as any other.
 

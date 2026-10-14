@@ -10,13 +10,13 @@
 
 ### The finding, and what kind of question it is
 
-A Qodana run on 2026-09-19 flagged `com.squareup.okio:okio:2.10.0` under `VulnerableLibrariesLocal`, carrying **CVE-2023-3635**, CVSS 5.9, reported by Mend.io. The vulnerable code is okio's `GzipSource`: a malformed gzip buffer raises an exception the source does not handle, which is a denial of service for a caller decompressing untrusted input. The fix landed in **okio 3.4.0**, and there is no 2.x release carrying it — 2.10.0 is the last of that line. So the finding cannot be answered by a patch on the 2.x branch; it is either accepted, or the graph is moved to 3.x, or the consumer that pulled 2.x is dropped.
+Qodana flags `com.squareup.okio:okio:2.10.0` under `VulnerableLibrariesLocal`, carrying **CVE-2023-3635**, CVSS 5.9, reported by Mend.io. The vulnerable code is okio's `GzipSource`: a malformed gzip buffer raises an exception the source does not handle, which is a denial of service for a caller decompressing untrusted input. The fix landed in **okio 3.4.0**, and there is no 2.x release carrying it — 2.10.0 is the last of that line. So the finding cannot be answered by a patch on the 2.x branch; it is either accepted, or the graph is moved to 3.x, or the consumer that pulled 2.x is dropped.
 
-Nothing in `pom.xml` names okio. A scanner's verdict is where the investigation starts, not where it ends: **ADR-046 makes the pom carry what a recorded decision requires, and what a decision requires depends on whether the vulnerable code is reachable**, not on whether the artifact is present. The ticket that raised this asked for reachability first, for exactly that reason.
+Nothing in `pom.xml` names okio. A scanner's verdict is where the investigation starts, not where it ends: **ADR-046 makes the pom carry what a recorded decision requires, and what a decision requires depends on whether the vulnerable code is reachable**, not on whether the artifact is present.
 
 ### The dependency path, as evidence
 
-`./mvnw dependency:tree` shows two independent consumers of okio, and the ticket named only one:
+The dependency tree shows two independent consumers of okio, and the ticket named only one:
 
 ```
 com.github.pemistahl:lingua:jar:1.2.2:compile
@@ -59,10 +59,10 @@ The finding is not the corpus-facing exposure the scanner's line implies, and it
 
 ### The risk the ticket named was measured, not assumed
 
-The ticket warned that `moshi:1.13.0` was built against okio 2.x, and that a forward pin would be running it against a version it never saw. That is the measurement to make before pinning, and it was made. With okio pinned to 3.6.0:
+The ticket warned that `moshi:1.13.0` was built against okio 2.x, and that a forward pin would be running it against a version it never saw. That is the measurement to make before pinning. With okio pinned to 3.6.0:
 
-- `./mvnw dependency:tree -Dincludes=com.squareup.okio:okio` resolves to `com.squareup.okio:okio:jar:3.6.0:compile`.
-- `./mvnw test` reports **Tests run: 571, Failures: 0, Errors: 0, Skipped: 0**, against a baseline of the same 571 on the unpinned tree.
+- `dependency:tree -Dincludes=com.squareup.okio:okio` resolves to `com.squareup.okio:okio:jar:3.6.0:compile`.
+- The test suite passes, as it does on the unpinned tree.
 - The path that would break is exercised rather than merely compiled: `LanguageDetectionTest` constructs a `LanguageDetection`, which builds a `LanguageDetector` over all languages and loads **every bundled model** through moshi on the pinned okio, then asserts the detected labels.
 
 The observation is left as a test rather than as this paragraph, so a future pin that reintroduces a vulnerable version goes red.

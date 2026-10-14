@@ -32,12 +32,12 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 - Prose written for a reader outside this project is free of the lists altogether; ADR-122 enumerates the audiences, and this is deliberately not a second copy of that list. Where an entry carries a `_Renders as_` line, that is the word to use there; where it carries none, nothing is imposed.
 - **Cluster** renders as *group*.
 
-**`docs/adr/`** holds 252 decisions, ADR-001 to ADR-252, and two things about it are invisible from the files:
+**`docs/adr/`** holds 253 decisions, ADR-001 to ADR-253, and two things about it are invisible from the files:
 
 - **ADR-001 to ADR-049 are reconstituted records.** The original text was lost; each carries a verbatim one-line summary and nothing more. Cite them, but do not mistake a summary for the whole decision — `docs/architecture.md` §1–§2 is the fuller record for most, and every ADR names the sections that discuss it.
 - **ADR-050 onward carry their own full text**: context, decision, consequences. That boundary is where `docs/decision-ledger.md`'s condensed table stops being the source.
 
-**A record holds its decision and nothing else** (ADR-249): the context, the decision, its reasons and the measurements they rest on, the consequences, what it leaves undecided, and the tests that hold it. Its Status is the date it was accepted. It never says whether a `vespera run` has been made or what the next run will find, and it tells nothing of its own making: what found the defect, who worked it, a pull request, a commit, a question and its answer, a test's first failure or a build's output go in the pull request and the commit message. A record that moves run ids says which stages move; whether that costs a pass of its own is asked of the operator when the change is merged. `ADecisionRecordHoldsItsDecisionAndNoHistoryTest` holds the words it can see.
+**A record holds its decision and nothing else** (ADR-249, and for every record from ADR-001 on ADR-253): the context, the decision, its reasons and the measurements they rest on, the consequences, what it leaves undecided, and the tests that hold it. Its Status is the date it was accepted. It never says whether a `vespera run` has been made or what the next run will find, and it tells nothing of its own making: what found the defect, who worked it, a pull request, a commit, a question and its answer, a test's first failure or a build's output go in the pull request and the commit message. A record that moves run ids says which stages move; whether that costs a pass of its own is asked of the operator when the change is merged. A reconstituted record keeps its verbatim summary. `ADecisionRecordHoldsItsDecisionAndNoHistoryTest` holds the words it can see.
 
 ## Where the work is
 

@@ -10,7 +10,7 @@
 
 ### What happened
 
-On 2026-09-28 at 16:57 the whole-archive run failed in stage 2 after reading 4,624 files, on `504 Gateway Timeout: "{"detail":"Conversion is taking too long. The maximum wait time is configure as DOCLING_SERVE_MAX_SYNC_WAIT=120."}"`. The file was a 1.25 MB, 161-page PDF, which docling-serve's worker took 140 s to convert. On 2026-09-30 two more invocations stopped the same way, after the sidecar had been recreated from `compose.yaml` alone (#373).
+The whole-archive run failed in stage 2 on `504 Gateway Timeout: "{"detail":"Conversion is taking too long. The maximum wait time is configure as DOCLING_SERVE_MAX_SYNC_WAIT=120."}"`. The file was a 1.25 MB, 161-page PDF, which docling-serve's worker took 140 s to convert. Two more invocations stopped the same way after the sidecar had been recreated from `compose.yaml` alone (#373).
 
 ### How docling-serve answers the synchronous call
 
@@ -22,7 +22,7 @@ In docling-serve 1.32.0, `POST /v1/convert/file` queues the job and polls its st
 
 ### Measurements
 
-Taken on 2026-09-28 on a 16-CPU, 30 GB machine, with the request Vespera sends (`to_formats=json`, `ocr_preset=rapidocr`, `image_export_mode=embedded`, the file named `document.pdf`), on the CPU image:
+Taken on a 16-CPU, 30 GB machine, with the request Vespera sends (`to_formats=json`, `ocr_preset=rapidocr`, `image_export_mode=embedded`, the file named `document.pdf`), on the CPU image:
 
 | Setup | Result |
 |---|---|

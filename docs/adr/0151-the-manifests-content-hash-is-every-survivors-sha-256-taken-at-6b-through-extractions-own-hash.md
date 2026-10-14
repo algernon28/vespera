@@ -17,7 +17,7 @@
 
 ADR-067 hashes only within size-matched groups. An occurrence whose size no other occurrence shares cannot be a byte-exact duplicate, so stage 1 never hashes it. That is correct for stage 1's purpose. It also means the table covers only occurrences that had a same-size peer, and the manifest reads it as though it covered every survivor.
 
-**Measured** on the GesPOS run of 2026-09-24 (`vespera.db`, opened read-only, reproducing `survivorsFor`'s lookup):
+**Measured** on a GesPOS run (`vespera.db`, opened read-only, reproducing `survivorsFor`'s lookup):
 
 | | |
 | --- | --- |
@@ -64,7 +64,7 @@ This is the only blank cell left. It means something different from the old blan
 
 Falling back to `corpus`'s recorded hash for such a file was refused. A cell would then carry the identity of bytes that 6b could not see. The cell would also have two sources, and a reader would have no way to tell which one filled it.
 
-**An invocation reaches this case in two ways.** Stage 5's relevance report reads a file only if the file is in its sample. `RelevanceReportTasklet.textOpeningOf` runs for `distribution.sample()` alone, which holds at most `RelevanceDistribution.SAMPLED_PER_BAND` documents per band: 12 in each of 5 bands, so at most 60 per scoring run. A survivor outside the sample that cannot be read passes stage 5 without being opened and reaches 6b. So does any file that goes away after the report has run, for example while 6b is waiting on the model. A first attempt at a test locked one document across the invocation and stopped at the report. It stopped there only because both of its two documents were in the sample, which a corpus that small cannot avoid.
+**An invocation reaches this case in two ways.** Stage 5's relevance report reads a file only if the file is in its sample. `RelevanceReportTasklet.textOpeningOf` runs for `distribution.sample()` alone, which holds at most `RelevanceDistribution.SAMPLED_PER_BAND` documents per band: 12 in each of 5 bands, so at most 60 per scoring run. A survivor outside the sample that cannot be read passes stage 5 without being opened and reaches 6b. So does any file that goes away after the report has run, for example while 6b is waiting on the model.
 
 **`DeliverableInvocationTest.leavesTheContentHashBlankForADocumentGoneBeforeTheTreeIsWritten` pins the rule.** It deletes one of its two documents while the model is being asked, after that call's documents were read and before `documents.csv` is written. It then checks three things: both rows are still listed, the deleted file's cell is blank while the other carries the SHA-256 of its bytes, and one warning names the file and `content_hash`.
 
@@ -97,7 +97,7 @@ ADR-149 §9 named #287 as the likely remedy for its read of every surviving orig
 ## Consequences
 
 - **Every GesPOS row carries a value**: 65 of 65 where there were 18. A value is the same string stage 1 recorded wherever stage 1 recorded one.
-- **What pins it.** `DeliverableInvocationTest.fillsTheContentHashOfADocumentWithNoPeerOfItsSize` runs a whole invocation over two documents of different sizes. It first checks that stage 1 recorded no hash for either, then checks that each row's cell equals the SHA-256 of that file, computed in the test with the JDK. `DeliverableInvocationTest.leavesTheContentHashBlankForADocumentGoneBeforeTheTreeIsWritten` pins §3's blank cell and its warning, through `GenerationScriptedBeans.duringEachCall`, which deletes a document while the model is being asked. `DeliverablePicturesInvocationTest` still passes over the shared map, so pictures reach their entries through the same hash. No test counts reads of a readable file, so for one the file is read once only because every reader goes through the code's single map. For an unreadable file, `leavesTheContentHashBlankForADocumentGoneBeforeTheTreeIsWritten`'s single warning pins that the manifest and both picture passes share one attempt.
-- **`ListedSurvivor.contentHash`'s javadoc was false**, and it was corrected in the change that ships this record.
+- **What pins it.** `DeliverableInvocationTest.fillsTheContentHashOfADocumentWithNoPeerOfItsSize` runs a whole invocation over two documents of different sizes. It first checks that stage 1 recorded no hash for either, then checks that each row's cell equals the SHA-256 of that file, computed in the test with the JDK. `DeliverableInvocationTest.leavesTheContentHashBlankForADocumentGoneBeforeTheTreeIsWritten` pins §3's blank cell and its warning, through `GenerationScriptedBeans.duringEachCall`, which deletes a document while the model is being asked. `DeliverablePicturesInvocationTest` runs over the shared map, and holds that pictures reach their entries through the same hash. No test counts reads of a readable file, so for one the file is read once only because every reader goes through the code's single map. For an unreadable file, `leavesTheContentHashBlankForADocumentGoneBeforeTheTreeIsWritten`'s single warning pins that the manifest and both picture passes share one attempt.
+- **`ListedSurvivor.contentHash`'s javadoc** documents the value §2 decides, not stage 1's hash.
 - **The manifest is no longer written without touching the archive.** `GenerationTasklet.writeDeliverable`'s javadoc said it was, citing ADR-104. ADR-104 never promised that: it forbade an existence check, not a read.
 - **`content_hash` is keyed to the bytes at write time, not at walk time.** Under ADR-016 these are the same. If they are not, the manifest states what 6b read, and so does the picture lookup that shares its hash.

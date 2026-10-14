@@ -27,13 +27,20 @@ import org.junit.jupiter.api.Test;
  * directory on one day, and no record or line of the index may state it. And from ADR-237 on, a record carries
  * no history of its making: its Status gives the date it was accepted and nothing else, and no line names a
  * review, a session, a pull request, a commit it was written against, an answer it was given, or a test's first
- * failure, and neither does its line of the index. Records before ADR-237 are read for the first kind only.
+ * failure, and neither does its line of the index.
+ *
+ * <p>Every record, from ADR-001 on, is held to the second kind too, by the markers that cannot be the system's own
+ * vocabulary (ADR-253): no pull request, no commit, no answer of the operator's, no review register or review of
+ * the code, no first failure and no session that worked it, and a Status that says the record is accepted and
+ * nothing else. Records from ADR-237 on are held to the wider set above as well, which would also catch words such
+ * as the review list's or a session's that older records use of the system itself.
  *
  * <p>It reads text, so it sees the words it looks for and no paraphrase of them.
  */
 @Epic("Architecture")
 @Feature("Decision records")
 @Link(name = "ADR-249", url = Adr.A_RECORD_HOLDS_ITS_DECISION_AND_NO_HISTORY, type = "adr")
+@Link(name = "ADR-253", url = Adr.EVERY_RECORD_HOLDS_ITS_DECISION_AND_NO_HISTORY, type = "adr")
 class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
 
     private static final Path DECISION_RECORDS = Path.of("docs", "adr");
@@ -53,6 +60,14 @@ class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
     private static final Pattern HISTORY = Pattern.compile(
             "(?i)(\\breview(?!\\s+list)(?!List)\\w*\\b|\\bsession\\b|/pull/\\d+|\\bfailed first\\b|\\bfailed on\\b"
                     + "|operator's (answer|word|call)|operator answered|\\./mvnw|\\bregister\\b|`[0-9a-f]{7}`)");
+
+    private static final Pattern ACCEPTED = Pattern.compile("accepted(?: on \\d{4}-\\d{2}-\\d{2})?\\.?");
+
+    /** What marks the history of a record's making in any record, and never the system's own vocabulary. */
+    private static final Pattern HISTORY_IN_ANY_RECORD = Pattern.compile(
+            "(?i)(/pull/\\d+|`(?=[0-9a-f]{0,39}\\d)(?=[0-9a-f]{0,39}[a-f])[0-9a-f]{7,40}`|operator's (answer|word|call)"
+                    + "|operator answered|review register|\\bfailed first\\b|\\bthe session that\\b|architect review"
+                    + "|code review|\\bon the call of\\b)");
 
     private static final Pattern INDEX_ROW = Pattern.compile("^\\| \\[ADR-(\\d+)\\]");
 
@@ -106,6 +121,31 @@ class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
         claim(
                 "no line names a review, a session, a pull request, a commit, an answer it was given or a test's first"
                         + " failure",
+                () -> assertThat(history).isEmpty());
+    }
+
+    @Test
+    @Story("A record holds its decision")
+    @DisplayName("No decision record, and no line of their index, carries a pull request, a commit, an answer or a review of its making, and every Status says only that it is accepted")
+    void noRecordTellsItsMaking() throws IOException {
+        List<String> statuses = new ArrayList<>();
+        List<String> history = new ArrayList<>();
+        for (Path record : records()) {
+            String text = Files.readString(record);
+            STATUS.matcher(text).results()
+                    .map(status -> status.group(1))
+                    .filter(status -> !ACCEPTED.matcher(status).matches())
+                    .forEach(status -> statuses.add(record.getFileName() + ": " + status));
+            text.lines()
+                    .filter(line -> HISTORY_IN_ANY_RECORD.matcher(line).find())
+                    .forEach(line -> history.add(record.getFileName() + ": " + line));
+        }
+        claim(
+                "every record's status says it is accepted, with the date it was, and nothing else",
+                () -> assertThat(statuses).isEmpty());
+        claim(
+                "no record and no line of the index carries a pull request, a commit, an answer of the operator's, a"
+                        + " review of the code, a first failure or the session that worked it",
                 () -> assertThat(history).isEmpty());
     }
 

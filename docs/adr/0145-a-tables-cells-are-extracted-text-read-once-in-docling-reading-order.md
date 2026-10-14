@@ -6,7 +6,7 @@
 - **Status**: accepted
 - **Replaces**: the reading of "extracted text" recorded in `ExtractionOutputText`'s javadoc for [#50](https://github.com/algernon28/vespera/issues/50): *"Reads only `document.json_content.texts[].text` — table cell text, picture captions and layout are not part of 'extracted text' here."* No ADR carried that reading. It was one class's, and two other readers had adopted the same slice independently.
 - **Keeps**: [ADR-070](0070-extraction-failed-splits-on-doclings-status-degenerate-output-is-a-two-tier-floor.md)'s tier-1 floor exactly as it is. What changes is the text it measures.
-- **Rests on**: a re-run of the GesPOS corpus on 2026-09-24 against the extraction cache of the 2026-09-23 baseline, so no document was converted again. The numbers are under §Consequences.
+- **Rests on**: a re-run of the GesPOS corpus against the extraction cache of its baseline run, so no document was converted again. The numbers are under §Consequences.
 - **Settles** [#275](https://github.com/algernon28/vespera/issues/275).
 
 ## Context
@@ -39,7 +39,7 @@ A spreadsheet converts to tables and nothing else, so its `texts[]` is empty and
 
 ## Consequences
 
-Measured on the GesPOS corpus, against the 2026-09-23 baseline:
+Measured on the GesPOS corpus, against the baseline:
 
 | | baseline | with tables |
 | --- | --- | --- |
