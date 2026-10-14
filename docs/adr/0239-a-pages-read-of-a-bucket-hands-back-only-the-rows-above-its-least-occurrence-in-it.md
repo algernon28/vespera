@@ -16,7 +16,7 @@ ADR-238 kept the reading of each bucket again for each page as the price of ADR-
 
 ## Measured
 
-**Method.** One throwaway probe on 2026-10-11: Java 26 and the sqlite-jdbc the pom carries (3.53.2.1, SQLite 3.53.2), `signature_band` with the shipped columns and indexes, `journal_mode=WAL` and `synchronous=NORMAL` on the URL; 16 band rows for each of 20,000 occurrences, band 0 shared by the first 10,000; a bucket read a page of 1,000 rows at a time, three rounds. A Linux container's disk, the file cache warm. The probe times the statements only, and not the pair loop over the rows they hand back.
+**Method.** One throwaway probe: Java 26 and the sqlite-jdbc the pom carries (3.53.2.1, SQLite 3.53.2), `signature_band` with the shipped columns and indexes, `journal_mode=WAL` and `synchronous=NORMAL` on the URL; 16 band rows for each of 20,000 occurrences, band 0 shared by the first 10,000; a bucket read a page of 1,000 rows at a time, three rounds. A Linux container's disk, the file cache warm. The probe times the statements only, and not the pair loop over the rows they hand back.
 
 | A page's read of the bucket of 10,000 | Rows handed back | Statements | Milliseconds, three rounds |
 | --- | ---: | ---: | --- |
@@ -46,7 +46,7 @@ Its `EXISTS` is not narrowed to a greater occurrence, which would leave a bucket
 
 ### 3. A pair sharing several buckets is still scored once for each
 
-A pair is not scored only at the lowest band where both signatures' band hashes agree. ADR-225 decided against it (item 1 of its *Who decided*; *Alternatives refused*, *"Each pair kept at its lowest shared band, in SQL"*) and ADR-238 kept that. Phase 1 holds the band rows of the page's own occurrences and not those of the greater member a bucket's row names, so telling where a pair was first offered needs a read of those, a statement for each page of a bucket's rows or a subquery for each row, spent to spare a merge of two sets the cache holds, for a pair below the cut. Not measured here; it stays.
+A pair is not scored only at the lowest band where both signatures' band hashes agree. ADR-225 decided against it (item 1 of its *The choices*; *Alternatives refused*, *"Each pair kept at its lowest shared band, in SQL"*) and ADR-238 kept that. Phase 1 holds the band rows of the page's own occurrences and not those of the greater member a bucket's row names, so telling where a pair was first offered needs a read of those, a statement for each page of a bucket's rows or a subquery for each row, spent to spare a merge of two sets the cache holds, for a pair below the cut. Not measured here; it stays.
 
 ### 4. Which run ids move
 

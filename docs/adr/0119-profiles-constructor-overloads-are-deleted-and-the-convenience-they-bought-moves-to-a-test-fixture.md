@@ -11,7 +11,7 @@
 
 `Profile` is a record of seven components, every one of them a `ProfileValue`. Beside its canonical constructor it carried five more, of arity two through six — one per key added since #58, each written so that the call sites of the previous key would still compile.
 
-Counted in the tree at `d30a90f`:
+Counted in the tree:
 
 | | Count |
 |---|---|
@@ -26,7 +26,7 @@ So this is a production type whose public surface was shaped entirely by what te
 
 ### Measured: the Jackson creator hazard does not reproduce
 
-The ticket's most serious charge is that six constructors give Jackson more than one candidate creator, that it happens to pick the right one, and that nothing pins it. The first half was checked rather than argued.
+The most serious charge against the overloads is that six constructors give Jackson more than one candidate creator, that it happens to pick the right one, and that nothing pins it. The first half is measured rather than argued.
 
 A probe against the tree's own `ProfileStore` — `tools.jackson` (Jackson 3), `FAIL_ON_UNKNOWN_PROPERTIES` enabled — loaded a `profile.yaml` naming all seven keys and got all seven answered, which only the seven-parameter constructor can produce; and a file naming one key, which loaded with the other six unset. Two further probes, on throwaway records declared in the test tree, added to a two-component record (a) an extra one-argument constructor and (b) an extra two-argument constructor of a different shape. Neither was selected: both records deserialised through their canonical constructor, and the partial input produced a null rather than the overload's substituted value.
 
@@ -67,7 +67,7 @@ This gives back, in test code, exactly what the overloads bought in production c
 
 **Withers on the canonical record (`Profile.skeleton().withSeedFolder(...)`), usable from production.** Rejected: it is the same growth, renamed. Seven withers today, eight with `num_ctx`, one per key forever — and six of the seven would ship with no production caller, which is the exact charge this record is answering, committed a second time in nicer syntax. The three `with*Measurement` methods are not a counter-example: they exist because three tasklets call them.
 
-**Keep the constructors and pin Jackson with an explicit `@JsonCreator`.** Rejected twice over. It leaves the readability and wrong-subset problems standing, which the ticket already concedes; and the hazard it addresses did not reproduce, so it would add an annotation to production code to defend against a failure the measurement says is not there. Worse, it would bless the constructor list as intentional, which is the opposite of what is wanted.
+**Keep the constructors and pin Jackson with an explicit `@JsonCreator`.** Rejected twice over. It leaves the readability and wrong-subset problems standing; and the hazard it addresses did not reproduce, so it would add an annotation to production code to defend against a failure the measurement says is not there. Worse, it would bless the constructor list as intentional, which is the opposite of what is wanted.
 
 **A `Map<ProfileKey, ProfileValue>` behind a key enumeration.** Rejected on ADR-061's ground, which is explicit: the record *is* the schema, so that a key that does not exist is a compile error. A keyed map is the map ADR-061 refused, and it would cost the compile-time key check to buy the same call-site readability a fixture gives for nothing.
 

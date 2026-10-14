@@ -24,7 +24,7 @@
 
 ADR-072 reads ADR-034's clause as a **reference model**: "a deliberately larger, hosted model that an unfavourable measurement is re-checked against before it is believed". Its table row says "One hosted model (OpenAI)". `docs/architecture.md` §2 also lists "one hosted ceiling model" among the embedding bake-off's candidates. `pom.xml` carries `spring-ai-starter-model-openai`: ADR-046's additions list names it, and ADR-072 explains it as the reference model's ("which is why the starter is in the pom").
 
-No class uses the starter, no profile key or flag selects it, and it has never been run. If it were run, it would send document text to a hosted service: chunks to embed, and prompts if generation were switched too. A hosted bake-off candidate would send the same chunks off the machine to be embedded. The operator's archives can hold sensitive documents, and nothing that reads a document may leave the machine. A hosted reference model or a hosted candidate contradicts that, and the dependency leaves both one configuration change away.
+No class uses the starter, and no profile key or flag selects it. If it were run, it would send document text to a hosted service: chunks to embed, and prompts if generation were switched too. A hosted bake-off candidate would send the same chunks off the machine to be embedded. The operator's archives can hold sensitive documents, and nothing that reads a document may leave the machine. A hosted reference model or a hosted candidate contradicts that, and the dependency leaves both one configuration change away.
 
 ## Decision
 

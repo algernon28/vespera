@@ -5,19 +5,19 @@
 - **Amends**: [ADR-108](0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md), in what its generator identity's "the options actually sent" means. It means the fields of Ollama's `options` object: `num_ctx` and `num_predict` today, and `temperature` and `seed` if a call ever sends them. It does not mean every field of the request. A top-level request field such as `think` or `format` is not one of them. See *Generation's run identity* below.
 - **Extends**: ADR-108 (what every generation call is made under gains one more stated option) and [ADR-109](0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md) (its "the instruction reserves square brackets for citations" is made literal in the prompt).
 - **Keeps**: ADR-109's check, unchanged and not widened; [ADR-026](0026-generated-content-verified-mechanically-and-by-human-review.md) and ADR-109's refusal to repair model output; [ADR-111](0111-a-turned-down-answer-is-a-cluster-fault-and-five-in-a-row-stop-the-step.md)'s five-in-a-row stop; [ADR-114](0114-the-generation-model-is-named-in-application-configuration-with-a-code-default-and-is-not-a-gate.md) (the generation model is configuration with a code default, and `qwen3:8b` stays that default); [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) (what a code change does to a run's identity).
-- **Rests on**: the first end-to-end run over a real corpus, and a probe of the exact call against the same serving engine, both on 2026-09-26 and both measured below; Ollama's `server/routes.go` at tag `v0.33.2`; Spring AI 2.0.0's `OllamaChatOptions`, `OllamaApi.ChatRequest` and `ThinkOption`.
+- **Rests on**: an end-to-end run over a real corpus, and a probe of the exact call against the same serving engine, both measured below; Ollama's `server/routes.go` at tag `v0.33.2`; Spring AI 2.0.0's `OllamaChatOptions`, `OllamaApi.ChatRequest` and `ThinkOption`.
 
 ## Context
 
 ### The measurement
 
-Invocation 5 over the GesPOS corpus, with the jar built from `5cba9ef`, the shipped generation model `qwen3:8b`, and Ollama 0.33.2 serving it on CPU. 6b called 9 clusters:
+An invocation over the GesPOS corpus, on the code before this record, with the shipped generation model `qwen3:8b`, and Ollama 0.33.2 serving it on CPU. 6b called 9 clusters:
 
 - **8 were turned down** as `CITATION_NOT_IN_RANGE` with the detail *no citation at all in the writing*;
 - **1 was turned down** as `ANSWER_RAN_OUT_OF_ROOM` with *the answer stopped after 1024 token(s)*;
 - and the step then stopped on five turn-downs in a row (ADR-111). The deliverable carried no synthesis doc at all.
 
-The call was then reproduced directly against `/api/chat` with `ClusterSynthesis`'s exact prompt template, the answer schema as `format`, `num_ctx` 8192, `num_predict` 1024, and three real GesPOS opening chunks:
+The call was reproduced directly against `/api/chat` with `ClusterSynthesis`'s exact prompt template, the answer schema as `format`, `num_ctx` 8192, `num_predict` 1024, and three real GesPOS opening chunks:
 
 | Request | Time | Reasoning trace | `eval_count` | Citations in the prose |
 | --- | --- | --- | --- | --- |
@@ -25,7 +25,7 @@ The call was then reproduced directly against `/api/chat` with `ClusterSynthesis
 | `think: false` | 26 s | none | — | every document, as `{1}`, `{2}`, `{3}` |
 | `think: false`, and the first wording of the citation sentence: "exactly as they appear above, such as [1] or [2][3]" | 31–43 s | none | — | `[n]`, in range, in 3 calls of 3 |
 
-The first wording had two faults, found in review and not in the measurement. It showed `[2][3]` to every call, including a call that sent one document or two. A cluster of one is an expected outcome, and a model copying the example would cite past what it was sent. And it said the numbers appear "above" when the prompt puts the documents below the instruction. So the sentence §2 decides was measured again the same way (same engine, model, schema, `num_ctx` and `num_predict`, `think: false`, real GesPOS opening chunks). The word was "below", and the example was built from the call's own document count:
+The first wording had two faults the measurement does not show. It showed `[2][3]` to every call, including a call that sent one document or two. A cluster of one is an expected outcome, and a model copying the example would cite past what it was sent. And it said the numbers appear "above" when the prompt puts the documents below the instruction. So the sentence §2 decides was measured again the same way (same engine, model, schema, `num_ctx` and `num_predict`, `think: false`, real GesPOS opening chunks). The word was "below", and the example was built from the call's own document count:
 
 | Documents sent | Example shown | Where the numbers are said to be | Time | Result |
 | --- | --- | --- | --- | --- |
@@ -50,7 +50,7 @@ In all 12 calls every citation was in range and none was written in curly braces
 
 **A model that cannot think is not refused for it.** Ollama 0.33.2 refuses a request only when `think` is *true* for a model without the capability (`"%q does not support thinking"`); `false` for such a model passes. So an operator naming a non-thinking model in the profile (ADR-114) is unaffected.
 
-**It is a code constant, not configuration.** The operator decided it ("if thinking is a problem, disable it"), and ADR-108 and ADR-114 already refuse a knob nobody can reason about: a reasoning trace this tool never reads is not something an operator can tune toward a better deliverable, and turning it back on reopens the room it spends inside a fixed `REPLY_ALLOWANCE`.
+**It is a code constant, not configuration.** ADR-108 and ADR-114 already refuse a knob nobody can reason about: a reasoning trace this tool never reads is not something an operator can tune toward a better deliverable, and turning it back on reopens the room it spends inside a fixed `REPLY_ALLOWANCE`.
 
 ### §2. The prompt names the citation form, with an example
 
@@ -98,5 +98,5 @@ So `config_consumed` is unchanged and the golden text in `RunIdentityGoldenTest`
 
 ## Tests
 
-- `ThinkingModelWritesNoCitationTest` — the call carries thinking disabled. For calls carrying one, two and three documents, the instruction names square brackets and every `[k]` it shows has `k` no greater than the number of documents sent. Writing citing `{1}` and `{2}` is still turned down as having no citation. The think test fails without §1. The one- and two-document instruction tests fail on the first wording, which showed `[2][3]` to every call. The last test fails neither way: it pins §3.
+- `ThinkingModelWritesNoCitationTest` — the call carries thinking disabled. For calls carrying one, two and three documents, the instruction names square brackets and every `[k]` it shows has `k` no greater than the number of documents sent. Writing citing `{1}` and `{2}` is still turned down as having no citation. The think test pins §1. The one- and two-document instruction tests pin §2's rule against an example that shows `[2][3]` to every call. The last test pins §3.
 - `ThinkingModelWritesNoCitationIT` — against a real Ollama 0.33.2 in a container, a model the engine lists as able to think (`qwen3:0.6b`) answers a call made under `optionsFor` with no reasoning trace, so the option survives the framework onto the wire.

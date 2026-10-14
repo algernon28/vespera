@@ -29,7 +29,7 @@ So a run is a stage's identity and always was. What ADR-115 added was a flag who
 
 ### Reproduced: the first of five steps tells the other four they are done
 
-`./mvnw test` on `claude/191-implement`, second invocation over an unchanged corpus, with `relevance-scoring` and `seed-corpus-comparison` wired to ADR-115's rule and their step-mates not:
+A second invocation over an unchanged corpus, with `relevance-scoring` and `seed-corpus-comparison` wired to ADR-115's rule and their step-mates not:
 
 ```
 Executing step: [seed-extraction]
@@ -85,7 +85,7 @@ Recording that a step's work is done is a claim that re-deriving the same identi
 
 ## Consequences
 
-**`ledger`'s schema version moves again, 3 to 4, inside one slice.** `run.finished` is dropped and `finished_step` added, and `CREATE TABLE IF NOT EXISTS` replay neither drops a column nor notices a new table's absence from an old database. ADR-059's per-module version is what catches it and its manual path — delete the module's tables and re-run census — applies, for the second time in this slice. Two moves in one slice is worth stating rather than hiding: the first was written under a rule this record found to be short.
+**`ledger`'s schema version moves again, 3 to 4.** `run.finished` is dropped and `finished_step` added, and `CREATE TABLE IF NOT EXISTS` replay neither drops a column nor notices a new table's absence from an old database. ADR-059's per-module version is what catches it and its manual path — delete the module's tables and re-run census — applies.
 
 **Adding a step to a stage is safe by default.** A new step has no row in `finished_step`, so it does its work. That is the direction this mechanism has to fail in, and it is the whole reason the row is keyed by the step rather than the run.
 
@@ -97,7 +97,7 @@ Recording that a step's work is done is a claim that re-deriving the same identi
 
 **A step that is gated records nothing**, because a gated step never mints the run at all (ADR-080's `ObjectProvider` rule). Opening the gate later therefore finds no completion and does the work, which is what an operator who has just supplied a value expects.
 
-**The failures a step-mate used to cause are now the tests that defend it.** Every invocation test in the tree that invokes twice meets this rule, and two of the three that fail today fail inside a shared run.
+**The failures a step-mate used to cause are now the tests that defend it.** Every invocation test in the tree that invokes twice meets this rule.
 
 ## What this does not decide
 

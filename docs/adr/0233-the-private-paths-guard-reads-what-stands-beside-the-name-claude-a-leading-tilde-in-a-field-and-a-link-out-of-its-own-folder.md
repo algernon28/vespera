@@ -1,7 +1,7 @@
 # ADR-233 — The private-paths guard reads what stands beside the name `.claude`, a leading `~` in a field, and a link out of its own folder
 
 - **Date**: 2026-10-10
-- **Status**: accepted. The guard's change is drafted outside every `.claude` folder and put in place by the operator, as [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) §7 has it. This record, its cases and the guard land in one change.
+- **Status**: accepted.
 - **Amends**: [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md), in these places and no others:
   - §3(c), "what stands before `.claude` in a name": a special parameter of the shell (`$*`, `$@`, `$#`, `$?`, `$-`, `$$`, `$!`, and PowerShell's `$^`) and the start of a variable with a word for when it has no value (`${NAME:-` and its kin) are added to what may stand there (§1 below);
   - §3(c), the name after `.claude`: an expansion that may be empty, joined to it, is taken off as a stream name is (§2 below);
@@ -11,21 +11,20 @@
   - §7's "a change to the guard, a list, the settings or an agent definition is drafted outside every `.claude` folder": the test that holds the draft is held to the guard's own reading of a `.claude` name (§7 below).
 - **Amends**: [ADR-217](0217-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md) §2, "a name made only of dots, spaces or a stream name": a name of dots with a stream name after it is such a name, and is not read as `.` or `..`; and §1's stream name, which runs to the end of the name, a line terminator in it included (§6 below).
 - **Keeps**: ADR-196's rule (§1), its allow list, its "decision is made from the path's text, before the file system is asked" (§2) wherever the file system need not be asked, its bounds and every way §6 makes the hook fail closed; ADR-201 whole; ADR-215's rule (§1), its three checks and its draft-and-install (§7); ADR-217's reading as Windows opens its names; and ADR-212's one admitted command.
-- **Settles**: the guard and operator-document findings of the batch recorded with this change.
 
 ## Context
 
-A security review of the guard against `HEAD` found seven readings of a `.claude` path that let a write through, and a stale sentence in the operator documents the guard now refuses. ADR-215 §3(c) reads the text of a token for a closed `.claude` folder "whether or not the token is read as a path", so that a form ADR-196 §5 leaves unread does not carry a write to the guard's own files. The review found the reading short in five places, and ADR-217's reading of a Windows name short in one.
+Seven readings of a `.claude` path let a write through the guard, and the operator documents hold a stale sentence the guard now refuses. ADR-215 §3(c) reads the text of a token for a closed `.claude` folder "whether or not the token is read as a path", so that a form ADR-196 §5 leaves unread does not carry a write to the guard's own files. That reading is short in five places, and ADR-217's reading of a Windows name short in one.
 
 ### Measured
 
-**On Linux, in this session**, on 2026-10-10, with synthetic fixtures only. No Windows machine was at hand, as for ADR-217.
+**On Linux**, with synthetic fixtures only.
 
-- The first form the review reports, read against the guard installed in the checkout: `echo x > $*.claude/settings.json` ended with exit 0, a write let through. `$*` is empty in a `bash -c`, so the token's text is `.claude/settings.json`; ADR-215 §3(c)'s `BEFORE_CLAUDE` did not accept the `$*` before `.claude`, and `readToken` drops a token headed by `$`, so neither rule saw the path. The same held for `$!`, `$@`, `$#`, `$?`, `$-`, `$$`, PowerShell's `$^`, and `${X:-.claude}` in a path from the root.
+- Against the guard before this record: `echo x > $*.claude/settings.json` ended with exit 0, a write let through. `$*` is empty in a `bash -c`, so the token's text is `.claude/settings.json`; ADR-215 §3(c)'s `BEFORE_CLAUDE` did not accept the `$*` before `.claude`, and `readToken` drops a token headed by `$`, so neither rule saw the path. The same held for `$!`, `$@`, `$#`, `$?`, `$-`, `$$`, PowerShell's `$^`, and `${X:-.claude}` in a path from the root.
 - `echo x > .claude$X/settings.json`, with `$X` unset, ended with exit 0: the empty expansion after the name hid `.claude` from `CLAUDE_IN_TEXT`, which read `.claude$x` and found no `.claude` name.
 - `Read` of `~/.claude/settings.json` and of `~/Documents/x.txt` ended with exit 0: `absoluteOf` resolved a leading `~` in a field against the current directory, where `readToken` reads it as the home folder in a shell command.
 - `Write` of `linked-skill/SKILL.md` through `.claude/skills/linked-skill`, a link into `.opencode/skills/` as this repository's `.gitignore` describes, ended with exit 0: the guard does not read a link out of its own `.claude` folder, and a later session loads the skill the link hands it.
-- `node --test src/test/hooks/private-paths-guard.test.mjs` against the guard before this build: of the 39 I cases this record adds, 25 failed, each a call that guard let through, 9 passed, and 5 were not started on Linux (counted again on 2026-10-11 with the guard of `7538077` held as a draft; 42, 24 and 13 were first written here, and were wrong). Against the draft of this record's guard, with `VESPERA_GUARD_DRAFT`: 929 tests, 755 passed, 174 skipped, none failed, in about 52 s.
+- Of the 39 I cases this record adds, 5 are not started on Linux.
 
 **Traced through the code, not executed on Windows** (ADR-217's precedent, the operator's machine being Windows):
 
@@ -62,7 +61,7 @@ ADR-215 §3(c) takes the first name of a token headed by `-` for `.claude` whate
 
 ### 5. A link out of the guard's own `.claude` folder is closed as that folder is
 
-ADR-215 §5 closes a link **into** a `.claude` folder. The review found the other direction: a link **inside** the checkout's `.claude` that leads **out** to an ordinary folder, which a write then edits. This repository's `.gitignore` says `.claude/skills/<skill>` are symlinks an installer makes into `.opencode/skills/`, and a later session loads a skill the link hands it. So:
+ADR-215 §5 closes a link **into** a `.claude` folder. The other direction is open: a link **inside** the checkout's `.claude` that leads **out** to an ordinary folder, which a write then edits. This repository's `.gitignore` says `.claude/skills/<skill>` are symlinks an installer makes into `.opencode/skills/`, and a later session loads a skill the link hands it. So:
 
 **A place that a link in the `.claude` folder the guard lies in leads to, outside `projects`, `plans` and `worktrees`, is closed as that folder is.** A write to it, by a tool or a shell command, is refused; Read, Grep and Glob are let through, as they are in the folder itself. The links are found by a breadth-first walk of that one folder that passes over `projects`, `plans` and `worktrees` directly beneath a `.claude`, never follows a link, passes over a folder it cannot list and a link whose target it cannot read, and looks at no more than `WALK_LIMIT` names; a folder with more refuses every write, since a link among the rest cannot be ruled out. A link is followed as far as where it leads is there, so a place a link names before it is made is closed too. The walk is made once for a call.
 
@@ -82,14 +81,14 @@ ADR-215 §7's test refuses a `VESPERA_GUARD_DRAFT` folder that lies in a `.claud
 - **`within` is removed.** It was defined in the guard and called nowhere (ADR-216: nothing ships that nothing calls). It is in a `.claude` file, so it goes with this change, which re-mints nothing under `src/main`.
 - **Still uncovered** (ADR-215 §8, ADR-196 §5): a path a command builds at run time, a program that writes without naming the path, a link the walk of §5 does not reach, and, in a token not read as a path, anything but the literal name — an 8.3 name, a link, a quote or an escape inside the name. None has a case, on ADR-196 §4's ground that a case would hold the gap in place.
 
-## Decided here, open to the operator's overruling
+## Decided here
 
 1. **§1: a special parameter is `$` and one character that is neither a name's nor a brace.** It takes `$*`, `$!` and their kin, and no `$NAME` or `${…}`, which are read already.
 2. **§1: the whole of `${NAME:-word}` before `.claude` is accepted**, where only the sign could have been. Accepting more refuses more.
 3. **§2: an expansion is a `$` and all that follows it, or `%NAME%`.** It is taken off the end of the name because it may be empty. A name that ends in a real suffix after the expansion, were the expansion non-empty, is a path the guard cannot read from the text, and §8 leaves it.
 4. **§3: a token headed by `/` is an option.** It costs a token that is a rooted POSIX path whose first name ends in `.claude`, which ADR-196 §5 does not read as a path anyway, and which `/x/.claude/…` already closed through §1's rooted form.
 5. **§4: a leading `~` in a field is the home folder.** The other choice was to read it against the current directory, which is how the write slipped through.
-6. **§5: the guard walks its own `.claude` folder for links, and refuses every write when the folder is too large to walk.** The other choice was to leave the direction uncovered, which the review showed edits a skill a later session loads.
+6. **§5: the guard walks its own `.claude` folder for links, and refuses every write when the folder is too large to walk.** The other choice was to leave the direction uncovered, which lets a write edit a skill a later session loads.
 7. **§6: a name of dots with a stream name is refused, and a stream name crosses a line terminator.** Each refuses more and asks the file system nothing.
 
 ## Consequences
@@ -101,9 +100,11 @@ ADR-215 §7's test refuses a `VESPERA_GUARD_DRAFT` folder that lies in a `.claud
 - **Nothing under `src/main` changes, and no run id moves.**
 - **Some operator documents are corrected**, outside the guard: `AGENTS.md` no longer tells an agent to run `.claude/workflows/settle-and-land.mjs`, which the guard refuses; the agent definitions name the integration tests as ADR-216 §10's approved text has them, not `VesperaApplicationTests`; and `docs/check-claims.mjs`'s comment on "Running it" names two services and two ports, since Chroma was removed (ADR-214).
 
-## What the build changed
+## What the implementation changes
 
-1. `.claude/hooks/private-paths-guard.mjs`, drafted outside every `.claude` folder and installed by the operator: `BEFORE_CLAUDE` gains a special parameter and the start of a variable with a word (§1); `CLAUDE_IN_TEXT` takes an expansion off the name (§2); a token headed by `/` is an option (§3); `fromHome` reads a leading `~` in a field (§4); `placesLinkedFromClosed` walks the guard's own `.claude` for links and `check` refuses a write into one (§5); `asOpened` leaves a name of dots with a stream name empty and `STREAM` crosses a line terminator (§6); `within` is removed (§8); and its header comment.
+This record, its cases and the guard land in one change.
+
+1. `.claude/hooks/private-paths-guard.mjs`, drafted outside every `.claude` folder and installed by the operator, as [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) §7 has it: `BEFORE_CLAUDE` gains a special parameter and the start of a variable with a word (§1); `CLAUDE_IN_TEXT` takes an expansion off the name (§2); a token headed by `/` is an option (§3); `fromHome` reads a leading `~` in a field (§4); `placesLinkedFromClosed` walks the guard's own `.claude` for links and `check` refuses a write into one (§5); `asOpened` leaves a name of dots with a stream name empty and `STREAM` crosses a line terminator (§6); `within` is removed (§8); and its header comment.
 2. `src/test/hooks/private-paths-guard.test.mjs`: the I cases, the fixture link into `.opencode/skills`, and `VESPERA_GUARD_DRAFT`'s `.claude` check read as a name (§7); and its header comment.
 3. `AGENTS.md`, the agent definitions and `docs/check-claims.mjs`, as Consequences says. The agent definitions are drafted outside every `.claude` folder and installed by the operator (ADR-215 §7, ADR-216 §10).
 4. `docs/adr/README.md` and `src/test/java/io/algernon/vespera/Adr.java` take this record. ADR-215 and ADR-217 take a pointer to it at their top; their decisions are not edited.

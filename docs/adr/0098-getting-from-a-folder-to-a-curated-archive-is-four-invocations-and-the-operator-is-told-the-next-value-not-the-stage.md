@@ -9,7 +9,7 @@
 
 **Every stop in that path was decided separately, and each decision was right about its own stop.** [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md) stops stage 4 because a boilerplate floor is an input it cannot work without. [ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md) makes the embedding model a gate. [ADR-083](0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md) makes the seed folder one. [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) ships the relevance threshold unset and says in its own title that an unset floor **does not** stop the run. Nothing here relaxes any of them.
 
-**What had never been examined is the sequence as a whole** — which is the classic way a system ends up correct and unusable. Three things fell out of looking at it once, all of them checked against the code rather than assumed.
+**What had never been examined is the sequence as a whole** — which is the classic way a system ends up correct and unusable. Looked at as a whole, it shows three things, each a fact of the code rather than an assumption.
 
 ### The count was wrong, in the record and in the ticket
 
@@ -65,7 +65,7 @@ The virtue of the current design is that the operator never has to know where th
 
 `docs/architecture.md` is disqualified by its own charter — its status line says it "describes the system as decided, not as built", and this is entirely about the built tool. A published page under `docs/` loses to the repository root for the reader this is for: someone who has the repo and has forgotten the order.
 
-**The division is strict.** The README says how to operate the tool. `AGENTS.md` keeps what state the project is in. Two files describing the state is the drift that [#132](https://github.com/algernon28/vespera/issues/132) and [#134](https://github.com/algernon28/vespera/issues/134) already cost two pull requests to correct.
+**The division is strict.** The README says how to operate the tool. `AGENTS.md` keeps what state the project is in. Two files describing the state is the drift of [#132](https://github.com/algernon28/vespera/issues/132) and [#134](https://github.com/algernon28/vespera/issues/134).
 
 **The cost is named rather than discovered later:** `docs/check-claims.mjs` reads its claims out of `AGENTS.md` only, so a README is a new operator-facing surface nothing verifies. That is accepted here because the alternative — putting the sequence where the guard can see it — means putting it in the file written for agents, and an operator should not have to read agent instructions to run the tool.
 

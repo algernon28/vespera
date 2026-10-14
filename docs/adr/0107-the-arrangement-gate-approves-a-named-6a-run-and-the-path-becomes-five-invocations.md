@@ -20,7 +20,7 @@ The arrangement report prints it, and the gate message hands it over ready to pa
 
 **A prefix matching no 6a run for this walk leaves the gate closed**, and says so rather than proceeding. A prefix matching two stops the run, which is the rule [ADR-099](0099-a-stages-upstream-run-is-looked-up-by-stage-and-walk-not-recomputed-and-two-candidates-stop-the-run.md) already sets for an ambiguous upstream.
 
-**`provenance` carries what was checked**, in the operator's words — "read arrangement.html, 312 clusters under 9 seeds, spot-checked the eight largest". Nothing verifies it, exactly as nothing verifies that the relevance floor was read off the labelling page: provenance is free text and that is what it is for (ADR-031).
+**`provenance` carries what was checked**, as the operator writes it — "read arrangement.html, 312 clusters under 9 seeds, spot-checked the eight largest". Nothing verifies it, exactly as nothing verifies that the relevance floor was read off the labelling page: provenance is free text and that is what it is for (ADR-031).
 
 ### The gate is ADR-080's shape, applied a fourth time
 
@@ -44,9 +44,9 @@ Invocation 4 now removes what the relevance floor cuts, arranges what survives, 
 
 ## Consequences
 
-**ADR-098's headline number is wrong from today**, and is amended here rather than left to drift. Its reasoning is untouched, and its own refusal to print ordinals is what keeps the change invisible to the operator: no message says "step 4 of 5", so nothing in the product has to be renumbered.
+**ADR-098's headline number is wrong from this record on**, and is amended here rather than left to drift. Its reasoning is untouched, and its own refusal to print ordinals is what keeps the change invisible to the operator: no message says "step 4 of 5", so nothing in the product has to be renumbered.
 
-**`README.md` does not change yet.** It documents how the tool is driven *today*, and today 6a and 6b are not built — a five-row table would describe an invocation nobody can make. `docs/check-claims.mjs` checks the count in that document against the rows beneath it, so the two move together when the code ships. The hand-off spec collects it.
+**`README.md` changes when the code ships, not with this record.** It documents how the tool is driven as built, and a five-row table ahead of 6a and 6b would describe an invocation nobody can make. `docs/check-claims.mjs` checks the count in that document against the rows beneath it, so the two move together when the code ships. The hand-off spec collects it.
 
 **`NextAction` gains a value to name**, and the hazard its javadoc already records applies: the line must name every value the next invocation wants, not one at a time. `arrangementApproved` is unlike the others in that it cannot be set early — it names a run that does not exist until the invocation before it has run — so it is the first value in this system that is genuinely sequential rather than merely unset.
 

@@ -16,7 +16,7 @@ NTFS separately tracks creation time, and Java's `BasicFileAttributes` already e
 
 **The representative is the occurrence with the earliest `creation_time` in its content-identity group. Ties break on lexicographically-lowest `path`. `last_modified` plays no role in this rule.** Mtime was deliberately dropped from the tie-break chain rather than kept as a secondary signal — the same reliability problem that disqualifies it as the primary signal (it reflects tooling behavior, not content history) disqualifies it as a tie-break too; a signal not trustworthy enough to lead is not trustworthy enough to break ties either. Path is deterministic, already the human-facing identity (ADR-051), and needs no new capture.
 
-**`file_occurrence` gains a `creation_time` column, captured alongside the existing `size`/`last_modified` read** — `Walk.java` already holds the `BasicFileAttributes` instance `lastModifiedTime()` is read from; `creationTime()` is the same call on the same object. `WalkRecorder`, `Ledger.fileOccurrence`, and `schema.sql` extend accordingly. This amends already-implemented census (stage 0) code, not just stage 1's own tables — acceptable scope for this map, the same way ADR-066 amended a census decision after the census map's destination had already been reached. No backfill concern exists yet: no real corpus has been walked, only test fixtures.
+**`file_occurrence` gains a `creation_time` column, captured alongside the existing `size`/`last_modified` read** — `Walk.java` already holds the `BasicFileAttributes` instance `lastModifiedTime()` is read from; `creationTime()` is the same call on the same object. `WalkRecorder`, `Ledger.fileOccurrence`, and `schema.sql` extend accordingly. This amends census (stage 0) code, not just stage 1's own tables, the same way ADR-066 amended a census decision.
 
 **One rule, not two.** There is no separate "compute the representative" step and "assign `superseded-by`" step that could disagree — the representative is defined as the one occurrence in a content-identity group that never receives `superseded-by`; every other member of the group gets `superseded-by` pointing at it, in the same pass.
 
@@ -24,7 +24,7 @@ NTFS separately tracks creation time, and Java's `BasicFileAttributes` already e
 
 ## Consequences
 
-**Census's capture grows by one column**, requiring a small, mechanical change to already-shipped code (`Walk.java`, `WalkRecorder`, `Ledger.fileOccurrence`, `schema.sql`) — the exact column type and plumbing are left to the hand-off spec ([issue #32](https://github.com/algernon28/vespera/issues/32)), consistent with how ADR-067 already deferred table-shape detail there.
+**Census's capture grows by one column**, requiring a small, mechanical change to census's code (`Walk.java`, `WalkRecorder`, `Ledger.fileOccurrence`, `schema.sql`) — the exact column type and plumbing are left to the hand-off spec ([issue #32](https://github.com/algernon28/vespera/issues/32)), consistent with how ADR-067 already deferred table-shape detail there.
 
 **`last_modified` remains captured but now serves no role in stage 1's duplicate-resolution rule.** It stays in `file_occurrence` for whatever future stage or diagnostic use it may have; this ADR only removes it from this one decision.
 

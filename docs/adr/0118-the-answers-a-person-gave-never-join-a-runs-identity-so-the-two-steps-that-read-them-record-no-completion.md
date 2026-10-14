@@ -1,6 +1,6 @@
 # ADR-118 — The answers a person gave never join a run's identity, so the two steps that read them record no completion
 
-> **Partly amended — see [ADR-230](0230-the-clusters-under-a-scoring-run-are-of-its-survivors-as-they-stand-and-the-arrangements-identity-names-the-removals-standing.md).** One sentence no longer holds as written: *"Each of those consumes only what its run's identity names or what the upstream chain names for it"*, of the six steps left with a completion record. `clustering` reads the survivors the floor's step leaves, and those follow the answers. It keeps its completion record and, as of that record's build, honours it only where its rows are of the survivors the run has now, forming the clusters again otherwise; and the arrangement's identity names the removals standing under the scoring run, so *"no new run id"* in Consequences holds of the scoring run and not of the arrangement. Everything else in this record stands.
+> **Partly amended — see [ADR-230](0230-the-clusters-under-a-scoring-run-are-of-its-survivors-as-they-stand-and-the-arrangements-identity-names-the-removals-standing.md).** One sentence no longer holds as written: *"Each of those consumes only what its run's identity names or what the upstream chain names for it"*, of the six steps left with a completion record. `clustering` reads the survivors the floor's step leaves, and those follow the answers. It keeps its completion record and honours it only where its rows are of the survivors the run has now, forming the clusters again otherwise; and the arrangement's identity names the removals standing under the scoring run, so *"no new run id"* in Consequences holds of the scoring run and not of the arrangement. Everything else in this record stands.
 
 - **Date**: 2026-09-15
 - **Status**: accepted
@@ -11,7 +11,7 @@
 
 ### Measured: exactly one input in this system is keyed by neither run nor walk
 
-Every other input a step reads is a ledger row written under a run id, and [ADR-089](0089-a-stages-run-names-the-immediately-preceding-stages-run-upstream-because-verdicts-are-cumulative.md) chains those ids so that a stage's own id names the run whose rows it read. A relevance label is not one of those. ADR-097 keys it by the document's path and the seed set, and `vespera label` writes it under no run at all — the label subcommand mints nothing, which is a claim `LabelIngestionInvocationTest` has pinned since #111.
+Every other input a step reads is a ledger row written under a run id, and [ADR-089](0089-a-stages-run-names-the-immediately-preceding-stages-run-upstream-because-verdicts-are-cumulative.md) chains those ids so that a stage's own id names the run whose rows it read. A relevance label is not one of those. ADR-097 keys it by the document's path and the seed set, and `vespera label` writes it under no run at all — the label subcommand mints nothing, which is a claim `LabelIngestionInvocationTest` pins.
 
 Two steps read those rows, and both write under `ScoringRun`:
 
@@ -22,9 +22,9 @@ Two steps read those rows, and both write under `ScoringRun`:
 
 `ScoringRun.configConsumed` names the corpus root, the embedding model, the upstream measurement run and — since ADR-117 — the relevance floor. It does not name an answer, and there is no third thing it omits: the profile's seven keys are now all accounted for, and the labels are not a profile key.
 
-### Reproduced: the record's list, wired as written, is red in the tree
+### The record's list, wired as written, stops the labelling page counting answers
 
-`relevance-report` was wired to a completion record exactly as ADR-116's list says, and `LabelIngestionInvocationTest.countsAnAnswerGivenUnderThePreviousInvocation` went red. The sequence is the labelling loop itself:
+With `relevance-report` wired to a completion record exactly as ADR-116's list says, the sequence is the labelling loop itself:
 
 1. An invocation writes the page and the label file.
 2. A person answers, and `vespera label` records the answers.
@@ -34,7 +34,7 @@ Two steps read those rows, and both write under `ScoringRun`:
 
 That is ADR-088's mechanism reading back its own silence. The answer was collected, it is a row in the database, and the one artefact a person opens to decide the threshold has stopped counting it.
 
-`relevance-floor` has the same property and is wired that way **now**. `RelevanceFloorTasklet` records completion in all three of the floor's states. So an operator who re-answers the sample under the model this run actually used — turning `CalibratedElsewhere` into `Applicable`, which is precisely the repair that state exists to prompt — invokes again, gets the same run id, finds a completion row, and removes nothing. The step is not merely skipped once: no later invocation under an unchanged profile will ever reach it again. Nothing in the tree covers this today, which is why it survived the wiring that caught its step-mate.
+`relevance-floor` has the same property and is wired that way: `RelevanceFloorTasklet` records completion in all three of the floor's states. So an operator who re-answers the sample under the model this run actually used — turning `CalibratedElsewhere` into `Applicable`, which is precisely the repair that state exists to prompt — invokes again, gets the same run id, finds a completion row, and removes nothing. The step is not merely skipped once: no later invocation under an unchanged profile will ever reach it again.
 
 ### The real question is whether the answers should join the run's identity instead
 
@@ -79,19 +79,19 @@ ADR-116's rules separate cleanly, and only one of them is unsafe here:
 
 **This is affordable, which is why it is the answer rather than a compromise.** `relevance-report` re-renders two files over stored scores and cached text. `relevance-floor` re-runs one comparison over scores this run already holds. Neither calls Ollama, neither calls Docling, and neither is the work ADR-115 set out to stop repeating: what that record was paying for was walks and embeddings.
 
-### `generation` is unchanged, and is owed rather than done
+### `generation` is unchanged
 
-ADR-116's 6b clause stands word for word: generation's `finished_step` row is written only when every cluster of the approved arrangement carries a `synthesis_doc` row (ADR-111). It is not in the list of six because it was never in the list of eight — its rule is ADR-111's finer one rather than a rule it gains. Nothing in the tree writes that row today, because 6b generates nothing yet: the stage is its gate, its run and its wiring. **The clause is a claim about work that belongs to #179, and until that work lands, the record describes the design rather than the tree.** `GenerationRun` names the approved arrangement run and the generation model, reads no answers, and needs no exception here.
+ADR-116's 6b clause stands word for word: generation's `finished_step` row is written only when every cluster of the approved arrangement carries a `synthesis_doc` row (ADR-111). It is not in the list of six because it was never in the list of eight — its rule is ADR-111's finer one rather than a rule it gains. **The clause is a claim about work that belongs to #179.** `GenerationRun` names the approved arrangement run and the generation model, reads no answers, and needs no exception here.
 
 ## Consequences
 
-**`RelevanceFloorTasklet` loses its skip and gains an unconditional discard.** Both its completion calls go, and `discardVerdicts` moves ahead of the state switch. That is a correction of wiring landed under a list this record has narrowed, not a re-decision of anything: the step's behaviour in each of the floor's three states is exactly what ADR-088 and ADR-117 already specify.
+**`RelevanceFloorTasklet` loses its skip and gains an unconditional discard.** Both its completion calls go, and `discardVerdicts` moves ahead of the state switch. That is a correction of wiring made under a list this record has narrowed, not a re-decision of anything: the step's behaviour in each of the floor's three states is exactly what ADR-088 and ADR-117 already specify.
 
 **`vespera run` under an unchanged profile now removes what the answers currently justify, every time.** Previously the first invocation's verdict set was frozen under that run id. A verdict set that tracks the answers is the same promise ADR-048 makes for the run id, kept at the one point where the identity could not keep it.
 
 **An operator who re-answers the sample under the current model gets the floor applied on the next invocation.** No profile edit, no new run id, no re-score. That is the repair `CalibratedElsewhere` exists to prompt, and it was unreachable for as long as the step could record completion.
 
-**The labelling page counts every answer given so far, on every invocation.** Which is ADR-088's headline consequence, and the claim the red test was defending.
+**The labelling page counts every answer given so far, on every invocation.** Which is ADR-088's headline consequence, and the claim `LabelIngestionInvocationTest.countsAnAnswerGivenUnderThePreviousInvocation` holds.
 
 **Adding a step that reads the answers now costs a decision.** There are two, they are named here, and a third would be a step whose skip rule cannot be derived from its run id. The question to ask of a new step is the one ADR-117 phrased for profile keys — *which run's identity names this* — with a second answer now legitimate: *none, and the step therefore records no completion*.
 

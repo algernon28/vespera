@@ -26,6 +26,6 @@ ADR-041 already set the generic shape this decision applies: `ledger`'s `verdict
 
 **A new `corpus`-owned table, shape left to the hand-off spec.** This decision fixes ownership, algorithm and input scope; the exact column layout (e.g. hash stored per occurrence vs. a content-identity grouping row) is an implementation detail for [issue #32](https://github.com/algernon28/vespera/issues/32).
 
-**`schema.sql`'s `verdict`-table comment needs a follow-up edit** pointing at `corpus` instead of `similarity` for `duplicate-of`'s payload — deferred to the hand-off spec so this ADR does not itself carry code changes.
+**The implementation edits `schema.sql`'s `verdict`-table comment** to point at `corpus` instead of `similarity` for `duplicate-of`'s payload — the edit belongs to the hand-off spec, so this ADR does not itself carry code changes.
 
 **Nothing here decides which occurrence within a content-identity group becomes the representative, or how `superseded-by` is assigned.** That is [issue #31](https://github.com/algernon28/vespera/issues/31)'s question; this ADR only fixes how the groups themselves are formed.

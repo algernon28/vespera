@@ -3,7 +3,7 @@
 - **Date**: 2026-09-21
 - **Status**: accepted
 - **Extends**: [ADR-134](0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md) — it settled that three escaping rules stand because there are three surroundings, and noted that a fourth *surrounding* would get a fourth rule while a fourth *character class* inside the existing ones "is a different shape and wants stating". This is that shape, and it states it: no rule is added, three rules each gain two characters.
-- **Rests on**: [`docs/research/deliverable-markdown-rendering.md`](../research/deliverable-markdown-rendering.md) §1, §2, §3 and **§7** — every claim below is a row of that record, measured on 2026-09-21 across `markdown-it` 15.0.2 (both `html` settings), `marked` 18.0.13, the `commonmark` 0.31.2 reference (both `safe` settings) and GitHub's live `POST /markdown`.
+- **Rests on**: [`docs/research/deliverable-markdown-rendering.md`](../research/deliverable-markdown-rendering.md) §1, §2, §3 and **§7** — every claim below is a row of that record, measured across `markdown-it` 15.0.2 (both `html` settings), `marked` 18.0.13, the `commonmark` 0.31.2 reference (both `safe` settings) and GitHub's live `POST /markdown`.
 - **Settles** [#251](https://github.com/algernon28/vespera/issues/251).
 
 ## Context
@@ -18,15 +18,15 @@ Under ADR-134 those values are guarded against the pipe, the brackets and the ba
 
 The heading is the worst-placed of the four, because `onOneLine` folds and escapes nothing at all, so a heading is the one position where a value reaches a renderer entirely unmodified.
 
-### The question this record had to get right, and got wrong twice
+### Entity-encoding and backslash-escaping are different operations
 
-#251 framed `&` as "the harder half": escaping is safe but costly, because a title reading `R&D Retrofits` would become `R&amp;D Retrofits` for a plain-text reader, and ADR-103 makes plain text a supported way to read the tree.
+`&` looks like the harder half: escaping it seems safe but costly, because a title reading `R&D Retrofits` would become `R&amp;D Retrofits` for a plain-text reader, and ADR-103 makes plain text a supported way to read the tree.
 
 §1 measured that and inverted it. Writing `&amp;` is not safe-but-costly, it is simply **wrong**: every renderer already renders a bare `&` correctly, so `&amp;` damages the rendered page and the plain-text reader alike.
 
-**Both of those are about one operation — replacing the character with an HTML entity — and neither is about the operation this record adopts.** CommonMark permits any ASCII punctuation character to be backslash-escaped. `\<` and `\&` are not `&lt;` and `&amp;`; they are consumed by the renderer rather than printed by it. §7 measured them, and the result is different from both earlier answers.
+**Both of those are about one operation — replacing the character with an HTML entity — and neither is about the operation this record adopts.** CommonMark permits any ASCII punctuation character to be backslash-escaped. `\<` and `\&` are not `&lt;` and `&amp;`; they are consumed by the renderer rather than printed by it. §7 measured them, and the result is different from both readings above.
 
-That the framing moved three times — the ticket, §1, and then §7 — is the reason this section exists. The distinction is easy to collapse and was collapsed by everyone who looked at it, so it is written down here rather than left for a reader to rediscover.
+The distinction is easy to collapse, so it is written down here rather than left for a reader to rediscover.
 
 ## Decision
 

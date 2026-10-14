@@ -10,9 +10,9 @@
 
 ## Context
 
-`spring-ai-starter-vector-store-chroma` auto-configures a `vectorStore` bean whose initialisation fetches its collection from Chroma. Built eagerly, it made the whole application context depend on a reachable Chroma: with the compose lifecycle off and nothing on `localhost:8000`, every command — `vespera --version` and a rejected `vespera --bogus-option` included — failed to start and exited 1 before picocli read the command line. Measured on 2026-09-22 by running the packaged jar in a Linux container, where the stack trace named `vectorStore` and a refused connection.
+`spring-ai-starter-vector-store-chroma` auto-configures a `vectorStore` bean whose initialisation fetches its collection from Chroma. Built eagerly, it made the whole application context depend on a reachable Chroma: with the compose lifecycle off and nothing on `localhost:8000`, every command — `vespera --version` and a rejected `vespera --bogus-option` included — failed to start and exited 1 before picocli read the command line. Measured by running the packaged jar in a Linux container, where the stack trace named `vectorStore` and a refused connection.
 
-It surfaced as CI failing `CliExitIT` on the pull request that shipped ADR-141: the runner has no Chroma on 8000, while a developer machine running the sidecar hides the dependency entirely. That pull request unblocked CI by passing `spring.ai.vectorstore.type=none` to the launched jar, which removes the bean rather than deferring it — a test-only workaround that left the shipped behaviour as it was.
+With the bean eager, `CliExitIT` fails on a CI runner, which has no Chroma on 8000, while a developer machine running the sidecar hides the dependency entirely. `CliExitIT` passed `spring.ai.vectorstore.type=none` to the jar it launches, which removes the bean rather than deferring it — a test-only workaround that left the shipped behaviour as it was.
 
 Nothing in `src/main` reads the vector store today. Ollama, the other sidecar with a Spring AI starter, reaches nothing while the context starts; the vector store was the only bean that did.
 

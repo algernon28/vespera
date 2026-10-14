@@ -26,7 +26,7 @@ The asymmetry: too-eager invalidation costs compute; too-lazy invalidation costs
 
 This is scoped, not repo-wide: a commit touching an unrelated module or top-level documentation does not change it. It is mechanical, not hand-maintained: any real commit to the module's own files changes it automatically, with nothing for a person to remember to bump. It is human-traceable: the version is an actual commit SHA, `git show`-able, rather than an opaque hash of class files — matching how this project already cites decisions by commit and PR elsewhere.
 
-**Dependency versions are explicitly excluded from this hash**, confirmed as a boundary rather than an oversight: a bump to a third-party library (the embedding model, Docling itself) is a fact for the profile/config to record explicitly, not something the implementation-version hash should notice by accident. `run_id`'s separate "config consumed" input is where a dependency change that actually matters must be captured.
+**Dependency versions are explicitly excluded from this hash**, as a boundary rather than an oversight: a bump to a third-party library (the embedding model, Docling itself) is a fact for the profile/config to record explicitly, not something the implementation-version hash should notice by accident. `run_id`'s separate "config consumed" input is where a dependency change that actually matters must be captured.
 
 **Computed at build time, not runtime.** A build step resolves the path-scoped commit SHA per module and writes it into a generated resource shipped in the jar, in the same phase module boundaries are already Modulith-verified — avoiding any runtime dependency on `git` being present or the `.git` directory being available where the jar eventually runs.
 

@@ -94,4 +94,4 @@ This is the argument ADR-088 makes for the run stamp, applied to the other half 
 
 **`pipeline` changes.** `RelevanceLabelFile`, the relevance report step, `LabelFileReader` and `LabelIngestion` all change, so on a jar built from this change stages 3 to 6b mint new runs. Take it at a corpus boundary.
 
-**Not decided here: labels across a different corpus root.** A label is keyed by the path relative to the walk's root. So answers given over one folder do not match the same documents walked from its parent, where every path gains a prefix. That is a question about ADR-097, noticed while triaging #354, and left open.
+**Not decided here: labels across a different corpus root.** A label is keyed by the path relative to the walk's root. So answers given over one folder do not match the same documents walked from its parent, where every path gains a prefix. That is a question about ADR-097, and it is left open.

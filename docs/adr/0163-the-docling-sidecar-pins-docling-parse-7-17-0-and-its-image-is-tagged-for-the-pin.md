@@ -5,12 +5,12 @@
 - **Amends**: [ADR-147](0147-the-docling-sidecar-is-a-derived-image-with-libreoffice-writer-and-impress-and-the-image-joins-the-extractor-identity.md), in three places. Its `Containerfile` gains one layer, which replaces the PDF parser the base image ships. Its tag `vespera/docling-serve-cpu-libreoffice:v1.32.0` becomes `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`. Its consequence *"One segmentation fault stays unexplained"* is explained below.
 - **Qualifies**: ADR-147's finding 1. It put the 3 PDFs whose output differed between two stock runs, *"each flips between `success` and `partial_success`"*, down to "Docling's own variance". What is measured below is a defect that produces exactly that flip. That those 3 PDFs flipped because of it is consistent with the measurements, and was not measured.
 - **Keeps**: ADR-147's extractor identity (`image=<name>`, the `/version` map, the sent options) and its rule that `compose.yaml`, `TestcontainersConfiguration` and `vespera.docling.image` name one image. ADR-147's base, `docling-serve` v1.32.0, and its deferral of the v1.35.0 bump. [ADR-070](0070-extraction-failed-splits-on-doclings-status-degenerate-output-is-a-two-tier-floor.md)'s rule that `partial_success` passes through to the degeneracy floor. [ADR-071](0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md)'s rule for a sidecar that stops answering. [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md): the operator starts the sidecars from `compose.yaml`.
-- **Rests on**: probes run on 2026-09-26 against the shipped image and against a probe image. The outputs, native crash traces, harnesses and the two parser sources compared are kept outside the repository in `D:\development\vespera-runs\notes\p305-probes\`. The crash that opened the ticket is kept in `D:\development\vespera-runs\2026-09-26-gespos-e2e\crash-1\`.
+- **Rests on**: probes run against the shipped image and against a probe image, their native crash traces, and the sources of the two parser releases, compared.
 - **Settles** [#305](https://github.com/algernon28/vespera/issues/305). Its third question, whether an invocation survives the sidecar dying or restarting partway through a step, is [#326](https://github.com/algernon28/vespera/issues/326)'s.
 
 ## Context
 
-On 2026-09-26, seed extraction over GesPOS failed on the 10th of 19 seeds. The sidecar, `vespera/docling-serve-cpu-libreoffice:v1.32.0`, died of a segmentation fault (exit 139). A retry with the container restarted converted all 19. A crash of the same kind, on the 10th of 19 seeds, was recorded on 2026-09-23 and is the one ADR-147 left unexplained. The saved trace held only the server's idle event-loop thread, so it did not say where the fault was.
+Seed extraction over GesPOS failed on the 10th of 19 seeds. The sidecar, `vespera/docling-serve-cpu-libreoffice:v1.32.0`, died of a segmentation fault (exit 139). A retry with the container restarted converted all 19. A crash of the same kind, also on the 10th of 19 seeds, is the one ADR-147 left unexplained. The saved trace held only the server's idle event-loop thread, so it did not say where the fault was.
 
 ### What was measured
 
@@ -37,7 +37,7 @@ Every entry kept from Docling's `errors[]` was the same: `backend_failure`, *"Pa
 
 - The same synthetic PDF, with the single-threaded page decode (`pdf_backend=docling_parse`): 30 of 30 `success`.
 - Then, in the same process, the same PDF with the default threaded decode: 30 of 30 `success`. The first call had already loaded every base font the PDF uses.
-- Two and four single-threaded decodes of one PDF at once, each loading it as its own document, in a fresh forked process each time: 200 of 200 clean at each width. Only the two summary lines were kept, in `crossdoc.out`.
+- Two and four single-threaded decodes of one PDF at once, each loading it as its own document, in a fresh forked process each time: 200 of 200 clean at each width.
 
 A third container on the 7.16.0 parser, set up to capture the faulting thread, crashed in 2 of 10 iterations and lost pages in the other 8. In both crashes the faulting thread was inside `docling_parse`'s native library, at the same instruction, reading one byte at address `0x8`: a field read through a null pointer. The library is stripped, so the trace does not name the function.
 
@@ -55,13 +55,13 @@ initialised = true;
 
 The flag is a plain `bool`, set **before** the tables are filled. A second thread that asks for the same font in that window sees `initialised`, returns at once, and reads tables that are still empty or half-built.
 
-In **7.17.0** the flag is a `std::atomic<bool>`. It is checked, then checked again under a mutex, and stored with release ordering only as the function's last statement. Upstream's own comment on that store reads: *"setting it up front is what used to let a second thread take the fast path and read half-populated tables."* The change is commit `0d9cac5`, *"optimization of the parse/render with up to 3.84× speedup"* (#333). It is the only commit between the two releases that touches `base_font.h`.
+In **7.17.0** the flag is a `std::atomic<bool>`. It is checked, then checked again under a mutex, and stored with release ordering only as the function's last statement. Upstream's own comment on that store reads: *"setting it up front is what used to let a second thread take the fast path and read half-populated tables."* The change is upstream's *"optimization of the parse/render with up to 3.84× speedup"* (#333). It is the only change between the two releases that touches `base_font.h`.
 
 The measurements and the diff agree: parallel pages, a cold font table, a flag published before the data. Which read faults, and which read throws and loses the page, depends on timing. The trace cannot name the function, so the claim is that the defect upstream fixed produces what was measured. It is not that each crash was traced to that line.
 
 **It fits the crash being seen in seed extraction and not in stage 2**, though this was not measured. A process loads each font once. Stage 2 converts first, so by the time seeds are converted, most of the fonts the corpus uses are already loaded. The race is live again for any font a seed uses and the corpus did not. It also fits the retry passing: the race depends on timing, so the same seeds can convert cleanly on another try.
 
-**Stage 2 is not immune**, because its first conversions start from a cold process too. The ledger of the 2026-09-26 run holds one stage-2 conversion with `partial_success` and a single `backend_failure`, *"Page 2 failed to parse."*, which is this defect's signature. That this one conversion lost its page to the race is consistent with the measurements, and was not measured.
+**Stage 2 is not immune**, because its first conversions start from a cold process too. Over GesPOS, stage 2 recorded one conversion with `partial_success` and a single `backend_failure`, *"Page 2 failed to parse."*, which is this defect's signature. That this one conversion lost its page to the race is consistent with the measurements, and was not measured.
 
 ### The same defect loses pages without crashing
 
@@ -89,7 +89,7 @@ docling-parse itself is at 7.22.0 (2026-09-26). No release of it after 7.17.0 wa
 14 distinct PDFs, from the GesPOS corpus and its seed folder, were converted twice through a sidecar of each parser. The second pass of each was compared, so a cold-process race could not affect the comparison, and every one of those conversions was `success`:
 
 - **13 of 14 differ** in the document JSON. Mostly this is picture bounding boxes, a few hundredths of a point, and picture pixel sizes, a few pixels.
-- **In 8 of 14 the extracted text differs**: in 6 the text items themselves, and in 2 more only the text of table cells, which is extracted text too (ADR-145). The count compares, for each PDF, the text items and the table cells' text of the two kept outputs (`out-stock-threaded`, `out-fixed-threaded`) as collections. No per-PDF count of places is given, because the script that counted them was not kept. Examples: a letter `E` from a logo appears as a text item of its own, the text of a page header's table cells is divided between them differently, and in one PDF six such cells become two, and one item is removed.
+- **In 8 of 14 the extracted text differs**: in 6 the text items themselves, and in 2 more only the text of table cells, which is extracted text too (ADR-145). The count compares, for each PDF, the text items and the table cells' text of the two parsers' outputs as collections. No per-PDF count of places is given. Examples: a letter `E` from a logo appears as a text item of its own, the text of a page header's table cells is divided between them differently, and in one PDF six such cells become two, and one item is removed.
 - The page counts are the same in all 14.
 
 ## Decision
@@ -144,16 +144,16 @@ With the cause removed, no crash is left that is known to recur. The question #3
 
 **AGENTS.md's list of open defects keeps #305 until the image is built from the pinned `Containerfile`.** It is updated by the change that implements this record, not by this record.
 
-**`ExtractorIdentityCompositionTest` does not change.** Its image names are inputs that stand for "two images that report the same versions", as measured on 2026-09-24. They are not the configured image.
+**`ExtractorIdentityCompositionTest` does not change.** Its image names are inputs that stand for "two images that report the same versions", as ADR-147 measured. They are not the configured image.
 
 ## Tests
 
 `DoclingSidecarImageTest` (unit, no Docker, reads the files themselves):
 
-- **`pinsTheParserThatPublishesItsFontsWhole`**: the `Containerfile` installs docling-parse with an exact `==` pin, at 7.17.0, with `--no-deps`, and runs `pip check` in the same instruction. **Fails today**: the `Containerfile` installs no docling-parse.
-- **`tagsTheImageForItsBaseAndItsParser`**: the tag `compose.yaml` gives the image is the base's own tag, read from the `Containerfile`'s `FROM`, followed by `-docling-parse-` and the pinned version. Written out, that is `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`. **Fails today**: the tag is `v1.32.0`.
-- **`namesOneImageEverywhere`**: unchanged. **Fails today**: `TestcontainersConfiguration` already names the new tag, and `compose.yaml` and `application.yaml` still name the old one.
+- **`pinsTheParserThatPublishesItsFontsWhole`**: the `Containerfile` installs docling-parse with an exact `==` pin, at 7.17.0, with `--no-deps`, and runs `pip check` in the same instruction.
+- **`tagsTheImageForItsBaseAndItsParser`**: the tag `compose.yaml` gives the image is the base's own tag, read from the `Containerfile`'s `FROM`, followed by `-docling-parse-` and the pinned version. Written out, that is `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`.
+- **`namesOneImageEverywhere`**: unchanged.
 
-`RunIdentityGoldenTest.extraction`: the golden `extractorIdentity` names `image=vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`. **Fails today**: `application.yaml` names the old tag. The version map in that test is scripted, so it does not name docling-parse.
+`RunIdentityGoldenTest.extraction`: the golden `extractorIdentity` names `image=vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`. The version map in that test is scripted, so it does not name docling-parse.
 
 What no test here can show is the race itself: it needs the real parser, a cold process and many iterations. The probes above are the evidence for it, and they are not a test.

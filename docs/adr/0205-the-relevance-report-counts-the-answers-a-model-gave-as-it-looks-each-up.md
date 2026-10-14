@@ -3,7 +3,7 @@
 - **Date**: 2026-10-06
 - **Status**: accepted
 - **Extends**: [ADR-192](0192-every-loop-in-every-stage-reports-its-progress-and-no-counter-floods-the-log.md) §4, whose table gains one row, and its Consequences, whose *"The relevance report writes its two counters on every invocation that reaches it"* now reads *three*. ADR-192's rule, its cadence and every other row stand.
-- **Rests on**: [ADR-197](0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md) §3 (a label a local model set has a provenance row, and the report reads those rows), [ADR-204](0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md) §2 (the read of those rows is timed, as `the answers a model gave`) and §7 (which found the loop and left it to its own ticket), [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) (which run ids move) and [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md) §4 (a progress label is literal text).
+- **Rests on**: [ADR-197](0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md) §3 (a label a local model set has a provenance row, and the report reads those rows), [ADR-204](0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md) §2 (the read of those rows is timed, as `the answers a model gave`) and §7 (which leaves the loop to its own ticket), [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) (which run ids move) and [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md) §4 (a progress label is literal text).
 - **Settles** [#444](https://github.com/algernon28/vespera/issues/444).
 
 A *counter* is ADR-192's: one `StageProgress` over one loop.
@@ -15,7 +15,7 @@ A *counter* is ADR-192's: one `StageProgress` over one loop.
 - `answersInThisWalk` goes through every answer recorded for the seed set. ADR-192 §4 gave it a counter, `Stage 5 (relevance report, answers matched)`.
 - `modelAnswersInThisWalk` goes through the answers a local model gave for the seed set, read by `RelevanceLabels.modelAnswers`. It has no counter.
 
-The second loop arrived with ADR-197, after ADR-192 had surveyed every loop at `f8f9a18`. ADR-204 found it while reading ADR-193 §6 again against the code, timed the read before it, and left the loop to #444, since a counter is ADR-192's rule and not a statement's.
+The second loop arrived with ADR-197, after ADR-192 had surveyed every loop. ADR-204 timed the read before it, and left the loop to #444, since a counter is ADR-192's rule and not a statement's.
 
 Nothing here was measured. `vespera label --auto` has a local model answer the questions of the label file, which the report writes for a sample of up to sixty documents (ADR-088, ADR-197). Answers stay recorded from one run to the next, so the answers a model gave for a seed set can pass sixty; how many the archive's seed set has is not known, and neither is how long one lookup takes on its disk.
 
@@ -25,7 +25,7 @@ Nothing here was measured. `vespera label --auto` has a local model answer the q
 
 Its body reads the database, which is ADR-192 §1's first test. None of §1's four exclusions applies: it does not compute over values in memory; its count is set by how many answers a model has given and not by the code; it is a loop of the stage's own with one statement in each pass, not one statement or its row callback; and it is not inside another loop.
 
-That it is short does not exclude it. ADR-192 §1 counts by what a loop's body does, and the operator's decision recorded there is that every stage's loops are counted whatever their duration. Its sibling is counted over the same kind of total.
+That it is short does not exclude it. ADR-192 §1 counts by what a loop's body does, and decides there that every stage's loops are counted whatever their duration. Its sibling is counted over the same kind of total.
 
 ### 2. The row ADR-192 §4 gains
 
@@ -36,7 +36,7 @@ That it is short does not exclude it. ADR-192 §1 counts by what a loop's body d
 - **The label** is the sibling's with one word before it, in §4's form: the stage as its own lines name it, a comma, the unit. Neither label begins with the other followed by a colon, so a reader of the log, and a filter on `<label>: `, tells the two apart.
 - **"model" is ADR-204 §2's word** for whoever set these answers, in `the answers a model gave`, the line written just before this counter's. It names the local model of ADR-197, which CONTEXT.md's **Relevance label** entry calls by that word, and no instrument.
 - **One item** is one pass of the loop: an answer whose path this walk does not hold is looked up and counted, as the sibling counts it (ADR-192 §2).
-- **The total** is the size of what `RelevanceLabels.modelAnswers(seedSet)` returned: one for each provenance row of the seed set. This answers the ticket's second question with yes.
+- **The total** is the size of what `RelevanceLabels.modelAnswers(seedSet)` returned: one for each provenance row of the seed set.
 - **The two counters overlap, and that is right.** A model's answer is a recorded answer too, so the sibling goes through it as well, for the page's spread. This loop goes through it a second time for the label file's `labelledBy`. Each counter counts the lookups its own loop makes.
 
 ### 3. Where it is opened, and its cadence
@@ -70,13 +70,13 @@ The loop is the last thing the step does that writes a line of the report's befo
 
 The change is in `pipeline`, which `StageModules` puts in the implementation version of stages 3 to 6b (ADR-058). **So it moves the run ids of stages 3 to 6b, and those of stages 0, 1 and 2 do not move for it.**
 
-Part (b) of [#411](https://github.com/algernon28/vespera/issues/411) moves stages 2 to 6b (ADR-204 §1) and is not on `main` when this is written; this change is built on its branch. Landed with part (b), or after it and before the archive's next run, it moves no stage part (b) does not already move, and that run mints those ids once. **Landed after a run made on part (b), it costs a replay of stages 3 to 6b over that working directory**, which no record times.
+Part (b) of [#411](https://github.com/algernon28/vespera/issues/411) moves stages 2 to 6b (ADR-204 §1). Landed with part (b), or after it and before the archive's next run, this change moves no stage part (b) does not already move, and that run mints those ids once. **Landed after a run made on part (b), it costs a replay of stages 3 to 6b over that working directory**, which no record times.
 
 No schema version moves (ADR-059).
 
 ## What was not taken
 
-- **No counter, the loop being short.** ADR-192 does not count by length, and the operator decided against deferring any loop until it is measured.
+- **No counter, the loop being short.** ADR-192 does not count by length, and defers no loop until it is measured.
 - **One counter over both loops.** They are two loops over two reads with two totals, run at two points of the step with three other reads between them, four where the floor is a number (ADR-204 §5), and ADR-192 §1 gives each counted loop its own.
 - **Folding this lookup into `answersInThisWalk`**, which already resolves every one of these paths. It would remove the loop and its statements. It is a change to what the step does, not to what it reports, and nothing has measured the lookups as a cost.
 - **`Stage 5 (relevance report, answers a model gave matched)`**, the read's `<what>` word for word. Longer, and no clearer beside the sibling.

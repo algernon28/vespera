@@ -32,7 +32,7 @@ Of the 142, 120 are the pictures' own, two for each survivor in each of the two 
 
 **The plan** of the one new statement, by the SQLite the pom bundles, 3.53.2, against the shipped `schema.sql` with no rows and a list of two: `SELECT cluster_ordinal, document_count, partition_order, cluster_order FROM cluster WHERE run_id = ? AND winning_seed_occurrence_id = ? AND cluster_ordinal IN (…)` is `SEARCH cluster USING INDEX sqlite_autoindex_cluster_1 (run_id=? AND winning_seed_occurrence_id=? AND cluster_ordinal=?)`. It goes through no temporary storage, and `EveryStatementThatSortsIsRecordedTest` passes unchanged.
 
-**The time.** One throwaway probe on 2026-10-11, Java 26 and the bundled sqlite-jdbc 3.53.2.1, a `relevance_score` of 100,000 rows of one run, `journal_mode=WAL`, a Linux container's disk with the file cache warm, three rounds: each row read by its key, a statement prepared for each as `JdbcTemplate` prepares one, 948, 841 and 825 ms; the same rows read 1,000 to a statement, 134, 100 and 109 ms. About 8.4 µs a lookup against 1.1 µs a row; a `cluster` row by its key is a lookup of the same shape.
+**The time.** One throwaway probe, Java 26 and the bundled sqlite-jdbc 3.53.2.1, a `relevance_score` of 100,000 rows of one run, `journal_mode=WAL`, a Linux container's disk with the file cache warm, three rounds: each row read by its key, a statement prepared for each as `JdbcTemplate` prepares one, 948, 841 and 825 ms; the same rows read 1,000 to a statement, 134, 100 and 109 ms. About 8.4 µs a lookup against 1.1 µs a row; a `cluster` row by its key is a lookup of the same shape.
 
 ## Decision
 

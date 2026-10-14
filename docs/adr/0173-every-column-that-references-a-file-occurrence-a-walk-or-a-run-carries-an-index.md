@@ -11,7 +11,7 @@
 
 ### What happened
 
-Every invocation over the whole archive spent about four and a half minutes in stage 0 after the walk itself had finished: 22:31:56 to 22:36:30 and 22:39:49 to 22:44:15 on 2026-09-28, and 10:33:05 to 10:37:40 on 2026-09-29. `jstack` showed the `main` thread in `Ledger.discardWalk`, on `DELETE FROM file_occurrence WHERE walk_id = ?`. The walk had observed exactly what an earlier walk had recorded, so ADR-115 discarded it, which deleted its 43,101 duplicate occurrence rows. The walk's own log line reports 52,938 entries walked and 9,838 directories entered. By ADR-056's accounting identity, entries walked count the occurrences, the anomalies and every directory beneath the root, the root being entered but not an entry beneath itself: 43,101 + 0 + 9,838 − 1 = 52,938. A directory is not an occurrence; the earlier walk it matched, walk 5, holds 43,101.
+Every invocation over the whole archive spent about four and a half minutes in stage 0 after the walk itself had finished. `jstack` showed the `main` thread in `Ledger.discardWalk`, on `DELETE FROM file_occurrence WHERE walk_id = ?`. The walk had observed exactly what an earlier walk had recorded, so ADR-115 discarded it, which deleted its 43,101 duplicate occurrence rows. The walk's own log line reports 52,938 entries walked and 9,838 directories entered. By ADR-056's accounting identity, entries walked count the occurrences, the anomalies and every directory beneath the root, the root being entered but not an entry beneath itself: 43,101 + 0 + 9,838 − 1 = 52,938. A directory is not an occurrence; the earlier walk it matched, walk 5, holds 43,101.
 
 ### Why
 
@@ -21,7 +21,7 @@ No decision ever required an index on a referencing column. The primary keys and
 
 ### The measurement
 
-Measured for this record on 2026-09-30, on a **copy** of the archive's ledger, `vespera.db`, 10,496,176,128 bytes. The copy was taken while no Java process was running, and only the copy was opened. The tool was Python's `sqlite3` module (SQLite 3.49.1; the application's `sqlite-jdbc` bundles 3.53) with `PRAGMA foreign_keys=ON`.
+Measured on a **copy** of the archive's ledger, `vespera.db`, 10,496,176,128 bytes. The copy was taken while no Java process was running, and only the copy was opened. The tool was Python's `sqlite3` module (SQLite 3.49.1; the application's `sqlite-jdbc` bundles 3.53) with `PRAGMA foreign_keys=ON`.
 
 The copy held four walks. Two of them, walks 5 and 22, were observations of the whole archive with 43,101 occurrences each. Everything derived is recorded against those occurrences, so their own occurrences cannot be deleted without breaking a foreign key. The delete that ADR-115 actually makes is of a walk that nothing references yet. The measurement therefore recreated that walk inside a transaction: one new walk row, and a copy of walk 22's 43,101 occurrence rows under it. It then ran `discardWalk`'s three statements, timed each one, and rolled the transaction back.
 

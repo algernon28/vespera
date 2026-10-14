@@ -3,20 +3,16 @@
 > **Partly amended — see [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md).** These passages below are no longer the whole of the decision, and that record's §10 says what replaces each: §4.4's "inside the allow list and outside every working directory", since the ordinary check of the current directory now also turns down a closed `.claude` folder; §4's "without the guard reading its command for paths" and its "Any call that fails one of these is read as before", since the admission now also stands before the reading of every token's text, and a call that fails it is read with that reading too; and §5's "That is ADR-196's position, unchanged" with the three items of "What the pin does not cover", of which the third, that `~/.claude/settings.json` can be written, is closed for a call whose text names the file, and the first two are narrowed and not closed. Everything else in this record stands.
 
 - **Date**: 2026-10-08
-- **Status**: accepted on 2026-10-08, and built on 2026-10-09: the counting script and the guard's admission (§4) are in `.claude/hooks`, and K101 to K107 are green. Where this record calls a case red or the script not yet built, it states a measurement at `4b99a03`, before that build.
+- **Status**: accepted on 2026-10-08.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:
   - §1's third bullet and the sentence after the list ("The working directory is on the list because…"), which no longer refuse the counts §3 below lists;
   - §2's second bullet ("inside a working directory, wherever that is"), which gains the one exception of §4 below;
   - §2's "A path outside the list is never touched": the guard asks the file system about the working-directory word of §4's command, which need not be on the allow list, and asks only after every other check of §4 has passed (§4);
-  - the alternative weighed "Reading a working directory's contents but not its documents", which the operator has now taken up for counts and for nothing else.
+  - the alternative weighed "Reading a working directory's contents but not its documents", which this record takes up for counts and for nothing else.
 
   ADR-196's archive and seed set (§1), its allow list (§2), every way it fails closed (§6) and all of [ADR-201](0201-the-private-paths-guard-reads-a-climb-out-of-a-link-both-ways-and-refuses-a-name-it-cannot-follow.md) stand as written.
 - **Keeps**: [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md): the invocation account; its Context's finding that the log *"is not a thing to filter"*; §1's refusal of a filtering appender; and its alternative refusing *"a summary built by reading `vespera.log` afterwards"*. Together these are why §7 below defers the log. ADR-198 §3's exception to ADR-041 is not extended: the script's bounds are its own (§9.5). [ADR-177](0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md): the script never takes the working-directory lock (§2). [ADR-054](0054-a-corpus-is-its-root-path-the-database-lives-in-a-configured-working-directory.md): what a working directory is.
-- **Rests on**:
-  - the operator's decision of 2026-10-08, *"agents are allowed to access the working dirs for things like counts or metadata"*, and the scope the operator accepted after it: **aggregate counts only**;
-  - the six choices this record had left open, which the operator delegated to the main session on 2026-10-08 ("your call") and then, the same day, confirmed directly that all six recommendations are accepted ("Yes, accept all six");
-  - the operator's direct answer of 2026-10-09, after the architect's gate: admit the size sums and walk's integer columns, and let the hash pin replace ADR-198 §3's bound "made in `InvocationAccount` and nowhere else". §9 records each.
-- **Related**: [ADR-041](0041-ledger-owns-identity-and-verdicts-capabilities-own-their-own-tables.md) and [ADR-209](0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md), which say a table's SQL is its owner's. The script's statements name tables of `ledger`, `corpus`, `extraction` and `synthesis` from outside the application. §9.5 records how that was decided.
+- **Related**: [ADR-041](0041-ledger-owns-identity-and-verdicts-capabilities-own-their-own-tables.md) and [ADR-209](0209-the-ledger-is-four-records-behind-one-type-no-capability-module-names-spring-batch-and-a-tables-sql-is-its-owners.md), which say a table's SQL is its owner's. The script's statements name tables of `ledger`, `corpus`, `extraction` and `synthesis` from outside the application. §9.5 settles that.
 
 ## Context
 
@@ -28,11 +24,11 @@ ADR-196 refuses every path inside a working directory, `vespera.db` included, to
 
 Today such a question goes to the operator.
 
-The operator has decided that an agent may have those numbers itself, and nothing more. This record says exactly what that admits, and how the hook can tell it apart from everything it still refuses.
+An agent may have those numbers itself, and nothing more: **aggregate counts only**. This record says exactly what that admits, and how the hook can tell it apart from everything it still refuses.
 
 ### Why "returns only numbers" is not enough
 
-The starting point for the scope was *aggregate SQL over `vespera.db` that returns only numbers grouped by non-identifying keys*. Read as a rule about the result, that admits too much. A count over a predicate the agent chooses is an oracle:
+The scope can be put as *aggregate SQL over `vespera.db` that returns only numbers grouped by non-identifying keys*. Read as a rule about the result, that admits too much. A count over a predicate the agent chooses is an oracle:
 
 ```
 SELECT COUNT(*) FROM file_occurrence WHERE path LIKE 'H:/Archive/P%'
@@ -48,7 +44,7 @@ The guard reads a command as text (ADR-196 §4). It cannot tell `sqlite3 vespera
 
 ### Measured
 
-On the operator's machine, Node 22.23.1, in a scratch folder outside the repository, with a database built from this repository's `schema.sql`:
+On Node 22.23.1, in a scratch folder outside the repository, with a database built from this repository's `schema.sql`:
 
 - **`node:sqlite` is part of Node 22**, and needs no flag and no dependency. It applied `schema.sql` whole: 34 tables. `sqlite_master` lists a 35th, `sqlite_sequence`, which SQLite makes for the four `AUTOINCREMENT` columns.
 - **A read-only open of a WAL database at rest creates `vespera.db-wal` and `vespera.db-shm`, and leaves both behind when it closes.** `vespera.db` is in WAL mode (`application.yaml` sets `journal_mode=WAL`), and when Vespera's last connection closes, the two files are removed. A plain read-only open, with or without `mode=ro`, put them back and did not remove them.
@@ -170,14 +166,14 @@ A partition folder of the deliverable is named after a seed, so its name is neve
      - a single-quoted word holds only those characters, `\` and the space;
      - in either, a `:` is allowed only as a drive colon: second in the word, after one ASCII letter, and followed by `/` or `\`. So `counts.mjs:x`, an alternate data stream, is refused, and so is `X:rel`, a path from a drive's own current directory.
    - So there is no `$`, backtick, double quote, `~`, wildcard, brace, comma, `=`, `@`, `%` or `#`. In a Bash command there is no backslash outside single quotes, where Bash would take it as an escape and pass the program a path other than the one the guard read. Neither word has a `..` segment.
-   - **Two words that pass the above are not admitted either**, added with the build on 2026-10-09 so that §4.2's path is the one `node` opens:
+   - **Two words that pass the above are not admitted either**, so that §4.2's path is the one `node` opens:
      - on Windows, a word that begins with `/` or `\`. Git Bash rewrites `/d/x` into `D:/x` before `node` sees it, and does not when `MSYS_NO_PATHCONV` is set, which the guard cannot see. A word such as `/dev/x` it rewrites to a path under Git's own folder, so the guard would read the sibling and `node` would open another file. The rule holds for a PowerShell command on Windows too, where it costs only a spelling;
      - off Windows, a word that holds a `\`, which is part of a name there and parts no folders, so the `..` check above, which reads it as a separator, would be reading a path `node` does not open.
 2. **The script word.**
    - Read against the call's current directory, with its separators made one, it is the absolute path `node` will open.
    - That path must equal the path of `working-directory-counts.mjs` beside the guard that is running. They are compared as text, character for character, folded to one case on Windows only.
    - No link and no other spelling stands in for it.
-   - **Two spellings the grammar passes are accepted here**, on the operator's answer of 2026-10-09 after the architect's gate, because neither runs any code but the pinned script's:
+   - **Two spellings the grammar passes are accepted here**, because neither runs any code but the pinned script's:
      - a trailing separator or a doubled one, which reading the word against the current directory drops. `node` then opens the same file, or none;
      - a script word that begins with `-`, which `node` reads as an option. It can equal the script's path only when the checkout lies under a folder whose name begins with `-` and the command is run from above that folder.
 3. **The hash.** The bytes of the file at that path, which are the bytes `node` will run, have the guard's pinned SHA-256 (§5).
@@ -206,14 +202,14 @@ The guard holds the SHA-256 of the script as a constant. It is taken over the fi
 
 ### 6. What an agent may do with a count
 
-- **Cite it**: in an issue, an ADR, a pull request, a commit message, a test's rationale, or a report to the operator, naming the record and the run id it came from. A count leaves the machine with what it is cited in, and the operator's decision admits that.
+- **Cite it**: in an issue, an ADR, a pull request, a commit message, a test's rationale, or a report to the operator, naming the record and the run id it came from. A count leaves the machine with what it is cited in, and this record admits that.
 - **Do arithmetic on counts**, and compare them across runs and across working directories.
 - **Not treat a count as a label, a floor or an approval.** ADR-196 §1 leaves those to the operator, or to a local model. An agent may propose a value and cite counts for it, and the operator decides.
 - **Not seek what a count is about.** The script names no file occurrence, and nothing it prints is a key to one.
 
 ### 7. `vespera.log` stays refused, including its stage lines
 
-The starting point asked whether the stage start, finish and timing lines of `vespera.log` could be admitted without the rest of the log. **This record defers them.**
+**This record defers admitting the stage start, finish and timing lines of `vespera.log` without the rest of the log.**
 
 - **ADR-198 already decided against filtering the log.** Its Context found that the log *"is not a thing to filter"*: its lines were written for an operator, and a line added next month by someone who does not know about a filter is a leak nothing notices. Its §1 refused a filtering appender for that reason, and its alternatives refused *"a summary built by reading `vespera.log` afterwards"* by name. Admitting a shape of log line would reopen that decision, which is the operator's to reopen and not this record's to settle in passing.
 - **Stage lines are not safe by shape.** A stage that fails closes with the failure's message, and ADR-210's stage 1 line names the corpus root.
@@ -240,7 +236,7 @@ The cases:
   - a working directory under no allowed root;
   - and, K107, the checkout whose script has CR LF line ends.
 
-  *Red at `4b99a03`, measured on Windows: the script does not exist and the guard has no such rule, so each is refused as a path into a working directory.* On Linux, where ADR-196 §5 leaves a rooted path in a command unread, K102 and K106 were let through by the ordinary reading already when this was written; since ADR-215 the ordinary reading refuses the script's own path, which lies in a closed `.claude` folder, on every platform, so K101 to K107 are each let through by the admission and by nothing else ([#459](https://github.com/algernon28/vespera/issues/459)). The others name the working directory relatively, so they are refused on both platforms.
+  Since ADR-215 the ordinary reading refuses the script's own path, which lies in a closed `.claude` folder, on every platform, Linux included, where ADR-196 §5 leaves a rooted path in a command unread; so K101 to K107 are each let through by the admission and by nothing else ([#459](https://github.com/algernon28/vespera/issues/459)).
 - **K201 to K230, refused**:
   - the script given `vespera.db` itself, a folder inside a working directory, a folder holding only `vespera.lock`, and a folder that is none;
   - a second argument; a second command after `&&`, `;` or a newline; a pipe; a redirect;
@@ -253,10 +249,10 @@ The cases:
   - K225: the script word with `:x` after it, an alternate data stream (Windows only);
   - K226 to K230: in PowerShell, a `;`, a pipe, `$env:`, a backtick and double quotes.
 
-  *Green at `4b99a03`, and each must stay green.*
-- **K301 to K309, refused**: Read of `profile.yaml`, `relevance-labels.yaml`, `relevance-labelling.html`, `extraction-failures.html`, `arrangement.html`, `vespera.log` and a rolled log; Read of the deliverable's `documents.csv`; and a Grep of `vespera.db`. *Green at `4b99a03`, and each must stay green*: they hold §1's refused list in one place.
+  *Each must stay green.*
+- **K301 to K309, refused**: Read of `profile.yaml`, `relevance-labels.yaml`, `relevance-labelling.html`, `extraction-failures.html`, `arrangement.html`, `vespera.log` and a rolled log; Read of the deliverable's `documents.csv`; and a Grep of `vespera.db`. *Each must stay green*: they hold §1's refused list in one place.
 
-**`src/test/hooks/working-directory-counts.test.mjs`** starts the script over working directories it builds under the temp folder. Each holds a `vespera.db` made from `src/main/resources/schema.sql`, filled with rows whose every text and path column carries one marker string, and so do some of the folder's file and folder names. *Every test is red at `4b99a03`: the script does not exist, and each says so.* A throwaway reading of §2 and §3, outside the repository and not shipped, passed all thirteen on Windows. That shows the tests agree with each other and with this record, and that §2 and §3 can be built on Node 22 with nothing installed.
+**`src/test/hooks/working-directory-counts.test.mjs`** starts the script over working directories it builds under the temp folder. Each holds a `vespera.db` made from `src/main/resources/schema.sql`, filled with rows whose every text and path column carries one marker string, and so do some of the folder's file and folder names.
 
 - **W01**: a fixture's counts, line for line. Among them:
   - survivors through a chain of upstream runs;
@@ -292,9 +288,7 @@ The cases:
 - **That a working directory being written by a real `vespera run` is counted without slowing it.** W06 shows a writer that goes on writing, and nothing more: the tests run one reader against one writer in one process, and see no contention between them.
 - **§5's moment between check and run, and which `node` runs.** These are not covered, and nothing in a test could hold them.
 
-### 9. Decided on 2026-10-08 and 2026-10-09, by the operator
-
-The draft of this record left six choices open, each with a recommendation. On 2026-10-08 the operator delegated them to the main session, which took every recommendation, and then the operator confirmed acceptance of all six directly. The architect's gate then asked how §9.5 squared with ADR-198 §3, and on 2026-10-09 the operator answered that directly. Each is decided as written here:
+### 9. Points settled
 
 1. **The mechanism is one pinned script (§2 to §5)**, and SQL an agent writes is refused even when it returns only numbers (Context).
 2. **The working-directory argument need not be on the allow list (§4.5).**
@@ -306,7 +300,7 @@ The draft of this record left six choices open, each with a recommendation. On 2
 5. **The script is a tool outside the application, and its bounds are its own.**
    - **The tension.** It names the tables of four modules from outside the application. ADR-041 says a capability owns its tables and nothing else reads them. ADR-209 holds that for every shipped class, with ADR-198 §3's counts as the one exception. The script is not a shipped class and not a module, so ADR-209's test does not read it.
    - **ADR-198 §3's three bounds** are: the reads are `COUNT`s and nothing else; each is grouped by a closed column or by none; and they are made in `InvocationAccount` and nowhere else. **The script does not meet the first or the third, and does not claim to.** It reads `SUM(size_bytes)` and walk's three integer columns, `finished`, `entries_seen` and `directories_entered`, as values, and it is not `InvocationAccount`.
-   - **The operator decided on 2026-10-09:** admit the size sums and walk's integer columns, and let the hash pin replace the bound "made in `InvocationAccount` and nowhere else".
+   - **Decided:** the size sums and walk's integer columns are admitted, and the hash pin replaces the bound "made in `InvocationAccount` and nowhere else".
    - **So the script is bounded so:**
      - it reads `vespera.db` read-only, by statements fixed in it;
      - it selects counts, the sum of `size_bytes`, walk's three integer columns, ids, and the closed columns, each printed only in its shape (§3);
@@ -351,7 +345,7 @@ The draft of this record left six choices open, each with a recommendation. On 2
 
 ## What the implementation owes
 
-**Two files sit under `.claude/hooks`**: the script and the guard. Where an agent cannot write there, **the operator** writes them from this list. `build.yml` is not under `.claude/hooks`, and `spec-implementer` writes it. All three landed together on 2026-10-09; before that, K101 to K107 were red.
+**Two files sit under `.claude/hooks`**: the script and the guard. Where an agent cannot write there, **the operator** writes them from this list. `build.yml` is not under `.claude/hooks`, and `spec-implementer` writes it. All three land together.
 
 - **`.claude/hooks/working-directory-counts.mjs`**, new, as §2 and §3 state:
   - It imports only `node:` modules (W11).
@@ -365,5 +359,5 @@ The draft of this record left six choices open, each with a recommendation. On 2
   - §5's constant, named `COUNTING_SCRIPT_SHA256`, taken over the script with CR LF read as LF;
   - one paragraph in its header comment saying what is admitted, what §5 does not cover, and citing this record.
 - **`.github/workflows/build.yml`**: in both jobs, `node --test src/test/hooks/working-directory-counts.test.mjs`, beside the line that starts the guard's test.
-- **`AGENTS.md`**: its section on the operator's documents was rewritten with the build on 2026-10-09, to state the one admitted form and the second test command.
+- **`AGENTS.md`**: its section on the operator's documents states the one admitted form and the second test command.
 - **Not `.claude/settings.json` and not `.claude/allowed-paths.txt`**: the matcher and the allow list stay as they are (§9.2).

@@ -5,16 +5,16 @@
 
 ## Context
 
-The standing open question from the lost `docs/frontier.md`, restated by `docs/architecture.md` §1.7: should the seed set be profiled with the same instrument used to measure the corpus, against the worry that a shape mismatch between seed documents and corpus documents (clean born-digital seeds against long scanned-OCR corpus documents, say) silently distorts ADR-020's relevance score by measuring format rather than topic.
+The standing open question, stated by `docs/architecture.md` §1.7: should the seed set be profiled with the same instrument used to measure the corpus, against the worry that a shape mismatch between seed documents and corpus documents (clean born-digital seeds against long scanned-OCR corpus documents, say) silently distorts ADR-020's relevance score by measuring format rather than topic.
 
-The full mismatch-detection question belongs to stage 5 (relevance), which this map's destination (census: `ledger`, `corpus`, `profile`, a minimal `pipeline`/CLI) does not build. What *is* this slice's concern, and what the ticket itself named as the reason it belongs on this map: whether census's instrument must be reusable against a second, non-corpus input at all — a constraint on `corpus`'s design, not a relevance decision.
+The full mismatch-detection question belongs to stage 5 (relevance), which the census slice (`ledger`, `corpus`, `profile`, a minimal `pipeline`/CLI) does not build. What *is* this slice's concern: whether census's instrument must be reusable against a second, non-corpus input at all — a constraint on `corpus`'s design, not a relevance decision.
 
 Two facts settle the reusability question outright:
 
 - `CONTEXT.md`'s own definition of walk is already root-agnostic: "One observation of a filesystem, producing file occurrences. Carries the root it observed and whether it finished." Nothing in it says a walk is specifically of a corpus.
 - The code, however, is named as if it were: `Walk.walk(Path corpusRoot, Observer)`, `WalkRecorder.walk(Path corpusRoot)`, and `schema.sql`'s `walk.corpus_root` column all name the parameter after the corpus specifically, though none of the walking logic depends on the root being the corpus.
 
-The mismatch signals the ticket actually worries about — length distribution, chunk count, OCR-error indicators, language mix — are stage 2/3 (extraction, content census) outputs. Stage 0's walk produces only byte-level facts: path, size, mtime. Detecting a genuine format-vs-topic mismatch is not buildable with this slice's instrument alone, regardless of what this decision settles.
+The mismatch signals in question — length distribution, chunk count, OCR-error indicators, language mix — are stage 2/3 (extraction, content census) outputs. Stage 0's walk produces only byte-level facts: path, size, mtime. Detecting a genuine format-vs-topic mismatch is not buildable with this slice's instrument alone, regardless of what this decision settles.
 
 ## Decision
 
@@ -30,12 +30,12 @@ The mismatch signals the ticket actually worries about — length distribution, 
 
 ## Consequences
 
-**Two renames are owed to the hand-off spec**: `Walk`/`WalkRecorder`'s `corpusRoot` parameter and `schema.sql`'s `corpus_root` column, both to `root`. Mechanical, no behavior change.
+**The implementation makes two renames**: `Walk`/`WalkRecorder`'s `corpusRoot` parameter and `schema.sql`'s `corpus_root` column, both to `root`. Mechanical, no behavior change.
 
 **A corpus's working directory (ADR-054) now holds walks for more than one root.** Nothing about ADR-054's layout changes — the database already lives in a working directory keyed to the corpus, and a seed walk is just another `WalkId` row inside it, distinguished by its own `root` value.
 
-**`docs/architecture.md` §1.7's callout of this ticket as "the one standing design question" is now stale** and is updated as part of closing this ticket.
+**`docs/architecture.md` §1.7's callout of this question as "the one standing design question" is stale, and is updated.**
 
 ## Amends
 
-None. This resolves the standing open question `docs/frontier.md` left behind, to the extent this slice's instrument can settle it; the relevance-scoring half of the original worry is untouched and awaits stage 5.
+None. This resolves the standing open question `docs/architecture.md` §1.7 states, to the extent this slice's instrument can settle it; the relevance-scoring half of the original worry is untouched and awaits stage 5.

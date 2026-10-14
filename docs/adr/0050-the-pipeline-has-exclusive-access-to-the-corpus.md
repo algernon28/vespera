@@ -7,7 +7,7 @@
 
 ADR-016 treats the corpus as static, as an explicit assumption rather than a discovered property, and says re-walks happen because code changed rather than because content changed. It never says what makes it static.
 
-Deciding how a file occurrence's path identifies it ([#4](https://github.com/algernon28/vespera/issues/4)) forced the question, because a pile of defensive machinery was waiting on the answer: retry on sharing violations, re-stat before use, tolerate a file that vanishes between being listed and being read. Each one costs complexity in the walk, the single most expensive traversal in the system, and each one is pure waste if nothing else is touching the corpus.
+How a file occurrence's path identifies it ([#4](https://github.com/algernon28/vespera/issues/4)) turns on the question, because a pile of defensive machinery waits on the answer: retry on sharing violations, re-stat before use, tolerate a file that vanishes between being listed and being read. Each one costs complexity in the walk, the single most expensive traversal in the system, and each one is pure waste if nothing else is touching the corpus.
 
 ## Decision
 

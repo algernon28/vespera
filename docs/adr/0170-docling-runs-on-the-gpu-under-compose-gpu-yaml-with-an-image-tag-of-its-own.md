@@ -11,7 +11,7 @@
 
 Stage 2 is the slow stage on the whole archive: 10,469 conversions, estimated at 7–9 hours on the CPU image. Docling runs on the CPU only. `compose.yaml` pins `docling-serve-cpu` on purpose, and `compose.gpu.yaml` (ADR-165) gives the GPU to Ollama alone. The machine measured has an **NVIDIA GeForce RTX 5060 Ti, 16 GB**, which stage 2 never uses.
 
-Everything below was measured on 2026-09-28 on that machine.
+Everything below was measured on that machine.
 
 **The test image** was `docker/docling-serve/Containerfile` with only its `FROM` changed to `quay.io/docling-project/docling-serve-cu128:v1.32.0`, keeping the same LibreOffice layer and the same docling-parse 7.17.0 pin. In the container, `torch.cuda.is_available()` is `True`, the device is `NVIDIA GeForce RTX 5060 Ti`, and CUDA is 12.8.
 
@@ -117,14 +117,14 @@ VESPERA_DOCLING_IMAGE=vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-pa
 
 ## Consequences
 
-- **Switching costs one full re-conversion.** The ~4,600 conversions cached under the CPU identity are not reused under the GPU identity, so all 10,469 are redone, once. At the measured speed that is still roughly 3–4 hours, against 7–9 hours to finish on the CPU. Switching back to the CPU image finds its own cache entries again, since nothing deletes the CPU identity's rows.
+- **Switching costs one full re-conversion.** The conversions cached under the CPU identity are not reused under the GPU identity, so all 10,469 are redone, once. At the measured speed that is still roughly 3–4 hours, against 7–9 hours on the CPU image. Switching back to the CPU image finds its own cache entries again, since nothing deletes the CPU identity's rows.
 - **A switch mints new runs from stage 2 onwards, not only new cache keys.** The extractor identity is in stage 2's `config_consumed` (`StageRuns.extraction`), so a switch mints a new stage-2 run, and every later stage mints a new run of its own, because each names the run before it upstream (ADR-089). What follows from that:
   - The labelling sample is drawn again under the new scoring run (ADR-088), so a label file written before the switch is refused as one generated under another run.
   - The answers already given survive, because they are keyed by the document's path and the seed set, not by a run (ADR-097), and the new file shows them (ADR-169).
   - An approved arrangement names a 6a run (ADR-107, ADR-118), and the new 6a run is not the one approved, so the approval no longer applies and the arrangement is asked about again.
 - **Only docling-serve's container is replaced, for an operator already on `compose.gpu.yaml`, when this file's new version is first used.** Ollama's part of the override does not change, so its container, and the models inside it, stay (ADR-165's C). An operator coming to `compose.gpu.yaml` from `compose.yaml` alone has both containers replaced, and loses Ollama's models once, as ADR-165 already says.
 - **Every integration-test run logs a harmless warning.** Testcontainers 2.0.5 builds the sidecar from the `Containerfile` and pre-fetches its base, but it fills in only the values given with `withBuildArg`, not an `ARG`'s default. It therefore logs `WARN ImageFromDockerfile - Unable to pre-fetch an image (${DOCLING_SERVE_BASE})`, and Docker pulls the base during the build instead. The image built is the same.
-- **The GPU build is not exercised in CI.** `DoclingSidecarImageTest` pins what can be read from the files: the `ARG` and its CPU default, that the GPU tag differs from the CPU tag and ends with the same suffix, and that the GPU build argument names `docling-serve-cu128` at the CPU default's docling-serve release. That the GPU build converts on the card is the measurement above and the operator's check with `torch.cuda.is_available()`, not a test.
+- **The GPU build is not exercised in CI.** `DoclingSidecarImageTest` pins what can be read from the files: the `ARG` and its CPU default, that the GPU tag differs from the CPU tag and ends with the same suffix, and that the GPU build argument names `docling-serve-cu128` at the CPU default's docling-serve release. That the GPU build converts on the card is the measurement above, where `torch.cuda.is_available()` is `True` in the container, not a test.
 - **`compose.yaml` changes no key.** Its `docling-serve` comment, which says that Ollama is the one service that can be given a GPU, stops being true and is corrected to name docling-serve too; that is a comment-only change.
 - **Nothing under `src/main` changes.**
 

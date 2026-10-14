@@ -8,7 +8,7 @@
 
 [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) struck publication from the design and listed four documents that carry the correction at their own altitude. `AGENTS.md`, `README.md` and `docs/architecture.md` were the easy three: each states project status, and a status sentence is rewritten by replacing it.
 
-`CONTEXT.md` is not a status document. It is binding vocabulary, and going through it to remove the word turned up something the consequence list did not anticipate: **"published" was doing three separate jobs there**, and only one of them was ever about a destination.
+`CONTEXT.md` is not a status document. It is binding vocabulary, and it holds something the consequence list did not anticipate: **"published" was doing three separate jobs there**, and only one of them was ever about a destination.
 
 | What it meant | Where | What that idea already is |
 | --- | --- | --- |
@@ -54,4 +54,4 @@ A glossary asserting a settled answer is worse than one saying nothing, because 
 
 **`CONTEXT.md` gains one term and no entry is deleted.** Every rejected word is recorded under `_Avoid_` rather than dropped, so a reader who comes to the glossary with "page tree" or "published" in hand is told what to say instead.
 
-**The rule is checkable by reading**, with one qualification this record got wrong when it was first written and corrects here: the rule binds *this project as the actor*. A sentence where something else publishes — NIST publishing a SHA-256 digest, Testcontainers publishing a property — is unaffected, and `ContentHashingTest` and `TestcontainersConfiguration` keep theirs. What is a defect is any sentence in which Vespera, a stage or the pipeline publishes something. None remain: the last of them was the withdrawn `vespera publish` subcommand, removed under ADR-101's own follow-up.
+**The rule is checkable by reading**, with one qualification: the rule binds *this project as the actor*. A sentence where something else publishes — NIST publishing a SHA-256 digest, Testcontainers publishing a property — is unaffected, and `ContentHashingTest` and `TestcontainersConfiguration` keep theirs. What is a defect is any sentence in which Vespera, a stage or the pipeline publishes something. None remain: the last of them was the `vespera publish` subcommand, which ADR-101 withdraws.

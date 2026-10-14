@@ -8,7 +8,7 @@
 
 Stage 1's `broken` verdict exists to catch mechanically-corrupt occurrences before extraction (stage 2, Docling) pays to attempt them. ADR-017's ordering principle — cheapest filter first — governs what "cheap enough" means here: any check heavier than what extraction itself would do defeats the point of running the filter first at all.
 
-The corpus carries `.txt`, `.docx`, `.pdf` and images (`AGENTS.md`). Each format fails mechanically in a different, format-specific way — a truncated zip is not the same failure as a malformed PDF trailer — so a single cross-format probe cannot catch what matters; per-format logic is the feature this ticket specifies, not scope creep.
+The corpus carries `.txt`, `.docx`, `.pdf` and images (`AGENTS.md`). Each format fails mechanically in a different, format-specific way — a truncated zip is not the same failure as a malformed PDF trailer — so a single cross-format probe cannot catch what matters; per-format logic is the feature itself, not scope creep.
 
 Three tool options were weighed for `.docx` specifically (a zip container holding OOXML parts):
 
@@ -28,7 +28,7 @@ The choice between `ZipFile` and POI came down to whether `broken` should absorb
 - **Images**: a magic-byte/signature check (or `javax.imageio.ImageIO.getImageReaders()` against the header), JDK-only.
 - **`.txt`**: no check beyond the cross-format floor — any byte sequence is valid text.
 
-**Apache POI is explicitly rejected for this ticket.** `OPCPackage.open` would catch more (OOXML relationship corruption), but that gap is stage 2's `extraction-failed` territory, and taking it on here would mean stage 1 doing real parse work and carrying a new dependency for a case that already has a home.
+**Apache POI is explicitly rejected here.** `OPCPackage.open` would catch more (OOXML relationship corruption), but that gap is stage 2's `extraction-failed` territory, and taking it on here would mean stage 1 doing real parse work and carrying a new dependency for a case that already has a home.
 
 **Docling is not an option for `broken` detection at all** — it is stage 2's extraction engine, not a cheaper alternative; running it at stage 1 deletes the stage boundary rather than filtering ahead of it.
 
@@ -36,7 +36,7 @@ The choice between `ZipFile` and POI came down to whether `broken` should absorb
 
 ## Consequences
 
-**No pom change.** `ZipFile`, header/trailer byte checks, and `ImageIO` are all JDK-standard, keeping ADR-046 clean for this ticket.
+**No pom change.** `ZipFile`, header/trailer byte checks, and `ImageIO` are all JDK-standard, keeping ADR-046 clean.
 
 **A known, accepted gap**: `.docx` and `.pdf` files with valid containers but corrupt internal content pass stage 1 and are only caught at stage 2 as `extraction-failed`. This is not a hole to close later — it is where that failure category already belongs, and closing it here would duplicate stage 2's job one stage early.
 
