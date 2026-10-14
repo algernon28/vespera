@@ -12,51 +12,39 @@ Stage 2 posts each file to the converter under a name derived from its detected 
 
 ADR-252 measured those reasons on one corpus: of 3,924 file occurrences that earned `extraction-failed`, 3,740 carried `policy: File format not allowed: document.bin`. The category reads as a setting of the converter's that refuses the `.bin` name. It is not one.
 
-### What the converter does with bytes it names no format for
+### How the converter names a format, and what it does with none
 
 At `docling` v2.124.0:
 
-- **`_guess_format` names no format** ([`document.py:766-856`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L766-L856)). For a posted file it reads up to 8192 bytes and asks `filetype` for a media type; only where `filetype` finds none is the extension consulted, and `bin` is in none of the extension tables ([`_mime_from_extension`, `document.py:977-1027`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L977-L1027)).
-  - Bytes `filetype` names, but as a media type the converter maps to no format, get none: `formats = MimeTypeToFormat.get(mime, [])` is empty and `_guess_format` returns none ([`document.py:845-856`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L845-L856); the table of media types, [`base_models.py:182-273`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/base_models.py#L182-L273)). `filetype` names an executable `application/x-msdownload` and a SQLite database `application/x-sqlite3` ([`types/archive.py:207`, `:406`](https://github.com/h2non/filetype.py/blob/v1.2.0/filetype/types/archive.py#L203-L220)), and neither is in the table.
-  - Bytes `filetype` matches nothing in, and that neither the HTML nor the CSV sniff accepts, fall to `text/plain`, which reaches Markdown only where the extension is `md`, `txt`, `text`, `qmd` or `rmd` ([`_guess_from_content`, `document.py:958-974`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L958-L974)). Under `.bin` the answer is none.
-  - A zip is opened and its central directory looked up for `word/document.xml`, `xl/workbook.xml`, `ppt/presentation.xml` and an OpenDocument `mimetype` member ([`_detect_office_mime_from_zip`, `document.py:868-895`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L868-L895)). A zip that holds none of them stays `application/zip`, which maps to no format.
+- **`_guess_format` reads the bytes first** ([`document.py:766-856`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L766-L856)). It asks `filetype` for a media type from the bytes ([`:776`, `:812`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L776-L812)), and only where `filetype` names none does it consult the extension ([`:779`, `:819`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L779-L819)); `bin` is in none of the extension tables ([`_mime_from_extension`, `document.py:977-1027`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L977-L1027)). Where the media type is `application/zip`, it looks in the zip's central directory for an Office Open XML or OpenDocument package ([`document.py:820-836`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L820-L836); [`_detect_office_mime_from_zip`, `:868-895`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L868-L895)). Where it still has no media type, it tries an HTML and a CSV sniff of the content, and then takes `text/plain` ([`document.py:842-844`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L842-L844)).
+  - It looks the media type up in the converter's table ([`document.py:845`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L845); [`base_models.py:182-273`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/base_models.py#L182-L273)). Where the table has no format for it, `_guess_format` names none ([`document.py:855-856`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L855-L856)). Where the table has several, or the type is `text/plain`, a look at the content decides, and it can name none too ([`_guess_from_content`, `document.py:907-974`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L907-L974)).
 - **A format of none is refused by policy, and no pipeline runs.** The input is given the placeholder `_DummyBackend` ([`document.py:685-690`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/document.py#L685-L690)), and `DocumentConverter._process_document` answers every format outside `allowed_formats` with status `SKIPPED` and one error, category `policy`, message `File format not allowed: {file}` ([`document_converter.py:743-763`](https://github.com/docling-project/docling/blob/v2.124.0/docling/document_converter.py#L743-L763)). `allowed_formats` defaults to every format ([`document_converter.py:383-385`](https://github.com/docling-project/docling/blob/v2.124.0/docling/document_converter.py#L383-L385)), and the sidecar builds its converter with format options alone ([`docling_jobkit` v3.5.0, `convert/manager.py:570`](https://github.com/docling-project/docling-jobkit/blob/v3.5.0/docling_jobkit/convert/manager.py#L570)). No setting is behind the refusal: it is what a format of none earns.
 
-**The name is not what is refused.** An image posted as `document.bin` converts, because `filetype` names it from its bytes.
+### What the test measured
 
-### Which files stage 2 posts under the neutral name, and what each earns
+Against the pinned image, each file posted as `document.bin` (Tests):
 
-| Detected format, of a file occurrence in the corpus | What the converter answers under `document.bin` |
-| --- | --- |
-| `IMAGE` | names it from its bytes and converts it |
-| `ZIP_CONTAINER` | converts an Office Open XML or OpenDocument package its probe names; refuses any other zip by policy |
-| `UNRECOGNISED` | refuses it by policy where `filetype` names no media type the converter reads; an audio file `filetype` names as MP3, M4A, WAV, AAC, Ogg or FLAC is the exception, and a pipeline runs |
-| `OLE_COMPOUND` with no subtype | refuses it by policy where `filetype` names no media type the converter reads; a compound file `filetype` names a Word, Excel or PowerPoint file is the exception, and reaches a backend; read from the sources, and no test posts one |
+- four kilobytes from a fixed seed, which stage 1 detects as `UNRECOGNISED`, come back `SKIPPED` with one error, category `policy`, message `File format not allowed: document.bin`;
+- a zip holding none of the members the converter's probe looks for, which stage 1 detects as `ZIP_CONTAINER`, comes back the same;
+- a PNG, which stage 1 detects as `IMAGE`, is not refused: it does not come back `SKIPPED`, and no `policy` error rides with it.
 
-The two exceptions, at `filetype` 1.2.0 and `docling` v2.124.0:
+**The name is not what is refused.** The PNG and the two refused files carry the same name.
 
-- **Audio.** Stage 1 has no format for audio. `filetype` names an MP3 `audio/mpeg`, an M4A `audio/mp4`, a WAV `audio/x-wav`, an ADTS AAC `audio/aac`, an Ogg `audio/ogg` and a FLAC `audio/x-flac` ([`types/audio.py`](https://github.com/h2non/filetype.py/blob/v1.2.0/filetype/types/audio.py)), and the converter maps each to `AUDIO` ([`base_models.py:237-248`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/base_models.py#L237-L248)).
-- **A compound file named by four bytes.** `filetype`'s `Doc`, `Xls` and `Ppt` matchers read the eight-byte compound file signature and then four bytes at offset 512, where the first sector begins, and nothing of the compound file's directory ([`types/document.py:113-124`, `:162-177`, `:215-232`](https://github.com/h2non/filetype.py/blob/v1.2.0/filetype/types/document.py#L102-L232)). `Xls` and `Ppt` accept `FD FF FF FF` there among other values, the mark a FAT sector gives itself, with a condition on two more bytes, so a compound file of another kind whose first sector is its FAT can be named one of them. The converter maps the three to `DOC`, `XLS` and `PPT` ([`base_models.py:187-198`, `:218-221`](https://github.com/docling-project/docling/blob/v2.124.0/docling/datamodel/base_models.py#L187-L221)).
+### Which detected formats stage 2 posts under the neutral name
 
-Every format, these three and `AUDIO` among them, has a backend by default ([`document_converter.py:282-325`, `:412-419`](https://github.com/docling-project/docling/blob/v2.124.0/docling/document_converter.py#L282-L325)). What follows for these files is not measured.
+Of the detected formats a file occurrence reaches stage 2 with, `extensionFor` posts `IMAGE`, `ZIP_CONTAINER`, `UNRECOGNISED` and `OLE_COMPOUND` with no subtype under `document.bin` (`DoclingClient.java:333-336`). For each, whether the converter refuses a file is decided by its reading of the bytes, as above, and not by the detected format. For instance, `filetype` has a matcher for an animated PNG, `image/apng` ([`types/image.py:51-87`](https://github.com/h2non/filetype.py/blob/v1.2.0/filetype/types/image.py#L51-L87)), which it tries before the one for `image/png` ([`types/__init__.py:20-21`](https://github.com/h2non/filetype.py/blob/v1.2.0/filetype/types/__init__.py#L20-L21)), and the converter's table has no format for `image/apng`.
 
-`BMP`, `VIDEO`, `SPREADSHEET`, `COMPILED_CODE`, `FONT`, `CERTIFICATE` and `DATABASE` are posted under the neutral name too, but `OutOfScope.reasonFor` leaves every file occurrence of them out at stage 1, so they reach the converter only as seeds.
+`BMP`, `VIDEO`, `SPREADSHEET`, `COMPILED_CODE`, `FONT`, `CERTIFICATE`, `DATABASE`, and `OLE_COMPOUND` with the Outlook message subtype, are posted under the neutral name too (`DoclingClient.java:333`, `:336`, `:352`), but `OutOfScope.reasonFor` leaves every file occurrence of them out at stage 1.
 
 ### ADR-100's sentence
 
-ADR-100's Context says that text-shaped content whose extension is not a Markdown one *"lands on `_DummyBackend` (`document.py:686-690`) and comes back `ConversionStatus.FAILURE`"*. At the pinned version the first half holds and the second does not: such a file comes back `SKIPPED`, category `policy`. Stage 2 posts no text under such an extension; the sentence reaches it through ADR-100's `UNRECOGNISED` row, whose bytes fall to `text/plain` as above. That row's *"converts to a failure, which is the true answer"* stands: `SKIPPED` is not a conversion, and earns `extraction-failed` as `FAILURE` would.
-
-### What `DoclingClient`'s javadoc says
-
-The javadoc of `NEUTRAL_EXTENSION` (`DoclingClient.java:124-128`) and of `extensionFor` (`DoclingClient.java:308-317`) says the neutral name claims no format, so the converter's own reading of the bytes stands and, for a zip, its central-directory probe runs. Both are true. Neither says what follows where that reading names nothing.
+ADR-100's Context says that text-shaped content whose extension is not a Markdown one *"lands on `_DummyBackend` (`document.py:686-690`) and comes back `ConversionStatus.FAILURE`"*. At the pinned version the first half holds and the second does not: such a file comes back `SKIPPED`, category `policy`. ADR-100's `UNRECOGNISED` row, *"converts to a failure, which is the true answer"*, stands: `SKIPPED` is not a conversion, and earns `extraction-failed` as `FAILURE` would.
 
 ## Decision
 
 ### 1. What a `policy` refusal means
 
-**An `extraction-failed` verdict whose reason is `policy: File format not allowed: …` means the converter named no format for the bytes it was sent.** No pipeline ran on the file's content. It is not a conversion that went wrong, and not a setting of the converter's that refuses the name. That is how the operator reads it on the review list, `extraction-failures.html`, and in any count of `extraction-failed` reasons.
-
-Under the neutral name such a file is an `UNRECOGNISED` file or an `OLE_COMPOUND` file with no subtype for whose bytes `filetype` names no media type the converter maps to a format (none at all, or a type such as an executable's that it has no format for), or a zip whose central directory names no package the converter reads.
+**An `extraction-failed` verdict whose reason is `policy: File format not allowed: …` means the converter's own reading of what it was sent named no format it converts, and no pipeline ran on the file's content.** That reading starts from the bytes, with `filetype`'s media type for them, and ends in the converter's table of media types (Context). Whatever stage 1 detected the file as, that reading decides, and the neutral name claims no format in it. The refusal is not a conversion that went wrong, and not a setting of the converter's that refuses the name. That is how the operator reads it on the review list, `extraction-failures.html`, and in any count of `extraction-failed` reasons.
 
 ### 2. ADR-100's sentence is corrected
 
@@ -68,7 +56,7 @@ No code, verdict, reason, count, posted name or naming version changes, and no r
 
 ## Consequences
 
-- A `policy` refusal on the review list points to what the file is, which stage 1 decides, and not to the converter's settings.
+- A `policy` refusal on the review list points to the bytes, as the converter reads them, and not to the converter's settings or to the name posted.
 - A sidecar upgrade can change what a format of none earns. ADR-100 already names the upgrade as the event that invalidates its findings; the test below is what notices this one.
 
 ## Tests
@@ -79,10 +67,10 @@ Every file is a few bytes built in the test, posted to the pinned sidecar.
 | --- | --- |
 | `extraction.DoclingRefusesBytesOfNoKnownKindIT.bytesOfNoKnownKindAreRefused` | four kilobytes stage 1 reads as `UNRECOGNISED`, posted as `document.bin`, come back `SKIPPED` with one error, category `policy`, message `File format not allowed: document.bin` |
 | `…anArchiveOfAnotherKindIsRefused` | a zip stage 1 reads as `ZIP_CONTAINER`, holding none of the members the probe looks for, comes back the same |
-| `…anImageUnderTheSameNameConverts` | a PNG stage 1 reads as `IMAGE`, posted under the same name, is not refused: it does not come back `SKIPPED`, and no `policy` error rides with it |
+| `…aPngUnderTheSameNameIsNotRefused` | a PNG stage 1 reads as `IMAGE`, posted under the same name, is not refused: it does not come back `SKIPPED`, and no `policy` error rides with it |
 
 ## What this does not decide
 
 - **Whether stage 2 counts or labels these refusals apart from other failures.** A verdict of their own would amend ADR-057's closed list; a reason worded otherwise changes what stage 2 writes and moves the run ids of stages 2 onward.
 - **Whether more of them are left out at stage 1.** ADR-252 decides that by kind, by a signature, and names what would leave out binary content with no signature: a signature yet to be found, or a list of name endings in the profile.
-- **The javadoc of `NEUTRAL_EXTENSION` and `extensionFor`**, which is true as written and does not name the refusal.
+- **The javadoc of `NEUTRAL_EXTENSION` and `extensionFor`**, which does not name the refusal.

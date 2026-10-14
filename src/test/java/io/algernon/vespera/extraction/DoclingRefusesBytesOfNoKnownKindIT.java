@@ -41,7 +41,7 @@ import org.springframework.test.context.ActiveProfiles;
  * {@code application/zip}, {@code bin} is in no extension table, and the {@code text/plain} fallback
  * reaches Markdown only for a Markdown or text extension), and {@code DocumentConverter._process_document}
  * answers a format outside its allowed list, which defaults to every format, with {@code skipped},
- * category {@code policy}. An image sent under the same name converts, so the name is not what is refused.
+ * category {@code policy}. A PNG sent under the same name is not refused, so the name is not what is refused.
  *
  * <p>Every fixture is made here, each in its own folder (ADR-063), and stage 1's own reading of it is
  * checked first, so the format each is posted as is the one a real walk would have recorded.
@@ -93,8 +93,8 @@ class DoclingRefusesBytesOfNoKnownKindIT {
 
     @Test
     @Story("What the neutral name reaches")
-    @DisplayName("An image posted under the same name is not refused, so the name itself is not what the sidecar refuses")
-    void anImageUnderTheSameNameConverts(@TempDir Path dir) throws IOException {
+    @DisplayName("A PNG posted under the same name is not refused, so the name itself is not what the sidecar refuses")
+    void aPngUnderTheSameNameIsNotRefused(@TempDir Path dir) throws IOException {
         Path image = aPng(dir.resolve("picture.png"));
         claim(
                 "stage 1 reads the fixture as an image",
@@ -103,7 +103,7 @@ class DoclingRefusesBytesOfNoKnownKindIT {
         DoclingResponse response = client.convert(image, DetectedFormat.IMAGE, null);
 
         claim(
-                "the sidecar names the image from its bytes and does not answer skipped, though it was posted as"
+                "the sidecar does not answer skipped for the PNG, though it was posted as"
                         + " document.bin like the two refused above",
                 () -> assertThat(response.status())
                         .as("status for a PNG posted as document.bin; errors: %s", response.errors())
