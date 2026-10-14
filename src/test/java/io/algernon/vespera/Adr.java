@@ -1772,6 +1772,13 @@ public final class Adr {
     public static final String THE_RECORDS_RULES_ARE_CHECKED_IN_THE_CLAIMS_JOB_TOO = FILE
             + "0258-the-records-rules-are-checked-in-the-claims-job-too-from-one-list-of-words-and-every-link-between-records-resolves.md";
 
+    /**
+     * ADR-260 -- a shingle is boilerplate where its document count is at least ceil(floor x N), the product
+     * taken in exact decimal arithmetic on the floor's decimal value (amends ADR-080).
+     */
+    public static final String A_SHINGLE_REACHES_THE_BOILERPLATE_FLOOR_BY_EXACT_DECIMAL_ARITHMETIC = FILE
+            + "0260-a-shingle-reaches-the-boilerplate-floor-by-exact-decimal-arithmetic.md";
+
     private Adr() {
     }
 }
