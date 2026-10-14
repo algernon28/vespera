@@ -1741,6 +1741,14 @@ public final class Adr {
             + "0254-a-signature-of-short-length-and-an-apple-font-are-out-of-scope-and-a-failure-at-the-end-of-stage-2-is-said-whatever-it-was.md";
 
     /**
+     * ADR-255 -- a policy refusal at stage 2, "File format not allowed", means the converter named no format for
+     * the bytes it was sent, and no pipeline ran; such a file comes back SKIPPED, not FAILURE (amends one
+     * sentence of ADR-100's Context).
+     */
+    public static final String A_POLICY_REFUSAL_MEANS_THE_CONVERTER_NAMED_NO_FORMAT = FILE
+            + "0255-a-policy-refusal-at-stage-2-means-the-converter-named-no-format-for-the-bytes-it-was-sent.md";
+
+    /**
      * ADR-256 -- a file whose bytes matched no signature, detected as of no known kind or as text, and whose
      * name ends with one of the endings the profile's outOfScopeNameEndings lists, is out of scope; the list is
      * folded, de-duplicated and sorted, and stage 1's configuration consumed records it (extends ADR-252 §5
