@@ -49,7 +49,7 @@ Vespera writes reports beside the database. Each one measures something; none of
 | The value | Read | Which reports |
 |---|---|---|
 | `seedFolder` | your own knowledge of the archive | — |
-| `boilerplateDocumentFrequencyFloor` | how many documents share the same passages | `format-mix.html` |
+| `boilerplateDocumentFrequencyFloor` | how many documents share the same passages | none: read it off `vespera.db`, as below |
 | `embeddingModel` | whichever model you can serve locally | — |
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
@@ -59,6 +59,12 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `generationContextWindow` | how much your own machine can read in one go | — |
 | `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
 | `outOfScopeNameEndings` | which files, of no known kind or text, you know are not documents by the ending of their name | `format-mix.html` |
+
+No report shows `boilerplateDocumentFrequencyFloor`'s measurement. Stage 3 stores it in `vespera.db`: for each passage of five words found in two documents or more, `shingle_document_frequency` holds how many documents it is in, and `shingle_corpus_size` holds how many documents were measured. The floor is a share between 0 and 1 of the second: a passage found in at least that share of the documents is boilerplate, and is left out when documents are compared. A passage is stored as a number, not as its words. This prints, for the last content census, how many passages are found in each share of the documents, to the nearest hundredth, without writing to it:
+
+```
+python -c "import sqlite3;[print(r) for r in sqlite3.connect('file:.vespera/vespera.db?mode=ro',uri=True).execute('select round(1.0*f.document_count/c.shingled_document_count,2) as share,count(*) from shingle_document_frequency f join shingle_corpus_size c on c.run_id=f.run_id and c.shingle_parameter_identity=f.shingle_parameter_identity where f.run_id=(select id from run where stage=? order by rowid desc limit 1) group by share order by share',['content-census'])]"
+```
 
 Six of these are **optional** and none of them is one of the five stops; all six are here so that you know they exist.
 
