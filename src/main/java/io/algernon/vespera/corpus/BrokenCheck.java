@@ -212,6 +212,11 @@ public final class BrokenCheck {
     private static final byte[] TRUETYPE_VERSION = {0x00, 0x01, 0x00, 0x00};
 
     private static final byte[] OPENTYPE_TAG = "OTTO".getBytes(StandardCharsets.US_ASCII);
+
+    /** What an sfnt font made for Apple's systems opens with in place of the TrueType version (ADR-254). */
+    private static final byte[] APPLE_TRUETYPE_TAG = "true".getBytes(StandardCharsets.US_ASCII);
+
+    private static final byte[] APPLE_POSTSCRIPT_TAG = "typ1".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] FONT_COLLECTION_TAG = "ttcf".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] FONT_COLLECTION_VERSION_2 = {0x00, 0x02, 0x00, 0x00};
     private static final byte[] WOFF_SIGNATURE = "wOFF".getBytes(StandardCharsets.US_ASCII);
@@ -790,9 +795,13 @@ public final class BrokenCheck {
         }
         if (startsWith(prefix, WOFF_SIGNATURE) || startsWith(prefix, WOFF2_SIGNATURE)) {
             return matchesAt(prefix, WRAPPED_FONT_OFFSET, TRUETYPE_VERSION)
-                    || matchesAt(prefix, WRAPPED_FONT_OFFSET, OPENTYPE_TAG);
+                    || matchesAt(prefix, WRAPPED_FONT_OFFSET, OPENTYPE_TAG)
+                    || matchesAt(prefix, WRAPPED_FONT_OFFSET, APPLE_TRUETYPE_TAG);
         }
-        return (startsWith(prefix, TRUETYPE_VERSION) || startsWith(prefix, OPENTYPE_TAG))
+        return (startsWith(prefix, TRUETYPE_VERSION)
+                        || startsWith(prefix, OPENTYPE_TAG)
+                        || startsWith(prefix, APPLE_TRUETYPE_TAG)
+                        || startsWith(prefix, APPLE_POSTSCRIPT_TAG))
                 && sfntHeaderAgreesWithItself(prefix);
     }
 
@@ -833,6 +842,7 @@ public final class BrokenCheck {
             return false;
         }
         int typeAt = switch (prefix[1] & 0xFF) {
+            case 0x81 -> 3;
             case 0x82 -> 4;
             case 0x83 -> 5;
             case 0x80 -> 2;

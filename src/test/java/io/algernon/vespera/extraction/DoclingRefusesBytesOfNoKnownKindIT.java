@@ -36,12 +36,12 @@ import org.springframework.test.context.ActiveProfiles;
  * reason of {@code policy: File format not allowed: document.bin} means (ADR-255).
  *
  * <p>The reason reads as though the sidecar refused the {@code .bin} name by a setting. It does not. Docling
- * resolves no input format for
- * these bytes ({@code _guess_format} returns none: {@code filetype} matches nothing or only
- * {@code application/zip}, {@code bin} is in no extension table, and the {@code text/plain} fallback
- * reaches Markdown only for a Markdown or text extension), and {@code DocumentConverter._process_document}
- * answers a format outside its allowed list, which defaults to every format, with {@code skipped},
- * category {@code policy}. A PNG sent under the same name is not refused, so the name is not what is refused.
+ * resolves no input format for these bytes ({@code _guess_format} returns none: {@code filetype} matches
+ * nothing or only {@code application/zip}, {@code bin} is in no extension table, and the {@code text/plain}
+ * fallback reaches Markdown only for a Markdown or text extension), and
+ * {@code DocumentConverter._process_document} answers a format outside its allowed list, which defaults to
+ * every format, with {@code skipped}, category {@code policy}. A PNG sent under the same name is not refused,
+ * so the name is not what is refused.
  *
  * <p>Every fixture is made here, each in its own folder (ADR-063), and stage 1's own reading of it is
  * checked first, so the format each is posted as is the one a real walk would have recorded.

@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.step.StepExecution;
-import org.springframework.dao.DataAccessException;
 
 /**
  * Writes the review list (CONTEXT.md) when the step ends (ADR-175 section 7): one
@@ -73,17 +72,27 @@ class ReviewListListener implements StepExecutionListener {
         if (!completed && stepExecution.getReadCount() == 0) {
             return stepExecution.getExitStatus();
         }
-        RunId run = stageRuns.extraction();
+        Path page = workingDirectory.resolve(FILE_NAME);
+        Path part = workingDirectory.resolve(FILE_NAME + ".part");
+        RunId run;
+        try {
+            run = stageRuns.extraction();
+        } catch (RuntimeException e) {
+            log.error(
+                    "Stage 2 (extraction): the run of the files that could not be read could not be found, and the"
+                            + " list of them could not be written to {}: {}",
+                    page.toAbsolutePath(),
+                    e.toString());
+            return stepExecution.getExitStatus();
+        }
         // The timed span covers the count and the writing of the page, so the sorted read of
         // eachExtractionFailure is issued before the line after (ADR-220 section 6).
         TimedStatement.Started timed = TimedStatement.begin(
                 "Stage 2 (extraction)", "reading", "read", "the occurrences it could not read");
-        Path page = workingDirectory.resolve(FILE_NAME);
-        Path part = workingDirectory.resolve(FILE_NAME + ".part");
         long failures;
         try {
             failures = ledger.verdicts().extractionFailureCount(run);
-        } catch (DataAccessException e) {
+        } catch (RuntimeException e) {
             log.error(
                     "Stage 2 (extraction): the files that could not be read could not be counted, and the list of"
                             + " them could not be written to {}: {}",
@@ -98,8 +107,8 @@ class ReviewListListener implements StepExecutionListener {
             }
             moves.intoPlace(part, page);
             timed.end();
-        } catch (IOException | DataAccessException e) {
-            // Said, not thrown, whether the file or the read of its rows failed: Spring Batch only logs what an
+        } catch (IOException | RuntimeException e) {
+            // Said, not thrown, whether the file or the read of its rows failed, and whatever failed (ADR-254): Spring Batch only logs what an
             // afterStep throws, with a stack trace, and skips the listeners after it. The verdicts are in the
             // ledger either way.
             log.error(

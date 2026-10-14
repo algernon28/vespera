@@ -1732,6 +1732,15 @@ public final class Adr {
             + "0253-every-decision-record-holds-its-decision-and-no-history.md";
 
     /**
+     * ADR-254 -- signed data with no content is recognised in the three encodings of its length that DER and BER
+     * give a sequence, the short one-byte form among them; a font is also an sfnt that opens with Apple's
+     * {@code true} or {@code typ1}; and the two listeners that write a page at the end of stage 2 say a failure
+     * of any kind in one line, throwing none (amends ADR-252 and applies ADR-175 section 7).
+     */
+    public static final String A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS = FILE
+            + "0254-a-signature-of-short-length-and-an-apple-font-are-out-of-scope-and-a-failure-at-the-end-of-stage-2-is-said-whatever-it-was.md";
+
+    /**
      * ADR-255 -- a policy refusal at stage 2, "File format not allowed", means the converter named no format for
      * the bytes it was sent, and no pipeline ran; such a file comes back SKIPPED, not FAILURE (amends one
      * sentence of ADR-100's Context).
