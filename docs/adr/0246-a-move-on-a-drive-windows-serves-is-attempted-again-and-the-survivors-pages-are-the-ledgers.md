@@ -1,6 +1,8 @@
 # ADR-246 — A move on a drive Windows serves is attempted again, and the survivors' pages are the ledger's
 
 > **Partly amended — see [ADR-247](0247-stage-4b-asks-whether-a-page-is-kept-of-its-own-index-and-a-drive-windows-serves-is-told-once.md).** Of §1: a drive Windows serves is one of `9p`, `drvfs`, `virtiofs`, `cifs`, `smb3` and `smbfs`, and no longer `ntfs`, `ntfs3` or `fuseblk`; the drive is asked once a move, and a lookup that fails is no such drive. Of §3: the run is compared as a value, `+run_id`, since the planner otherwise chose the run's index.
+>
+> **Partly settled — see [ADR-257](0257-one-cut-of-a-list-of-keys-into-pages-and-the-walk-anomalies-are-paged-like-the-other-reads.md).** Of *What this does not decide*: the shared form for a read that asks a list of keys with `IN` is `ledger.ListedPages`, and the reads named here go through it.
 
 - **Date**: 2026-10-13
 - **Status**: accepted on 2026-10-13.

@@ -1,6 +1,7 @@
 package io.algernon.vespera.synthesis;
 
 import io.algernon.vespera.ledger.KeysetPages;
+import io.algernon.vespera.ledger.ListedPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
@@ -129,8 +130,7 @@ public class Clusters {
         }
         Map<ClusterSlot, ArrangedCluster> places = new HashMap<>();
         ordinalsBySeed.forEach((winningSeed, ordinals) -> {
-            for (int from = 0; from < ordinals.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
-                List<Integer> batch = ordinals.subList(from, Math.min(ordinals.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+            ListedPages.each(ordinals, batch -> {
                 List<Object> arguments = new ArrayList<>();
                 arguments.add(arrangement.value());
                 arguments.add(winningSeed.value());
@@ -151,7 +151,7 @@ public class Clusters {
                                             resultSet.getInt("cluster_order")));
                         },
                         arguments.toArray());
-            }
+            });
         });
         return places;
     }

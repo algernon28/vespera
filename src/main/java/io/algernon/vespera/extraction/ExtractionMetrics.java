@@ -1,6 +1,7 @@
 package io.algernon.vespera.extraction;
 
 import io.algernon.vespera.ledger.KeysetPages;
+import io.algernon.vespera.ledger.ListedPages;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
@@ -166,14 +167,12 @@ public class ExtractionMetrics {
             Collection<OccurrenceId> occurrences,
             IntFunction<String> statementFor,
             RowCallbackHandler row) {
-        List<OccurrenceId> all = occurrences instanceof List<OccurrenceId> list ? list : new ArrayList<>(occurrences);
-        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
-            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+        ListedPages.each(occurrences, batch -> {
             List<Object> arguments = new ArrayList<>();
             arguments.add(runId.value());
             batch.forEach(id -> arguments.add(id.value()));
             jdbcTemplate.query(statementFor.apply(batch.size()), row, arguments.toArray());
-        }
+        });
     }
 
     /**

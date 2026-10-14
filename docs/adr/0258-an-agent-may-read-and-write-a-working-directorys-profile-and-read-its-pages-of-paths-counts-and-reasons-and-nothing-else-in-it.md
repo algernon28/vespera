@@ -1,4 +1,4 @@
-# ADR-257 — An agent may read and write a working directory's profile, and read its pages of paths, counts and reasons, and nothing else in it
+# ADR-258 — An agent may read and write a working directory's profile, and read its pages of paths, counts and reasons, and nothing else in it
 
 - **Date**: 2026-10-14
 - **Status**: accepted on 2026-10-14.

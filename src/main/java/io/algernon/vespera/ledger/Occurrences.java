@@ -115,9 +115,7 @@ public class Occurrences {
      */
     public Map<OccurrenceId, OccurrencePath> pathsOf(Collection<OccurrenceId> occurrences) {
         Map<OccurrenceId, OccurrencePath> paths = new HashMap<>();
-        List<OccurrenceId> all = List.copyOf(occurrences);
-        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
-            List<OccurrenceId> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+        ListedPages.each(occurrences, batch -> {
             jdbcTemplate.query(
                     "SELECT id, path FROM file_occurrence WHERE id IN (" + Placeholders.of(batch.size()) + ")",
                     resultSet -> {
@@ -126,7 +124,7 @@ public class Occurrences {
                                 new OccurrencePath(resultSet.getString("path")));
                     },
                     batch.stream().map(OccurrenceId::value).toArray());
-        }
+        });
         return paths;
     }
 

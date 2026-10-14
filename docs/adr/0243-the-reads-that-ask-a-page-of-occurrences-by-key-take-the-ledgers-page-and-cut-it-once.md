@@ -1,5 +1,7 @@
 # ADR-243 — The reads that ask a page of occurrences by key take the ledger's page, and cut it once
 
+> **Partly settled — see [ADR-257](0257-one-cut-of-a-list-of-keys-into-pages-and-the-walk-anomalies-are-paged-like-the-other-reads.md).** Of *What this does not decide*: the shared form for a read that asks a list of keys with `IN` is `ledger.ListedPages`, and the reads named here go through it, and `AnomalyLog`'s page size of its own, left in Consequences, is gone: its comparison goes through `KeysetPages`.
+
 - **Date**: 2026-10-12
 - **Status**: accepted on 2026-10-12.
 - **Applies**: [ADR-216](0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md) §1, the ride-along rule, to a copy in `extraction` and `embedding` (§1). Amends nothing.

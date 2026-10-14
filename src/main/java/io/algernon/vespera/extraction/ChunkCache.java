@@ -1,6 +1,7 @@
 package io.algernon.vespera.extraction;
 
 import io.algernon.vespera.ledger.KeysetPages;
+import io.algernon.vespera.ledger.ListedPages;
 import io.algernon.vespera.ledger.Placeholders;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -67,9 +68,7 @@ class ChunkCache {
      */
     Map<String, Integer> counts(Collection<String> contentHashes, String chunkerIdentity, String chunkingRuleIdentity) {
         Map<String, Integer> counted = new HashMap<>();
-        List<String> all = List.copyOf(contentHashes);
-        for (int from = 0; from < all.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
-            List<String> batch = all.subList(from, Math.min(all.size(), from + KeysetPages.ROWS_IN_A_PAGE));
+        ListedPages.each(contentHashes, batch -> {
             List<Object> arguments = new ArrayList<>(batch);
             arguments.add(chunkerIdentity);
             arguments.add(chunkingRuleIdentity);
@@ -81,7 +80,7 @@ class ChunkCache {
                         counted.put(resultSet.getString(1), resultSet.getInt(2));
                     },
                     arguments.toArray());
-        }
+        });
         return counted;
     }
 }

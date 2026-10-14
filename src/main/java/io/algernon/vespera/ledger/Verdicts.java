@@ -106,10 +106,8 @@ public class Verdicts {
      * written a second time.
      */
     public void discardVerdictsAgainst(RunId runId, Collection<OccurrenceId> occurrences, VerdictKind kind) {
-        List<OccurrenceId> remaining = List.copyOf(occurrences);
         // SQLite caps the variables of one statement, so a long list goes in batches.
-        for (int from = 0; from < remaining.size(); from += DISCARD_BATCH) {
-            List<OccurrenceId> batch = remaining.subList(from, Math.min(from + DISCARD_BATCH, remaining.size()));
+        ListedPages.each(occurrences, DISCARD_BATCH, batch -> {
             String occurrencePlaceholders = batch.stream().map(id -> "?").collect(Collectors.joining(", "));
             Object[] arguments = new Object[2 + batch.size()];
             arguments[0] = runId.value();
@@ -121,7 +119,7 @@ public class Verdicts {
                     "DELETE FROM verdict WHERE run_id = ? AND kind = ? AND occurrence_id IN ("
                             + occurrencePlaceholders + ")",
                     arguments);
-        }
+        });
     }
 
     /**
@@ -295,9 +293,7 @@ public class Verdicts {
         }
         List<String> runsInScope = runsInScope(runId);
         String runPlaceholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
-        for (int from = 0; from < distinct.size(); from += KeysetPages.ROWS_IN_A_PAGE) {
-            List<OccurrenceId> batch =
-                    distinct.subList(from, Math.min(from + KeysetPages.ROWS_IN_A_PAGE, distinct.size()));
+        ListedPages.each(distinct, batch -> {
             String occurrencePlaceholders = batch.stream().map(id -> "?").collect(Collectors.joining(", "));
             List<Object> arguments = new ArrayList<>();
             arguments.add(runId.value());
@@ -307,7 +303,7 @@ public class Verdicts {
                     SURVIVING_AMONG_SQL.formatted(blockingKinds(), runPlaceholders, occurrencePlaceholders),
                     (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("id")),
                     arguments.toArray()));
-        }
+        });
         return surviving;
     }
 

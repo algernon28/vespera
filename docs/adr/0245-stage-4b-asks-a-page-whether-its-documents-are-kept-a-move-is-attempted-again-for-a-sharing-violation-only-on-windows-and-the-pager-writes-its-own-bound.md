@@ -3,6 +3,8 @@
 > **Partly amended — see [ADR-247](0247-stage-4b-asks-whether-a-page-is-kept-of-its-own-index-and-a-drive-windows-serves-is-told-once.md).** Of §1: the question whether a page is kept was planned by the index on the run, reading every row of the run for each page; the run is now compared as a value, `+run_id`, and the question is planned by the index on the kept document.
 
 > **Partly amended — see [ADR-246](0246-a-move-on-a-drive-windows-serves-is-attempted-again-and-the-survivors-pages-are-the-ledgers.md).** Of §2: a `FileSystemException` of no subclass is attempted again away from Windows too where the page's place is on a drive Windows serves, under WSL or over a share, told by the type of its file store.
+>
+> **Partly settled — see [ADR-257](0257-one-cut-of-a-list-of-keys-into-pages-and-the-walk-anomalies-are-paged-like-the-other-reads.md).** Of *What this does not decide*: the shared form for a read that asks a list of keys with `IN` is `ledger.ListedPages`, and the reads named here go through it.
 
 - **Date**: 2026-10-12
 - **Status**: accepted on 2026-10-12.
