@@ -1,6 +1,8 @@
 package io.algernon.vespera.similarity;
 
 import io.algernon.vespera.ledger.RunId;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashSet;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,9 +30,9 @@ public class BoilerplateShingles {
 
     /**
      * The shingle hashes whose {@code document_count} under {@code stage3RunId} (matched on {@link
-     * ShingleParameters#DEFAULT}'s identity, the same granularity every stage-4 pass reads) reaches
-     * {@code floor * shingled_document_count} — {@code shingle_corpus_size}'s own denominator for that
-     * run and parameter identity.
+     * ShingleParameters#DEFAULT}'s identity, the same granularity every stage-4 pass reads) is at
+     * least {@code ceil(floor * shingled_document_count)}, taken in exact decimal arithmetic (ADR-260)
+     * — {@code shingle_corpus_size}'s own denominator for that run and parameter identity.
      *
      * <p>An empty result when {@code shingle_corpus_size} carries no row for this run and parameter
      * identity is the correct answer, not a defect: it means stage 3 measured zero shingled documents,
@@ -48,7 +50,7 @@ public class BoilerplateShingles {
             return Set.of();
         }
 
-        double thresholdCount = floor * shingledDocumentCount;
+        long thresholdCount = cutoff(floor, shingledDocumentCount);
         Set<Long> boilerplate = new HashSet<>();
         jdbcTemplate.query(
                 "SELECT shingle_hash FROM shingle_document_frequency"
@@ -60,5 +62,23 @@ public class BoilerplateShingles {
                 shingleParameterIdentity,
                 thresholdCount);
         return boilerplate;
+    }
+
+    /**
+     * {@code ceil(f * N)} in exact decimal arithmetic, {@code f} being the shortest decimal that reads
+     * back as {@code floor} (ADR-260). {@code BigDecimal} has no NaN or infinity, so those, and any
+     * product above N, give N + 1 (no count reaches it); a floor of 0 or below gives 0.
+     */
+    private static long cutoff(double floor, long shingledDocumentCount) {
+        if (Double.isNaN(floor) || floor > 1) {
+            return shingledDocumentCount + 1;
+        }
+        if (floor <= 0) {
+            return 0;
+        }
+        return BigDecimal.valueOf(floor)
+                .multiply(BigDecimal.valueOf(shingledDocumentCount))
+                .setScale(0, RoundingMode.CEILING)
+                .longValueExact();
     }
 }
