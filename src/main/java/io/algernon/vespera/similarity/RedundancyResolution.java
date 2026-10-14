@@ -2,6 +2,7 @@ package io.algernon.vespera.similarity;
 
 import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.ListedPages;
 import io.algernon.vespera.ledger.OccurrenceFacts;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.Placeholders;
@@ -597,9 +598,7 @@ public class RedundancyResolution {
      */
     private Set<Long> among(String select, String column, RunId stage4RunId, Collection<Long> occurrences) {
         Set<Long> found = new HashSet<>();
-        List<Long> all = List.copyOf(occurrences);
-        for (int from = 0; from < all.size(); from += OCCURRENCES_IN_A_PAGE) {
-            List<Long> batch = all.subList(from, Math.min(all.size(), from + OCCURRENCES_IN_A_PAGE));
+        ListedPages.each(occurrences, batch -> {
             List<Object> arguments = new ArrayList<>();
             arguments.add(stage4RunId.value());
             arguments.addAll(batch);
@@ -609,7 +608,7 @@ public class RedundancyResolution {
                         found.add(resultSet.getLong(column));
                     },
                     arguments.toArray());
-        }
+        });
         return found;
     }
 
