@@ -107,7 +107,8 @@ public record Profile(
         TextValue generationModel,
         NumericValue generationContextWindow,
         NumericValue logTimestampShareFloor,
-        NumericValue extractionAttempt) {
+        NumericValue extractionAttempt,
+        NameEndingsValue outOfScopeNameEndings) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -123,6 +124,7 @@ public record Profile(
                 generationContextWindow == null ? NumericValue.unset() : generationContextWindow;
         logTimestampShareFloor = logTimestampShareFloor == null ? NumericValue.unset() : logTimestampShareFloor;
         extractionAttempt = extractionAttempt == null ? NumericValue.unset() : extractionAttempt;
+        outOfScopeNameEndings = outOfScopeNameEndings == null ? NameEndingsValue.unset() : outOfScopeNameEndings;
     }
 
     /**
@@ -149,7 +151,7 @@ public record Profile(
 
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null, null, null, null, null, null, null);
+        return new Profile(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -164,7 +166,8 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor,
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
     }
 
     /**
@@ -183,7 +186,8 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor,
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
     }
 
     /**
@@ -206,7 +210,8 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor,
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
     }
 
     /**
@@ -224,7 +229,8 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor,
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
@@ -239,6 +245,23 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor.measuredBy(measurement),
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
+    }
+
+    /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-254). */
+    public Profile withOutOfScopeNameEndingsMeasurement(Measurement measurement) {
+        return new Profile(
+                seedFolder,
+                degenerateOutputConfidenceFloor,
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel,
+                relevanceScoreFloor,
+                arrangementApproved,
+                generationModel,
+                generationContextWindow,
+                logTimestampShareFloor,
+                extractionAttempt,
+                outOfScopeNameEndings.measuredBy(measurement));
     }
 }

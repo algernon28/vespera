@@ -1724,6 +1724,15 @@ public final class Adr {
     public static final String COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE = FILE
             + "0252-compiled-code-fonts-certificates-databases-and-emails-are-out-of-scope.md";
 
+    /**
+     * ADR-254 -- a file whose bytes matched no signature, detected as of no known kind or as text, and whose
+     * name ends with one of the endings the profile's outOfScopeNameEndings lists, is out of scope; the list is
+     * folded, de-duplicated and sorted, and stage 1's configuration consumed records it (extends ADR-252 §5
+     * and ADR-146, keeps ADR-094 and ADR-095).
+     */
+    public static final String NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE = FILE
+            + "0254-a-file-whose-name-ends-with-an-ending-the-profile-lists-is-out-of-scope-where-its-bytes-matched-no-signature.md";
+
     private Adr() {
     }
 }

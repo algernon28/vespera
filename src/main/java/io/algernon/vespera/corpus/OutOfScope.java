@@ -1,6 +1,8 @@
 package io.algernon.vespera.corpus;
 
 import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -58,6 +60,25 @@ final class OutOfScope {
             return Optional.of("an email, and emails are out of scope");
         }
         return Optional.empty();
+    }
+
+    /**
+     * Why a file whose bytes matched no signature is left out for the ending of its name, or empty where
+     * it is not (ADR-254). Only {@code UNRECOGNISED} and {@code PLAIN_TEXT} are read (section 3): a name
+     * never overrides bytes that named a kind (ADR-094). {@code endings} are the profile's, lower case;
+     * the longer ending wins, and the reason spells it as the file's name does.
+     */
+    static Optional<String> nameReason(Path file, DetectedFormat format, List<String> endings) {
+        if (format != DetectedFormat.UNRECOGNISED && format != DetectedFormat.PLAIN_TEXT) {
+            return Optional.empty();
+        }
+        String name = file.getFileName().toString();
+        String folded = name.toLowerCase(Locale.ROOT);
+        return endings.stream()
+                .filter(ending -> folded.endsWith(ending.toLowerCase(Locale.ROOT)))
+                .max(Comparator.comparingInt(String::length))
+                .map(ending -> "a file whose name ends with " + name.substring(name.length() - ending.length())
+                        + ", an ending outOfScopeNameEndings in profile.yaml lists as out of scope");
     }
 
     /** Why a text file is a log under {@code floor}, or empty where it is not, or no floor is set (ADR-171). */
