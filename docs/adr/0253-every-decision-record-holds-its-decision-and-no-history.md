@@ -13,7 +13,7 @@ ADR-249 held ADR-237 onward to its rule and left the records before them as writ
 
 ### 1. ADR-249's rule holds for every record
 
-Every record from ADR-001 on holds its decision, the context it answers, its reasons and the measurements they rest on, the alternatives refused, its consequences, what it leaves undecided and the tests that hold it, and nothing of its making. Its Status says it is accepted, with the date where it gives one. ADR-001 to ADR-250 are rewritten to it; no decision, number, name or identifier changes, no record is renumbered, and no numbered section or numbered point loses its number.
+Every record from ADR-001 on holds its decision, the context it answers, its reasons and the measurements they rest on, the alternatives refused, its consequences, what it leaves undecided and the tests that hold it, and nothing of its making. Its Status says it is accepted, with the date where it gives one. ADR-001 to ADR-252 are rewritten to it; no decision, number, name or identifier changes, no record is renumbered, and no numbered section or numbered point loses its number.
 
 ### 2. A point an answer settled is stated as a decision
 

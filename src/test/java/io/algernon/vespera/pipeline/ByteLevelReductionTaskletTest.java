@@ -404,6 +404,129 @@ class ByteLevelReductionTaskletTest {
     }
 
     /**
+     * ADR-252: compiled code, a font, a certificate, a database and an email are each removed as out of scope in
+     * stage 1's first pass, with a reason naming the kind, and counted on the page under a row of their own.
+     * The two byte-identical object files are each removed on their own account and never hashed. An older Office
+     * container its name says nothing about, a note and a file of no known kind carry no verdict. The detected
+     * formats are read as the text the ledger stores. The internet message is text, and is counted neither as
+     * text left out for its size nor in the timestamp table.
+     */
+    @Test
+    @Story("What stage 1 does over census's survivors")
+    @DisplayName("Compiled code, a font, a certificate, a database and an email are removed as out of scope and counted on the page; a project plan, a note and a file of no known kind are kept")
+    @Link(name = "ADR-252", url = Adr.COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE, type = "adr")
+    void removesCompiledCodeFontsCertificatesDatabasesAndEmailsAsOutOfScope(
+            @TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        Files.write(root.resolve("main.o"), ELF_OBJECT_FILE);
+        Files.write(root.resolve("main copy.o"), ELF_OBJECT_FILE);
+        Files.write(root.resolve("Source.otf"), OPENTYPE_FONT);
+        Files.write(root.resolve("server.crt"), BINARY_CERTIFICATE);
+        Files.write(root.resolve("cache.db"), SQLITE_DATABASE);
+        Files.write(root.resolve("RE offerta.msg"), OLE_COMPOUND_FILE);
+        Files.writeString(root.resolve("collaudo.eml"), "From: a@example.org\nSubject: collaudo\n\nRinviato.\n");
+        Files.write(root.resolve("piano.mpp"), OLE_COMPOUND_FILE_OF_ANOTHER_SIZE);
+        Files.writeString(root.resolve("nota.txt"), "Una nota di poche parole, che non e' un messaggio.");
+        Files.write(root.resolve("FIRMWARE.P3A"), new byte[] {0x13, 0x57, (byte) 0x9B, (byte) 0xDF, 0, 0, (byte) 0x81, 0});
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = walkRecorder(ledger).walk(root);
+
+        new ByteLevelReductionTasklet(
+                        ledger, contentIdentity(), detectedFormats(), new ImplementationVersions(), new ProfileStore(workingDirectory), root, workingDirectory)
+                .execute(null, InvocationRecordFixture.aStepOfAFreshInvocation());
+
+        claim(
+                "each of the four kinds the bytes decide is recorded as its own detected format",
+                () -> assertThat(List.of(
+                                storedFormatOf(ledger, walkId, "main.o"),
+                                storedFormatOf(ledger, walkId, "Source.otf"),
+                                storedFormatOf(ledger, walkId, "server.crt"),
+                                storedFormatOf(ledger, walkId, "cache.db")))
+                        .containsExactly("COMPILED_CODE", "FONT", "CERTIFICATE", "DATABASE"));
+        claim(
+                "and each is removed as out of scope with a reason naming its kind, the copy of the object file on"
+                        + " its own account and not as a duplicate of the other",
+                () -> {
+                    assertThat(List.of(
+                                    verdictKindsFor(ledger, walkId, "main.o"),
+                                    verdictKindsFor(ledger, walkId, "main copy.o"),
+                                    verdictKindsFor(ledger, walkId, "Source.otf"),
+                                    verdictKindsFor(ledger, walkId, "server.crt"),
+                                    verdictKindsFor(ledger, walkId, "cache.db")))
+                            .containsOnly(List.of("OUT_OF_SCOPE"));
+                    assertThat(verdictReasonsFor(ledger, walkId, "main copy.o"))
+                            .containsExactly("compiled code, and compiled code is out of scope");
+                    assertThat(verdictReasonsFor(ledger, walkId, "Source.otf"))
+                            .containsExactly("a font, and fonts are out of scope");
+                    assertThat(verdictReasonsFor(ledger, walkId, "server.crt"))
+                            .containsExactly("a certificate or a detached signature, and certificates and detached"
+                                    + " signatures are out of scope");
+                    assertThat(verdictReasonsFor(ledger, walkId, "cache.db"))
+                            .containsExactly("a database, and databases are out of scope");
+                });
+        claim(
+                "an Outlook message and an internet message are each removed as out of scope, with the one reason an"
+                        + " email carries",
+                () -> {
+                    assertThat(List.of(
+                                    verdictKindsFor(ledger, walkId, "RE offerta.msg"),
+                                    verdictKindsFor(ledger, walkId, "collaudo.eml")))
+                            .containsOnly(List.of("OUT_OF_SCOPE"));
+                    assertThat(List.of(
+                                    verdictReasonsFor(ledger, walkId, "RE offerta.msg"),
+                                    verdictReasonsFor(ledger, walkId, "collaudo.eml")))
+                            .containsOnly(List.of("an email, and emails are out of scope"));
+                });
+        claim(
+                "a project plan in the same container as the Outlook message, a note and a file of no known kind"
+                        + " are kept: none carries a verdict",
+                () -> assertThat(List.of(
+                                verdictKindsFor(ledger, walkId, "piano.mpp"),
+                                verdictKindsFor(ledger, walkId, "nota.txt"),
+                                verdictKindsFor(ledger, walkId, "FIRMWARE.P3A")))
+                        .containsOnly(List.of()));
+        claim(
+                "the two identical object files were never hashed, because nothing out of scope reaches the"
+                        + " duplicate pass",
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM content_hash", Integer.class))
+                        .isZero());
+        String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
+        claim(
+                "the page stage 1 writes counts the seven files it left out",
+                () -> assertThat(countIn(html, "left out as out of scope")).isEqualTo(7));
+        claim(
+                "counts none of them as a log, and none as a text file left out for its size: the internet message"
+                        + " is text, and it is left out for being an email",
+                () -> assertThat(List.of(
+                                countIn(html, "Of those, logs"), countIn(html, "text files left out for their size")))
+                        .containsExactly(0, 0));
+        claim(
+                "counts the note among the text files of fewer than ten lines, and not the internet message, which"
+                        + " is as short: a file left out for its kind is not read for timestamps",
+                () -> assertThat(countIn(html, "<td>fewer than ten lines</td>")).isEqualTo(1));
+        claim(
+                "and says so above that table: the text files read for timestamps are those not left out for their"
+                        + " kind",
+                () -> assertThat(html)
+                        .contains("Each text file not left out for its kind was read from its start and its end"));
+        claim(
+                "gives each kind the bytes decide a row of its own",
+                () -> assertThat(List.of(
+                                countIn(html, "<td>Compiled code</td>"),
+                                countIn(html, "<td>Fonts</td>"),
+                                countIn(html, "<td>Certificates and detached signatures</td>"),
+                                countIn(html, "<td>Databases</td>")))
+                        .containsExactly(2, 1, 1, 1));
+        claim(
+                "names the two kinds of email among the finer labels taken from filenames",
+                () -> assertThat(List.of(
+                                countIn(html, "<td>Outlook messages</td>"), countIn(html, "<td>internet messages</td>")))
+                        .containsExactly(1, 1));
+        claim(
+                "and says in words which kinds are out of scope",
+                () -> assertThat(html).contains(OUT_OF_SCOPE_SENTENCE));
+    }
+
+    /**
      * ADR-178, amending ADR-171's size rule: over the 16,000,000-byte ceiling, plain text and Markdown
      * are converted in parts and so kept, while HTML, CSV and AsciiDoc, whose structure a cut can break,
      * and text in UTF-16, whose line ends are two bytes, stay out of scope. None of them is shaped like a
@@ -765,7 +888,29 @@ class ByteLevelReductionTaskletTest {
 
     /** The format-mix page's sentence naming every kind of file this tool leaves out. */
     private static final String OUT_OF_SCOPE_SENTENCE =
-            "Spreadsheets, BMP images and videos are out of scope, whatever they hold.";
+            "Spreadsheets, BMP images, videos, emails, compiled code, fonts, certificates and detached signatures,"
+                    + " and databases are out of scope, whatever they hold.";
+
+    /** An ELF object file's header: the four letters, 32-bit, little-endian, version 1, then padding. */
+    private static final byte[] ELF_OBJECT_FILE = {
+        0x7F, 'E', 'L', 'F', 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0x28, 0, 1, 0, 0, 0
+    };
+
+    /** An OpenType font's header for one table, whose three derived numbers are the ones one table gives. */
+    private static final byte[] OPENTYPE_FONT = {
+        'O', 'T', 'T', 'O', 0, 1, 0, 16, 0, 0, 0, 0, 'C', 'F', 'F', ' ', 0, 0, 0, 0, 0, 0, 0, 28, 0, 0, 0, 4
+    };
+
+    /** A certificate in its binary encoding: a sequence, the sequence that is signed, and its version tag. */
+    private static final byte[] BINARY_CERTIFICATE = {
+        0x30, (byte) 0x82, 0x00, 0x10, 0x30, (byte) 0x82, 0x00, 0x08, (byte) 0xA0, 0x03, 0x02, 0x01, 0x02, 0x02, 0x01, 0x01,
+        0, 0, 0, 0
+    };
+
+    /** The sixteen bytes an SQLite database opens with, and the start of its header. */
+    private static final byte[] SQLITE_DATABASE = {
+        'S', 'Q', 'L', 'i', 't', 'e', ' ', 'f', 'o', 'r', 'm', 'a', 't', ' ', '3', 0, 0x10, 0, 1, 1, 0, 0x40, 0x20, 0x20
+    };
 
     /**
      * The smallest MP4 of the kind seven of the eight videos on the measured archive were: a 24-byte

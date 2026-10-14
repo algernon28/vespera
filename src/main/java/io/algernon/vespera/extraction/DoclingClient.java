@@ -327,7 +327,11 @@ public class DoclingClient {
             // A video is sent under the same neutral name it was posted under while stage 1 called it of
             // no known kind, so Docling's own reading of the bytes still decides. Stage 1 leaves the
             // corpus's out of scope (ADR-168); a seed's still arrives here.
-            case IMAGE, BMP, VIDEO, SPREADSHEET, ZIP_CONTAINER, UNRECOGNISED -> NEUTRAL_EXTENSION;
+            // Compiled code, a font, a certificate and a database were each posted as UNRECOGNISED or
+            // ZIP_CONTAINER, so they keep the neutral name and the extractor identity does not move
+            // (ADR-252).
+            case IMAGE, BMP, VIDEO, SPREADSHEET, ZIP_CONTAINER, UNRECOGNISED, COMPILED_CODE, FONT, CERTIFICATE, DATABASE ->
+                NEUTRAL_EXTENSION;
             case WORDPROCESSING -> "docx";
             case OLE_COMPOUND -> subtype == null ? NEUTRAL_EXTENSION : legacyExtension(subtype);
             case PLAIN_TEXT -> subtype == null ? MARKDOWN_EXTENSION : textExtension(subtype);
@@ -344,7 +348,9 @@ public class DoclingClient {
             case LEGACY_WORD -> "doc";
             case LEGACY_SPREADSHEET -> "xls";
             case LEGACY_PRESENTATION -> "ppt";
-            case HTML, MARKDOWN, CSV, ASCIIDOC -> throw notNarrowing(subtype, DetectedFormat.OLE_COMPOUND);
+            // An Outlook message is posted as an OLE compound file with no subtype is (ADR-252).
+            case OUTLOOK_MESSAGE -> NEUTRAL_EXTENSION;
+            case HTML, MARKDOWN, CSV, ASCIIDOC, RFC822_MESSAGE -> throw notNarrowing(subtype, DetectedFormat.OLE_COMPOUND);
         };
     }
 
@@ -357,8 +363,9 @@ public class DoclingClient {
             case HTML -> "html";
             case CSV -> "csv";
             case ASCIIDOC -> "adoc";
-            case MARKDOWN -> MARKDOWN_EXTENSION;
-            case LEGACY_WORD, LEGACY_SPREADSHEET, LEGACY_PRESENTATION ->
+            // An internet message is posted as plain text with no subtype is (ADR-252).
+            case MARKDOWN, RFC822_MESSAGE -> MARKDOWN_EXTENSION;
+            case LEGACY_WORD, LEGACY_SPREADSHEET, LEGACY_PRESENTATION, OUTLOOK_MESSAGE ->
                 throw notNarrowing(subtype, DetectedFormat.PLAIN_TEXT);
         };
     }

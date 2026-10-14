@@ -1706,6 +1706,25 @@ public final class Adr {
             + "0250-stage-2-writes-the-survivor-list-of-the-files-it-converted-and-did-not-remove.md";
 
     /**
+     * ADR-251 -- the one statement of the ledger whose rows can be as many as a walk's is the read of stage 2's
+     * failures by path, the two reads that ask by key being as long as what they are given; whether the survivor
+     * list gains a further column is undecided, not refused; and the scope of the two listeners that write a page
+     * at the end of stage 2 is stated in the code, the record cited for it stating none and its case being held
+     * by a guard in each listener (amends three sentences of the record before it).
+     */
+    public static final String ONE_STATEMENT_OF_THE_LEDGER_IS_AS_LONG_AS_A_WALK = FILE
+            + "0251-one-statement-of-the-ledger-is-as-long-as-a-walk-the-survivor-lists-further-columns-are-undecided-and-its-listeners-scope-is-stated-in-the-code.md";
+
+    /**
+     * ADR-252 -- compiled code, fonts, certificates and detached signatures, and databases are out of scope,
+     * each recognised by its signature as a detected format of its own once the bytes read are not text; an
+     * email is out of scope too, an OLE compound file named .msg or text named .eml, as a subtype of each
+     * (extends ADR-146, amends ADR-094's sentence on .msg). A file with no signature earns no verdict.
+     */
+    public static final String COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE = FILE
+            + "0252-compiled-code-fonts-certificates-databases-and-emails-are-out-of-scope.md";
+
+    /**
      * ADR-253 -- every decision record, from ADR-001 on, holds its decision and no history of its making; a
      * reconstituted record keeps its verbatim summary (extends ADR-249 section 4).
      */

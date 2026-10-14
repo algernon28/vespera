@@ -59,6 +59,10 @@ final class FormatMixReport {
         LABELS.put(DetectedFormat.WORDPROCESSING, "Word processing documents");
         LABELS.put(DetectedFormat.SPREADSHEET, "Spreadsheets");
         LABELS.put(DetectedFormat.ZIP_CONTAINER, "Archives of another kind");
+        LABELS.put(DetectedFormat.COMPILED_CODE, "Compiled code");
+        LABELS.put(DetectedFormat.FONT, "Fonts");
+        LABELS.put(DetectedFormat.CERTIFICATE, "Certificates and detached signatures");
+        LABELS.put(DetectedFormat.DATABASE, "Databases");
         LABELS.put(DetectedFormat.OLE_COMPOUND, "Older Office containers");
         LABELS.put(DetectedFormat.PLAIN_TEXT, "Text");
         LABELS.put(DetectedFormat.UNRECOGNISED, "Of no known kind");
@@ -75,6 +79,8 @@ final class FormatMixReport {
         SUBTYPE_LABELS.put(DetectedSubtype.MARKDOWN, "Markdown");
         SUBTYPE_LABELS.put(DetectedSubtype.CSV, "comma-separated values");
         SUBTYPE_LABELS.put(DetectedSubtype.ASCIIDOC, "AsciiDoc");
+        SUBTYPE_LABELS.put(DetectedSubtype.OUTLOOK_MESSAGE, "Outlook messages");
+        SUBTYPE_LABELS.put(DetectedSubtype.RFC822_MESSAGE, "internet messages");
     }
 
     static String render(Mix mix) {
@@ -84,7 +90,8 @@ final class FormatMixReport {
                         + " What follows is what was found. Counting removes nothing: it exists so that a"
                         + " decision about what to leave out has a measurement behind it rather than a"
                         + " guess."))
-                .append(ReportPage.paragraph("Spreadsheets, BMP images and videos are out of scope, whatever"
+                .append(ReportPage.paragraph("Spreadsheets, BMP images, videos, emails, compiled code, fonts,"
+                        + " certificates and detached signatures, and databases are out of scope, whatever"
                         + " they hold. So is a text file over "
                         + grouped(TextParts.LARGEST_TEXT_BYTES)
                         + " bytes, because the converter's answer for one would be too large to keep, and so is"
@@ -146,7 +153,7 @@ final class FormatMixReport {
         }
 
         body.append(ReportPage.heading(2, "How much of each text file begins with a timestamp"))
-                .append(ReportPage.paragraph("Each text file was read from its start and its end, and the"
+                .append(ReportPage.paragraph("Each text file not left out for its kind was read from its start and its end, and the"
                         + " lines that begin with a date or a time were counted against the lines read that"
                         + " are not blank. The share is that count in whole percent, rounded down."))
                 .append(ReportPage.paragraph(mix.logFloor() == null

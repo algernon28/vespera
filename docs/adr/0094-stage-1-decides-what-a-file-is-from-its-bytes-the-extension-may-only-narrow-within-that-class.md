@@ -1,5 +1,7 @@
 # ADR-094 — Stage 1 decides what a file is from its bytes; the extension may only narrow within that class
 
+> **Partly amended — see [ADR-252](0252-compiled-code-fonts-certificates-databases-and-emails-are-out-of-scope.md).** One sentence of the Decision below no longer holds as written: "No subtype is minted for `.msg`". An OLE compound file named `.msg` is narrowed to `OUTLOOK_MESSAGE`, and plain text named `.eml` to `RFC822_MESSAGE`, because stage 1 leaves an email out of scope and acts on the subtype, as ADR-146 does for `.xls`. The governing rule and its three limits stand.
+
 - **Date**: 2026-09-09
 - **Status**: accepted
 - **Amends**: [ADR-068](0068-broken-is-a-cross-format-floor-plus-per-format-structural-checks-no-new-dependency.md) — its per-format checks are unchanged, but which check a file gets is decided by content rather than by filename, and its format map gains an OLE compound class that carries no check beyond the floor

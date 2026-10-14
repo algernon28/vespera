@@ -35,5 +35,17 @@ public enum DetectedSubtype {
     CSV,
 
     /** {@link DetectedFormat#PLAIN_TEXT} named {@code .adoc} or {@code .asciidoc}. */
-    ASCIIDOC
+    ASCIIDOC,
+
+    /**
+     * An {@link DetectedFormat#OLE_COMPOUND} file named {@code .msg}: an Outlook message. Stage 1 leaves
+     * it out of scope by this name (ADR-252, amending ADR-094, which minted none because nothing acted on one).
+     */
+    OUTLOOK_MESSAGE,
+
+    /**
+     * {@link DetectedFormat#PLAIN_TEXT} named {@code .eml}: an internet message, where the bytes do not
+     * open as HTML. Stage 1 leaves it out of scope by this name (ADR-252).
+     */
+    RFC822_MESSAGE
 }
