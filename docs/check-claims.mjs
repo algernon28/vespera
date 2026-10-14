@@ -567,6 +567,87 @@ function readmeSection(heading, name) {
   }
 }
 
+/* ---------- what the decision records say of themselves, and what they link to ---------- */
+
+// ADR-249 and ADR-253 hold a record to its decision and keep out of it whether a run was made and the history of
+// its making; `ADecisionRecordHoldsItsDecisionAndNoHistoryTest` holds the words in `./mvnw test`. The same words are
+// read here, from the one list both read (ADR-258), so that a record that breaks the rule fails the claims job in
+// seconds and not at the end of a four-minute build. A link from one record to another by its file name is also
+// resolved, which nothing did: a record renamed, or a name mistyped, left a link that opened nothing.
+const MARKERS = "docs/decision-record-markers.txt";
+
+/** A Java pattern in the list as a JavaScript one: a leading (?i) becomes the flag. */
+function markerPattern(source, whole = false) {
+  const insensitive = source.startsWith("(?i)");
+  const body = insensitive ? source.slice(4) : source;
+  return new RegExp(whole ? `^(?:${body})$` : body, insensitive ? "i" : "");
+}
+
+{
+  const NAME = "the decision records' own words";
+  if (!existsSync(MARKERS)) {
+    fail(NAME, `${MARKERS} is missing: it holds the words ADR-249 and ADR-253 keep out of a record (ADR-258)`);
+  } else {
+    const markers = new Map();
+    for (const line of readFileSync(MARKERS, "utf8").split(/\r?\n/)) {
+      if (!line || line.startsWith("#")) continue;
+      const tab = line.indexOf("\t");
+      markers.set(line.slice(0, tab), line.slice(tab + 1));
+    }
+    const wanted = ["runMadeOrNot", "status", "acceptedOnADate", "accepted", "historyFromTheFirstWithout", "historyInAnyRecord", "indexRow", "firstWithoutHistory"];
+    const lacking = wanted.filter((k) => !markers.has(k));
+    if (lacking.length) {
+      fail(NAME, `${MARKERS} lacks ${lacking.join(", ")}`);
+    } else {
+      const runMade = markerPattern(markers.get("runMadeOrNot"));
+      const status = new RegExp(markers.get("status"), "gm");
+      const acceptedOnADate = markerPattern(markers.get("acceptedOnADate"), true);
+      const accepted = markerPattern(markers.get("accepted"), true);
+      const wide = markerPattern(markers.get("historyFromTheFirstWithout"));
+      const narrow = markerPattern(markers.get("historyInAnyRecord"));
+      const indexRow = new RegExp(markers.get("indexRow"));
+      const first = Number(markers.get("firstWithoutHistory"));
+      const problems = [];
+      for (const file of readdirSync(ADR_DIR).filter((f) => f.endsWith(".md")).sort()) {
+        const number = /^\d{4}-/.test(file) ? Number(file.slice(0, 4)) : -1;
+        const body = readFileSync(join(ADR_DIR, file), "utf8");
+        const lines = body.split(/\r?\n/);
+        const said = (kind, line) => problems.push(`${file.slice(0, 4)} ${kind}: ${line.trim().slice(0, 90)}`);
+        for (const line of lines) if (runMade.test(line)) said("says whether a run was made", line);
+        for (const m of body.matchAll(status)) {
+          if (!accepted.test(m[1])) said("has a Status that is more than acceptance", m[1]);
+          else if (number >= first && !acceptedOnADate.test(m[1])) said("has a Status that is not the date it was accepted", m[1]);
+        }
+        for (const line of lines) {
+          if (narrow.test(line)) said("tells its making", line);
+          else if (number >= first && wide.test(line)) said("tells its making", line);
+          else if (number === -1 && file === "README.md" && indexRow.test(line) && Number(indexRow.exec(line)[1]) >= first && wide.test(line)) said("tells its making in the index", line);
+        }
+      }
+      if (problems.length) fail(NAME, `${problems.length} line(s): ${problems.slice(0, 5).join("; ")}${problems.length > 5 ? "; …" : ""}`);
+      else pass(NAME, `no record or index line tells whether a run was made or the history of its making`);
+    }
+  }
+}
+
+{
+  const NAME = "the links between decision records";
+  const byNumber = new Map(adrFiles.map((f) => [f.slice(0, 4), f]));
+  const broken = [];
+  let linked = 0;
+  for (const file of readdirSync(ADR_DIR).filter((f) => f.endsWith(".md")).sort()) {
+    const body = readFileSync(join(ADR_DIR, file), "utf8");
+    for (const m of body.matchAll(/\]\((\d{4}-[^)\s#/]*\.md)(?:#[^)\s]*)?\)/g)) {
+      linked++;
+      if (adrFiles.includes(m[1])) continue;
+      const now = byNumber.get(m[1].slice(0, 4));
+      broken.push(`${file.slice(0, 4)} links ${m[1].slice(0, 60)}${now ? `, now ${now.slice(0, 60)}` : ", which no record has"}`);
+    }
+  }
+  if (broken.length) fail(NAME, `${broken.length} of ${linked} open nothing: ${broken.slice(0, 4).join("; ")}${broken.length > 4 ? "; …" : ""}`);
+  else pass(NAME, `${linked} links to a record by its file name, every one a record`);
+}
+
 /* ---------- what this does not check ---------- */
 
 // Printed on every run, including a clean one. The point of the list is that the

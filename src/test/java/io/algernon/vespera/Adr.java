@@ -1765,6 +1765,13 @@ public final class Adr {
     public static final String ONE_CUT_OF_A_LIST_OF_KEYS_INTO_PAGES = FILE
             + "0257-one-cut-of-a-list-of-keys-into-pages-and-the-walk-anomalies-are-paged-like-the-other-reads.md";
 
+    /**
+     * ADR-258 -- the rules of ADR-249 and ADR-253 are checked in the claims job too, from one list of words the
+     * test reads as well, and a link from one record to another opens a record (applies ADR-249 and ADR-253).
+     */
+    public static final String THE_RECORDS_RULES_ARE_CHECKED_IN_THE_CLAIMS_JOB_TOO = FILE
+            + "0258-the-records-rules-are-checked-in-the-claims-job-too-from-one-list-of-words-and-every-link-between-records-resolves.md";
+
     private Adr() {
     }
 }
