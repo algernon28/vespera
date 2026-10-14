@@ -53,7 +53,7 @@ While an adapter existed, "a self-contained publication-ready artifact" could st
 Two questions come with it, neither answerable here:
 
 - **What becomes of the surviving originals** — copied beside the generated documents, referenced by path, or left where they are. ADR-023 answered this for a Confluence space and its answer is gone.
-- **Where the output lands.** The working directory holds derived state a re-run may delete ([ADR-066](0066-the-working-directory-is-configured-not-discovered.md)'s configured working directory); a deliverable is not derived state in that sense, and writing it there without deciding so would make it deletable by a stage re-run.
+- **Where the output lands.** The working directory holds derived state a re-run may delete ([ADR-066](0066-the-command-line-names-the-root-configuration-is-the-fallback.md)'s configured working directory); a deliverable is not derived state in that sense, and writing it there without deciding so would make it deletable by a stage re-run.
 
 ## Consequences
 

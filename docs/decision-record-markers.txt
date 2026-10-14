@@ -1,0 +1,24 @@
+# The words a decision record keeps out of itself (ADR-249, ADR-253, ADR-258).
+#
+# One list, read by ADecisionRecordHoldsItsDecisionAndNoHistoryTest in ./mvnw test and by docs/check-claims.mjs in the
+# claims job, so that the two cannot drift apart. A line is a name, a tab and a Java regular expression; a leading
+# (?i) makes it case-insensitive in both. A line that starts with # is a comment.
+#
+# runMadeOrNot                 whether a vespera run has been made: no record and no line of the index says so
+# status                       a record's Status line, group 1 being what follows its label
+# accepted                     what a Status may be in any record: accepted, with the date where it has one
+# acceptedOnADate              what it is from the first record without history on: the date it was accepted
+# historyFromTheFirstWithout   the words of a record's making, in the records from firstWithoutHistory on and in
+#                              their lines of the index
+# historyInAnyRecord           the words of a record's making that no record may hold, whatever its age
+# indexRow                     a line of docs/adr/README.md that is a record's row, group 1 being its number
+# firstWithoutHistory          the number of the first record held to historyFromTheFirstWithout
+
+runMadeOrNot	(?i)(\bruns?\b[^.|]{0,60}\b(has|have|had|was|were)\s+(not\s+)?(yet\s+)?been\s+made|no\s+`?vespera run`?\s+(has|had|was)|no\s+run\s+(has|had|was)\s+(yet\s+)?(been\s+)?made)
+status	^- \*\*Status\*\*: (.*)$
+accepted	accepted(?: on \d{4}-\d{2}-\d{2})?\.?
+acceptedOnADate	accepted on \d{4}-\d{2}-\d{2}\.
+historyFromTheFirstWithout	(?i)(\breview(?!\s+list)(?!List)\w*\b|\bsession\b|/pull/\d+|\bfailed first\b|\bfailed on\b|operator's (answer|word|call)|operator answered|\./mvnw|\bregister\b|`[0-9a-f]{7}`)
+historyInAnyRecord	(?i)(/pull/\d+|`(?=[0-9a-f]{0,39}\d)(?=[0-9a-f]{0,39}[a-f])[0-9a-f]{7,40}`|operator's (answer|word|call)|operator answered|review register|\bfailed first\b|\bthe session that\b|architect review|code review|\bon the call of\b)
+indexRow	^\| \[ADR-(\d+)\]
+firstWithoutHistory	237
