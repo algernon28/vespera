@@ -32,11 +32,11 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * What the pinned sidecar answers for bytes it can name no input format for, posted under the neutral
- * {@code document.bin} that {@link DoclingClient} sends for them (ADR-100).
+ * {@code document.bin} that {@link DoclingClient} sends for them (ADR-100): what an {@code extraction-failed}
+ * reason of {@code policy: File format not allowed: document.bin} means (ADR-255).
  *
- * <p>Measured because stage 2 on a real corpus recorded most of its {@code extraction-failed} verdicts
- * with the reason {@code policy: File format not allowed: document.bin}, which reads as though the
- * sidecar refused the {@code .bin} name by a setting. It does not. Docling resolves no input format for
+ * <p>The reason reads as though the sidecar refused the {@code .bin} name by a setting. It does not. Docling
+ * resolves no input format for
  * these bytes ({@code _guess_format} returns none: {@code filetype} matches nothing or only
  * {@code application/zip}, {@code bin} is in no extension table, and the {@code text/plain} fallback
  * reaches Markdown only for a Markdown or text extension), and {@code DocumentConverter._process_document}
@@ -51,6 +51,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Epic("Extraction")
 @Feature("The Docling client")
+@Link(name = "ADR-255", url = Adr.A_POLICY_REFUSAL_MEANS_THE_CONVERTER_NAMED_NO_FORMAT, type = "adr")
 @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
 @Link(name = "ADR-070", url = Adr.EXTRACTION_FAILED_SPLITS_ON_DOCLINGS_STATUS, type = "adr")
 @Link(name = "ADR-063", url = Adr.FIXTURES_ARE_GENERATED_IN_TEST, type = "adr")

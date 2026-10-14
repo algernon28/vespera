@@ -1731,6 +1731,14 @@ public final class Adr {
     public static final String EVERY_RECORD_HOLDS_ITS_DECISION_AND_NO_HISTORY = FILE
             + "0253-every-decision-record-holds-its-decision-and-no-history.md";
 
+    /**
+     * ADR-255 -- a policy refusal at stage 2, "File format not allowed", means the converter named no format for
+     * the bytes it was sent, and no pipeline ran; such a file comes back SKIPPED, not FAILURE (amends one
+     * sentence of ADR-100's Context).
+     */
+    public static final String A_POLICY_REFUSAL_MEANS_THE_CONVERTER_NAMED_NO_FORMAT = FILE
+            + "0255-a-policy-refusal-at-stage-2-means-the-converter-named-no-format-for-the-bytes-it-was-sent.md";
+
     private Adr() {
     }
 }

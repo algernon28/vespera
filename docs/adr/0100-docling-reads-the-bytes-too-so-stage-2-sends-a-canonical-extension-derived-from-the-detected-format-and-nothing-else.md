@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** `extraction`'s dependency on `corpus`'s two enumerations now serves two more rules over a detected format: what a seed the cross-format floor stopped is sent as, and which formats list their pictures in the deliverable. The declaration, the two enumerations and nothing else of `corpus`, is unchanged.
 
+> **Partly amended — see [ADR-255](0255-a-policy-refusal-at-stage-2-means-the-converter-named-no-format-for-the-bytes-it-was-sent.md).** One sentence of the Context below no longer holds as written: a file the converter names no format for "comes back `ConversionStatus.FAILURE`". At `docling` v2.124.0 it comes back `ConversionStatus.SKIPPED`, with one error of category `policy`, "File format not allowed", and no backend runs. It earns `extraction-failed` either way, so the `UNRECOGNISED` row's "converts to a failure, which is the true answer" and the rest of this record stand.
+
 - **Date**: 2026-09-11
 - **Status**: accepted
 - **Amends**: [ADR-094](0094-stage-1-decides-what-a-file-is-from-its-bytes-the-extension-may-only-narrow-within-that-class.md) — its two named stage-2 obligations are both resolved against what it anticipated: the `BM` risk it deferred does not exist, and the zip split it left for this ticket is not needed. Its rule for stage 1 is untouched.
