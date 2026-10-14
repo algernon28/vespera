@@ -11,13 +11,13 @@ package io.algernon.vespera.profile;
  *
  * <p><b>Each component is typed by the kind of answer its key takes</b> (ADR-120): {@link TextValue}
  * for a folder, a model's name or an approval, {@link NumericValue} for a floor, a threshold or a
- * proportion. That is ADR-061's "the record is the schema" carried down one level from the key set to
+ * proportion, and {@link NameEndingsValue} for a list of name endings (ADR-256). That is ADR-061's "the record is the schema" carried down one level from the key set to
  * the value — which keys hold a number is now a fact this declaration holds, rather than one each
  * reader re-derived by reaching for a parse.
  *
  * <p>The canonical constructor is where ADR-062's merge lives. A key missing from the file arrives
- * here as null and leaves as {@link TextValue#unset()} or {@link NumericValue#unset()}, according to
- * the kind of answer its key takes (ADR-120), so simply loading a profile and saving it
+ * here as null and leaves as the unset value of its own type ({@link TextValue#unset()},
+ * {@link NumericValue#unset()} or {@link NameEndingsValue#unset()}), according to the kind of answer its key takes (ADR-120), so simply loading a profile and saving it
  * again adds every key the code has learned about since the file was written, without touching a
  * single answer already in it.
  *
@@ -96,6 +96,10 @@ package io.algernon.vespera.profile;
  *     ignores an unreadable number. Ships unset and is not a gate: an unset attempt never ends an
  *     invocation. No {@link Measurement} pointer and no {@code with...Measurement} method: no page's
  *     measurement informs it, and a pointer would make stage 2 write {@code profile.yaml}.
+ * @param outOfScopeNameEndings stage 1's list of file-name endings (ADR-256): one line of endings, each
+ *     beginning with a dot, matched at the end of a file's name in any case, and read only for a file
+ *     detected as of no known kind or as text. Ships unset; unset or unreadable, it leaves nothing out.
+ *     Its {@link Measurement} points at the format-mix page.
  */
 public record Profile(
         TextValue seedFolder,
@@ -107,7 +111,8 @@ public record Profile(
         TextValue generationModel,
         NumericValue generationContextWindow,
         NumericValue logTimestampShareFloor,
-        NumericValue extractionAttempt) {
+        NumericValue extractionAttempt,
+        NameEndingsValue outOfScopeNameEndings) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -123,6 +128,7 @@ public record Profile(
                 generationContextWindow == null ? NumericValue.unset() : generationContextWindow;
         logTimestampShareFloor = logTimestampShareFloor == null ? NumericValue.unset() : logTimestampShareFloor;
         extractionAttempt = extractionAttempt == null ? NumericValue.unset() : extractionAttempt;
+        outOfScopeNameEndings = outOfScopeNameEndings == null ? NameEndingsValue.unset() : outOfScopeNameEndings;
     }
 
     /**
@@ -149,7 +155,7 @@ public record Profile(
 
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null, null, null, null, null, null, null);
+        return new Profile(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -164,7 +170,8 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor,
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
     }
 
     /**
@@ -183,7 +190,8 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor,
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
     }
 
     /**
@@ -206,7 +214,8 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor,
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
     }
 
     /**
@@ -224,7 +233,8 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor,
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
@@ -239,6 +249,23 @@ public record Profile(
                 generationModel,
                 generationContextWindow,
                 logTimestampShareFloor.measuredBy(measurement),
-                extractionAttempt);
+                extractionAttempt,
+                outOfScopeNameEndings);
+    }
+
+    /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-256). */
+    public Profile withOutOfScopeNameEndingsMeasurement(Measurement measurement) {
+        return new Profile(
+                seedFolder,
+                degenerateOutputConfidenceFloor,
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel,
+                relevanceScoreFloor,
+                arrangementApproved,
+                generationModel,
+                generationContextWindow,
+                logTimestampShareFloor,
+                extractionAttempt,
+                outOfScopeNameEndings.measuredBy(measurement));
     }
 }

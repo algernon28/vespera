@@ -107,7 +107,7 @@ class BrokenOrOutOfScopeTest {
         String checkersReason = BrokenCheck.check(root.resolve("broken.pdf")).reason();
         RecordedChecks progress = new RecordedChecks();
 
-        corpus.pass().verdictSurvivors(run, root, null, progress);
+        corpus.pass().verdictSurvivors(run, root, null, List.of(), progress);
 
         claim(
                 "the damaged pdf is verdicted broken, with the reason the checker gave",
@@ -152,7 +152,7 @@ class BrokenOrOutOfScopeTest {
         OccurrenceId png = corpus.occurrence("screen.png");
         RecordedChecks progress = new RecordedChecks();
 
-        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, progress);
+        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, List.of(), progress);
 
         claim(
                 "both spreadsheets, the BMP image and the video are removed as out of scope, each with the reason"
@@ -198,7 +198,7 @@ class BrokenOrOutOfScopeTest {
         OccurrenceId log = corpus.occurrence(name);
         String sizeReason = String.format(SIZE_REASON_NOT_CUT, TIMESTAMPED_LINE.length() * LOG_LINES);
 
-        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, A_FLOOR, new RecordedChecks());
+        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, A_FLOOR, List.of(), new RecordedChecks());
 
         claim(
                 "the size rule alone would remove this file too: its " + LOG_LINES + " lines of twelve bytes are over"
@@ -237,7 +237,7 @@ class BrokenOrOutOfScopeTest {
         OccurrenceId timestamped = corpus.occurrence("server-output");
         OccurrenceId shortNotes = corpus.occurrence("notes.txt");
 
-        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, new RecordedChecks());
+        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, List.of(), new RecordedChecks());
 
         claim(
                 "neither file carries a verdict: with no floor, the share is measured and nothing is removed for it",
@@ -273,7 +273,7 @@ class BrokenOrOutOfScopeTest {
         OccurrenceId notCut = corpus.occurrence(NOT_CUT_PREFIX + ".txt");
         OccurrenceId dump = corpus.occurrence("dump.txt");
 
-        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, new RecordedChecks());
+        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, List.of(), new RecordedChecks());
 
         claim(
                 "a 150-byte text file over the 100-byte ceiling is kept, because the limits say it is cut into parts",
@@ -320,7 +320,7 @@ class BrokenOrOutOfScopeTest {
         corpus.occurrence("notes.md");
         corpus.occurrence("broken.pdf");
 
-        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, new RecordedChecks());
+        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, List.of(), new RecordedChecks());
 
         claim(
                 "the shortcut matched nothing, and its first four bytes are counted, so a kind arriving in bulk shows",

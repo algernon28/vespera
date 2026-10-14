@@ -1,6 +1,8 @@
 package io.algernon.vespera.corpus;
 
 import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -14,7 +16,8 @@ import java.util.Optional;
  *
  * <p>A code default, and the one place it is written. Making it the operator's to change is a later
  * decision (#278), and a profile key would read this same question; nothing else in the tree names a
- * kind of file as out of scope.
+ * kind of file as out of scope. The profile's {@code outOfScopeNameEndings} (ADR-256) leaves out more
+ * files by name, but names no kind, and adds to these.
  *
  * <p>A comma-separated file is not a spreadsheet here. It is text, it is cheap, and on the corpus
  * ADR-146 was measured on its 73 files came to 2.6 MB between them.
@@ -58,6 +61,37 @@ final class OutOfScope {
             return Optional.of("an email, and emails are out of scope");
         }
         return Optional.empty();
+    }
+
+    /**
+     * Why a file whose bytes matched no signature is left out for the ending of its name, or empty where
+     * it is not (ADR-256). Only {@code UNRECOGNISED} and {@code PLAIN_TEXT} are read (section 3): a name
+     * never overrides bytes that named a kind (ADR-094). {@code endings} are the profile's
+     * {@code outOfScopeNameEndings}, lower case;
+     * the longer ending wins, and the reason spells it as the file's name does.
+     */
+    static Optional<String> nameReason(Path file, DetectedFormat format, List<String> endings) {
+        if (format != DetectedFormat.UNRECOGNISED && format != DetectedFormat.PLAIN_TEXT) {
+            return Optional.empty();
+        }
+        String name = file.getFileName().toString();
+        String folded = name.toLowerCase(Locale.ROOT);
+        return endings.stream()
+                .filter(ending -> folded.endsWith(ending.toLowerCase(Locale.ROOT)))
+                .max(Comparator.comparingInt(String::length))
+                .map(ending -> "a file whose name ends with " + spelt(name, ending)
+                        + ", an ending outOfScopeNameEndings in profile.yaml lists as out of scope");
+    }
+
+    /**
+     * The ending as the file's name spells it, or as listed where folding changed the name's length: a
+     * character such as U+0130 folds to two, so the name's last characters may not be the ending's.
+     */
+    private static String spelt(String name, String ending) {
+        int from = name.length() - ending.length();
+        return from >= 0 && name.substring(from).toLowerCase(Locale.ROOT).equals(ending.toLowerCase(Locale.ROOT))
+                ? name.substring(from)
+                : ending;
     }
 
     /** Why a text file is a log under {@code floor}, or empty where it is not, or no floor is set (ADR-171). */

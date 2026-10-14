@@ -18,6 +18,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.profile.Measurement;
+import io.algernon.vespera.profile.NameEndingsValue;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
@@ -26,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,9 +67,16 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * over it in parts, both of which live in {@code extraction}, and the log floor, which is the
      * profile's. Stage 1's implementation version is {@code corpus}'s alone (ADR-058), so a change to any
      * of them has to be visible here to mint a new run. The floor is {@code null} where the key is unset
-     * or unreadable.
+     * or unreadable. The name endings the profile's {@code outOfScopeNameEndings} lists (ADR-256 §6) are
+     * recorded in their canonical form, lower case, each once, sorted, and written as {@code []} where the
+     * key is unset or unreadable, as the floor's {@code null} is: stage 1 acts on them, and its version
+     * does not name {@code profile}, so only this record can move its run id when they change.
      */
-    record ConfigConsumed(long textSizeCeilingBytes, String textParts, Double logTimestampShareFloor) {}
+    record ConfigConsumed(
+            long textSizeCeilingBytes,
+            String textParts,
+            Double logTimestampShareFloor,
+            List<String> outOfScopeNameEndings) {}
 
     /** The page stage 1 leaves beside the database: what its detection found across the corpus (ADR-095). */
     static final String FORMAT_MIX_FILE_NAME = "format-mix.html";
@@ -116,9 +125,10 @@ public class ByteLevelReductionTasklet implements Tasklet {
         var walk = runMint.finishedWalk(canonicalRoot, "stage 1");
         Profile profile = profileStore.load();
         Double logFloor = logFloorOf(profile);
+        List<String> nameEndings = nameEndingsOf(profile);
         RunId runId = runMint.mint(
                 StageModules.BYTE_LEVEL_REDUCTION,
-                configConsumed(logFloor),
+                configConsumed(logFloor, nameEndings),
                 walk,
                 Optional.empty());
 
@@ -142,7 +152,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                     },
                     () -> {
                         log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
-                        verdictBrokenSurvivors(runId, canonicalRoot, logFloor);
+                        verdictBrokenSurvivors(runId, canonicalRoot, logFloor, nameEndings);
                         resolveDuplicates(runId, canonicalRoot);
                         log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
                         return true;
@@ -162,7 +172,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * The first pass, and the page and the profile measurement it earns. {@code corpus} holds the rules
      * and the tally; what is written here is the operator's text, the page, and the floor's measurement.
      */
-    private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot, Double logFloor) throws Exception {
+    private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot, Double logFloor, List<String> nameEndings)
+            throws Exception {
         long survivors = TimedStatement.of(
                 "Stage 1 (byte-level reduction)",
                 "counting",
@@ -171,7 +182,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 () -> ledger.verdicts().survivorCount(runId));
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", survivors);
         FormatMix mix = new BrokenOrOutOfScope(ledger, detectedFormats, textSizeLimits())
-                .verdictSurvivors(runId, canonicalRoot, logFloor, new CheckingProgress() {
+                .verdictSurvivors(runId, canonicalRoot, logFloor, nameEndings, new CheckingProgress() {
                     @Override
                     public void checked(OccurrenceId occurrence, BrokenOrOutOfScope.Outcome outcome) {
                         log.info(
@@ -207,14 +218,19 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 mix.outOfScope(),
                 mix.logs(),
                 mix.tooLarge(),
+                mix.leftOutByName(),
                 mix.byTimestampBand(),
                 mix.fewerThanTenLines(),
-                logFloor));
-        // The floor's measurement is this page (ADR-171 §3), pointed at the way stage 3 points its own.
+                logFloor,
+                nameEndings));
+        // The floor's measurement is this page (ADR-171 §3), pointed at the way stage 3 points its own, and
+        // so is the name endings' (ADR-256 §7).
+        Measurement thePage =
+                new Measurement(workingDirectory.resolve(FORMAT_MIX_FILE_NAME).toString(), Clock.systemUTC().instant());
         profileStore.save(profileStore
                 .load()
-                .withLogTimestampShareFloorMeasurement(new Measurement(
-                        workingDirectory.resolve(FORMAT_MIX_FILE_NAME).toString(), Clock.systemUTC().instant())));
+                .withLogTimestampShareFloorMeasurement(thePage)
+                .withOutOfScopeNameEndingsMeasurement(thePage));
     }
 
     /**
@@ -297,9 +313,16 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 : null;
     }
 
-    private static String configConsumed(Double logFloor) {
+    /** The answered endings, canonical; none where the key is unset or unreadable (ADR-256 §5). */
+    private static List<String> nameEndingsOf(Profile profile) {
+        return profile.outOfScopeNameEndings().reading() instanceof NameEndingsValue.Answered answered
+                ? answered.endings()
+                : List.of();
+    }
+
+    private static String configConsumed(Double logFloor, List<String> nameEndings) {
         return JSON.writeValueAsString(
-                new ConfigConsumed(DoclingClient.TEXT_SIZE_CEILING_BYTES, TextParts.RULE, logFloor));
+                new ConfigConsumed(DoclingClient.TEXT_SIZE_CEILING_BYTES, TextParts.RULE, logFloor, nameEndings));
     }
 
     private void writeFormatMix(FormatMixReport.Mix mix) {

@@ -3,7 +3,7 @@
 - **Date**: 2026-10-14
 - **Status**: accepted on 2026-10-14.
 - **Amends**: [ADR-100](0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md), one sentence of its Context: that a file the converter names no format for *"comes back `ConversionStatus.FAILURE`"*. It carries a note at its head.
-- **Keeps**: everything else ADR-100 decides, its table and the `UNRECOGNISED` row of it among them; [ADR-143](0143-an-uncategorised-conversion-failure-is-a-verdict-against-the-file.md), under which a `policy` error with no error of the converter's own beside it is about the file; [ADR-252](0252-compiled-code-fonts-certificates-databases-and-emails-are-out-of-scope.md) §5, under which binary content that matches no signature is sent to the converter and is on the review list.
+- **Keeps**: everything else ADR-100 decides, its table and the `UNRECOGNISED` row of it among them; [ADR-143](0143-an-uncategorised-conversion-failure-is-a-verdict-against-the-file.md), under which a `policy` error with no error of the converter's own beside it is about the file; [ADR-252](0252-compiled-code-fonts-certificates-databases-and-emails-are-out-of-scope.md) §5, as extended by [ADR-256](0256-a-file-whose-name-ends-with-an-ending-the-profile-lists-is-out-of-scope-where-its-bytes-matched-no-signature.md), under which binary content that matches no signature is sent to the converter and is on the review list unless the profile lists the ending of its name.
 - **Rests on**: the sources of `docling` v2.124.0 and `filetype` 1.2.0, which `docling-serve` v1.32.0 locks and the pinned image `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2` runs (`application.yaml`, `compose.yaml`, `TestcontainersConfiguration`); the test below, against that image.
 
 ## Context
@@ -72,5 +72,5 @@ Every file is a few bytes built in the test, posted to the pinned sidecar.
 ## What this does not decide
 
 - **Whether stage 2 counts or labels these refusals apart from other failures.** A verdict of their own would amend ADR-057's closed list; a reason worded otherwise changes what stage 2 writes and moves the run ids of stages 2 onward.
-- **Whether more of them are left out at stage 1.** ADR-252, as amended by ADR-254, decides that by kind, by a signature, and names what would leave out binary content with no signature: a signature yet to be found, or a list of name endings in the profile.
+- **Whether more of them are left out at stage 1.** ADR-252, as amended by ADR-254, decides that by kind, by a signature; ADR-256 leaves out a file whose bytes matched no signature where its name ends with an ending the profile's `outOfScopeNameEndings` lists.
 - **The javadoc of `NEUTRAL_EXTENSION` and `extensionFor`**, which does not name the refusal.
