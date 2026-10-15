@@ -32,23 +32,21 @@ package io.algernon.vespera.profile;
  *     enforce</b> — the score distribution over a corpus is never known before a first stage-2 run
  *     measures it. Once set, a {@code null} score (the {@code .docx}/{@code .txt} case, where
  *     confidence is never computed) never crosses this floor, whatever it is set to.
- * @param boilerplateDocumentFrequencyFloor stage 3's eventual boilerplate threshold (ADR-074): a
- *     proportion (0 to 1) of a shingle-parameter identity's {@code shingled_document_count} (the
- *     {@code similarity.shingle_corpus_size} denominator): a shingle whose measured document
- *     frequency is at least {@code ceil(floor × N)}, taken in exact decimal arithmetic (ADR-260), is
- *     boilerplate. Ships unset, per <b>observe before enforce</b> — stage 3 only measures document
- *     frequency (ADR-038); stage 4 reads this floor (ADR-080) and excludes those shingles from
- *     dedup. Stated as a
- *     proportion rather than an absolute count because a footer in 400 of 500 documents and one in
- *     400 of 400,000 are different phenomena — the values {@code similarity} itself stores stay
- *     counts regardless (ADR-073's "counters, never ratios"). Unlike {@code
- *     degenerateOutputConfidenceFloor}, no {@code Measurement}-pointer method exists for this key:
- *     {@code similarity.shingle_document_frequency} and {@code similarity.shingle_corpus_size} are
- *     already what an operator or stage 4 would query directly.
+ * @param boilerplateDocumentFrequencyFloor the boilerplate threshold stage 4 applies (ADR-080): a
+ *     proportion (0 to 1) of N, the documents measured ({@code shingled_document_count} of the
+ *     content census, the {@code similarity.shingle_corpus_size} denominator). A shingle found in at
+ *     least {@code ceil(floor × N)} documents, taken in exact decimal arithmetic (ADR-260), is
+ *     boilerplate, and stage 4 strips those shingles before it computes signatures. Ships unset, per
+ *     <b>observe before enforce</b> — stage 3 only measures document frequency (ADR-038) and judges
+ *     nothing. It is read off {@code document-frequency.html}, the page stage 3 writes (ADR-262), and
+ *     its {@link Measurement} points at that page. Stated as a proportion rather than an absolute count
+ *     because a footer in 400 of 500 documents and one in 400 of 400,000 are different phenomena — the
+ *     values {@code similarity} itself stores stay counts regardless (ADR-073's "counters, never
+ *     ratios").
  * @param embeddingModel gate 3's key (ADR-084, #107): which embedding model turns stage 5's scoring
  *     run on. Ships unset and purely operator-supplied — which model is a profile key, where it is
- *     served is application configuration. No {@code Measurement}-pointer method exists for this key
- *     either: naming a model is not something a measurement pass could inform.
+ *     served is application configuration. No {@code Measurement}-pointer method exists for this key:
+ *     naming a model is not something a measurement pass could inform.
  * @param relevanceScoreFloor stage 5's relevance threshold (ADR-088, #110): a score on the scale
  *     ADR-020's function produces, below which a scored survivor is {@code below-threshold}. Ships
  *     unset, per <b>observe before enforce</b>, and an unset floor does not stop the run — stage 5
@@ -185,6 +183,25 @@ public record Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor.measuredBy(measurement),
                 boilerplateDocumentFrequencyFloor,
+                embeddingModel,
+                relevanceScoreFloor,
+                arrangementApproved,
+                generationModel,
+                generationContextWindow,
+                logTimestampShareFloor,
+                extractionAttempt,
+                outOfScopeNameEndings);
+    }
+
+    /**
+     * The same profile, with stage 3's pointer to {@code document-frequency.html} brought up to date
+     * (ADR-262). The operator's value and provenance are left as they are.
+     */
+    public Profile withBoilerplateDocumentFrequencyFloorMeasurement(Measurement measurement) {
+        return new Profile(
+                seedFolder,
+                degenerateOutputConfidenceFloor,
+                boilerplateDocumentFrequencyFloor.measuredBy(measurement),
                 embeddingModel,
                 relevanceScoreFloor,
                 arrangementApproved,

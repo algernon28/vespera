@@ -40,7 +40,7 @@ One invocation runs these fifteen steps. The names are the ones the log prints.
 | 0 | `census` | the archive root | the list of files seen |
 | 1 | `byte-level-reduction` | a finished census | `format-mix.html` |
 | 2 | `extraction` | the document converter running | extracted text, `extraction-failures.html` |
-| 3 | `content-census` | stage 2 finished | `confidence-distribution.html` |
+| 3 | `content-census` | stage 2 finished | `document-frequency.html`, `confidence-distribution.html` |
 | 4a | `redundancy-signature` | `boilerplateDocumentFrequencyFloor` | a signature for each document |
 | 4b | `content-redundancy` | the same | near-duplicates removed |
 | 5a | `seed-extraction` | `seedFolder`, stage 4 done | your exemplars' text |
@@ -115,17 +115,17 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 **Run:** the same command.
 
-**What it does.** One pass over what extraction stored: how many documents share each passage, and how the conversion quality is spread. It writes `confidence-distribution.html`. It removes nothing.
+**What it does.** One pass over what extraction stored: how many documents share each passage, and how the conversion quality is spread. It writes `document-frequency.html`, which the boilerplate floor is read off, and `confidence-distribution.html`, and points `profile.yaml` at both. It removes nothing.
 
 **Where it stops.** It does not stop for a value.
 
-**Resume.** Interrupted, it discards its own rows and does the pass again. Finished, it is skipped.
+**Resume.** Interrupted, it discards its own rows and does the pass again. Finished, it is skipped, and its two pages are left as they are; `document-frequency.html` names the run it was written for.
 
-**After this stage the first invocation ends**, because the next stage wants a value read off what this one measured. The last line names it.
+**After this stage the first invocation ends**, because the next stage wants a value read off what this one measured. The last line names it, and the page it is read off.
 
 ## Stage 4 — content redundancy
 
-**Set first:** `boilerplateDocumentFrequencyFloor` in `profile.yaml`, read off `vespera.db` as the README says under the table of values to decide: no report shows it. Set `embeddingModel` in the same edit, and make sure `seedFolder` is there: all three are settable now, and setting them together saves you an invocation each.
+**Set first:** `boilerplateDocumentFrequencyFloor` in `profile.yaml`, read off `document-frequency.html` as the README says under the table of values to decide. Set `embeddingModel` in the same edit, and make sure `seedFolder` is there: all three are settable now, and setting them together saves you an invocation each.
 
 **Run:** `vespera run <root>`
 

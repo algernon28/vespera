@@ -108,6 +108,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "DoclingDidNotComeBackException",
             "DoclingKeepsDroppingConnectionsException",
             "DoclingRunsAnotherImageException",
+            // ADR-262: renders similarity's shares of the documents; the rounding and the grouping are similarity's.
+            "DocumentFrequencyReport",
             "DocumentOpening",
             "EmbeddingModelGate",
             "EmbeddingScoringTasklet",

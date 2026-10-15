@@ -1779,6 +1779,14 @@ public final class Adr {
     public static final String A_SHINGLE_REACHES_THE_BOILERPLATE_FLOOR_BY_EXACT_DECIMAL_ARITHMETIC = FILE
             + "0260-a-shingle-reaches-the-boilerplate-floor-by-exact-decimal-arithmetic.md";
 
+    /**
+     * ADR-262 -- stage 3 writes {@code document-frequency.html}, one row per share of the documents rounded down
+     * to the hundredth, computed by {@code similarity} and rendered by {@code pipeline}; the profile, the last
+     * line and stage 4's gate line point the boilerplate floor at it (amends ADR-075, fulfils ADR-074).
+     */
+    public static final String STAGE_3_WRITES_THE_PAGE_THE_BOILERPLATE_FLOOR_IS_READ_OFF = FILE
+            + "0262-stage-3-writes-the-page-the-boilerplate-floor-is-read-off.md";
+
     private Adr() {
     }
 }

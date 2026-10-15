@@ -83,9 +83,9 @@ class RedundancyGateLineTest {
                         + " the measurement they read it off",
                 () -> assertThat(theLine()).contains("boilerplateDocumentFrequencyFloor is unset"));
         claim(
-                "and it still points at the two tables the number is read off, because naming a key with"
+                "and it still points at the page the number is read off, because naming a key with"
                         + " no way to choose a value for it is not an action anyone can take",
-                () -> assertThat(theLine()).contains("shingle_document_frequency"));
+                () -> assertThat(theLine()).contains("document-frequency.html"));
     }
 
     @Test

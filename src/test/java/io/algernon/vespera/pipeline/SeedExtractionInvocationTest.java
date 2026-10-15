@@ -506,7 +506,7 @@ class SeedExtractionInvocationTest {
                         + " the message that was never the defect (ADR-080)",
                 () -> assertThat(operatorLines())
                         .anyMatch(line -> line.contains("boilerplateDocumentFrequencyFloor is unset")
-                                && line.contains("shingle_document_frequency")));
+                                && line.contains("document-frequency.html")));
     }
 
     /** Nothing answered at all, which is the state an invocation 1 with no profile is in. */

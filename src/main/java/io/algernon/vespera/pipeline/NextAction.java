@@ -539,8 +539,7 @@ class NextAction {
                 new RunValue("seedFolder", profile.seedFolder(),
                         "the folder of documents you already know are relevant"),
                 new RunValue("boilerplateDocumentFrequencyFloor", profile.boilerplateDocumentFrequencyFloor(),
-                        "read off similarity's shingle_document_frequency and shingle_corpus_size tables,"
-                                + " which this invocation measured"),
+                        "read off document-frequency.html, which stage 3 writes"),
                 new RunValue("embeddingModel", profile.embeddingModel(), "which model turns scoring on"));
     }
 

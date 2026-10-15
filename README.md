@@ -49,7 +49,7 @@ Vespera writes reports beside the database. Each one measures something; none of
 | The value | Read | Which reports |
 |---|---|---|
 | `seedFolder` | your own knowledge of the archive | — |
-| `boilerplateDocumentFrequencyFloor` | how many documents share the same passages | none: read it off `vespera.db`, as below |
+| `boilerplateDocumentFrequencyFloor` | how many documents share the same passages | `document-frequency.html` |
 | `embeddingModel` | whichever model you can serve locally | — |
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
@@ -60,9 +60,15 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
 | `outOfScopeNameEndings` | which files, of no known kind or text, you know are not documents by the ending of their name | `format-mix.html` |
 
-No report shows `boilerplateDocumentFrequencyFloor`'s measurement. Stage 3 stores it in `vespera.db`: for each passage of five words found in two documents or more, `shingle_document_frequency` holds how many documents it is in, and `shingle_corpus_size` holds how many documents were measured. The floor is a share between 0 and 1 of the second: a passage is boilerplate, and is left out when documents are compared, when the documents it is found in number at least the floor times the documents measured. A passage is stored as a number, not as its words.
+`document-frequency.html` shows `boilerplateDocumentFrequencyFloor`'s measurement. For each passage of five words found in two documents or more, stage 3 counts how many documents it is in, out of the documents it measured. The floor is a share between 0 and 1 of the documents measured: a passage is boilerplate, and is left out when documents are compared, when the documents it is found in number at least the floor times the documents measured. A passage is stored as a number, not as its words, so the page shows counts and shares and no text, and names no file.
 
-This prints how many passages are found in each share of the documents. Run it from the directory you run `vespera` from, with Python on your machine, while no `vespera` command is running and no `vespera.db-wal` lies beside `vespera.db` (if one does, *Where things live* says what to do); it reads the database without writing to it and leaves no file beside it:
+The page names the content census it was written for. Each row is a share of the documents, rounded down to the hundredth, then how many passages are found in that share, the fewest documents any of them is found in, and how many documents were measured; the third divided by the fourth is the exact share of the least-shared of them.
+
+To choose the floor, pick a row and set the floor to the share it shows: every passage on that row and on the rows after it is then boilerplate, and none on the rows before. Taking the row's third number as k and its fourth as N, k divided by N does the same, written in full or cut off after at least as many decimal places as N has digits: for 7 of 25, 0.28. Every passage found in k documents or more is then boilerplate, and none found in fewer. Do not round k divided by N up: 2 / 3 rounded up to 0.67 leaves out the passages found in 2 of 3 documents.
+
+Stage 3 writes the page each time it measures, and a stage 3 already recorded leaves the page as it is. Stage 3's line in the output of `vespera run` names the run it used, as `Stage 3 (content census) finished under run <id>` or `Stage 3 (content census) was already recorded under run <id>`. If that id is not the one the page names, the invocation went back to a content census recorded earlier, as putting a value back to an earlier one, or running a second archive in the same working directory, does. The page is not that run's. To read that run, use the command below, with the id at the end, after a space.
+
+This prints the same rows as the page, for the run you name. Run it from the directory you run `vespera` from, with Python on your machine, while no `vespera` command is running and no `vespera.db-wal` lies beside `vespera.db` (if one does, *Where things live* says what to do); it reads the database without writing to it and leaves no file beside it:
 
 ```
 python -c "import sqlite3,sys;db=sqlite3.connect('file:.vespera/vespera.db?mode=ro&immutable=1',uri=True);run=sys.argv[1] if sys.argv[1:] else db.execute('select r.id from run r join finished_step s on s.run_id=r.id and s.step=r.stage where r.stage=? order by r.rowid desc limit 1',['content-census']).fetchone()[0];print('run',run);[print(r) for r in db.execute('select 100*f.document_count/c.shingled_document_count/100.0 as share,count(*),min(f.document_count),c.shingled_document_count from shingle_document_frequency f join shingle_corpus_size c on c.run_id=f.run_id and c.shingle_parameter_identity=f.shingle_parameter_identity where f.run_id=? group by share order by share',[run])]"
@@ -70,9 +76,7 @@ python -c "import sqlite3,sys;db=sqlite3.connect('file:.vespera/vespera.db?mode=
 
 If you moved the working directory, put its `vespera.db` in place of `.vespera/vespera.db`.
 
-The first line names the content census it read: of the content censuses that finished, the one whose run was created last. That need not be the one you mean, because putting a value back to an earlier one, or running a second archive in the same working directory, goes back to a run created earlier. Stage 3's line in the output of `vespera run` names the run it used, as `Stage 3 (content census) finished under run <id>` or `Stage 3 (content census) was already recorded under run <id>`. If that id is not the one printed, run the command again with the id at the end, after a space. Each line after the first is a share of the documents, rounded down to the hundredth, then how many passages are found in that share, the fewest documents any of them is found in, and how many documents were measured; the third divided by the fourth is the exact share of the least-shared of them. If the command stops with `TypeError: 'NoneType' object is not subscriptable`, no content census has finished in that database. If it stops with `unable to open database file`, there is no `vespera.db` where it looked, and it has made none: run it from the directory you run `vespera` from, or name the moved `vespera.db`. If it stops with `no such table: run`, the `vespera.db` it opened holds no ledger, as an empty file of that name does: check that it is the working directory's. If it prints the `run` line and nothing else, no run with that id stored any passages.
-
-To choose the floor, pick a line and set the floor to the share it prints: every passage on that line and on the lines after it is then boilerplate, and none on the lines before. Taking the line's third number as k and its fourth as N, k divided by N does the same, written in full or cut off after at least as many decimal places as N has digits: for 7 of 25, 0.28. Every passage found in k documents or more is then boilerplate, and none found in fewer. Do not round k divided by N up: 2 / 3 rounded up to 0.67 leaves out the passages found in 2 of 3 documents.
+The first line names the content census it read: the one whose id you put at the end, or, with no id, of the content censuses that finished, the one whose run was created last. Each line after the first is a row as the page shows it, the share written as Python writes it, `1.0` for `1.00`; the rule for choosing the floor is the same. If the command stops with `TypeError: 'NoneType' object is not subscriptable`, no content census has finished in that database. If it stops with `unable to open database file`, there is no `vespera.db` where it looked, and it has made none: run it from the directory you run `vespera` from, or name the moved `vespera.db`. If it stops with `no such table: run`, the `vespera.db` it opened holds no ledger, as an empty file of that name does: check that it is the working directory's. If it prints the `run` line and nothing else, no run with that id stored any passages.
 
 Six of these are **optional** and none of them is one of the five stops; all six are here so that you know they exist.
 
@@ -115,6 +119,7 @@ format-mix.html                  what kinds of file the archive holds
 extraction-failures.html         the files that could not be read, and why
 extraction-survivors.html        the files that were read and kept
 confidence-distribution.html     how well the text came out
+document-frequency.html          how many documents share each passage
 seed-corpus-comparison.html      how far your exemplars resemble the archive
 relevance-labelling.html         the report you read to choose the threshold
 relevance-labels.yaml            the sixty questions you answer

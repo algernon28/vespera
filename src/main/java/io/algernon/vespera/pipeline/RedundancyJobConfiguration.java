@@ -150,7 +150,7 @@ public class RedundancyJobConfiguration {
                 : "stage 4 (content redundancy) is gated: the profile key boilerplateDocumentFrequencyFloor"
                         + " is unset.";
         log.info(
-                "{} Read similarity's shingle_document_frequency and shingle_corpus_size tables"
+                "{} Read document-frequency.html"
                         + " (stage 3's measurement) to choose a value, set it in profile.yaml, and re-invoke."
                         + " No stage-4 run was minted.",
                 whyItIsShut);
