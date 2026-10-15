@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vespera run progress</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+    --good: #0ca30c; --warning: #fab219;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--page); color: var(--text-primary);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; display: grid; gap: 16px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  h2 { font-size: 14px; margin: 0 0 2px; font-weight: 600; }
+  .sub { color: var(--text-secondary); margin: 0; font-size: 13px; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .tile .k { color: var(--text-secondary); font-size: 12px; }
+  .tile .v { font-size: 26px; font-weight: 600; line-height: 1.2; }
+  .tile .d { color: var(--muted); font-size: 12px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 4px; font-size: 12px; color: var(--text-secondary); }
+  .legend i { width: 14px; height: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; border-radius: 1px; }
+  .plot { position: relative; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .lbl { fill: var(--text-primary); font-size: 12px; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+         border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+         white-space: nowrap; display: none; font-variant-numeric: tabular-nums; }
+  .tip b { font-weight: 600; }
+  .tip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  details summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--text-secondary); font-weight: 500; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Vespera run progress</h1>
+    <p class="sub"><span class="status" id="status"></span></p>
+  </header>
+  <section class="tiles" id="tiles"></section>
+  <section class="card">
+    <h2>Documents by extraction outcome</h2>
+    <p class="sub">Of the documents that entered extraction. "Not dropped" = entered minus failed minus degenerate; it includes documents not processed yet, so it can only fall.</p>
+    <div class="legend" id="legend1"></div>
+    <div class="plot" id="plot1"></div>
+  </section>
+  <section class="card">
+    <h2>Database size (GB)</h2>
+    <p class="sub">Grows as conversions are stored.</p>
+    <div class="plot" id="plot2"></div>
+  </section>
+  <section class="card">
+    <details><summary>Readings as a table</summary><div id="table"></div></details>
+  </section>
+</main>
+<script>
+const DATA = /*DATA*/{"samples":[],"stages":[],"entered":0,"generated":0,"interval":30}/*END*/;
+setTimeout(() => location.reload(), DATA.interval * 1000);
+const S = DATA.samples, fmt = n => n.toLocaleString('en-US');
+const hhmm = t => new Date(t).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false});
+const hms = t => new Date(t).toLocaleTimeString([], {hour12: false});
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const last = S[S.length - 1] || {}, first = S[0] || {};
+
+// status + tiles
+const age = Math.round((Date.now() - DATA.generated) / 1000);
+const stale = age > DATA.interval * 3;
+const cur = DATA.stages[DATA.stages.length - 1];
+document.getElementById('status').innerHTML =
+  `<span class="dot" style="background:var(${stale ? '--warning' : '--good'})"></span>` +
+  (stale ? `Poller stopped — last reading ${hms(DATA.generated)}` : `Live — last reading ${hms(DATA.generated)}, refreshes every ${DATA.interval}s`);
+const rate = (k) => { // per minute over the last ~10 minutes
+  const a = S.filter(s => s.t >= last.t - 10 * 60000 && s.t < last.t)[0] ?? S[S.length - 2];
+  return a && last.t > a.t ? (last[k] - a[k]) / ((last.t - a.t) / 60000) : 0;
+};
+const tiles = [
+  ['Stage reached', cur ? cur.stage : '—', cur ? (cur.finished ? 'finished' : 'in progress') : ''],
+  ['Not dropped', fmt(last.surviving ?? 0), `of ${fmt(DATA.entered)} entered, incl. unprocessed`],
+  ['Extraction failed', fmt(last.failed ?? 0), `${rate('failed').toFixed(0)} / min, last 10 min`],
+  ['Degenerate output', fmt(last.degenerate ?? 0), `${rate('degenerate').toFixed(1)} / min, last 10 min`],
+  ['Database', ((last.db ?? 0) / 1e9).toFixed(2) + ' GB', `${(rate('db') / 1e6).toFixed(0)} MB / min`],
+];
+document.getElementById('tiles').innerHTML = tiles.map(([k, v, d]) =>
+  `<div class="card tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
+
+// line chart
+function chart(el, series, yfmt) {
+  const W = 920, H = 300, m = {t: 12, r: 150, b: 28, l: 52};
+  const x0 = first.t, x1 = Math.max(last.t, x0 + 60000);
+  const ymax = Math.max(1, ...S.flatMap(s => series.map(se => se.get(s))));
+  const step = Math.pow(10, Math.floor(Math.log10(ymax))), nice = [1, 2, 2.5, 5, 10].map(k => k * step / 2).find(k => ymax / k <= 5);
+  const top = Math.ceil(ymax / nice) * nice;
+  const X = t => m.l + (t - x0) / (x1 - x0) * (W - m.l - m.r), Y = v => H - m.b - v / top * (H - m.t - m.b);
+  let g = '';
+  for (let v = 0; v <= top + 1e-9; v += nice)
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(${v ? '--grid' : '--axis'})"/>` +
+         `<text class="tick" x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${yfmt(v)}</text>`;
+  const n = 5;
+  for (let i = 0; i <= n; i++) { const t = x0 + (x1 - x0) * i / n;
+    g += `<text class="tick" x="${X(t)}" y="${H - 8}" text-anchor="${i ? (i < n ? 'middle' : 'end') : 'start'}">${hhmm(t)}</text>`; }
+  // end labels, nudged apart
+  const ends = series.map(se => ({se, y: Y(se.get(last))})).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 15) ends[i].y = ends[i - 1].y + 15;
+  for (const se of series) {
+    const d = S.map((s, i) => `${i ? 'L' : 'M'}${X(s.t).toFixed(1)},${Y(se.get(s)).toFixed(1)}`).join('');
+    g += `<path d="${d}" fill="none" stroke="var(${se.c})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
+         `<circle cx="${X(last.t)}" cy="${Y(se.get(last))}" r="4" fill="var(${se.c})" stroke="var(--surface-1)" stroke-width="2"/>`;
+  }
+  for (const e of ends) g += `<text class="lbl" x="${X(last.t) + 10}" y="${e.y + 4}">${e.se.name} <tspan font-weight="600">${yfmt(e.se.get(last))}</tspan></text>`;
+  g += `<line id="x" y1="${m.t}" y2="${H - m.b}" stroke="var(--axis)" style="display:none"/>` +
+       series.map((se, i) => `<circle class="h" r="4" fill="var(${se.c})" stroke="var(--surface-1)" stroke-width="2" style="display:none"/>`).join('') +
+       `<rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${series.map(s => s.name).join(', ')} over time">${g}</svg><div class="tip"></div>`;
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), xl = svg.querySelector('#x'), dots = svg.querySelectorAll('.h');
+  svg.querySelector('rect').addEventListener('mousemove', ev => {
+    const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) / r.width * W;
+    const t = x0 + (px - m.l) / (W - m.l - m.r) * (x1 - x0);
+    const s = S.reduce((a, b) => Math.abs(b.t - t) < Math.abs(a.t - t) ? b : a);
+    xl.setAttribute('x1', X(s.t)); xl.setAttribute('x2', X(s.t)); xl.style.display = '';
+    series.forEach((se, i) => { dots[i].setAttribute('cx', X(s.t)); dots[i].setAttribute('cy', Y(se.get(s))); dots[i].style.display = ''; });
+    tip.innerHTML = `<b>${hms(s.t)}</b><br>` + series.map(se => `<i style="background:var(${se.c})"></i>${se.name} <b>${yfmt(se.get(s))}</b>`).join('<br>');
+    tip.style.display = 'block';
+    const left = X(s.t) / W * r.width;
+    tip.style.left = (left > r.width * 0.6 ? left - tip.offsetWidth - 12 : left + 12) + 'px';
+    tip.style.top = '12px';
+  });
+  svg.querySelector('rect').addEventListener('mouseleave', () => { tip.style.display = 'none'; xl.style.display = 'none'; dots.forEach(d => d.style.display = 'none'); });
+}
+const outcome = [
+  {name: 'Not dropped', c: '--series-1', get: s => s.surviving},
+  {name: 'Extraction failed', c: '--series-2', get: s => s.failed},
+  {name: 'Degenerate', c: '--series-3', get: s => s.degenerate},
+];
+if (S.length) {
+  document.getElementById('legend1').innerHTML = outcome.map(s => `<span><i style="background:var(${s.c})"></i>${s.name}</span>`).join('');
+  chart(document.getElementById('plot1'), outcome, fmt);
+  chart(document.getElementById('plot2'), [{name: 'Database', c: '--series-1', get: s => s.db / 1e9}], v => (+v.toFixed(2)).toString());
+  document.getElementById('table').innerHTML = '<table><tr><th>Time</th><th>Surviving</th><th>Failed</th><th>Degenerate</th><th>Database GB</th></tr>' +
+    S.slice().reverse().map(s => `<tr><td>${hms(s.t)}</td><td>${fmt(s.surviving)}</td><td>${fmt(s.failed)}</td><td>${fmt(s.degenerate)}</td><td>${(s.db / 1e9).toFixed(2)}</td></tr>`).join('') + '</table>';
+}
+</script>
+</body>
+</html>

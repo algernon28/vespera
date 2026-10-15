@@ -148,6 +148,8 @@ To have `vespera run` write an invocation account (a file with no document's nam
 
 `vespera run` takes the archive root as its argument, falling back to `vespera.corpus-root` in configuration. Given neither, it refuses rather than guessing — a census of the wrong tree reports success.
 
+To watch a run, start `node scripts/progress/poll.mjs [working dir] [seconds]` from the repository root in a second shell and open `target/progress/progress.html`, which reloads itself. It shows the stage reached, the extraction outcomes and the database's size over time, as the counting script prints them, and nothing of a document. The working directory defaults to `VESPERA_WORKING_DIR`, from the environment or `.env`.
+
 ## Running it
 
 You need Java 26 and a Docker daemon. Run every command below from the root of this repository.
